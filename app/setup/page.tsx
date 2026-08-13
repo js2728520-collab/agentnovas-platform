@@ -41,11 +41,11 @@ export default function SetupPage() {
       <section className="wide-panel">
         <p className="eyebrow">AGENTNOVAS ADMIN</p>
         <h1>初始化总公司超级管理员</h1>
-        <p>仅首次使用。创建成功后，此初始化入口会自动锁定。</p>
+        <p>本地开发可用此页面重置管理员密码；线上环境仅允许首次初始化。</p>
         <form onSubmit={submit} style={{ display: "grid", gap: 14, marginTop: 24 }}>
           <label>管理员邮箱<input name="email" type="email" required placeholder="请输入管理员邮箱" autoComplete="email" /></label>
           <label>管理员密码<input name="password" type="password" minLength={10} required placeholder="至少 10 位" /></label>
-          <label>初始化密钥<input name="bootstrapKey" type="password" required placeholder="在 Cloudflare 环境变量中设置的密钥" /></label>
+          <label>初始化密钥<input name="bootstrapKey" type="password" required placeholder="请输入服务器中配置的初始化密钥" /></label>
           <button className="primary" disabled={busy}>{busy ? "正在处理…" : "创建超级管理员"}</button>
         </form>
         {message && <p className="admin-notice" style={{ marginTop: 16 }}>{message}</p>}

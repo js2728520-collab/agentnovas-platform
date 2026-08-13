@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { auditLogs, authTokens, customerAttributions, invitations, memberships, notificationDeliveries, users } from "@/db/schema";
 import { hashPassword, normalizeEmail, randomToken, sha256, validEmail } from "@/lib/auth";
+import { ensureD1Schema } from "@/lib/d1-migrations";
 
 export async function POST(request: Request) {
   try {
@@ -9,6 +10,7 @@ export async function POST(request: Request) {
     const email = normalizeEmail(body.email ?? ""); const password = body.password ?? ""; const invitationCode = body.invitationCode?.trim() ?? "";
     if (!validEmail(email)) return Response.json({ error: "请输入有效邮箱" }, { status: 400 });
     if (!invitationCode) return Response.json({ error: "必须填写邀请码" }, { status: 400 });
+    await ensureD1Schema();
     const db = getDb();
     if ((await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0]) return Response.json({ error: "该邮箱已注册" }, { status: 409 });
     const codeHash = await sha256(invitationCode.toUpperCase());
