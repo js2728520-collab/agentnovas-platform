@@ -1,0 +1,2 @@
+export type CollectionStatus="payment_period"|"grace"|"trading_stopped"|"paid"|"waived";
+export function collectionState(now:string,dueAt:string,graceEndsAt:string,current:CollectionStatus){if(current==="paid"||current==="waived")return {status:current,newEntriesAllowed:true};if(now<dueAt)return {status:"payment_period" as const,newEntriesAllowed:true};if(now<graceEndsAt)return {status:"grace" as const,newEntriesAllowed:true};return {status:"trading_stopped" as const,newEntriesAllowed:false}}

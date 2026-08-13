@@ -1,0 +1,1 @@
+export function strategyChangeState(input:{now:string;noticeEndsAt:string;activeFollowers:number}){if(input.activeFollowers===0)return{status:"ready"as const,allowed:true};if(input.now<input.noticeEndsAt)return{status:"notice_period"as const,allowed:false};return{status:"waiting_for_zero_followers"as const,allowed:false}}

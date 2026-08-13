@@ -1,0 +1,8 @@
+import {  desc, eq } from "drizzle-orm";
+import { getDb } from "@/db";
+import { auditLogs, invitations } from "@/db/schema";
+import { randomToken, sha256 } from "@/lib/auth";
+import { canCreateInvitation, invitationRoles } from "@/lib/permissions";
+import { requireUser, responseError } from "@/lib/session";
+export async function GET(request:Request){try{const user=await requireUser(request,[...invitationRoles]);const rows=await getDb().select({id:invitations.id,kind:invitations.kind,status:invitations.status,usedAt:invitations.usedAt,createdAt:invitations.createdAt}).from(invitations).where(eq(invitations.issuerUserId,user.id)).orderBy(desc(invitations.createdAt)).limit(100);return Response.json({invitations:rows});}catch(e){return responseError(e)}}
+export async function POST(request:Request){try{const user=await requireUser(request,[...invitationRoles]);const {kind}=await request.json() as {kind?:"employee_reusable"|"public_pool_single_use"};if(!kind||!canCreateInvitation(user.role,kind))return Response.json({error:"无权生成该类邀请码"},{status:403});const raw=`AN-${kind==="public_pool_single_use"?"P":"E"}-${randomToken(6).toUpperCase()}`;const id=crypto.randomUUID();const db=getDb();await db.batch([db.insert(invitations).values({id,codeHash:await sha256(raw),kind,issuerUserId:user.id,ownerEmployeeId:kind==="employee_reusable"?user.id:null,organizationId:user.organizationId}),db.insert(auditLogs).values({id:crypto.randomUUID(),actorUserId:user.id,action:"invitation.created",subjectType:"invitation",subjectId:id,afterJson:JSON.stringify({kind})})]);return Response.json({invitation:{id,code:raw,kind},warning:"邀请码明文仅本次显示"},{status:201});}catch(e){return responseError(e)}}

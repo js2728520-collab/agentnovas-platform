@@ -1,0 +1,1 @@
+export function shouldAutoDelistStrategy(input:{now:string;publishedAt:string|null;validFollowsLast30Days:number}){if(!input.publishedAt||Date.parse(input.now)-Date.parse(input.publishedAt)<30*86400_000)return false;return input.validFollowsLast30Days<5}
