@@ -16,6 +16,11 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localBindingConfig = {
   name: "agentnovas-platform",
   main: "./worker/index.ts",
+  workers_dev: true,
+  routes: [
+    { pattern: "whzht88.com", custom_domain: true },
+    { pattern: "www.whzht88.com", custom_domain: true },
+  ],
   compatibility_flags: ["nodejs_compat"],
   d1_databases: d1
     ? [
