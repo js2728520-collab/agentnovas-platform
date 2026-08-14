@@ -42,15 +42,18 @@ test("server-renders the AgentNovas platform shell", async () => {
 
 test("keeps the AgentNovas shell and core modules present", async () => {
   const [css, page, layout, packageJson] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
   assert.match(css, /\.feature-split/);
   assert.match(css, /\.risk-check-grid/);
-  assert.match(page, /LivePortfolio/);
   assert.match(page, /LiveMarket/);
-  assert.match(page, /export const metadata:\s*Metadata/);
+  assert.match(page, /ConnectLive/);
+  assert.match(page, /CommunityStrategyCenter/);
+  assert.match(page, /StrategyDetail/);
+  assert.match(layout, /export const metadata:\s*Metadata/);
   assert.match(layout, /AgentNovas/);
   assert.match(packageJson, /"build"/);
 });

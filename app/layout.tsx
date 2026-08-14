@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import LocaleGuard from "./locale-guard";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AgentNovas — 多智能体量化交易平台",
-  description: "由多个专业 AI Agent 协作分析、风控与执行的非托管自动量化交易平台原型。",
+  title: "AgentNovas — AI Quant Trading Platform",
+  description: "A non-custodial AI quant trading platform prototype with collaborative agents, risk controls and execution audit.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
@@ -27,10 +28,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="en-US">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <LocaleGuard />
         {children}
       </body>
     </html>

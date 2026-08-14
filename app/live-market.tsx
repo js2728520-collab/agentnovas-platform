@@ -32,51 +32,114 @@ const makeSpark = (seed: number) => {
   return points.map((point, index) => Math.max(16, point + ((seed * 13 + index * 7) % 17) - 8));
 };
 
-const fallbackItems: MarketItem[] = [
-  ["BTC/USD", "Bitcoin", "crypto", 63762, 0.25, "3所聚合", "LIVE"],
-  ["ETH/USD", "Ethereum", "crypto", 1898, 0.44, "3所聚合", "LIVE"],
-  ["SOL/USD", "Solana", "crypto", 76.14, 0.61, "3所聚合", "LIVE"],
-  ["BNB/USD", "BNB", "crypto", 611.6, 0.29, "3所聚合", "LIVE"],
-  ["XRP/USD", "XRP", "crypto", 1.014, -0.58, "3所聚合", "LIVE"],
-  ["DOGE/USD", "Dogecoin", "crypto", 0.0705, -1.12, "3所聚合", "LIVE"],
-  ["ADA/USD", "Cardano", "crypto", 0.1832, -0.43, "WS·4所聚合", "LIVE"],
-  ["LTC/USD", "Litecoin", "crypto", 45.56, -0.66, "3所聚合", "LIVE"],
-  ["LINK/USD", "Chainlink", "crypto", 8.82, 0.18, "WS·4所聚合", "LIVE"],
-  ["AVAX/USD", "Avalanche", "crypto", 6.35, 4.97, "WS·4所聚合", "LIVE"],
-  ["TON/USD", "Toncoin", "crypto", 1.345, 0.0, "WS·4所聚合", "LIVE"],
-  ["TRX/USD", "TRON", "crypto", 0.3359, 0.39, "3所聚合", "LIVE"],
-  ["DOT/USD", "Polkadot", "crypto", 0.791, -1.52, "WS·4所聚合", "LIVE"],
-  ["NEAR/USD", "Near Protocol", "crypto", 1.72, 2.07, "3所聚合", "LIVE"],
-  ["ARB/USD", "Arbitrum", "crypto", 0.24, -3.05, "WS·4所聚合", "LIVE"],
-  ["OP/USD", "Optimism", "crypto", 0.36, -3.22, "WS·4所聚合", "LIVE"],
-  ["ATOM/USD", "Cosmos", "crypto", 4.82, 0.0, "WS·4所聚合", "LIVE"],
-  ["UNI/USD", "Uniswap", "crypto", 7.11, 0.0, "3所聚合", "LIVE"],
-  ["EUR/USD", "Euro", "forex", 1.0842, 0.0, "mirror", "DELAY"],
-  ["GBP/USD", "Pound Sterling", "forex", 1.2714, 0.0, "mirror", "DELAY"],
-  ["XAU/USD", "Gold", "metals", 2362.8, 0.0, "mirror", "DELAY"],
-  ["XAG/USD", "Silver", "metals", 28.42, 0.0, "mirror", "DELAY"],
-  ["WTI/USD", "Crude Oil", "energy", 78.35, 0.0, "mirror", "DELAY"],
-  ["SPX/USD", "S&P 500", "index", 5321.4, 0.0, "mirror", "DELAY"],
-].map(([symbol, name, category, price, change24h, source, status], index) => ({
-  symbol: symbol as string,
-  name: name as string,
-  category: category as Exclude<Category, "all">,
-  price: price as number,
-  change24h: change24h as number,
+const sparkPoints = (values: number[]) => {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(1, max - min);
+  return values.map((value, index) => {
+    const x = values.length === 1 ? 50 : (index / (values.length - 1)) * 100;
+    const y = 90 - ((value - min) / range) * 72;
+    return `${x},${y}`;
+  }).join(" ");
+};
+
+type MarketSeed = [symbol: string, name: string, category: Exclude<Category, "all">, price?: number, change24h?: number];
+
+// Binance supplies the crypto ticker stream. Keep this list in one place so the
+// cards, REST fallback and WebSocket stream always cover the same products.
+const cryptoSeeds: MarketSeed[] = [
+  ["BTC/USD", "Bitcoin", "crypto"], ["ETH/USD", "Ethereum", "crypto"], ["SOL/USD", "Solana", "crypto"], ["BNB/USD", "BNB", "crypto"],
+  ["XRP/USD", "XRP", "crypto"], ["DOGE/USD", "Dogecoin", "crypto"], ["ADA/USD", "Cardano", "crypto"], ["LTC/USD", "Litecoin", "crypto"],
+  ["LINK/USD", "Chainlink", "crypto"], ["AVAX/USD", "Avalanche", "crypto"], ["TON/USD", "Toncoin", "crypto"], ["TRX/USD", "TRON", "crypto"],
+  ["DOT/USD", "Polkadot", "crypto"], ["NEAR/USD", "Near Protocol", "crypto"], ["ARB/USD", "Arbitrum", "crypto"], ["OP/USD", "Optimism", "crypto"],
+  ["ATOM/USD", "Cosmos", "crypto"], ["UNI/USD", "Uniswap", "crypto"],
+  ["BCH/USD", "Bitcoin Cash", "crypto"], ["SUI/USD", "Sui", "crypto"], ["APT/USD", "Aptos", "crypto"],
+  ["FIL/USD", "Filecoin", "crypto"], ["ICP/USD", "Internet Computer", "crypto"], ["ETC/USD", "Ethereum Classic", "crypto"],
+  ["XLM/USD", "Stellar", "crypto"], ["HBAR/USD", "Hedera", "crypto"], ["CRO/USD", "Cronos", "crypto"],
+  ["VET/USD", "VeChain", "crypto"], ["ALGO/USD", "Algorand", "crypto"], ["AAVE/USD", "Aave", "crypto"],
+  ["MKR/USD", "Maker", "crypto"], ["CRV/USD", "Curve", "crypto"], ["SAND/USD", "The Sandbox", "crypto"],
+  ["MANA/USD", "Decentraland", "crypto"], ["PEPE/USD", "Pepe", "crypto"], ["SHIB/USD", "Shiba Inu", "crypto"],
+  ["WIF/USD", "dogwifhat", "crypto"], ["BONK/USD", "Bonk", "crypto"], ["SEI/USD", "Sei", "crypto"],
+  ["INJ/USD", "Injective", "crypto"], ["TIA/USD", "Celestia", "crypto"], ["FTM/USD", "Fantom", "crypto"],
+  ["RUNE/USD", "THORChain", "crypto"], ["LDO/USD", "Lido DAO", "crypto"], ["IMX/USD", "Immutable", "crypto"],
+  ["GRT/USD", "The Graph", "crypto"], ["EGLD/USD", "MultiversX", "crypto"], ["KAS/USD", "Kaspa", "crypto"],
+  ["JASMY/USD", "JasmyCoin", "crypto"], ["STX/USD", "Stacks", "crypto"], ["THETA/USD", "Theta", "crypto"],
+  ["XMR/USD", "Monero", "crypto"], ["ZEC/USD", "Zcash", "crypto"],
+];
+
+// These markets are displayed as products now. They remain DELAY until a
+// configured provider is connected, so the UI never presents invented prices
+// as live data. The list intentionally contains 20 instruments per category.
+const delayedSeeds: MarketSeed[] = [
+  ["EUR/USD", "Euro", "forex"], ["GBP/USD", "Pound Sterling", "forex"], ["JPY/USD", "Japanese Yen", "forex"],
+  ["AUD/USD", "Australian Dollar", "forex"], ["NZD/USD", "New Zealand Dollar", "forex"], ["CAD/USD", "Canadian Dollar", "forex"],
+  ["CHF/USD", "Swiss Franc", "forex"], ["HKD/USD", "Hong Kong Dollar", "forex"], ["SGD/USD", "Singapore Dollar", "forex"],
+  ["CNY/USD", "Chinese Yuan", "forex"], ["INR/USD", "Indian Rupee", "forex"], ["KRW/USD", "Korean Won", "forex"],
+  ["MXN/USD", "Mexican Peso", "forex"], ["BRL/USD", "Brazilian Real", "forex"], ["ZAR/USD", "South African Rand", "forex"],
+  ["SEK/USD", "Swedish Krona", "forex"], ["NOK/USD", "Norwegian Krone", "forex"], ["DKK/USD", "Danish Krone", "forex"],
+  ["PLN/USD", "Polish Zloty", "forex"], ["TRY/USD", "Turkish Lira", "forex"],
+  ["XAU/USD", "Gold", "metals"], ["XAG/USD", "Silver", "metals"], ["XPT/USD", "Platinum", "metals"],
+  ["XPD/USD", "Palladium", "metals"], ["XCU/USD", "Copper", "metals"], ["XNI/USD", "Nickel", "metals"],
+  ["XAL/USD", "Aluminium", "metals"], ["XZN/USD", "Zinc", "metals"], ["XPB/USD", "Lead", "metals"],
+  ["XSN/USD", "Tin", "metals"], ["XCO/USD", "Cobalt", "metals"], ["XLI/USD", "Lithium", "metals"],
+  ["XMO/USD", "Molybdenum", "metals"], ["XMN/USD", "Manganese", "metals"], ["XCR/USD", "Chromium", "metals"],
+  ["XTI/USD", "Titanium", "metals"], ["XIR/USD", "Iridium", "metals"], ["XRH/USD", "Rhodium", "metals"],
+  ["XRU/USD", "Ruthenium", "metals"], ["XOS/USD", "Osmium", "metals"],
+  ["WTI/USD", "WTI Crude Oil", "energy"], ["BRENT/USD", "Brent Crude Oil", "energy"], ["NATGAS/USD", "Natural Gas", "energy"],
+  ["GASOIL/USD", "Gasoil", "energy"], ["HEATOIL/USD", "Heating Oil", "energy"], ["RBOB/USD", "RBOB Gasoline", "energy"],
+  ["ETHANOL/USD", "Ethanol", "energy"], ["URANIUM/USD", "Uranium", "energy"], ["COAL/USD", "Coal", "energy"],
+  ["PROPANE/USD", "Propane", "energy"], ["BUTANE/USD", "Butane", "energy"], ["NAPHTHA/USD", "Naphtha", "energy"],
+  ["JETFUEL/USD", "Jet Fuel", "energy"], ["LNG/USD", "LNG", "energy"], ["DIESEL/USD", "Diesel", "energy"],
+  ["TTFGAS/USD", "TTF Gas", "energy"], ["DMEGAS/USD", "DME Gas", "energy"], ["PETCOKE/USD", "Petcoke", "energy"],
+  ["SULFUR/USD", "Sulfur", "energy"], ["BIOFUEL/USD", "Biofuel", "energy"],
+  ["SPX/USD", "S&P 500", "index"], ["NDX/USD", "Nasdaq 100", "index"], ["DJI/USD", "Dow Jones", "index"],
+  ["RUT/USD", "Russell 2000", "index"], ["VIX/USD", "VIX", "index"], ["FTSE/USD", "FTSE 100", "index"],
+  ["DAX/USD", "DAX", "index"], ["CAC/USD", "CAC 40", "index"], ["STOXX50/USD", "Euro Stoxx 50", "index"],
+  ["IBEX/USD", "IBEX 35", "index"], ["FTSEMIB/USD", "FTSE MIB", "index"], ["NIKKEI/USD", "Nikkei 225", "index"],
+  ["TOPIX/USD", "TOPIX", "index"], ["HSI/USD", "Hang Seng", "index"], ["HSCEI/USD", "Hang Seng China", "index"],
+  ["ASX200/USD", "ASX 200", "index"], ["KOSPI/USD", "KOSPI", "index"], ["NIFTY50/USD", "Nifty 50", "index"],
+  ["SENSEX/USD", "Sensex", "index"], ["SSEC/USD", "Shanghai Composite", "index"],
+];
+
+const fallbackItems: MarketItem[] = [...cryptoSeeds, ...delayedSeeds].map(([symbol, name, category, price = 0, change24h = 0], index) => ({
+  symbol,
+  name,
+  category,
+  price,
+  change24h,
   volume24h: 0,
   high24h: 0,
   low24h: 0,
-  source: source as string,
-  status: status as "LIVE" | "DELAY",
+  source: category === "crypto" ? "等待实时数据" : "暂无实时源",
+  status: "DELAY",
   spark: makeSpark(index + 1),
 }));
 
-const radarItems = [
-  { symbol: "LINK/USD", score: 40, detail: "3 所价差 0.18%，跨所套利窗口打开", side: "ARB", price: "$8.82" },
-  { symbol: "DOGE/USD", score: 38, detail: "震荡区间，网格/短线优先", side: "LONG", price: "$0.07" },
-  { symbol: "DOT/USD", score: 38, detail: "震荡区间，网格/短线优先", side: "LONG", price: "$0.79" },
-  { symbol: "SOL/USD", score: 37, detail: "震荡区间，网格/短线优先", side: "LONG", price: "$76.14" },
-  { symbol: "XRP/USD", score: 36, detail: "震荡区间，网格/短线优先", side: "LONG", price: "$1.01" },
+type RadarItem = {
+  symbol: string;
+  score: number;
+  detail: string;
+  side: "ARB" | "LONG" | "SHORT";
+  price: number;
+  timeframe: string;
+  trigger: string;
+  entry: string;
+  target: string;
+  stop: string;
+  rr: string;
+  volatility: string;
+  liquidity: string;
+};
+
+// The radar is deliberately presented as a compact decision brief: users can
+// see what triggered a scan and the boundaries that still need risk approval,
+// instead of being shown a score with no context.
+const radarItems: RadarItem[] = [
+  { symbol: "LINK/USD", score: 40, detail: "3 所价差 0.18%，跨所套利窗口打开", side: "ARB", price: 8.82, timeframe: "15m", trigger: "跨所价差回归", entry: "$8.79–8.84", target: "$8.97", stop: "$8.68", rr: "1:2.1", volatility: "中", liquidity: "$42.6M" },
+  { symbol: "DOGE/USD", score: 38, detail: "震荡区间，网格/短线优先", side: "LONG", price: 0.07, timeframe: "1h", trigger: "区间下沿反弹", entry: "$0.069–0.071", target: "$0.074", stop: "$0.067", rr: "1:1.8", volatility: "高", liquidity: "$188M" },
+  { symbol: "DOT/USD", score: 38, detail: "震荡区间，网格/短线优先", side: "LONG", price: 0.79, timeframe: "4h", trigger: "短均线拐头", entry: "$0.78–0.80", target: "$0.84", stop: "$0.75", rr: "1:1.9", volatility: "中", liquidity: "$76.4M" },
+  { symbol: "SOL/USD", score: 37, detail: "震荡区间，网格/短线优先", side: "LONG", price: 76.14, timeframe: "1h", trigger: "成交量放大 1.6x", entry: "$75.8–76.5", target: "$79.6", stop: "$73.9", rr: "1:2.3", volatility: "高", liquidity: "$1.24B" },
+  { symbol: "XRP/USD", score: 36, detail: "震荡区间，网格/短线优先", side: "LONG", price: 1.01, timeframe: "15m", trigger: "买卖盘失衡", entry: "$1.00–1.02", target: "$1.06", stop: "$0.98", rr: "1:2.0", volatility: "中", liquidity: "$318M" },
 ];
 
 const categories: Array<{ id: Category; label: string; icon: string }> = [
@@ -84,7 +147,7 @@ const categories: Array<{ id: Category; label: string; icon: string }> = [
   { id: "crypto", label: "加密", icon: "₿" },
   { id: "forex", label: "外汇", icon: "$" },
   { id: "metals", label: "贵金属", icon: "◇" },
-  { id: "energy", label: "能源", icon: "♨" },
+  { id: "energy", label: "能源", icon: "♨︎" },
   { id: "index", label: "指数", icon: "▥" },
 ];
 
@@ -121,12 +184,12 @@ export default function LiveMarket() {
             volume24h: Number(row.volume24h ?? 0),
             high24h: Number(row.high24h ?? 0),
             low24h: Number(row.low24h ?? 0),
-            source: "Binance · WS",
+            source: "Binance · REST",
             status: "LIVE" as const,
           };
         });
         setItems(merged);
-        setLive(true);
+        setLive(incoming.some((row) => Number(row.price) > 0));
       } catch {
         if (active) setLive(false);
       }
@@ -160,14 +223,17 @@ export default function LiveMarket() {
           <span className="radar-pulse">◉</span>
           <strong>机会雷达 · Agent 实时狩猎榜</strong>
           <small>动量 / 波动结构 / 跨所价差 / 流动性 综合评分，每 8 秒重算</small>
-          <span className="radar-live">{live ? "LIVE" : "DEMO"}</span>
+          <span className="radar-live">{live ? "LIVE" : "等待数据"}</span>
         </div>
         <div className="market-radar-cards">
           {radarItems.map((item, index) => (
             <article className={`market-radar-card ${index === 0 ? "is-highlight" : ""}`} key={item.symbol}>
-              <div className="radar-card-head"><b>{item.symbol}</b><strong>{item.score}</strong></div>
+              <div className="radar-card-head"><b>{item.symbol}</b><strong>{item.score}<small>/100</small></strong></div>
+              <div className="radar-card-badges"><span className={item.side === "SHORT" ? "is-short" : item.side === "ARB" ? "is-arb" : "is-long"}>{item.side}</span><span>{item.timeframe}</span><span>风控待审</span></div>
               <p>{item.detail}</p>
-              <footer><span className={item.side === "ARB" ? "radar-arb" : "radar-long"}>{item.side}</span><em>{item.price}</em></footer>
+              <div className="radar-card-trigger"><small>触发依据</small><b>{item.trigger}</b></div>
+              <div className="radar-card-levels"><div><small>入场区间</small><b>{item.entry}</b></div><div><small>止盈 / 止损</small><b>{item.target} / {item.stop}</b></div></div>
+              <footer><span className="radar-card-price">${item.price < 1 ? item.price.toFixed(4) : item.price.toFixed(2)}</span><span className="radar-card-footer-meta">R:R {item.rr} · 波动{item.volatility} · 流动性 {item.liquidity}</span></footer>
             </article>
           ))}
         </div>
@@ -175,7 +241,7 @@ export default function LiveMarket() {
 
       <nav className="market-category-tabs" aria-label="行情品类">
         {categories.map((item) => (
-          <button className={category === item.id ? "active" : ""} key={item.id} onClick={() => setCategory(item.id)} type="button">
+          <button className={`market-category-${item.id} ${category === item.id ? "active" : ""}`} key={item.id} onClick={() => setCategory(item.id)} type="button">
             <span>{item.icon}</span>{item.label}
           </button>
         ))}
@@ -189,8 +255,8 @@ export default function LiveMarket() {
               <div className="market-card-status"><span className={item.status === "LIVE" ? "is-live" : "is-delay"}>{item.status}</span><time>{clock}</time></div>
             </header>
             <div className="market-card-price"><strong>{formatPrice(item.price)}</strong><em className={item.change24h < 0 ? "is-down" : "is-up"}>{item.price ? `${item.change24h >= 0 ? "+" : ""}${item.change24h.toFixed(2)}%` : "+0.00%"}</em></div>
-            <div className={`market-spark ${item.change24h < 0 ? "is-down" : ""}`} aria-hidden="true">{item.spark.map((height, sparkIndex) => <i key={`${item.symbol}-${sparkIndex}`} style={{ height: `${height}%` }} />)}</div>
-            {index === 0 && <span className="market-updated-dot" title="行情已接入">●</span>}
+            <div className={`market-spark ${item.change24h < 0 ? "is-down" : "is-up"}`} aria-hidden="true"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={sparkPoints(item.spark)} /></svg></div>
+            {index === 0 && live && <span className="market-updated-dot" title="行情已接入">●</span>}
           </article>
         ))}
       </section>

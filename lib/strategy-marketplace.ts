@@ -5,7 +5,3 @@ export function splitStrategyPerformanceFee(grossPerformanceFeeUsdt:number,colle
   const platformFeeUsdt=Math.round(gross*.5*1e6)/1e6;
   return{grossPerformanceFeeUsdt:gross,platformFeeUsdt,authorAmountUsdt:Math.round((gross-platformFeeUsdt)*1e6)/1e6,eligibleRevenueUsdt:platformFeeUsdt};
 }
-
-export function canSubmitStrategy(validations:Array<{kind:string,status:string}>){
-  return ["backtest","simulation"].every(kind=>validations.some(v=>v.kind===kind&&v.status==="passed"));
-}

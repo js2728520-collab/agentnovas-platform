@@ -1,4 +1,4 @@
-type ExchangeCredential={apiKey:string;secretKey:string;passphrase?:string};
+export type ExchangeCredential={apiKey:string;secretKey:string;passphrase?:string};
 const encoder=new TextEncoder(),decoder=new TextDecoder();
 function bytesToBase64(bytes:Uint8Array){let value="";for(const byte of bytes)value+=String.fromCharCode(byte);return btoa(value)}
 function base64ToBytes(value:string){const raw=atob(value);return Uint8Array.from(raw,c=>c.charCodeAt(0))}

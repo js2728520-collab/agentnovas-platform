@@ -14,6 +14,10 @@ import migration0010 from "@/drizzle/0010_clumsy_runaways.sql?raw";
 import migration0011 from "@/drizzle/0011_fuzzy_leper_queen.sql?raw";
 import migration0012 from "@/drizzle/0012_medical_wrecker.sql?raw";
 import migration0013 from "@/drizzle/0013_fat_molly_hayes.sql?raw";
+import migration0014 from "@/drizzle/0014_natural_mandroid.sql?raw";
+import migration0015 from "@/drizzle/0015_pink_logan.sql?raw";
+import migration0016 from "@/drizzle/0016_tiresome_jack_murdock.sql?raw";
+import migration0017 from "@/drizzle/0017_phone_registration.sql?raw";
 
 const migrations = [
   ["0000_small_dreadnoughts", migration0000],
@@ -30,6 +34,10 @@ const migrations = [
   ["0011_fuzzy_leper_queen", migration0011],
   ["0012_medical_wrecker", migration0012],
   ["0013_fat_molly_hayes", migration0013],
+  ["0014_natural_mandroid", migration0014],
+  ["0015_pink_logan", migration0015],
+  ["0016_tiresome_jack_murdock", migration0016],
+  ["0017_phone_registration", migration0017],
 ] as const;
 
 function statements(sql: string) {

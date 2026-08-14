@@ -18,6 +18,12 @@ export const organizations = sqliteTable("organizations", {
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull(),
+  phone: text("phone"),
+  username: text("username"),
+  nickname: text("nickname").notNull().default(""),
+  avatarUrl: text("avatar_url").notNull().default(""),
+  dateOfBirth: text("date_of_birth"),
+  gender: text("gender").notNull().default(""),
   passwordHash: text("password_hash").notNull(),
   emailVerifiedAt: text("email_verified_at"),
   role: text("role", { enum: ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "customer", "finance", "auditor"] }).notNull(),
@@ -27,7 +33,21 @@ export const users = sqliteTable("users", {
   locale: text("locale").notNull().default("zh-CN"),
   timezone: text("timezone").notNull().default("Asia/Shanghai"),
   ...timestamps,
-}, (t) => [uniqueIndex("idx_users_email_unique").on(t.email), index("idx_users_org_role").on(t.organizationId, t.role)]);
+}, (t) => [uniqueIndex("idx_users_email_unique").on(t.email), uniqueIndex("idx_users_phone_unique").on(t.phone), uniqueIndex("idx_users_username_unique").on(t.username), index("idx_users_org_role").on(t.organizationId, t.role)]);
+
+export const llmConfigurations = sqliteTable("llm_configurations", {
+  id: text("id").primaryKey(),
+  scope: text("scope", { enum: ["system", "user"] }).notNull(),
+  ownerUserId: text("owner_user_id").references(() => users.id),
+  providerName: text("provider_name").notNull().default("OpenAI Compatible"),
+  baseUrl: text("base_url").notNull(),
+  model: text("model").notNull(),
+  encryptedApiKey: text("encrypted_api_key").notNull().default(""),
+  maskedApiKey: text("masked_api_key").notNull().default(""),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  updatedByUserId: text("updated_by_user_id").references(() => users.id),
+  ...timestamps,
+}, (t) => [uniqueIndex("idx_llm_config_scope_owner_unique").on(t.scope, t.ownerUserId), index("idx_llm_config_scope_enabled").on(t.scope, t.enabled)]);
 
 export const monthlyTeamTargets = sqliteTable("monthly_team_targets", {
   id: text("id").primaryKey(),
@@ -167,6 +187,7 @@ export const platformDecisions = sqliteTable("platform_decisions", {
 export const trades = sqliteTable("trades", {
   id: text("id").primaryKey(), exchangeAccountId: text("exchange_account_id").notNull().references(() => exchangeAccounts.id), customerId: text("customer_id").notNull().references(() => users.id),
   decisionId: text("decision_id").references(() => platformDecisions.id), strategyCode: text("strategy_code"), communityStrategyId: text("community_strategy_id"), exchangeOrderId: text("exchange_order_id").notNull(), symbol: text("symbol").notNull(), side: text("side").notNull(),
+  closeExchangeOrderId: text("close_exchange_order_id"), executionVenue: text("execution_venue", { enum: ["internal_demo", "okx_demo"] }).notNull().default("internal_demo"),
   origin: text("origin", { enum: ["platform", "customer_manual", "platform_modified_by_customer"] }).notNull(), status: text("status").notNull(),
   openedAt: text("opened_at"), closedAt: text("closed_at"), quantity: real("quantity").notNull(), entryValueUsdt: real("entry_value_usdt").notNull().default(0), exitValueUsdt: real("exit_value_usdt").notNull().default(0),
   feesUsdt: real("fees_usdt").notNull().default(0), fundingUsdt: real("funding_usdt").notNull().default(0), realizedNetPnlUsdt: real("realized_net_pnl_usdt").notNull().default(0),
@@ -237,6 +258,7 @@ export const communityStrategies = sqliteTable("community_strategies", {
 
 export const strategyValidations = sqliteTable("strategy_validations", {
   id: text("id").primaryKey(), strategyId: text("strategy_id").notNull().references(() => communityStrategies.id),
+  strategyVersion: integer("strategy_version").notNull().default(1),
   kind: text("kind", { enum: ["backtest", "simulation"] }).notNull(),
   status: text("status", { enum: ["queued", "running", "passed", "failed"] }).notNull().default("queued"),
   source: text("source", { enum: ["author_submitted", "platform_engine"] }).notNull().default("author_submitted"),
@@ -249,8 +271,12 @@ export const strategyValidations = sqliteTable("strategy_validations", {
 export const strategySubscriptions = sqliteTable("strategy_subscriptions", {
   id: text("id").primaryKey(), strategyId: text("strategy_id").notNull().references(() => communityStrategies.id),
   customerId: text("customer_id").notNull().references(() => users.id),
+  exchangeAccountId: text("exchange_account_id").references(() => exchangeAccounts.id),
+  capitalPct: real("capital_pct").notNull().default(5),
+  stopLossPct: real("stop_loss_pct").notNull().default(10),
+  executionMode: text("execution_mode", { enum: ["proportional", "fixed_risk"] }).notNull().default("proportional"),
   status: text("status", { enum: ["pending", "active", "paused", "ended"] }).notNull().default("pending"),
-  riskConsentAt: text("risk_consent_at"), startedAt: text("started_at"), endedAt: text("ended_at"), ...timestamps,
+  riskConsentAt: text("risk_consent_at"), lastRiskCheckAt: text("last_risk_check_at"), riskCheckJson: text("risk_check_json").notNull().default("{}"), startedAt: text("started_at"), endedAt: text("ended_at"), ...timestamps,
 }, (t) => [uniqueIndex("idx_strategy_subscription_unique").on(t.strategyId, t.customerId), index("idx_strategy_subscriptions_customer").on(t.customerId, t.status)]);
 
 export const strategyFavorites = sqliteTable("strategy_favorites", {

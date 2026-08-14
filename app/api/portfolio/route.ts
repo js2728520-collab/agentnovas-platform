@@ -87,7 +87,8 @@ export async function GET(request: Request) {
       db.select().from(trades).where(eq(trades.customerId, me.id)).orderBy(asc(trades.createdAt)).limit(2000),
       db
         .select({
-          id: communityStrategies.id,
+          subscriptionId: strategySubscriptions.id,
+          strategyId: communityStrategies.id,
           name: communityStrategies.name,
           riskLevel: communityStrategies.riskLevel,
           symbolsJson: communityStrategies.symbolsJson,
@@ -109,16 +110,17 @@ export async function GET(request: Request) {
     const closedRows = attributedRows.filter((row) => Boolean(row.closedAt));
 
     const communityPerformance = following.map((subscription) => {
-      const rows = attributedRows.filter((row) => row.communityStrategyId === subscription.id);
+      const rows = attributedRows.filter((row) => row.communityStrategyId === subscription.strategyId);
       return {
         ...subscription,
+        id: subscription.strategyId,
         source: "community",
         symbols: parseSymbols(subscription.symbolsJson),
         ...tradeMetrics(rows),
       };
     });
 
-    const knownCommunityIds = new Set(following.map((row) => row.id));
+    const knownCommunityIds = new Set(following.map((row) => row.strategyId));
     const platformCodes = Array.from(
       new Set(
         attributedRows
