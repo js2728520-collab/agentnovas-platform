@@ -41,12 +41,12 @@ export default function SetupPage() {
       <section className="wide-panel">
         <p className="eyebrow">AGENTNOVAS ADMIN</p>
         <h1>Initialize company super administrator</h1>
-        <p>Use this page during local development to reset the administrator password; online environments only allow first-time initialization.</p>
+        <p>Use the configured bootstrap key to initialize or reset the company super administrator in local or online environments.</p>
         <form onSubmit={submit} style={{ display: "grid", gap: 14, marginTop: 24 }}>
           <label>Administrator email<input name="email" type="email" required placeholder="Enter administrator email" autoComplete="email" /></label>
           <label>Administrator password<input name="password" type="password" minLength={10} required placeholder="At least 10 characters" /></label>
           <label>Bootstrap key<input name="bootstrapKey" type="password" required placeholder="Enter the configured bootstrap key" /></label>
-          <button className="primary" disabled={busy}>{busy ? "Processing…" : "Create super administrator"}</button>
+          <button className="primary" disabled={busy}>{busy ? "Processing…" : "Initialize or reset administrator"}</button>
         </form>
         {message && <p className="admin-notice" style={{ marginTop: 16 }}>{message}</p>}
       </section>
