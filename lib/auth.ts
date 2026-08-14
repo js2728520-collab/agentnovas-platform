@@ -22,8 +22,10 @@ export async function hashPassword(password: string) {
   if (password.length < 10 || password.length > 128) throw new Error("Password must be 10-128 characters");
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 210000 }, key, 256);
-  return `pbkdf2-sha256$210000$${bytesToHex(salt)}$${bytesToHex(new Uint8Array(bits))}`;
+  // Cloudflare Workers Web Crypto supports PBKDF2 iteration counts up to 100000.
+  const iterations = 100000;
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256);
+  return `pbkdf2-sha256$${iterations}$${bytesToHex(salt)}$${bytesToHex(new Uint8Array(bits))}`;
 }
 
 export async function verifyPassword(password: string, encoded: string) {
