@@ -158,8 +158,8 @@ export default function ConnectLive() {
           return (
             <article className="exchange" key={name}>
               <ExchangeLogo name={name} />
-              <div>
-                <h2>{exchange.displayName}</h2>
+              <div className="exchange-card-copy">
+                <h2>{exchange.displayName || name}</h2>
                 <p>{account ? `${account.environment === "demo" ? "模拟盘" : "实盘"} · ${account.status}` : description}</p>
                 <small className="exchange-capability-summary">
                   {exchange.supportsContracts ? "合约可用" : "仅现货"} · {adapter?.permissionCheckReady ? "鉴权已接入" : "鉴权待接入"} · {adapter?.demoVerificationReady ? "模拟盘可用" : "模拟盘待接入"} · {adapter?.orderRoutingReady ? "订单链路已接入" : "订单链路待沙盒验证"}

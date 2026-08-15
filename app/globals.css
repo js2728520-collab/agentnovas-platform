@@ -1755,6 +1755,11 @@ body:has(.membership-plans) .membership-plans>button:last-child{border-color:#4d
    implying that a saved credential is already a live order connection. */
 .exchange-capability-summary{display:block;margin-top:4px;color:#6f8fa8;font-size:10px;line-height:1.4;white-space:nowrap}
 .exchange-adapter-note{display:block;margin-top:4px;color:#6f8fa8;font-size:10px;line-height:1.45}
+.connect-grid .exchange{grid-template-columns:44px minmax(0,1fr) auto!important}
+.connect-grid .exchange-card-copy{display:grid!important;min-width:0;align-content:center;gap:4px}
+.connect-grid .exchange-card-copy h2{display:block!important;visibility:visible!important;min-width:0;margin:0!important;overflow:hidden;color:#ecf4ff!important;font-size:14px!important;line-height:1.25!important;text-overflow:ellipsis;white-space:nowrap}
+.connect-grid .exchange-card-copy p{display:block!important;min-width:0;margin:0!important;overflow:hidden;color:#8294a8!important;font-size:9px!important;line-height:1.35!important;text-overflow:ellipsis;white-space:nowrap}
+.connect-grid .exchange-card-copy .exchange-capability-summary{overflow:hidden;text-overflow:ellipsis}
 
 /* Platform strategy cards: enlarge the supporting text while preserving the
    existing card layout and content. */
