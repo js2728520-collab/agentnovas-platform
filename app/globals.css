@@ -2440,4 +2440,13 @@ body:has(.risk-live-panel) .content>.page-head{
   .content>.page-head:after,
   .content>.market-simple-head:after{right:-150px}
 }
+/* Keep live dialogue copy optically centered inside its fixed-height bubble. */
+.scene.compact .hotspot>.speech,
+.scene.compact .meeting-hotspot>.meeting-speech{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  white-space:normal!important;
+}
 }
