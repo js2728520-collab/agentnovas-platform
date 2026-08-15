@@ -14,6 +14,11 @@ const exchangeMeta: Record<string, { label: string; slug: string }> = {
   HTX: { label: "HTX", slug: "htx" },
 };
 
+export function getExchangeDisplayName(name: string) {
+  const key = name.trim().toUpperCase();
+  return exchangeMeta[key]?.label || name.trim();
+}
+
 function BrandMark({ slug }: { slug: string }) {
   if (slug === "okx") return <span className="logo-okx" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <i key={index} />)}</span>;
   if (slug === "binance") return <span className="logo-binance" aria-hidden="true">{Array.from({ length: 5 }, (_, index) => <i key={index} />)}</span>;
@@ -25,8 +30,8 @@ function BrandMark({ slug }: { slug: string }) {
   if (slug === "kraken") return <span className="logo-kraken" aria-hidden="true"><i /><i /><i /><i /></span>;
   if (slug === "crypto-com") return <span className="logo-crypto-com" aria-hidden="true"><i /></span>;
   if (slug === "metamask") return <span className="logo-metamask" aria-hidden="true"><i /></span>;
-  if (slug === "robinhood") return <span className="logo-robinhood" aria-hidden="true">R</span>;
-  return <span className="logo-htx" aria-hidden="true">H</span>;
+  if (slug === "robinhood") return <span className="logo-robinhood" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M5 22.5c6.7-.4 12.6-3.2 17.1-8.3 1.7-1.9 3-4.1 3.9-6.7-5.7 1.1-10.1 3.4-13.3 6.9-2.6 2.8-4.1 5.8-4.5 9.1"/><path d="M8.1 24.8c4.4-4.1 8.5-7.5 12.4-10.1"/><path d="M20.8 8.3c1.8.2 3.5.8 5.2 1.7"/></svg></span>;
+  return <span className="logo-htx" aria-hidden="true"><i /></span>;
 }
 
 export default function ExchangeLogo({ name, className = "" }: { name: string; className?: string }) {

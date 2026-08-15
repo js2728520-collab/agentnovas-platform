@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import ExchangeLogo from "./exchange-logo";
+import ExchangeLogo, { getExchangeDisplayName } from "./exchange-logo";
 
 type ExchangeInfo = {
   key: string;
@@ -155,11 +155,12 @@ export default function ConnectLive() {
           const account = accounts.find((item) => item.exchange === name);
           const adapter = adapterStatus.find((item) => item.key === name);
           const description = exchange.supportsContracts ? "现货与合约" : (exchange.contractNote || "仅现货");
+          const displayName = getExchangeDisplayName(exchange.displayName || name);
           return (
             <article className="exchange" key={name}>
               <ExchangeLogo name={name} />
               <div className="exchange-card-copy">
-                <h2>{exchange.displayName || name}</h2>
+                <h2>{displayName}</h2>
                 <p>{account ? `${account.environment === "demo" ? "模拟盘" : "实盘"} · ${account.status}` : description}</p>
                 <small className="exchange-capability-summary">
                   {exchange.supportsContracts ? "合约可用" : "仅现货"} · {adapter?.permissionCheckReady ? "鉴权已接入" : "鉴权待接入"} · {adapter?.demoVerificationReady ? "模拟盘可用" : "模拟盘待接入"} · {adapter?.orderRoutingReady ? "订单链路已接入" : "订单链路待沙盒验证"}

@@ -1767,6 +1767,21 @@ body:has(.membership-plans) .membership-plans>button:last-child{border-color:#4d
 .connect-grid .exchange-card-copy h2{display:block!important;visibility:visible!important;min-width:0;margin:0!important;overflow:hidden;color:#ecf4ff!important;font-size:14px!important;line-height:1.25!important;text-overflow:ellipsis;white-space:nowrap}
 .connect-grid .exchange-card-copy p{display:block!important;min-width:0;margin:0!important;overflow:hidden;color:#8294a8!important;font-size:9px!important;line-height:1.35!important;text-overflow:ellipsis;white-space:nowrap}
 .connect-grid .exchange-card-copy .exchange-capability-summary{overflow:hidden;text-overflow:ellipsis}
+.connect-grid .exchange-card-copy{grid-column:2!important;grid-row:1!important;position:relative;z-index:1}
+.connect-grid .exchange>button{grid-column:1/-1!important;grid-row:2!important}
+
+/* Final exchange identity layer: keep the flame mark small and force the live names into the text column. */
+.connect-grid .exchange .exchange-brand-logo.exchange-logo-htx>.logo-htx,
+.trading-center-v2 .trading-exchange .exchange-brand-logo.exchange-logo-htx>.logo-htx{display:block!important;position:relative!important;width:23px!important;height:28px!important;border-radius:0!important;background:linear-gradient(145deg,#42c8ff 0%,#1689ee 46%,#164fbb 100%)!important;clip-path:polygon(50% 0,86% 35%,87% 58%,75% 82%,50% 100%,25% 86%,13% 64%,20% 42%,38% 20%)!important;color:transparent!important;font-size:0!important;letter-spacing:0!important;box-shadow:0 4px 10px rgba(19,125,224,.35)}
+.connect-grid .exchange .exchange-brand-logo.exchange-logo-htx>.logo-htx:before,
+.trading-center-v2 .trading-exchange .exchange-brand-logo.exchange-logo-htx>.logo-htx:before{content:"";position:absolute;left:6px;top:7px;width:10px;height:16px;border-radius:8px 5px 8px 4px;background:linear-gradient(180deg,#e9ffff 0%,#69e1ff 52%,#248fff 100%);transform:rotate(18deg)}
+.connect-grid .exchange .exchange-brand-logo.exchange-logo-htx>.logo-htx:after,
+.trading-center-v2 .trading-exchange .exchange-brand-logo.exchange-logo-htx>.logo-htx:after{content:"";position:absolute;left:9px;top:11px;width:5px;height:9px;border-radius:6px 3px 6px 3px;background:#ffffff;transform:rotate(18deg);opacity:.88}
+.trading-center-v2 .trading-exchange{display:grid!important;grid-template-columns:42px minmax(0,1fr) auto!important;align-items:center!important}
+.trading-center-v2 .trading-exchange>.exchange-brand-logo{grid-column:1!important;grid-row:1!important}
+.trading-center-v2 .trading-exchange>span:not(.exchange-brand-logo){grid-column:2!important;grid-row:1!important}
+.trading-center-v2 .trading-exchange>span:not(.exchange-brand-logo)>b{display:block!important;visibility:visible!important;color:#dce8f5!important;min-width:0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.trading-center-v2 .trading-exchange>em{grid-column:3!important;grid-row:1!important}
 
 /* Platform strategy cards: enlarge the supporting text while preserving the
    existing card layout and content. */
