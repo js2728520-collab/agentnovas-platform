@@ -27,7 +27,7 @@ function RoleIcon({index}:{index:number}){const icon=index%6;return <svg viewBox
  </svg>}
 type Lang = "zh-CN"|"zh-TW"|"en-US"|"ru-RU"|"es-ES"|"ja-JP"|"ko-KR";
 
-const languageNames:Record<Lang,string>={"zh-CN":"Simplified Chinese","zh-TW":"Traditional Chinese","en-US":"English","ru-RU":"Русский","es-ES":"Español","ja-JP":"日本語","ko-KR":"한국어"};
+const languageNames:Record<Lang,string>={"en-US":"English","ru-RU":"Русский","es-ES":"Español","ja-JP":"日本語","ko-KR":"한국어","zh-CN":"Simplified Chinese"};
 const text:Record<Lang,Record<string,string>>={
 "zh-CN":{home:"首页",hall:"交易大厅",strategy:"策略广场",portfolio:"资产持仓",orders:"交易记录",trading:"交易中心",report:"收益报告",risk:"风险设置",security:"安全中心",connect:"连接交易所",login:"登录",hero:"一支为你工作的 AI 量化团队",sub:"多位专业 Agent 持续分析市场、生成策略、相互质疑并管理风险，在严格安全边界内执行自动交易。",enter:"进入交易大厅",demo:"查看策略方案",live:"7个 Agent 在线",market:"市场状态",mild:"温和趋势",decision:"当前决策",wait:"等待确认",guard:"安全边界正常",meeting:"决策会议",agent:"Agent 工作区",admin:"运营后台"},
 "zh-TW":{home:"首頁",hall:"交易大廳",strategy:"策略庫廣場",portfolio:"資產持倉",orders:"交易記錄",trading:"交易中心",report:"收益報告",risk:"風險設定",security:"安全中心",connect:"連接交易所",login:"登入",hero:"一支為你工作的 AI 量化團隊",sub:"多位專業 Agent 持續分析市場、生成策略、相互質疑並管理風險，在嚴格安全邊界內執行自動交易。",enter:"進入交易大廳",demo:"查看策略方案",live:"7個 Agent 在線",market:"市場狀態",mild:"溫和趨勢",decision:"當前決策",wait:"等待確認",guard:"安全邊界正常",meeting:"決策會議",agent:"Agent 工作區",admin:"營運後台"},
