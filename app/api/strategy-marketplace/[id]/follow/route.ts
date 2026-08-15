@@ -11,6 +11,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     await ensureD1Schema();
     const me = await requireUser(request, ["customer"]);
+    return Response.json({ error: "实盘跟单尚未开放；客户策略请先使用历史回测和作者模拟测试" }, { status: 403 });
     const { id } = await params;
     const body = await request.json() as { exchangeAccountId?: string; capitalPct?: number; stopLossPct?: number; executionMode?: "proportional" | "fixed_risk"; riskConsent?: boolean };
     const capitalPct = Number(body.capitalPct);

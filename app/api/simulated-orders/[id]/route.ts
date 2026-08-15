@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
-import { auditLogs, platformDecisions, trades } from "@/db/schema";
+import { auditLogs, communityStrategies, platformDecisions, trades } from "@/db/schema";
 import { requireUser, responseError } from "@/lib/session";
 import { getSpotPrice } from "@/lib/market-data";
 
@@ -12,6 +12,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const db = getDb();
     const row = (await db.select().from(trades).where(and(eq(trades.id, id), eq(trades.customerId, me.id), isNull(trades.closedAt))).limit(1))[0];
     if (!row) return Response.json({ error: "未找到可操作的模拟持仓" }, { status: 404 });
+    const strategy = row.communityStrategyId
+      ? (await db.select({ id: communityStrategies.id }).from(communityStrategies).where(and(eq(communityStrategies.id, row.communityStrategyId), eq(communityStrategies.authorUserId, me.id))).limit(1))[0]
+      : undefined;
+    if (!strategy) return Response.json({ error: "普通模拟持仓已关闭；这里只能管理自己策略的测试仓位" }, { status: 403 });
     if (!body.action) return Response.json({ error: "缺少操作类型" }, { status: 400 });
     const now = new Date().toISOString();
     if (body.action === "cancel") {

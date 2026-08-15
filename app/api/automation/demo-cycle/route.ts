@@ -294,6 +294,7 @@ export async function POST(request: Request) {
   if (!secretMatches(request.headers.get("x-automation-key"), process.env.AUTOMATION_INTERNAL_SECRET)) {
     return Response.json({ error: "自动运行密钥无效" }, { status: 401 });
   }
+  return Response.json({ error: "模拟跟单自动执行已关闭；客户策略请在作者测试中单独验证" }, { status: 410 });
   if (!(await marketDataIsHealthy())) return Response.json({ error: "行情源健康检查失败，本轮不执行" }, { status: 503 });
   await ensureD1Schema();
   const limit = Math.min(500, Math.max(1, Number(process.env.AUTOMATION_MAX_SUBSCRIPTIONS_PER_RUN || 100)));

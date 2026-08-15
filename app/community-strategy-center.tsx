@@ -7,6 +7,7 @@ type Row = Record<string, unknown>;
 type ChatMessage = { role: "user" | "assistant"; text: string };
 type Studio = {
   name: string;
+  publicationMode: "marketplace" | "self_use";
   symbol: string;
   period: string;
   style: string;
@@ -34,6 +35,7 @@ type BacktestResult = {
 
 const initial: Studio = {
   name: "",
+  publicationMode: "marketplace",
   symbol: "BTC/USDT",
   period: "15m",
   style: "趋势跟随",
@@ -206,6 +208,9 @@ function toStrategyDetail(row: Row): StrategyDetailData {
     activeFollowers: Number(row.activeFollowers || 0),
     publishedAt: row.publishedAt ? String(row.publishedAt) : undefined,
     authorEmail: row.authorEmail ? String(row.authorEmail) : undefined,
+    authorName: row.authorNickname ? String(row.authorNickname) : row.authorUsername ? String(row.authorUsername) : undefined,
+    authorAvatarUrl: row.authorAvatarUrl ? String(row.authorAvatarUrl) : undefined,
+    authorRole: row.authorRole ? String(row.authorRole) : undefined,
     source: "community",
     netReturnPct: report?.netReturnPct == null ? undefined : Number(report.netReturnPct),
     maxDrawdownPct: report?.maxDrawdownPct == null ? undefined : Number(report.maxDrawdownPct),
@@ -277,6 +282,7 @@ export default function CommunityStrategyCenter({
   function payload() {
     return {
       name: studio.name.trim(),
+      publicationMode: studio.publicationMode,
       summary: `${studio.style} · ${studio.period} · 单次资金上限 ${studio.capital}% · 止损 ${studio.stopLoss}% · 止盈 ${studio.takeProfit}%`,
       symbols: [studio.symbol],
       riskLevel: studio.risk,
@@ -456,7 +462,7 @@ export default function CommunityStrategyCenter({
     return <div className="strategy-studio-page">
       <header>
         <button onClick={() => setScreen("list")}>← 返回我的策略</button>
-        <div><small>AI STRATEGY LAB</small><h2>创建策略</h2><p>专业引导、真实历史回测、模拟盘测试和平台人工审核。</p></div>
+        <div><small>AI STRATEGY LAB</small><h2>创建策略</h2><p>专业引导、真实历史回测、作者策略模拟测试和平台人工审核。</p></div>
         <span>{draftId ? `草稿 V${draftVersion}` : "尚未保存"}</span>
       </header>
       {message && <div className="notice">{message}</div>}
@@ -481,6 +487,11 @@ export default function CommunityStrategyCenter({
             <label>主要市场状态<select value={preferences.marketCondition} onChange={(event) => setPreferences({ ...preferences, marketCondition: event.target.value })}><option>趋势与震荡都要过滤</option><option>只做趋势行情</option><option>只做震荡行情</option><option>突破后跟随</option></select></label>
           </section>
           <label>策略名称<input value={studio.name} onChange={(event) => setStudio({ ...studio, name: event.target.value })} placeholder="输入策略名称" /></label>
+          <section className="studio-usage-choice">
+            <div className="studio-card-heading"><b>策略用途</b><small>{studio.publicationMode === "self_use" ? "不进入广场 · 平台不抽成" : "可提交平台审核"}</small></div>
+            <label className={studio.publicationMode === "marketplace" ? "selected" : ""}><input type="radio" name="publicationMode" checked={studio.publicationMode === "marketplace"} onChange={() => setStudio({ ...studio, publicationMode: "marketplace" })} /><span><b>发布到策略广场</b><small>提交平台人工审核，审核通过后其他客户可以跟随。</small></span></label>
+            <label className={studio.publicationMode === "self_use" ? "selected" : ""}><input type="radio" name="publicationMode" checked={studio.publicationMode === "self_use"} onChange={() => setStudio({ ...studio, publicationMode: "self_use" })} /><span><b>自用策略</b><small>仅自己使用，不进入策略广场，平台不抽成。</small></span></label>
+          </section>
           <div className="parameter-pair">
             <label>交易对<select value={studio.symbol} onChange={(event) => setStudio({ ...studio, symbol: event.target.value })}>{["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT", "DOGE/USDT"].map((item) => <option key={item}>{item}</option>)}</select></label>
             <label>信号周期<select value={studio.period} onChange={(event) => setStudio({ ...studio, period: event.target.value })}>{["5m", "15m", "1h", "4h", "1D"].map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -511,7 +522,7 @@ export default function CommunityStrategyCenter({
         </aside>
       </div>
       <section className="strategy-output">
-        <div><small>STRUCTURED STRATEGY</small><h3>{generated ? studio.name || "未命名候选策略" : "等待生成策略"}</h3><p>{generated ? `${studio.symbol} · ${studio.period} · ${studio.style} · 资金≤${studio.capital}% · 止损${studio.stopLoss}% · 止盈${studio.takeProfit}%` : "完成对话和参数设置后生成结构化候选规则。"}</p></div>
+        <div><small>STRUCTURED STRATEGY</small><h3>{generated ? studio.name || "未命名候选策略" : "等待生成策略"}</h3><p>{generated ? `${studio.symbol} · ${studio.period} · ${studio.style} · ${studio.publicationMode === "self_use" ? "自用 · 平台不抽成" : "发布到策略广场"} · 资金≤${studio.capital}% · 止损${studio.stopLoss}% · 止盈${studio.takeProfit}%` : "完成对话和参数设置后生成结构化候选规则。"}</p></div>
         {backtest && <div className="backtest-result"><span>真实回测收益<b>{backtest.netReturnPct == null ? "—" : `${backtest.netReturnPct > 0 ? "+" : ""}${backtest.netReturnPct.toFixed(2)}%`}</b></span><span>最大回撤<b>{backtest.maxDrawdownPct == null ? "—" : `${backtest.maxDrawdownPct.toFixed(2)}%`}</b></span><span>胜率<b>{backtest.winRatePct == null ? "—" : `${backtest.winRatePct.toFixed(1)}%`}</b></span><span>样本数<b>{backtest.sampleSize ?? 0} 笔</b></span></div>}
         {backtest && <p className="strategy-data-note">来源：{backtest.provider || "平台行情引擎"}；手续费 {backtest.feesUsdt?.toFixed(2) || "0.00"} USDT；滑点 {backtest.slippageUsdt?.toFixed(2) || "0.00"} USDT；证据哈希已留存。</p>}
         <div className="studio-actions"><button onClick={generate}>生成候选规则</button><button disabled={!generated || Boolean(busy)} onClick={() => void runDraftBacktest()}>{busy.startsWith("backtest") ? "回测中…" : "真实历史回测"}</button><button className="primary" disabled={!generated || Boolean(busy)} onClick={() => void save()}>{busy === "save" ? "保存中…" : "保存到我的策略"}</button></div>
@@ -524,19 +535,20 @@ export default function CommunityStrategyCenter({
       {message && <div className="notice">{message}</div>}
       <section className="my-strategy-modules">
         <article><i>01</i><div><small>STRATEGY MANAGEMENT</small><h3>策略管理</h3><p>查看草稿、回测报告、审核状态和版本。</p></div><span>{mine.length} 个策略</span></article>
-        <article><i>02</i><div><small>BACKTEST CENTER</small><h3>回测与模拟测试</h3><p>历史回测与模拟订单均为可选研究工具，不影响策略提交。</p></div><span>自由测试</span></article>
+          <article><i>02</i><div><small>BACKTEST CENTER</small><h3>回测与模拟测试</h3><p>历史回测与作者策略模拟测试均为研究工具，不会触发真实订单。</p></div><span>自由测试</span></article>
         <article className="generator"><i>03</i><div><small>AI STRATEGY GENERATOR</small><h3>AI策略生成</h3><p>与策略研究 Agent 沟通，形成可测试、可审核的规则。</p></div><button className="primary" onClick={resetStudio}>创建策略 →</button></article>
       </section>
       <div className="my-strategy-card-grid">{mine.map((row) => {
         const hasBacktest = Boolean(backtestFor(row));
         const id = String(row.id);
+        const selfUse = row.publicationMode === "self_use";
         const submitted = ["submitted", "approved", "published"].includes(String(row.status));
         return <article key={id}>
-          <header><span>{String(row.status) === "published" ? "已上架" : String(row.status) === "submitted" ? "审核中" : "我的策略"}</span><em>V{String(row.version)}</em></header>
-          <h3>{String(row.name)}</h3><p>{((row.symbols || []) as string[]).join(" · ")} · {riskName(row.riskLevel)}</p>
+          <header><span>{selfUse ? "自用策略" : String(row.status) === "published" ? "已上架" : String(row.status) === "submitted" ? "审核中" : "我的策略"}</span><em>V{String(row.version)}</em></header>
+          <h3>{String(row.name)}</h3><p>{((row.symbols || []) as string[]).join(" · ")} · {riskName(row.riskLevel)}{selfUse ? " · 平台不抽成" : ""}</p>
           <div><span className={hasBacktest ? "complete" : ""}>回测报告 {hasBacktest ? "已生成" : "可选"}</span><span>模拟测试 可选</span></div>
           {!submitted && <div className="strategy-backtest-actions"><button disabled={Boolean(busy)} onClick={() => void runBacktest(id)}>{busy === `backtest:${id}` ? "回测中…" : "运行历史回测"}</button></div>}
-          <button className="primary" disabled={submitted || Boolean(busy)} onClick={() => void submit(id)}>{String(row.status) === "published" ? "已上架策略广场" : String(row.status) === "submitted" ? "等待平台人工审核" : "提交到策略广场"}</button>
+          {selfUse ? <div className="strategy-self-use-note">自用策略 · 不进入策略广场 · 平台不抽成</div> : <button className="primary" disabled={submitted || Boolean(busy)} onClick={() => void submit(id)}>{String(row.status) === "published" ? "已上架策略广场" : String(row.status) === "submitted" ? "等待平台人工审核" : "提交到策略广场"}</button>}
         </article>;
       })}</div>
       {!mine.length && <div className="notice">当前账号还没有真实保存的策略。点击“创建策略”开始，不会再展示虚构草稿。</div>}
@@ -545,7 +557,7 @@ export default function CommunityStrategyCenter({
 
   const ordered = [...rows].sort((a, b) => Number(b.rankingScore || 0) - Number(a.rankingScore || 0));
   return <div className="community-center">
-    <section>
+    <section className="community-ranking-section">
       <div className="market-section-title"><div><small>COMMUNITY STRATEGIES</small><h2>社区策略综合排名</h2></div><span>收益 · 回撤 · 稳定性 · 有效跟随</span></div>
       <div className="community-grid five-columns">{ordered.map((row, index) => {
         const report = backtestFor(row);
@@ -565,6 +577,5 @@ export default function CommunityStrategyCenter({
         </article>;
       })}</div>
     </section>
-    {rows.some((row) => row.demo) && <div className="marketplace-disclosure">数据库尚无已上架策略时显示版面样例；样例不代表真实收益且不可跟随。真实策略由平台人工审核后上架，历史回测与模拟测试均为可选研究工具。</div>}
   </div>;
 }

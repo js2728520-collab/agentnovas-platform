@@ -416,6 +416,34 @@ body:has(.membership-plans) .payment-steps span{font-size:10px!important;line-he
   }
 }
 
+/* Real token marks in the trading-hall market rail. The SVGs come from the
+   bundled web3icons token set; keep the round frame consistent with the rail. */
+.dash:has(.compact-hall) .hall-right>.market-widget .coin-list>button>.coin-icon{
+  display:grid!important;
+  place-items:center!important;
+  overflow:hidden!important;
+  padding:5px!important;
+  background:#102f61!important;
+  color:transparent!important;
+  font-size:0!important;
+  line-height:0!important;
+}
+.dash:has(.compact-hall) .hall-right>.market-widget .coin-list>button>.coin-icon svg{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+}
+.dash:has(.compact-hall) .hall-right>.market-widget .coin-list>button>.coin-icon img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+}
+.dash:has(.compact-hall) .hall-right>.market-widget .coin-list>button.active>.coin-icon{
+  background:#173b6f!important;
+  box-shadow:0 0 0 1px #5caeff55,0 0 14px #348ff044!important;
+}
+
 /* Strategy plaza header only. Keep every strategy card below unchanged. */
 body:has(.platform-ai-section) .content>.page-head{
   position:relative;
@@ -1198,6 +1226,11 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
    extra borders; keep those styles on the card only. */
 .exchange-band .exchange-logos>.exchange-logo-card{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:12px!important;min-width:0!important;min-height:68px!important;padding:13px 16px!important;text-align:left!important;border:1px solid #2b3749!important;border-radius:11px!important;background:#121824!important;color:#edf3fa!important;font-size:11px!important;font-weight:700!important}
 .exchange-band .exchange-logos>.exchange-logo-card>.exchange-brand-logo{width:30px!important;height:30px!important;min-width:30px!important;min-height:30px!important;flex:0 0 30px!important;padding:3px!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;color:inherit!important;font-size:inherit!important}
+.exchange-band .exchange-logos>.exchange-logo-card>.exchange-brand-logo.exchange-logo-robinhood>.logo-robinhood{width:100%!important;height:100%!important;border-radius:50%!important;background:linear-gradient(145deg,#2ec77b,#139657)!important;color:#fff!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 3px 8px rgba(11,103,61,.32)!important}
+.exchange-band .exchange-logos>.exchange-logo-card>.exchange-brand-logo.exchange-logo-robinhood .logo-robinhood svg{width:21px!important;height:21px!important;fill:none!important;stroke:currentColor!important;stroke-width:1.9!important;stroke-linecap:round!important;stroke-linejoin:round!important}
+.exchange-band .exchange-logos>.exchange-logo-card>.exchange-brand-logo.exchange-logo-htx>.logo-htx{display:block!important;position:relative!important;width:23px!important;height:28px!important;border-radius:0!important;background:linear-gradient(145deg,#42c8ff 0%,#1689ee 46%,#164fbb 100%)!important;clip-path:polygon(50% 0,86% 35%,87% 58%,75% 82%,50% 100%,25% 86%,13% 64%,20% 42%,38% 20%)!important;color:transparent!important;font-size:0!important;letter-spacing:0!important;box-shadow:0 4px 10px rgba(19,125,224,.35)!important}
+.exchange-band .exchange-logos>.exchange-logo-card>.exchange-brand-logo.exchange-logo-htx>.logo-htx:before{content:"";position:absolute;left:6px;top:7px;width:10px;height:16px;border-radius:8px 5px 8px 4px;background:linear-gradient(180deg,#e9ffff 0%,#69e1ff 52%,#248fff 100%);transform:rotate(18deg)}
+.exchange-band .exchange-logos>.exchange-logo-card>.exchange-brand-logo.exchange-logo-htx>.logo-htx:after{content:"";position:absolute;left:9px;top:11px;width:5px;height:9px;border-radius:6px 3px 6px 3px;background:#fff;transform:rotate(18deg);opacity:.88}
 .exchange-band .exchange-logos>.exchange-logo-card>.exchange-brand-logo>span{min-width:0!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;color:inherit!important;font-size:inherit!important}
 .exchange-band .exchange-logos>.exchange-logo-card>.exchange-brand-logo>span i{margin:0!important;padding:0!important;border:0!important;font-size:inherit!important;color:inherit!important}
 .exchange-band .exchange-logos>.exchange-logo-card>b{overflow:hidden!important;color:#edf3fa!important;font-size:11px!important;font-weight:700!important;letter-spacing:.25px!important;text-overflow:ellipsis!important;white-space:nowrap!important}
@@ -1509,7 +1542,19 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
 .connect-form-summary>div{min-width:0;flex:1}
 .connect-form-summary b{display:block;color:#e9f6ff;font-size:14px}
 .connect-form-summary p{margin:4px 0 0;color:#8eabc2;font-size:11px;line-height:1.5}
-.connect-form-summary>strong{padding:5px 8px;border:1px solid #3b7ca9;border-radius:999px;color:#9edbff;font-size:10px;white-space:nowrap}
+.connect-form-summary .connect-form-selected{display:flex;align-items:center;gap:9px;min-width:150px;flex:0 0 190px;padding:7px 12px;border:1px solid rgba(86,157,209,.42);border-radius:10px;background:rgba(6,24,42,.58)}
+.connect-form-selected>.exchange-brand-logo{display:grid;place-items:center;width:30px;height:30px;flex:0 0 30px;padding:3px;border-radius:8px;background:#122d48}
+.connect-form-selected>.exchange-brand-logo>span{transform:scale(.78)}
+.connect-form-selected>span{display:grid;gap:2px;min-width:0}
+.connect-form-selected>span small{color:#78a9ca;font-size:9px;line-height:1.1}
+.connect-form-selected>span b{overflow:hidden;color:#ecf7ff;font-size:14px;line-height:1.2;text-overflow:ellipsis;white-space:nowrap}
+.connect-form-summary>strong{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:8px 14px;border:1px solid #b98a32;border-radius:10px;background:linear-gradient(135deg,#5e4718,#3b2d12);color:#ffe39a;font-size:13px;line-height:1.2;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,231,151,.16),0 4px 12px rgba(104,73,14,.2)}
+.connect-form-summary .connect-form-whitelist{display:grid;grid-template-columns:auto auto;align-items:center;gap:4px 10px;flex:0 0 auto;min-width:220px}
+.connect-form-summary .connect-form-whitelist b{color:#d7efff;font-size:13px;white-space:nowrap}
+.connect-form-whitelist-copy{display:grid;gap:2px;min-width:0;padding:3px 0;border:0;background:transparent;color:#8bd1ff;text-align:left;cursor:pointer}
+.connect-form-whitelist-copy span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 15px/1.25 "SFMono-Regular","Roboto Mono","JetBrains Mono",ui-monospace,monospace;letter-spacing:.02em}
+.connect-form-whitelist-copy small{color:#75a9c9;font-size:10px;line-height:1.2}
+.connect-form-whitelist-copy:hover span{color:#dff5ff;text-decoration:underline;text-underline-offset:3px}
 .exchange-connect-form{display:grid;gap:14px;margin-top:12px}
 .connect-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .connect-field{display:grid;gap:6px;min-width:0}
@@ -1536,7 +1581,7 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
 .exchange-connect-form .connect-form-actions button strong{font-size:13px;line-height:1.2}
 .exchange-connect-form .connect-form-actions button small{color:inherit;opacity:.78;font-size:10px;font-weight:400;line-height:1.2}
 .exchange-connect-form .connect-form-actions .connect-help-button{background:#155799;border-color:#2d7dbc;color:#eff9ff}
-.exchange-connect-form .connect-form-actions .primary{background:linear-gradient(135deg,#edf5fb,#cbdce8)!important;color:#142331!important;border-color:#edf5fb!important}
+.exchange-connect-form .connect-form-actions .primary{background:linear-gradient(135deg,#208a68,#146348)!important;color:#f2fff9!important;border-color:#37b984!important}
 @media(max-width:720px){
   .connect-field-grid,.exchange-connect-form .connect-form-actions{grid-template-columns:1fr}
   .connect-permission-heading{align-items:flex-start;flex-direction:column;gap:4px}
@@ -1544,6 +1589,7 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
 }
 @media(max-width:480px){
   .exchange-live-panel .connect-form-summary{align-items:flex-start}
+  .connect-form-summary .connect-form-selected{flex:1 1 100%;min-width:0}
   .connect-form-summary>strong{display:none}
 }
 
@@ -1842,6 +1888,16 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
 /* Strategy creator studio: a dense, guided research workspace rather than a
    bare form. Keep the visual hierarchy calm so clients can focus on rules. */
 .strategy-studio-page{max-width:1280px;margin:0 auto;gap:18px;padding-bottom:28px}
+
+/* Enlarge the three "我的策略" module cards proportionally without changing their content or layout. */
+.my-strategy-modules{gap:14px!important}
+.my-strategy-modules article{min-height:160px!important;padding:20px!important;gap:15px!important}
+.my-strategy-modules article>i{width:36px!important;height:36px!important;font-size:10px!important}
+.my-strategy-modules small{font-size:8px!important;letter-spacing:1.8px!important}
+.my-strategy-modules h3{margin:9px 0!important;font-size:16px!important}
+.my-strategy-modules p,.my-strategy-modules article>span{font-size:10px!important;line-height:1.65!important}
+.my-strategy-modules article.generator button{height:44px!important;padding:0 18px!important;font-size:10px!important}
+.strategy-list-toggle{font-size:15px!important;line-height:1.2!important}
 .strategy-studio-page>header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:18px 20px;border:1px solid #29435c;border-radius:14px;background:linear-gradient(120deg,#101d2d,#0d151f);box-shadow:0 14px 38px rgba(0,0,0,.14)}
 .strategy-studio-page>header button{border:1px solid #35536f;background:#101b28;color:#a8c7e0;border-radius:8px;padding:9px 12px;font-size:12px;cursor:pointer}
 .strategy-studio-page>header small,.strategy-studio-page .strategy-output small{color:#64adf9;letter-spacing:.22em;font-size:10px}
@@ -2308,20 +2364,31 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
 }
 
 .support-floating{position:fixed;right:24px;bottom:24px;z-index:5000}
-.support-fab{width:52px;height:52px;border:1px solid #3c91c8;border-radius:50%;background:linear-gradient(145deg,#1e75b5,#123858);color:#e7f6ff;font-size:22px;font-weight:900;box-shadow:0 12px 32px rgba(0,0,0,.35);cursor:pointer}
-.support-fab:hover{transform:translateY(-2px);box-shadow:0 16px 36px rgba(24,130,204,.28)}
+.support-fab{display:flex;align-items:center;justify-content:center;gap:9px;width:auto;min-width:142px;height:48px;padding:0 17px;border:1px solid rgba(105,190,238,.5);border-radius:15px;background:linear-gradient(135deg,rgba(25,111,158,.72),rgba(12,38,64,.72));opacity:.7;backdrop-filter:none;-webkit-backdrop-filter:none;color:#f1f9ff;font-size:14px;font-weight:800;letter-spacing:.03em;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 22px rgba(0,0,0,.24);cursor:pointer;transition:transform .2s ease,opacity .2s ease,border-color .2s ease,box-shadow .2s ease,background .2s ease}
+.support-fab i{display:block;width:8px;height:8px;border-radius:50%;background:#7de0c0;box-shadow:0 0 12px rgba(125,224,192,.85)}
+.support-fab:hover{transform:translateY(-2px);opacity:.9;border-color:rgba(143,216,255,.72);background:linear-gradient(135deg,rgba(31,131,184,.72),rgba(15,49,79,.72));box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 12px 28px rgba(0,0,0,.3)}
+.support-fab:focus-visible{outline:2px solid #8bdcff;outline-offset:3px}
 .support-popover{position:absolute;right:0;bottom:64px;width:min(360px,calc(100vw - 32px));padding:18px;border:1px solid #2f5572;border-radius:16px;background:#0b1825;box-shadow:0 24px 60px rgba(0,0,0,.5)}
 .support-popover header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.support-popover header div{display:grid;gap:4px}.support-popover header b{color:#e9f5ff;font-size:16px}.support-popover header small,.support-popover p{color:#8da7bc;font-size:12px;line-height:1.65}.support-popover header button{border:0;background:transparent;color:#8da7bc;font-size:22px;cursor:pointer}.support-popover p{margin:14px 0}.support-popover textarea{width:100%;min-height:100px;resize:vertical;padding:11px;border:1px solid #29465f;border-radius:10px;background:#07121d;color:#e8f4fc;outline:0;font:inherit}.support-popover textarea:focus{border-color:#4d9ee4}.support-popover>.primary{margin-top:12px;width:100%;min-height:42px}
 .security-safe-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:20px 0}.security-safe-summary>div{display:flex;align-items:center;gap:14px;padding:18px;border:1px solid #29455c;border-radius:14px;background:linear-gradient(145deg,rgba(16,34,50,.92),rgba(8,18,29,.92))}.security-safe-summary>div>i{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#102f45;color:#8fd6ff;font-style:normal;font-weight:900}.security-safe-summary>div>div{flex:1}.security-safe-summary h2{margin:0 0 5px;color:#e7f2fb;font-size:15px}.security-safe-summary p{margin:0;color:#8ea8bc;font-size:12px;line-height:1.55}.security-safe-summary>div>span{white-space:nowrap;color:#8fd5b0;font-size:12px}
 .avatar-presets{margin:0;padding:12px;border:1px solid #29445c;border-radius:12px}.avatar-presets legend{padding:0 6px;color:#a8bfd1;font-size:13px}.avatar-presets>div{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}.avatar-presets button{aspect-ratio:1;border:1px solid transparent;border-radius:9px;background:#0b1b2a;font-size:22px;cursor:pointer}.avatar-presets button:hover,.avatar-presets button.selected{border-color:#50a5e8;background:#153653;box-shadow:0 0 0 2px rgba(80,165,232,.14)}.account-avatar-preset{width:32px;height:32px;flex:0 0 32px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#1d4658,#102536)!important;font-size:21px;line-height:1}.account-avatar-preset.large{width:50px;height:50px;flex-basis:50px;font-size:29px}
-@media (max-width:780px){.support-floating{right:14px;bottom:14px}.security-safe-summary{grid-template-columns:1fr}.avatar-presets>div{grid-template-columns:repeat(6,minmax(0,1fr))}}
+@media (max-width:780px){.support-floating{right:14px;bottom:14px}.support-fab{min-width:132px;height:44px;padding:0 14px;font-size:13px}.security-safe-summary{grid-template-columns:1fr}.avatar-presets>div{grid-template-columns:repeat(6,minmax(0,1fr))}}
 .trading-disclosure{display:none!important}
 .logo-crypto,.logo-metamask,.logo-robinhood,.logo-htx{display:grid!important;place-items:center;width:100%;height:100%;border-radius:50%;font-size:17px;font-weight:900}.logo-crypto{background:#172f57;color:#4da8ff}.logo-metamask{background:#f08b3e;color:#fff}.logo-robinhood{background:#28b36b;color:#061b13;font-size:16px}.logo-htx{background:#1c88dc;color:#fff}
 @media(min-width:981px){.trading-center-v2 .trading-exchange-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important}}
 .platform-strategy-layout{display:grid;grid-template-columns:minmax(150px,.85fr) minmax(0,4fr) minmax(150px,.85fr);gap:16px;align-items:stretch}.platform-strategy-layout>.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px;min-width:0}.platform-strategy-layout>.strategy-side-panel{min-width:0;padding:14px;border:1px solid #29435c;border-radius:14px;background:linear-gradient(160deg,#101e2d,#0a121c);box-shadow:inset 0 1px 0 #ffffff12,0 12px 28px #0005;display:flex;flex-direction:column;gap:10px}.platform-strategy-layout>.strategy-side-panel>small{color:#6fb9ff;font-size:8px;letter-spacing:2px}.platform-strategy-layout>.strategy-side-panel h3{margin:0;color:#edf6ff;font-size:16px}.platform-strategy-layout>.strategy-side-panel>p{margin:0;color:#8ea6bb;font-size:9px;line-height:1.6}.strategy-side-stat{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;color:#9bb1c4;font-size:9px}.strategy-side-stat b{color:#e8f4ff;font-size:11px}.strategy-side-stat>i{grid-column:1/-1;height:5px;border-radius:999px;background:#172b3d;overflow:hidden}.strategy-side-stat>i em{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#3d9ee8,#55d5b1)}.strategy-side-note{margin-top:auto;padding:10px;border-left:2px solid #4ca8e8;background:#0d1a28;color:#8da5b9;font-size:9px;line-height:1.6}.strategy-side-note b,.strategy-side-choice b{display:block;color:#d9ebfa;margin-bottom:4px}.strategy-side-choice{padding:9px 10px;border:1px solid #29445c;border-radius:9px;background:#0d1926;color:#8ea6ba;font-size:9px;line-height:1.5}.strategy-side-choice:nth-of-type(3){border-color:#2d665f}.strategy-side-choice:nth-of-type(4){border-color:#675047}.platform-strategy-layout .strategy-card{min-width:0;padding:12px!important;border-radius:14px!important}.platform-strategy-layout .strategy-card .strategy-icon{width:38px!important;height:38px!important;border-radius:9px!important;font-size:13px!important}.platform-strategy-layout .strategy-card .badge{top:12px!important;right:12px!important}.platform-strategy-layout .strategy-card h2{margin:12px 0 4px!important;font-size:15px!important}.platform-strategy-layout .strategy-card>p{margin:0!important;font-size:9px!important}.platform-strategy-layout .strategy-card .fake-chart{height:44px!important;margin:10px 0!important;gap:4px!important}.platform-strategy-layout .strategy-card .strategy-metrics{margin:8px 0 4px!important}.platform-strategy-layout .strategy-card .strategy-metrics>div{padding:7px!important}.platform-strategy-layout .strategy-card .strategy-metrics dt{font-size:8px!important}.platform-strategy-layout .strategy-card .strategy-metrics dd{font-size:11px!important;margin-top:4px!important}.platform-strategy-layout .strategy-card>button.strategy-follow-cta{min-height:42px!important;padding:10px!important;margin-top:4px!important;font-size:15px!important}.platform-strategy-layout>.strategy-side-left{order:1}.platform-strategy-layout>.cards{order:2}.platform-strategy-layout>.strategy-side-right{order:3}@media(max-width:1100px){.platform-strategy-layout{grid-template-columns:1fr}.platform-strategy-layout>.strategy-side-panel{min-height:0}.platform-strategy-layout>.strategy-side-left{order:1}.platform-strategy-layout>.cards{order:2}.platform-strategy-layout>.strategy-side-right{order:3}}@media(max-width:700px){.platform-strategy-layout>.cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:480px){.platform-strategy-layout>.cards{grid-template-columns:1fr!important}.platform-strategy-layout>.strategy-side-panel{padding:12px}}
-.connect-form-actions{display:flex;gap:9px;align-items:center}.connect-form-actions button{flex:1}.connect-help-button{min-height:42px;padding:0 16px;border:1px solid #2d6fae;border-radius:10px;background:#155799;color:#e4f3ff;font-weight:800;cursor:pointer}.connect-help-button:hover{background:#1e6eb8;border-color:#63b8f1}.ip-whitelist-note{display:grid;grid-template-columns:auto auto;gap:6px 14px;margin-top:14px;padding:13px 15px;border:1px solid #294c6b;border-radius:11px;background:rgba(18,62,103,.2);font-size:11px}.ip-whitelist-note b{color:#bfe1fb}.ip-whitelist-note span{color:#83c6f2;font-family:ui-monospace,monospace}.ip-whitelist-note small{grid-column:1/-1;color:#829db4;line-height:1.55}.connection-tutorial{margin-top:14px;padding:15px;border:1px solid #315d7e;border-radius:12px;background:#0a1b2b;color:#a8c0d4}.connection-tutorial h3{margin:0 0 9px;color:#e0effb;font-size:14px}.connection-tutorial ol{margin:0;padding-left:19px;font-size:11px;line-height:1.7}.connection-tutorial>div{display:flex;flex-wrap:wrap;gap:8px 15px;margin-top:12px}.connection-official-links{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 14px!important}.connection-official-links a{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.connection-tutorial a{color:#7cc8ff;font-size:11px;text-decoration:none}.connection-tutorial a:hover{text-decoration:underline}@media(max-width:560px){.ip-whitelist-note{grid-template-columns:1fr}.ip-whitelist-note small{grid-column:auto}.connect-form-actions{align-items:stretch}.connect-form-actions button{padding-inline:10px}}
+.connect-form-actions{display:flex;gap:9px;align-items:center}.connect-form-actions button{flex:1}.connect-help-button{min-height:42px;padding:0 16px;border:1px solid #2d6fae;border-radius:10px;background:#155799;color:#e4f3ff;font-weight:800;cursor:pointer}.connect-help-button:hover{background:#1e6eb8;border-color:#63b8f1}.connection-tutorial{margin-top:14px;padding:15px;border:1px solid #315d7e;border-radius:12px;background:#0a1b2b;color:#a8c0d4}.connection-tutorial h3{margin:0 0 9px;color:#e0effb;font-size:14px}.connection-tutorial ol{margin:0;padding-left:19px;font-size:11px;line-height:1.7}.connection-tutorial>div{display:flex;flex-wrap:wrap;gap:8px 15px;margin-top:12px}.connection-official-links{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 14px!important}.connection-official-links a{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.connection-tutorial a{color:#7cc8ff;font-size:11px;text-decoration:none}.connection-tutorial a:hover{text-decoration:underline}@media(max-width:760px){.connection-official-links{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:560px){.connect-form-actions{align-items:stretch}.connect-form-actions button{padding-inline:10px}.connection-official-links{grid-template-columns:1fr!important}}
+.exchange-connect-form>label{font-family:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif;font-weight:500;letter-spacing:.01em}
 .trading-center-v2{display:grid;gap:18px}.trading-center-v2>section{border:1px solid #293e53;border-radius:16px;background:#0b1723;padding:20px}.trading-center-v2 .trading-overview{display:grid;grid-template-columns:minmax(0,1fr) minmax(420px,1.3fr);gap:20px}.trading-center-v2 .trading-overview h2{margin:8px 0;font-size:23px}.trading-center-v2 .trading-overview p,.trading-disclosure{color:#8299ad;font-size:11px;line-height:1.65}.trading-center-v2 .trading-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.trading-center-v2 .kpi{padding:13px;border:1px solid #263e55;border-radius:11px;background:#0d1d2c}.trading-center-v2 .kpi small,.trading-center-v2 .kpi span{display:block;color:#7891a6;font-size:10px}.trading-center-v2 .kpi b{display:block;margin:8px 0 4px;font-size:19px}.my-positions-panel,.order-history-panel,.trading-connections-v2,.followed-performance{display:grid;gap:14px}.trading-center-v2 .trading-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.trading-center-v2 .trading-section-head h2{margin:5px 0 0;font-size:20px}.trading-center-v2 .trading-section-head small{color:#6fb9ff;letter-spacing:.16em;font-size:9px}.trading-center-v2 .trading-section-head>span{color:#8199ad;font-size:11px}.trading-center-v2 table{width:100%;border-collapse:collapse;font-size:11px}.trading-center-v2 th,.trading-center-v2 td{padding:11px 9px;border-bottom:1px solid #203548;text-align:left;white-space:nowrap}.trading-center-v2 th{color:#7891a7;font-size:10px;font-weight:600}.trading-center-v2 td{color:#bfd0df}.trading-center-v2 td small{display:block;color:#6f879d}.up,.positive{color:#55d4a4!important}.down,.negative{color:#f27d94!important}.compact-empty{min-height:145px}.history-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap}.history-filters>input,.history-filters label{display:grid;gap:5px;color:#8097aa;font-size:10px}.history-filters input{min-height:38px;box-sizing:border-box;padding:0 10px;border:1px solid #29445c;border-radius:8px;background:#08131e;color:#e6f0f8;outline:0}.history-filters>input{min-width:220px}.history-filters input:focus{border-color:#4e9bd7}.followed-strategy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.followed-strategy-grid>article{display:grid;gap:10px;padding:15px;border:1px solid #263e54;border-radius:12px;background:#0d1c29}.followed-strategy-grid article>header{display:flex;justify-content:space-between;gap:10px}.strategy-source{color:#7fb9e5;font-size:10px}.followed-strategy-grid article header em{margin-left:8px;color:#74d3ad;font-size:10px;font-style:normal}.strategy-pnl{text-align:right}.strategy-pnl small{display:block;color:#748ca0;font-size:9px}.strategy-pnl b{font-size:14px}.followed-strategy-grid h3{margin:0;color:#e6f0f8;font-size:15px}.followed-strategy-grid p{margin:0;color:#8198ab;font-size:10px}.followed-strategy-grid dl{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:0}.followed-strategy-grid dl div{padding:8px;border:1px solid #21384d;border-radius:8px}.followed-strategy-grid dt{color:#71899e;font-size:9px}.followed-strategy-grid dd{margin:5px 0 0;color:#dae7f3;font-size:11px}.prominent-stop{width:100%;min-height:38px;border:1px solid #a94e61;border-radius:8px;background:#5d2333;color:#ffd3db;cursor:pointer}.prominent-stop:hover{background:#7b2d42}.trading-center-v2 .trading-exchange-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.trading-center-v2 .trading-exchange{display:flex;align-items:center;gap:9px;min-width:0;padding:11px;border:1px solid #263e54;border-radius:10px;background:#0b1b29;color:#d9e7f4;text-align:left;cursor:pointer}.trading-center-v2 .trading-exchange:hover{border-color:#4b9ddd;transform:translateY(-1px)}.trading-center-v2 .trading-exchange>span{display:grid;gap:4px;min-width:0;flex:1}.trading-center-v2 .trading-exchange b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.trading-center-v2 .trading-exchange small{color:#7891a6;font-size:9px}.trading-center-v2 .trading-exchange em{color:#9eb2c4;font-size:9px;font-style:normal;white-space:nowrap}.trading-center-v2 .trading-exchange em.ok{color:#59d6aa}.trading-disclosure{margin:0;padding-top:3px}@media(max-width:980px){.trading-center-v2 .trading-overview{grid-template-columns:1fr}.trading-center-v2 .trading-kpis{grid-template-columns:1fr 1fr}.followed-strategy-grid{grid-template-columns:1fr 1fr}.trading-center-v2 .trading-exchange-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:640px){.trading-center-v2>section{padding:14px}.trading-center-v2 .trading-kpis{grid-template-columns:1fr 1fr}.followed-strategy-grid{grid-template-columns:1fr}.trading-center-v2 .trading-exchange-grid{grid-template-columns:1fr 1fr}.history-filters>*{width:100%}.history-filters>input{min-width:0}.trading-center-v2 .table-wrap{overflow-x:auto}.trading-center-v2 table{min-width:760px}}
 .platform-strategy-layout .strategy-side-choice{min-height:60px;box-sizing:border-box}
+
+@media(min-width:981px){.trading-center-v2 .trading-exchange-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important}}
+
+/* Keep the homepage at a comfortable reading width on ultra-wide displays. */
+@media (min-width:1201px){
+  body:has(.landing) .topbar{padding-inline:max(28px,calc((100vw - 1200px)/2))!important}
+  .landing{width:min(1200px,calc(100% - 96px))!important;max-width:1200px!important;padding-inline:32px!important}
+}
 .platform-strategy-layout .strategy-card .strategy-metrics>div:last-child{grid-column:auto;border-right:0;border-bottom:0}
 
 /* Operations overview readability: enlarge the small status copy in the two panels shown together. */
@@ -2366,6 +2433,42 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
   text-transform: uppercase;
 }
 
+.studio-usage-choice {
+  display: grid;
+  gap: 8px;
+  margin: 0 15px;
+  padding: 13px;
+  border: 1px solid #2b455d;
+  border-radius: 10px;
+  background: #0b1520;
+}
+.studio-usage-choice .studio-card-heading { margin-bottom: 2px; }
+.studio-usage-choice > label {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 !important;
+  padding: 10px;
+  border: 1px solid #29435a;
+  border-radius: 8px;
+  background: #0d1926;
+  cursor: pointer;
+}
+.studio-usage-choice > label.selected { border-color: #3478d4; background: #112844; }
+.studio-usage-choice input[type="radio"] { margin-top: 3px; accent-color: #3478d4; }
+.studio-usage-choice > label > span { display: grid; gap: 4px; }
+.studio-usage-choice > label b { color: #dcebf7; font-size: 11px; }
+.studio-usage-choice > label small { color: #8299ae; font-size: 9px; line-height: 1.45; }
+.strategy-self-use-note {
+  padding: 10px;
+  border: 1px solid #315e63;
+  border-radius: 7px;
+  background: #10262a;
+  color: #79d6c0;
+  text-align: center;
+  font-size: 10px;
+}
+
 /* Exchange cards use vetted brand SVGs instead of hand-drawn placeholder marks. */
 .exchange-svg-mark,.exchange-image-mark{display:grid!important;place-items:center;width:100%;height:100%;min-width:0;min-height:0;overflow:visible;background:transparent!important}
 .exchange-svg-mark svg{display:block;width:100%;height:100%;max-width:100%;max-height:100%;overflow:visible}
@@ -2404,10 +2507,214 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
   margin-top: 5px;
 }
 .exchange-logo-htx .exchange-image-mark.fallback::before{content:"HTX"}
-.dash aside .account-sidebar-entry{position:relative;overflow:hidden;margin:0 0 14px!important;padding:14px 12px!important;border:1px solid #203e56!important;border-radius:14px!important;background:radial-gradient(circle at 12% 0%,rgba(49,146,214,.22),transparent 42%),linear-gradient(135deg,#102337 0%,#0d1825 52%,#0b111b 100%)!important;box-shadow:inset 0 1px 0 rgba(164,220,255,.11),0 10px 24px rgba(0,0,0,.22)}
+
+/* Refined compact exchange marks for the two cards that need a clearer identity. */
+.logo-robinhood{display:grid!important;place-items:center;width:100%;height:100%;border-radius:50%;background:linear-gradient(145deg,#2ec77b,#139657)!important;color:#fff!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 3px 8px rgba(11,103,61,.32)}
+.logo-robinhood svg{display:block;width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.logo-htx{display:grid!important;place-items:center;width:100%;height:100%;border-radius:50%;background:linear-gradient(145deg,#258fd6,#1069ad)!important;color:#fff!important;font:900 11px/1 Arial,sans-serif;letter-spacing:.05em;box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 3px 8px rgba(10,82,145,.3)}
+.trading-center-v2 .trading-exchange>.exchange-brand-logo{display:grid;flex:0 0 42px;width:42px!important;height:42px!important;padding:3px}
+.trading-center-v2 .trading-exchange>span:not(.exchange-brand-logo){display:grid;gap:4px;min-width:0;flex:1}
+.trading-center-v2>.trading-connections-v2{width:100%;max-width:none;margin-inline:0}
+.trading-center-v2 .trading-exchange .logo-htx{width:36px!important;height:36px!important;border-radius:50%!important}
+
+.strategy-author-panel{border:1px solid #293e53;border-radius:16px;background:#101923;padding:20px;display:grid;gap:16px}
+.strategy-author-heading{display:flex;align-items:center;gap:13px}
+.strategy-author-heading small{font-size:10px;letter-spacing:.25em;color:#6fb9ff}
+.strategy-author-heading h2{margin:5px 0 0;font-size:20px}
+.strategy-author-avatar{width:48px;height:48px;display:grid;place-items:center;overflow:hidden;border:1px solid #3d82b9;border-radius:14px;background:linear-gradient(145deg,#1a5082,#10243b);color:#cce8ff;font-size:16px;font-weight:800}
+.strategy-author-avatar img{width:100%;height:100%;object-fit:cover}
+.strategy-author-content{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,1.2fr);gap:18px;align-items:start}
+.strategy-author-content>div{display:grid;gap:5px}
+.strategy-author-content>div>b{font-size:17px}
+.strategy-author-content>div>span{color:#8298ad;font-size:11px}
+.strategy-author-content dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0}
+.strategy-author-content dl div{padding:10px;border:1px solid #263b4f;border-radius:9px;background:#0b151f}
+.strategy-author-content dt{color:#748ba1;font-size:9px}
+.strategy-author-content dd{margin:5px 0 0;color:#dce8f5;font-size:11px;overflow-wrap:anywhere}
+@media(max-width:680px){.strategy-author-content{grid-template-columns:1fr}.strategy-author-content dl{grid-template-columns:1fr 1fr}}
+
+/* Keep the three strategy cards at their content height after removing the side notes. */
+.platform-strategy-layout{align-items:start}
+.platform-strategy-layout>.cards{align-self:start}
+.platform-strategy-layout>.cards>.strategy-card{align-self:start;height:fit-content;min-height:0}
+
+/* Give the home decision core a little more breathing room below the hero center. */
+.hero>.orbital{transform:translateY(26px)}
+
+/* Keep the follow label bright white against the darker green action. */
+.platform-strategy-layout .strategy-follow-cta,
+.community-grid .strategy-follow-cta,
+.strategy-follow-button,
+button.strategy-follow-cta,
+button.strategy-follow-button{color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important}
+
+/* Green follow action with a restrained interaction effect. */
+.strategy-follow-button{position:relative;overflow:hidden;background:linear-gradient(135deg,#159b68,#07583b);box-shadow:0 8px 20px rgba(10,140,91,.28);transition:transform .2s ease,box-shadow .2s ease,filter .2s ease}
+.strategy-follow-button::after{content:"";position:absolute;inset:0;transform:translateX(-115%);background:linear-gradient(105deg,transparent 28%,rgba(255,255,255,.28) 50%,transparent 72%);animation:strategy-follow-shine 3.2s ease-in-out infinite;pointer-events:none}
+.strategy-follow-button:hover:not(:disabled){transform:translateY(-2px);filter:saturate(1.12);box-shadow:0 11px 26px rgba(10,140,91,.42)}
+.strategy-follow-button:active:not(:disabled){transform:translateY(0);box-shadow:0 5px 12px rgba(10,140,91,.24)}
+.strategy-follow-button:focus-visible{outline:2px solid #7af0bd;outline-offset:3px}
+.strategy-follow-button:disabled{background:linear-gradient(135deg,#197d5d,#0d513a);color:#f1fff8;opacity:.9;box-shadow:none}
+@keyframes strategy-follow-shine{0%,58%{transform:translateX(-115%)}78%,100%{transform:translateX(115%)}}
+@media(prefers-reduced-motion:reduce){.strategy-follow-button{transition:none}.strategy-follow-button::after{animation:none}}
+
+/* High-frequency breathing pulse for the seven decision-hall conversation bubbles. */
+.scene.compact .hotspot,
+.scene.compact .meeting-hotspot{isolation:isolate;--bubble-delay:0s}
+.scene.compact .hotspot::before,
+.scene.compact .meeting-hotspot::before{content:"";position:absolute;inset:-1px;z-index:0;pointer-events:none;border:1px solid rgba(105,190,238,.5);border-radius:inherit;background:rgba(73,144,208,.12);box-shadow:0 0 0 rgba(73,170,242,0);opacity:.24;animation:bubble-glow 1.12s ease-in-out infinite;animation-delay:var(--bubble-delay)}
+.scene.compact .hotspot>b,
+.scene.compact .hotspot>small,
+.scene.compact .meeting-hotspot>span,
+.scene.compact .meeting-hotspot>small{position:relative;z-index:3;animation:bubble-text-pulse 1.12s ease-in-out infinite;animation-delay:var(--bubble-delay)}
+.scene.compact .hotspot>.speech,
+.scene.compact .meeting-hotspot>.meeting-speech{animation-name:speech-cycle,bubble-text-pulse!important;animation-duration:7s,1.12s!important;animation-timing-function:ease-in-out,ease-in-out!important;animation-iteration-count:infinite,infinite!important;animation-delay:0s,var(--bubble-delay)!important}
+.scene.compact .hotspot:nth-of-type(2),.scene.compact .hotspot:nth-of-type(2)::before,.scene.compact .hotspot:nth-of-type(2)>b,.scene.compact .hotspot:nth-of-type(2)>small,.scene.compact .hotspot:nth-of-type(2)>.speech{--bubble-delay:.16s}
+.scene.compact .hotspot:nth-of-type(3),.scene.compact .hotspot:nth-of-type(3)::before,.scene.compact .hotspot:nth-of-type(3)>b,.scene.compact .hotspot:nth-of-type(3)>small,.scene.compact .hotspot:nth-of-type(3)>.speech{--bubble-delay:.32s}
+.scene.compact .hotspot:nth-of-type(4),.scene.compact .hotspot:nth-of-type(4)::before,.scene.compact .hotspot:nth-of-type(4)>b,.scene.compact .hotspot:nth-of-type(4)>small,.scene.compact .hotspot:nth-of-type(4)>.speech{--bubble-delay:.48s}
+.scene.compact .hotspot:nth-of-type(5),.scene.compact .hotspot:nth-of-type(5)::before,.scene.compact .hotspot:nth-of-type(5)>b,.scene.compact .hotspot:nth-of-type(5)>small,.scene.compact .hotspot:nth-of-type(5)>.speech{--bubble-delay:.64s}
+.scene.compact .hotspot:nth-of-type(6),.scene.compact .hotspot:nth-of-type(6)::before,.scene.compact .hotspot:nth-of-type(6)>b,.scene.compact .hotspot:nth-of-type(6)>small,.scene.compact .hotspot:nth-of-type(6)>.speech{--bubble-delay:.8s}
+.scene.compact .meeting-hotspot,.scene.compact .meeting-hotspot::before,.scene.compact .meeting-hotspot>span,.scene.compact .meeting-hotspot>small,.scene.compact .meeting-hotspot>.meeting-speech{--bubble-delay:.96s}
+@keyframes bubble-glow{0%,100%{opacity:.22;background:rgba(73,144,208,.08);border-color:rgba(105,190,238,.3);box-shadow:0 0 0 rgba(73,170,242,0)}50%{opacity:.9;background:rgba(73,144,208,.25);border-color:rgba(156,220,255,.9);box-shadow:0 0 22px rgba(73,170,242,.52)}}
+@keyframes bubble-text-pulse{0%,100%{filter:brightness(.84);text-shadow:0 0 0 rgba(170,224,255,0)}50%{filter:brightness(1.42);text-shadow:0 0 9px rgba(170,224,255,.68)}}
+@media(prefers-reduced-motion:reduce){.scene.compact .hotspot::before,.scene.compact .meeting-hotspot::before,.scene.compact .hotspot>b,.scene.compact .hotspot>small,.scene.compact .hotspot>.speech,.scene.compact .meeting-hotspot>span,.scene.compact .meeting-hotspot>small,.scene.compact .meeting-hotspot>.meeting-speech{animation:none!important;filter:none!important;text-shadow:none!important}}
+
+/* Keep the breathing effect on the seven speech bubbles only, not on the robot label cards. */
+.scene.compact .hotspot::before,
+.scene.compact .meeting-hotspot::before{display:none!important}
+.scene.compact .hotspot>b,
+.scene.compact .hotspot>small,
+.scene.compact .meeting-hotspot>span,
+.scene.compact .meeting-hotspot>small{
+  animation:none!important;opacity:1!important;filter:none!important;text-shadow:none!important
+}
+.scene.compact .hotspot>.speech,
+.scene.compact .meeting-hotspot>.meeting-speech{animation-duration:7s,2.8s!important}
+
+/* Compact the live dialogue strip to one larger, readable row. */
+.hall-stats>.agent-live-strip{box-sizing:border-box;height:32px!important;padding:2px 12px!important}
+.agent-live-track{animation-name:agent-talk-scroll-single!important}
+.agent-live-track p{height:26px!important;gap:10px!important;font-size:10px!important}
+.agent-live-track p b{min-width:82px!important;font-size:10px!important}
+.agent-live-track p span{font-size:10px!important}
+@keyframes agent-talk-scroll-single{0%,10%{transform:translateY(0)}14%,24%{transform:translateY(-26px)}28%,38%{transform:translateY(-52px)}42%,52%{transform:translateY(-78px)}56%,66%{transform:translateY(-104px)}70%,80%{transform:translateY(-130px)}84%,94%{transform:translateY(-156px)}100%{transform:translateY(-182px)}}
+
+/* Mobile hall readability: enlarge the right-column copy without enlarging its cards. */
+@media(max-width:760px){
+  .compact-hall{align-items:start!important}
+  .hall-right{align-content:start!important;align-items:start!important}
+.hall-right>.market-widget,
+  .hall-right>.agent-chat{width:100%!important;height:fit-content!important;min-height:0!important;align-self:start!important}
+  .market-widget .widget-head,.agent-chat .widget-head{height:40px!important;padding:0 14px!important}
+  .market-widget .widget-head b,.agent-chat .widget-head b{font-size:13px!important}
+  .market-widget .widget-head button,.agent-chat .widget-head>span{font-size:10px!important}
+  .coin-list{padding:4px!important}
+  .coin-list>button{grid-template-columns:30px minmax(0,1fr) auto;gap:9px;padding:8px!important;min-height:44px!important}
+  .coin-list>button>i{width:28px!important;height:28px!important;font-size:11px!important}
+  .coin-list span b{font-size:11px!important}
+  .coin-list span small{font-size:8.5px!important;margin-top:2px!important}
+  .coin-list strong{font-size:11px!important}
+  .coin-list strong em{font-size:8.5px!important;margin-top:2px!important}
+  .mini-chat{margin:8px 12px!important;padding:10px!important}
+  .mini-chat b{font-size:10px!important}
+  .mini-chat p{font-size:10px!important;line-height:1.45!important}
+  .hall-chat-scope{margin:7px 12px 0!important;font-size:9px!important}
+  .agent-chat label{padding:7px 12px!important}
+  .agent-chat input{font-size:11px!important}
+  .agent-chat label button{font-size:10px!important;padding:0 11px!important}
+}
+
+/* Stagger each speech bubble explicitly so their breathing never starts together. */
+.scene.compact .hotspot:nth-of-type(1)>.speech{animation-delay:0s,0s!important}
+.scene.compact .hotspot:nth-of-type(2)>.speech{animation-delay:.4s,.4s!important}
+.scene.compact .hotspot:nth-of-type(3)>.speech{animation-delay:.8s,.8s!important}
+.scene.compact .hotspot:nth-of-type(4)>.speech{animation-delay:1.2s,1.2s!important}
+.scene.compact .hotspot:nth-of-type(5)>.speech{animation-delay:1.6s,1.6s!important}
+.scene.compact .hotspot:nth-of-type(6)>.speech{animation-delay:2s,2s!important}
+.scene.compact .meeting-hotspot>.meeting-speech{animation-delay:2.4s,2.4s!important}
+
+/* Tighten the strategy plaza row to its actual content height. */
+.platform-strategy-layout{align-items:start!important}
+.platform-strategy-layout>.cards{align-self:start!important;align-items:start!important}
+.platform-strategy-layout>.cards>.strategy-card,
+.platform-strategy-layout>.strategy-side-panel{align-self:start!important;height:fit-content!important;min-height:0!important}
+
+/* The sidebar identity block also opens the existing My Settings dialog. */
+.account-sidebar-entry{width:100%;border:0;background:transparent;text-align:left;color:inherit;cursor:pointer}
+.account-sidebar-entry:hover{background:#111c28;border-radius:9px}
+.account-sidebar-entry>span:last-child{display:flex;min-width:0;flex-direction:column}
+.dash aside .account-sidebar-entry{position:relative;overflow:hidden;min-height:72px!important;margin:0 0 20px!important;padding:14px 12px!important;border:1px solid #203e56!important;border-radius:14px!important;background:radial-gradient(circle at 12% 0%,rgba(49,146,214,.22),transparent 42%),linear-gradient(135deg,#102337 0%,#0d1825 52%,#0b111b 100%)!important;box-shadow:inset 0 1px 0 rgba(164,220,255,.11),0 10px 24px rgba(0,0,0,.22)}
 .dash aside .account-sidebar-entry::after{content:"";position:absolute;left:12px;right:12px;bottom:0;height:1px;background:linear-gradient(90deg,transparent,#3d8dc1,transparent);opacity:.55;pointer-events:none}
 .dash aside .account-sidebar-entry:hover{border-color:#3979a6!important;background:radial-gradient(circle at 12% 0%,rgba(70,168,231,.28),transparent 44%),linear-gradient(135deg,#122a42 0%,#0e1c2b 54%,#0b111b 100%)!important}
 .dash aside .account-sidebar-entry:focus-visible{outline:2px solid #67b8ef;outline-offset:2px}
+
+/* Strategy side panels: remove English eyebrows and enlarge the Chinese copy. */
+.platform-strategy-layout>.strategy-side-panel>small{display:none!important}
+.platform-strategy-layout>.strategy-side-panel h3{text-align:center;font-size:20px!important}
+.platform-strategy-layout>.strategy-side-panel>p{font-size:12px!important;line-height:1.7!important;text-align:center}
+.platform-strategy-layout .strategy-side-stat{font-size:11px!important}
+.platform-strategy-layout .strategy-side-stat b{font-size:13px!important}
+.platform-strategy-layout .strategy-pulse-readout span{font-size:11px!important}
+.platform-strategy-layout .strategy-pulse-readout b{font-size:12px!important}
+.platform-strategy-layout .strategy-pulse-readout small{font-size:10px!important}
+.platform-strategy-layout .strategy-side-choice{font-size:11px!important;line-height:1.6!important}
+.platform-strategy-layout .strategy-side-choice b{font-size:12px!important}
+.account-sidebar-entry>span:last-child b{font-size:14px!important}
+.account-sidebar-entry>span:last-child small{font-size:11px!important;margin-top:4px!important}
+.dash:has(.compact-hall) .page-head p{font-size:14px!important;line-height:1.5!important}
+.dash:has(.compact-hall) .page-head>div:last-child{gap:12px!important}
+.dash:has(.compact-hall) .page-head>div:last-child>button{min-height:44px!important;padding:0 18px!important;font-size:15px!important;border-radius:10px!important}
+.dash:has(.meeting-grid) .page-head h1{font-size:32px!important}
+.dash:has(.meeting-grid) .page-head p{font-size:14px!important;line-height:1.5!important}
+.dash:has(.meeting-grid) .page-head button{font-size:14px!important;padding:11px 16px!important}
+.dash:has(.meeting-grid) .page-head button.soft{min-width:132px!important}
+.meeting-audit-panel{margin:18px 0 0;padding:22px 24px;border:1px solid #294d78;border-radius:14px;background:linear-gradient(145deg,#101d2c,#0d141d)!important;box-shadow:0 12px 30px rgba(0,0,0,.18)}
+.meeting-audit-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-bottom:14px;border-bottom:1px solid #263a50}
+.meeting-audit-panel header small{color:#75b8f2;font-size:10px;letter-spacing:2px}
+.meeting-audit-panel header h3{margin:7px 0 0;color:#edf5fc;font-size:19px}
+.meeting-audit-panel header>span{color:#7ea0bc;font-size:12px}
+.meeting-audit-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.meeting-audit-grid>div{display:grid;gap:6px;padding:13px 14px;border:1px solid #263f59;border-radius:10px;background:#0c1927}
+.meeting-audit-grid b{color:#8ba8c0;font-size:11px}
+.meeting-audit-grid span{color:#e1edf7;font-size:13px}
+.meeting-audit-panel ol{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.meeting-audit-panel li{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding:10px 0;border-top:1px solid #1f3348;color:#b5c8d9;font-size:13px;line-height:1.5}
+.meeting-audit-panel li b{color:#e6f2fc}
+.dash:has(.meeting-grid) .table-core b{font-size:27px!important}
+.dash:has(.meeting-grid) .table-core span{font-size:13px!important}
+.dash:has(.meeting-grid) .seat i{font-size:13px!important}
+.dash:has(.meeting-grid) .seat b{font-size:14px!important}
+.dash:has(.meeting-grid) .seat small{font-size:12px!important}
+.dash:has(.meeting-grid) .transcript h3{font-size:16px!important}
+.dash:has(.meeting-grid) .transcript h3 span{font-size:11px!important}
+.dash:has(.meeting-grid) .transcript .line b{font-size:14px!important}
+.dash:has(.meeting-grid) .transcript .line time{font-size:11px!important}
+.dash:has(.meeting-grid) .transcript .line p{font-size:13px!important;line-height:1.5!important}
+.dash:has(.meeting-grid) .final-card small{font-size:13px!important}
+.dash:has(.meeting-grid) .final-card h2{font-size:22px!important}
+.dash:has(.meeting-grid) .final-card dt{font-size:12px!important}
+.dash:has(.meeting-grid) .final-card dd{font-size:16px!important}
+.dash:has(.meeting-grid) .final-card p{font-size:13px!important;line-height:1.5!important}
+.account-form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.account-form-row label{min-width:0}
+.account-form-row select{width:100%;min-height:46px;padding:0 14px;border:1px solid #2b4359;border-radius:11px;outline:0;background:#08131e;color:#eaf3fb;font:inherit}
+@media(max-width:780px){.account-form-row{grid-template-columns:1fr}}
+
+@media(max-width:780px){
+  .meeting-audit-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .meeting-audit-panel li{grid-template-columns:1fr;gap:4px}
+}
+
+@media(max-width:780px){
+  .dash aside .account-sidebar-entry{min-height:0!important;margin:0 8px 0 0!important;padding:4px 8px!important;border:0!important;border-radius:9px!important;background:transparent!important;box-shadow:none!important}
+  .dash aside .account-sidebar-entry::after{display:none!important}
+  .dash aside .account-sidebar-entry:hover{border-color:transparent!important;border-radius:9px!important;background:#111c28!important}
+}
+
+/* Strategy card follow buttons: slightly smaller type with a neutral gray action surface. */
+.platform-strategy-layout .strategy-card>button.strategy-follow-cta{font-size:14px!important;background:linear-gradient(135deg,#7b858f,#555f69)!important;color:#fff!important;border:1px solid #aab4be!important;box-shadow:0 5px 13px rgba(0,0,0,.24)!important}
+.platform-strategy-layout .strategy-card>button.strategy-follow-cta:hover{background:linear-gradient(135deg,#8d969f,#626d77)!important;color:#fff!important;border-color:#c5cdd4!important}
+
 /* Trading hall readability: scale the visible status/news/activity typography together. */
 .hall-stats{height:44px!important;gap:32px!important;padding:0 18px!important;font-size:12px!important}
 .hall-stats>span{font-size:12px!important}
@@ -2434,20 +2741,42 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
 .hall-bottom .log-row{grid-template-columns:74px 1fr;padding:13px 15px!important;font-size:10px!important}
 .hall-bottom .log-row time,.hall-bottom .log-row span{font-size:10px!important}
 .support-fab{min-width:146px!important;height:49px!important;padding:0 18px!important;font-size:17px!important}
+
 /* Strategy monitor ticker readability: enlarge every label and value together. */
 .strategy-monitor-track article>div small{font-size:9px!important;min-height:28px!important;padding:5px 10px!important}
 .strategy-monitor-track article>div b{font-size:11px!important;margin-top:7px!important}
 .strategy-monitor-pages{right:14px!important;bottom:6px!important;gap:5px!important}
 .strategy-monitor-pages i{width:16px!important;height:3px!important}
+
 /* Notification channel form: enlarge the selector, input and action together. */
 .security-center-page .channel-grid form{gap:10px!important}
 .security-center-page .channel-grid form select{flex:0 0 132px!important;min-height:48px!important;padding:10px 14px!important;font-size:14px!important}
 .security-center-page .channel-grid form input{min-height:48px!important;padding:10px 14px!important;font-size:14px!important}
 .security-center-page .channel-grid form button{min-height:48px!important;padding:10px 16px!important;font-size:13px!important}
-/* Keep the homepage at a comfortable reading width on ultra-wide displays. */
-@media (min-width:1201px){
-  body:has(.landing) .topbar{padding-inline:max(28px,calc((100vw - 1200px)/2))!important}
-  .landing{width:min(1200px,calc(100% - 96px))!important;max-width:1200px!important;padding-inline:32px!important}
+
+/* Enlarge only the left brand lockup; keep every right-side control unchanged. */
+.topbar .logo{height:72px!important;min-height:72px!important;padding:10px 16px 10px 10px!important;gap:14px!important;margin-right:34px!important;transform:translateX(-8px)!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+.topbar .logo>span{width:52px!important;height:52px!important;flex-basis:52px!important}
+.topbar .logo>b{font-size:24px!important;line-height:1.05!important}
+.topbar .logo>b small{margin-top:6px!important;font-size:10px!important;letter-spacing:2.4px!important}
+@media(max-width:560px){.topbar .logo{height:54px!important;min-height:54px!important;padding:6px 10px 6px 8px!important;gap:9px!important;margin-right:8px!important}.topbar .logo>span{width:38px!important;height:38px!important;flex-basis:38px!important}.topbar .logo>b{font-size:17px!important}.topbar .logo>b small{font-size:8px!important}}
+
+.follow-policy-panel{margin-top:22px;max-width:1100px}
+.follow-policy-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+.follow-policy-panel>header h2{margin:6px 0 8px;font-size:24px}
+.follow-policy-panel>header p{max-width:760px;margin:0;color:#8ca0b5;line-height:1.7}
+.policy-status{border:1px solid #52657a;border-radius:999px;padding:8px 14px;color:#9eafc2;white-space:nowrap}
+.policy-status.enabled{border-color:#25c9a1;color:#52e1bc;background:rgba(32,193,154,.1)}
+.follow-policy-toggle{display:flex;align-items:flex-start;gap:14px;margin:26px 0 16px;padding:18px;border:1px solid #28445d;border-radius:12px;background:rgba(14,32,49,.72);cursor:pointer}
+.follow-policy-toggle input{width:20px;height:20px;accent-color:#2b9ce9;margin-top:2px}
+.follow-policy-toggle span{display:grid;gap:7px}
+.follow-policy-toggle b{font-size:16px;color:#e1edf8}
+.follow-policy-toggle small,.follow-policy-private{color:#8ca0b5;line-height:1.65}
+.follow-policy-private{display:flex;align-items:flex-start;gap:8px;margin:0}
+.follow-policy-private i{width:7px;height:7px;border-radius:50%;background:#35cda8;box-shadow:0 0 12px #35cda8;margin-top:8px;flex:0 0 auto}
+.follow-policy-actions{display:flex;align-items:center;gap:14px;margin-top:20px}
+.follow-policy-actions .admin-notice{margin:0;padding:8px 12px}
+
 /* Header coverage: nested page components and the live market terminal use the
    same framed treatment as the strategy-plaza header. */
 .content .page-head,
@@ -2677,6 +3006,7 @@ body:has(.risk-live-panel) .content>.page-head{
   .content>.page-head:after,
   .content>.market-simple-head:after{right:-150px}
 }
+
 /* Keep live dialogue copy optically centered inside its fixed-height bubble. */
 .scene.compact .hotspot>.speech,
 .scene.compact .meeting-hotspot>.meeting-speech{
@@ -2686,20 +3016,390 @@ body:has(.risk-live-panel) .content>.page-head{
   text-align:center!important;
   white-space:normal!important;
 }
+
+/* Community ranking: four compact cards with a three-by-two metric layout. */
+.community-ranking-section .market-section-title>span{
+  font-size:16px!important;
+  line-height:1.3!important;
 }
+@media(min-width:1201px){
+  .community-ranking-section .community-grid.five-columns{
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+    gap:14px!important;
+  }
+  .community-ranking-section .community-grid.five-columns>article{
+    height:430px!important;
+    min-height:430px!important;
+    padding:14px!important;
+  }
+}
+
+/* Final membership override: keep the plan selector close to its page header. */
+body:has(.membership-v2) .content>.page-head,
+body:has(.membership-plans) .content>.page-head{
+  margin-bottom:8px!important;
+}
+.community-ranking-section .community-grid.five-columns .strategy-real-metrics{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:6px!important;
+  margin:8px 0!important;
+}
+.community-ranking-section .community-grid.five-columns .strategy-real-metrics>div{
+  min-height:44px!important;
+  padding:7px 8px!important;
+}
+.community-ranking-section .community-grid.five-columns .strategy-real-metrics dt{
+  font-size:9px!important;
+  line-height:1.2!important;
+}
+.community-ranking-section .community-grid.five-columns .strategy-real-metrics dd{
+  margin-top:4px!important;
+  font-size:12px!important;
+  line-height:1.15!important;
+}
+
 /* Membership header has no right-side action after removing the measurement badge. */
 .membership-v2 .page-head>div:first-child:last-child{
   display:block!important;
   width:100%;
 }
+
 /* The exchange connection page also has no right-side action in its header. */
 .content:has(.connect-grid)>.page-head>div:first-child:last-child{
   display:block!important;
   width:100%;
 }
-@media(max-width:760px){.connection-official-links{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-@media(max-width:560px){.connection-official-links{grid-template-columns:1fr!important}}
-@media(min-width:981px){.trading-center-v2 .trading-exchange-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important}}
-.trading-center-v2>.trading-connections-v2{width:100%;max-width:none;margin-inline:0}
 
-.exchange-connect-form>label{font-family:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif;font-weight:500;letter-spacing:.01em}
+/* Keep the twelve exchange cards at the top of the connection workspace. The
+   page title is redundant here and was consuming exactly one card-height of
+   vertical space before the connection form. */
+.content:has(.connect-grid)>.page-head{display:none!important}
+
+/* Keep each exchange action aligned with the exchange name baseline row. */
+.connect-grid .exchange{
+  position:relative!important;
+  min-height:155px!important;
+}
+.connect-grid .exchange>button{
+  position:absolute!important;
+  top:24px!important;
+  bottom:auto!important;
+  left:50%!important;
+  grid-row:1!important;
+  z-index:3!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:auto!important;
+  min-width:76px!important;
+  height:30px!important;
+  padding:0 16px!important;
+  border:1px solid rgba(89,198,255,.58)!important;
+  border-radius:9px!important;
+  background:linear-gradient(135deg,rgba(26,93,151,.96),rgba(17,49,82,.98))!important;
+  color:#bce8ff!important;
+  font-size:11px!important;
+  font-weight:700!important;
+  line-height:1!important;
+  letter-spacing:.03em!important;
+  box-shadow:inset 0 1px 0 rgba(210,242,255,.16),0 5px 14px rgba(19,117,187,.2),0 0 0 1px rgba(52,143,240,.12)!important;
+  transform:translateX(-50%)!important;
+  transition:transform .2s ease,filter .2s ease,box-shadow .2s ease,border-color .2s ease!important;
+}
+.connect-grid .exchange>button::after{
+  content:"";
+  position:absolute;
+  inset:1px;
+  border-radius:7px;
+  background:linear-gradient(105deg,transparent 22%,rgba(255,255,255,.2) 48%,transparent 72%);
+  transform:translateX(125%);
+  transition:transform .45s ease;
+  pointer-events:none;
+}
+.connect-grid .exchange>button:hover{
+  border-color:#8bdcff!important;
+  filter:brightness(1.14)!important;
+  box-shadow:inset 0 1px 0 rgba(230,249,255,.24),0 8px 20px rgba(32,143,223,.34),0 0 14px rgba(73,177,255,.2)!important;
+  transform:translateX(-50%) translateY(-2px)!important;
+}
+.connect-grid .exchange>button:hover::after{transform:translateX(-125%)}
+.connect-grid .exchange>button:active{transform:translateX(-50%) translateY(0)!important;filter:brightness(.98)!important}
+.exchange-live-panel{scroll-margin-top:84px}
+.community-ranking-section .community-grid.five-columns>article>button.strategy-follow-cta{
+  font-size:10px!important;
+  min-height:42px!important;
+  height:42px!important;
+  padding:9px!important;
+}
+@media(max-width:1200px){
+  .community-ranking-section .community-grid.five-columns{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+}
+@media(max-width:600px){
+  .community-ranking-section .market-section-title{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:8px;
+  }
+  .community-ranking-section .market-section-title>span{font-size:14px!important}
+  .community-ranking-section .community-grid.five-columns{
+    grid-template-columns:1fr!important;
+  }
+}
+
+/* Keep the market pulse and selection guide panels equal in height. */
+.platform-strategy-layout{align-items:stretch!important}
+.platform-strategy-layout>.strategy-side-panel{
+  height:auto!important;
+  align-self:stretch!important;
+}
+
+/* Community ranking cards: enlarge the follow label and trim the bottom void. */
+@media(min-width:1201px){
+  .community-ranking-section .community-grid.five-columns>article{
+    height:390px!important;
+    min-height:390px!important;
+  }
+}
+.community-ranking-section .community-grid.five-columns>article>button.strategy-follow-cta{
+  font-size:15px!important;
+  line-height:1.2!important;
+}
+.community-ranking-section .community-grid.five-columns>article>button.strategy-follow-cta:hover{
+  color:#10202d!important;
+  text-shadow:none!important;
+}
+.community-ranking-section .community-grid.five-columns>article:hover>button.strategy-follow-cta{
+  color:#10202d!important;
+  -webkit-text-fill-color:#10202d!important;
+  text-shadow:none!important;
+}
+.community-ranking-section .market-section-title>span{
+  font-size:12.32px!important;
+}
+.community-ranking-section .market-section-title h2{
+  font-size:24.2px!important;
+}
+.dash:has(.platform-ai-section) .content>.page-head p{
+  font-size:14px!important;
+  line-height:1.5!important;
+}
+.dash:has(.trading-center-v2) .content>.page-head p{
+  font-size:14px!important;
+  line-height:1.5!important;
+}
+.dash:has(.compact-hall) .content>.page-head>div:last-child{
+  width:auto!important;
+  margin-left:auto!important;
+  justify-content:flex-end!important;
+}
+.dash:has(.compact-hall) .content>.page-head>div:last-child .danger{
+  display:none!important;
+}
+.dash:has(.compact-hall) .content>.page-head>div:last-child .soft{
+  flex:0 0 auto!important;
+}
+@media(max-width:900px){
+  .dash aside>button{font-size:13px!important}
+}
+
+/* Mobile trading hall: enlarge the right-column copy and remove trailing space. */
+@media(max-width:760px){
+  .dash:has(.compact-hall) .market-widget .widget-head b,
+  .dash:has(.compact-hall) .agent-chat .widget-head b{font-size:14px!important}
+  .dash:has(.compact-hall) .market-widget .widget-head button,
+  .dash:has(.compact-hall) .agent-chat .widget-head>span{font-size:11px!important}
+  .dash:has(.compact-hall) .coin-list{padding:2px 4px 0!important}
+  .dash:has(.compact-hall) .coin-list>button{min-height:43px!important;padding:7px 8px!important}
+  .dash:has(.compact-hall) .coin-list span b{font-size:12px!important}
+  .dash:has(.compact-hall) .coin-list span small{font-size:9px!important}
+  .dash:has(.compact-hall) .coin-list strong{font-size:12px!important}
+  .dash:has(.compact-hall) .coin-list strong em{font-size:9px!important}
+  .dash:has(.compact-hall) .agent-chat{padding-bottom:0!important}
+  .dash:has(.compact-hall) .agent-chat label{padding-bottom:4px!important}
+}
+
+/* Trading hall: keep the expanded market panel aligned with the left workspace. */
+@media(min-width:761px){
+  .dash:has(.compact-hall) .hall-right{height:100%;min-height:0}
+  .dash:has(.compact-hall) .hall-right>.market-widget{height:100%;min-height:0;flex:1 1 auto}
+  .dash:has(.compact-hall) .hall-right>.market-widget .coin-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:4px}
+  .dash:has(.compact-hall) .hall-right>.market-widget .coin-list>button{min-width:0}
+}
+@media(max-width:760px){
+  .dash:has(.compact-hall) .hall-right>.market-widget .coin-list{display:block}
+}
+@media(max-width:1100px){
+  .dash:has(.compact-hall) .hall-right{grid-template-columns:1fr}
+}
+
+/* Standalone Agent conversation workspace. */
+.agent-chat-page{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);gap:16px;align-items:start}
+.agent-chat-main,.agent-chat-side>section{border:1px solid #29313d;border-radius:12px;background:#111820;overflow:hidden}
+.agent-chat-page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:24px 26px;border-bottom:1px solid #252d38;background:linear-gradient(135deg,#111d2b,#111820)}
+.agent-chat-page-head .eyebrow{font-size:10px;letter-spacing:2.2px}
+.agent-chat-page-head h2{margin:9px 0 6px;font-size:22px}
+.agent-chat-page-head p{margin:0;color:#8190a2;font-size:12px;line-height:1.6}
+.agent-chat-status{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;color:#83bfff;font-size:11px;padding:8px 11px;border:1px solid #2b5076;border-radius:999px;background:#0c1d30}
+.agent-chat-status i{width:7px;height:7px;border-radius:50%;background:#55a9ff;box-shadow:0 0 12px #55a9ff}
+.agent-chat-messages{display:grid;gap:10px;padding:20px 22px 12px}
+.agent-chat-messages article{display:flex;gap:12px;padding:15px 16px;border:1px solid #253647;border-radius:10px;background:#0d1721}
+.agent-chat-messages article.risk{border-left:2px solid #e6a84e}
+.agent-chat-messages article.answer{border-left:2px solid #56b8ff;background:#102235}
+.agent-chat-messages article>i{width:30px;height:30px;display:grid;place-items:center;flex:0 0 30px;border-radius:9px;background:#19365a;color:#8cc7ff;font-style:normal;font-size:11px}
+.agent-chat-messages article.risk>i{background:#3d2d18;color:#ffc46c}
+.agent-chat-messages article.answer>i{background:#173c59;color:#70d2ff}
+.agent-chat-messages article b{display:block;font-size:12px;color:#dce8f4}
+.agent-chat-messages article p{margin:6px 0 5px;color:#b1bfce;font-size:12px;line-height:1.6}
+.agent-chat-messages article small{color:#6f8192;font-size:10px}
+.agent-chat-composer{display:flex;gap:10px;padding:12px 22px 8px}
+.agent-chat-composer textarea{min-height:48px;resize:vertical;flex:1;background:#0a131c;border:1px solid #2b465c;border-radius:9px;padding:13px;color:#dce8f4;font-size:12px;line-height:1.5}
+.agent-chat-composer button{align-self:stretch;padding:0 18px;border-radius:9px;background:#1e4e7f;color:#e8f4ff;font-size:12px;font-weight:600}
+.agent-chat-composer button:hover{background:#286da9}
+.agent-chat-disclaimer{display:block;padding:0 22px 18px;color:#708193;font-size:10px}
+.agent-chat-side{display:grid;gap:16px}
+.agent-chat-side>section{overflow:hidden}
+.agent-chat-side section>header{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid #252d38}
+.agent-chat-side section>header b{font-size:13px;color:#e2ebf5}
+.agent-chat-side section>header span{font-size:10px;color:#7696b3}
+.agent-chat-coin-list{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:8px}
+.agent-chat-coin-list>button{display:grid;grid-template-columns:24px minmax(0,1fr);gap:7px;align-items:center;text-align:left;padding:8px;border:1px solid transparent;border-radius:8px}
+.agent-chat-coin-list>button:hover,.agent-chat-coin-list>button.active{background:#152b43;border-color:#2f5f8c}
+.agent-chat-coin-list>button>i{width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:#183456;color:#8fcaff;font-style:normal;font-size:10px}
+.agent-chat-coin-list span b,.agent-chat-coin-list span small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agent-chat-coin-list span b{font-size:11px;color:#dce8f4}
+.agent-chat-coin-list span small{margin-top:2px;color:#6f8498;font-size:9px}
+.agent-chat-coin-list strong{grid-column:2;font-size:10px;color:#dce8f4}
+.agent-chat-coin-list strong em{margin-left:5px;color:#56d4ad;font-size:9px;font-style:normal}
+.agent-chat-coin-list strong em.down{color:#ff7185}
+.agent-chat-topics>button{display:flex;align-items:center;gap:10px;width:100%;padding:13px 16px;border-top:1px solid #202b37;text-align:left}
+.agent-chat-topics>button:hover{background:#162231}
+.agent-chat-topics>button i{color:#69b5ff;font-style:normal;font-size:10px}
+.agent-chat-topics>button span{flex:1;color:#b9c8d7;font-size:11px}
+.agent-chat-topics>button b{color:#6998c0;font-size:13px}
+@media(max-width:900px){
+  .agent-chat-page{grid-template-columns:1fr}
+  .agent-chat-side{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+  .agent-chat-side{grid-template-columns:1fr}
+  .agent-chat-page-head{padding:18px}
+  .agent-chat-composer{padding-left:14px;padding-right:14px}
+  .agent-chat-disclaimer{padding-left:14px;padding-right:14px}
+}
+
+/* Trading hall desktop balance: a narrower vertical market rail and a larger robot scene. */
+@media(min-width:1101px){
+  .dash:has(.compact-hall) .compact-hall{grid-template-columns:minmax(0,1.9fr) minmax(240px,.5fr)!important;gap:12px!important}
+  .dash:has(.compact-hall) .scene.compact{height:clamp(560px,calc(100vh - 230px),760px)!important}
+  .dash:has(.compact-hall) .hall-right>.market-widget .coin-list{display:grid!important;grid-template-columns:1fr!important;gap:3px!important}
+  .dash:has(.compact-hall) .hall-right>.market-widget .coin-list>button{grid-template-columns:28px minmax(0,1fr) auto;min-height:44px!important;padding:7px 8px!important}
+  .dash:has(.compact-hall) .hall-right{height:fit-content!important;align-self:start!important}
+  .dash:has(.compact-hall) .hall-right>.market-widget{height:fit-content!important;flex:0 0 auto!important}
+  .dash:has(.compact-hall) .hall-right>.market-widget .widget-head{height:48px!important;padding:0 14px!important}
+  .dash:has(.compact-hall) .hall-right>.market-widget .widget-head b{font-size:14px!important}
+  .dash:has(.compact-hall) .hall-right>.market-widget .coin-list>button>i{width:30px!important;height:30px!important;font-size:11px!important}
+  .dash:has(.compact-hall) .hall-right>.market-widget .coin-list span b{font-size:13px!important}
+  .dash:has(.compact-hall) .hall-right>.market-widget .coin-list span small{font-size:10px!important}
+  .dash:has(.compact-hall) .hall-right>.market-widget .coin-list strong{font-size:13px!important}
+  .dash:has(.compact-hall) .hall-right>.market-widget .coin-list strong em{font-size:10px!important}
+}
+
+/* Agent conversation: history rail on the left, large dialogue canvas on the right. */
+.agent-chat-workspace{display:grid;grid-template-columns:minmax(220px,.32fr) minmax(0,1fr);gap:14px;min-height:680px;align-items:stretch}
+.agent-chat-history{display:flex;min-height:680px;flex-direction:column;border:1px solid #29313d;border-radius:12px;background:#0e151e;overflow:hidden}
+.agent-chat-history>header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 16px;border-bottom:1px solid #252d38}
+.agent-chat-history>header b{display:block;color:#e3edf6;font-size:14px}
+.agent-chat-history>header small{display:block;margin-top:5px;color:#708297;font-size:10px}
+.agent-chat-history>header button{padding:7px 9px;border:1px solid #315579;border-radius:7px;color:#9dcaff;background:#112943;font-size:10px;white-space:nowrap}
+.agent-chat-history-list{display:grid;gap:4px;padding:10px}
+.agent-chat-history-list>button{display:grid;grid-template-columns:30px minmax(0,1fr) 12px;gap:9px;align-items:center;width:100%;padding:11px 9px;border:1px solid transparent;border-radius:8px;text-align:left}
+.agent-chat-history-list>button:hover{background:#162332;border-color:#293f56}
+.agent-chat-history-list>button.active{background:#152b44;border-color:#326a9b}
+.agent-chat-history-list>button>i{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;background:#1b3453;color:#83bdff;font-style:normal;font-size:10px}
+.agent-chat-history-list>button.active>i{background:#28689b;color:#e8f5ff}
+.agent-chat-history-list span b,.agent-chat-history-list span small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agent-chat-history-list span b{color:#d7e4ef;font-size:11px}
+.agent-chat-history-list span small{margin-top:4px;color:#708398;font-size:9px}
+.agent-chat-history-list em{color:#6383a1;font-size:17px;font-style:normal;text-align:right}
+.agent-chat-history>footer{margin-top:auto;padding:15px 16px;border-top:1px solid #252d38;color:#71869a;font-size:10px}
+.agent-chat-history>footer span,.agent-chat-history>footer small{display:block}
+.agent-chat-history>footer span i{display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;background:#5ad6b3;box-shadow:0 0 8px #5ad6b3}
+.agent-chat-history>footer small{margin:7px 0 0 12px;color:#566b80}
+.agent-chat-workspace>.agent-chat-main{display:flex;min-height:680px;flex-direction:column}
+.agent-chat-workspace>.agent-chat-main .agent-chat-page-head{flex:0 0 auto}
+.agent-chat-workspace>.agent-chat-main .agent-chat-current{display:flex;align-items:center;gap:11px;padding:13px 22px;border-bottom:1px solid #202b37;background:#0e1822}
+.agent-chat-current span{color:#6e8297;font-size:10px}
+.agent-chat-current b{color:#d9e7f4;font-size:12px}
+.agent-chat-current small{margin-left:auto;color:#6d849a;font-size:10px}
+.agent-chat-workspace>.agent-chat-main .agent-chat-messages{flex:1;align-content:start;overflow:auto}
+.agent-chat-prompts{padding:13px 22px 4px}
+.agent-chat-prompts>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.agent-chat-prompts>header b{color:#c5d5e4;font-size:11px}
+.agent-chat-prompts>header span{color:#6c8298;font-size:9px}
+.agent-chat-prompts>div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.agent-chat-prompts button{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:38px;padding:8px 10px;border:1px solid #263e55;border-radius:8px;background:#0c1824;color:#91abc1;text-align:left;font-size:10px}
+.agent-chat-prompts button:hover{border-color:#4c8dc4;background:#112840;color:#e0efff}
+.agent-chat-prompts button i{color:#5fa9e9;font-style:normal;font-size:12px}
+.agent-chat-open-strategy{display:inline-flex;align-items:center;margin:4px 0 8px;padding:7px 10px;border:1px solid #3d83b8;border-radius:7px;background:#123452;color:#a9d7ff;font-size:10px;font-weight:700}
+.agent-chat-open-strategy:hover{border-color:#74c1ff;background:#1a4d75;color:#f0f8ff}
+@media(max-width:900px){
+  .agent-chat-workspace{grid-template-columns:1fr;min-height:0}
+  .agent-chat-history{min-height:0}
+  .agent-chat-history-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .agent-chat-history>footer{display:none}
+  .agent-chat-workspace>.agent-chat-main{min-height:620px}
+}
+@media(max-width:600px){
+  .agent-chat-history-list{grid-template-columns:1fr}
+  .agent-chat-current{flex-wrap:wrap}
+  .agent-chat-current small{width:100%;margin-left:0}
+.agent-chat-prompts>div{grid-template-columns:1fr 1fr}
+}
+
+/* Keep the eight dashboard title cards close to the top divider without
+   touching their own height or content spacing. */
+.dash>.content{padding-top:12px!important}
+@media(max-width:900px){.dash>.content{padding-top:10px!important}}
+
+/* Final dashboard header standard: use the live market title card itself as
+   the geometry reference for every top-level section. */
+body:has(.content) .content>.page-head,
+body:has(.content) .content .page-head,
+body:has(.content) .content>.market-terminal-title,
+body:has(.content) .content .market-terminal-title,
+body:has(.content) .content>.market-simple-head{
+  height:105px!important;
+  min-height:105px!important;
+  margin-top:0!important;
+  margin-bottom:24px!important;
+  padding:24px 28px 22px!important;
+}
+body:has(.content) .market-terminal-page{
+  padding-top:0!important;
+}
+body:has(.membership-v2) .content,
+body:has(.membership-plans) .content{
+  padding-top:12px!important;
+}
+@media(max-width:700px){
+  body:has(.membership-v2) .content,
+  body:has(.membership-plans) .content{padding-top:10px!important}
+  body:has(.content) .content>.page-head,
+  body:has(.content) .content .page-head,
+  body:has(.content) .content>.market-terminal-title,
+  body:has(.content) .content .market-terminal-title,
+  body:has(.content) .content>.market-simple-head{
+    height:96px!important;
+    min-height:96px!important;
+    margin-bottom:18px!important;
+    padding:20px 18px 18px!important;
+  }
+}
+
+/* Membership spacing must come after the final generic header rules. */
+body:has(.membership-v2) .content>.page-head,
+body:has(.membership-plans) .content>.page-head{
+  margin-bottom:8px!important;
+}

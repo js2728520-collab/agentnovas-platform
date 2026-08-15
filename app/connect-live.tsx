@@ -85,6 +85,7 @@ export default function ConnectLive() {
   const [message, setMessage] = useState("");
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [executionIp, setExecutionIp] = useState("部署后由服务端配置");
+  const [ipCopied, setIpCopied] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const load = () =>
@@ -148,12 +149,31 @@ export default function ConnectLive() {
     setMessage("");
   }
 
+  function focusConnectionForm(exchange: string) {
+    selectExchange(exchange);
+    window.requestAnimationFrame(() => {
+      document.getElementById("exchange-live-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  async function copyExecutionIp() {
+    try {
+      await navigator.clipboard.writeText(executionIp);
+      setIpCopied(true);
+      window.setTimeout(() => setIpCopied(false), 1600);
+    } catch {
+      setMessage("复制失败，请手动复制白名单 IP");
+    }
+  }
+
   const selectedAdapter = adapterStatus.find((item) => item.key === selected);
   const channelNote = !selectedAdapter?.permissionCheckReady
-    ? "该交易所的官方权限检测尚未接入，当前只能使用本地模拟盘。"
+    ? "该交易所的官方权限检测尚未接入，当前只能登记为策略测试账户。"
     : selectedAdapter.orderRoutingReady
-      ? "官方鉴权与模拟订单链路已接入；真实下单仍需风险检查和明确的实盘开关。"
+      ? "官方鉴权与策略测试链路已接入；真实下单仍需风险检查和明确的实盘开关。"
       : "官方鉴权已接入；下单、撤单、成交同步和持仓同步仍待该交易所沙盒验证，当前不会发送订单。";
+  const selectedExchange = exchangeCatalog.find((exchange) => exchange.key === selected);
+  const selectedDisplayName = getExchangeDisplayName(selectedExchange?.displayName || selected);
 
   return (
     <>
@@ -176,35 +196,44 @@ export default function ConnectLive() {
               <ExchangeLogo name={name} />
               <div className="exchange-card-copy">
                 <h2>{displayName}</h2>
-                <p>{account ? `${account.environment === "demo" ? "模拟盘" : "实盘"} · ${account.status}` : description}</p>
+                <p>{account ? `${account.environment === "demo" ? "策略测试账户" : "实盘账户"} · ${account.status}` : description}</p>
                 <small className="exchange-capability-summary">
-                  {exchange.supportsContracts ? "合约可用" : "仅现货"} · {adapter?.permissionCheckReady ? "鉴权已接入" : "鉴权待接入"} · {adapter?.demoVerificationReady ? "模拟盘可用" : "模拟盘待接入"} · {adapter?.orderRoutingReady ? "订单链路已接入" : "订单链路待沙盒验证"}
+                  {exchange.supportsContracts ? "合约可用" : "仅现货"} · {adapter?.permissionCheckReady ? "鉴权已接入" : "鉴权待接入"} · {adapter?.demoVerificationReady ? "策略测试可用" : "策略测试待接入"} · {adapter?.orderRoutingReady ? "订单链路已接入" : "订单链路待沙盒验证"}
                 </small>
               </div>
               <span className={account?.status === "active" ? "green" : ""}>
                 {account?.status === "active" ? "已启用" : account ? "待检测" : "未连接"}
               </span>
-              <button type="button" onClick={() => selectExchange(name)}>{account ? "管理连接" : "连接"}</button>
+              <button type="button" onClick={() => focusConnectionForm(name)}>{account ? "管理连接" : "连接"}</button>
             </article>
           );
         })}
       </div>
 
-      <section className="wide-panel exchange-live-panel">
+      <section id="exchange-live-panel" className="wide-panel exchange-live-panel">
         <div className="widget-head">
-          <b>{environment === "live" ? "新增实盘连接" : "新增模拟盘连接"} · {selected}</b>
-          <span>{environment === "live" ? "仅先做凭证与权限检测" : "先验证，再允许交易"}</span>
+          <b>{environment === "live" ? "新增实盘连接" : "新增策略测试连接"} · {selected}</b>
+          <span>{environment === "live" ? "仅先做凭证与权限检测" : "仅供本人策略测试，不产生真实订单"}</span>
         </div>
 
         <div className="environment-switch" role="group" aria-label="账户环境">
-          <button type="button" className={environment === "demo" ? "active" : ""} onClick={() => setEnvironment("demo")}>模拟盘</button>
+          <button type="button" className={environment === "demo" ? "active" : ""} onClick={() => setEnvironment("demo")}>策略测试账户</button>
           <button type="button" className={environment === "live" ? "active" : ""} onClick={() => setEnvironment("live")} disabled={!adapterStatus.find((item) => item.key === selected)?.permissionCheckReady}>实盘</button>
         </div>
         <p className="live-channel-note">
           {channelNote}
         </p>
 
-        <div className="connect-form-summary"><span>02</span><div><b>填写连接凭证</b><p>仅提交交易所 API 页面生成的凭证，平台会加密保存并先做权限检测。</p></div><strong>安全连接</strong></div>
+        <div className="connect-form-summary">
+          <span>02</span>
+          <div><b>填写连接凭证</b><p>仅提交交易所 API 页面生成的凭证，平台会加密保存并先做权限检测。</p></div>
+          <div className="connect-form-selected" aria-live="polite">
+            <ExchangeLogo name={selected} />
+            <span><small>当前选择</small><b>{selectedDisplayName}</b></span>
+          </div>
+          <div className="connect-form-whitelist"><b>白名单 IP</b><button type="button" className="connect-form-whitelist-copy" onClick={() => void copyExecutionIp()} aria-label="复制白名单 IP"><span>{executionIp}</span><small>{ipCopied ? "已复制" : "点击复制"}</small></button></div>
+          <strong>安全连接</strong>
+        </div>
         <form className="exchange-connect-form" onSubmit={submit}>
           <div className="connect-field-grid">
             <label className="connect-field"><span>账户标签 <em>可选</em></span><input placeholder="例如：我的主账户" value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} /><small>用于区分不同账户，不会提交给交易所。</small></label>
@@ -214,11 +243,9 @@ export default function ConnectLive() {
           </div>
           {selected === "METAMASK" && <p className="field-hint connect-inline-hint">MetaMask 使用公开钱包地址登记连接，不要求提交私钥；签名授权仍由钱包弹窗完成。</p>}
           {selected === "COINBASE" && <p className="field-hint connect-inline-hint">Coinbase Secret Key 请粘贴包含 <code>BEGIN PRIVATE KEY</code> 的 CDP 私钥。</p>}
-          <div className="connect-permission-panel"><div className="connect-permission-heading"><b>权限与安全确认</b><small>建议只开启读取与交易权限，并在交易所限制平台 IP。</small></div><label className="connect-permission-option"><input type="checkbox" checked={form.canTrade} onChange={(event) => setForm({ ...form, canTrade: event.target.checked })} /><span><b>允许交易权限检测</b><small>用于验证接口是否具备下单权限，不代表会自动下单。</small></span></label><label className="connect-permission-option"><input type="checkbox" checked={form.withdrawalAuthorized} onChange={(event) => setForm({ ...form, withdrawalAuthorized: event.target.checked })} /><span><b>客户主动开启提现授权</b><small>按平台跟单规则确认授权状态，请勿开启交易所提现权限。</small></span></label></div>
           <div className="connect-form-actions"><button type="button" className="connect-help-button" onClick={() => setTutorialOpen(!tutorialOpen)}><strong>使用说明</strong><small>查看绑定步骤与官网入口</small></button><button className="primary"><strong>加密保存并检测</strong><small>先验证权限，不会自动下单</small></button></div>
         </form>
-        <div className="ip-whitelist-note"><b>平台执行服务器 IP 白名单</b><span>{executionIp}</span><small>请仅将部署环境展示的 IP 加入交易所 API 白名单；本地开发环境没有可用于生产的固定出口 IP。</small></div>
-        {tutorialOpen && <div className="connection-tutorial"><h3>绑定流程</h3><ol><li>在下方选择交易所，进入其官方 API 管理页面。</li><li>创建只包含读取和交易权限的专用凭证，关闭提现权限并限制 IP。</li><li>回到这里填写凭证并点击“加密保存并检测”；检测通过后才可用于模拟跟随。</li><li>实盘订单路由仍需该交易所完成官方鉴权、沙盒、回滚和人工审批，不会因保存密钥自动下单。</li></ol><div className="connection-official-links">{officialExchangeLinks.map((link) => <a href={link.href} key={link.key} target="_blank" rel="noreferrer">{link.label} ↗</a>)}</div></div>}
+        {tutorialOpen && <div className="connection-tutorial"><h3>绑定流程</h3><ol><li>在下方选择交易所，进入对应的官方 API 管理页面。</li><li>创建只包含读取和交易权限的专用凭证，关闭提现权限并限制 IP。</li><li>回到这里填写凭证并点击“加密保存并检测”；检测通过后仅可用于本人策略测试。</li><li>实盘订单路由仍需该交易所完成官方鉴权、沙盒、回滚和人工审批，不会因保存密钥自动下单。</li></ol><div className="connection-official-links">{officialExchangeLinks.map((link) => <a href={link.href} key={link.key} target="_blank" rel="noreferrer">{link.label} ↗</a>)}</div></div>}
         {message && <p className="admin-notice">{message}</p>}
       </section>
 
@@ -228,10 +255,10 @@ export default function ConnectLive() {
           <div className="service service-exchange-account" key={account.id}>
             <div className="service-main">
               <span><i />{account.exchange} · {account.label}</span>
-              <b>{account.environment === "demo" ? "模拟盘" : "实盘"} · {account.status}</b>
+              <b>{account.environment === "demo" ? "策略测试账户" : "实盘账户"} · {account.status}</b>
             </div>
             <small className={`exchange-routing-badge ${account.routing?.ready ? "is-ready" : ""}`}>
-              {account.routing?.ready ? "模拟订单链路已就绪" : account.routing?.code === "EXCHANGE_LIVE_DISABLED" ? "实盘订单已关闭" : "待沙盒验证"}
+              {account.routing?.ready ? "策略测试链路已就绪" : account.routing?.code === "EXCHANGE_LIVE_DISABLED" ? "实盘订单已关闭" : "待沙盒验证"}
             </small>
             <div className="exchange-routing-detail">
               <span>{account.routing?.reason || "已保存凭证，等待连接状态同步"}</span>

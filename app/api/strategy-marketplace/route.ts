@@ -42,12 +42,17 @@ export async function GET(request: Request) {
       featuredRank: communityStrategies.featuredRank,
       rankingScore: communityStrategies.rankingScore,
       authorEmail: users.email,
+      authorNickname: users.nickname,
+      authorUsername: users.username,
+      authorAvatarUrl: users.avatarUrl,
+      authorRole: users.role,
+      publicationMode: communityStrategies.publicationMode,
     };
     const all = await db
       .select(fields)
       .from(communityStrategies)
       .innerJoin(users, eq(users.id, communityStrategies.authorUserId))
-      .where(eq(communityStrategies.status, "published"))
+      .where(and(eq(communityStrategies.status, "published"), eq(communityStrategies.publicationMode, "marketplace")))
       .orderBy(asc(communityStrategies.featuredRank), desc(communityStrategies.rankingScore), desc(communityStrategies.publishedAt))
       .limit(60);
     const featured = all
@@ -114,6 +119,7 @@ export async function POST(request: Request) {
       summary?: string;
       symbols?: string[];
       riskLevel?: "low" | "medium" | "high";
+      publicationMode?: "marketplace" | "self_use";
       conversation?: unknown[];
       specification?: Record<string, unknown>;
     };
@@ -126,6 +132,7 @@ export async function POST(request: Request) {
     const riskLevel = ["low", "medium", "high"].includes(String(body.riskLevel))
       ? body.riskLevel!
       : "medium";
+    const publicationMode = body.publicationMode === "self_use" ? "self_use" : "marketplace";
     const id = crypto.randomUUID();
     await getDb().batch([
       getDb().insert(communityStrategies).values({
@@ -135,6 +142,7 @@ export async function POST(request: Request) {
         summary: body.summary.trim(),
         symbolsJson: JSON.stringify(symbols),
         riskLevel,
+        publicationMode,
         conversationJson: JSON.stringify(body.conversation || []),
         specificationJson: JSON.stringify(body.specification || {}),
       }),
@@ -144,7 +152,7 @@ export async function POST(request: Request) {
         action: "strategy.draft.created",
         subjectType: "community_strategy",
         subjectId: id,
-        afterJson: JSON.stringify({ name: body.name.trim(), symbols, riskLevel, version: 1 }),
+        afterJson: JSON.stringify({ name: body.name.trim(), symbols, riskLevel, publicationMode, version: 1 }),
       }),
     ]);
     return Response.json({ id, status: "draft", version: 1, message: "策略草稿已保存" }, { status: 201 });

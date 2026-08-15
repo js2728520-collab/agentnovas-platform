@@ -25,6 +25,7 @@ export async function POST(
       .limit(1))[0];
 
     if (!strategy) return Response.json({ error: "策略不存在" }, { status: 404 });
+    if (strategy.publicationMode === "self_use") return Response.json({ error: "自用策略不会进入策略广场，也无需提交平台审核" }, { status: 409 });
     if (!["draft", "testing", "rejected"].includes(strategy.status)) {
       return Response.json({ error: "策略当前状态不能提交审核" }, { status: 409 });
     }

@@ -47,6 +47,7 @@ export async function PATCH(
       if (subscription.status === "ended") return Response.json({ id, status: "ended", message: "跟随已停止" });
       nextStatus = "ended";
     } else {
+      return Response.json({ error: "实盘跟单尚未开放；当前不能恢复模拟跟单" }, { status: 403 });
       if (subscription.status !== "paused") return Response.json({ error: "只有已暂停的策略可以恢复" }, { status: 409 });
       if (!subscription.exchangeAccountId) return Response.json({ error: "未绑定模拟交易账户，无法恢复" }, { status: 409 });
 

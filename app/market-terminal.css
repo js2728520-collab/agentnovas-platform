@@ -110,12 +110,12 @@
 .market-symbol-index button.active { border-color: #3d6b95; background: #142a40; color: #b9ddff; }
 .market-instrument-summary {
   display: grid;
-  grid-template-columns: minmax(230px, 1.8fr) repeat(4, minmax(100px, 1fr));
+  grid-template-columns: minmax(230px, 1.8fr) repeat(5, minmax(100px, 1fr));
   gap: 0;
   margin-top: 12px;
   overflow: hidden;
 }
-.market-instrument-summary > div { min-width: 0; padding: 15px; border-left: 1px solid #293b4d; }
+.market-instrument-summary > div { min-width: 0; padding: 12px 15px; border-left: 1px solid #293b4d; }
 .market-instrument-summary > div:first-child { border-left: 0; }
 .market-instrument-summary small { display: block; color: #8194a8; }
 .market-instrument-summary b { display: block; margin-top: 6px; color: #e8f0f8; font-family: var(--font-geist-mono); }

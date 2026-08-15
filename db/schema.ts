@@ -254,6 +254,7 @@ export const communityStrategies = sqliteTable("community_strategies", {
   symbolsJson: text("symbols_json").notNull().default("[]"),
   riskLevel: text("risk_level", { enum: ["low", "medium", "high"] }).notNull().default("medium"),
   status: text("status", { enum: ["draft", "testing", "submitted", "approved", "rejected", "published", "paused"] }).notNull().default("draft"),
+  publicationMode: text("publication_mode", { enum: ["marketplace", "self_use"] }).notNull().default("marketplace"),
   conversationJson: text("conversation_json").notNull().default("[]"),
   specificationJson: text("specification_json").notNull().default("{}"),
   version: integer("version").notNull().default(1),

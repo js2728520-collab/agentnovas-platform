@@ -101,10 +101,11 @@ export async function GET(request: Request) {
         .where(eq(strategySubscriptions.customerId, me.id)),
     ]);
 
-    // 绩效只统计平台策略订单。客户完全独立发起的订单不会进入收益与回撤。
-    const attributedRows = allRows.filter((row) => row.origin !== "customer_manual");
+    // 普通资产页只展示真实执行记录。内部 Demo/模拟测试记录由作者测试入口单独管理。
+    const liveRows = allRows.filter((row) => row.executionVenue !== "internal_demo" && row.executionVenue !== "okx_demo");
+    const attributedRows = liveRows.filter((row) => row.origin !== "customer_manual");
     const summary = tradeMetrics(attributedRows);
-    const open = allRows.filter((row) => !row.closedAt);
+    const open = liveRows.filter((row) => !row.closedAt);
     const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const month = today.slice(0, 7);
     const closedRows = attributedRows.filter((row) => Boolean(row.closedAt));

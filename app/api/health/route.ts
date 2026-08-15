@@ -25,7 +25,7 @@ export async function GET() {
 
   return Response.json({
     status: database === "ok" && encryptionKey ? "ready" : "degraded",
-    mode: "demo",
+    mode: "research-only",
     checks: {
       database,
       encryptionKey,
