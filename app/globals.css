@@ -811,6 +811,12 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
 .dash aside .aside-bottom{font-size:12px!important;}
 .dash aside .aside-bottom small{font-size:10px!important;}
 
+/* Tighten the gap between the Membership header and plan selector. */
+body:has(.membership-v2) .content>.page-head,
+body:has(.membership-plans) .content>.page-head{
+  margin-bottom:8px!important;
+}
+
 /* Keep the desktop dashboard navigation visible while the content scrolls. */
 @media(min-width:901px){
   .dash aside{position:sticky!important;top:72px!important;height:calc(100vh - 72px)!important;max-height:calc(100vh - 72px)!important;align-self:start!important;overflow-y:auto!important;overflow-x:hidden!important;}
