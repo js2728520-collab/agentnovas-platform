@@ -149,34 +149,50 @@
 .period-switcher button:hover,
 .period-switcher button.active,
 .chart-tools button:hover { background: #22364b; color: #e6f2ff; }
+.chart-tools button:disabled { cursor: not-allowed; opacity: .48; }
+.chart-tools .chart-history-button { min-width: 62px; border: 1px solid #30475d; color: #a8bbcd; }
 .chart-source { margin-right: 5px; color: #8192a5; }
+.chart-refresh-rate { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; padding: 5px 8px; border: 1px solid #30475d; border-radius: 999px; color: #9bb0c3; font-size: 10px; white-space: nowrap; }
+.chart-refresh-rate i { width: 6px; height: 6px; border-radius: 50%; background: #f0b90b; box-shadow: 0 0 8px #f0b90b99; animation: market-live-pulse 1.6s ease-out infinite; }
+.chart-refresh-rate.is-streaming { border-color: #266c59; color: #8bd8c0; }
+.chart-refresh-rate.is-streaming i { background: #0ecb81; box-shadow: 0 0 8px #0ecb8199; }
+@keyframes market-live-pulse { 0%,100% { opacity: 1; } 50% { opacity: .38; } }
 .market-data-message { padding: 8px 12px; color: #d5b46c; background: #241d10; border-bottom: 1px solid #4e4025; }
 .market-chart-viewport { position: relative; min-height: 510px; overflow: auto; cursor: grab; background: #080e15; }
 .market-chart-viewport:active { cursor: grabbing; }
 .market-chart-canvas { position: relative; min-width: 100%; height: 510px; }
 .chart-grid-lines { position: absolute; inset: 0; background: linear-gradient(#25374766 1px, transparent 1px), linear-gradient(90deg, #25374755 1px, transparent 1px); background-size: 100% 20%, 10% 100%; }
-.chart-y-axis { position: absolute; z-index: 2; right: 10px; top: 22px; bottom: 78px; display: flex; flex-direction: column; justify-content: space-between; color: #71859a; font-family: var(--font-geist-mono); }
+.chart-y-axis { position: absolute; z-index: 2; right: 10px; top: 42px; bottom: 158px; display: flex; flex-direction: column; justify-content: space-between; color: #71859a; font-family: var(--font-geist-mono); }
 .chart-ohlc-readout { position: absolute; z-index: 3; top: 10px; left: 12px; display: flex; gap: 10px; color: #8ea2b5; font-family: var(--font-geist-mono); }
 .chart-ohlc-readout b { color: #d2dfeb; font-weight: 500; }
-.chart-ohlc-readout em { color: #35c995; font-style: normal; }
-.chart-candles { position: absolute; left: 16px; right: 62px; top: 42px; height: 310px; }
-.chart-candle { position: absolute; top: 0; bottom: 0; }
-.candle-wick { position: absolute; left: 50%; width: 1px; background: #35c995; transform: translateX(-50%); }
-.candle-body { position: absolute; left: 16%; right: 16%; min-height: 2px; background: #35c995; }
+.chart-ohlc-readout em { font-style: normal; }
+.market-terminal-chart .up { color: #0ecb81 !important; }
+.market-terminal-chart .down { color: #f6465d !important; }
+.chart-candles { position: absolute; left: 16px; right: 62px; top: 42px; height: 310px; display: grid; gap: 1px; align-items: stretch; }
+.chart-candle { position: relative; min-width: 0; height: 100%; }
+.chart-candle:hover { background: rgba(127, 158, 186, .045); }
+.candle-wick { position: absolute; left: 50%; width: 1px; background: #0ecb81; transform: translateX(-50%); }
+.candle-body { position: absolute; left: 12%; right: 12%; min-height: 2px; border-radius: 1px; background: #0ecb81; }
 .chart-candle.falling .candle-wick,
-.chart-candle.falling .candle-body { background: #f06478; }
-.chart-volume { position: absolute; left: 16px; right: 62px; bottom: 42px; height: 96px; border-top: 1px solid #253747; }
-.chart-volume i { position: absolute; bottom: 0; opacity: .55; background: #35c995; }
-.chart-volume i.falling { background: #f06478; }
+.chart-candle.falling .candle-body { background: #f6465d; }
+.chart-candle.latest .candle-body { animation: latest-candle 1.5s ease-in-out infinite; }
+@keyframes latest-candle { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.45); box-shadow: 0 0 8px currentColor; } }
+.crosshair-v,.crosshair-h { position: absolute; z-index: 5; display: none; pointer-events: none; opacity: .75; }
+.chart-candle:hover .crosshair-v,.chart-candle:hover .crosshair-h { display: block; }
+.crosshair-v { top: 0; bottom: -116px; left: 50%; border-left: 1px dashed #89a0b6; }
+.crosshair-h { left: -200vw; width: 400vw; border-top: 1px dashed #89a0b6; }
+.chart-volume { position: absolute; left: 16px; right: 62px; bottom: 42px; height: 96px; display: grid; gap: 1px; align-items: end; border-top: 1px solid #253747; }
+.chart-volume i { display: block; width: 76%; min-height: 2px; justify-self: center; opacity: .42; background: #0ecb81; }
+.chart-volume i.falling { background: #f6465d; }
 .chart-x-axis { position: absolute; left: 16px; right: 62px; bottom: 14px; display: flex; justify-content: space-between; color: #71859a; font-family: var(--font-geist-mono); }
-.current-price-line { position: absolute; z-index: 3; left: 16px; right: 62px; border-top: 1px dashed #35c995; }
-.current-price-line span { position: absolute; right: -58px; top: -10px; padding: 3px 5px; border-radius: 3px; background: #188d62; color: #f0fff9; font-family: var(--font-geist-mono); }
+.current-price-line { position: absolute; z-index: 3; left: 16px; right: 62px; border-top: 1px dashed #f0b90b; }
+.current-price-line span { position: absolute; right: -58px; top: -10px; padding: 3px 5px; border-radius: 3px; background: #8f6c00; color: #fff8e1; font-family: var(--font-geist-mono); }
 .market-chart-empty { min-height: 510px; display: grid; place-content: center; justify-items: center; gap: 10px; color: #8094a8; }
 .market-chart-empty b { color: #dce8f3; }
 .market-chart-footer { display: flex; align-items: center; gap: 18px; padding: 10px 12px; border-top: 1px solid #293b4d; color: #8295a8; }
 .market-chart-footer span { display: inline-flex; align-items: center; gap: 5px; }
-.market-chart-footer i { width: 7px; height: 7px; border-radius: 50%; background: #35c995; }
-.market-chart-footer .legend-down { background: #f06478; }
+.market-chart-footer i { width: 7px; height: 7px; border-radius: 50%; background: #0ecb81; }
+.market-chart-footer .legend-down { background: #f6465d; }
 .market-chart-footer small { margin-left: auto; color: #65788d; }
 .market-news-feed { margin-top: 12px; overflow: hidden; border: 1px solid #293b4d; border-radius: 10px; background: #101820; }
 .market-news-feed > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 18px 20px; border-bottom: 1px solid #293b4d; background: linear-gradient(135deg, #111d28, #0d1720); }

@@ -3057,13 +3057,83 @@ body:has(.membership-plans) .content>.page-head{
   margin-bottom:8px!important;
 }
 
+/* Trading hall: make the final borders of the scene rail and Agent panel align. */
+.dash:has(.compact-hall) .compact-hall{align-items:stretch!important}
+.dash:has(.compact-hall) .hall-left{
+  height:704px!important;
+  min-height:704px!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+.dash:has(.compact-hall) .hall-left .scene.compact{
+  height:auto!important;
+  min-height:0!important;
+  flex:1 1 auto!important;
+}
+.dash:has(.compact-hall) .hall-left .strategy-monitor-ticker{
+  flex:0 0 66px!important;
+}
+.dash:has(.compact-hall) .hall-right{
+  height:704px!important;
+  min-height:704px!important;
+  align-self:stretch!important;
+}
+.dash:has(.compact-hall) .hall-right>.agent-dialogue-widget{
+  height:704px!important;
+  min-height:704px!important;
+  flex:0 0 704px!important;
+}
+
+/* Trading hall: replace the former market list contents with a vertical live Agent feed. */
+.hall-right>.agent-dialogue-widget{
+  height:704px!important;
+  min-height:704px!important;
+}
+.agent-dialogue-viewport{
+  position:relative;
+  height:calc(100% - 44px);
+  min-height:658px;
+  overflow:hidden;
+  padding:14px 12px 0;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 9%,#000 88%,transparent 100%);
+  mask-image:linear-gradient(to bottom,transparent 0,#000 9%,#000 88%,transparent 100%);
+}
+.agent-dialogue-track{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  animation:agent-dialogue-scroll 34s linear infinite;
+  will-change:transform,opacity;
+}
+.agent-dialogue-widget:hover .agent-dialogue-track{animation-play-state:paused}
+.agent-dialogue-track article{
+  flex:0 0 auto;
+  padding:12px 13px;
+  border:1px solid #203d5d;
+  border-radius:9px;
+  background:linear-gradient(145deg,#10233a,#0c1725);
+  box-shadow:0 8px 22px #0003;
+}
+.agent-dialogue-track article b{display:block;color:#79baff;font-size:12px;font-weight:650}
+.agent-dialogue-track article p{margin:6px 0 0;color:#b5c6d9;font-size:12px;line-height:1.55}
+@keyframes agent-dialogue-scroll{
+  0%,6%{transform:translateY(96%);opacity:0}
+  14%{opacity:1}
+  84%{opacity:1}
+  100%{transform:translateY(-86%);opacity:0}
+}
+@media(max-width:700px){
+  .hall-right>.agent-dialogue-widget{height:704px!important;min-height:704px!important}
+  .agent-dialogue-viewport{min-height:658px}
+}
+
 /* Auth experience: one clean canvas for sign-in and invitation registration. */
 .auth-page{position:relative;isolation:isolate;min-height:calc(100vh - 72px);display:grid;place-items:center;overflow:hidden;padding:46px clamp(24px,5vw,84px);background:radial-gradient(circle at 18% 18%,rgba(35,104,166,.24),transparent 34%),radial-gradient(circle at 82% 76%,rgba(47,167,151,.13),transparent 30%),#080c12}
 .auth-page:before,.auth-page:after{content:"";position:absolute;z-index:-1;border:1px solid rgba(91,154,211,.13);border-radius:50%;pointer-events:none}.auth-page:before{width:520px;height:520px;left:-210px;bottom:-270px}.auth-page:after{width:360px;height:360px;right:-140px;top:-170px}
 .auth-page .auth{width:min(1080px,100%);max-width:none!important;min-height:610px;margin:0!important;display:grid;grid-template-columns:minmax(340px,.88fr) minmax(430px,1.12fr);overflow:hidden;border:1px solid #29384a!important;border-radius:26px!important;background:#0d141e!important;box-shadow:0 34px 100px rgba(0,0,0,.52),inset 0 1px 0 rgba(255,255,255,.035)!important}
 .auth-page .auth-brand{position:relative;display:flex;min-width:0;flex-direction:column;justify-content:space-between;overflow:hidden;padding:48px!important;background:linear-gradient(148deg,#152b45 0%,#102135 50%,#0e1b2a 100%)!important}
 .auth-page .auth-brand:before{content:"";position:absolute;width:310px;height:310px;right:-150px;bottom:-140px;border:1px solid rgba(110,184,238,.18);border-radius:50%;box-shadow:0 0 80px rgba(28,120,188,.14)}
-.auth-brand-lockup{position:relative;z-index:1;display:flex;align-items:center;gap:14px}.auth-page .auth-brand-mark{width:54px!important;height:54px!important;flex:0 0 54px;display:block!important;margin:0!important;border:1px solid rgba(145,209,255,.26)!important;border-radius:16px!important;background:#0b1724 url('/agentnovas-mark-transparent.png') center/82% auto no-repeat!important;color:transparent!important;font-size:0!important;box-shadow:0 12px 30px rgba(0,0,0,.28)}
+.auth-brand-lockup{position:relative;z-index:1;display:flex;align-items:center;gap:13px}.auth-page .auth-brand-mark{width:64px!important;height:62px!important;flex:0 0 64px;display:block!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent url('/agentnovas-mark-clean.png') center/contain no-repeat!important;color:transparent!important;font-size:0!important;box-shadow:none!important}
 .auth-brand-lockup>div{display:grid;gap:4px}.auth-brand-lockup b{color:#f1f7fd;font-size:23px;letter-spacing:-.6px}.auth-brand-lockup small{color:#8199ad;font-size:9px;letter-spacing:3px;text-transform:uppercase}
 .auth-brand-copy{position:relative;z-index:1;max-width:390px;margin:58px 0 auto}.auth-brand-copy>small,.auth-form-heading>small{display:block;color:#63b4ec;font-size:10px;font-weight:800;letter-spacing:2.3px}.auth-page .auth-brand h1{margin:18px 0 14px;color:#f3f8fc;font-size:clamp(34px,3.2vw,48px);line-height:1.08;letter-spacing:-1.8px}.auth-page .auth-brand p{max-width:360px;margin:0;color:#91a9bc;font-size:14px;line-height:1.75}
 .auth-brand-points{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:9px;margin-top:54px}.auth-brand-points span{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid rgba(101,161,205,.19);border-radius:8px;background:rgba(7,18,29,.28);color:#91a8bb;font-size:10px}.auth-brand-points i{color:#66d6b3;font-style:normal}
@@ -3441,3 +3511,42 @@ body:has(.membership-v2) .content>.page-head,
 body:has(.membership-plans) .content>.page-head{
   margin-bottom:8px!important;
 }
+
+/* Final trading hall alignment: the right Agent panel ends with the left strategy rail. */
+.dash:has(.compact-hall) .compact-hall{align-items:stretch!important}
+.dash:has(.compact-hall) .hall-left{
+  height:auto!important;
+  min-height:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+.dash:has(.compact-hall) .hall-left .scene.compact{
+  height:clamp(560px,calc(100vh - 230px),760px)!important;
+  min-height:0!important;
+  flex:0 0 auto!important;
+}
+.dash:has(.compact-hall) .hall-left .strategy-monitor-ticker{flex:0 0 66px!important}
+.dash:has(.compact-hall) .hall-right{
+  height:auto!important;
+  min-height:0!important;
+  align-self:stretch!important;
+}
+.dash:has(.compact-hall) .hall-right>.agent-dialogue-widget{
+  height:100%!important;
+  min-height:0!important;
+  flex:1 1 auto!important;
+}
+.dash:has(.compact-hall) .agent-dialogue-viewport{
+  height:auto!important;
+  min-height:0!important;
+  flex:1 1 auto!important;
+}
+
+/* Give the seven Agent names distinct colors while keeping the card layout unchanged. */
+.agent-dialogue-track article:nth-child(7n+1)>b{color:#67c7ff!important}
+.agent-dialogue-track article:nth-child(7n+2)>b{color:#b792ff!important}
+.agent-dialogue-track article:nth-child(7n+3)>b{color:#55d6b0!important}
+.agent-dialogue-track article:nth-child(7n+4)>b{color:#ffc36d!important}
+.agent-dialogue-track article:nth-child(7n+5)>b{color:#ff8fbd!important}
+.agent-dialogue-track article:nth-child(7n+6)>b{color:#7fa8ff!important}
+.agent-dialogue-track article:nth-child(7n)>b{color:#ff9b70!important}
