@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 export type ProductCategory = "crypto" | "forex" | "metals" | "stocks";
 
@@ -18,11 +18,12 @@ function normalizedProductSymbol(symbol: string, category: ProductCategory) {
 
 export function ProductIcon({ symbol, category, className = "" }: { symbol: string; category: ProductCategory; className?: string }) {
   const normalized = useMemo(() => normalizedProductSymbol(symbol, category), [symbol, category]);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [normalized, category]);
+  const iconKey = `${category}:${normalized}`;
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const failed = failedKey === iconKey;
   const source = `/product-icons/${category}/${encodeURIComponent(normalized)}.svg`;
   return <i className={`product-icon coin-icon product-icon-${category} coin-icon-${normalized.toLowerCase()}${className ? ` ${className}` : ""}`} role="img" aria-label={`${normalized} icon`}>
-    {!failed ? <img src={source} alt="" aria-hidden="true" onError={() => setFailed(true)} /> : <b>{normalized.slice(0, 2)}</b>}
+    {!failed ? <img src={source} alt="" aria-hidden="true" onError={() => setFailedKey(iconKey)} /> : <b>{normalized.slice(0, 2)}</b>}
   </i>;
 }
 

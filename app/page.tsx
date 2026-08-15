@@ -96,7 +96,7 @@ export default function Home(){
  const visiblePage:Page=!authResolved?"home":(page!=="home"&&page!=="login"&&!viewer?"login":page);
  return <main className="app-shell" data-app-shell>
   <header className="topbar"><button className="logo" onClick={go("home")}><span>A</span><b>AgentNovas<small>{t.tagline}</small></b></button><div className="top-actions">{memberButton&&<button className={`outline ${memberButton.renewal?"membership-renewal":""}`} onClick={openMembership}>{memberButton.label}</button>}{!viewer&&<button className="top-login" onClick={go("login")}>{t.login}</button>}<select data-locale-static aria-label="Language" value={lang} onChange={e=>setLang(e.target.value as Lang)}>{Object.entries(languageNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select><NotificationCenter/>{viewer?<AccountSettings viewer={viewer} onUpdated={setViewer} open={accountSettingsOpen} onOpenChange={setAccountSettingsOpen} onLogout={()=>{setAccountSettingsOpen(false);setViewer(null);setPage("home")}}/>:<button className="top-user-guest" onClick={go("login")}>用户</button>}</div></header>
-  {visiblePage==="home"?<Landing t={t} go={navigate}/>:<Dashboard page={visiblePage} t={t} go={navigate} viewer={viewer} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} onOpenSettings={()=>setAccountSettingsOpen(true)}/>}<SupportFloating lang={lang}/>
+  {visiblePage==="home"?<Landing key={lang} t={t} go={navigate}/>:<Dashboard key={`${visiblePage}-${lang}`} page={visiblePage} t={t} go={navigate} viewer={viewer} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} onOpenSettings={()=>setAccountSettingsOpen(true)}/>}<SupportFloating lang={lang}/>
  </main>
 }
 

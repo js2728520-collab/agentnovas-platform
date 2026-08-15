@@ -43,9 +43,9 @@ await Promise.all(["crypto", "forex", "metals", "stocks"].map(folder => mkdir(pa
 
 const cryptoFiles = (await readdir(web3IconRoot)).filter(file => file.endsWith(".svg.js"));
 await Promise.all(cryptoFiles.map(async file => {
-  const module = await import(pathToFileURL(path.join(web3IconRoot, file)).href);
+  const iconModule = await import(pathToFileURL(path.join(web3IconRoot, file)).href);
   const symbol = file.slice(0, -7).toUpperCase();
-  await writeFile(path.join(outputRoot, "crypto", `${symbol}.svg`), module.default, "utf8");
+  await writeFile(path.join(outputRoot, "crypto", `${symbol}.svg`), iconModule.default, "utf8");
 }));
 await writeFile(path.join(outputRoot, "crypto", "TON.svg"), tonIcon, "utf8");
 
