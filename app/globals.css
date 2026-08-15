@@ -846,6 +846,57 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
 }
 .scene-preview>div span i{margin-right:6px!important;}
 
+/* Make the exchange connection action a compact vertical control. */
+.exchange-band>.exchange-connect-button{
+  position:relative;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:13px!important;
+  width:68px!important;
+  min-width:68px!important;
+  height:158px!important;
+  min-height:158px!important;
+  padding:16px 10px!important;
+  border:1px solid #3474ad!important;
+  border-radius:17px!important;
+  background:linear-gradient(160deg,#132b48 0%,#0c1b2e 55%,#0a1422 100%)!important;
+  color:#9fd0ff!important;
+  box-shadow:inset 0 1px 0 #85c7ff2e,0 10px 24px #02091466!important;
+  font-size:10px!important;
+  line-height:1.35!important;
+  white-space:normal!important;
+  text-align:center!important;
+  overflow:hidden!important;
+  transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease!important;
+}
+.exchange-band>.exchange-connect-button:before{
+  content:"";
+  position:absolute;
+  inset:7px;
+  border:1px solid #5aa6e526;
+  border-radius:11px;
+  pointer-events:none;
+}
+.exchange-band>.exchange-connect-button:after{
+  content:"";
+  position:absolute;
+  top:-34px;
+  right:-28px;
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  background:#56b4ff18;
+  filter:blur(5px);
+  pointer-events:none;
+}
+.exchange-band>.exchange-connect-button span{position:relative;z-index:1;max-width:46px!important;padding:0!important;border:0!important;background:transparent!important;color:inherit!important;font-size:10px!important;line-height:1.45!important;white-space:normal!important}
+.exchange-band>.exchange-connect-button i{position:relative;z-index:1;display:grid!important;place-items:center;width:25px;height:25px;border:1px solid #4a8bc0;border-radius:50%;color:#c7e6ff;font-size:15px;font-style:normal;line-height:1!important}
+.exchange-band>.exchange-connect-button:hover{border-color:#69bcff!important;box-shadow:inset 0 1px 0 #b3e0ff4a,0 0 24px #308de044!important;transform:translateY(-2px)!important}
+@media(max-width:1180px){.exchange-band>.exchange-connect-button{justify-self:start!important}}
+@media(max-width:700px){.exchange-band>.exchange-connect-button{width:100%!important;min-width:0!important;height:54px!important;min-height:54px!important;flex-direction:row!important;gap:10px!important;border-radius:12px!important}.exchange-band>.exchange-connect-button span{max-width:none!important}.exchange-band>.exchange-connect-button i{width:22px;height:22px;font-size:13px}}
+
 /* Final logo cleanup: the old transparent export contains a narrow fragment
    from the wordmark on its right edge. Use the tightly cropped mark asset for
    every symbol-only logo and suppress all decorative dot pseudo-elements. */
