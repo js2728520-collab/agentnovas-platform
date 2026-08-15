@@ -83,7 +83,7 @@ function membershipAction(t:Record<string,string>,membership:AccountViewer["memb
 }
 
 export default function Home(){
- const [page,setPage]=useState<Page>(()=>{if(typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("page")==="market")return "market";return "home"}); const [lang,setLang]=useState<Lang>("zh-CN"); const [selectedAgent,setSelectedAgent]=useState("Chief Risk Officer");
+ const [page,setPage]=useState<Page>(()=>{if(typeof window==="undefined")return "home";const params=new URLSearchParams(window.location.search);const requested=params.get("page");if(requested==="market")return "market";if(requested==="login"||params.has("invite")||params.has("invitationCode")||params.has("code")||/\/(?:invite|register)\/[^/?#]+/i.test(window.location.pathname))return "login";return "home"}); const [lang,setLang]=useState<Lang>("zh-CN"); const [selectedAgent,setSelectedAgent]=useState("Chief Risk Officer");
  const [viewer,setViewer]=useState<AccountViewer|null>(null); const [authResolved,setAuthResolved]=useState(false); const [accountSettingsOpen,setAccountSettingsOpen]=useState(false);
  const t:Record<string,string>=useMemo(()=>Object.fromEntries(Object.entries({...text[lang],...extraText[lang],_lang:lang}).map(([key,value])=>[key,dedupeAdjacentEnglish(value)])),[lang]);
  useEffect(()=>{document.documentElement.lang=lang;const root=document.querySelector<HTMLElement>("[data-app-shell]");if(!root||lang==="zh-CN"||lang==="zh-TW")return;let busy=false;const clean=()=>{if(busy)return;busy=true;const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes:Text[]=[];let node:Node|null;while((node=walker.nextNode())){const parent=node.parentElement;if(parent&&!["INPUT","TEXTAREA","SELECT","OPTION","SCRIPT","STYLE","CODE","PRE"].includes(parent.tagName))nodes.push(node as Text)}for(const textNode of nodes){const current=textNode.nodeValue||"";const next=scrubNonChineseText(current);if(next!==current)textNode.nodeValue=next}busy=false};clean();const observer=new MutationObserver(clean);observer.observe(root,{childList:true,subtree:true,characterData:true});return()=>observer.disconnect()},[lang]);
@@ -96,7 +96,11 @@ export default function Home(){
  const visiblePage:Page=!authResolved?"home":(page!=="home"&&page!=="login"&&!viewer?"login":page);
  return <main className="app-shell" data-app-shell>
   <header className="topbar"><button className="logo" onClick={go("home")}><span>A</span><b>AgentNovas<small>{t.tagline}</small></b></button><div className="top-actions">{memberButton&&<button className={`outline ${memberButton.renewal?"membership-renewal":""}`} onClick={openMembership}>{memberButton.label}</button>}{!viewer&&<button className="top-login" onClick={go("login")}>{t.login}</button>}<select data-locale-static aria-label="Language" value={lang} onChange={e=>setLang(e.target.value as Lang)}>{Object.entries(languageNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select><NotificationCenter/>{viewer?<AccountSettings viewer={viewer} onUpdated={setViewer} open={accountSettingsOpen} onOpenChange={setAccountSettingsOpen} onLogout={()=>{setAccountSettingsOpen(false);setViewer(null);setPage("home")}}/>:<button className="top-user-guest" onClick={go("login")}>用户</button>}</div></header>
-  {visiblePage==="home"?<Landing key={lang} t={t} go={navigate}/>:<Dashboard key={`${visiblePage}-${lang}`} page={visiblePage} t={t} go={navigate} viewer={viewer} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} onOpenSettings={()=>setAccountSettingsOpen(true)}/>}<SupportFloating lang={lang}/>
+  {visiblePage==="home"
+    ? <Landing key={lang} t={t} go={navigate}/>
+    : visiblePage==="login"
+      ? <Login key={lang} go={navigate} t={t}/>
+      : <Dashboard key={`${visiblePage}-${lang}`} page={visiblePage} t={t} go={navigate} viewer={viewer} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} onOpenSettings={()=>setAccountSettingsOpen(true)}/>}<SupportFloating lang={lang}/>
  </main>
 }
 
@@ -127,7 +131,7 @@ function Landing({t,go}:{t:Record<string,string>,go:(p:Page)=>void}){const m=lan
 function Dashboard({page,t,go,viewer,selectedAgent,setSelectedAgent,onOpenSettings}:{page:Page,t:Record<string,string>,go:(p:Page)=>void,viewer:AccountViewer|null,selectedAgent:string,setSelectedAgent:(s:string)=>void,onOpenSettings:()=>void}){const tradingLabel=t._lang==="en-US"?"Trading Center":t._lang==="ru-RU"?"Торговый центр":t._lang==="es-ES"?"Centro de trading":t._lang==="ja-JP"?"取引センター":t._lang==="ko-KR"?"거래 센터":"交易中心";return <div className="dash"><aside><SidebarAccount viewer={viewer} t={t} onOpenSettings={onOpenSettings}/>{nav.slice(1).map(([p,k,icon])=><button key={p} className={page===p?"active":""} onClick={()=>go(p)}><i>{icon}</i>{p==="trading"?tradingLabel:p==="agent"?(t._lang==="zh-CN"||t._lang==="zh-TW"?"Agent 对话":t.agent):t[k]||k}</button>)}<hr/><button className={page==="admin"?"active":""} onClick={()=>go("admin")}><i>⚙</i>{t.admin}</button><div className="aside-bottom"><span><i/>交易系统正常</span><small>数据延迟 86ms</small></div></aside><section className="content">{renderPage(page,t,go,selectedAgent,setSelectedAgent)}</section></div>}
 
 function renderPage(page:Page,t:Record<string,string>,go:(p:Page)=>void,selected:string,setSelected:(s:string)=>void){switch(page){
- case "hall": return <Hall t={t} go={go} setSelected={setSelected}/>; case "market":return <LiveMarket/>; case "strategies":return <Strategies/>; case "membership":return <MembershipCenter/>; case "agent":return <AgentChat t={t} go={go}/>; case "meeting":return <Meeting/>; case "connect":return <ConnectLive/>; case "trading":return <TradingCenterV2 go={go}/>; case "security":return <Security t={t}/>; case "login":return <Login go={go}/>; case "admin":return <AdminWithPolicy/>; default:return <Hall t={t} go={go} setSelected={setSelected}/>}}
+ case "hall": return <Hall t={t} go={go} setSelected={setSelected}/>; case "market":return <LiveMarket/>; case "strategies":return <Strategies/>; case "membership":return <MembershipCenter/>; case "agent":return <AgentChat t={t} go={go}/>; case "meeting":return <Meeting/>; case "connect":return <ConnectLive/>; case "trading":return <TradingCenterV2 go={go}/>; case "security":return <Security t={t}/>; case "admin":return <AdminWithPolicy/>; default:return <Hall t={t} go={go} setSelected={setSelected}/>}}
 
 const agents=[{n:"市场分析师",s:"分析中",m:"4H 趋势保持上行",p:"72%",x:14,y:35},{n:"技术分析师",s:"建模中",m:"突破确认度 64%",p:"64%",x:74,y:35},{n:"策略研究员",s:"拟案中",m:"提交候选策略 V3",p:"54%",x:13,y:63},{n:"反方审查员",s:"质疑中",m:"我发现量价背离",p:"82%",x:75,y:63},{n:"首席风控官",s:"审核中",m:"建议仓位降至 3%",p:"38%",x:44,y:26},{n:"交易执行员",s:"待命",m:"等待风控最终授权",p:"20%",x:44,y:74}];
 const coins=[["BTC","118,462.40","+1.82%"],["ETH","4,286.12","+2.14%"],["SOL","184.72","-0.38%"],["BNB","812.36","+0.74%"],["XRP","3.21","+4.06%"],["DOGE","0.264","-1.12%"],["ADA","0.986","+1.33%"],["AVAX","42.18","+2.84%"],["LINK","24.86","+3.12%"],["TRX","0.341","+0.62%"],["DOT","5.18","-0.46%"],["LTC","124.62","+0.88%"],["BCH","582.40","+1.06%"],["TON","3.42","-0.71%"],["SUI","3.86","+2.22%"],["APT","5.74","+1.48%"],["NEAR","3.12","-0.26%"],["ARB","0.486","+1.76%"],["OP","0.742","-0.84%"],["UNI","10.28","+2.06%"]];
@@ -254,16 +258,42 @@ function Membership(){
 }
 function Security({t}:{t:Record<string,string>}){return <div className="security-center-page"><PageHead title={t.security} sub="设置通知渠道与接收偏好"/><NotificationSettingsPanel/></div>}
 async function readApiResult(response:Response){const raw=await response.text();if(!raw.trim())throw new Error(`服务器未返回结果（HTTP ${response.status}）。请稍后重试`);try{return JSON.parse(raw) as {error?:string;message?:string}}catch{throw new Error(`服务器返回了无效结果（HTTP ${response.status}）。请稍后重试`)}}
-function Login({go}:{go:(p:Page)=>void}){
+type AuthCopy={
+  loginTitle:string;loginLead:string;registerTitle:string;registerLead:string;formLoginTitle:string;formLoginLead:string;formRegisterTitle:string;formRegisterLead:string;
+  account:string;accountPlaceholder:string;phone:string;phonePlaceholder:string;email:string;emailPlaceholder:string;password:string;passwordPlaceholder:string;
+  invitation:string;invitationPlaceholder:string;inviteFilled:string;login:string;register:string;busy:string;noAccount:string;hasAccount:string;useInvite:string;backLogin:string;
+  forgot:string;access:string;create:string;secure:string;private:string;audited:string;success:string;
+};
+const authCopy:Record<Lang,AuthCopy>={
+  "zh-CN":{loginTitle:"欢迎回来",loginLead:"登录你的 AI 量化团队控制中心",registerTitle:"创建账户",registerLead:"使用邀请码加入 AgentNovas 智能交易平台",formLoginTitle:"账户登录",formLoginLead:"请输入你的账户信息，继续进入交易控制中心。",formRegisterTitle:"邀请码注册",formRegisterLead:"设置账户信息后即可加入你的专属团队。",account:"账号",accountPlaceholder:"手机号 / 邮箱 / 用户名",phone:"手机号",phonePlaceholder:"请输入手机号（可含国际区号）",email:"邮箱（选填）",emailPlaceholder:"用于找回密码和接收通知",password:"密码",passwordPlaceholder:"至少 10 位字符",invitation:"邀请码",invitationPlaceholder:"请输入邀请码或咨询客服",inviteFilled:"已从邀请链接自动填入",login:"安全登录",register:"立即注册",busy:"正在处理…",noAccount:"还没有账户？",hasAccount:"已有账户？",useInvite:"使用邀请码注册",backLogin:"返回登录",forgot:"忘记密码？",access:"ACCOUNT ACCESS",create:"CREATE ACCOUNT",secure:"安全访问",private:"隐私隔离",audited:"操作可审计",success:"注册成功"},
+  "zh-TW":{loginTitle:"歡迎回來",loginLead:"登入你的 AI 量化團隊控制中心",registerTitle:"建立帳戶",registerLead:"使用邀請碼加入 AgentNovas 智能交易平台",formLoginTitle:"帳戶登入",formLoginLead:"請輸入你的帳戶資訊，繼續進入交易控制中心。",formRegisterTitle:"邀請碼註冊",formRegisterLead:"設定帳戶資訊後即可加入你的專屬團隊。",account:"帳戶",accountPlaceholder:"手機號碼 / 電子郵件 / 使用者名稱",phone:"手機號碼",phonePlaceholder:"請輸入手機號碼（可含國際區碼）",email:"電子郵件（選填）",emailPlaceholder:"用於找回密碼和接收通知",password:"密碼",passwordPlaceholder:"至少 10 個字元",invitation:"邀請碼",invitationPlaceholder:"請輸入邀請碼或諮詢客服",inviteFilled:"已從邀請連結自動填入",login:"安全登入",register:"立即註冊",busy:"處理中…",noAccount:"還沒有帳戶？",hasAccount:"已有帳戶？",useInvite:"使用邀請碼註冊",backLogin:"返回登入",forgot:"忘記密碼？",access:"ACCOUNT ACCESS",create:"CREATE ACCOUNT",secure:"安全存取",private:"隱私隔離",audited:"操作可稽核",success:"註冊成功"},
+  "en-US":{loginTitle:"Welcome back",loginLead:"Sign in to your AI quant team control center",registerTitle:"Create your account",registerLead:"Join AgentNovas with your invitation code",formLoginTitle:"Account sign in",formLoginLead:"Enter your account details to continue to the trading control center.",formRegisterTitle:"Invitation registration",formRegisterLead:"Set up your account to join your dedicated AI team.",account:"Account",accountPlaceholder:"Phone / email / username",phone:"Phone number",phonePlaceholder:"Include country code when needed",email:"Email (optional)",emailPlaceholder:"For recovery and notifications",password:"Password",passwordPlaceholder:"At least 10 characters",invitation:"Invitation code",invitationPlaceholder:"Enter your code or contact support",inviteFilled:"Filled from your invitation link",login:"Secure sign in",register:"Create account",busy:"Processing…",noAccount:"New to AgentNovas?",hasAccount:"Already have an account?",useInvite:"Register with an invite",backLogin:"Back to sign in",forgot:"Forgot password?",access:"ACCOUNT ACCESS",create:"CREATE ACCOUNT",secure:"Secure access",private:"Private by design",audited:"Fully auditable",success:"Registration successful"},
+  "ru-RU":{loginTitle:"С возвращением",loginLead:"Войдите в центр управления вашей ИИ-командой",registerTitle:"Создайте аккаунт",registerLead:"Присоединитесь к AgentNovas по коду приглашения",formLoginTitle:"Вход в аккаунт",formLoginLead:"Введите данные аккаунта, чтобы перейти в торговый центр.",formRegisterTitle:"Регистрация по приглашению",formRegisterLead:"Настройте аккаунт и присоединитесь к своей ИИ-команде.",account:"Аккаунт",accountPlaceholder:"Телефон / почта / имя пользователя",phone:"Номер телефона",phonePlaceholder:"При необходимости укажите код страны",email:"Эл. почта (необязательно)",emailPlaceholder:"Для восстановления и уведомлений",password:"Пароль",passwordPlaceholder:"Не менее 10 символов",invitation:"Код приглашения",invitationPlaceholder:"Введите код или обратитесь в поддержку",inviteFilled:"Заполнено из ссылки-приглашения",login:"Безопасный вход",register:"Создать аккаунт",busy:"Обработка…",noAccount:"Нет аккаунта?",hasAccount:"Уже есть аккаунт?",useInvite:"Регистрация по приглашению",backLogin:"Вернуться ко входу",forgot:"Забыли пароль?",access:"ACCOUNT ACCESS",create:"CREATE ACCOUNT",secure:"Безопасный доступ",private:"Защита данных",audited:"Полный аудит",success:"Регистрация завершена"},
+  "es-ES":{loginTitle:"Te damos la bienvenida",loginLead:"Accede al centro de control de tu equipo cuantitativo de IA",registerTitle:"Crea tu cuenta",registerLead:"Únete a AgentNovas con tu código de invitación",formLoginTitle:"Acceso a la cuenta",formLoginLead:"Introduce tus datos para continuar al centro de trading.",formRegisterTitle:"Registro con invitación",formRegisterLead:"Configura tu cuenta para unirte a tu equipo de IA.",account:"Cuenta",accountPlaceholder:"Teléfono / email / usuario",phone:"Número de teléfono",phonePlaceholder:"Incluye el prefijo internacional si procede",email:"Email (opcional)",emailPlaceholder:"Para recuperación y notificaciones",password:"Contraseña",passwordPlaceholder:"Al menos 10 caracteres",invitation:"Código de invitación",invitationPlaceholder:"Introduce el código o contacta con soporte",inviteFilled:"Completado desde el enlace de invitación",login:"Acceso seguro",register:"Crear cuenta",busy:"Procesando…",noAccount:"¿Aún no tienes cuenta?",hasAccount:"¿Ya tienes una cuenta?",useInvite:"Registrarse con invitación",backLogin:"Volver al acceso",forgot:"¿Olvidaste la contraseña?",access:"ACCOUNT ACCESS",create:"CREATE ACCOUNT",secure:"Acceso seguro",private:"Privacidad protegida",audited:"Totalmente auditable",success:"Registro completado"},
+  "ja-JP":{loginTitle:"おかえりなさい",loginLead:"AIクオンツチームの管理センターにログイン",registerTitle:"アカウントを作成",registerLead:"招待コードでAgentNovasに参加",formLoginTitle:"アカウントログイン",formLoginLead:"アカウント情報を入力して取引管理センターへ進みます。",formRegisterTitle:"招待登録",formRegisterLead:"アカウントを設定して専属AIチームに参加します。",account:"アカウント",accountPlaceholder:"電話番号 / メール / ユーザー名",phone:"電話番号",phonePlaceholder:"必要に応じて国番号を入力",email:"メール（任意）",emailPlaceholder:"パスワード再設定と通知に使用",password:"パスワード",passwordPlaceholder:"10文字以上",invitation:"招待コード",invitationPlaceholder:"招待コードを入力、またはサポートへ連絡",inviteFilled:"招待リンクから自動入力済み",login:"安全にログイン",register:"アカウント作成",busy:"処理中…",noAccount:"初めての方",hasAccount:"アカウントをお持ちですか？",useInvite:"招待コードで登録",backLogin:"ログインに戻る",forgot:"パスワードを忘れた場合",access:"ACCOUNT ACCESS",create:"CREATE ACCOUNT",secure:"安全なアクセス",private:"プライバシー保護",audited:"操作を完全記録",success:"登録が完了しました"},
+  "ko-KR":{loginTitle:"다시 만나 반갑습니다",loginLead:"AI 퀀트 팀 관리 센터에 로그인하세요",registerTitle:"계정 만들기",registerLead:"초대 코드로 AgentNovas에 참여하세요",formLoginTitle:"계정 로그인",formLoginLead:"계정 정보를 입력하고 트레이딩 관리 센터로 이동하세요.",formRegisterTitle:"초대 등록",formRegisterLead:"계정을 설정하고 전담 AI 팀에 참여하세요.",account:"계정",accountPlaceholder:"전화번호 / 이메일 / 사용자명",phone:"전화번호",phonePlaceholder:"필요한 경우 국가 번호 포함",email:"이메일(선택)",emailPlaceholder:"비밀번호 복구 및 알림용",password:"비밀번호",passwordPlaceholder:"10자 이상",invitation:"초대 코드",invitationPlaceholder:"초대 코드를 입력하거나 고객지원 문의",inviteFilled:"초대 링크에서 자동 입력됨",login:"안전하게 로그인",register:"계정 만들기",busy:"처리 중…",noAccount:"계정이 없으신가요?",hasAccount:"이미 계정이 있으신가요?",useInvite:"초대 코드로 가입",backLogin:"로그인으로 돌아가기",forgot:"비밀번호를 잊으셨나요?",access:"ACCOUNT ACCESS",create:"CREATE ACCOUNT",secure:"안전한 접근",private:"개인정보 보호",audited:"전체 감사 기록",success:"가입이 완료되었습니다"}
+};
+function invitationCodeFromLocation(){
+  const current=new URL(window.location.href);
+  const hashParams=new URLSearchParams(current.hash.replace(/^#\??/,""));
+  const direct=current.searchParams.get("invite")||current.searchParams.get("invitationCode")||current.searchParams.get("code")||hashParams.get("invite")||hashParams.get("invitationCode")||hashParams.get("code")||"";
+  const pathMatch=current.pathname.match(/\/(?:invite|register)\/([^/?#]+)/i);
+  const raw=direct||pathMatch?.[1]||"";
+  try{return decodeURIComponent(raw).trim().toUpperCase()}catch{return raw.trim().toUpperCase()}
+}
+function Login({go,t}:{go:(p:Page)=>void;t:Record<string,string>}){
+  const copy=authCopy[t._lang as Lang]||authCopy["zh-CN"];
   const [register,setRegister]=useState(false);
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
   const [inviteCode,setInviteCode]=useState("");
+  const [invitePrefilled,setInvitePrefilled]=useState(false);
 
   useEffect(()=>{
-    const params=new URLSearchParams(window.location.search);
-    const invite=params.get("invite")||params.get("invitationCode")||"";
-    if(invite){setInviteCode(invite.trim().toUpperCase());setRegister(true)}
+    const invite=invitationCodeFromLocation();
+    if(!invite)return;
+    const frame=window.requestAnimationFrame(()=>{setInviteCode(invite);setInvitePrefilled(true);setRegister(true)});
+    return()=>window.cancelAnimationFrame(frame);
   },[]);
 
   async function submit(e:React.FormEvent<HTMLFormElement>){
@@ -285,7 +315,7 @@ function Login({go}:{go:(p:Page)=>void}){
       });
       const result=await readApiResult(response);
       if(!response.ok)throw new Error(result.error||"操作失败");
-      if(register)setMessage(result.message||"注册成功，无需短信验证码");
+      if(register)setMessage(result.message||copy.success);
       else go("hall");
     }catch(error){
       setMessage(error instanceof Error?error.message:"操作失败");
@@ -294,26 +324,28 @@ function Login({go}:{go:(p:Page)=>void}){
     }
   }
 
-  return <div className="auth">
-    <div className="auth-brand">
-      <span>N</span>
-      <small className="auth-brand-tagline">智能交易中枢</small>
-      <h1>{register?"创建账户":"欢迎回来"}</h1>
-      <p>{register?"使用手机号、密码和邀请码即可注册":"登录你的 AI 量化团队控制中心"}</p>
+  return <div className="auth-page">
+    <div className={`auth auth-${register?"register":"login"}`}>
+      <section className="auth-brand">
+        <div className="auth-brand-lockup"><span className="auth-brand-mark" aria-hidden="true">A</span><div><b>AgentNovas</b><small>{t.tagline}</small></div></div>
+        <div className="auth-brand-copy"><small>{register?copy.create:copy.access}</small><h1>{register?copy.registerTitle:copy.loginTitle}</h1><p>{register?copy.registerLead:copy.loginLead}</p></div>
+        <div className="auth-brand-points"><span><i>✓</i>{copy.secure}</span><span><i>✓</i>{copy.private}</span><span><i>✓</i>{copy.audited}</span></div>
+      </section>
+      <form onSubmit={submit} aria-labelledby="auth-form-title">
+        <header className="auth-form-heading"><small>{register?copy.create:copy.access}</small><h2 id="auth-form-title">{register?copy.formRegisterTitle:copy.formLoginTitle}</h2><p>{register?copy.formRegisterLead:copy.formLoginLead}</p></header>
+        <div className="auth-fields">
+          {register
+            ? <label><span>{copy.phone}</span><input name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder={copy.phonePlaceholder}/></label>
+            : <label><span>{copy.account}</span><input name="identifier" type="text" autoComplete="username" required placeholder={copy.accountPlaceholder}/></label>}
+          {register&&<label><span>{copy.email}</span><input name="email" type="email" autoComplete="email" placeholder={copy.emailPlaceholder}/></label>}
+          <label><span>{copy.password}</span><input name="password" type="password" autoComplete={register?"new-password":"current-password"} minLength={10} required placeholder={copy.passwordPlaceholder}/></label>
+          {register&&<label><span className="auth-label-row"><span>{copy.invitation}</span>{invitePrefilled&&<small><i>✓</i>{copy.inviteFilled}</small>}</span><input className="invitation-code-input" name="invitationCode" value={inviteCode} onChange={e=>{setInviteCode(e.target.value.toUpperCase());setInvitePrefilled(false)}} required placeholder={copy.invitationPlaceholder}/></label>}
+        </div>
+        {message&&<div className="auth-message" role="status">{message}</div>}
+        <button className="primary auth-submit" disabled={busy}>{busy?copy.busy:register?copy.register:copy.login}</button>
+        <div className="auth-switch"><p>{register?copy.hasAccount:copy.noAccount} <button type="button" onClick={()=>{setRegister(!register);setMessage("")}}>{register?copy.backLogin:copy.useInvite}</button></p>{!register&&<button type="button" className="auth-link">{copy.forgot}</button>}</div>
+      </form>
     </div>
-    <form onSubmit={submit}>
-      {register
-        ? <label>手机号<input name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder="请输入手机号（可含国际区号）"/></label>
-        : <label>账号<input name="identifier" type="text" autoComplete="username" required placeholder="手机号 / 邮箱 / 用户名"/></label>}
-      {register&&<label>邮箱（选填）<input name="email" type="email" autoComplete="email" placeholder="用于找回密码和接收通知"/></label>}
-      <label>密码<input name="password" type="password" autoComplete={register?"new-password":"current-password"} minLength={10} required placeholder="至少 10 位字符"/></label>
-      {register&&<label>邀请码<input className="invitation-code-input" name="invitationCode" value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase())} required placeholder="请输入邀请码或咨询客服"/></label>}
-      {register&&<div className="auth-note">无需短信验证码；邮箱选填，不要求验证。</div>}
-      {message&&<div className="auth-message">{message}</div>}
-      <button className="primary" disabled={busy}>{busy?"正在处理…":register?"立即注册":"安全登录"}</button>
-      <p>{register?"已有账户？":"还没有账户？"} <button type="button" onClick={()=>{setRegister(!register);setMessage("")}}>{register?"返回登录":"使用邀请码注册"}</button></p>
-      {!register&&<button type="button" className="auth-link">忘记密码？</button>}
-    </form>
   </div>
 }
 function Admin(){const [tab,setTab]=useState("overview");const [rows,setRows]=useState<Array<Record<string,unknown>>>([]);const [notice,setNotice]=useState("");async function load(next=tab,urlOverride?:string){setTab(next);setNotice("");const map:Record<string,string>={data:"/api/data-center",tasks:"/api/employee/tasks",targets:"/api/team/monthly-targets",customers:"/api/organization/customers",approvals:"/api/approvals",members:"/api/organization/members",invites:"/api/invitations",settlements:"/api/finance/settlements",collections:"/api/finance/collections",payouts:"/api/finance/payout-profiles"};if(!map[next]){setRows([]);return}const res=await fetch(urlOverride||map[next]);const data=await res.json() as Record<string,unknown>;if(!res.ok){setNotice(String(data.error||"请使用相应管理账户登录"));setRows([]);return}if(next==="data"||next==="tasks"||next==="targets"){setRows([data]);return}setRows((data.customers||data.requests||data.members||data.invitations||data.settlements||data.collections||data.profiles||[]) as Array<Record<string,unknown>>)}useEffect(()=>{void load("overview")},[]);async function createInvite(kind:string){const res=await fetch("/api/invitations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({kind})});const data=await res.json() as {error?:string,invitation?:{code:string}};setNotice(data.invitation?`新邀请码：${data.invitation.code}（请立即保存）`:data.error||"生成失败");if(res.ok)void load("invites")}const done=(m:string,next?:string)=>{setNotice(m);if(next)void load(next)};return <div className="operations-admin"><PageHead title="组织与运营后台" sub="组织权限、客户归因、双人审批与收入结算" actions={<button className="danger">全局紧急停止</button>}/><div className="admin-tabs">{[["overview","运营概览"],["data","总数据中心"],["tasks","团队客户任务"],["targets","月度任务指标"],["members","组织成员"],["customers","客户管理"],["invites","邀请码"],["approvals","待审批"],["revenue","月度分红"],["settlements","结算付款"],["collections","逾期应收款"],["payouts","收款地址"],["adjustment","收入调整"],["integrations","行情新闻 API"]].map(x=><button key={x[0]} className={tab===x[0]?"active":""} onClick={()=>void load(x[0])}>{x[1]}</button>)}</div>{notice&&<div className="admin-notice">{notice}</div>}{tab==="overview"&&<><div className="kpis"><Kpi n="组织架构" v="5级" s="逐级权限"/><Kpi n="客户归因" v="实时" s="不追溯历史"/><Kpi n="审批机制" v="双人" s="申请人不得自审"/><Kpi n="月度结算" v="每月5日" s="USDT人工结算"/></div><div className="admin-grid"><section className="wide-panel"><h2>后台模块状态</h2>{["邮箱账户与验证","永久/一次性邀请码","组织向下权限","公海客户归因","双人审批","收入与分红账本"].map(x=><div className="service" key={x}><span><i/>{x}</span><b>已接入</b><small>服务端校验</small></div>)}</section><section className="wide-panel collection-control"><h2>规则控制</h2><p>公海归因前收入100%归总公司；归因生效后按10% / 80% / 10%分配。</p><div><span>盈利费率</span><b>18% / 20%</b></div><div><span>高水位线</span><b>仅新增已实现净利润</b></div><small>所有资金与归因操作均保留审计记录。</small></section></div></>}{tab==="data"&&<DataCenter data={rows[0]}/>}{tab==="tasks"&&<EmployeeTasks data={rows[0]}/>} {tab==="targets"&&<MonthlyTargets data={rows[0]} onDone={m=>done(m,"targets")} onMonth={month=>void load("targets","/api/team/monthly-targets?month="+month)}/>} {tab==="members"&&<><MemberCreate onDone={m=>done(m,"members")}/><ReportingLineChange onDone={m=>done(m,"members")}/></>} {tab==="customers"&&<><AttributionCreate onDone={m=>done(m)}/><section className="customer-management-guide"><h2>客户管理怎么用</h2><p>这里展示当前组织权限范围内的直客与下属客户。你可以查看归属链、交易与结算状态，并在需要交接时补充备注。</p><div className="customer-guide-grid"><article><b>查看范围</b><span>上级只能看到自己组织下属的汇总与客户明细。</span></article><article><b>编辑与冻结</b><span>编辑资料、冻结交易或恢复权限都不会删除订单和审计历史。</span></article><article><b>归属与交接</b><span>客户转移由分公司审批，历史收入不追溯；交接备注会保留在客户档案。</span></article></div></section><CustomerManagement rows={rows} onDone={m=>done(m,"customers")}/></>} {tab==="invites"&&<div className="admin-actions"><button className="primary" onClick={()=>void createInvite("employee_reusable")}>生成员工永久邀请码</button><button onClick={()=>void createInvite("public_pool_single_use")}>生成客服一次性邀请码</button></div>}{tab==="revenue"&&<MonthlyRevenue/>}{tab==="settlements"&&<><SettlementOverview rows={rows}/><SettlementForm onDone={m=>done(m,"settlements")}/></>} {tab==="payouts"&&<PayoutForm onDone={m=>done(m,"payouts")}/>} {tab==="adjustment"&&<AdjustmentForm onDone={m=>done(m)}/>} {tab==="integrations"&&<MarketNewsSettings/>} {tab==="approvals"?<ApprovalRows rows={rows} onDone={m=>done(m,"approvals")}/>:tab==="collections"?<CollectionRows rows={rows} onDone={m=>done(m,"collections")}/>:!["overview","data","tasks","targets","revenue","adjustment","integrations"].includes(tab)&&<AdminRows rows={rows} empty="暂无数据，或当前账户没有该模块权限"/>}</div>}
