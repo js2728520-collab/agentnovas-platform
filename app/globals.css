@@ -2288,3 +2288,7 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
   margin-top: 5px;
 }
 .exchange-logo-htx .exchange-image-mark.fallback::before{content:"HTX"}
+.dash aside .account-sidebar-entry{position:relative;overflow:hidden;margin:0 0 14px!important;padding:14px 12px!important;border:1px solid #203e56!important;border-radius:14px!important;background:radial-gradient(circle at 12% 0%,rgba(49,146,214,.22),transparent 42%),linear-gradient(135deg,#102337 0%,#0d1825 52%,#0b111b 100%)!important;box-shadow:inset 0 1px 0 rgba(164,220,255,.11),0 10px 24px rgba(0,0,0,.22)}
+.dash aside .account-sidebar-entry::after{content:"";position:absolute;left:12px;right:12px;bottom:0;height:1px;background:linear-gradient(90deg,transparent,#3d8dc1,transparent);opacity:.55;pointer-events:none}
+.dash aside .account-sidebar-entry:hover{border-color:#3979a6!important;background:radial-gradient(circle at 12% 0%,rgba(70,168,231,.28),transparent 44%),linear-gradient(135deg,#122a42 0%,#0e1c2b 54%,#0b111b 100%)!important}
+.dash aside .account-sidebar-entry:focus-visible{outline:2px solid #67b8ef;outline-offset:2px}
