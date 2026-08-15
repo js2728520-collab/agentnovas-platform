@@ -2323,3 +2323,8 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
 .strategy-monitor-track article>div b{font-size:11px!important;margin-top:7px!important}
 .strategy-monitor-pages{right:14px!important;bottom:6px!important;gap:5px!important}
 .strategy-monitor-pages i{width:16px!important;height:3px!important}
+/* Notification channel form: enlarge the selector, input and action together. */
+.security-center-page .channel-grid form{gap:10px!important}
+.security-center-page .channel-grid form select{flex:0 0 132px!important;min-height:48px!important;padding:10px 14px!important;font-size:14px!important}
+.security-center-page .channel-grid form input{min-height:48px!important;padding:10px 14px!important;font-size:14px!important}
+.security-center-page .channel-grid form button{min-height:48px!important;padding:10px 16px!important;font-size:13px!important}
