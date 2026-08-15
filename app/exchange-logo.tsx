@@ -1,3 +1,4 @@
+// Keep every mark local so one failed remote asset cannot replace the whole grid with HTX.
 const exchangeMeta: Record<string, { label: string; slug: string }> = {
   OKX: { label: "OKX", slug: "okx" },
   BINANCE: { label: "Binance", slug: "binance" },
