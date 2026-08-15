@@ -336,10 +336,7 @@ async function processSubscription(subscription: Subscription): Promise<CycleRes
   return { subscriptionId: subscription.id, strategyCode: subscription.strategyCode, status: "entered", message: useOkxDemo ? "OKX 验证环境指令已提交并保存交易所回执" : "真实行情信号与硬风控通过，已建立可审计验证仓位", decisionId, tradeId };
 }
 
-export async function POST(request: Request) {
-  if (!secretMatches(request.headers.get("x-automation-key"), runtimeSetting("AUTOMATION_INTERNAL_SECRET"))) {
-    return Response.json({ error: "自动运行密钥无效" }, { status: 401 });
-  }
+export async function runPlatformAiCycle() {
   if (!(await marketDataIsHealthy())) return Response.json({ error: "实时行情源健康检查失败，本轮未生成交易决策" }, { status: 503 });
   await ensureD1Schema();
   const limit = Math.min(500, Math.max(1, Number(runtimeSetting("AUTOMATION_MAX_SUBSCRIPTIONS_PER_RUN") || 100)));
@@ -357,4 +354,11 @@ export async function POST(request: Request) {
     return output;
   }, {});
   return Response.json({ engine: "platform-ai-deterministic-v1", environment: "validation", processed: results.length, counts, results, completedAt: new Date().toISOString() });
+}
+
+export async function POST(request: Request) {
+  if (!secretMatches(request.headers.get("x-automation-key"), runtimeSetting("AUTOMATION_INTERNAL_SECRET"))) {
+    return Response.json({ error: "自动运行密钥无效" }, { status: 401 });
+  }
+  return runPlatformAiCycle();
 }

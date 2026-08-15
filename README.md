@@ -124,6 +124,6 @@ actions tied to the current ChatGPT user. Leave public content anonymous.
 
 平台内置的 `AI 稳健型`、`AI 平衡型` 和 `AI 激进型` 已使用独立、可审计的确定性策略引擎。客户先在策略详情中选择已通过检测的验证账户并确认风险，随后由 Cloudflare 每 5 分钟调用：
 
-`POST /api/automation/platform-ai-cycle`
+`Cloudflare Cron（每 5 分钟）→ 内部平台 AI 周期`
 
-每轮按策略周期读取真实完整K线，计算 EMA、RSI、ATR、成交量、通道和布林区间，经过反方审查、会员/催收、账户权限、单日亏损、总仓位和平台紧急停止检查后，保存平台决策、七角色工作记录及订单审计。默认只建立站内验证仓位；仅当 `OKX_DEMO_EXECUTION_ENABLED=true` 时向 OKX 验证环境提交订单。实盘订单路由仍由服务端硬性关闭。
+每轮按策略周期读取真实完整K线，计算 EMA、RSI、ATR、成交量、通道和布林区间，经过反方审查、会员/催收、账户权限、单日亏损、总仓位和平台紧急停止检查后，保存平台决策、七角色工作记录及订单审计。定时任务与手动调用 `POST /api/automation/platform-ai-cycle` 都必须使用 Cloudflare 加密秘密 `AUTOMATION_INTERNAL_SECRET`，外部请求不能绕过验证。默认只建立站内验证仓位；仅当 `OKX_DEMO_EXECUTION_ENABLED=true` 时向 OKX 验证环境提交订单。实盘订单路由仍由服务端硬性关闭。
