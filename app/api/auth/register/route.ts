@@ -5,13 +5,30 @@ import { hashPassword, normalizeEmail, sha256, validEmail } from "@/lib/auth";
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { normalizePhone } from "@/lib/phone";
 
+function normalizeInvitationCode(input: string) {
+  const value = input.trim();
+  if (!value) return "";
+  try {
+    const url = new URL(value, "https://agentnovas.local");
+    const fromQuery = url.searchParams.get("invite") || url.searchParams.get("invitationCode");
+    if (fromQuery) return fromQuery.trim().toUpperCase();
+    if (/^https?:$/i.test(url.protocol)) {
+      const lastSegment = url.pathname.split("/").filter(Boolean).at(-1);
+      if (lastSegment) return lastSegment.trim().toUpperCase();
+    }
+  } catch {
+    // Fall back to treating the field as a raw code.
+  }
+  return value.toUpperCase();
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json() as { phone?: string; email?: string; password?: string; invitationCode?: string };
     const phone = normalizePhone(body.phone ?? "");
     const email = normalizeEmail(body.email ?? "");
     const password = body.password ?? "";
-    const invitationCode = body.invitationCode?.trim() ?? "";
+    const invitationCode = normalizeInvitationCode(body.invitationCode ?? "");
 
     if (!phone) return Response.json({ error: "请输入有效手机号（可包含国际区号）" }, { status: 400 });
     if (email && !validEmail(email)) return Response.json({ error: "邮箱格式不正确" }, { status: 400 });

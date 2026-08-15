@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     const orders = await getDb().select().from(trades)
       .where(eq(trades.customerId, me.id))
       .orderBy(desc(trades.createdAt))
-      .limit(200);
+      .limit(2000);
     return Response.json({ orders });
   } catch (error) {
     return responseError(error);

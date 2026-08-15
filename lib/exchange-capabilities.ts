@@ -37,6 +37,10 @@ export const EXCHANGE_CAPABILITIES: ExchangeCapability[] = [
     supportsContracts: false,
     contractNote: "Kraken 账户暂按现货连接处理，不能用于合约策略跟随。",
   },
+  { key: "CRYPTO.COM", displayName: "Crypto.com", supportsSpot: true, supportsContracts: false, contractNote: "Crypto.com 当前按现货连接处理；合约适配器待单独验证。" },
+  { key: "METAMASK", displayName: "MetaMask", supportsSpot: true, supportsContracts: false, contractNote: "MetaMask 按钱包连接处理，不支持合约策略。" },
+  { key: "ROBINHOOD", displayName: "Robinhood", supportsSpot: true, supportsContracts: false, contractNote: "Robinhood 当前按现货连接处理；官方第三方交易权限需单独审核。" },
+  { key: "HTX", displayName: "HTX", supportsSpot: true, supportsContracts: false, contractNote: "HTX 当前按现货连接处理；合约适配器待单独验证。" },
 ];
 
 const aliases: Record<string, string> = {
@@ -51,6 +55,11 @@ const aliases: Record<string, string> = {
   KUCOIN: "KUCOIN",
   COINBASE: "COINBASE",
   KRAKEN: "KRAKEN",
+  "CRYPTO.COM": "CRYPTO.COM",
+  CRYPTOCOM: "CRYPTO.COM",
+  METAMASK: "METAMASK",
+  ROBINHOOD: "ROBINHOOD",
+  HTX: "HTX",
 };
 
 export function normalizeExchange(value: string | undefined | null) {

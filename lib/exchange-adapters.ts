@@ -44,7 +44,7 @@ export const EXCHANGE_ADAPTER_STATUS: ExchangeAdapterStatus[] = EXCHANGE_CAPABIL
   // Permission checks are now implemented for all eight registered venues.
   // Order routing remains separately guarded until a venue's sandbox/order
   // contract has passed the execution test suite.
-  const ready = true;
+  const ready = !["CRYPTO.COM", "METAMASK", "ROBINHOOD", "HTX"].includes(capability.key);
   return {
     ...capability,
     demoVerificationReady: true,
@@ -53,7 +53,9 @@ export const EXCHANGE_ADAPTER_STATUS: ExchangeAdapterStatus[] = EXCHANGE_CAPABIL
     mode: "demo+live",
     note: capability.key === "OKX"
       ? "官方权限检测与 Demo 订单链路已接入；下单仍须通过硬风控和明确的交易开关"
-      : "官方权限检测已接入；订单路由需通过该交易所沙盒验证后开放",
+      : ready
+        ? "官方权限检测已接入；订单路由需通过该交易所沙盒验证后开放"
+        : "已登记连接目录并支持本地 Demo 绑定；官方权限检测和订单路由待完成独立适配与沙盒验证",
   };
 });
 

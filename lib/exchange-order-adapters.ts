@@ -124,6 +124,50 @@ export const EXCHANGE_ORDER_ADAPTERS: ExchangeOrderAdapter[] = [
     },
     note: "当前按 Kraken 现货连接处理，不支持合约策略跟随。",
   },
+  {
+    ...common, key: "CRYPTO.COM", displayName: "Crypto.com",
+    docsUrl: "https://exchange-docs.crypto.com/exchange/v1/rest-ws/index.html",
+    operations: {
+      place: { method: "POST", path: "/exchange/v1/private/create-order", market: "spot", idempotency: "client-order-id" },
+      cancel: { method: "POST", path: "/exchange/v1/private/cancel-order", market: "spot", idempotency: "client-order-id" },
+      fills: { method: "POST", path: "/exchange/v1/private/get-order-detail", market: "spot", idempotency: "none" },
+      positions: { method: "POST", path: "/exchange/v1/private/get-account-summary", market: "spot", idempotency: "none" },
+    },
+    note: "已登记官方接口文档；签名、沙盒与回滚测试完成前不会发送订单。",
+  },
+  {
+    ...common, key: "METAMASK", displayName: "MetaMask",
+    docsUrl: "https://docs.metamask.io/wallet/how-to/connect/",
+    operations: {
+      place: { method: "POST", path: "wallet-signature/order-intent", market: "spot", idempotency: "client-order-id" },
+      cancel: { method: "POST", path: "wallet-signature/cancel-intent", market: "spot", idempotency: "client-order-id" },
+      fills: { method: "GET", path: "wallet-signature/fills", market: "spot", idempotency: "none" },
+      positions: { method: "GET", path: "wallet-signature/positions", market: "spot", idempotency: "none" },
+    },
+    note: "MetaMask 是钱包连接入口，不是中心化交易所 API；仅登记钱包签名意图，订单路由默认关闭。",
+  },
+  {
+    ...common, key: "ROBINHOOD", displayName: "Robinhood",
+    docsUrl: "https://docs.robinhood.com/",
+    operations: {
+      place: { method: "POST", path: "official-api/order", market: "spot", idempotency: "client-order-id" },
+      cancel: { method: "POST", path: "official-api/order/cancel", market: "spot", idempotency: "client-order-id" },
+      fills: { method: "GET", path: "official-api/fills", market: "spot", idempotency: "none" },
+      positions: { method: "GET", path: "official-api/positions", market: "spot", idempotency: "none" },
+    },
+    note: "仅登记官方开发者文档；第三方交易权限和地区可用性需完成单独审核。",
+  },
+  {
+    ...common, key: "HTX", displayName: "HTX",
+    docsUrl: "https://www.htx.com/en-us/opend/newApiPages/",
+    operations: {
+      place: { method: "POST", path: "/v1/order/orders/place", market: "spot", idempotency: "none" },
+      cancel: { method: "POST", path: "/v1/order/orders/{order-id}/submitcancel", market: "spot", idempotency: "none" },
+      fills: { method: "GET", path: "/v1/order/matchresults", market: "spot", idempotency: "none" },
+      positions: { method: "GET", path: "/v1/account/accounts", market: "spot", idempotency: "none" },
+    },
+    note: "已登记官方接口文档；签名、沙盒与回滚测试完成前不会发送订单。",
+  },
 ];
 
 export function getExchangeOrderAdapter(exchange: string | undefined | null) {

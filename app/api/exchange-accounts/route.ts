@@ -63,8 +63,9 @@ export async function POST(request: Request) {
     if (!capability || !isSupportedExchange(exchange)) {
       return Response.json({ error: "暂不支持该交易所", supportedExchanges: EXCHANGE_CAPABILITIES }, { status: 400 });
     }
-    if (!body.apiKey?.trim() || !body.secretKey?.trim()) {
-      return Response.json({ error: "API Key 和 Secret Key 为必填" }, { status: 400 });
+    const walletConnection = exchange === "METAMASK";
+    if (!body.apiKey?.trim() || (!walletConnection && !body.secretKey?.trim())) {
+      return Response.json({ error: walletConnection ? "请填写钱包地址" : "API Key 和 Secret Key 为必填" }, { status: 400 });
     }
     if (["OKX", "BITGET", "KUCOIN"].includes(exchange) && !body.passphrase?.trim()) {
       return Response.json({ error: `${capability.displayName} 连接必须填写 Passphrase` }, { status: 400 });
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     const id = crypto.randomUUID();
     const encrypted = await encryptExchangeCredential({
       apiKey: body.apiKey.trim(),
-      secretKey: body.secretKey.trim(),
+      secretKey: walletConnection ? "wallet-connection" : body.secretKey.trim(),
       passphrase: body.passphrase?.trim(),
     });
     await db.batch([

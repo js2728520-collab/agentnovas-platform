@@ -36,6 +36,10 @@ const fallbackExchanges: ExchangeInfo[] = [
   { key: "KUCOIN", displayName: "KUCOIN", supportsSpot: true, supportsContracts: true },
   { key: "COINBASE", displayName: "COINBASE", supportsSpot: true, supportsContracts: false, contractNote: "仅现货" },
   { key: "KRAKEN", displayName: "KRAKEN", supportsSpot: true, supportsContracts: false, contractNote: "当前仅现货" },
+  { key: "CRYPTO.COM", displayName: "Crypto.com", supportsSpot: true, supportsContracts: false, contractNote: "当前仅现货" },
+  { key: "METAMASK", displayName: "MetaMask", supportsSpot: true, supportsContracts: false, contractNote: "钱包连接" },
+  { key: "ROBINHOOD", displayName: "Robinhood", supportsSpot: true, supportsContracts: false, contractNote: "当前仅现货" },
+  { key: "HTX", displayName: "HTX", supportsSpot: true, supportsContracts: false, contractNote: "当前仅现货" },
 ];
 
 type Environment = "demo" | "live";
@@ -58,12 +62,14 @@ const emptyForm: FormState = {
 };
 
 export default function ConnectLive() {
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<Array<Record<string, unknown>>>([]);
   const [exchangeCatalog, setExchangeCatalog] = useState<ExchangeInfo[]>(fallbackExchanges);
   const [adapterStatus, setAdapterStatus] = useState<AdapterStatus[]>([]);
   const [selected, setSelected] = useState("OKX");
   const [environment, setEnvironment] = useState<Environment>("demo");
   const [message, setMessage] = useState("");
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [executionIp, setExecutionIp] = useState("部署后由服务端配置");
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const load = () =>
@@ -83,6 +89,7 @@ export default function ConnectLive() {
 
   useEffect(() => {
     void load();
+    void fetch("/api/platform/network").then((response) => response.ok ? response.json() : null).then((data) => setExecutionIp(data?.executionIp || "部署后由服务端配置")).catch(() => undefined);
   }, []);
 
   async function submit(event: React.FormEvent) {
@@ -95,6 +102,7 @@ export default function ConnectLive() {
         exchange: selected,
         environment,
         ...form,
+        secretKey: selected === "METAMASK" ? "wallet-connection" : form.secretKey,
         canRead: true,
       }),
     });
@@ -137,7 +145,7 @@ export default function ConnectLive() {
       <div className="page-head">
         <div>
           <h1>连接交易所</h1>
-          <p>支持八大主流交易所 · 凭证加密保存，资金始终留在你的交易所账户</p>
+          <p>支持十二个连接入口 · 凭证加密保存，资金始终留在你的交易所账户</p>
         </div>
       </div>
 
@@ -183,13 +191,15 @@ export default function ConnectLive() {
         <form className="exchange-connect-form" onSubmit={submit}>
           <input placeholder="账户标签（可选）" value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} />
           <input required placeholder="API Key" value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.target.value })} />
-          <input required type="password" placeholder="Secret Key" value={form.secretKey} onChange={(event) => setForm({ ...form, secretKey: event.target.value })} />
+          {selected === "METAMASK" ? <p className="field-hint">MetaMask 使用公开钱包地址登记连接，不要求提交私钥；签名授权仍由钱包弹窗完成。</p> : <input required type="password" placeholder="Secret Key" value={form.secretKey} onChange={(event) => setForm({ ...form, secretKey: event.target.value })} />}
           {["OKX", "BITGET", "KUCOIN"].includes(selected) && <input required placeholder={`${selected} Passphrase`} value={form.passphrase} onChange={(event) => setForm({ ...form, passphrase: event.target.value })} />}
           {selected === "COINBASE" && <p className="field-hint">Coinbase Secret Key 请粘贴包含 BEGIN PRIVATE KEY 的 CDP 私钥。</p>}
           <label><input type="checkbox" checked={form.canTrade} onChange={(event) => setForm({ ...form, canTrade: event.target.checked })} /> 允许交易权限检测</label>
           <label><input type="checkbox" checked={form.withdrawalAuthorized} onChange={(event) => setForm({ ...form, withdrawalAuthorized: event.target.checked })} /> 客户主动开启提现授权</label>
-          <button className="primary">加密保存并检测</button>
+          <div className="connect-form-actions"><button type="button" className="connect-help-button" onClick={() => setTutorialOpen(!tutorialOpen)}>使用说明</button><button className="primary">加密保存并检测</button></div>
         </form>
+        <div className="ip-whitelist-note"><b>平台执行服务器 IP 白名单</b><span>{executionIp}</span><small>请仅将部署环境展示的 IP 加入交易所 API 白名单；本地开发环境没有可用于生产的固定出口 IP。</small></div>
+        {tutorialOpen && <div className="connection-tutorial"><h3>绑定流程</h3><ol><li>在下方选择交易所，进入其官方 API 管理页面。</li><li>创建只包含读取和交易权限的专用凭证，关闭提现权限并限制 IP。</li><li>回到这里填写凭证并点击“加密保存并检测”；检测通过后才可用于模拟跟随。</li><li>实盘订单路由仍需该交易所完成官方鉴权、沙盒、回滚和人工审批，不会因保存密钥自动下单。</li></ol><div><a href="https://exchange-docs.crypto.com/exchange/v1/rest-ws/index.html" target="_blank" rel="noreferrer">Crypto.com 官方 API ↗</a><a href="https://docs.metamask.io/wallet/how-to/connect/" target="_blank" rel="noreferrer">MetaMask 官方连接 ↗</a><a href="https://docs.robinhood.com/" target="_blank" rel="noreferrer">Robinhood 官方开发者文档 ↗</a><a href="https://www.htx.com/en-us/opend/newApiPages/" target="_blank" rel="noreferrer">HTX 官方 API ↗</a></div></div>}
         {message && <p className="admin-notice">{message}</p>}
       </section>
 

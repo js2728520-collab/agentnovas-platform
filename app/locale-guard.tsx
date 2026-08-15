@@ -34,7 +34,7 @@ export default function LocaleGuard() {
         let node: Node | null;
         while ((node = walker.nextNode())) {
           const parent = node.parentElement;
-          if (parent && !ignoredTags.has(parent.tagName)) textNodes.push(node as Text);
+          if (parent && !ignoredTags.has(parent.tagName) && !parent.closest("[data-locale-static]")) textNodes.push(node as Text);
         }
         for (const textNode of textNodes) {
           const current = textNode.nodeValue || "";
@@ -49,7 +49,7 @@ export default function LocaleGuard() {
         }
 
         for (const element of Array.from(document.body.querySelectorAll<HTMLElement>("*"))) {
-          if (ignoredTags.has(element.tagName)) continue;
+          if (ignoredTags.has(element.tagName) || element.closest("[data-locale-static]")) continue;
           for (const attribute of translatedAttributes) {
             const current = element.getAttribute(attribute);
             if (!current) continue;

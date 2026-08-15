@@ -117,6 +117,40 @@ const factorPresets: FactorPreset[] = [
   },
 ];
 
+function factor(id: string, title: string, summary: string, tags: string[], indicators: string, entryRule: string, exitRule: string, riskRule: string): FactorPreset {
+  return { id, title, summary, tags, defaults: { indicators, entryRule, exitRule, riskRule } };
+}
+
+const factorExtensions: FactorPreset[] = [
+  factor("ema-cross", "EMA 双均线", "用快慢均线确认方向，减少逆势开仓。", ["EMA20", "EMA60", "收盘确认"], "EMA20, EMA60, ATR14", "EMA20 上穿 EMA60 且收盘站稳，下一根K线确认。", "EMA20 下穿 EMA60 或触发 ATR14 止损。", "单笔风险 ≤ 0.35%；连续 3 笔亏损暂停。"),
+  factor("sma-regime", "SMA 长周期过滤", "用长周期均线过滤短线信号。", ["SMA50", "SMA200", "趋势过滤"], "SMA50, SMA200, ATR14", "价格位于 SMA200 上方且 SMA50 斜率为正时，只研究多头。", "收盘跌破 SMA50 或波动率超阈值退出。", "总资金使用率 ≤ 25%；不在均线附近加仓。"),
+  factor("adx-strength", "ADX 趋势强度", "只在趋势强度足够时启用趋势策略。", ["ADX14", "+DI/-DI", "阈值"], "ADX14, +DI, -DI, ATR14", "ADX14 ≥ 22 且 +DI > -DI，价格完成收盘确认。", "ADX14 跌破 18 或 -DI 上穿 +DI 时退出。", "单笔风险 ≤ 0.4%；ADX 失效后冷却 4 个周期。"),
+  factor("rsi-reversal", "RSI 超买超卖", "通过 RSI 极值和确认K线研究反转。", ["RSI14", "30/70", "反转"], "RSI14, ATR14, 支撑阻力", "RSI14 < 30 后重新上穿 30，且价格未跌破关键支撑。", "RSI14 回到 50 或触发 1.5×ATR14 止损。", "单笔风险 ≤ 0.25%；趋势强度过高时禁用反转。"),
+  factor("macd-momentum", "MACD 动能", "确认动能方向，避免仅凭单根K线追单。", ["MACD", "Signal", "Histogram"], "MACD(12,26,9), EMA200, ATR14", "MACD 上穿 Signal 且柱体连续两根扩大，并通过 EMA200 方向过滤。", "MACD 反向交叉或柱体连续两根收缩时减仓。", "单笔风险 ≤ 0.35%；禁止在跳空或异常长K线入场。"),
+  factor("bollinger-revert", "布林带回归", "适合低趋势强度的均值回归研究。", ["Bollinger20", "2σ", "ADX过滤"], "Bollinger20(2), RSI14, ADX14", "ADX14 < 20 且价格触及下轨后收回，RSI14 不再创新低。", "回到中轨分批止盈，触及外轨反向扩张时退出。", "单笔风险 ≤ 0.3%；ADX14 ≥ 25 自动停用。"),
+  factor("stoch-reversal", "随机指标反转", "用交叉和区间位置辅助低频反转。", ["Stoch14", "K/D", "区间"], "Stochastic(14,3,3), RSI14, ATR14", "K 线在 20 以下上穿 D 线，并出现收盘确认。", "K 线在 80 以上下穿 D 线，或触发 ATR 止损。", "同一方向只保留 1 个仓位；单笔风险 ≤ 0.25%。"),
+  factor("atr-volatility", "ATR 波动率仓位", "按波动率动态降低仓位，而不是放宽止损。", ["ATR14", "风险平价", "仓位"], "ATR14, ATR50, EMA20", "方向信号成立且 ATR14/ATR50 位于允许区间。", "ATR14 突增超过 2 倍中位数时减仓或退出。", "单笔风险固定 ≤ 0.35%；波动率越高仓位越小。"),
+  factor("keltner-channel", "肯特纳通道", "结合 EMA 与 ATR 识别有序突破。", ["Keltner", "EMA20", "ATR10"], "Keltner(20,1.5), EMA20, ATR10", "收盘突破通道上轨且 ATR 未出现异常扩张。", "收盘回到中轨或触发 2×ATR10 移动止损。", "单笔风险 ≤ 0.35%；突破后两根K线不延续则退出。"),
+  factor("donchian-breakout", "Donchian 突破", "只参与区间边界被收盘突破的行情。", ["Donchian20", "突破", "成交量"], "Donchian20, Volume/MA20, ATR14", "收盘突破 20 周期上轨且成交量 ≥ MA20 的 1.3 倍。", "跌回突破区间或触发 2×ATR14 移动止损。", "单笔风险 ≤ 0.35%；连续两次假突破暂停。"),
+  factor("volume-surge", "成交量放大", "要求成交量确认价格信号，降低假突破。", ["Volume", "MA20", "量价"], "Volume, Volume MA20, EMA20, ATR14", "价格信号成立且成交量 ≥ MA20 的 1.5 倍。", "成交量连续三根低于均量且价格失去方向时退出。", "单笔风险 ≤ 0.3%；不追逐单根异常成交量。"),
+  factor("obv-flow", "OBV 资金流", "用量能累积方向辅助趋势判断。", ["OBV", "EMA21", "量价背离"], "OBV, EMA21, RSI14", "价格突破前高且 OBV 同步突破，收盘确认后入场。", "OBV 跌破 EMA21 或出现明确量价背离。", "单笔风险 ≤ 0.3%；背离期间禁止加仓。"),
+  factor("vwap-anchor", "VWAP 锚定", "围绕成交量加权价格研究日内偏离。", ["VWAP", "偏离率", "日内"], "VWAP, VWAP偏离率, ATR14", "价格重新站上 VWAP 且成交量恢复至均量附近。", "跌回 VWAP 下方或偏离率达到预设目标。", "单笔风险 ≤ 0.25%；只在流动性充足时运行。"),
+  factor("supertrend", "Supertrend", "用 ATR 通道形成清晰的趋势状态。", ["Supertrend", "ATR10", "状态"], "Supertrend(10,3), EMA50, ATR14", "Supertrend 转为多头且价格站在 EMA50 上方。", "Supertrend 反转或价格收盘跌破 EMA50。", "单笔风险 ≤ 0.35%；连续反转 3 次后冷却。"),
+  factor("ichimoku", "一目均衡", "以云层和转换线过滤趋势阶段。", ["Ichimoku", "云层", "趋势"], "Ichimoku(9,26,52), ATR14", "价格位于云层上方，转换线上穿基准线并收盘确认。", "价格进入云层或转换线下穿基准线。", "单笔风险 ≤ 0.3%；云层变薄时降低仓位。"),
+  factor("pivot-levels", "枢轴点位", "使用日/周枢轴辅助支撑阻力研究。", ["Pivot", "R1/S1", "结构"], "Daily Pivot, R1/S1, RSI14", "价格在枢轴上方形成高低点抬升，并有成交量确认。", "触及下一个阻力分批止盈，跌破枢轴退出。", "单笔风险 ≤ 0.25%；每个点位只允许一次尝试。"),
+  factor("support-resistance", "支撑阻力", "把结构性价位写成可验证规则。", ["Swing", "支撑", "阻力"], "Swing High/Low, ATR14, Volume", "支撑附近出现拒绝形态且收盘回到支撑上方。", "触及前高阻力分批退出，失守支撑止损。", "单笔风险 ≤ 0.3%；支撑阻力距离小于 1.5×ATR 时不交易。"),
+  factor("rsi-divergence", "RSI 背离", "只研究价格与动能背离后的确认反转。", ["RSI", "背离", "确认"], "RSI14, Swing High/Low, ATR14", "出现底背离后，价格重新站上前一根确认K线高点。", "背离失效或跌破确认低点时退出。", "单笔风险 ≤ 0.2%；必须等待确认，不提前接刀。"),
+  factor("regime-switch", "市场状态切换", "在趋势、震荡和高波动状态之间切换模块。", ["ADX", "ATR", "状态机"], "ADX14, ATR14, Bollinger20, EMA50", "状态机确认趋势或震荡后，只启用对应模块。", "状态切换时平仓并等待新状态确认。", "状态不明时仓位为 0%；单日亏损 2% 熔断。"),
+  factor("correlation-filter", "相关性过滤", "控制组合中高度相关资产的重复风险。", ["相关性", "组合", "限额"], "20日相关性, ATR14, EMA50", "候选信号成立且与已有仓位相关性低于 0.75。", "相关性升高或组合风险预算超限时减仓。", "组合总风险 ≤ 1%；同类资产最多 2 个仓位。"),
+  factor("pairs-spread", "价差均值回归", "只适合有稳定价差关系的配对研究。", ["Z-score", "价差", "对冲"], "Spread Z-score(60), Hedge Ratio, ATR14", "Z-score ≤ -2 且价差回归条件成立，双腿同时确认。", "Z-score 回到 0 附近平仓；关系失稳立即退出。", "总风险 ≤ 0.3%；没有稳定历史关系则禁止使用。"),
+  factor("funding-filter", "资金费率过滤", "把永续合约资金费率作为风险过滤而非收益承诺。", ["Funding", "持仓成本", "合约"], "Funding Rate, EMA20, ATR14", "资金费率处于历史中性区间且趋势信号成立。", "费率进入极端区间或趋势失效时退出。", "杠杆默认关闭；单笔风险 ≤ 0.25%。"),
+  factor("open-interest", "持仓量确认", "用未平仓量确认或否定价格突破。", ["OI", "价格", "确认"], "Open Interest, Volume, EMA20", "价格突破且 OI 温和增加，成交量不低于均量。", "OI 快速下降或价格回到突破区间时退出。", "单笔风险 ≤ 0.3%；OI 异常跳升时不追单。"),
+  factor("sentiment-filter", "情绪过滤", "仅作为风控过滤，不直接生成买卖信号。", ["情绪", "极端值", "过滤"], "Sentiment Index, EMA50, ATR14", "情绪不处于极端区间，且独立价格信号成立。", "情绪进入极端区间时减仓，不逆势赌博。", "情绪数据延迟或缺失时禁止开仓。"),
+  factor("liquidity-filter", "流动性过滤", "在深度不足和价差扩大时停止交易。", ["Spread", "深度", "滑点"], "Bid-Ask Spread, Order Book Depth, Volume", "价差、盘口深度和成交量同时达到最低阈值。", "价差扩大或盘口深度跌破阈值时退出/撤单。", "预估滑点超过风险预算时拒绝下单。"),
+  factor("time-window", "交易时段过滤", "避开流动性薄弱和重大事件前后时段。", ["时段", "事件", "冷却"], "Session Window, Event Calendar, ATR14", "仅在预设高流动性时段且无事件冷却时开仓。", "进入事件前冷却窗口时减仓或平仓。", "事件日默认不开新仓，除非人工确认。"),
+];
+const allFactorPresets = [...factorPresets, ...factorExtensions];
+
 const quickPrompts = [
   "我是新手，请用稳健的 BTC 趋势模板引导我",
   "我想做震荡行情，帮我确认 RSI 和布林带参数",
@@ -466,7 +500,7 @@ export default function CommunityStrategyCenter({
           <label className="studio-rule-field">风控与暂停条件<textarea value={studio.riskRule} onChange={(event) => setStudio({ ...studio, riskRule: event.target.value })} placeholder="例：连续3次亏损暂停，单日亏损2%停止开仓" /></label>
           <section className="studio-factor-library">
             <div className="studio-card-heading"><b>成熟因子模板</b><small>点击载入，可继续修改</small></div>
-            <div className="studio-factor-grid">{factorPresets.map((preset) => <button type="button" className="studio-factor-card" key={preset.id} onClick={() => applyPreset(preset)}><strong>{preset.title}</strong><span>{preset.summary}</span><small>{preset.tags.join(" · ")}</small></button>)}</div>
+            <div className="studio-factor-grid">{allFactorPresets.map((preset) => <button type="button" className="studio-factor-card" key={preset.id} onClick={() => applyPreset(preset)}><strong>{preset.title}</strong><span>{preset.summary}</span><small>{preset.tags.join(" · ")}</small></button>)}</div>
           </section>
           <section className="studio-quality-card">
             <div className="studio-card-heading"><b>回测前检查</b><small>{qualityChecks.filter((item) => item.ok).length}/{qualityChecks.length} 已完成</small></div>
