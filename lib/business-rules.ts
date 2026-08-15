@@ -31,11 +31,26 @@ export function allocateRevenue(amountUsdt: number, confirmedAt: string, attribu
   return result;
 }
 
-export function calculatePerformanceFee(input: { realizedNetPnlUsdt: number; previousHighWaterMarkUsdt: number; withdrawalAuthorizedAtClose: boolean }) {
-  const newHighWaterMarkUsdt = Math.max(input.previousHighWaterMarkUsdt, input.realizedNetPnlUsdt);
-  const chargeableProfitUsdt = Math.max(0, input.realizedNetPnlUsdt - input.previousHighWaterMarkUsdt);
-  const feeRate = input.withdrawalAuthorizedAtClose ? .18 : .2;
-  return { feeRate, chargeableProfitUsdt: money(chargeableProfitUsdt), feeUsdt: money(chargeableProfitUsdt * feeRate), newHighWaterMarkUsdt: money(newHighWaterMarkUsdt) };
+export function calculatePerformanceFee(input: {
+  weeklyRealizedNetPnlUsdt?: number;
+  realizedNetPnlUsdt?: number;
+  membershipPlanCode?: string;
+  // Kept as optional compatibility fields; weekly settlement intentionally ignores them.
+  previousHighWaterMarkUsdt?: number;
+  withdrawalAuthorizedAtClose?: boolean;
+}) {
+  const weeklyProfitUsdt = Number(input.weeklyRealizedNetPnlUsdt ?? input.realizedNetPnlUsdt ?? 0);
+  if (!Number.isFinite(weeklyProfitUsdt)) throw new Error("Invalid weekly profit amount");
+  const chargeableProfitUsdt = Math.max(0, weeklyProfitUsdt);
+  const feeRate = String(input.membershipPlanCode || "").toLowerCase().includes("lifetime") ? .16 : .2;
+  return {
+    period: "weekly" as const,
+    feeRate,
+    chargeableProfitUsdt: money(chargeableProfitUsdt),
+    feeUsdt: money(chargeableProfitUsdt * feeRate),
+    // Loss weeks create no fee and are not carried forward as a recovery hurdle.
+    carryForwardLoss: 0,
+  };
 }
 
 export const mandatoryNotificationCategories = new Set(["membership_billing", "performance_fee_collection", "grace_period_stop", "api_security", "trading_suspended", "login_security", "withdrawal_settlement", "risk_circuit_breaker", "strategy_lifecycle"]);
