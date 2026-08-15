@@ -2328,3 +2328,8 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
 .security-center-page .channel-grid form select{flex:0 0 132px!important;min-height:48px!important;padding:10px 14px!important;font-size:14px!important}
 .security-center-page .channel-grid form input{min-height:48px!important;padding:10px 14px!important;font-size:14px!important}
 .security-center-page .channel-grid form button{min-height:48px!important;padding:10px 16px!important;font-size:13px!important}
+/* Keep the homepage at a comfortable reading width on ultra-wide displays. */
+@media (min-width:1201px){
+  body:has(.landing) .topbar{padding-inline:max(28px,calc((100vw - 1200px)/2))!important}
+  .landing{width:min(1200px,calc(100% - 96px))!important;max-width:1200px!important;padding-inline:32px!important}
+}
