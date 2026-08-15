@@ -832,10 +832,10 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
   body:has(.membership-plans) .content>.page-head>div:last-child>.online{font-size:8px!important;}
 }
 
-/* Sidebar readability: enlarge the text shown in the navigation by 2px. */
+/* Sidebar readability: keep navigation labels comfortably legible. */
 .dash aside .account div b{font-size:13px!important;}
 .dash aside .account small{font-size:10px!important;}
-.dash aside>button{font-size:13px!important;}
+.dash aside>button{font-size:15px!important;line-height:1.45!important;}
 .dash aside .aside-bottom{font-size:12px!important;}
 .dash aside .aside-bottom small{font-size:10px!important;}
 
@@ -3314,7 +3314,7 @@ body:has(.membership-plans) .content>.page-head{
   flex:0 0 auto!important;
 }
 @media(max-width:900px){
-  .dash aside>button{font-size:13px!important}
+  .dash aside>button{font-size:14px!important}
 }
 
 /* Mobile trading hall: enlarge the right-column copy and remove trailing space. */
