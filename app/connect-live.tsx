@@ -42,6 +42,21 @@ const fallbackExchanges: ExchangeInfo[] = [
   { key: "HTX", displayName: "HTX", supportsSpot: true, supportsContracts: false, contractNote: "当前仅现货" },
 ];
 
+const officialExchangeLinks = [
+  { key: "OKX", label: "OKX 官方 API", href: "https://www.okx.com/docs-v5/en/" },
+  { key: "BINANCE", label: "Binance 官方 API", href: "https://developers.binance.com/en/docs/introduction" },
+  { key: "BYBIT", label: "Bybit 官方 API", href: "https://bybit-exchange.github.io/docs/v5/intro" },
+  { key: "BITGET", label: "Bitget 官方 API", href: "https://www.bitget.com/api-doc/common/intro" },
+  { key: "GATE.IO", label: "Gate.io 官方 API", href: "https://www.gate.io/docs/developers/apiv4/en/" },
+  { key: "KUCOIN", label: "KuCoin 官方 API", href: "https://www.kucoin.com/docs-new" },
+  { key: "COINBASE", label: "Coinbase 官方 API", href: "https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/introduction" },
+  { key: "KRAKEN", label: "Kraken 官方 API", href: "https://docs.kraken.com/" },
+  { key: "CRYPTO.COM", label: "Crypto.com 官方 API", href: "https://exchange-docs.crypto.com/exchange/v1/rest-ws/index.html" },
+  { key: "METAMASK", label: "MetaMask 官方连接", href: "https://docs.metamask.io/wallet/how-to/connect/" },
+  { key: "ROBINHOOD", label: "Robinhood 官方开发者文档", href: "https://docs.robinhood.com/" },
+  { key: "HTX", label: "HTX 官方 API", href: "https://www.htx.com/en-us/opend/newApiPages/" },
+] as const;
+
 type Environment = "demo" | "live";
 type FormState = {
   label: string;
@@ -200,7 +215,7 @@ export default function ConnectLive() {
           <div className="connect-form-actions"><button type="button" className="connect-help-button" onClick={() => setTutorialOpen(!tutorialOpen)}>使用说明</button><button className="primary">加密保存并检测</button></div>
         </form>
         <div className="ip-whitelist-note"><b>平台执行服务器 IP 白名单</b><span>{executionIp}</span><small>请仅将部署环境展示的 IP 加入交易所 API 白名单；本地开发环境没有可用于生产的固定出口 IP。</small></div>
-        {tutorialOpen && <div className="connection-tutorial"><h3>绑定流程</h3><ol><li>在下方选择交易所，进入其官方 API 管理页面。</li><li>创建只包含读取和交易权限的专用凭证，关闭提现权限并限制 IP。</li><li>回到这里填写凭证并点击“加密保存并检测”；检测通过后才可用于模拟跟随。</li><li>实盘订单路由仍需该交易所完成官方鉴权、沙盒、回滚和人工审批，不会因保存密钥自动下单。</li></ol><div><a href="https://exchange-docs.crypto.com/exchange/v1/rest-ws/index.html" target="_blank" rel="noreferrer">Crypto.com 官方 API ↗</a><a href="https://docs.metamask.io/wallet/how-to/connect/" target="_blank" rel="noreferrer">MetaMask 官方连接 ↗</a><a href="https://docs.robinhood.com/" target="_blank" rel="noreferrer">Robinhood 官方开发者文档 ↗</a><a href="https://www.htx.com/en-us/opend/newApiPages/" target="_blank" rel="noreferrer">HTX 官方 API ↗</a></div></div>}
+        {tutorialOpen && <div className="connection-tutorial"><h3>绑定流程</h3><ol><li>在下方选择交易所，进入其官方 API 管理页面。</li><li>创建只包含读取和交易权限的专用凭证，关闭提现权限并限制 IP。</li><li>回到这里填写凭证并点击“加密保存并检测”；检测通过后才可用于模拟跟随。</li><li>实盘订单路由仍需该交易所完成官方鉴权、沙盒、回滚和人工审批，不会因保存密钥自动下单。</li></ol><div className="connection-official-links">{officialExchangeLinks.map((link) => <a href={link.href} key={link.key} target="_blank" rel="noreferrer">{link.label} ↗</a>)}</div></div>}
         {message && <p className="admin-notice">{message}</p>}
       </section>
 
