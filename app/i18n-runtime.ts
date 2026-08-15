@@ -40,6 +40,13 @@ const commonLabels: Array<[string, string]> = [
 
 export type SupportedLocale = "zh-CN" | "zh-TW" | "en-US" | "ru-RU" | "es-ES" | "ja-JP" | "ko-KR";
 
+const followPolicyLabels: Array<[string, string]> = [
+  ["策略跟随权限", "Strategy follow permissions"],
+  ["允许未开启提现授权的账户跟随", "Allow accounts without withdrawal authorization to follow"],
+  ["已开启", "Enabled"], ["已关闭", "Disabled"], ["保存规则", "Save policy"],
+  ["保存中…", "Saving…"], ["正在读取规则…", "Loading policy…"], ["策略跟随权限规则已保存", "Strategy follow policy saved"],
+];
+
 /*
  * Several panels are rendered by independent client components and cannot
  * receive the page's `t` object directly.  Keep a small shared dictionary for
@@ -112,7 +119,7 @@ export function localizeText(value: string, locale: string): string {
   let output = value;
   // Replace longer labels first. Otherwise a short label such as “市场” can
   // partially consume “市场分析师” and leave Chinese characters behind.
-  const labels = [...commonLabels].sort(([left], [right]) => right.length - left.length);
+  const labels = [...commonLabels, ...followPolicyLabels].sort(([left], [right]) => right.length - left.length);
   for (const [source, english] of labels) {
     output = output.split(source).join(overrides[source] || english);
   }

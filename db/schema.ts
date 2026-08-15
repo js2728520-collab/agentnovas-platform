@@ -49,6 +49,13 @@ export const llmConfigurations = sqliteTable("llm_configurations", {
   ...timestamps,
 }, (t) => [uniqueIndex("idx_llm_config_scope_owner_unique").on(t.scope, t.ownerUserId), index("idx_llm_config_scope_enabled").on(t.scope, t.enabled)]);
 
+export const platformFollowPolicies = sqliteTable("platform_follow_policies", {
+  id: text("id").primaryKey(),
+  allowFollowWithoutWithdrawal: integer("allow_follow_without_withdrawal", { mode: "boolean" }).notNull().default(false),
+  updatedByUserId: text("updated_by_user_id").references(() => users.id),
+  ...timestamps,
+}, (t) => [index("idx_platform_follow_policies_updated").on(t.updatedAt)]);
+
 export const monthlyTeamTargets = sqliteTable("monthly_team_targets", {
   id: text("id").primaryKey(),
   month: text("month").notNull(),

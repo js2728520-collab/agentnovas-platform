@@ -5,10 +5,13 @@ import {
   communityStrategies,
   exchangeAccounts,
   memberships,
+  platformFollowPolicies,
   strategySubscriptions,
 } from "@/db/schema";
+import { ensureD1Schema } from "@/lib/d1-migrations";
 import { membershipAccess } from "@/lib/membership-rules";
 import { checkExchangeForStrategy } from "@/lib/exchange-capabilities";
+import { evaluateFollowPolicy } from "@/lib/follow-policy";
 import { requireUser, responseError } from "@/lib/session";
 
 type LifecycleAction = "pause" | "resume" | "stop";
@@ -18,6 +21,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    await ensureD1Schema();
     const me = await requireUser(request, ["customer"]);
     const { id } = await params;
     const body = await request.json() as { action?: LifecycleAction };
@@ -46,7 +50,7 @@ export async function PATCH(
       if (subscription.status !== "paused") return Response.json({ error: "只有已暂停的策略可以恢复" }, { status: 409 });
       if (!subscription.exchangeAccountId) return Response.json({ error: "未绑定模拟交易账户，无法恢复" }, { status: 409 });
 
-      const [strategy, account, membership] = await Promise.all([
+      const [strategy, account, membership, policy] = await Promise.all([
         db.select().from(communityStrategies).where(and(
           eq(communityStrategies.id, subscription.strategyId),
           eq(communityStrategies.status, "published"),
@@ -59,6 +63,7 @@ export async function PATCH(
           eq(memberships.customerId, me.id),
           inArray(memberships.status, ["active", "grace"]),
         )).limit(1).then((rows) => rows[0]),
+        db.select({ allowFollowWithoutWithdrawal: platformFollowPolicies.allowFollowWithoutWithdrawal }).from(platformFollowPolicies).where(eq(platformFollowPolicies.id, "default")).limit(1).then((rows) => rows[0]),
       ]);
       if (!strategy) return Response.json({ error: "策略已下架或暂停，无法恢复跟随" }, { status: 409 });
       if (!account) return Response.json({ error: "模拟交易账户不存在，无法恢复跟随" }, { status: 409 });
@@ -75,6 +80,12 @@ export async function PATCH(
       if (account.environment !== "demo" || account.status !== "active" || !account.canRead || !account.canTrade) {
         return Response.json({ error: "模拟交易账户未通过读取与交易权限复检" }, { status: 409 });
       }
+      const followPolicy = evaluateFollowPolicy({
+        allowFollowWithoutWithdrawal: Boolean(policy?.allowFollowWithoutWithdrawal),
+        withdrawalAuthorized: Boolean(account.withdrawalAuthorized),
+        publicationMode: "marketplace",
+      });
+      if (!followPolicy.allowed) return Response.json({ error: "当前模式下，恢复平台 AI 或策略广场策略前必须在 API 账户中开启提现授权", code: "WITHDRAWAL_AUTHORIZATION_REQUIRED" }, { status: 403 });
       if (!membership) return Response.json({ error: "会员或免费体验权限不可用" }, { status: 403 });
       const access = membershipAccess(now, membership);
       if (!access.newEntriesAllowed) return Response.json({ error: "会员或免费体验已结束，当前只允许平仓" }, { status: 403 });
@@ -94,6 +105,8 @@ export async function PATCH(
         exchangeCapabilities: exchangeCheck.capability,
         canRead: account.canRead,
         canTrade: account.canTrade,
+        withdrawalAuthorized: account.withdrawalAuthorized,
+        manualCollectionRequired: followPolicy.manualCollectionRequired,
         checkedAt: now,
       };
       nextStatus = "active";

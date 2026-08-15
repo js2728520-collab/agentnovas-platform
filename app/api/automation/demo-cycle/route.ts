@@ -6,14 +6,17 @@ import {
   communityStrategies,
   exchangeAccounts,
   memberships,
+  platformFollowPolicies,
   platformDecisions,
   strategySubscriptions,
   trades,
 } from "@/db/schema";
 import { evaluateDemoStrategySignal } from "@/lib/demo-strategy-signal";
+import { ensureD1Schema } from "@/lib/d1-migrations";
 import { decryptExchangeCredential } from "@/lib/exchange-credentials";
 import { getSpotCandles, getSpotPrice, marketDataIsHealthy, normalizeSpotSymbol } from "@/lib/market-data";
 import { membershipAccess } from "@/lib/membership-rules";
+import { evaluateFollowPolicy } from "@/lib/follow-policy";
 import { getOkxDemoOrder, okxFeeInUsdt, placeOkxDemoMarketOrder } from "@/lib/okx-demo-execution";
 
 type CycleResult = {
@@ -56,19 +59,25 @@ async function processSubscription(subscription: typeof strategySubscriptions.$i
   const now = new Date().toISOString();
   if (!subscription.exchangeAccountId) return { subscriptionId: subscription.id, strategyId: subscription.strategyId, status: "rejected", message: "未绑定模拟交易账户" };
 
-  const [strategy, account, membership, blockedCollection] = await Promise.all([
+  const [strategy, account, membership, blockedCollection, policy] = await Promise.all([
     db.select().from(communityStrategies).where(and(eq(communityStrategies.id, subscription.strategyId), eq(communityStrategies.status, "published"))).limit(1).then((rows) => rows[0]),
     db.select().from(exchangeAccounts).where(and(eq(exchangeAccounts.id, subscription.exchangeAccountId!), eq(exchangeAccounts.customerId, subscription.customerId))).limit(1).then((rows) => rows[0]),
     db.select().from(memberships).where(and(eq(memberships.customerId, subscription.customerId), inArray(memberships.status, ["active", "grace"]))).limit(1).then((rows) => rows[0]),
     db.select({ id: collectionCases.id }).from(collectionCases).where(and(eq(collectionCases.customerId, subscription.customerId), eq(collectionCases.newEntriesAllowed, false))).limit(1).then((rows) => rows[0]),
+    db.select({ allowFollowWithoutWithdrawal: platformFollowPolicies.allowFollowWithoutWithdrawal }).from(platformFollowPolicies).where(eq(platformFollowPolicies.id, "default")).limit(1).then((rows) => rows[0]),
   ]);
 
   if (!strategy) return { subscriptionId: subscription.id, strategyId: subscription.strategyId, status: "rejected", message: "策略未上架或已暂停" };
   if (!account || account.environment !== "demo" || account.status !== "active" || !account.canRead || !account.canTrade) {
     return { subscriptionId: subscription.id, strategyId: strategy.id, status: "rejected", message: "模拟账户权限或连接状态未通过" };
   }
+  const followPolicy = evaluateFollowPolicy({
+    allowFollowWithoutWithdrawal: Boolean(policy?.allowFollowWithoutWithdrawal),
+    withdrawalAuthorized: Boolean(account.withdrawalAuthorized),
+    publicationMode: "marketplace",
+  });
   const access = membership ? membershipAccess(now, membership) : null;
-  const newEntriesAllowed = Boolean(access?.newEntriesAllowed) && !blockedCollection && process.env.PLATFORM_EMERGENCY_STOP !== "true";
+  const newEntriesAllowed = Boolean(access?.newEntriesAllowed) && !blockedCollection && followPolicy.allowed && process.env.PLATFORM_EMERGENCY_STOP !== "true";
   const rawSpecification = objectFromJson(strategy.specificationJson);
   const symbol = firstSymbol(strategy, rawSpecification);
   const period = String(rawSpecification.period || "15m").toLowerCase();
@@ -94,6 +103,9 @@ async function processSubscription(subscription: typeof strategySubscriptions.$i
     quote,
     membershipStatus: access?.status || "unavailable",
     collectionBlocked: Boolean(blockedCollection),
+    withdrawalAuthorized: account.withdrawalAuthorized,
+    withdrawalAuthorizationRequired: !followPolicy.allowed,
+    manualCollectionRequired: followPolicy.manualCollectionRequired,
     emergencyStop: process.env.PLATFORM_EMERGENCY_STOP === "true",
     evaluatedAt: now,
   };
@@ -233,7 +245,7 @@ async function processSubscription(subscription: typeof strategySubscriptions.$i
   }
   if (!newEntriesAllowed) {
     await db.update(strategySubscriptions).set({ lastRiskCheckAt: now, riskCheckJson: JSON.stringify({ ...runtimeEvidence, lastCandleCloseTime: signal.metrics.candleCloseTime, result: "entry_rejected" }), updatedAt: now }).where(eq(strategySubscriptions.id, subscription.id));
-    return { subscriptionId: subscription.id, strategyId: strategy.id, status: "rejected", message: "出现入场信号，但会员、催收或平台安全状态禁止新开仓" };
+    return { subscriptionId: subscription.id, strategyId: strategy.id, status: "rejected", message: followPolicy.allowed ? "出现入场信号，但会员、催收或平台安全状态禁止新开仓" : "出现入场信号，但当前 API 账户未开启提现授权，策略跟随禁止新开仓" };
   }
 
   const today = now.slice(0, 10);
@@ -268,7 +280,7 @@ async function processSubscription(subscription: typeof strategySubscriptions.$i
       entryFee = 0;
     }
   }
-  const hardRiskChecks = ["demo_only", "published_strategy", "membership_access", "collection_status", "platform_emergency_stop", "account_permissions", "market_freshness", "daily_loss_limit", "subscription_position_limit", "same_candle_idempotency"];
+  const hardRiskChecks = ["demo_only", "published_strategy", "membership_access", "collection_status", "withdrawal_authorization_policy", "platform_emergency_stop", "account_permissions", "market_freshness", "daily_loss_limit", "subscription_position_limit", "same_candle_idempotency"];
   await db.batch([
     db.insert(platformDecisions).values({ id: decisionId, customerId: subscription.customerId, exchangeAccountId: account.id, strategyCode: `community:${strategy.id}`, strategyVersion: `v${strategy.version}`, symbol, status: orderStatus === "filled" ? "approved" : "executing", evidenceJson: JSON.stringify({ ...runtimeEvidence, action: "enter", hardRiskChecks, notional, quantity: filledQuantity, dailyLossLimitUsdt, exchangeOrder: entryOrder }) }),
     db.insert(trades).values({ id: tradeId, exchangeAccountId: account.id, customerId: subscription.customerId, decisionId, strategyCode: `community:${strategy.id}`, communityStrategyId: strategy.id, exchangeOrderId: orderId, executionVenue: venue, symbol, side: "buy", origin: "platform", status: orderStatus, openedAt: now, quantity: filledQuantity, entryValueUsdt, exitValueUsdt: 0, feesUsdt: entryFee, fundingUsdt: 0, realizedNetPnlUsdt: 0 }),
@@ -283,6 +295,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "自动运行密钥无效" }, { status: 401 });
   }
   if (!(await marketDataIsHealthy())) return Response.json({ error: "行情源健康检查失败，本轮不执行" }, { status: 503 });
+  await ensureD1Schema();
   const limit = Math.min(500, Math.max(1, Number(process.env.AUTOMATION_MAX_SUBSCRIPTIONS_PER_RUN || 100)));
   const subscriptions = await getDb().select().from(strategySubscriptions).where(eq(strategySubscriptions.status, "active")).limit(limit);
   const results: CycleResult[] = [];
