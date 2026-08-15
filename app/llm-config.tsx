@@ -49,7 +49,9 @@ function ConfigForm({endpoint,admin,onClose}:{endpoint:string;admin:boolean;onCl
   const [form,setForm]=useState<FormState>(emptyForm);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
+  const [testing,setTesting]=useState(false);
   const [message,setMessage]=useState("");
+  const [messageTone,setMessageTone]=useState<"success"|"error"|"info">("info");
 
   useEffect(()=>{
     let active=true;
@@ -57,7 +59,7 @@ function ConfigForm({endpoint,admin,onClose}:{endpoint:string;admin:boolean;onCl
       const payload=await response.json().catch(()=>({}));
       if(!response.ok) throw new Error(payload.error||payload.message||(response.status===401?(zh?"请先登录":"Please sign in"):(zh?"读取配置失败":"Unable to load configuration")));
       if(active&&payload.config)setForm({...emptyForm,...payload.config,apiKey:""});
-    }).catch(error=>active&&setMessage(error.message)).finally(()=>active&&setLoading(false));
+    }).catch(error=>{if(active){setMessageTone("error");setMessage(error.message)}}).finally(()=>active&&setLoading(false));
     return()=>{active=false};
   },[endpoint,zh]);
 
@@ -67,14 +69,26 @@ function ConfigForm({endpoint,admin,onClose}:{endpoint:string;admin:boolean;onCl
   };
 
   const save=async()=>{
-    setSaving(true);setMessage("");
+    setSaving(true);setMessage("");setMessageTone("info");
     try{
       const response=await fetch(endpoint,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({providerName:form.providerName,baseUrl:form.baseUrl,model:form.model,apiKey:form.apiKey||undefined,enabled:form.enabled})});
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(payload.error||payload.message||(zh?"保存失败":"Save failed"));
       setForm(current=>({...current,...payload.config,apiKey:""}));
+      setMessageTone("success");
       setMessage(zh?"保存成功，密钥已加密存储。":"Saved. The API key is encrypted at rest.");
-    }catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{setSaving(false)}
+    }catch(error){setMessageTone("error");setMessage(error instanceof Error?error.message:String(error))}finally{setSaving(false)}
+  };
+
+  const testConnection=async()=>{
+    setTesting(true);setMessage("");setMessageTone("info");
+    try{
+      const response=await fetch(`${endpoint}/test`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({providerName:form.providerName,baseUrl:form.baseUrl,model:form.model,apiKey:form.apiKey||undefined,enabled:form.enabled})});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(payload.error||payload.message||(zh?"连接测试失败":"Connection test failed"));
+      setMessageTone("success");
+      setMessage(zh?`连接测试成功：HTTP ${payload.status}，响应 ${payload.latencyMs}ms。`:`Connection successful: HTTP ${payload.status}, ${payload.latencyMs}ms.`);
+    }catch(error){setMessageTone("error");setMessage(error instanceof Error?error.message:String(error))}finally{setTesting(false)}
   };
 
   return <div className={`llm-config-form ${admin?"is-admin":"is-user"}`}>
@@ -94,9 +108,9 @@ function ConfigForm({endpoint,admin,onClose}:{endpoint:string;admin:boolean;onCl
       </div>
       <div className="llm-config-footer">
         <label className="llm-enable"><input type="checkbox" checked={form.enabled} onChange={event=>setForm({...form,enabled:event.target.checked})}/><span>{zh?"启用此接口":"Enable this connection"}</span></label>
-        <div className="llm-actions">{onClose&&<button className="soft" onClick={onClose}>{zh?"取消":"Cancel"}</button>}<button className="primary" onClick={save} disabled={saving}>{saving?(zh?"保存中…":"Saving…"):(zh?"保存接口":"Save connection")}</button></div>
+        <div className="llm-actions">{onClose&&<button className="soft" onClick={onClose}>{zh?"取消":"Cancel"}</button>}<button className="llm-test-button" onClick={testConnection} disabled={testing||saving}>{testing?(zh?"测试中…":"Testing…"):(zh?"连接测试":"Test connection")}</button><button className="primary" onClick={save} disabled={saving||testing}>{saving?(zh?"保存中…":"Saving…"):(zh?"保存接口":"Save connection")}</button></div>
       </div>
-      {message&&<div className="llm-message">{message}</div>}
+      {message&&<div className={`llm-message ${messageTone}`}>{message}</div>}
       <div className="llm-help"><b>{zh?"使用方法":"How to use"}</b><span>{zh?"先在模型服务商创建 Key。未知平台选择“自定义端点 / 端口”，填写地址、模型和 Key；保存后策略助手会自动使用个人配置，其次使用系统默认配置。密钥不会回显。":"Create a provider key. For an unlisted provider choose Custom endpoint, then enter its URL, model and key. The strategy assistant prefers your personal connection and then the system default. The key is never displayed again."}</span></div>
     </>}
   </div>

@@ -2348,7 +2348,12 @@ body:has(.membership-plans) .membership-plans>button:last-child{border-color:#4d
 .llm-enable input{accent-color:#4a9be8}
 .llm-actions{display:flex;align-items:center;gap:10px}
 .llm-actions button,.account-form button.primary{min-height:44px;padding:0 20px;border:1px solid #3c83c7;border-radius:11px;background:#216bb0;color:#fff;font-weight:800;cursor:pointer}
+.llm-test-button{min-height:44px;padding:0 20px;border:1px solid #3c83c7;border-radius:11px;background:#102942;color:#9ed0ff;font-weight:800;cursor:pointer}
+.llm-test-button:hover{border-color:#67b6f5;background:#153b5c}
+.llm-actions button:disabled{cursor:wait;opacity:.58}
 .llm-message,.account-message{padding:12px 14px;border:1px solid #2f587a;border-radius:10px;background:rgba(28,82,126,.18);color:#a9d5fb;font-size:13px}
+.llm-message.success{border-color:#2c886e;background:rgba(27,133,101,.14);color:#8be0c4}
+.llm-message.error{border-color:#9a4c5c;background:rgba(143,41,63,.16);color:#ffb1bd}
 .llm-help{padding:15px 17px;border-left:3px solid #4598e7;border-radius:7px;background:#0a1622;color:#90a7ba;font-size:13px;line-height:1.75}
 .account-button{display:flex;align-items:center;gap:10px;min-height:46px;padding:5px 13px;border:1px solid #26394c!important;border-radius:12px;background:linear-gradient(135deg,#111a25,#0a111a)!important;color:#edf5fc;cursor:pointer;text-align:left}
 .account-button img,.account-avatar{width:32px;height:32px;flex:0 0 32px;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:linear-gradient(145deg,#1d4658,#102536)!important;color:#e6f5ff;font-weight:900}
