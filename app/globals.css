@@ -2571,3 +2571,8 @@ body:has(.risk-live-panel) .content>.page-head{
   white-space:normal!important;
 }
 }
+/* Membership header has no right-side action after removing the measurement badge. */
+.membership-v2 .page-head>div:first-child:last-child{
+  display:block!important;
+  width:100%;
+}
