@@ -2703,3 +2703,25 @@ body:has(.risk-live-panel) .content>.page-head{
 .trading-center-v2>.trading-connections-v2{width:100%;max-width:none;margin-inline:0}
 
 .exchange-connect-form>label{font-family:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif;font-weight:500;letter-spacing:.01em}
+
+/* Render the bundled token marks in the trading-hall market rail. */
+.dash:has(.compact-hall) .hall-right>.market-widget .coin-list>button>.coin-icon{
+  display:grid!important;
+  place-items:center!important;
+  overflow:hidden!important;
+  padding:5px!important;
+  background:#102f61!important;
+  color:transparent!important;
+  font-size:0!important;
+  line-height:0!important;
+}
+.dash:has(.compact-hall) .hall-right>.market-widget .coin-list>button>.coin-icon img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+}
+.dash:has(.compact-hall) .hall-right>.market-widget .coin-list>button.active>.coin-icon{
+  background:#173b6f!important;
+  box-shadow:0 0 0 1px #5caeff55,0 0 14px #348ff044!important;
+}
