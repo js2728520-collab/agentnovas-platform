@@ -1,3 +1,5 @@
+import { ensureD1Schema } from "@/lib/d1-migrations";
+import { resolveLlmConfig, type ResolvedLlmConfig } from "@/lib/llm-config";
 import { requireUser, responseError } from "@/lib/session";
 
 type ChatMessage = { role: "user" | "assistant"; text: string };
@@ -21,26 +23,43 @@ function guidedReply(message: string, specification: Record<string, unknown>) {
   return `${base}下一步请把你的入场确认、不能交易的行情、退出条件讲清楚。例如：“只在趋势和成交量同时确认时入场，连续失败3次暂停”。我会把自然语言整理成平台可以真实回测的结构化规则。`;
 }
 
-async function aiReply(message: string, conversation: ChatMessage[], specification: Record<string, unknown>) {
-  const url = process.env.AI_API_URL;
-  const key = process.env.AI_API_KEY;
-  const model = process.env.AI_MODEL;
-  if (!url || !key || !model) return { text: guidedReply(message, specification), mode: "guided_rules" as const };
+function providerMessages(message: string, conversation: ChatMessage[], system: string) {
+  return [{ role: "system", content: system }, ...conversation.slice(-12).map((item) => ({ role: item.role, content: item.text })), { role: "user", content: message }];
+}
+
+function responseOutputText(data: { output_text?: string; output?: Array<{ content?: Array<{ text?: string; type?: string }> }> }) {
+  return data.output_text?.trim() || data.output?.flatMap(item => item.content || []).map(item => item.text || "").join("").trim() || "";
+}
+
+async function providerError(response: Response, providerName: string) {
+  const body = await response.json().catch(() => null) as { error?: { message?: string } | string; message?: string } | null;
+  const detail = typeof body?.error === "string" ? body.error : body?.error?.message || body?.message || "";
+  return `${providerName} 返回 ${response.status}${detail ? `：${detail.slice(0, 180)}` : ""}`;
+}
+
+async function aiReply(message: string, conversation: ChatMessage[], specification: Record<string, unknown>, config: ResolvedLlmConfig | null) {
+  if (!config) return { text: guidedReply(message, specification), mode: "guided_rules" as const };
   const system = `你是 AgentNovas 的量化策略研究助手。你的任务不是承诺收益，而是用专业、易懂的中文把客户想法引导为可回测规则。必须依次明确：目标与经验、交易对与周期、市场状态、策略风格、数据和指标、入场条件、退出条件、仓位、止损止盈、最大回撤、暂停条件。可优先建议成熟因子：趋势 EMA/ADX、波动 ATR/Bollinger、突破 Donchian/成交量；不要堆叠指标，也不要编造行情或收益。发现规则矛盾、参数过激或无法真实回测时必须指出，并给出更稳妥的替代参数。当前结构化参数：${JSON.stringify(specification)}。每次回复不超过220字。`;
-  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ model, messages: [{ role: "system", content: system }, ...conversation.slice(-12).map((item) => ({ role: item.role, content: item.text })), { role: "user", content: message }], temperature: 0.2 }) });
-  if (!response.ok) throw new Error(`AI策略服务返回 ${response.status}`);
-  const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const text = data.choices?.[0]?.message?.content?.trim();
+  const messages = providerMessages(message, conversation, system);
+  const body = config.apiStyle === "responses"
+    ? { model: config.model, input: messages }
+    : { model: config.model, messages, temperature: 0.2 };
+  const response = await fetch(config.endpoint, { method: "POST", headers: { "content-type": "application/json", accept: "application/json", authorization: `Bearer ${config.apiKey}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(45_000) });
+  if (!response.ok) throw new Error(await providerError(response, config.providerName));
+  const data = await response.json() as { choices?: Array<{ message?: { content?: string } }>; output_text?: string; output?: Array<{ content?: Array<{ text?: string; type?: string }> }> };
+  const text = config.apiStyle === "responses" ? responseOutputText(data) : data.choices?.[0]?.message?.content?.trim();
   if (!text) throw new Error("AI策略服务没有返回有效内容");
-  return { text, mode: "ai_provider" as const };
+  return { text, mode: "ai_provider" as const, provider: config.providerName, connection: config.source };
 }
 
 export async function POST(request: Request) {
   try {
-    await requireUser(request, ["customer"]);
+    await ensureD1Schema();
+    const user = await requireUser(request, ["customer"]);
     const body = await request.json() as { message?: string; conversation?: ChatMessage[]; specification?: Record<string, unknown> };
     if (!body.message?.trim()) return Response.json({ error: "请输入策略问题" }, { status: 400 });
-    const result = await aiReply(body.message.trim(), Array.isArray(body.conversation) ? body.conversation : [], body.specification || {});
+    const config = await resolveLlmConfig(user.id);
+    const result = await aiReply(body.message.trim(), Array.isArray(body.conversation) ? body.conversation : [], body.specification || {}, config);
     return Response.json({ ...result, disclaimer: "策略研究内容仅用于形成和回测交易规则，不构成收益承诺。" });
   } catch (error) {
     return responseError(error);

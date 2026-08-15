@@ -25,11 +25,11 @@ const emptyForm: FormState = {
 };
 
 const presets = [
-  { name: "Custom OpenAI Compatible", url: "", model: "" },
-  { name: "OpenAI", url: "https://api.openai.com/v1", model: "gpt-4.1-mini" },
-  { name: "DeepSeek", url: "https://api.deepseek.com/v1", model: "deepseek-chat" },
-  { name: "Qwen", url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
-  { name: "Gemini OpenAI Compatible", url: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-flash" },
+  { name: "Custom OpenAI Compatible", labelZh: "自定义端点 / 端口（其他平台）", labelEn: "Custom endpoint (other provider)", url: "", model: "" },
+  { name: "OpenAI", labelZh: "OpenAI", labelEn: "OpenAI", url: "https://api.openai.com/v1", model: "gpt-4.1-mini" },
+  { name: "DeepSeek", labelZh: "DeepSeek", labelEn: "DeepSeek", url: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+  { name: "Qwen", labelZh: "通义千问 Qwen", labelEn: "Qwen", url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
+  { name: "Gemini OpenAI Compatible", labelZh: "Gemini（OpenAI 兼容）", labelEn: "Gemini (OpenAI compatible)", url: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-flash" },
 ];
 
 function useChinese(){
@@ -53,7 +53,6 @@ function ConfigForm({endpoint,admin,onClose}:{endpoint:string;admin:boolean;onCl
 
   useEffect(()=>{
     let active=true;
-    setLoading(true);
     fetch(endpoint,{cache:"no-store"}).then(async response=>{
       const payload=await response.json().catch(()=>({}));
       if(!response.ok) throw new Error(payload.error||payload.message||(response.status===401?(zh?"请先登录":"Please sign in"):(zh?"读取配置失败":"Unable to load configuration")));
@@ -88,9 +87,9 @@ function ConfigForm({endpoint,admin,onClose}:{endpoint:string;admin:boolean;onCl
     </div>
     {loading?<div className="llm-loading">{zh?"正在读取配置…":"Loading configuration…"}</div>:<>
       <div className="llm-config-grid">
-        <label><span>{zh?"供应商预设":"Provider preset"}</span><select value={form.providerName} onChange={event=>choosePreset(event.target.value)}>{presets.map(item=><option key={item.name}>{item.name}</option>)}</select></label>
+        <label><span>{zh?"供应商预设":"Provider preset"}</span><select value={presets.some(item=>item.name===form.providerName)?form.providerName:presets[0].name} onChange={event=>choosePreset(event.target.value)}>{presets.map(item=><option key={item.name} value={item.name}>{zh?item.labelZh:item.labelEn}</option>)}</select></label>
         <label><span>{zh?"模型名称":"Model"}</span><input value={form.model} onChange={event=>setForm({...form,model:event.target.value})} placeholder="gpt-4.1-mini"/></label>
-        <label className="llm-wide"><span>{zh?"接口基础地址":"Base URL"}</span><input value={form.baseUrl} onChange={event=>setForm({...form,baseUrl:event.target.value})} placeholder="https://api.example.com/v1"/></label>
+        <label className="llm-wide"><span>{zh?"接口基础地址 / 完整端点":"Base URL / full endpoint"}</span><input value={form.baseUrl} onChange={event=>setForm({...form,baseUrl:event.target.value})} placeholder="https://api.example.com/v1"/><small className="llm-field-help">{zh?"支持填写基础地址，也支持完整的 /chat/completions 或 /responses 地址；其他平台需兼容 OpenAI 请求格式。":"Enter a base URL or a complete /chat/completions or /responses endpoint. Other providers must use an OpenAI-compatible request format."}</small></label>
         <label className="llm-wide"><span>API Key</span><input type="password" value={form.apiKey} onChange={event=>setForm({...form,apiKey:event.target.value})} placeholder={form.hasApiKey?(zh?`已保存 ${form.maskedApiKey}；留空则不更换`:`Saved ${form.maskedApiKey}; leave blank to keep`):(zh?"输入服务商提供的 API Key":"Enter the API key from your provider")}/></label>
       </div>
       <div className="llm-config-footer">
@@ -98,7 +97,7 @@ function ConfigForm({endpoint,admin,onClose}:{endpoint:string;admin:boolean;onCl
         <div className="llm-actions">{onClose&&<button className="soft" onClick={onClose}>{zh?"取消":"Cancel"}</button>}<button className="primary" onClick={save} disabled={saving}>{saving?(zh?"保存中…":"Saving…"):(zh?"保存接口":"Save connection")}</button></div>
       </div>
       {message&&<div className="llm-message">{message}</div>}
-      <div className="llm-help"><b>{zh?"使用方法":"How to use"}</b><span>{zh?"先在模型服务商创建 Key，选择预设或填写兼容 OpenAI 的基础地址与模型名称，保存后即可在策略创建页选择此连接。密钥不会回显。":"Create a key with your model provider, choose a preset or enter an OpenAI-compatible base URL and model, then save. The key is never displayed again."}</span></div>
+      <div className="llm-help"><b>{zh?"使用方法":"How to use"}</b><span>{zh?"先在模型服务商创建 Key。未知平台选择“自定义端点 / 端口”，填写地址、模型和 Key；保存后策略助手会自动使用个人配置，其次使用系统默认配置。密钥不会回显。":"Create a provider key. For an unlisted provider choose Custom endpoint, then enter its URL, model and key. The strategy assistant prefers your personal connection and then the system default. The key is never displayed again."}</span></div>
     </>}
   </div>
 }

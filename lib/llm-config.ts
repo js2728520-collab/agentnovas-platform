@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { llmConfigurations } from "@/db/schema";
-import { encryptIntegrationSecret, maskedIntegrationSecret } from "@/lib/integration-credentials";
+import { decryptIntegrationSecret, encryptIntegrationSecret, maskedIntegrationSecret } from "@/lib/integration-credentials";
 
 export type LlmConfigInput = {
   providerName?: unknown;
@@ -10,6 +10,15 @@ export type LlmConfigInput = {
   model?: unknown;
   apiKey?: unknown;
   enabled?: unknown;
+};
+
+export type ResolvedLlmConfig = {
+  providerName: string;
+  endpoint: string;
+  apiStyle: "chat_completions" | "responses";
+  model: string;
+  apiKey: string;
+  source: "user" | "system" | "environment";
 };
 
 export function publicLlmConfig(row: typeof llmConfigurations.$inferSelect | undefined) {
@@ -31,6 +40,43 @@ function normalizeEndpoint(value: unknown) {
   const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
   if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:")) throw new Error("接口地址必须使用 HTTPS");
   return input;
+}
+
+export function normalizeLlmCompletionEndpoint(baseUrl: string) {
+  const normalized = baseUrl.trim().replace(/\/+$/, "");
+  if (/\/responses$/i.test(normalized)) return { endpoint: normalized, apiStyle: "responses" as const };
+  if (/\/chat\/completions$/i.test(normalized)) return { endpoint: normalized, apiStyle: "chat_completions" as const };
+  return { endpoint: `${normalized}/chat/completions`, apiStyle: "chat_completions" as const };
+}
+
+export async function resolveLlmConfig(userId: string): Promise<ResolvedLlmConfig | null> {
+  const db = getDb();
+  const userConfig = await db.query.llmConfigurations.findFirst({ where: eq(llmConfigurations.id, `user-${userId}`) });
+  const systemConfig = await db.query.llmConfigurations.findFirst({ where: eq(llmConfigurations.id, "system-default") });
+  const stored = userConfig?.enabled && userConfig.encryptedApiKey
+    ? { row: userConfig, source: "user" as const }
+    : systemConfig?.enabled && systemConfig.encryptedApiKey
+      ? { row: systemConfig, source: "system" as const }
+      : null;
+
+  if (stored) {
+    const target = normalizeLlmCompletionEndpoint(stored.row.baseUrl);
+    return {
+      providerName: stored.row.providerName,
+      endpoint: target.endpoint,
+      apiStyle: target.apiStyle,
+      model: stored.row.model,
+      apiKey: await decryptIntegrationSecret(stored.row.encryptedApiKey),
+      source: stored.source,
+    };
+  }
+
+  const baseUrl = process.env.AI_API_URL?.trim();
+  const apiKey = process.env.AI_API_KEY?.trim();
+  const model = process.env.AI_MODEL?.trim();
+  if (!baseUrl || !apiKey || !model) return null;
+  const target = normalizeLlmCompletionEndpoint(baseUrl);
+  return { providerName: "Environment default", endpoint: target.endpoint, apiStyle: target.apiStyle, model, apiKey, source: "environment" };
 }
 
 export async function saveLlmConfig(options: {

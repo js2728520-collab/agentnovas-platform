@@ -2326,6 +2326,7 @@ body:has(.membership-plans) .membership-plans>button:last-child{border-color:#4d
 .llm-config-grid input,.llm-config-grid select,.account-form input{width:100%;min-height:46px;padding:0 14px;border:1px solid #2b4359;border-radius:11px;outline:0;background:#08131e;color:#eaf3fb;font:inherit}
 .llm-config-grid input:focus,.llm-config-grid select:focus,.account-form input:focus{border-color:#4a9be8;box-shadow:0 0 0 3px rgba(70,150,229,.13)}
 .llm-wide{grid-column:1/-1}
+.llm-field-help{color:#728ca2;font-size:11px;font-weight:500;line-height:1.6}
 .llm-config-footer{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding-top:4px}
 .llm-enable{display:flex;align-items:center;gap:9px;color:#bdcfdf;font-size:14px}
 .llm-enable input{accent-color:#4a9be8}
