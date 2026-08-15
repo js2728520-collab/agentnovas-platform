@@ -2576,3 +2576,8 @@ body:has(.risk-live-panel) .content>.page-head{
   display:block!important;
   width:100%;
 }
+/* The exchange connection page also has no right-side action in its header. */
+.content:has(.connect-grid)>.page-head>div:first-child:last-child{
+  display:block!important;
+  width:100%;
+}
