@@ -22,6 +22,7 @@ const localBindingConfig = {
     { pattern: "www.tzxsea.com", custom_domain: true },
   ],
   compatibility_flags: ["nodejs_compat"],
+  triggers: { crons: ["*/5 * * * *"] },
   d1_databases: d1
     ? [
         {

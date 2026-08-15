@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import {
   communityStrategies,
   exchangeAccounts,
+  platformStrategySubscriptions,
   strategySubscriptions,
   trades,
 } from "@/db/schema";
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
   try {
     const me = await requireUser(request, ["customer"]);
     const db = getDb();
-    const [accounts, allRows, following] = await Promise.all([
+    const [accounts, allRows, following, platformFollowing] = await Promise.all([
       db
         .select({
           id: exchangeAccounts.id,
@@ -99,6 +100,7 @@ export async function GET(request: Request) {
         .from(strategySubscriptions)
         .innerJoin(communityStrategies, eq(communityStrategies.id, strategySubscriptions.strategyId))
         .where(eq(strategySubscriptions.customerId, me.id)),
+      db.select().from(platformStrategySubscriptions).where(eq(platformStrategySubscriptions.customerId, me.id)),
     ]);
 
     // 普通资产页只展示真实执行记录。内部 Demo/模拟测试记录由作者测试入口单独管理。
@@ -124,23 +126,29 @@ export async function GET(request: Request) {
     const knownCommunityIds = new Set(following.map((row) => row.strategyId));
     const platformCodes = Array.from(
       new Set(
-        attributedRows
-          .filter((row) => !row.communityStrategyId || !knownCommunityIds.has(row.communityStrategyId))
-          .map((row) => row.strategyCode)
-          .filter((code): code is string => Boolean(code)),
+        [
+          ...platformFollowing.map((row) => row.strategyCode),
+          ...attributedRows
+            .filter((row) => !row.communityStrategyId || !knownCommunityIds.has(row.communityStrategyId))
+            .map((row) => row.strategyCode)
+            .filter((code): code is string => Boolean(code)),
+        ],
       ),
     );
     const platformPerformance = platformCodes.map((code) => {
       const rows = attributedRows.filter((row) => row.strategyCode === code && !row.communityStrategyId);
+      const subscription = platformFollowing.find((row) => row.strategyCode === code);
       return {
         id: code,
+        subscriptionId: subscription?.id || null,
         name: platformStrategyNames[code] || code,
         riskLevel: code.includes("aggressive") ? "high" : code.includes("conservative") ? "low" : "medium",
         symbols: Array.from(new Set(rows.map((row) => row.symbol))),
         version: null,
-        status: rows.some((row) => !row.closedAt) ? "active" : "paused",
-        startedAt: rows[0]?.openedAt || rows[0]?.createdAt || null,
+        status: subscription?.status || (rows.some((row) => !row.closedAt) ? "active" : "paused"),
+        startedAt: subscription?.startedAt || rows[0]?.openedAt || rows[0]?.createdAt || null,
         source: "platform",
+        environment: "validation",
         ...tradeMetrics(rows),
       };
     });

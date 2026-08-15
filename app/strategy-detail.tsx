@@ -57,6 +57,12 @@ const curves: Record<string, number[]> = {
   "全部": [8, 14, 21, 18, 26, 32, 30, 38, 46, 42, 55, 62, 59, 71, 76, 86],
 };
 
+const platformFollowLimits: Record<string, { code: string; capital: number; stopLoss: number }> = {
+  "ai-stable": { code: "ai_conservative", capital: 2, stopLoss: 1.6 },
+  "ai-balanced": { code: "ai_balanced", capital: 3, stopLoss: 2.2 },
+  "ai-aggressive": { code: "ai_aggressive", capital: 4, stopLoss: 1.8 },
+};
+
 function percent(value: number | undefined) {
   return value == null ? "样本不足" : `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
@@ -76,7 +82,9 @@ export default function StrategyDetail({ strategy, onBack }: { strategy: Strateg
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState("");
-  const isPresentation = strategy.id.startsWith("demo-") || strategy.id.startsWith("ai-");
+  const platformFollow = platformFollowLimits[strategy.id];
+  const isPlatform = strategy.source === "platform" && Boolean(platformFollow);
+  const isPresentation = strategy.id.startsWith("demo-");
   const selectedAccount = accounts.find((item) => item.id === accountId);
   const requiresContracts = strategyRequiresContracts(strategy as unknown as Record<string, unknown>);
   const accountMarketWarning = selectedAccount && requiresContracts && !selectedAccount.capabilities?.supportsContracts
@@ -87,10 +95,31 @@ export default function StrategyDetail({ strategy, onBack }: { strategy: Strateg
   const authorRole = authorRoleNames[strategy.authorRole || ""] || strategy.authorRole || (strategy.source === "platform" ? "平台 AI 策略团队" : "社区策略作者");
 
   useEffect(() => {
+    let active = true;
     setAccounts([]);
     setAccountId("");
-    setAccountsLoading(false);
-  }, []);
+    setMessage("");
+    if (!isPlatform) {
+      setAccountsLoading(false);
+      return () => { active = false; };
+    }
+    setCapital(platformFollow.capital);
+    setStopLoss(platformFollow.stopLoss);
+    setAccountsLoading(true);
+    void fetch("/api/exchange-accounts", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((payload) => {
+        if (!active) return;
+        const available = Array.isArray(payload?.accounts)
+          ? payload.accounts.filter((account: ExchangeAccount) => account.environment === "demo" && account.status === "active" && account.canRead && account.canTrade)
+          : [];
+        setAccounts(available);
+        if (available[0]) setAccountId(available[0].id);
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setAccountsLoading(false); });
+    return () => { active = false; };
+  }, [isPlatform, platformFollow?.capital, platformFollow?.stopLoss]);
 
   const metrics = useMemo(() => [
     ["累计收益", percent(strategy.netReturnPct)],
@@ -102,11 +131,8 @@ export default function StrategyDetail({ strategy, onBack }: { strategy: Strateg
   ], [strategy]);
 
   function requestFollow() {
-    setMessage("实盘跟单尚未开放；你可以先在“我的策略”中对自己创建的策略进行历史回测和模拟测试。");
-    return;
-    /* istanbul ignore next */
-    if (isPresentation) {
-      setMessage("该平台 AI 方案目前为明确标注的界面演示，尚未接入真实策略版本与执行引擎，暂不能跟随。");
+    if (!isPlatform) {
+      setMessage("策略广场用户策略的自动跟随仍处于关闭状态，请先使用历史回测和作者测试。");
       return;
     }
     if (!accountId) {
@@ -122,23 +148,22 @@ export default function StrategyDetail({ strategy, onBack }: { strategy: Strateg
   }
 
   async function follow() {
-    if (!accountId || isPresentation) return;
+    if (!accountId || !isPlatform || !platformFollow) return;
     setBusy(true);
     setMessage("");
     try {
-      const response = await fetch(`/api/strategy-marketplace/${strategy.id}/follow`, {
+      const response = await fetch(`/api/platform-strategies/${platformFollow.code}/follow`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           exchangeAccountId: accountId,
           capitalPct: capital,
           stopLossPct: stopLoss,
-          executionMode: "proportional",
           riskConsent: true,
         }),
       });
       const result = safeJson<{ error?: string; message?: string }>(await response.text());
-      setMessage(result?.message || result?.error || (response.ok ? "模拟跟随已激活" : "暂时无法提交跟随申请"));
+      setMessage(result?.message || result?.error || (response.ok ? "平台 AI 策略已激活" : "暂时无法提交跟随申请"));
     } catch {
       setMessage("当前服务暂未连接，请稍后重试。");
     } finally {
@@ -155,7 +180,7 @@ export default function StrategyDetail({ strategy, onBack }: { strategy: Strateg
         <div className="strategy-detail-title"><div className="strategy-detail-mark">{strategy.source === "platform" ? "AI" : strategy.name.slice(0, 1)}</div><div><span>{riskNames[strategy.riskLevel]} · V{strategy.version}</span><h1>{strategy.name}</h1><p>{strategy.summary}</p></div></div>
         <div className="strategy-detail-tags">{strategy.symbols.map((symbol) => <span key={symbol}>{symbol}</span>)}<span>多 Agent 审核</span><span>硬风控约束</span></div>
       </div>
-      <div className="strategy-detail-status"><span><i />数据状态</span><b>{isPresentation ? "演示方案 · 不可跟随" : "策略数据已记录"}</b><small>{isPresentation ? "不代表真实收益或未来表现" : "指标来自当前策略版本的回测或实盘记录"}</small></div>
+      <div className="strategy-detail-status"><span><i />数据状态</span><b>{isPlatform ? "实时策略引擎已接入" : isPresentation ? "演示方案 · 不可跟随" : "策略数据已记录"}</b><small>{isPlatform ? "真实行情决策 · 验证环境执行 · 全程审计" : isPresentation ? "不代表真实收益或未来表现" : "指标来自当前策略版本的回测或实盘记录"}</small></div>
     </section>
 
     <div className="strategy-detail-layout">
@@ -174,15 +199,15 @@ export default function StrategyDetail({ strategy, onBack }: { strategy: Strateg
       </main>
 
       <aside className="strategy-follow-panel">
-        <div className="follow-panel-head"><small>FOLLOW STRATEGY</small><h2>跟随此策略</h2><p>实盘跟单尚未开放，平台不会通过模拟账户替客户自动开仓。</p></div>
-        <label>跟随账户<select value={accountId} disabled><option value="">实盘跟单暂未开放</option></select></label>
+        <div className="follow-panel-head"><small>FOLLOW STRATEGY</small><h2>跟随此策略</h2><p>{isPlatform ? "先在验证账户运行真实行情决策；实盘订单路由继续由服务端硬性关闭。" : "用户策略自动跟随尚未开放。"}</p></div>
+        <label>跟随账户<select value={accountId} disabled={!isPlatform || accountsLoading} onChange={(event) => setAccountId(event.target.value)}><option value="">{accountsLoading ? "正在读取可用账户…" : accounts.length ? "请选择验证账户" : "暂无通过检测的验证账户"}</option>{accounts.map((account) => <option value={account.id} key={account.id}>{account.exchange} · {account.label}</option>)}</select></label>
         {accountMarketWarning && <div className="strategy-follow-warning">{accountMarketWarning}</div>}
-        <label className="follow-range"><span>资金使用上限 <b>{capital}%</b></span><input type="range" min="5" max="50" step="5" value={capital} onChange={(event) => setCapital(Number(event.target.value))} /></label>
-        <label className="follow-range"><span>策略止损线 <b>{stopLoss}%</b></span><input type="range" min="3" max="20" value={stopLoss} onChange={(event) => setStopLoss(Number(event.target.value))} /></label>
-        <div className="follow-summary"><span>跟随方式<b>暂未启用</b></span><span>执行环境<b>不自动执行</b></span><span>风控模式<b>账户边界优先</b></span></div>
+        <label className="follow-range"><span>资金使用上限 <b>{capital}%</b></span><input type="range" min="1" max={platformFollow?.capital || 4} step="0.5" disabled={!isPlatform} value={capital} onChange={(event) => setCapital(Number(event.target.value))} /></label>
+        <label className="follow-range"><span>策略止损线 <b>{stopLoss}%</b></span><input type="range" min="0.5" max={platformFollow?.stopLoss || 3} step="0.1" disabled={!isPlatform} value={stopLoss} onChange={(event) => setStopLoss(Number(event.target.value))} /></label>
+        <div className="follow-summary"><span>信号来源<b>{isPlatform ? "实时完整K线" : "暂未启用"}</b></span><span>执行环境<b>{isPlatform ? "验证账户" : "不自动执行"}</b></span><span>风控模式<b>账户硬边界优先</b></span></div>
         <label className="follow-agreement"><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} /><span>我已了解策略可能产生亏损，历史表现不代表未来收益，并同意先完成账户风险检查。</span></label>
         {confirming && <div className="strategy-follow-confirmation"><header><span>确认跟随参数</span><button onClick={() => setConfirming(false)}>×</button></header><dl><div><dt>策略</dt><dd>{strategy.name}</dd></div><div><dt>账户</dt><dd>{selectedAccount ? `${selectedAccount.exchange} · ${selectedAccount.label}` : "未选择"}</dd></div><div><dt>资金上限</dt><dd>{capital}%</dd></div><div><dt>止损线</dt><dd>{stopLoss}%</dd></div></dl><p>提交后仍需通过会员、API权限和账户硬风控检查，通过前不会自动开仓。</p><div><button onClick={() => setConfirming(false)}>返回修改</button><button className="primary" disabled={busy} onClick={() => void follow()}>{busy ? "正在提交…" : "确认并提交"}</button></div></div>}
-        <button className="strategy-follow-button" disabled={true} onClick={requestFollow}>实盘跟单暂未开放</button>
+        <button className="strategy-follow-button" disabled={!isPlatform || accountsLoading} onClick={requestFollow}>{isPlatform ? "启用验证账户跟随" : "用户策略跟随暂未开放"}</button>
         {message && <div className="strategy-follow-message">{message}</div>}
         <footer><span>可随时暂停新开仓</span><span>已有仓位继续受风控管理</span></footer>
       </aside>

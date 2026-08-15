@@ -28,14 +28,32 @@ function agentTalksFrom(
     updatedAt: Date | string;
   }>,
 ) {
-  return decisions.slice(0, 21).map((row) => {
+  return decisions.flatMap((row) => {
     const evidence = parseEvidence(row.evidenceJson);
+    const recordedAgentMessages = Array.isArray(evidence.agentMessages)
+      ? evidence.agentMessages.flatMap((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+          const message = item as Record<string, unknown>;
+          if (!message.agent || !message.message) return [];
+          return [{
+            agent: String(message.agent),
+            message: String(message.message),
+            strategyCode: row.strategyCode,
+            strategyName: names[row.strategyCode],
+            decisionId: row.id,
+            status: row.status,
+            updatedAt: row.updatedAt,
+            source: "platform_decision",
+          }];
+        })
+      : [];
+    if (recordedAgentMessages.length) return recordedAgentMessages;
     const recordedMessage = evidence.agentMessage ?? evidence.summary ?? evidence.reason;
     const message = recordedMessage
       ? String(recordedMessage)
       : `${row.symbol} 决策状态已更新为 ${row.status}`;
 
-    return {
+    return [{
       agent: evidence.agentName ? String(evidence.agentName) : "策略工作流",
       message,
       strategyCode: row.strategyCode,
@@ -44,8 +62,8 @@ function agentTalksFrom(
       status: row.status,
       updatedAt: row.updatedAt,
       source: "platform_decision",
-    };
-  });
+    }];
+  }).slice(0, 42);
 }
 
 export async function GET(request: Request) {

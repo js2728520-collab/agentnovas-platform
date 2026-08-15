@@ -6,6 +6,7 @@ interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
   BOOTSTRAP_SECRET?: string;
+  AUTOMATION_INTERNAL_SECRET?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -42,6 +43,19 @@ const worker = {
     }
 
     return handler.fetch(request, env, ctx);
+  },
+
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (!env.AUTOMATION_INTERNAL_SECRET || env.AUTOMATION_INTERNAL_SECRET.length < 24) return;
+    const request = new Request("https://agentnovas.internal/api/automation/platform-ai-cycle", {
+      method: "POST",
+      headers: { "x-automation-key": env.AUTOMATION_INTERNAL_SECRET },
+    });
+    ctx.waitUntil(handler.fetch(request, env, ctx).then(async (response) => {
+      if (response.ok) return;
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Platform AI scheduled cycle failed with ${response.status}: ${detail.slice(0, 240)}`);
+    }));
   },
 };
 
