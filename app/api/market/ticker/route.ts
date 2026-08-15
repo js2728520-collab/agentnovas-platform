@@ -11,7 +11,7 @@ export async function GET(){try{
   // Fetch the public 24h universe once, then keep only the products shown in
   // the market center. This avoids one invalid/temporarily delisted symbol
   // taking down the complete live feed.
-  const base=(process.env.MARKET_DATA_BASE_URL||"https://data-api.binance.vision").replace(/\/$/,"");
+  const base=(process.env.MARKET_DATA_BASE_URL||"https://api-gcp.binance.com").replace(/\/$/,"");
   const path=process.env.MARKET_DATA_TICKER_PATH||"/api/v3/ticker/24hr";
   const response=await fetch(`${base}${path.startsWith("/")?path:`/${path}`}`,{headers:{accept:"application/json"},signal:AbortSignal.timeout(4500),cache:"no-store"});
   if(!response.ok)throw new Error("行情源暂时不可用");
