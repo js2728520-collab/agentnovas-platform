@@ -204,15 +204,18 @@ export default function ConnectLive() {
           {channelNote}
         </p>
 
+        <div className="connect-form-summary"><span>02</span><div><b>填写连接凭证</b><p>仅提交交易所 API 页面生成的凭证，平台会加密保存并先做权限检测。</p></div><strong>安全连接</strong></div>
         <form className="exchange-connect-form" onSubmit={submit}>
-          <input placeholder="账户标签（可选）" value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} />
-          <input required placeholder="API Key" value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.target.value })} />
-          {selected === "METAMASK" ? <p className="field-hint">MetaMask 使用公开钱包地址登记连接，不要求提交私钥；签名授权仍由钱包弹窗完成。</p> : <input required type="password" placeholder="Secret Key" value={form.secretKey} onChange={(event) => setForm({ ...form, secretKey: event.target.value })} />}
-          {["OKX", "BITGET", "KUCOIN"].includes(selected) && <input required placeholder={`${selected} Passphrase`} value={form.passphrase} onChange={(event) => setForm({ ...form, passphrase: event.target.value })} />}
-          {selected === "COINBASE" && <p className="field-hint">Coinbase Secret Key 请粘贴包含 BEGIN PRIVATE KEY 的 CDP 私钥。</p>}
-          <label><input type="checkbox" checked={form.canTrade} onChange={(event) => setForm({ ...form, canTrade: event.target.checked })} /> 允许交易权限检测</label>
-          <label><input type="checkbox" checked={form.withdrawalAuthorized} onChange={(event) => setForm({ ...form, withdrawalAuthorized: event.target.checked })} /> 客户主动开启提现授权</label>
-          <div className="connect-form-actions"><button type="button" className="connect-help-button" onClick={() => setTutorialOpen(!tutorialOpen)}>使用说明</button><button className="primary">加密保存并检测</button></div>
+          <div className="connect-field-grid">
+            <label className="connect-field"><span>账户标签 <em>可选</em></span><input placeholder="例如：我的主账户" value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} /><small>用于区分不同账户，不会提交给交易所。</small></label>
+            <label className="connect-field"><span>{selected === "METAMASK" ? "钱包地址" : "API Key"} <em>必填</em></span><input required placeholder={selected === "METAMASK" ? "0x… 钱包公开地址" : "粘贴 API Key"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.target.value })} /><small>{selected === "METAMASK" ? "只填写公开地址，不要填写助记词或私钥。" : "从官方 API 管理页面复制，不要填写登录密码。"}</small></label>
+            {selected !== "METAMASK" && <label className="connect-field"><span>Secret Key <em>必填</em></span><input required type="password" placeholder="粘贴 Secret Key" value={form.secretKey} onChange={(event) => setForm({ ...form, secretKey: event.target.value })} /><small>用于接口签名，保存后不会再次明文展示。</small></label>}
+            {["OKX", "BITGET", "KUCOIN"].includes(selected) && <label className="connect-field"><span>Passphrase <em>必填</em></span><input required placeholder={`${selected} Passphrase`} value={form.passphrase} onChange={(event) => setForm({ ...form, passphrase: event.target.value })} /><small>必须与创建 API 时设置的口令完全一致。</small></label>}
+          </div>
+          {selected === "METAMASK" && <p className="field-hint connect-inline-hint">MetaMask 使用公开钱包地址登记连接，不要求提交私钥；签名授权仍由钱包弹窗完成。</p>}
+          {selected === "COINBASE" && <p className="field-hint connect-inline-hint">Coinbase Secret Key 请粘贴包含 <code>BEGIN PRIVATE KEY</code> 的 CDP 私钥。</p>}
+          <div className="connect-permission-panel"><div className="connect-permission-heading"><b>权限与安全确认</b><small>建议只开启读取与交易权限，并在交易所限制平台 IP。</small></div><label className="connect-permission-option"><input type="checkbox" checked={form.canTrade} onChange={(event) => setForm({ ...form, canTrade: event.target.checked })} /><span><b>允许交易权限检测</b><small>用于验证接口是否具备下单权限，不代表会自动下单。</small></span></label><label className="connect-permission-option"><input type="checkbox" checked={form.withdrawalAuthorized} onChange={(event) => setForm({ ...form, withdrawalAuthorized: event.target.checked })} /><span><b>客户主动开启提现授权</b><small>按平台跟单规则确认授权状态，请勿开启交易所提现权限。</small></span></label></div>
+          <div className="connect-form-actions"><button type="button" className="connect-help-button" onClick={() => setTutorialOpen(!tutorialOpen)}><strong>使用说明</strong><small>查看绑定步骤与官网入口</small></button><button className="primary"><strong>加密保存并检测</strong><small>先验证权限，不会自动下单</small></button></div>
         </form>
         <div className="ip-whitelist-note"><b>平台执行服务器 IP 白名单</b><span>{executionIp}</span><small>请仅将部署环境展示的 IP 加入交易所 API 白名单；本地开发环境没有可用于生产的固定出口 IP。</small></div>
         {tutorialOpen && <div className="connection-tutorial"><h3>绑定流程</h3><ol><li>在下方选择交易所，进入其官方 API 管理页面。</li><li>创建只包含读取和交易权限的专用凭证，关闭提现权限并限制 IP。</li><li>回到这里填写凭证并点击“加密保存并检测”；检测通过后才可用于模拟跟随。</li><li>实盘订单路由仍需该交易所完成官方鉴权、沙盒、回滚和人工审批，不会因保存密钥自动下单。</li></ol><div className="connection-official-links">{officialExchangeLinks.map((link) => <a href={link.href} key={link.key} target="_blank" rel="noreferrer">{link.label} ↗</a>)}</div></div>}

@@ -1484,6 +1484,69 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
   }
 }
 
+/* Exchange credential form: clearer hierarchy, field guidance, and safer permission cues. */
+.exchange-live-panel .connect-form-summary{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin:14px 0 4px;
+  padding:13px 15px;
+  border:1px solid #294b68;
+  border-radius:12px;
+  background:linear-gradient(135deg,rgba(21,72,119,.5),rgba(8,22,39,.72));
+}
+.connect-form-summary>span{
+  display:grid;
+  place-items:center;
+  width:32px;
+  height:32px;
+  flex:0 0 32px;
+  border-radius:10px;
+  background:#287dc8;
+  color:#f3fbff;
+  font:700 12px/1 var(--font-geist-mono),monospace;
+}
+.connect-form-summary>div{min-width:0;flex:1}
+.connect-form-summary b{display:block;color:#e9f6ff;font-size:14px}
+.connect-form-summary p{margin:4px 0 0;color:#8eabc2;font-size:11px;line-height:1.5}
+.connect-form-summary>strong{padding:5px 8px;border:1px solid #3b7ca9;border-radius:999px;color:#9edbff;font-size:10px;white-space:nowrap}
+.exchange-connect-form{display:grid;gap:14px;margin-top:12px}
+.connect-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.connect-field{display:grid;gap:6px;min-width:0}
+.connect-field>span{display:flex;align-items:center;gap:7px;color:#dcecf8;font-size:12px;font-weight:700}
+.connect-field>span em{padding:2px 6px;border-radius:999px;background:#122b43;color:#77b8e8;font-size:9px;font-style:normal;font-weight:500}
+.connect-field input{width:100%;min-height:44px;box-sizing:border-box;padding:0 12px;border:1px solid #315473;border-radius:9px;background:#081522;color:#eaf5ff;outline:none;font:500 13px/1.3 "PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif;transition:border-color .18s ease,box-shadow .18s ease}
+.connect-field input::placeholder{color:#6e879d}
+.connect-field input:focus{border-color:#58b7f4;box-shadow:0 0 0 3px rgba(52,145,218,.16)}
+.connect-field small{color:#7894ab;font-size:10px;line-height:1.45}
+.connect-inline-hint{margin:0!important;padding:10px 12px!important;border:1px solid #31516e!important;border-left:3px solid #56b6ef!important;border-radius:8px;background:rgba(38,119,177,.1)!important;color:#9dc0d7!important;font-size:11px!important;line-height:1.55!important}
+.connect-inline-hint code{color:#d5efff;font:11px/1.4 var(--font-geist-mono),monospace}
+.connect-permission-panel{display:grid;gap:9px;padding:13px;border:1px solid #2b4b65;border-radius:12px;background:#091a2a}
+.connect-permission-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-bottom:4px}
+.connect-permission-heading b{color:#e2f1fc;font-size:12px}
+.connect-permission-heading small{color:#7e9bb1;font-size:10px;text-align:right}
+.connect-permission-option{display:grid;grid-template-columns:20px minmax(0,1fr);gap:9px;align-items:start;padding:10px;border:1px solid #203d57;border-radius:9px;background:#0b2032;cursor:pointer}
+.connect-permission-option:hover{border-color:#3c84b5;background:#0d2740}
+.connect-permission-option input{width:16px;height:16px;margin:2px 0 0;accent-color:#43a9ff}
+.connect-permission-option span{display:grid;gap:3px}
+.connect-permission-option b{color:#dcecf7;font-size:11px}
+.connect-permission-option small{color:#829eb4;font-size:10px;line-height:1.45}
+.exchange-connect-form .connect-form-actions{display:grid!important;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch;margin-top:2px}
+.exchange-connect-form .connect-form-actions button{display:grid;place-content:center;gap:4px;min-height:58px;padding:10px 14px;flex:none!important;border-radius:10px;font-family:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif}
+.exchange-connect-form .connect-form-actions button strong{font-size:13px;line-height:1.2}
+.exchange-connect-form .connect-form-actions button small{color:inherit;opacity:.78;font-size:10px;font-weight:400;line-height:1.2}
+.exchange-connect-form .connect-form-actions .connect-help-button{background:#155799;border-color:#2d7dbc;color:#eff9ff}
+.exchange-connect-form .connect-form-actions .primary{background:linear-gradient(135deg,#edf5fb,#cbdce8)!important;color:#142331!important;border-color:#edf5fb!important}
+@media(max-width:720px){
+  .connect-field-grid,.exchange-connect-form .connect-form-actions{grid-template-columns:1fr}
+  .connect-permission-heading{align-items:flex-start;flex-direction:column;gap:4px}
+  .connect-permission-heading small{text-align:left}
+}
+@media(max-width:480px){
+  .exchange-live-panel .connect-form-summary{align-items:flex-start}
+  .connect-form-summary>strong{display:none}
+}
+
 /* Official connection links: compact, colorful jump cards in one row. */
 .connection-tutorial .connection-official-links{
   display:grid!important;
