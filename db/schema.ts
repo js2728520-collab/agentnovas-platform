@@ -287,6 +287,26 @@ export const strategySubscriptions = sqliteTable("strategy_subscriptions", {
   riskConsentAt: text("risk_consent_at"), lastRiskCheckAt: text("last_risk_check_at"), riskCheckJson: text("risk_check_json").notNull().default("{}"), startedAt: text("started_at"), endedAt: text("ended_at"), ...timestamps,
 }, (t) => [uniqueIndex("idx_strategy_subscription_unique").on(t.strategyId, t.customerId), index("idx_strategy_subscriptions_customer").on(t.customerId, t.status)]);
 
+export const platformStrategySubscriptions = sqliteTable("platform_strategy_subscriptions", {
+  id: text("id").primaryKey(),
+  strategyCode: text("strategy_code").notNull(),
+  customerId: text("customer_id").notNull().references(() => users.id),
+  exchangeAccountId: text("exchange_account_id").notNull().references(() => exchangeAccounts.id),
+  capitalPct: real("capital_pct").notNull().default(3),
+  stopLossPct: real("stop_loss_pct").notNull().default(3),
+  status: text("status", { enum: ["active", "paused", "ended"] }).notNull().default("active"),
+  riskConsentAt: text("risk_consent_at"),
+  lastRiskCheckAt: text("last_risk_check_at"),
+  riskCheckJson: text("risk_check_json").notNull().default("{}"),
+  startedAt: text("started_at"),
+  endedAt: text("ended_at"),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("idx_platform_strategy_subscription_unique").on(t.strategyCode, t.customerId),
+  index("idx_platform_strategy_subscriptions_customer").on(t.customerId, t.status),
+  index("idx_platform_strategy_subscriptions_status").on(t.status, t.strategyCode),
+]);
+
 export const strategyFavorites = sqliteTable("strategy_favorites", {
   id: text("id").primaryKey(), strategyId: text("strategy_id").notNull().references(() => communityStrategies.id), customerId: text("customer_id").notNull().references(() => users.id), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, t => [uniqueIndex("idx_strategy_favorite_unique").on(t.strategyId,t.customerId),index("idx_strategy_favorites_customer").on(t.customerId,t.createdAt)]);

@@ -21,6 +21,7 @@ import migration0017 from "@/drizzle/0017_phone_registration.sql?raw";
 import migration0018 from "@/drizzle/0018_unique_user_names.sql?raw";
 import migration0019 from "@/drizzle/0019_strategy_publication_mode.sql?raw";
 import migration0020 from "@/drizzle/0020_platform_follow_policy.sql?raw";
+import migration0021 from "@/drizzle/0021_platform_ai_strategies.sql?raw";
 
 const migrations = [
   ["0000_small_dreadnoughts", migration0000],
@@ -44,6 +45,7 @@ const migrations = [
   ["0018_unique_user_names", migration0018],
   ["0019_strategy_publication_mode", migration0019],
   ["0020_platform_follow_policy", migration0020],
+  ["0021_platform_ai_strategies", migration0021],
 ] as const;
 
 function statements(sql: string) {
