@@ -1790,6 +1790,22 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
   background:radial-gradient(circle at 50% 0%, rgba(49,126,215,.04), transparent 46%);
 }
 
+/* Extend the homepage grid into the eight dashboard surfaces. The grid stays
+   on the dashboard background layer, so cards, controls and copy always render
+   above it while the wide side gutters no longer look empty. */
+.dash{
+  background-image:
+    linear-gradient(rgba(66,148,235,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(66,148,235,.04) 1px, transparent 1px);
+  background-size:36px 36px;
+  background-position:center top;
+}
+.dash>aside,
+.dash>.content{
+  position:relative;
+  z-index:1;
+}
+
 /* The compact header keeps the requested order: membership, sign-in, locale,
    notifications, then the account/avatar control. */
 .top-login,.top-user-guest{height:36px!important;padding:0 11px!important;border:1px solid #2a3546!important;border-radius:9px!important;background:#111720!important;color:#c6d3e5!important;font-size:11px!important}
