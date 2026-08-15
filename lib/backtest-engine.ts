@@ -127,7 +127,7 @@ async function sha256(value: string) {
 }
 
 async function loadCandles(specification: StrategySpecification): Promise<Candle[]> {
-  const base = (process.env.MARKET_DATA_BASE_URL || "https://api.binance.com").replace(/\/$/, "");
+  const base = (process.env.MARKET_DATA_BASE_URL || "https://data-api.binance.vision").replace(/\/$/, "");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12_000);
   try {

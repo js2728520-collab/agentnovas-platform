@@ -21,7 +21,7 @@ export async function GET() {
       && process.env.AI_API_KEY
       && process.env.AI_MODEL,
   );
-  const marketData = Boolean(process.env.MARKET_DATA_BASE_URL || "https://api.binance.com");
+  const marketData = Boolean(process.env.MARKET_DATA_BASE_URL || "https://data-api.binance.vision");
 
   return Response.json({
     status: database === "ok" && encryptionKey ? "ready" : "degraded",

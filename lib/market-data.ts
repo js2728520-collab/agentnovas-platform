@@ -1,4 +1,4 @@
-const DEFAULT_MARKET_DATA_BASE_URL = "https://api.binance.com";
+const DEFAULT_MARKET_DATA_BASE_URL = "https://data-api.binance.vision";
 
 function baseUrl() {
   return (process.env.MARKET_DATA_BASE_URL || DEFAULT_MARKET_DATA_BASE_URL).replace(/\/$/, "");
