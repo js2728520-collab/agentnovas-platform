@@ -1484,6 +1484,59 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
   }
 }
 
+/* Official connection links: compact, colorful jump cards in one row. */
+.connection-tutorial .connection-official-links{
+  display:grid!important;
+  grid-template-columns:repeat(12,minmax(0,1fr))!important;
+  gap:8px!important;
+  align-items:stretch;
+}
+.connection-tutorial .connection-official-links a{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:0;
+  min-height:58px;
+  padding:8px 6px;
+  border:1px solid rgba(139,208,255,.34);
+  border-radius:10px;
+  color:#eff9ff;
+  font-family:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  font-size:11px!important;
+  font-weight:600;
+  line-height:1.35;
+  text-align:center;
+  text-decoration:none;
+  white-space:normal;
+  overflow:hidden;
+  transition:transform .18s ease,border-color .18s ease,filter .18s ease;
+}
+.connection-tutorial .connection-official-links a:hover{
+  border-color:#d5f3ff;
+  filter:brightness(1.16);
+  transform:translateY(-2px);
+  text-decoration:none;
+}
+.connection-tutorial .connection-official-links a:nth-child(1){background:linear-gradient(145deg,#164b78,#102d55)}
+.connection-tutorial .connection-official-links a:nth-child(2){background:linear-gradient(145deg,#3e4e17,#25350d)}
+.connection-tutorial .connection-official-links a:nth-child(3){background:linear-gradient(145deg,#53337d,#30204e)}
+.connection-tutorial .connection-official-links a:nth-child(4){background:linear-gradient(145deg,#125d63,#0d3848)}
+.connection-tutorial .connection-official-links a:nth-child(5){background:linear-gradient(145deg,#2b4b8c,#1b2d61)}
+.connection-tutorial .connection-official-links a:nth-child(6){background:linear-gradient(145deg,#75532a,#473117)}
+.connection-tutorial .connection-official-links a:nth-child(7){background:linear-gradient(145deg,#1d5b87,#123a61)}
+.connection-tutorial .connection-official-links a:nth-child(8){background:linear-gradient(145deg,#59305f,#381d47)}
+.connection-tutorial .connection-official-links a:nth-child(9){background:linear-gradient(145deg,#174f78,#10344f)}
+.connection-tutorial .connection-official-links a:nth-child(10){background:linear-gradient(145deg,#89522a,#563119)}
+.connection-tutorial .connection-official-links a:nth-child(11){background:linear-gradient(145deg,#26734e,#174a38)}
+.connection-tutorial .connection-official-links a:nth-child(12){background:linear-gradient(145deg,#1e6598,#12456c)}
+@media(max-width:980px){
+  .connection-tutorial .connection-official-links{
+    grid-template-columns:repeat(12,minmax(92px,1fr))!important;
+    overflow-x:auto;
+    padding-bottom:4px;
+  }
+}
+
 .hero .orbital .agent-tag,
 .hero .orbital::before,
 .hero .orbital::after,
