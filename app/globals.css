@@ -2697,6 +2697,54 @@ body:has(.risk-live-panel) .content>.page-head{
   display:block!important;
   width:100%;
 }
+
+/* Keep each exchange action in the upper-middle slot highlighted by the reference. */
+.connect-grid .exchange{
+  position:relative!important;
+  min-height:155px!important;
+}
+.connect-grid .exchange>button{
+  position:absolute!important;
+  top:16px!important;
+  left:50%!important;
+  z-index:3!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:auto!important;
+  min-width:76px!important;
+  height:30px!important;
+  padding:0 16px!important;
+  border:1px solid rgba(89,198,255,.58)!important;
+  border-radius:9px!important;
+  background:linear-gradient(135deg,rgba(26,93,151,.96),rgba(17,49,82,.98))!important;
+  color:#bce8ff!important;
+  font-size:11px!important;
+  font-weight:700!important;
+  line-height:1!important;
+  letter-spacing:.03em!important;
+  box-shadow:inset 0 1px 0 rgba(210,242,255,.16),0 5px 14px rgba(19,117,187,.2),0 0 0 1px rgba(52,143,240,.12)!important;
+  transform:translateX(-50%)!important;
+  transition:transform .2s ease,filter .2s ease,box-shadow .2s ease,border-color .2s ease!important;
+}
+.connect-grid .exchange>button::after{
+  content:"";
+  position:absolute;
+  inset:1px;
+  border-radius:7px;
+  background:linear-gradient(105deg,transparent 22%,rgba(255,255,255,.2) 48%,transparent 72%);
+  transform:translateX(-125%);
+  transition:transform .45s ease;
+  pointer-events:none;
+}
+.connect-grid .exchange>button:hover{
+  border-color:#8bdcff!important;
+  filter:brightness(1.14)!important;
+  box-shadow:inset 0 1px 0 rgba(230,249,255,.24),0 8px 20px rgba(32,143,223,.34),0 0 14px rgba(73,177,255,.2)!important;
+  transform:translateX(-50%) translateY(-2px)!important;
+}
+.connect-grid .exchange>button:hover::after{transform:translateX(125%)}
+.connect-grid .exchange>button:active{transform:translateX(-50%) translateY(0)!important;filter:brightness(.98)!important}
 @media(max-width:760px){.connection-official-links{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:560px){.connection-official-links{grid-template-columns:1fr!important}}
 @media(min-width:981px){.trading-center-v2 .trading-exchange-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important}}
