@@ -11,21 +11,28 @@ import okx from "@web3icons/core/svgs/exchanges/branded/okx.svg";
 import robinhood from "@web3icons/core/svgs/networks/branded/robinhood.svg";
 
 type BrandSvg = string;
+type ImportedSvg = string | { default?: unknown };
 const htxLogoUrl = "https://upload.wikimedia.org/wikipedia/commons/c/c1/HTX_logo.png";
-const okxOnDark: BrandSvg = typeof okx === "string" ? okx.replaceAll('fill="#000"', 'fill="#f5f7fb"') : okx;
+
+function unwrapSvg(value: ImportedSvg): BrandSvg {
+  if (typeof value === "string") return value;
+  return typeof value.default === "string" ? value.default : "";
+}
+
+const okxOnDark: BrandSvg = unwrapSvg(okx).replaceAll('fill="#000"', 'fill="#f5f7fb"');
 
 const exchangeMeta: Record<string, { label: string; slug: string; svg?: BrandSvg }> = {
   OKX: { label: "OKX", slug: "okx", svg: okxOnDark },
-  BINANCE: { label: "Binance", slug: "binance", svg: binance },
-  BYBIT: { label: "Bybit", slug: "bybit", svg: bybit },
-  BITGET: { label: "Bitget", slug: "bitget", svg: bitget },
-  "GATE.IO": { label: "Gate.io", slug: "gate-io", svg: gateIo },
-  KUCOIN: { label: "KuCoin", slug: "kucoin", svg: kucoin },
-  COINBASE: { label: "Coinbase", slug: "coinbase", svg: coinbase },
-  KRAKEN: { label: "Kraken", slug: "kraken", svg: kraken },
-  "CRYPTO.COM": { label: "Crypto.com", slug: "crypto-com", svg: cryptoCom },
-  METAMASK: { label: "MetaMask", slug: "metamask", svg: metamask },
-  ROBINHOOD: { label: "Robinhood", slug: "robinhood", svg: robinhood },
+  BINANCE: { label: "Binance", slug: "binance", svg: unwrapSvg(binance) },
+  BYBIT: { label: "Bybit", slug: "bybit", svg: unwrapSvg(bybit) },
+  BITGET: { label: "Bitget", slug: "bitget", svg: unwrapSvg(bitget) },
+  "GATE.IO": { label: "Gate.io", slug: "gate-io", svg: unwrapSvg(gateIo) },
+  KUCOIN: { label: "KuCoin", slug: "kucoin", svg: unwrapSvg(kucoin) },
+  COINBASE: { label: "Coinbase", slug: "coinbase", svg: unwrapSvg(coinbase) },
+  KRAKEN: { label: "Kraken", slug: "kraken", svg: unwrapSvg(kraken) },
+  "CRYPTO.COM": { label: "Crypto.com", slug: "crypto-com", svg: unwrapSvg(cryptoCom) },
+  METAMASK: { label: "MetaMask", slug: "metamask", svg: unwrapSvg(metamask) },
+  ROBINHOOD: { label: "Robinhood", slug: "robinhood", svg: unwrapSvg(robinhood) },
   HTX: { label: "HTX", slug: "htx" },
 };
 

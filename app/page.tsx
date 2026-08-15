@@ -170,7 +170,7 @@ function PlatformStrategies({onOpen}:{onOpen:(strategy:StrategyDetailData)=>void
         <p>三套 AI 策略根据波动与趋势状态动态调整观察重点。</p>
         <div className="strategy-side-stat"><span>趋势强度</span><b>62/100</b><i><em style={{width:"62%"}}/></i></div>
         <div className="strategy-side-stat"><span>整体风险</span><b>38/100</b><i><em style={{width:"38%"}}/></i></div>
-        <div className="strategy-pulse-readout"><div><span>趋势判断</span><b>温和偏强</b><small>62/100 · 保持观察</small></div><div><span>风险状态</span><b>可控</b><small>38/100 · 未触发预警</small></div><div><span>参考节奏</span><b>分批确认</b><small>等待量能与收盘确认</small></div></div>
+        <div className="strategy-pulse-readout"><div><span>趋势判断</span><b>温和偏强</b><small>62/100 · 保持观察</small></div><div><span>风险状态</span><b>可控</b><small>38/100 · 未触发预警</small></div></div>
         <div className="strategy-side-note"><b>当前节奏</b><span>以观察和分批确认优先，避免单一信号追涨。</span></div>
       </aside>
       <div className="cards">{platformStrategyDetails.map((x,i)=>{
