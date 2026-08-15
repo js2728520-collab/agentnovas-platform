@@ -2332,6 +2332,127 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
 @media (min-width:1201px){
   body:has(.landing) .topbar{padding-inline:max(28px,calc((100vw - 1200px)/2))!important}
   .landing{width:min(1200px,calc(100% - 96px))!important;max-width:1200px!important;padding-inline:32px!important}
+/* Header coverage: nested page components and the live market terminal use the
+   same framed treatment as the strategy-plaza header. */
+.content .page-head,
+.content .market-terminal-title,
+.content .market-simple-head{
+  --head-bg:#0b141f;
+  --head-bg-end:#0d1c2a;
+  --head-border:#29445f;
+  --head-accent:#5fb9ff;
+  --head-glow:rgba(61,157,255,.24);
+  position:relative;
+  margin:0 -12px 24px!important;
+  padding:24px 28px 22px!important;
+  min-height:104px;
+  align-items:center!important;
+  border:1px solid var(--head-border)!important;
+  border-radius:14px!important;
+  background:radial-gradient(circle at 91% -16%,var(--head-glow),transparent 35%),linear-gradient(110deg,var(--head-bg) 0%,var(--head-bg) 58%,var(--head-bg-end) 100%)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 14px 32px rgba(0,0,0,.22);
+  overflow:hidden;
+}
+.content .page-head:before,
+.content .market-terminal-title:before,
+.content .market-simple-head:before{
+  content:"";
+  position:absolute;
+  z-index:0;
+  left:0;
+  right:0;
+  top:0;
+  height:1px;
+  background:linear-gradient(90deg,transparent 0%,var(--head-accent) 48%,transparent 100%);
+  opacity:.72;
+}
+.content .page-head:after,
+.content .market-terminal-title:after,
+.content .market-simple-head:after{
+  content:"";
+  position:absolute;
+  z-index:0;
+  width:360px;
+  height:250px;
+  right:-110px;
+  top:-135px;
+  border-radius:50%;
+  background:radial-gradient(circle,var(--head-glow) 0%,transparent 69%);
+  pointer-events:none;
+}
+.content .page-head>div,
+.content .page-head>span,
+.content .market-terminal-title>div,
+.content .market-terminal-title>span,
+.content .market-simple-head>div,
+.content .market-simple-head>span{
+  position:relative;
+  z-index:1;
+}
+.content .page-head h1,
+.content .market-terminal-title h1,
+.content .market-simple-head h1{position:relative;z-index:1;margin:0 0 7px!important}
+.content .page-head p,
+.content .market-terminal-title p,
+.content .market-simple-head p{position:relative;z-index:1}
+.content .page-head>div:last-child{position:relative;z-index:2}
+
+/* Market terminal: electric cyan. */
+body:has(.market-terminal-page) .content .market-terminal-title,
+body:has(.market-simple-head) .content .market-simple-head{
+  --head-bg:#0b141f;--head-bg-end:#0e1d2b;--head-border:#2b5374;--head-accent:#52c7ff;--head-glow:rgba(54,184,255,.28);
+}
+/* Trading hall: teal execution light. */
+body:has(.compact-hall) .content .page-head{
+  --head-bg:#0b171e;--head-bg-end:#0c2525;--head-border:#28525a;--head-accent:#45d9b8;--head-glow:rgba(45,212,171,.25);
+}
+/* Strategy plaza: emerald reference treatment. */
+body:has(.platform-ai-section) .content .page-head{
+  --head-bg:#0b1319;--head-bg-end:#10251f;--head-border:#2d4148;--head-accent:#4bd4a4;--head-glow:rgba(26,203,141,.27);
+}
+/* Trading center: cobalt control surface. */
+body:has(.trading-center) .content .page-head{
+  --head-bg:#0b1422;--head-bg-end:#102447;--head-border:#2c4e7c;--head-accent:#66aaff;--head-glow:rgba(65,133,255,.28);
+}
+/* Membership: indigo/violet premium surface. */
+body:has(.membership-v2) .content .page-head,
+body:has(.membership-plans) .content .page-head{
+  --head-bg:#111329;--head-bg-end:#211b43;--head-border:#4c4b7c;--head-accent:#a88cff;--head-glow:rgba(143,103,255,.27);
+}
+/* Notifications: cool blue-violet security tone. */
+body:has(.security-center-page) .content .page-head{
+  --head-bg:#0c1424;--head-bg-end:#18254b;--head-border:#38527d;--head-accent:#83a9ff;--head-glow:rgba(105,136,255,.25);
+}
+/* Exchange connections: amber/cyan connection signal. */
+body:has(.connect-grid) .content .page-head{
+  --head-bg:#101922;--head-bg-end:#20302d;--head-border:#3d5864;--head-accent:#68d7d0;--head-glow:rgba(255,183,85,.22);
+}
+/* Agent and meeting workspaces: distinct purple/amber accents. */
+body:has(.agent-layout) .content .page-head{
+  --head-bg:#111226;--head-bg-end:#211c3c;--head-border:#4b4779;--head-accent:#b39aff;--head-glow:rgba(142,111,255,.25);
+}
+body:has(.meeting-grid) .content .page-head{
+  --head-bg:#16131e;--head-bg-end:#30211f;--head-border:#65485d;--head-accent:#ffb765;--head-glow:rgba(255,146,78,.24);
+}
+/* Operations and portfolio pages use red/green status families. */
+body:has(.operations-admin) .content .page-head{
+  --head-bg:#171217;--head-bg-end:#2a1b26;--head-border:#673a4b;--head-accent:#ff788d;--head-glow:rgba(255,83,118,.22);
+}
+body:has(.risk-live-panel) .content .page-head{
+  --head-bg:#0b171c;--head-bg-end:#0e2924;--head-border:#2d5b59;--head-accent:#62e2bd;--head-glow:rgba(62,218,172,.24);
+}
+
+@media(max-width:700px){
+  .content .page-head,
+  .content .market-terminal-title,
+  .content .market-simple-head{margin-left:-4px!important;margin-right:-4px!important;padding:20px 18px 18px!important;min-height:96px}
+  .content .market-terminal-title,
+  .content .market-simple-head{align-items:flex-start!important}
+  .content .page-head:after,
+  .content .market-terminal-title:after,
+  .content .market-simple-head:after{right:-150px}
+}
+
 /* Unified framed page headers: keep the strategy-plaza treatment while giving
    each workspace its own accent and a restrained glow in the upper-right. */
 .content>.page-head,
