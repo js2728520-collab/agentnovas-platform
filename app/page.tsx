@@ -14,27 +14,9 @@ import TradingCenterV2 from "./trading-center";
 import MembershipCenter from "./membership-center";
 import { CustomLlmButton } from "./llm-config";
 import StrategyDetail, { type StrategyDetailData } from "./strategy-detail";
+import CoinIcon from "./coin-icon";
 import { dedupeAdjacentEnglish, scrubNonChineseText } from "./i18n-runtime";
 import { getAvatarPreset } from "@/lib/avatar-presets";
-import btcIcon from "@web3icons/core/svgs/tokens/branded/BTC.svg";
-import ethIcon from "@web3icons/core/svgs/tokens/branded/ETH.svg";
-import solIcon from "@web3icons/core/svgs/tokens/branded/SOL.svg";
-import bnbIcon from "@web3icons/core/svgs/tokens/branded/BNB.svg";
-import xrpIcon from "@web3icons/core/svgs/tokens/branded/XRP.svg";
-import dogeIcon from "@web3icons/core/svgs/tokens/branded/DOGE.svg";
-import adaIcon from "@web3icons/core/svgs/tokens/branded/ADA.svg";
-import avaxIcon from "@web3icons/core/svgs/tokens/branded/AVAX.svg";
-import linkIcon from "@web3icons/core/svgs/tokens/branded/LINK.svg";
-import trxIcon from "@web3icons/core/svgs/tokens/branded/TRX.svg";
-import dotIcon from "@web3icons/core/svgs/tokens/branded/DOT.svg";
-import ltcIcon from "@web3icons/core/svgs/tokens/branded/LTC.svg";
-import bchIcon from "@web3icons/core/svgs/tokens/branded/BCH.svg";
-import suiIcon from "@web3icons/core/svgs/tokens/branded/SUI.svg";
-import aptIcon from "@web3icons/core/svgs/tokens/branded/APT.svg";
-import nearIcon from "@web3icons/core/svgs/tokens/branded/NEAR.svg";
-import arbIcon from "@web3icons/core/svgs/tokens/branded/ARB.svg";
-import opIcon from "@web3icons/core/svgs/tokens/branded/OP.svg";
-import uniIcon from "@web3icons/core/svgs/tokens/branded/UNI.svg";
 
 const AdminWithPolicy = () => <><Admin/><FollowPolicySettings/></>;
 
@@ -149,9 +131,6 @@ function renderPage(page:Page,t:Record<string,string>,go:(p:Page)=>void,selected
 
 const agents=[{n:"市场分析师",s:"分析中",m:"4H 趋势保持上行",p:"72%",x:14,y:35},{n:"技术分析师",s:"建模中",m:"突破确认度 64%",p:"64%",x:74,y:35},{n:"策略研究员",s:"拟案中",m:"提交候选策略 V3",p:"54%",x:13,y:63},{n:"反方审查员",s:"质疑中",m:"我发现量价背离",p:"82%",x:75,y:63},{n:"首席风控官",s:"审核中",m:"建议仓位降至 3%",p:"38%",x:44,y:26},{n:"交易执行员",s:"待命",m:"等待风控最终授权",p:"20%",x:44,y:74}];
 const coins=[["BTC","118,462.40","+1.82%"],["ETH","4,286.12","+2.14%"],["SOL","184.72","-0.38%"],["BNB","812.36","+0.74%"],["XRP","3.21","+4.06%"],["DOGE","0.264","-1.12%"],["ADA","0.986","+1.33%"],["AVAX","42.18","+2.84%"],["LINK","24.86","+3.12%"],["TRX","0.341","+0.62%"],["DOT","5.18","-0.46%"],["LTC","124.62","+0.88%"],["BCH","582.40","+1.06%"],["TON","3.42","-0.71%"],["SUI","3.86","+2.22%"],["APT","5.74","+1.48%"],["NEAR","3.12","-0.26%"],["ARB","0.486","+1.76%"],["OP","0.742","-0.84%"],["UNI","10.28","+2.06%"]];
-const tonIcon='<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#0098EA" d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0ZM7.902 6.697h8.196c1.505 0 2.462 1.628 1.705 2.94l-5.059 8.765a.86.86 0 0 1-1.488 0L6.199 9.637c-.758-1.314.197-2.94 1.703-2.94Zm4.844 1.496v7.58l1.102-2.128 2.656-4.756a.465.465 0 0 0-.408-.696h-3.35Zm-.002 0H7.9a.464.464 0 0 0-.408.694l2.658 4.754 1.102 2.13V8.195Z"/></svg>';
-const coinIconMap:Record<string,string>={BTC:btcIcon,ETH:ethIcon,SOL:solIcon,BNB:bnbIcon,XRP:xrpIcon,DOGE:dogeIcon,ADA:adaIcon,AVAX:avaxIcon,LINK:linkIcon,TRX:trxIcon,DOT:dotIcon,LTC:ltcIcon,BCH:bchIcon,TON:tonIcon,SUI:suiIcon,APT:aptIcon,NEAR:nearIcon,ARB:arbIcon,OP:opIcon,UNI:uniIcon};
-function CoinIcon({symbol}:{symbol:string}){const icon=coinIconMap[symbol];return <i className={`coin-icon coin-icon-${symbol.toLowerCase()}`} role="img" aria-label={`${symbol} icon`}>{icon?<img src={icon} alt="" aria-hidden="true"/>:<b>{symbol[0]}</b>}</i>}
 const marketSparkSeries=[
   [24,22,23,19,21,17,18,14,16,12,14,10,12],
   [25,23,24,20,22,18,20,21,17,19,15,17,12],
