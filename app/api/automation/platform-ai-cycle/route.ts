@@ -192,7 +192,7 @@ async function processSubscription(subscription: Subscription): Promise<CycleRes
     membership: Boolean(access?.newEntriesAllowed),
     collection: !blockedCollection,
     followPolicy: followPolicy.allowed,
-    emergencyStop: runtimeSetting("PLATFORM_EMERGENCY_STOP") !== "true",
+    emergencyStopClear: runtimeSetting("PLATFORM_EMERGENCY_STOP") !== "true",
     riskModelApproved: selected.signal.riskReview.approved,
     noLeverage: true,
   };
@@ -218,6 +218,10 @@ async function processSubscription(subscription: Subscription): Promise<CycleRes
   };
 
   const synchronized = existingPosition ? await synchronizePendingPosition({ subscription, position: existingPosition, symbol: existingPosition.symbol, evidence: runtimeEvidence }) : null;
+  if (synchronized?.status === "filled") {
+    await db.update(platformStrategySubscriptions).set({ lastRiskCheckAt: now, riskCheckJson: JSON.stringify({ ...runtimeEvidence, result: "exchange_entry_synchronized" }), updatedAt: now }).where(eq(platformStrategySubscriptions.id, subscription.id));
+    return { subscriptionId: subscription.id, strategyCode: subscription.strategyCode, status: "held", message: synchronized.message, tradeId: synchronized.tradeId };
+  }
   if (synchronized?.status === "closed") {
     await db.update(platformStrategySubscriptions).set({ lastRiskCheckAt: now, riskCheckJson: JSON.stringify({ ...runtimeEvidence, result: "exchange_close_synchronized" }), updatedAt: now }).where(eq(platformStrategySubscriptions.id, subscription.id));
     return { subscriptionId: subscription.id, strategyCode: subscription.strategyCode, status: "closed", message: synchronized.message, tradeId: synchronized.tradeId };

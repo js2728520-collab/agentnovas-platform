@@ -119,3 +119,11 @@ actions tied to the current ChatGPT user. Leave public content anonymous.
 5. 只有完成模拟盘验收后，才进入交易所适配器和小额实盘的独立评审。
 
 出现系统异常时，将 `PLATFORM_EMERGENCY_STOP` 设置为 `true`，系统会停止新开仓，同时保留查询、撤单和平仓能力。
+
+## 三套平台 AI 策略运行链路
+
+平台内置的 `AI 稳健型`、`AI 平衡型` 和 `AI 激进型` 已使用独立、可审计的确定性策略引擎。客户先在策略详情中选择已通过检测的验证账户并确认风险，随后由 Cloudflare 每 5 分钟调用：
+
+`POST /api/automation/platform-ai-cycle`
+
+每轮按策略周期读取真实完整K线，计算 EMA、RSI、ATR、成交量、通道和布林区间，经过反方审查、会员/催收、账户权限、单日亏损、总仓位和平台紧急停止检查后，保存平台决策、七角色工作记录及订单审计。默认只建立站内验证仓位；仅当 `OKX_DEMO_EXECUTION_ENABLED=true` 时向 OKX 验证环境提交订单。实盘订单路由仍由服务端硬性关闭。

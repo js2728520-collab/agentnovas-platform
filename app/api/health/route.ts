@@ -1,4 +1,5 @@
 import { getDb } from "@/db";
+import { runtimeSetting } from "@/lib/runtime-setting";
 
 export async function GET() {
   let database = "ok";
@@ -9,31 +10,32 @@ export async function GET() {
   }
 
   const encryptionKey = Boolean(
-    process.env.EXCHANGE_CREDENTIAL_ENCRYPTION_KEY
-      && process.env.EXCHANGE_CREDENTIAL_ENCRYPTION_KEY.length >= 32,
+    runtimeSetting("EXCHANGE_CREDENTIAL_ENCRYPTION_KEY")
+      && runtimeSetting("EXCHANGE_CREDENTIAL_ENCRYPTION_KEY")!.length >= 32,
   );
   const automationKey = Boolean(
-    process.env.AUTOMATION_INTERNAL_SECRET
-      && process.env.AUTOMATION_INTERNAL_SECRET.length >= 24,
+    runtimeSetting("AUTOMATION_INTERNAL_SECRET")
+      && runtimeSetting("AUTOMATION_INTERNAL_SECRET")!.length >= 24,
   );
   const aiProvider = Boolean(
-    process.env.AI_API_URL
-      && process.env.AI_API_KEY
-      && process.env.AI_MODEL,
+    runtimeSetting("AI_API_URL")
+      && runtimeSetting("AI_API_KEY")
+      && runtimeSetting("AI_MODEL"),
   );
-  const marketData = Boolean(process.env.MARKET_DATA_BASE_URL || "https://api-gcp.binance.com");
+  const marketData = Boolean(runtimeSetting("MARKET_DATA_BASE_URL") || "https://api-gcp.binance.com");
 
   return Response.json({
     status: database === "ok" && encryptionKey ? "ready" : "degraded",
-    mode: "research-only",
+    mode: "validation-trading",
     checks: {
       database,
       encryptionKey,
       automationKey,
       aiProvider,
       marketData,
-      marketProvider: process.env.MARKET_DATA_PROVIDER || "Binance Spot REST",
-      emergencyStop: process.env.PLATFORM_EMERGENCY_STOP === "true",
+      marketProvider: runtimeSetting("MARKET_DATA_PROVIDER") || "Binance Spot REST",
+      emergencyStop: runtimeSetting("PLATFORM_EMERGENCY_STOP") === "true",
+      platformAiCycle: automationKey ? "scheduled" : "missing_automation_secret",
       liveTradingEnabled: false,
     },
     timestamp: new Date().toISOString(),
