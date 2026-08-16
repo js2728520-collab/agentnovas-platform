@@ -25,6 +25,8 @@ export default function TradingCenter({ go }: TradingCenterProps) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [message, setMessage] = useState("");
+  const [emergencyOpen, setEmergencyOpen] = useState(false);
+  const [emergencyBusy, setEmergencyBusy] = useState(false);
 
   async function load() {
     const [accountResponse, portfolioResponse] = await Promise.all([
@@ -60,8 +62,30 @@ export default function TradingCenter({ go }: TradingCenterProps) {
     if (response.ok) void load();
   }
 
+  async function emergencyStop(closePositions: boolean) {
+    setEmergencyBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/trading/emergency-stop", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ closePositions }),
+      });
+      const data = await response.json() as { error?: string; message?: string };
+      setMessage(data.error || data.message || "操作完成");
+      if (response.ok) {
+        setEmergencyOpen(false);
+        void load();
+      }
+    } catch {
+      setMessage("关停请求失败，请稍后重试");
+    } finally {
+      setEmergencyBusy(false);
+    }
+  }
+
   return <>
-    <div className="page-head"><div><h1>交易中心</h1><p>我的持仓、完整交易历史、交易所绑定与跟单控制</p></div><div><button className="primary" onClick={() => go("connect")}>交易所钱包API绑定</button></div></div>
+    <div className="page-head"><div><h1>交易中心</h1><p>我的持仓、完整交易历史、交易所绑定与跟单控制</p></div><div className="trading-page-actions"><button type="button" className="emergency-stop-button" onClick={() => setEmergencyOpen(true)}>我的交易一键关停</button><button className="primary" onClick={() => go("connect")}>交易所钱包API绑定</button></div></div>
     <div className="trading-center-v2">
       <section className="trading-overview"><div><small>TRADING CONTROL CENTER</small><h2>账户状态与交易能力</h2><p>账户权限和连接状态来自当前接口，页面每 15 秒刷新。实盘订单路由未开放，不会因保存凭证自动下单。</p></div><div className="trading-kpis"><div className="kpi"><small>已连接账户</small><b>{accounts.length}</b><span>实时同步</span></div><div className="kpi"><small>当前持仓</small><b>{positions.length}</b><span>实盘数据</span></div><div className="kpi"><small>实盘订单</small><b>{orders.length}</b><span>路由未启用</span></div><div className="kpi"><small>已实现盈亏</small><b className={Number(summary.realizedPnlUsdt) < 0 ? "negative" : "positive"}>{money(summary.realizedPnlUsdt)}</b><span>真实接口数据</span></div></div></section>
       <section className="my-positions-panel"><header className="trading-section-head"><div><small>MY POSITIONS</small><h2>我的持仓</h2></div><span>{positions.length ? `${positions.length} 个未平仓` : "暂无持仓"}</span></header>{positions.length ? <div className="table-wrap"><table><thead><tr><th>产品</th><th>方向</th><th>数量</th><th>开仓价值</th><th>开仓时间</th><th>来源</th></tr></thead><tbody>{positions.map(position => <tr key={String(position.id)}><td><b>{String(position.symbol)}</b></td><td className={position.side === "sell" ? "down" : "up"}>{position.side === "sell" ? "卖出" : "买入"}</td><td>{String(position.quantity)}</td><td>${Number(position.entryValueUsdt || 0).toFixed(2)}</td><td>{String(position.openedAt || "—")}</td><td>{position.origin === "platform" ? "策略跟单" : "客户操作"}</td></tr>)}</tbody></table></div> : <div className="trading-empty compact-empty"><i>◇</i><b>暂无实盘持仓</b><span>实盘订单路由尚未开放，当前不显示模拟测试仓位。</span></div>}</section>
@@ -70,5 +94,6 @@ export default function TradingCenter({ go }: TradingCenterProps) {
       <section className="trading-connections-v2"><header className="trading-section-head"><div><small>EXCHANGE CONNECTIONS</small><h2>交易所连接</h2></div><span>12 个连接入口</span></header><div className="trading-exchange-grid">{exchanges.map(([name, description]) => { const account = accounts.find(item => item.exchange === name); return <button className="trading-exchange" key={name} onClick={() => go("connect")}><ExchangeLogo name={name} /><span><b>{getExchangeDisplayName(name)}</b><small>{account ? `已绑定 · ${account.status}` : description}</small></span><em className={account?.status === "active" ? "ok" : ""}>{account?.status === "active" ? "已启用" : account ? "待检测" : "连接"}</em></button>; })}</div><p className="trading-disclosure">连接仅用于保存凭证和检测权限；实盘订单路由尚未开放，保存凭证不会发送订单。客户策略模拟测试在“我的策略”中独立进行。</p></section>
       {message && <p className="admin-notice">{message}</p>}
     </div>
+    {emergencyOpen && <div className="dialog-backdrop emergency-backdrop" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target && !emergencyBusy) setEmergencyOpen(false); }}><div className="dialog-card emergency-dialog" role="dialog" aria-modal="true" aria-labelledby="emergency-stop-title"><button type="button" className="dialog-close" disabled={emergencyBusy} onClick={() => setEmergencyOpen(false)}>×</button><span className="emergency-dialog-kicker">TRADING SAFETY CONTROL</span><h2 id="emergency-stop-title">一键关停我的交易</h2><p>只会暂停当前登录账户的策略新开仓。请选择当前账户仓位的处理方式：</p><div className="emergency-dialog-warning">仅影响当前登录用户。系统只会对已经接通并通过权限校验的交易通道发送平仓请求；未接通的仓位不会被伪造为已平仓。</div><div className="emergency-dialog-actions"><button type="button" className="emergency-close-all" disabled={emergencyBusy} onClick={() => void emergencyStop(true)}>全部平仓并关停</button><button type="button" className="emergency-keep" disabled={emergencyBusy} onClick={() => void emergencyStop(false)}>关停但不平仓</button></div><button type="button" className="emergency-cancel" disabled={emergencyBusy} onClick={() => setEmergencyOpen(false)}>取消</button></div></div>}
   </>;
 }
