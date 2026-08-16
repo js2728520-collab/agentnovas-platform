@@ -133,10 +133,10 @@ export async function updateAiConversation(
 export async function consumeAiRequestQuota(userId: string, inputChars: number) {
   const db = getDb();
   const minuteStart = new Date(Date.now() - 60_000).toISOString();
-  const recent = (await db.select({ count: sql<number>`count(*)` }).from(aiMessages).where(and(
-    eq(aiMessages.userId, userId),
-    eq(aiMessages.role, "user"),
-    gte(aiMessages.createdAt, minuteStart),
+  const recent = (await db.select({ count: sql<number>`count(*)` }).from(auditLogs).where(and(
+    eq(auditLogs.actorUserId, userId),
+    eq(auditLogs.action, "ai.request.started"),
+    gte(auditLogs.createdAt, minuteStart),
   )))[0];
   if (Number(recent?.count || 0) >= aiRequestLimit.perMinute) {
     throw new AiApiError("RATE_LIMITED", "请求过于频繁，请稍后再试", 429);
@@ -156,6 +156,40 @@ export async function consumeAiRequestQuota(userId: string, inputChars: number) 
     lt(aiUsageDaily.requestCount, aiRequestLimit.perDay),
   )).returning({ id: aiUsageDaily.id });
   if (!updated.length) throw new AiApiError("DAILY_LIMIT_REACHED", "今日 AI 请求额度已用完", 429);
+  await db.insert(auditLogs).values({
+    id: crypto.randomUUID(),
+    actorUserId: userId,
+    action: "ai.request.started",
+    subjectType: "ai_usage",
+    subjectId: id,
+    afterJson: JSON.stringify({ inputChars }),
+  });
+}
+
+export async function recordStrategyGeneration(options: {
+  userId: string;
+  conversationId: string;
+  mode: "ai_provider" | "guided_rules";
+  specificationJson: string;
+}) {
+  const now = new Date().toISOString();
+  await getDb().batch([
+    getDb().update(aiUsageDaily).set({
+      outputChars: sql`${aiUsageDaily.outputChars} + ${options.specificationJson.length}`,
+      updatedAt: now,
+    }).where(and(
+      eq(aiUsageDaily.userId, options.userId),
+      eq(aiUsageDaily.usageDate, now.slice(0, 10)),
+    )),
+    getDb().insert(auditLogs).values({
+      id: crypto.randomUUID(),
+      actorUserId: options.userId,
+      action: "ai.strategy.generated",
+      subjectType: "ai_conversation",
+      subjectId: options.conversationId,
+      afterJson: JSON.stringify({ mode: options.mode, outputChars: options.specificationJson.length }),
+    }),
+  ]);
 }
 
 export async function appendUserMessage(
