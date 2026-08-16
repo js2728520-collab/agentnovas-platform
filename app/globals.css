@@ -2406,10 +2406,10 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
 
 @media(min-width:981px){.trading-center-v2 .trading-exchange-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important}}
 
-/* Keep the homepage at a comfortable reading width on ultra-wide displays. */
+/* Let the homepage use more of a wide screen while retaining a readable cap. */
 @media (min-width:1201px){
-  body:has(.landing) .topbar{padding-inline:max(28px,calc((100vw - 1200px)/2))!important}
-  .landing{width:min(1200px,calc(100% - 96px))!important;max-width:1200px!important;padding-inline:32px!important}
+  body:has(.landing) .topbar{padding-inline:max(28px,calc((100vw - 1440px)/2 + 28px))!important}
+  .landing{width:min(1440px,calc(100% - 56px))!important;max-width:1440px!important;padding-inline:28px!important}
 }
 .platform-strategy-layout .strategy-card .strategy-metrics>div:last-child{grid-column:auto;border-right:0;border-bottom:0}
 
