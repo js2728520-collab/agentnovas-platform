@@ -10,6 +10,20 @@ export function isBranchReviewer(role: string) { return (branchApprovalRoles as 
 
 export const roleLabels: Record<string, string> = { hq_admin: "总公司", hq_support: "总公司客服", branch_admin: "分公司", manager: "经理", supervisor: "主管", employee: "员工", customer: "客户", finance: "财务", auditor: "审核员" };
 
+type MemberActivationActor = { id: string; role: string; organizationId: string | null };
+type MemberActivationTarget = MemberActivationActor & { reportsToUserId: string | null; status: string };
+
+export function canManuallyActivateMember(actor: MemberActivationActor, member: MemberActivationTarget) {
+  if (member.status !== "pending" || member.role === "customer" || member.id === actor.id) return false;
+  if (actor.role === "hq_admin") return member.role !== "hq_admin";
+  if (actor.role === "branch_admin") {
+    return Boolean(actor.organizationId)
+      && member.organizationId === actor.organizationId
+      && ["manager", "supervisor", "employee"].includes(member.role);
+  }
+  return member.reportsToUserId === actor.id && childRole[actor.role] === member.role;
+}
+
 export function canSeeCustomer(role: string, viewerId: string, viewerOrgId: string | null, row: { branchId: string | null; managerId: string | null; supervisorId: string | null; employeeId: string | null }) {
   if (role === "hq_admin" || role === "hq_support") return true;
   if (role === "branch_admin" || role === "finance" || role === "auditor") return !!viewerOrgId && row.branchId === viewerOrgId;
