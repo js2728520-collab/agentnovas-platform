@@ -91,7 +91,7 @@ export default function StrategyDetail({ strategy, onBack }: { strategy: Strateg
     ? `${selectedAccount.exchange} 当前连接按现货处理，不能跟随需要合约的策略，请更换支持合约的交易所。`
     : "";
   const curve = curves[period];
-  const authorName = strategy.authorName || strategy.authorEmail?.split("@")[0] || (strategy.source === "platform" ? "AgentNovas AI Core" : "社区策略作者");
+  const authorName = strategy.authorName || strategy.authorEmail?.split("@")[0] || (strategy.source === "platform" ? "Riverton Capital AI Core" : "社区策略作者");
   const authorRole = authorRoleNames[strategy.authorRole || ""] || strategy.authorRole || (strategy.source === "platform" ? "平台 AI 策略团队" : "社区策略作者");
 
   useEffect(() => {
@@ -176,7 +176,7 @@ export default function StrategyDetail({ strategy, onBack }: { strategy: Strateg
     <button className="strategy-detail-back" onClick={onBack}>← 返回策略广场</button>
     <section className={`strategy-detail-hero ${strategy.source === "platform" ? "platform" : "community"}`}>
       <div className="strategy-detail-copy">
-        <div className="strategy-detail-kicker"><i />{strategy.source === "platform" ? "AGENTNOVAS AI CORE" : "COMMUNITY STRATEGY"}</div>
+        <div className="strategy-detail-kicker"><i />{strategy.source === "platform" ? "RIVERTON CAPITAL AI CORE" : "COMMUNITY STRATEGY"}</div>
         <div className="strategy-detail-title"><div className="strategy-detail-mark">{strategy.source === "platform" ? "AI" : strategy.name.slice(0, 1)}</div><div><span>{riskNames[strategy.riskLevel]} · V{strategy.version}</span><h1>{strategy.name}</h1><p>{strategy.summary}</p></div></div>
         <div className="strategy-detail-tags">{strategy.symbols.map((symbol) => <span key={symbol}>{symbol}</span>)}<span>多 Agent 审核</span><span>硬风控约束</span></div>
       </div>

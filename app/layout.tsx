@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AgentNovas — AI Quant Trading Platform",
+  title: "Riverton Capital — AI Quant Trading Platform",
   description: "A non-custodial AI quant trading platform prototype with collaborative agents, risk controls and execution audit.",
   icons: {
     icon: "/favicon.svg",

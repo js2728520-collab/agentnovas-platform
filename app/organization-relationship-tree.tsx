@@ -220,7 +220,7 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
   }
 
   async function copyCredentials(credentials: ActivationCredentials) {
-    const content = `AgentNovas 登录信息\n登录地址：${credentials.loginUrl}\n账号：${credentials.email}\n临时密码：${credentials.temporaryPassword}\n首次登录后，请点击顶部账号头像并修改密码。`;
+    const content = `Riverton Capital 登录信息\n登录地址：${credentials.loginUrl}\n账号：${credentials.email}\n临时密码：${credentials.temporaryPassword}\n首次登录后，请点击顶部账号头像并修改密码。`;
     try {
       await navigator.clipboard.writeText(content);
       setCredentialsCopied(true);

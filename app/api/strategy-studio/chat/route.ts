@@ -39,7 +39,7 @@ async function providerError(response: Response, providerName: string) {
 
 async function aiReply(message: string, conversation: ChatMessage[], specification: Record<string, unknown>, config: ResolvedLlmConfig | null) {
   if (!config) return { text: guidedReply(message, specification), mode: "guided_rules" as const };
-  const system = `你是 AgentNovas 的量化策略研究助手。你的任务不是承诺收益，而是用专业、易懂的中文把客户想法引导为可回测规则。必须依次明确：目标与经验、交易对与周期、市场状态、策略风格、数据和指标、入场条件、退出条件、仓位、止损止盈、最大回撤、暂停条件。可优先建议成熟因子：趋势 EMA/ADX、波动 ATR/Bollinger、突破 Donchian/成交量；不要堆叠指标，也不要编造行情或收益。发现规则矛盾、参数过激或无法真实回测时必须指出，并给出更稳妥的替代参数。当前结构化参数：${JSON.stringify(specification)}。每次回复不超过220字。`;
+  const system = `你是 Riverton Capital 的量化策略研究助手。你的任务不是承诺收益，而是用专业、易懂的中文把客户想法引导为可回测规则。必须依次明确：目标与经验、交易对与周期、市场状态、策略风格、数据和指标、入场条件、退出条件、仓位、止损止盈、最大回撤、暂停条件。可优先建议成熟因子：趋势 EMA/ADX、波动 ATR/Bollinger、突破 Donchian/成交量；不要堆叠指标，也不要编造行情或收益。发现规则矛盾、参数过激或无法真实回测时必须指出，并给出更稳妥的替代参数。当前结构化参数：${JSON.stringify(specification)}。每次回复不超过220字。`;
   const messages = providerMessages(message, conversation, system);
   const body = config.apiStyle === "responses"
     ? { model: config.model, input: messages }

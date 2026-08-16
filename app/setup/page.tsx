@@ -39,7 +39,7 @@ export default function SetupPage() {
   return (
     <main style={{ maxWidth: 560, margin: "80px auto", padding: 24 }}>
       <section className="wide-panel">
-        <p className="eyebrow">AGENTNOVAS ADMIN</p>
+        <p className="eyebrow">RIVERTON CAPITAL ADMIN</p>
         <h1>Initialize company super administrator</h1>
         <p>Use the configured bootstrap key to initialize or reset the company super administrator in local or online environments.</p>
         <form onSubmit={submit} style={{ display: "grid", gap: 14, marginTop: 24 }}>
