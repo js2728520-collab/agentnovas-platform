@@ -57,13 +57,25 @@ function statements(sql: string) {
     .filter(Boolean);
 }
 
+function isAlreadyAppliedSchemaError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("already exists") ||
+    normalized.includes("duplicate column name")
+  );
+}
+
 export async function ensureD1Schema() {
   const database = env.DB;
   if (!database) throw new Error("D1 数据库 DB 尚未绑定");
 
-  await database.exec(
-    "CREATE TABLE IF NOT EXISTS _agentnovas_migrations (name TEXT PRIMARY KEY NOT NULL, applied_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL)",
-  );
+  await database
+    .prepare(
+      "CREATE TABLE IF NOT EXISTS _agentnovas_migrations (name TEXT PRIMARY KEY NOT NULL, applied_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL)",
+    )
+    .run();
 
   const applied = await database
     .prepare("SELECT name FROM _agentnovas_migrations")
@@ -72,12 +84,22 @@ export async function ensureD1Schema() {
 
   for (const [name, sql] of migrations) {
     if (completed.has(name)) continue;
-    const queries = statements(sql).map((statement) => database.prepare(statement));
-    queries.push(
-      database
-        .prepare("INSERT INTO _agentnovas_migrations (name) VALUES (?)")
-        .bind(name),
-    );
-    await database.batch(queries);
+
+    for (const statement of statements(sql)) {
+      try {
+        await database.prepare(statement).run();
+      } catch (error) {
+        // Older production databases can already contain the schema while the
+        // migration ledger is empty. Only tolerate SQLite's explicit
+        // "already applied" errors; all other failures must remain visible.
+        if (!isAlreadyAppliedSchemaError(error)) throw error;
+      }
+    }
+
+    await database
+      .prepare("INSERT OR IGNORE INTO _agentnovas_migrations (name) VALUES (?)")
+      .bind(name)
+      .run();
+    completed.add(name);
   }
 }
