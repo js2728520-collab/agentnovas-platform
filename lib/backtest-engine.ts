@@ -28,6 +28,13 @@ type CompletedTrade = {
   reason: string;
 };
 
+type OpenPosition = {
+  entryPrice: number;
+  openedAt: number;
+  notional: number;
+  quantity: number;
+};
+
 export type BacktestResult = {
   provider: string;
   engineVersion: string;
@@ -165,13 +172,12 @@ export async function runBacktestOnCandles(
   let currentDay = "";
   let dayStartEquity = equity;
   let dailyLossHalted = false;
-  let position: null | {
-    entryPrice: number;
-    openedAt: number;
-    notional: number;
-    quantity: number;
-  } = null;
+  let position: OpenPosition | null = null;
   const trades: CompletedTrade[] = [];
+
+  function currentPosition(): OpenPosition | null {
+    return position;
+  }
 
   function updateDrawdown() {
     peak = Math.max(peak, equity);
@@ -196,7 +202,7 @@ export async function runBacktestOnCandles(
   }
 
   function closePosition(candle: StrategyCandle, reason: string) {
-    const active = position;
+    const active = currentPosition();
     if (!active) return;
     const exitPrice = candle.close * (1 - slippageRate);
     const exitValue = active.quantity * exitPrice;
@@ -231,7 +237,7 @@ export async function runBacktestOnCandles(
     }
 
     let closedThisCandle = false;
-    const active = position;
+    const active = currentPosition();
     if (active) {
       const changePct = (candle.close - active.entryPrice) / active.entryPrice * 100;
       if (changePct <= -specification.exit.stopLossPct) {
