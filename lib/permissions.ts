@@ -13,8 +13,8 @@ export const roleLabels: Record<string, string> = { hq_admin: "总公司", hq_su
 type MemberActivationActor = { id: string; role: string; organizationId: string | null };
 type MemberActivationTarget = MemberActivationActor & { reportsToUserId: string | null; status: string };
 
-export function canManuallyActivateMember(actor: MemberActivationActor, member: MemberActivationTarget) {
-  if (member.status !== "pending" || member.role === "customer" || member.id === actor.id) return false;
+function canManageInternalMember(actor: MemberActivationActor, member: MemberActivationTarget) {
+  if (member.role === "customer" || member.id === actor.id) return false;
   if (actor.role === "hq_admin") return member.role !== "hq_admin";
   if (actor.role === "branch_admin") {
     return Boolean(actor.organizationId)
@@ -22,6 +22,14 @@ export function canManuallyActivateMember(actor: MemberActivationActor, member: 
       && ["manager", "supervisor", "employee"].includes(member.role);
   }
   return member.reportsToUserId === actor.id && childRole[actor.role] === member.role;
+}
+
+export function canManuallyActivateMember(actor: MemberActivationActor, member: MemberActivationTarget) {
+  return member.status === "pending" && canManageInternalMember(actor, member);
+}
+
+export function canRestoreClosedMember(actor: MemberActivationActor, member: MemberActivationTarget) {
+  return member.status === "closed" && canManageInternalMember(actor, member);
 }
 
 export function canSeeCustomer(role: string, viewerId: string, viewerOrgId: string | null, row: { branchId: string | null; managerId: string | null; supervisorId: string | null; employeeId: string | null }) {

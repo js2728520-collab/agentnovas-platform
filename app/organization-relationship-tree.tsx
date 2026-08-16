@@ -19,6 +19,7 @@ type RelationshipNode = {
   attributionSource?: string;
   effectiveAt?: string | null;
   canManuallyActivate?: boolean;
+  canRestoreClosed?: boolean;
 };
 
 type ActivationCredentials = {
@@ -56,6 +57,7 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
   const [query, setQuery] = useState("");
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [activatingId, setActivatingId] = useState("");
+  const [restoringId, setRestoringId] = useState("");
   const [activationError, setActivationError] = useState("");
   const [activationCredentials, setActivationCredentials] = useState<ActivationCredentials | null>(null);
   const [credentialsCopied, setCredentialsCopied] = useState(false);
@@ -192,6 +194,31 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
     }
   }
 
+  async function restoreMember(node: RelationshipNode) {
+    if (!window.confirm(`确定恢复账号 ${node.email}？\n\n恢复后账号会变为“待激活”，旧密码仍不可登录，需要继续手动激活并生成新临时密码。`)) return;
+    setRestoringId(node.id);
+    setActivationError("");
+    setActivationCredentials(null);
+    try {
+      const response = await fetch(`/api/organization/members/${encodeURIComponent(node.subjectId)}/restore`, { method: "POST" });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || "恢复账户失败");
+      setPayload(current => current ? {
+        ...current,
+        nodes: current.nodes.map(item => item.id === node.id ? {
+          ...item,
+          status: "pending",
+          canRestoreClosed: false,
+          canManuallyActivate: true,
+        } : item),
+      } : current);
+    } catch (reason) {
+      setActivationError(reason instanceof Error ? reason.message : "恢复账户失败");
+    } finally {
+      setRestoringId("");
+    }
+  }
+
   async function copyCredentials(credentials: ActivationCredentials) {
     const content = `AgentNovas 登录信息\n登录地址：${credentials.loginUrl}\n账号：${credentials.email}\n临时密码：${credentials.temporaryPassword}\n首次登录后，请点击顶部账号头像并修改密码。`;
     try {
@@ -266,6 +293,11 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
               <div><dt>账户状态</dt><dd>{statusLabels[selected.status] || selected.status}</dd></div>
             </dl>
             {selected.kind === "customer" && <section><h4>用户归属信息</h4><p><span>归属状态</span><b>{attributionLabels[selected.attributionStatus || ""] || selected.attributionStatus || "—"}</b></p><p><span>归属来源</span><b>{sourceLabels[selected.attributionSource || ""] || selected.attributionSource || "—"}</b></p><p><span>生效时间</span><b>{formatDate(selected.effectiveAt)}</b></p></section>}
+            {selected.canRestoreClosed && <section className="organization-tree-restore">
+              <h4>已关闭账户</h4>
+              <p>恢复后先进入待激活状态，旧密码不会恢复使用。</p>
+              <button type="button" disabled={Boolean(restoringId || activatingId)} onClick={() => void restoreMember(selected)}>{restoringId === selected.id ? "正在恢复…" : "恢复为待激活账户"}</button>
+            </section>}
             {selected.canManuallyActivate && <section className="organization-tree-activation">
               <h4>待激活账户</h4>
               <p>手动激活后，系统会立即生成一组新的临时登录密码。</p>

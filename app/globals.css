@@ -3657,6 +3657,10 @@ body:has(.membership-plans) .content>.page-head{
 .organization-tree-detail>section h4{margin:0 0 9px;font-size:12px;color:#cbdcea}
 .organization-tree-detail>section p{display:flex;justify-content:space-between;gap:12px;margin:7px 0;font-size:10px}
 .organization-tree-detail>section p span{color:#71889a}.organization-tree-detail>section p b{color:#b8cad9;text-align:right}
+.organization-tree-detail>.organization-tree-restore{border-color:#65414a;background:linear-gradient(145deg,#25151b,#181218)}
+.organization-tree-restore>p{display:block!important;margin:0 0 11px!important;color:#b9949d!important;line-height:1.55}
+.organization-tree-restore>button{width:100%;min-height:38px;padding:8px 10px;border:1px solid #9b5263;border-radius:8px;background:linear-gradient(135deg,#7d3043,#592332);color:#ffe7ec;font-size:11px;font-weight:800}
+.organization-tree-restore>button:hover{filter:brightness(1.1)}.organization-tree-restore>button:disabled{cursor:wait;opacity:.62}
 .organization-tree-detail>.organization-tree-activation{border-color:#5b4c2c;background:linear-gradient(145deg,#201a0d,#13180f)}
 .organization-tree-activation>p{display:block!important;margin:0 0 11px!important;color:#aa9874!important;line-height:1.55}
 .organization-tree-activation>button{width:100%;min-height:38px;padding:8px 10px;border:1px solid #a47c32;border-radius:8px;background:linear-gradient(135deg,#e0ad4b,#bd8124);color:#160f05;font-size:11px;font-weight:800}
@@ -3672,6 +3676,11 @@ body:has(.membership-plans) .content>.page-head{
 .organization-tree-credentials ol{margin:11px 0;padding-left:18px;color:#91aaa2;font-size:10px;line-height:1.65}
 .organization-tree-credential-actions{display:grid;grid-template-columns:1fr auto;gap:7px}.organization-tree-credential-actions button{min-height:34px;padding:7px 10px;border:1px solid #2d6f5e;border-radius:7px;background:#12372d;color:#8fe5ca;font-size:10px}.organization-tree-credential-actions button:last-child{border-color:#344b51;background:#111e20;color:#90a3a4}
 .organization-tree-activation-error{margin:0 15px 13px;padding:9px 11px;border:1px solid #693c45;border-radius:8px;background:#2b151b;color:#ed9aa8;font-size:10px;line-height:1.5}
+.member-confirm-dialog{width:min(620px,calc(100vw - 32px));padding:28px;background:linear-gradient(145deg,#111f2d,#0b151f)}
+.member-confirm-dialog>header{padding-right:48px}.member-confirm-dialog>header small{color:#6db7f0;font-size:9px;letter-spacing:.18em}.member-confirm-dialog>header h2{margin:7px 0 6px;color:#edf5fc;font-size:22px}.member-confirm-dialog>header p{margin:0;color:#8299ad;font-size:12px;line-height:1.6}
+.member-confirm-dialog>dl{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:20px 0 12px}.member-confirm-dialog>dl div{min-width:0;padding:12px 13px;border:1px solid #263d52;border-radius:9px;background:#0a1621}.member-confirm-dialog dt{color:#738da4;font-size:9px}.member-confirm-dialog dd{overflow-wrap:anywhere;margin:5px 0 0;color:#d8e6f2;font-size:12px}.member-confirm-dialog dd span{color:#e5b55c}
+.member-confirm-tip{padding:12px 14px;border-left:3px solid #d7a54b;border-radius:7px;background:#211b10;color:#cbb684;font-size:11px;line-height:1.65}.member-confirm-error{margin-top:10px;padding:10px 12px;border:1px solid #74414d;border-radius:8px;background:#2a151b;color:#f0a1ae;font-size:11px}
+.member-confirm-dialog>footer{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}.member-confirm-dialog>footer button{min-height:40px;padding:0 16px;border:1px solid #30475c;border-radius:9px;background:#111e2a;color:#a7bdd0;font-size:12px;font-weight:700}.member-confirm-dialog>footer button.primary{border-color:#3f87c9;background:#216cac;color:#fff}.member-confirm-dialog button:disabled{cursor:wait;opacity:.58}
 .organization-tree-detail>footer{padding:11px 15px;border-top:1px solid #203346;color:#64798b;font-size:9px}
 .organization-tree-detail>footer code{display:block;overflow:hidden;margin-top:4px;color:#8fa7bb;text-overflow:ellipsis;white-space:nowrap}
 .organization-tree-detail-empty,.organization-tree-empty,.organization-tree-no-result{padding:35px 18px;color:#71889b;font-size:12px;text-align:center}
@@ -3696,4 +3705,5 @@ body:has(.membership-plans) .content>.page-head{
   .organization-tree-person{grid-template-columns:34px minmax(105px,1fr) auto 13px;gap:7px;padding:6px 8px}
   .organization-tree-role{display:none}.organization-tree-status{font-size:0;padding:6px}.organization-tree-status i{margin:0}
   .organization-tree-toggle{flex-basis:26px;width:26px}.organization-tree-children{margin-left:10px;padding-left:13px}.organization-tree-children>.organization-tree-node:before{left:-13px;width:11px}
+  .member-confirm-dialog>dl{grid-template-columns:1fr}.member-confirm-dialog>footer{display:grid;grid-template-columns:1fr 1fr}.member-confirm-dialog>footer button{padding:0 8px}
 }

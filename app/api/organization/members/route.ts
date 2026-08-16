@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { approvalRequests, auditLogs, authTokens, customerAttributions, customerProfiles, notificationDeliveries, organizations, sessions, users } from "@/db/schema";
 import { hashPassword, normalizeEmail, randomToken, sha256, validEmail } from "@/lib/auth";
-import { canManuallyActivateMember, canSeeCustomer, childRole, roleLabels } from "@/lib/permissions";
+import { canManuallyActivateMember, canRestoreClosedMember, canSeeCustomer, childRole, roleLabels } from "@/lib/permissions";
 import { requireUser, responseError } from "@/lib/session";
 
 const creators = ["hq_admin","branch_admin","manager","supervisor"] as const;
@@ -24,6 +24,7 @@ type RelationshipNode = {
   attributionSource?: string;
   effectiveAt?: string | null;
   canManuallyActivate?: boolean;
+  canRestoreClosed?: boolean;
 };
 
 const customerStatusPriority: Record<string, number> = { active: 5, review_pending: 4, public_pool_pending: 3, rejected: 2, ended: 1 };
@@ -117,6 +118,7 @@ async function relationshipTree(request: Request) {
       organizationName: row.organizationId ? organizationNames.get(row.organizationId) || "未命名组织" : row.role === "hq_admin" ? "AgentNovas 总公司" : "总公司职能部门",
       createdAt: row.createdAt,
       canManuallyActivate: canManuallyActivateMember(actor, row),
+      canRestoreClosed: canRestoreClosedMember(actor, row),
     };
   });
 
