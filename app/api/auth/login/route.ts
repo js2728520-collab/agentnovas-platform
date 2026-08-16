@@ -13,7 +13,9 @@ export async function POST(request: Request) {
     const db = getDb();
     const rawIdentifier = String(body.identifier ?? body.email ?? "").trim();
     const email = normalizeEmail(rawIdentifier);
-    const phone = normalizePhone(rawIdentifier)?.value ?? "__not_a_phone__";
+    const normalizedPhone = normalizePhone(rawIdentifier);
+    const phone = normalizedPhone?.value ?? "__not_a_phone__";
+    const identifierType = rawIdentifier.includes("@") ? "email" : normalizedPhone ? "phone" : "username";
     let user = (await db.select().from(users).where(or(eq(users.phone, phone), eq(users.email, email), eq(users.username, rawIdentifier))).limit(1))[0];
 
     const hostname = new URL(request.url).hostname;
@@ -40,7 +42,7 @@ export async function POST(request: Request) {
     const expiresAt = new Date(Date.now() + 7 * 86400_000).toISOString();
     await db.batch([
       db.insert(sessions).values({ id: crypto.randomUUID(), userId: user.id, tokenHash: await sha256(token), expiresAt, ipAddress: request.headers.get("cf-connecting-ip"), userAgent: request.headers.get("user-agent") }),
-      db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: "auth.login", subjectType: "user", subjectId: user.id, ipAddress: request.headers.get("cf-connecting-ip"), userAgent: request.headers.get("user-agent") }),
+      db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: "auth.login", subjectType: "user", subjectId: user.id, afterJson: JSON.stringify({ identifierType }), ipAddress: request.headers.get("cf-connecting-ip"), userAgent: request.headers.get("user-agent") }),
     ]);
     const secureCookie = new URL(request.url).protocol === "https:" ? "; Secure" : "";
     return new Response(JSON.stringify({ ok: true, user: { id: user.id, email: user.email, phone: user.phone, username: user.username, role: user.role } }), {
