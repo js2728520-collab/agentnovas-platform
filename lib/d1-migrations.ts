@@ -67,6 +67,35 @@ function isAlreadyAppliedSchemaError(error: unknown) {
   );
 }
 
+type SchemaTarget =
+  | { type: "table" | "index"; name: string }
+  | { type: "column"; table: string; name: string };
+
+function schemaTarget(statement: string): SchemaTarget | null {
+  const createTable = statement.match(
+    /^CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+[`"[]?([^`"\]\s(]+)/i,
+  );
+  if (createTable) return { type: "table", name: createTable[1] };
+
+  const createIndex = statement.match(
+    /^CREATE\s+(?:UNIQUE\s+)?INDEX(?:\s+IF\s+NOT\s+EXISTS)?\s+[`"[]?([^`"\]\s(]+)/i,
+  );
+  if (createIndex) return { type: "index", name: createIndex[1] };
+
+  const addColumn = statement.match(
+    /^ALTER\s+TABLE\s+[`"[]?([^`"\]\s]+)[`"\]]?\s+ADD\s+[`"[]?([^`"\]\s]+)/i,
+  );
+  if (addColumn) {
+    return { type: "column", table: addColumn[1], name: addColumn[2] };
+  }
+
+  return null;
+}
+
+function normalizedSchemaName(name: string) {
+  return name.toLowerCase();
+}
+
 export async function ensureD1Schema() {
   const database = env.DB;
   if (!database) throw new Error("D1 数据库 DB 尚未绑定");
@@ -82,10 +111,46 @@ export async function ensureD1Schema() {
     .all<{ name: string }>();
   const completed = new Set((applied.results ?? []).map((row) => row.name));
 
+  const schema = await database
+    .prepare("SELECT type, name FROM sqlite_schema WHERE type IN ('table', 'index')")
+    .all<{ type: "table" | "index"; name: string }>();
+  const schemaObjects = new Set(
+    (schema.results ?? []).map(
+      (row) => `${row.type}:${normalizedSchemaName(row.name)}`,
+    ),
+  );
+  const columnCache = new Map<string, Set<string>>();
+  const migrationRecords = [];
+
+  async function columnsFor(table: string) {
+    const normalizedTable = normalizedSchemaName(table);
+    const cached = columnCache.get(normalizedTable);
+    if (cached) return cached;
+
+    const escapedTable = table.replaceAll('"', '""');
+    const columns = await database
+      .prepare(`PRAGMA table_info("${escapedTable}")`)
+      .all<{ name: string }>();
+    const names = new Set(
+      (columns.results ?? []).map((row) => normalizedSchemaName(row.name)),
+    );
+    columnCache.set(normalizedTable, names);
+    return names;
+  }
+
   for (const [name, sql] of migrations) {
     if (completed.has(name)) continue;
 
     for (const statement of statements(sql)) {
+      const target = schemaTarget(statement);
+      if (target?.type === "table" || target?.type === "index") {
+        const key = `${target.type}:${normalizedSchemaName(target.name)}`;
+        if (schemaObjects.has(key)) continue;
+      } else if (target?.type === "column") {
+        const columns = await columnsFor(target.table);
+        if (columns.has(normalizedSchemaName(target.name))) continue;
+      }
+
       try {
         await database.prepare(statement).run();
       } catch (error) {
@@ -94,12 +159,24 @@ export async function ensureD1Schema() {
         // "already applied" errors; all other failures must remain visible.
         if (!isAlreadyAppliedSchemaError(error)) throw error;
       }
+
+      if (target?.type === "table" || target?.type === "index") {
+        schemaObjects.add(
+          `${target.type}:${normalizedSchemaName(target.name)}`,
+        );
+      } else if (target?.type === "column") {
+        const columns = await columnsFor(target.table);
+        columns.add(normalizedSchemaName(target.name));
+      }
     }
 
-    await database
-      .prepare("INSERT OR IGNORE INTO _agentnovas_migrations (name) VALUES (?)")
-      .bind(name)
-      .run();
+    migrationRecords.push(
+      database
+        .prepare("INSERT OR IGNORE INTO _agentnovas_migrations (name) VALUES (?)")
+        .bind(name),
+    );
     completed.add(name);
   }
+
+  if (migrationRecords.length > 0) await database.batch(migrationRecords);
 }
