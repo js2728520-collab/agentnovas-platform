@@ -3420,7 +3420,7 @@ body:has(.membership-plans) .content>.page-head{
 }
 
 /* Agent conversation: history rail on the left, large dialogue canvas on the right. */
-.agent-chat-workspace{display:grid;grid-template-columns:minmax(220px,.32fr) minmax(0,1fr);gap:14px;min-height:680px;align-items:stretch}
+.agent-chat-workspace{display:grid;grid-template-columns:minmax(176px,.256fr) minmax(0,1fr);gap:14px;min-height:680px;align-items:stretch}
 .agent-chat-history{display:flex;min-height:680px;flex-direction:column;border:1px solid #29313d;border-radius:12px;background:#0e151e;overflow:hidden}
 .agent-chat-history>header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 16px;border-bottom:1px solid #252d38}
 .agent-chat-history>header b{display:block;color:#e3edf6;font-size:14px}
