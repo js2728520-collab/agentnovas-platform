@@ -111,6 +111,46 @@ export const sessions = sqliteTable("sessions", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (t) => [uniqueIndex("idx_sessions_token_unique").on(t.tokenHash), index("idx_sessions_user_expiry").on(t.userId, t.expiresAt)]);
 
+export const aiConversations = sqliteTable("ai_conversations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  title: text("title").notNull().default("新对话"),
+  purpose: text("purpose", { enum: ["consultation", "strategy"] }).notNull().default("consultation"),
+  status: text("status", { enum: ["active", "archived"] }).notNull().default("active"),
+  lastMessageAt: text("last_message_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  ...timestamps,
+}, (t) => [
+  index("idx_ai_conversations_user_status_time").on(t.userId, t.status, t.lastMessageAt),
+]);
+
+export const aiMessages = sqliteTable("ai_messages", {
+  id: text("id").primaryKey(),
+  conversationId: text("conversation_id").notNull().references(() => aiConversations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id),
+  role: text("role", { enum: ["user", "assistant"] }).notNull(),
+  content: text("content").notNull(),
+  generationMode: text("generation_mode", { enum: ["ai_provider", "guided_rules", "error"] }),
+  providerName: text("provider_name"),
+  model: text("model"),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (t) => [
+  index("idx_ai_messages_conversation_time").on(t.conversationId, t.createdAt),
+  index("idx_ai_messages_user_role_time").on(t.userId, t.role, t.createdAt),
+]);
+
+export const aiUsageDaily = sqliteTable("ai_usage_daily", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  usageDate: text("usage_date").notNull(),
+  requestCount: integer("request_count").notNull().default(0),
+  inputChars: integer("input_chars").notNull().default(0),
+  outputChars: integer("output_chars").notNull().default(0),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("idx_ai_usage_user_date_unique").on(t.userId, t.usageDate),
+]);
+
 export const invitations = sqliteTable("invitations", {
   id: text("id").primaryKey(),
   codeHash: text("code_hash").notNull(),
@@ -263,6 +303,22 @@ export const communityStrategies = sqliteTable("community_strategies", {
   featuredRank: integer("featured_rank"), rankingScore: real("ranking_score").notNull().default(0),
   ...timestamps,
 }, (t) => [index("idx_community_strategies_status").on(t.status, t.publishedAt), index("idx_community_strategies_author").on(t.authorUserId, t.createdAt), uniqueIndex("idx_community_strategies_featured_unique").on(t.featuredRank), index("idx_community_strategies_ranking").on(t.status,t.rankingScore)]);
+
+export const strategyVersions = sqliteTable("strategy_versions", {
+  id: text("id").primaryKey(),
+  strategyId: text("strategy_id").notNull().references(() => communityStrategies.id),
+  version: integer("version").notNull(),
+  name: text("name").notNull().default(""),
+  summary: text("summary").notNull().default(""),
+  specificationJson: text("specification_json").notNull(),
+  conversationId: text("conversation_id").references(() => aiConversations.id),
+  source: text("source", { enum: ["manual", "ai_provider", "guided_rules"] }).notNull().default("manual"),
+  createdByUserId: text("created_by_user_id").notNull().references(() => users.id),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (t) => [
+  uniqueIndex("idx_strategy_versions_strategy_version_unique").on(t.strategyId, t.version),
+  index("idx_strategy_versions_conversation").on(t.conversationId, t.createdAt),
+]);
 
 export const strategyValidations = sqliteTable("strategy_validations", {
   id: text("id").primaryKey(), strategyId: text("strategy_id").notNull().references(() => communityStrategies.id),
