@@ -4,10 +4,14 @@ import {
   auditLogs,
   communityStrategies,
   strategySubscriptions,
+  strategyVersions,
   strategyValidations as strategyBacktestReports,
   users,
 } from "@/db/schema";
+import { getOwnedAiConversation } from "@/lib/ai-conversations";
+import { ensureD1Schema } from "@/lib/d1-migrations";
 import { currentUser, requireUser, responseError } from "@/lib/session";
+import { normalizeStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
 
 function parseArray(value: string) {
   try {
@@ -29,6 +33,7 @@ function parseObject(value: string) {
 
 export async function GET(request: Request) {
   try {
+    await ensureD1Schema();
     const me = await currentUser(request);
     const db = getDb();
     const fields = {
@@ -113,6 +118,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await ensureD1Schema();
     const me = await requireUser(request, ["customer"]);
     const body = (await request.json()) as {
       name?: string;
@@ -120,19 +126,30 @@ export async function POST(request: Request) {
       symbols?: string[];
       riskLevel?: "low" | "medium" | "high";
       publicationMode?: "marketplace" | "self_use";
-      conversation?: unknown[];
-      specification?: Record<string, unknown>;
+      conversationId?: string;
+      generationMode?: "ai_provider" | "guided_rules";
+      specification?: unknown;
     };
-    const symbols = Array.isArray(body.symbols)
-      ? body.symbols.map((item) => String(item).trim()).filter(Boolean).slice(0, 20)
-      : [];
-    if (!body.name?.trim() || !body.summary?.trim() || !symbols.length) {
-      return Response.json({ error: "策略名称、说明和交易对为必填" }, { status: 400 });
+    if (!body.name?.trim() || !body.summary?.trim()) {
+      return Response.json({ error: "策略名称和说明为必填" }, { status: 400 });
     }
+    let specification;
+    try {
+      specification = normalizeStrategyDsl(body.specification);
+    } catch (error) {
+      const details = error instanceof StrategyDslValidationError ? error.issues : [];
+      return Response.json({ error: "策略规则未通过 DSL 校验", details }, { status: 422 });
+    }
+    const conversationId = String(body.conversationId || "").trim() || null;
+    if (conversationId) await getOwnedAiConversation(me.id, conversationId);
+    const symbols = [specification.symbol.replace(/USDT$/, "/USDT")];
     const riskLevel = ["low", "medium", "high"].includes(String(body.riskLevel))
       ? body.riskLevel!
       : "medium";
     const publicationMode = body.publicationMode === "self_use" ? "self_use" : "marketplace";
+    const source = body.generationMode === "ai_provider" || body.generationMode === "guided_rules"
+      ? body.generationMode
+      : "manual";
     const id = crypto.randomUUID();
     await getDb().batch([
       getDb().insert(communityStrategies).values({
@@ -143,8 +160,19 @@ export async function POST(request: Request) {
         symbolsJson: JSON.stringify(symbols),
         riskLevel,
         publicationMode,
-        conversationJson: JSON.stringify(body.conversation || []),
-        specificationJson: JSON.stringify(body.specification || {}),
+        conversationJson: "[]",
+        specificationJson: JSON.stringify(specification),
+      }),
+      getDb().insert(strategyVersions).values({
+        id: crypto.randomUUID(),
+        strategyId: id,
+        version: 1,
+        name: body.name.trim(),
+        summary: body.summary.trim(),
+        specificationJson: JSON.stringify(specification),
+        conversationId,
+        source,
+        createdByUserId: me.id,
       }),
       getDb().insert(auditLogs).values({
         id: crypto.randomUUID(),
@@ -152,7 +180,7 @@ export async function POST(request: Request) {
         action: "strategy.draft.created",
         subjectType: "community_strategy",
         subjectId: id,
-        afterJson: JSON.stringify({ name: body.name.trim(), symbols, riskLevel, publicationMode, version: 1 }),
+        afterJson: JSON.stringify({ name: body.name.trim(), symbols, riskLevel, publicationMode, version: 1, source, schemaVersion: specification.schemaVersion }),
       }),
     ]);
     return Response.json({ id, status: "draft", version: 1, message: "策略草稿已保存" }, { status: 201 });
