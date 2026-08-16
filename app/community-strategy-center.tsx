@@ -235,9 +235,11 @@ function riskName(value: unknown) {
 export default function CommunityStrategyCenter({
   view = "market",
   onOpenStrategy,
+  createRequest = 0,
 }: {
   view?: "market" | "mine";
   onOpenStrategy?: (strategy: StrategyDetailData) => void;
+  createRequest?: number;
 }) {
   const [rows, setRows] = useState<Row[]>(demos);
   const [mine, setMine] = useState<Row[]>([]);
@@ -458,10 +460,14 @@ export default function CommunityStrategyCenter({
     setScreen("create");
   }
 
+  useEffect(() => {
+    if (view === "mine" && createRequest > 0) resetStudio();
+  }, [createRequest, view]);
+
   if (view === "mine" && screen === "create") {
     return <div className="strategy-studio-page">
       <header>
-        <button onClick={() => setScreen("list")}>← 返回我的策略</button>
+        <button onClick={() => setScreen("list")}>返回我的策略</button>
         <div><small>AI STRATEGY LAB</small><h2>创建策略</h2><p>专业引导、真实历史回测、作者策略模拟测试和平台人工审核。</p></div>
         <span>{draftId ? `草稿 V${draftVersion}` : "尚未保存"}</span>
       </header>
@@ -535,8 +541,7 @@ export default function CommunityStrategyCenter({
       {message && <div className="notice">{message}</div>}
       <section className="my-strategy-modules">
         <article><i>01</i><div><small>STRATEGY MANAGEMENT</small><h3>策略管理</h3><p>查看草稿、回测报告、审核状态和版本。</p></div><span>{mine.length} 个策略</span></article>
-          <article><i>02</i><div><small>BACKTEST CENTER</small><h3>回测与模拟测试</h3><p>历史回测与作者策略模拟测试均为研究工具，不会触发真实订单。</p></div><span>自由测试</span></article>
-        <article className="generator"><i>03</i><div><small>AI STRATEGY GENERATOR</small><h3>AI策略生成</h3><p>与策略研究 Agent 沟通，形成可测试、可审核的规则。</p></div><button className="primary" onClick={resetStudio}>创建策略 →</button></article>
+        <article><i>02</i><div><small>BACKTEST CENTER</small><h3>回测与模拟测试</h3><p>历史回测与作者策略模拟测试均为研究工具，不会触发真实订单。</p></div><span>自由测试</span></article>
       </section>
       <div className="my-strategy-card-grid">{mine.map((row) => {
         const hasBacktest = Boolean(backtestFor(row));

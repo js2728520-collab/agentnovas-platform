@@ -1906,14 +1906,22 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
 .strategy-studio-page{max-width:1280px;margin:0 auto;gap:18px;padding-bottom:28px}
 
 /* Enlarge the three "我的策略" module cards proportionally without changing their content or layout. */
-.my-strategy-modules{gap:14px!important}
-.my-strategy-modules article{min-height:160px!important;padding:20px!important;gap:15px!important}
-.my-strategy-modules article>i{width:36px!important;height:36px!important;font-size:10px!important}
-.my-strategy-modules small{font-size:8px!important;letter-spacing:1.8px!important}
-.my-strategy-modules h3{margin:9px 0!important;font-size:16px!important}
-.my-strategy-modules p,.my-strategy-modules article>span{font-size:10px!important;line-height:1.65!important}
+.my-strategy-modules{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:14px!important}
+.my-strategy-modules article{min-height:160px!important;padding:22px!important;gap:17px!important}
+.my-strategy-modules article>i{width:42px!important;height:42px!important;font-size:12px!important}
+.my-strategy-modules small{font-size:10px!important;letter-spacing:2px!important}
+.my-strategy-modules h3{margin:10px 0!important;font-size:19px!important}
+.my-strategy-modules p,.my-strategy-modules article>span{font-size:12px!important;line-height:1.68!important}
 .my-strategy-modules article.generator button{height:44px!important;padding:0 18px!important;font-size:10px!important}
 .strategy-list-toggle{font-size:15px!important;line-height:1.2!important}
+.my-strategy-page-head>div:last-child{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:11px!important}
+.my-strategy-page-head .strategy-create-top{position:relative;min-width:132px;height:44px!important;padding:0 20px 0 42px!important;border:1px solid #37a6e8!important;border-radius:11px!important;background:linear-gradient(135deg,#1768ad,#23a4d2)!important;color:#f4fbff!important;font-size:15px!important;font-weight:750!important;box-shadow:inset 0 1px 0 #ffffff38,0 8px 24px #1487c744!important;overflow:hidden}
+.my-strategy-page-head .strategy-create-top:before{content:"✦";position:absolute;left:17px;top:50%;transform:translateY(-50%);color:#bdeeff;font-size:15px;text-shadow:0 0 10px #c5f3ff}
+.my-strategy-page-head .strategy-create-top:after{content:"";position:absolute;inset:-40% auto -40% -35%;width:35%;transform:skewX(-18deg);background:linear-gradient(90deg,transparent,#ffffff42,transparent);transition:left .35s ease}
+.my-strategy-page-head .strategy-create-top:hover{border-color:#86d8ff!important;background:linear-gradient(135deg,#207cc8,#27b8db)!important;transform:translateY(-1px);box-shadow:inset 0 1px 0 #ffffff45,0 10px 28px #158fc960!important}
+.my-strategy-page-head .strategy-create-top:hover:after{left:120%}
+@media(max-width:900px){.my-strategy-modules{grid-template-columns:1fr!important}}
+@media(max-width:620px){.my-strategy-page-head>div:last-child{width:100%;justify-content:stretch!important}.my-strategy-page-head>div:last-child>button{flex:1;min-width:0!important}.my-strategy-page-head .strategy-create-top{padding-inline:34px 12px!important}}
 .strategy-studio-page>header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:18px 20px;border:1px solid #29435c;border-radius:14px;background:linear-gradient(120deg,#101d2d,#0d151f);box-shadow:0 14px 38px rgba(0,0,0,.14)}
 .strategy-studio-page>header button{border:1px solid #35536f;background:#101b28;color:#a8c7e0;border-radius:8px;padding:9px 12px;font-size:12px;cursor:pointer}
 .strategy-studio-page>header small,.strategy-studio-page .strategy-output small{color:#64adf9;letter-spacing:.22em;font-size:10px}
