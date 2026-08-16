@@ -1,9 +1,11 @@
 export const childRole: Record<string, string | undefined> = { hq_admin: "branch_admin", branch_admin: "manager", manager: "supervisor", supervisor: "employee", employee: "customer" };
 export const branchApprovalRoles = ["branch_admin", "finance", "auditor"] as const;
-export const invitationRoles = ["employee", "hq_support", "hq_admin"] as const;
+export const invitationRoles = ["manager", "supervisor", "employee", "hq_support", "hq_admin"] as const;
 
 export function canCreateInvitation(role: string, kind: string) {
-  return kind === "employee_reusable" ? role === "employee" : role === "hq_support" || role === "hq_admin";
+  return kind === "employee_reusable"
+    ? ["manager", "supervisor", "employee"].includes(role)
+    : role === "hq_support" || role === "hq_admin";
 }
 
 export function isBranchReviewer(role: string) { return (branchApprovalRoles as readonly string[]).includes(role); }

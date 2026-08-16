@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     const publicPool = invite.kind === "public_pool_single_use";
     let managerId: string | null = null;
     let supervisorId: string | null = null;
+    let employeeId: string | null = null;
 
     if (!publicPool && invite.ownerEmployeeId) {
       const people = await db.select({ id: users.id, role: users.role, reportsToUserId: users.reportsToUserId }).from(users);
@@ -64,8 +65,9 @@ export async function POST(request: Request) {
       let person = peopleById.get(invite.ownerEmployeeId);
       let depth = 0;
       while (person && depth++ < 6) {
-        if (person.role === "supervisor") supervisorId = person.id;
-        if (person.role === "manager") managerId = person.id;
+        if (person.role === "employee" && !employeeId) employeeId = person.id;
+        if (person.role === "supervisor" && !supervisorId) supervisorId = person.id;
+        if (person.role === "manager" && !managerId) managerId = person.id;
         person = person.reportsToUserId ? peopleById.get(person.reportsToUserId) : undefined;
       }
     }
@@ -88,7 +90,7 @@ export async function POST(request: Request) {
         branchId: publicPool ? null : invite.organizationId,
         managerId: publicPool ? null : managerId,
         supervisorId: publicPool ? null : supervisorId,
-        employeeId: publicPool ? null : invite.ownerEmployeeId,
+        employeeId: publicPool ? null : employeeId,
         effectiveAt: publicPool ? null : now,
         reason: publicPool ? "总公司客服一次性邀请码" : "邀请码自动归因",
       }),
