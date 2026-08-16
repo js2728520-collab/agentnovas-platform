@@ -311,6 +311,17 @@ export const strategyFavorites = sqliteTable("strategy_favorites", {
   id: text("id").primaryKey(), strategyId: text("strategy_id").notNull().references(() => communityStrategies.id), customerId: text("customer_id").notNull().references(() => users.id), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, t => [uniqueIndex("idx_strategy_favorite_unique").on(t.strategyId,t.customerId),index("idx_strategy_favorites_customer").on(t.customerId,t.createdAt)]);
 
+export const marketWatchlist = sqliteTable("market_watchlist", {
+  id: text("id").primaryKey(),
+  customerId: text("customer_id").notNull().references(() => users.id),
+  symbol: text("symbol").notNull(),
+  category: text("category", { enum: ["crypto", "forex", "metals", "stocks"] }).notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (t) => [
+  uniqueIndex("idx_market_watchlist_customer_symbol_unique").on(t.customerId, t.symbol),
+  index("idx_market_watchlist_customer_created").on(t.customerId, t.createdAt),
+]);
+
 export const strategyChangeRequests = sqliteTable("strategy_change_requests", {
   id: text("id").primaryKey(), strategyId: text("strategy_id").notNull().references(() => communityStrategies.id),
   authorUserId: text("author_user_id").notNull().references(() => users.id), action: text("action", { enum: ["modify", "delist"] }).notNull(),

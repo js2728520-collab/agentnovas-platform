@@ -1,4 +1,4 @@
-.market-terminal-page .market-terminal-title p{font-size:12px}.market-terminal-page .market-live-status,.market-terminal-page .market-offline-status{font-size:14px}.market-terminal-page .market-terminal-title time{font-size:11px}.market-terminal-page .market-category-tabs button span{font-size:13px}.market-terminal-page .market-category-tabs button small{font-size:9px}.market-terminal-page .market-search-box input{font-size:14px}.market-terminal-page .market-search-box kbd{font-size:10px}.market-terminal-page .market-search-results b{font-size:11px}.market-terminal-page .market-search-results span,.market-terminal-page .market-search-results small{font-size:10px}.market-terminal-page .market-symbol-index>span{font-size:11px}.market-terminal-page .market-symbol-index button{font-size:11px}.market-terminal-page .market-instrument-summary small{font-size:10px}.market-terminal-page .market-instrument-summary b{font-size:15px}.market-terminal-page .market-instrument-name h2{font-size:20px}.market-terminal-page .market-instrument-name p{font-size:11px}.market-terminal-page .market-instrument-name em{font-size:13px}.market-terminal-page .market-summary-price b{font-size:20px}.market-terminal-page .market-summary-price span{font-size:11px}.market-terminal-page .period-switcher button,.market-terminal-page .chart-tools button{font-size:11px}.market-terminal-page .chart-source{font-size:10px}.market-terminal-page .market-data-message{font-size:11px}.market-terminal-page .chart-y-axis,.market-terminal-page .chart-ohlc-readout{font-size:10px}.market-terminal-page .current-price-line span{font-size:10px}.market-terminal-page .chart-x-axis{font-size:10px}.market-terminal-page .market-chart-empty b{font-size:16px}.market-terminal-page .market-chart-empty span{font-size:11px}.market-terminal-page .market-chart-footer{font-size:10px}.market-terminal-page .market-chart-footer small{font-size:10px}
+.market-terminal-page .market-terminal-title p{font-size:12px}.market-terminal-page .market-live-status,.market-terminal-page .market-offline-status{font-size:14px}.market-terminal-page .market-terminal-title time{font-size:11px}.market-terminal-page .market-category-tabs button span{font-size:13px}.market-terminal-page .market-category-tabs button small{font-size:9px}.market-terminal-page .market-watchlist-panel h2{font-size:18px}.market-terminal-page .market-watchlist-panel p,.market-terminal-page .market-watchlist-count small{font-size:10px}.market-terminal-page .market-watchlist-select b{font-size:12px}.market-terminal-page .market-watchlist-select small,.market-terminal-page .market-watchlist-select em{font-size:9px}.market-terminal-page .market-watchlist-select strong{font-size:13px}.market-terminal-page .market-search-box input{font-size:14px}.market-terminal-page .market-search-box kbd{font-size:10px}.market-terminal-page .market-search-results b{font-size:11px}.market-terminal-page .market-search-results span,.market-terminal-page .market-search-results small{font-size:10px}.market-terminal-page .market-symbol-index>span{font-size:11px}.market-terminal-page .market-symbol-index button{font-size:11px}.market-terminal-page .market-instrument-summary small{font-size:10px}.market-terminal-page .market-instrument-summary b{font-size:15px}.market-terminal-page .market-instrument-name h2{font-size:20px}.market-terminal-page .market-instrument-name p{font-size:11px}.market-terminal-page .market-instrument-name em{font-size:13px}.market-terminal-page .market-summary-price b{font-size:20px}.market-terminal-page .market-summary-price span{font-size:11px}.market-terminal-page .period-switcher button,.market-terminal-page .chart-tools button{font-size:11px}.market-terminal-page .chart-source{font-size:10px}.market-terminal-page .market-data-message{font-size:11px}.market-terminal-page .chart-y-axis,.market-terminal-page .chart-ohlc-readout{font-size:10px}.market-terminal-page .current-price-line span{font-size:10px}.market-terminal-page .chart-x-axis{font-size:10px}.market-terminal-page .market-chart-empty b{font-size:16px}.market-terminal-page .market-chart-empty span{font-size:11px}.market-terminal-page .market-chart-footer{font-size:10px}.market-terminal-page .market-chart-footer small{font-size:10px}
 
 /* Live market terminal layout. Keep the complete page scoped so other dashboard panels are untouched. */
 .market-terminal-page {
@@ -67,6 +67,41 @@
 }
 .market-terminal-page .market-category-tabs button.active span { color: #2bd6e6; }
 .market-category-tabs button small { color: #77899c; }
+.market-watchlist-panel {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 8px;
+  min-height: 40px;
+  margin: 0 0 10px;
+  padding: 4px 8px;
+  border: 1px solid #294258;
+  border-radius: 10px;
+  background: radial-gradient(circle at 94% 0, #0d49644d, transparent 32%), linear-gradient(135deg, #101b25, #0c141d);
+  box-shadow: 0 10px 30px #0002;
+}
+.market-watchlist-panel > header { display: flex; align-items: center; min-width: 0; padding-right: 8px; border-right: 1px solid #293e51; }
+.market-watchlist-panel .eyebrow { color: #62bdf0; font-size: 8px; letter-spacing: .2em; }
+.market-terminal-page .market-watchlist-panel h2 { display: inline-flex; align-items: center; gap: 7px; margin: 0; padding: 4px 8px; border: 1px solid #255c79; border-radius: 7px; color: #dff5ff; font-size: 16px; line-height: 1; background: linear-gradient(135deg, #12324a, #0d1f2d); box-shadow: inset 0 0 14px #2ca9de12, 0 0 12px #128dcc10; }
+.market-watchlist-panel h2::before { width: 6px; height: 6px; border-radius: 50%; background: #4bd4ff; box-shadow: 0 0 8px #4bd4ff; content: ""; }
+.market-watchlist-panel > header p { margin: 0; color: #758a9e; line-height: 1.45; }
+.market-watchlist-count { display: flex; align-items: flex-end; flex-direction: column; gap: 1px; margin: 0; color: #69d9c0; font: 700 12px var(--font-geist-mono); }
+.market-watchlist-count small { color: #6e8295; font-family: var(--font-geist-sans); font-weight: 500; }
+.market-watchlist-content { min-width: 0; display: flex; align-items: stretch; overflow: hidden; }
+.market-watchlist-cards { display: flex; align-items: center; gap: 6px; width: 100%; overflow-x: auto; padding: 0 1px 2px; scrollbar-width: thin; scrollbar-color: #31506b transparent; }
+.market-watchlist-cards article { position: relative; flex: 0 0 120px; overflow: hidden; border: 1px solid #2a4054; border-radius: 7px; background: #0b141d; transition: border-color .18s ease, background .18s ease; }
+.market-watchlist-cards article:hover,.market-watchlist-cards article.active { border-color: #298ab7; background: #102436; }
+.market-watchlist-select { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 3px 23px 3px 6px; text-align: left; }
+.market-watchlist-select .coin-icon { width: 20px; height: 20px; }
+.market-watchlist-select .product-icon-forex { width: 25px; }
+.market-watchlist-select b { overflow: hidden; color: #e8f1fa; text-overflow: ellipsis; white-space: nowrap; }
+.market-watchlist-remove { position: absolute; top: 50%; right: 6px; z-index: 2; color: #f5c451; font-size: 12px; opacity: .76; transform: translateY(-50%); }
+.market-watchlist-remove:hover { color: #ffe39a; opacity: 1; transform: translateY(-50%) scale(1.08); }
+.market-watchlist-remove:disabled { cursor: wait; opacity: .35; }
+.market-watchlist-empty { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 32px; border: 1px dashed #2b465c; border-radius: 7px; color: #7f94a8; background: #0b141c88; }
+.market-watchlist-empty b { color: #a9bac9; font-size: 12px; }
+.market-watchlist-empty button { padding: 7px 11px; border: 1px solid #2d6f99; border-radius: 7px; color: #96d7fb; background: #102b3e; font-size: 11px; font-weight: 700; }
+.market-watchlist-empty button:hover { border-color: #48b8ef; color: #e2f6ff; }
+.market-watchlist-message { grid-column: 1 / -1; margin: -6px 0 0; padding: 0 2px; color: #73c8ee; line-height: 1.4; }
 .market-selector-panel,
 .market-instrument-summary,
 .market-terminal-chart,
@@ -102,17 +137,24 @@
   background: #101a24;
   box-shadow: 0 16px 35px #0009;
 }
-.market-search-results button { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; padding: 10px 12px; text-align: left; border-top: 1px solid #25384a; }
-.market-search-results button:first-child { border-top: 0; }
-.market-search-results button:hover { background: #17283a; }
+.market-search-result-row { display: flex; align-items: stretch; border-top: 1px solid #25384a; }
+.market-search-result-row:first-child { border-top: 0; }
+.market-search-result-row:hover { background: #17283a; }
+.market-search-select { display: grid; flex: 1; grid-template-columns: auto 1fr auto; gap: 4px 10px; min-width: 0; padding: 10px 12px; text-align: left; }
+.market-search-follow { flex: 0 0 46px; border-left: 1px solid #25384a; color: #71879a; font-size: 17px; }
+.market-search-follow:hover,.market-search-follow.active { color: #f5c451; background: #15293a; }
+.market-search-follow:disabled { cursor: wait; opacity: .4; }
 .market-search-results .coin-icon { grid-row: 1 / span 2; align-self: center; }
 .market-search-results span { grid-column: 2; color: #899db1; }
 .market-search-results small { grid-column: 3; grid-row: 1 / span 2; align-self: center; color: #6eb5e8; }
 .market-symbol-index { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 11px; color: #8294a8; }
 .market-symbol-index > span { margin-right: 3px; color: #a9b8c7; }
-.market-symbol-index button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 7px; border: 1px solid transparent; border-radius: 5px; color: #7f91a5; }
-.market-symbol-index button:hover,
-.market-symbol-index button.active { border-color: #3d6b95; background: #142a40; color: #b9ddff; }
+.market-symbol-chip { display: inline-flex; align-items: stretch; overflow: hidden; border: 1px solid transparent; border-radius: 6px; color: #7f91a5; }
+.market-symbol-chip:hover,.market-symbol-chip.active { border-color: #3d6b95; background: #142a40; color: #b9ddff; }
+.market-symbol-select { display: inline-flex; align-items: center; gap: 6px; padding: 4px 5px 4px 7px; color: inherit; }
+.market-symbol-follow { padding: 3px 6px 3px 3px; color: #526b81; font-size: 12px; }
+.market-symbol-follow:hover,.market-symbol-follow.active { color: #f5c451; }
+.market-symbol-follow:disabled { cursor: wait; opacity: .4; }
 .market-terminal-page .coin-icon { display: inline-grid; place-items: center; flex: 0 0 auto; width: 26px; height: 26px; overflow: hidden; border-radius: 50%; background: #132a40; }
 .market-terminal-page .coin-icon img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .market-terminal-page .product-icon-forex { width: 34px; border-radius: 7px; background: transparent; }
@@ -138,6 +180,10 @@
 .market-instrument-name h2 { margin: 0; color: #f0f5fa; }
 .market-instrument-name p { margin: 4px 0 0; color: #8093a8; }
 .market-instrument-name em { color: #35c995; font-family: var(--font-geist-mono); font-style: normal; }
+.market-instrument-actions { display: flex; align-items: flex-end; flex-direction: column; gap: 6px; }
+.market-instrument-actions button { padding: 4px 7px; border: 1px solid #34516b; border-radius: 6px; color: #8299ad; background: #0d1821; font-size: 10px; white-space: nowrap; }
+.market-instrument-actions button:hover,.market-instrument-actions button.active { border-color: #b7892f; color: #f6cb66; background: #28200e; }
+.market-instrument-actions button:disabled { cursor: wait; opacity: .45; }
 .market-summary-price span { display: block; margin-top: 4px; font-family: var(--font-geist-mono); }
 .up { color: #35c995 !important; }
 .market-terminal-chart { margin-top: 12px; overflow: hidden; }
@@ -226,6 +272,10 @@
 .market-metrics span { padding: 13px; color: #8396a9; }
 .market-metrics b { display: block; margin-top: 5px; color: #e2ebf4; font-family: var(--font-geist-mono); }
 @media (max-width: 900px) {
+  .market-watchlist-panel { grid-template-columns: 1fr; }
+  .market-watchlist-panel > header { align-items: center; flex-direction: row; justify-content: space-between; gap: 14px; padding: 0 0 10px; border-right: 0; border-bottom: 1px solid #293e51; }
+  .market-watchlist-panel > header p { display: none; }
+  .market-watchlist-count { margin-top: 0; }
   .market-instrument-summary { grid-template-columns: 1fr 1fr; }
   .market-instrument-summary > div:nth-child(3) { border-left: 0; }
   .market-instrument-name { grid-column: 1 / -1; border-bottom: 1px solid #293b4d; }
@@ -241,6 +291,11 @@
   .market-title-actions { width: 100%; justify-content: space-between; }
   .market-terminal-title h1 { font-size: 24px; }
   .market-terminal-page .market-category-tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .market-watchlist-panel { padding: 8px; }
+  .market-watchlist-panel > header { align-items: flex-start; }
+  .market-watchlist-count { align-items: flex-end; flex-direction: column; gap: 2px; }
+  .market-watchlist-cards article { flex-basis: 126px; }
+  .market-watchlist-empty { align-items: flex-start; flex-direction: column; padding: 8px; }
   .market-instrument-summary { grid-template-columns: 1fr 1fr; }
   .market-chart-toolbar { align-items: flex-start; flex-direction: column; }
   .chart-tools { width: 100%; }

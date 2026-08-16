@@ -8,6 +8,7 @@ type Instrument = { symbol: string; label: string; name: string; nameZh: string;
 type Quote = { price: number; change: number; changePercent: number; high: number; low: number; volume: number; open: number; live: boolean; source: string; updatedAt: string; error?: string };
 type Candle = { time: number; open: number; high: number; low: number; close: number; volume: number };
 type NewsItem = { id: string; title: string; summary: string; category: "快讯" | "资金流向" | "公告"; publishedAt: string; source: string; link: string; live: boolean; timeLabel: string };
+type WatchlistItem = Instrument & { id: string; createdAt: string };
 type ApiResult<T> = { ok: boolean; data: T | null; error: string };
 
 const marketTabs: Array<[Market, string, string]> = [["crypto", "加密货币", "CRYPTO"], ["forex", "外汇", "FOREX"], ["metals", "贵金属", "METALS"], ["stocks", "美股", "US EQUITIES"]];
@@ -15,6 +16,15 @@ const periods = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"];
 const fallbackInstruments: Instrument[] = [{ symbol: "BTCUSD", label: "BTC/USD", name: "Bitcoin", nameZh: "比特币", category: "crypto", providerSymbol: "BTCUSDT", aliases: ["btc", "bitcoin", "比特币"] }];
 const binanceIntervals: Record<string, string> = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w" };
 const intervalDurationMs: Record<string, number> = { "1m": 60_000, "5m": 300_000, "15m": 900_000, "30m": 1_800_000, "1H": 3_600_000, "4H": 14_400_000, "1D": 86_400_000, "1W": 604_800_000 };
+const watchlistCopies: Record<string, { heading: string; description: string; refresh: string; loading: string; loginHint: string; signIn: string; empty: string; watchCurrent: string; remove: string; add: string; watched: string; watch: string; connecting: string }> = {
+  "zh-CN": { heading: "关注产品", description: "实时跟踪你关注的交易品种", refresh: "每 15 秒更新", loading: "正在读取关注列表…", loginHint: "登录后可跨设备保存关注产品", signIn: "前往登录", empty: "暂无关注产品", watchCurrent: "关注当前产品", remove: "取消关注", add: "添加关注", watched: "已关注", watch: "关注", connecting: "行情连接中" },
+  "zh-TW": { heading: "關注產品", description: "即時追蹤你關注的交易品種", refresh: "每 15 秒更新", loading: "正在讀取關注列表…", loginHint: "登入後可跨裝置保存關注產品", signIn: "前往登入", empty: "暫無關注產品", watchCurrent: "關注目前產品", remove: "取消關注", add: "加入關注", watched: "已關注", watch: "關注", connecting: "行情連接中" },
+  "en-US": { heading: "Watchlist", description: "Track saved products with live quotes", refresh: "Updates every 15 seconds", loading: "Loading watchlist…", loginHint: "Sign in to sync your watchlist across devices", signIn: "Sign in", empty: "No watched products", watchCurrent: "Watch current product", remove: "Remove from watchlist", add: "Add to watchlist", watched: "Watched", watch: "Watch", connecting: "Connecting quote" },
+  "ru-RU": { heading: "Список наблюдения", description: "Отслеживайте выбранные инструменты в реальном времени", refresh: "Обновление каждые 15 секунд", loading: "Загрузка списка…", loginHint: "Войдите, чтобы синхронизировать список на всех устройствах", signIn: "Войти", empty: "Список наблюдения пуст", watchCurrent: "Добавить текущий инструмент", remove: "Удалить из списка", add: "Добавить в список", watched: "В списке", watch: "Наблюдать", connecting: "Подключение котировки" },
+  "es-ES": { heading: "Lista de seguimiento", description: "Sigue tus productos guardados con precios en vivo", refresh: "Actualiza cada 15 segundos", loading: "Cargando lista…", loginHint: "Inicia sesión para sincronizar tu lista entre dispositivos", signIn: "Iniciar sesión", empty: "No hay productos guardados", watchCurrent: "Seguir producto actual", remove: "Quitar de la lista", add: "Añadir a la lista", watched: "En seguimiento", watch: "Seguir", connecting: "Conectando cotización" },
+  "ja-JP": { heading: "ウォッチリスト", description: "登録した銘柄をリアルタイム価格で追跡", refresh: "15秒ごとに更新", loading: "ウォッチリストを読み込み中…", loginHint: "ログインするとウォッチリストを端末間で同期できます", signIn: "ログイン", empty: "登録銘柄はありません", watchCurrent: "現在の銘柄を登録", remove: "ウォッチリストから削除", add: "ウォッチリストに追加", watched: "登録済み", watch: "登録", connecting: "価格を接続中" },
+  "ko-KR": { heading: "관심 목록", description: "저장한 종목을 실시간 시세로 추적", refresh: "15초마다 업데이트", loading: "관심 목록 불러오는 중…", loginHint: "로그인하면 관심 목록을 기기 간 동기화할 수 있습니다", signIn: "로그인", empty: "관심 종목이 없습니다", watchCurrent: "현재 종목 관심 등록", remove: "관심 목록에서 삭제", add: "관심 목록에 추가", watched: "관심 등록됨", watch: "관심 등록", connecting: "시세 연결 중" },
+};
 
 function price(value: number) { if (!value) return "—"; return value < 1 ? value.toFixed(5) : value.toLocaleString("en-US", { maximumFractionDigits: 2 }); }
 function compact(value: number) { if (!value) return "—"; if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`; if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`; if (value >= 1_000) return `${(value / 1_000).toFixed(2)}K`; return value.toLocaleString("en-US", { maximumFractionDigits: 2 }); }
@@ -34,16 +44,54 @@ function NewsCard({ item }: { item: NewsItem }) {
     : <article className="market-news-card is-fallback">{content}</article>;
 }
 
-export default function LiveMarket() {
+export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: () => void; locale?: string }) {
   const [instruments, setInstruments] = useState<Instrument[]>(fallbackInstruments), [market, setMarket] = useState<Market>("crypto"), [symbol, setSymbol] = useState("BTCUSD"), [query, setQuery] = useState(""), [period, setPeriod] = useState("15m"), [quote, setQuote] = useState<Quote | null>(null), [candles, setCandles] = useState<Candle[]>([]), [hovered, setHovered] = useState<Candle | null>(null), [zoom, setZoom] = useState(1), [message, setMessage] = useState(""), [loading, setLoading] = useState(true), [refreshKey, setRefreshKey] = useState(0), [streamState, setStreamState] = useState<"connecting" | "live" | "fallback">("connecting"), [loadingHistory, setLoadingHistory] = useState(false), [historyExhausted, setHistoryExhausted] = useState(false), [news, setNews] = useState<NewsItem[]>([]), [newsMessage, setNewsMessage] = useState(""), [newsLive, setNewsLive] = useState(false), [newsUpdatedAt, setNewsUpdatedAt] = useState("");
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [watchlistStatus, setWatchlistStatus] = useState<"loading" | "ready" | "signed-out" | "error">("loading");
+  const [watchlistMessage, setWatchlistMessage] = useState("");
+  const [pendingWatchSymbol, setPendingWatchSymbol] = useState("");
   const chartRef = useRef<HTMLElement>(null), chartViewportRef = useRef<HTMLDivElement>(null), dragRef = useRef<{ x: number; scrollLeft: number } | null>(null), historyLoadingRef = useRef(false), needsInitialScrollRef = useRef(true);
   const current = instruments.find(item => item.symbol === symbol) || instruments[0];
   const marketInstruments = useMemo(() => instruments.filter(item => item.category === market), [instruments, market]);
   const searchResults = useMemo(() => { const normalized = query.trim().toLowerCase(); if (!normalized) return []; return instruments.filter(item => [item.symbol, item.label, item.name, item.nameZh, ...item.aliases].join(" ").toLowerCase().includes(normalized)).slice(0, 8); }, [instruments, query]);
+  const watchedSymbols = useMemo(() => new Set(watchlist.map(item => item.symbol)), [watchlist]);
+  const watchCopy = watchlistCopies[locale] || watchlistCopies["en-US"];
   function selectInstrument(item: Instrument) { setMarket(item.category); setSymbol(item.symbol); setQuery(""); setQuote(null); setCandles([]); setMessage(""); setHistoryExhausted(false); needsInitialScrollRef.current = true; if (typeof window !== "undefined") window.history.replaceState(null, "", `/?page=market&symbol=${encodeURIComponent(item.symbol)}`); }
   function selectMarket(next: Market) { const first = instruments.find(item => item.category === next); if (first) selectInstrument(first); else setMarket(next); }
   function selectPeriod(next: string) { setPeriod(next); setCandles([]); setHovered(null); setHistoryExhausted(false); needsInitialScrollRef.current = true; }
+  async function loadWatchlist() {
+    try {
+      const response = await fetch("/api/market/watchlist", { cache: "no-store" });
+      if (response.status === 401) { setWatchlistStatus("signed-out"); setWatchlist([]); return; }
+      const payload = await response.json().catch(() => null) as { items?: WatchlistItem[]; error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error || "关注列表读取失败");
+      setWatchlist(Array.isArray(payload?.items) ? payload.items : []);
+      setWatchlistStatus("ready");
+    } catch (error) {
+      setWatchlistStatus("error");
+      setWatchlistMessage(error instanceof Error ? error.message : "关注列表读取失败");
+    }
+  }
+  async function toggleWatchlist(item: Instrument) {
+    if (watchlistStatus === "signed-out") { onLogin?.(); return; }
+    if (pendingWatchSymbol) return;
+    const followed = watchedSymbols.has(item.symbol);
+    setPendingWatchSymbol(item.symbol);
+    setWatchlistMessage("");
+    try {
+      const response = await fetch("/api/market/watchlist", { method: followed ? "DELETE" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ symbol: item.symbol, category: item.category }) });
+      const payload = await response.json().catch(() => null) as { item?: WatchlistItem; error?: string; message?: string } | null;
+      if (response.status === 401) { setWatchlistStatus("signed-out"); onLogin?.(); return; }
+      if (!response.ok) throw new Error(payload?.error || "关注操作失败");
+      if (followed) {
+        setWatchlist(previous => previous.filter(row => row.symbol !== item.symbol));
+      } else if (payload?.item) setWatchlist(previous => [payload.item!, ...previous.filter(row => row.symbol !== item.symbol)]);
+      setWatchlistStatus("ready");
+    } catch (error) { setWatchlistMessage(error instanceof Error ? error.message : "关注操作失败"); }
+    finally { setPendingWatchSymbol(""); }
+  }
   useEffect(() => { fetch("/api/market/instruments", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(data => { const rows = Array.isArray(data?.instruments) ? data.instruments as Instrument[] : fallbackInstruments; setInstruments(rows); const urlSymbol = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("symbol")?.toUpperCase().replace("/", "") : ""; const requested = rows.find(item => item.symbol === urlSymbol); if (requested) { setMarket(requested.category); setSymbol(requested.symbol); } }).catch(() => setInstruments(fallbackInstruments)); }, []);
+  useEffect(() => { void loadWatchlist(); }, []);
   useEffect(() => { if (!current) return; let active = true, inFlight = false; const load = async () => { if (inFlight) return; inFlight = true; if (active) setLoading(true); const [quoteResult, candleResult] = await Promise.all([apiJson<Quote>(`/api/market/quote?symbol=${encodeURIComponent(current.symbol)}&category=${current.category}`), apiJson<{ candles?: Candle[]; error?: string }>(`/api/market/candles?symbol=${encodeURIComponent(current.symbol)}&category=${current.category}&interval=${period}`)]); if (active) { if (quoteResult.ok && quoteResult.data) setQuote(quoteResult.data); if (candleResult.ok && candleResult.data) { const incoming = candleResult.data.candles || []; setCandles(previous => previous.length ? mergeCandleRows(previous, incoming) : incoming); } setMessage([quoteResult.error, candleResult.error].filter(Boolean).join("；")); setLoading(false); } inFlight = false; }; void load(); const delay = current.category === "crypto" && streamState === "live" ? 15_000 : 1_000; const timer = window.setInterval(() => void load(), delay); return () => { active = false; window.clearInterval(timer); }; }, [current, period, refreshKey, streamState]);
   useEffect(() => {
     if (!current || current.category !== "crypto") return;
@@ -134,8 +182,18 @@ export default function LiveMarket() {
 
   return <div className="market-terminal-page"><div className="market-terminal-title"><div><h1>行情中心</h1><p>覆盖加密货币、外汇、贵金属及美股市场</p></div><div className="market-title-actions"><button type="button" onClick={() => setRefreshKey(value => value + 1)} disabled={loading}>{loading ? "更新中…" : "立即刷新"}</button><span className={quote?.live ? "market-live-status" : "market-offline-status"}><i />{quote?.live ? "实时行情" : loading ? "正在连接" : "行情源待连接"}{quote?.updatedAt && <time>{new Date(quote.updatedAt).toLocaleTimeString("zh-CN")}</time>}</span></div></div>
     <nav className="market-category-tabs" aria-label="市场分类">{marketTabs.map(([key, label, code]) => <button key={key} className={market === key ? "active" : ""} onClick={() => selectMarket(key)}><span>{label}</span><small>{code}</small></button>)}</nav>
-    <section className="market-selector-panel"><label className="market-search-box"><span>⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索交易品种 / Symbol / 名称" aria-label="搜索交易品种"/><kbd>⌘ K</kbd></label>{searchResults.length > 0 && <div className="market-search-results">{searchResults.map(item => <button key={item.symbol} onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><b>{item.label}</b><span>{item.name} · {item.nameZh}</span><small>{marketTabs.find(tab => tab[0] === item.category)?.[1]}</small></button>)}</div>}<div className="market-symbol-index"><span>品种索引</span>{marketInstruments.map(item => <button key={item.symbol} className={item.symbol === symbol ? "active" : ""} onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><span>{item.label}</span></button>)}</div></section>
-    <section className="market-instrument-summary"><div className="market-instrument-name"><ProductIcon symbol={current?.label || "?"} category={current?.category || "crypto"} className="instrument-mark"/><div><h2>{current?.label || "—"}</h2><p>{current?.name || ""} / {current?.nameZh || ""}</p></div><em className={quote && quote.changePercent < 0 ? "down" : "up"}>{quote ? `${quote.changePercent >= 0 ? "+" : ""}${quote.changePercent.toFixed(2)}%` : "—"}</em></div><div className="market-summary-price"><small>当前价格</small><b>{price(quote?.price || 0)}</b><span className={quote && quote.change < 0 ? "down" : "up"}>{quote ? `${quote.change >= 0 ? "+" : ""}${price(quote.change)}` : "—"}</span></div><div><small>24H最高</small><b>{price(quote?.high || 0)}</b></div><div><small>24H最低</small><b>{price(quote?.low || 0)}</b></div><div><small>24H成交量</small><b>{compact(quote?.volume || 0)}</b></div><div><small>开盘价</small><b>{price(quote?.open || 0)}</b></div></section>
+    <section className="market-watchlist-panel">
+      <header><h2>{watchCopy.heading}</h2></header>
+      <div className="market-watchlist-content">
+        {watchlistStatus === "loading" ? <div className="market-watchlist-empty"><b>{watchCopy.loading}</b></div>
+          : watchlistStatus === "signed-out" ? <div className="market-watchlist-empty"><span>{watchCopy.loginHint}</span><button type="button" onClick={onLogin}>{watchCopy.signIn}</button></div>
+            : watchlist.length ? <div className="market-watchlist-cards">{watchlist.map(item => <article key={item.symbol} className={item.symbol === symbol ? "active" : ""}><button type="button" className="market-watchlist-select" onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><b>{item.label}</b></button><button type="button" className="market-watchlist-remove" aria-label={`${watchCopy.remove} ${item.label}`} title={watchCopy.remove} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>★</button></article>)}</div>
+              : <div className="market-watchlist-empty"><span>{watchCopy.empty}</span>{current && <button type="button" onClick={() => void toggleWatchlist(current)}>☆ {watchCopy.watchCurrent}</button>}</div>}
+      </div>
+      {watchlistMessage && <p className="market-watchlist-message" role="status">{watchlistMessage}</p>}
+    </section>
+    <section className="market-selector-panel"><label className="market-search-box"><span>⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索交易品种 / Symbol / 名称" aria-label="搜索交易品种"/><kbd>⌘ K</kbd></label>{searchResults.length > 0 && <div className="market-search-results">{searchResults.map(item => <div className="market-search-result-row" key={item.symbol}><button type="button" className="market-search-select" onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><b>{item.label}</b><span>{item.name} · {item.nameZh}</span><small>{marketTabs.find(tab => tab[0] === item.category)?.[1]}</small></button><button type="button" className={`market-search-follow ${watchedSymbols.has(item.symbol) ? "active" : ""}`} aria-label={`${watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} ${item.label}`} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>{watchedSymbols.has(item.symbol) ? "★" : "☆"}</button></div>)}</div>}<div className="market-symbol-index"><span>品种索引</span>{marketInstruments.map(item => <div className={`market-symbol-chip ${item.symbol === symbol ? "active" : ""}`} key={item.symbol}><button type="button" className="market-symbol-select" onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><span>{item.label}</span></button><button type="button" className={`market-symbol-follow ${watchedSymbols.has(item.symbol) ? "active" : ""}`} aria-label={`${watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} ${item.label}`} title={watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>{watchedSymbols.has(item.symbol) ? "★" : "☆"}</button></div>)}</div></section>
+    <section className="market-instrument-summary"><div className="market-instrument-name"><ProductIcon symbol={current?.label || "?"} category={current?.category || "crypto"} className="instrument-mark"/><div><h2>{current?.label || "—"}</h2><p>{current?.name || ""} / {current?.nameZh || ""}</p></div><div className="market-instrument-actions">{current && <button type="button" className={watchedSymbols.has(current.symbol) ? "active" : ""} disabled={pendingWatchSymbol === current.symbol} onClick={() => void toggleWatchlist(current)} title={watchedSymbols.has(current.symbol) ? watchCopy.remove : watchCopy.add}>{watchedSymbols.has(current.symbol) ? `★ ${watchCopy.watched}` : `☆ ${watchCopy.watch}`}</button>}<em className={quote && quote.changePercent < 0 ? "down" : "up"}>{quote ? `${quote.changePercent >= 0 ? "+" : ""}${quote.changePercent.toFixed(2)}%` : "—"}</em></div></div><div className="market-summary-price"><small>当前价格</small><b>{price(quote?.price || 0)}</b><span className={quote && quote.change < 0 ? "down" : "up"}>{quote ? `${quote.change >= 0 ? "+" : ""}${price(quote.change)}` : "—"}</span></div><div><small>24H最高</small><b>{price(quote?.high || 0)}</b></div><div><small>24H最低</small><b>{price(quote?.low || 0)}</b></div><div><small>24H成交量</small><b>{compact(quote?.volume || 0)}</b></div><div><small>开盘价</small><b>{price(quote?.open || 0)}</b></div></section>
     <section className="market-terminal-chart" ref={chartRef}>
       <header className="market-chart-toolbar">
         <div className="period-switcher">{periods.map(item => <button key={item} className={period === item ? "active" : ""} onClick={() => selectPeriod(item)}>{item}</button>)}</div>
