@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       throw new AiApiError("AI_GENERATION_FAILED", "AI 策略生成暂时不可用，请稍后重试", 502);
     }
     const specificationJson = JSON.stringify(result.specification);
-    await recordStrategyGeneration({
+    const generationId = await recordStrategyGeneration({
       userId: user.id,
       conversationId,
       mode: result.mode,
@@ -65,6 +65,7 @@ export async function POST(request: Request) {
     return Response.json({
       ...result,
       conversationId,
+      generationId,
       disclaimer: "候选规则仅用于研究；保存为草稿并完成历史回测后，仍需人工确认。不会自动下单。",
     });
   } catch (error) {

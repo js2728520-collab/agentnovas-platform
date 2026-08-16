@@ -5,6 +5,23 @@ export type AiProviderMessage = {
   content: string;
 };
 
+export function boundedAiHistory(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  maximumMessages = 12,
+  maximumCharacters = 16_000,
+) {
+  const selected: Array<{ role: "user" | "assistant"; content: string }> = [];
+  let remaining = maximumCharacters;
+  for (let index = messages.length - 1; index >= 0 && selected.length < maximumMessages && remaining > 0; index -= 1) {
+    const message = messages[index];
+    const content = message.content.slice(0, remaining);
+    if (!content) continue;
+    selected.unshift({ role: message.role, content });
+    remaining -= content.length;
+  }
+  return selected;
+}
+
 function responseOutputText(data: {
   output_text?: string;
   output?: Array<{ content?: Array<{ text?: string }> }>;

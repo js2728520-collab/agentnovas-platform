@@ -73,5 +73,6 @@ test("strategy generation route reads owned server history and validates provide
   assert.match(source, /getOwnedAiConversation/);
   assert.match(source, /getConversationMessages/);
   assert.match(source, /generateStrategyProposal/);
+  assert.match(source, /generationId/);
   assert.doesNotMatch(source, /body\.(conversation|history|messages)\b/);
 });

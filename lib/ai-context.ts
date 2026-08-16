@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -56,9 +56,9 @@ async function marketContext(message: string): Promise<AssistantContext["market"
 export async function buildAssistantContext(userId: string, message: string): Promise<AssistantContext> {
   const db = getDb();
   const [tradeRows, communityFollowing, platformFollowing, market] = await Promise.all([
-    db.select({ symbol: trades.symbol, closedAt: trades.closedAt })
+    db.select({ symbol: trades.symbol })
       .from(trades)
-      .where(eq(trades.customerId, userId))
+      .where(and(eq(trades.customerId, userId), isNull(trades.closedAt)))
       .limit(1_000),
     db.select({ name: communityStrategies.name })
       .from(strategySubscriptions)
@@ -71,13 +71,12 @@ export async function buildAssistantContext(userId: string, message: string): Pr
       .limit(20),
     marketContext(message),
   ]);
-  const open = tradeRows.filter((row) => !row.closedAt);
   return {
     generatedAt: new Date().toISOString(),
     market,
     portfolio: {
-      openPositions: open.length,
-      positionSymbols: [...new Set(open.map((row) => row.symbol))].slice(0, 20),
+      openPositions: tradeRows.length,
+      positionSymbols: [...new Set(tradeRows.map((row) => row.symbol))].slice(0, 20),
       followedStrategies: [
         ...communityFollowing.map((row) => row.name),
         ...platformFollowing.map((row) => platformStrategyNames[row.strategyCode] || row.strategyCode),

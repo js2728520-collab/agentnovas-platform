@@ -96,7 +96,7 @@ DSL V1 支持：
 | `GET /api/ai/conversations/:id` | `{ conversation, messages }` | `401/403/404` |
 | `PATCH /api/ai/conversations/:id` | `{ conversation }` | `400/401/403/404` |
 | `POST /api/ai/conversations/:id/messages` | SSE `meta/delta/done/error` | JSON `400/401/403/404/429`（流建立前） |
-| `POST /api/strategy-studio/generate` | `{ specification, explanation, mode, disclaimer }` | `400/401/403/404/422/429` |
+| `POST /api/strategy-studio/generate` | `{ specification, explanation, mode, generationId, disclaimer }` | `400/401/403/404/422/429` |
 
 所有 JSON 错误使用：
 
@@ -112,6 +112,7 @@ DSL V1 支持：
 - `ai_messages`：归属对话与客户、角色、内容、生成模式、模型元数据、时间戳。
 - `ai_usage_daily`：客户每日请求次数、输入/输出字符数；用于配额和审计。
 - `strategy_versions`：策略 ID + 版本唯一，不可变保存名称、摘要、DSL 和创建来源。
+- `generationId` 仅引用服务端审计记录；保存策略时重新计算 DSL 哈希并匹配该记录，客户端不能自行声明 `ai_provider` 或 `guided_rules` 来源。
 
 ## 5. 威胁模型与控制
 

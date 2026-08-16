@@ -8,7 +8,8 @@ import {
   strategyValidations as strategyBacktestReports,
   users,
 } from "@/db/schema";
-import { getOwnedAiConversation } from "@/lib/ai-conversations";
+import { AiApiError, aiErrorResponse } from "@/lib/ai-api";
+import { getOwnedAiConversation, resolveStrategyVersionSource } from "@/lib/ai-conversations";
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { currentUser, requireUser, responseError } from "@/lib/session";
 import { normalizeStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
@@ -127,7 +128,7 @@ export async function POST(request: Request) {
       riskLevel?: "low" | "medium" | "high";
       publicationMode?: "marketplace" | "self_use";
       conversationId?: string;
-      generationMode?: "ai_provider" | "guided_rules";
+      generationId?: string;
       specification?: unknown;
     };
     if (!body.name?.trim() || !body.summary?.trim()) {
@@ -141,15 +142,24 @@ export async function POST(request: Request) {
       return Response.json({ error: "策略规则未通过 DSL 校验", details }, { status: 422 });
     }
     const conversationId = String(body.conversationId || "").trim() || null;
-    if (conversationId) await getOwnedAiConversation(me.id, conversationId);
+    if (conversationId) {
+      const conversation = await getOwnedAiConversation(me.id, conversationId);
+      if (conversation.purpose !== "strategy") {
+        return Response.json({ error: "当前对话不是策略研究对话" }, { status: 409 });
+      }
+    }
     const symbols = [specification.symbol.replace(/USDT$/, "/USDT")];
     const riskLevel = ["low", "medium", "high"].includes(String(body.riskLevel))
       ? body.riskLevel!
       : "medium";
     const publicationMode = body.publicationMode === "self_use" ? "self_use" : "marketplace";
-    const source = body.generationMode === "ai_provider" || body.generationMode === "guided_rules"
-      ? body.generationMode
-      : "manual";
+    const specificationJson = JSON.stringify(specification);
+    const source = await resolveStrategyVersionSource({
+      userId: me.id,
+      conversationId,
+      generationId: String(body.generationId || "").trim() || null,
+      specificationJson,
+    });
     const id = crypto.randomUUID();
     await getDb().batch([
       getDb().insert(communityStrategies).values({
@@ -161,7 +171,7 @@ export async function POST(request: Request) {
         riskLevel,
         publicationMode,
         conversationJson: "[]",
-        specificationJson: JSON.stringify(specification),
+        specificationJson,
       }),
       getDb().insert(strategyVersions).values({
         id: crypto.randomUUID(),
@@ -169,7 +179,7 @@ export async function POST(request: Request) {
         version: 1,
         name: body.name.trim(),
         summary: body.summary.trim(),
-        specificationJson: JSON.stringify(specification),
+        specificationJson,
         conversationId,
         source,
         createdByUserId: me.id,
@@ -185,6 +195,7 @@ export async function POST(request: Request) {
     ]);
     return Response.json({ id, status: "draft", version: 1, message: "策略草稿已保存" }, { status: 201 });
   } catch (error) {
+    if (error instanceof AiApiError) return aiErrorResponse(error);
     return responseError(error);
   }
 }

@@ -2655,6 +2655,27 @@ button.strategy-follow-button{color:#fff!important;-webkit-text-fill-color:#fff!
   .agent-chat label button{font-size:10px!important;padding:0 11px!important}
 }
 
+/* Persistent AI conversations and validated strategy DSL */
+.agent-chat-history button:disabled,.agent-chat-composer button:disabled,.agent-chat-prompts button:disabled{cursor:not-allowed;opacity:.55}
+.agent-chat-empty{display:grid;place-items:center;gap:7px;min-height:110px;padding:20px;color:#71879a;font-size:11px;text-align:center}
+.agent-chat-empty b{color:#b9cce0;font-size:13px}.agent-chat-empty span{max-width:390px;line-height:1.6}
+.agent-chat-error{margin:12px 22px 0;padding:10px 12px;border:1px solid #713d49;border-radius:8px;background:#2b151c;color:#f0a1af;font-size:11px;line-height:1.5}
+.agent-chat-current .agent-chat-archive{margin-left:0;padding:5px 8px;border:1px solid #35495d;border-radius:6px;color:#8298ab;font-size:9px}
+.agent-chat-current .agent-chat-archive:hover{border-color:#92566a;color:#efa0b0}
+.agent-chat-messages article.agent-chat-message-user{margin-left:min(22%,180px);border-color:#315d88;background:#142d49}
+.agent-chat-messages article.agent-chat-message-user>i{background:#285f94;color:#f0f8ff}
+.agent-chat-messages article.agent-chat-message-user>div{width:100%}.agent-chat-messages article.agent-chat-message-user b{text-align:right}
+.agent-chat-streaming p>span,.studio-chat-log .streaming p>span{margin-left:2px;color:#6ec4ff;animation:ai-cursor-blink .8s steps(1) infinite}
+@keyframes ai-cursor-blink{50%{opacity:0}}
+.strategy-dsl-preview{margin-top:12px;max-width:680px}.strategy-dsl-preview summary{cursor:pointer;color:#75b9ef;font-size:10px}
+.strategy-dsl-preview pre{max-height:260px;overflow:auto;margin:9px 0 0;padding:12px;border:1px solid #2a465e;border-radius:8px;background:#08131d;color:#a9c7de;font:10px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}
+.studio-chat-log>div.streaming{border-color:#32648e;background:#10263a}.studio-prompt button:disabled{cursor:not-allowed;opacity:.55}
+@media(max-width:760px){
+  .agent-chat-messages article.agent-chat-message-user{margin-left:10%}
+  .agent-chat-error{margin-left:14px;margin-right:14px}
+  .agent-chat-current .agent-chat-archive{margin-left:auto}
+}
+
 /* Stagger each speech bubble explicitly so their breathing never starts together. */
 .scene.compact .hotspot:nth-of-type(1)>.speech{animation-delay:0s,0s!important}
 .scene.compact .hotspot:nth-of-type(2)>.speech{animation-delay:.4s,.4s!important}

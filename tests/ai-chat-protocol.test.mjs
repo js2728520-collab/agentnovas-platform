@@ -37,12 +37,13 @@ test("guided mode uses supplied tenant context and never claims to place an orde
 });
 
 test("message API contract loads history on the server instead of accepting client history", async () => {
-  const source = await readFile(
-    new URL("../app/api/ai/conversations/[id]/messages/route.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(source, /getConversationMessages/);
-  assert.doesNotMatch(source, /body\.(conversation|history|messages)/);
-  assert.match(source, /text\/event-stream/);
-  assert.match(source, /consumeAiRequestQuota/);
+  const [routeSource, contextSource] = await Promise.all([
+    readFile(new URL("../app/api/ai/conversations/[id]/messages/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/ai-context.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(routeSource, /getConversationMessages/);
+  assert.doesNotMatch(routeSource, /body\.(conversation|history|messages)/);
+  assert.match(routeSource, /text\/event-stream/);
+  assert.match(routeSource, /consumeAiRequestQuota/);
+  assert.match(contextSource, /isNull\(trades\.closedAt\)/);
 });

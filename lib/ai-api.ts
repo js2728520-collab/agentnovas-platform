@@ -22,9 +22,23 @@ export async function requireAiCustomer(request: Request): Promise<CurrentUser> 
 }
 
 export async function readAiJson(request: Request) {
+  const maximumBytes = 32_768;
+  const declaredLength = Number(request.headers.get("content-length") || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+    throw new AiApiError("REQUEST_TOO_LARGE", "AI 请求体不能超过 32KB", 413);
+  }
   try {
-    return await request.json() as Record<string, unknown>;
-  } catch {
+    const raw = await request.text();
+    if (new TextEncoder().encode(raw).byteLength > maximumBytes) {
+      throw new AiApiError("REQUEST_TOO_LARGE", "AI 请求体不能超过 32KB", 413);
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new AiApiError("INVALID_JSON", "请求 JSON 必须是对象", 400);
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof AiApiError) throw error;
     throw new AiApiError("INVALID_JSON", "请求 JSON 格式无效", 400);
   }
 }

@@ -1,4 +1,4 @@
-import { requestAiText, type AiProviderMessage } from "./ai-provider.ts";
+import { boundedAiHistory, requestAiText, type AiProviderMessage } from "./ai-provider.ts";
 import { containsPotentialSecret } from "./ai-safety.ts";
 import {
   normalizeStrategyDsl,
@@ -134,7 +134,7 @@ export async function generateStrategyProposal(options: {
   const system = `你是 AgentNovas 的量化策略 DSL 生成器。只输出一个 JSON 对象，不要 Markdown、解释、代码或额外字段。禁止收益承诺，禁止交易指令，禁止 Python/JavaScript/SQL。schemaVersion 必须为 1；side 只能是 long_only；timeframe 只能是 5m/15m/1h/4h/1d。entry.all 为 1-4 条，exit.any 为 0-4 条。规则只允许：ema_cross(type,fastPeriod,slowPeriod,direction bullish/bearish)、rsi_threshold(type,period,operator lte/gte,value)、channel_breakout(type,period,direction above/below)、volume_ratio(type,period,operator lte/gte,value)。exit 还必须含 stopLossPct/takeProfitPct；risk 必须含 positionPct/maxDrawdownPct/dailyLossLimitPct/consecutiveLossLimit。不要添加 summary、reason、code 或 metadata。`;
   const messages: AiProviderMessage[] = [
     { role: "system", content: system },
-    ...options.history.slice(-12).map((message) => ({ role: message.role, content: message.content })),
+    ...boundedAiHistory(options.history),
     { role: "user", content: `根据以下已校验问卷生成候选 DSL：${JSON.stringify(options.brief)}` },
   ];
   const output = await requestAiText(options.config, messages, { maxOutputTokens: 1_200, temperature: 0.1 });

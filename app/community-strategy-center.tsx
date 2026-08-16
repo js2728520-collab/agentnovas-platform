@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { StrategyDsl } from "@/lib/strategy-dsl";
+import { consumeAiEventStream } from "./ai-sse";
 import type { StrategyDetailData } from "./strategy-detail";
 
 type Row = Record<string, unknown>;
@@ -191,6 +193,16 @@ function safeJson<T>(raw: string): T | null {
   }
 }
 
+function apiError(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object") return fallback;
+  const error = (payload as { error?: unknown }).error;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message || fallback);
+  }
+  return fallback;
+}
+
 function toStrategyDetail(row: Row): StrategyDetailData {
   const backtests = (row.backtests || []) as Row[];
   const currentVersion = Number(row.version || 1);
@@ -243,7 +255,7 @@ export default function CommunityStrategyCenter({
 }) {
   const [rows, setRows] = useState<Row[]>(demos);
   const [mine, setMine] = useState<Row[]>([]);
-  const [screen, setScreen] = useState<"list" | "create">("list");
+  const [screen, setScreen] = useState<"list" | "create">(createRequest > 0 ? "create" : "list");
   const [message, setMessage] = useState("");
   const [studio, setStudio] = useState<Studio>(initial);
   const [preferences, setPreferences] = useState({
@@ -257,12 +269,22 @@ export default function CommunityStrategyCenter({
     role: "assistant",
     text: "我会先了解你的目标、经验和市场偏好，再把想法拆成可回测的入场、退出、仓位与熔断条件。你可以先点击一个成熟模板，也可以直接告诉我你的交易想法。",
   }]);
+  const [strategyConversationId, setStrategyConversationId] = useState("");
+  const [chatStreamText, setChatStreamText] = useState("");
   const [generated, setGenerated] = useState(false);
+  const [generatedSpecification, setGeneratedSpecification] = useState<StrategyDsl | null>(null);
+  const [generatedExplanation, setGeneratedExplanation] = useState("");
+  const [generationId, setGenerationId] = useState("");
+  const [generatedInputSignature, setGeneratedInputSignature] = useState("");
   const [busy, setBusy] = useState("");
   const [draftId, setDraftId] = useState("");
   const [draftVersion, setDraftVersion] = useState(0);
   const [savedSignature, setSavedSignature] = useState("");
   const [backtest, setBacktest] = useState<BacktestResult | null>(null);
+  const studioInputSignature = JSON.stringify({ studio, preferences });
+  const hasGeneratedStrategy = Boolean(
+    generated && generatedSpecification && generatedInputSignature === studioInputSignature,
+  );
 
   async function load() {
     try {
@@ -278,7 +300,21 @@ export default function CommunityStrategyCenter({
   }
 
   useEffect(() => {
-    void load();
+    let active = true;
+    async function initialLoad() {
+      try {
+        const response = await fetch("/api/strategy-marketplace", { cache: "no-store" });
+        const raw = await response.text();
+        const result = safeJson<{ published?: Row[]; mine?: Row[] }>(raw);
+        if (!active || !response.ok || !result) return;
+        setRows(result.published?.length ? result.published : demos);
+        setMine(result.mine || []);
+      } catch {
+        // Public visitors keep the clearly labeled layout examples.
+      }
+    }
+    void initialLoad();
+    return () => { active = false; };
   }, []);
 
   function payload() {
@@ -288,14 +324,19 @@ export default function CommunityStrategyCenter({
       summary: `${studio.style} · ${studio.period} · 单次资金上限 ${studio.capital}% · 止损 ${studio.stopLoss}% · 止盈 ${studio.takeProfit}%`,
       symbols: [studio.symbol],
       riskLevel: studio.risk,
-      conversation: chat,
-      specification: { ...studio, ...preferences },
+      conversationId: strategyConversationId,
+      generationId,
+      specification: generatedSpecification,
     };
   }
 
   function applyPreset(preset: FactorPreset) {
     setStudio((current) => ({ ...current, ...preset.defaults }));
     setGenerated(false);
+    setGeneratedSpecification(null);
+    setGeneratedExplanation("");
+    setGenerationId("");
+    setGeneratedInputSignature("");
     setBacktest(null);
     setMessage(`已载入“${preset.title}”研究模板。请结合自己的交易目标修改规则，再向 AI 研究员确认。`);
   }
@@ -324,8 +365,8 @@ export default function CommunityStrategyCenter({
       body: JSON.stringify(body),
     });
     const raw = await response.text();
-    const result = safeJson<{ id?: string; version?: number; error?: string }>(raw);
-    if (!response.ok || !result?.id) throw new Error(result?.error || "策略草稿保存失败");
+    const result = safeJson<{ id?: string; version?: number; error?: unknown }>(raw);
+    if (!response.ok || !result?.id) throw new Error(apiError(result, "策略草稿保存失败"));
     const version = Number(result.version || 1);
     setDraftId(result.id);
     setDraftVersion(version);
@@ -334,34 +375,61 @@ export default function CommunityStrategyCenter({
     return { id: result.id, version };
   }
 
+  async function ensureStrategyConversation() {
+    if (strategyConversationId) return strategyConversationId;
+    const response = await fetch("/api/ai/conversations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ purpose: "strategy", title: studio.name.trim() ? `策略研究：${studio.name.trim()}` : "AI 策略研究" }),
+    });
+    const payload = await response.json().catch(() => null) as { conversation?: { id?: string } } | null;
+    const id = String(payload?.conversation?.id || "");
+    if (!response.ok || !id) throw new Error(apiError(payload, "策略对话创建失败"));
+    setStrategyConversationId(id);
+    return id;
+  }
+
   async function ask() {
     const text = prompt.trim();
     if (!text || busy) return;
-    const previous = chat;
     setChat((items) => [...items, { role: "user", text }]);
     setPrompt("");
     setBusy("chat");
+    setChatStreamText("");
     try {
-      const response = await fetch("/api/strategy-studio/chat", {
+      const conversationId = await ensureStrategyConversation();
+      const response = await fetch(`/api/ai/conversations/${encodeURIComponent(conversationId)}/messages`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: text, conversation: previous, specification: studio }),
+        body: JSON.stringify({ message: text }),
       });
-      const raw = await response.text();
-      const result = safeJson<{ text?: string; mode?: string; error?: string }>(raw);
-      if (!response.ok || !result?.text) throw new Error(result?.error || "策略研究服务暂不可用");
-      setChat((items) => [...items, {
-        role: "assistant",
-        text: `${result.text}${result.mode === "guided_rules" ? "（当前为平台规则引导模式）" : ""}`,
-      }]);
+      let streamed = "";
+      await consumeAiEventStream(response, (event, data) => {
+        if (event === "delta" && typeof data.text === "string") {
+          streamed += data.text;
+          setChatStreamText(streamed);
+        } else if (event === "done") {
+          const saved = data.message as { content?: string; generationMode?: string } | undefined;
+          const content = saved?.content || streamed;
+          if (content) setChat((items) => [...items, {
+            role: "assistant",
+            text: `${content}${saved?.generationMode === "guided_rules" ? "（当前为平台规则引导模式）" : ""}`,
+          }]);
+          setChatStreamText("");
+        } else if (event === "error") {
+          throw new Error(String(data.message || "策略研究服务暂不可用"));
+        }
+      });
     } catch (error) {
+      setChatStreamText("");
       setMessage(error instanceof Error ? error.message : "策略研究服务暂不可用");
     } finally {
       setBusy("");
     }
   }
 
-  function generate() {
+  async function generate() {
+    if (busy) return;
     if (!chat.some((item) => item.role === "user")) {
       setMessage("请先向策略研究 Agent 说明你的策略想法");
       return;
@@ -371,11 +439,61 @@ export default function CommunityStrategyCenter({
       return;
     }
     if (qualityWarnings.length) {
-      setMessage(`已生成候选规则，但请先确认：${qualityWarnings.join(" ")}`);
+      setMessage(`生成前提示：${qualityWarnings.join(" ")}`);
     }
-    setGenerated(true);
-    setBacktest(null);
-    if (!qualityWarnings.length) setMessage("候选规则已结构化。保存草稿后即可使用真实历史行情回测。");
+    setBusy("generate");
+    try {
+      const conversationId = await ensureStrategyConversation();
+      const response = await fetch("/api/strategy-studio/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          conversationId,
+          brief: {
+            name: studio.name,
+            symbol: studio.symbol,
+            period: studio.period,
+            style: studio.style,
+            risk: studio.risk,
+            capital: studio.capital,
+            stopLoss: studio.stopLoss,
+            takeProfit: studio.takeProfit,
+            maxDrawdown: studio.maxDrawdown,
+            indicators: studio.indicators,
+            entryRule: studio.entryRule,
+            exitRule: studio.exitRule,
+            riskRule: studio.riskRule,
+            ...preferences,
+          },
+        }),
+      });
+      const payload = await response.json().catch(() => null) as {
+        specification?: StrategyDsl;
+        explanation?: string;
+        mode?: "ai_provider" | "guided_rules";
+        generationId?: string;
+      } | null;
+      if (!response.ok || !payload?.specification || !payload.mode || !payload.generationId) {
+        throw new Error(apiError(payload, "策略生成服务没有返回有效规则"));
+      }
+      setGeneratedSpecification(payload.specification);
+      setGeneratedExplanation(payload.explanation || "候选 DSL 已通过平台校验");
+      setGenerationId(payload.generationId);
+      setGeneratedInputSignature(studioInputSignature);
+      setGenerated(true);
+      setBacktest(null);
+      setMessage(payload.mode === "guided_rules"
+        ? "当前未配置模型，已使用平台保守模板生成并通过 DSL 校验。"
+        : "AI 候选规则已通过 DSL 校验；保存草稿后可运行真实历史回测。");
+    } catch (error) {
+      setGenerated(false);
+      setGeneratedSpecification(null);
+      setGenerationId("");
+      setGeneratedInputSignature("");
+      setMessage(error instanceof Error ? error.message : "策略生成失败");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function runBacktest(id: string) {
@@ -399,7 +517,7 @@ export default function CommunityStrategyCenter({
   }
 
   async function runDraftBacktest() {
-    if (!generated) {
+    if (!hasGeneratedStrategy) {
       setMessage("请先生成结构化策略规则");
       return;
     }
@@ -412,7 +530,7 @@ export default function CommunityStrategyCenter({
   }
 
   async function save() {
-    if (!generated) {
+    if (!hasGeneratedStrategy) {
       setMessage("请先完成对话并生成结构化策略规则");
       return;
     }
@@ -444,26 +562,6 @@ export default function CommunityStrategyCenter({
     }
   }
 
-  function resetStudio() {
-    setStudio(initial);
-    setPreferences({ goal: "稳健增长", experience: "刚开始研究", marketCondition: "趋势与震荡都要过滤", frequency: "中频（1小时至4小时）" });
-    setGenerated(false);
-    setBacktest(null);
-    setDraftId("");
-    setDraftVersion(0);
-    setSavedSignature("");
-    setMessage("");
-    setChat([{
-      role: "assistant",
-      text: "我会先了解你的目标、经验和市场偏好，再把想法拆成可回测的入场、退出、仓位与熔断条件。你可以先点击一个成熟模板，也可以直接告诉我你的交易想法。",
-    }]);
-    setScreen("create");
-  }
-
-  useEffect(() => {
-    if (view === "mine" && createRequest > 0) resetStudio();
-  }, [createRequest, view]);
-
   if (view === "mine" && screen === "create") {
     return <div className="strategy-studio-page">
       <header>
@@ -480,8 +578,8 @@ export default function CommunityStrategyCenter({
             <p>研究员会把你的想法拆成可验证的入场、退出、仓位和熔断条件；不承诺收益，也不会用虚构数据替代回测。</p>
             <div className="studio-quick-prompts">{quickPrompts.map((item) => <button type="button" key={item} onClick={() => setPrompt(item)}>{item}</button>)}</div>
           </div>
-          <div className="studio-chat-log">{chat.map((item, index) => <div className={item.role === "assistant" ? "ai" : "user"} key={`${item.role}-${index}`}><b>{item.role === "assistant" ? "策略研究 Agent" : "我"}</b><p>{item.text}</p></div>)}</div>
-          <div className="studio-prompt"><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="例如：BTC 15分钟趋势策略，震荡行情不交易，最大回撤不超过12%……" /><button disabled={busy === "chat"} onClick={() => void ask()}>发送</button></div>
+          <div className="studio-chat-log" aria-live="polite">{chat.map((item, index) => <div className={item.role === "assistant" ? "ai" : "user"} key={`${item.role}-${index}`}><b>{item.role === "assistant" ? "策略研究 Agent" : "我"}</b><p>{item.text}</p></div>)}{chatStreamText && <div className="ai streaming"><b>策略研究 Agent</b><p>{chatStreamText}<span aria-hidden="true">▋</span></p></div>}</div>
+          <div className="studio-prompt"><textarea aria-label="策略研究问题" maxLength={2_000} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="例如：BTC 15分钟趋势策略，震荡行情不交易，最大回撤不超过12%……" /><button disabled={busy === "chat" || !prompt.trim()} onClick={() => void ask()}>{busy === "chat" ? "生成中…" : "发送"}</button></div>
         </section>
         <aside className="strategy-parameter-panel">
           <div className="studio-panel-title"><b>策略指标与参数</b><span>硬边界辅助</span></div>
@@ -495,8 +593,8 @@ export default function CommunityStrategyCenter({
           <label>策略名称<input value={studio.name} onChange={(event) => setStudio({ ...studio, name: event.target.value })} placeholder="输入策略名称" /></label>
           <section className="studio-usage-choice">
             <div className="studio-card-heading"><b>策略用途</b><small>{studio.publicationMode === "self_use" ? "不进入广场 · 平台不抽成" : "可提交平台审核"}</small></div>
-            <label className={studio.publicationMode === "marketplace" ? "selected" : ""}><input type="radio" name="publicationMode" checked={studio.publicationMode === "marketplace"} onChange={() => setStudio({ ...studio, publicationMode: "marketplace" })} /><span><b>发布到策略广场</b><small>提交平台人工审核，审核通过后其他客户可以跟随。</small></span></label>
-            <label className={studio.publicationMode === "self_use" ? "selected" : ""}><input type="radio" name="publicationMode" checked={studio.publicationMode === "self_use"} onChange={() => setStudio({ ...studio, publicationMode: "self_use" })} /><span><b>自用策略</b><small>仅自己使用，不进入策略广场，平台不抽成。</small></span></label>
+            <label className={studio.publicationMode === "marketplace" ? "selected" : ""}><input aria-label="发布到策略广场" type="radio" name="publicationMode" checked={studio.publicationMode === "marketplace"} onChange={() => setStudio({ ...studio, publicationMode: "marketplace" })} /><span><b>发布到策略广场</b><small>提交平台人工审核，审核通过后其他客户可以跟随。</small></span></label>
+            <label className={studio.publicationMode === "self_use" ? "selected" : ""}><input aria-label="自用策略" type="radio" name="publicationMode" checked={studio.publicationMode === "self_use"} onChange={() => setStudio({ ...studio, publicationMode: "self_use" })} /><span><b>自用策略</b><small>仅自己使用，不进入策略广场，平台不抽成。</small></span></label>
           </section>
           <div className="parameter-pair">
             <label>交易对<select value={studio.symbol} onChange={(event) => setStudio({ ...studio, symbol: event.target.value })}>{["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT", "DOGE/USDT"].map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -528,10 +626,10 @@ export default function CommunityStrategyCenter({
         </aside>
       </div>
       <section className="strategy-output">
-        <div><small>STRUCTURED STRATEGY</small><h3>{generated ? studio.name || "未命名候选策略" : "等待生成策略"}</h3><p>{generated ? `${studio.symbol} · ${studio.period} · ${studio.style} · ${studio.publicationMode === "self_use" ? "自用 · 平台不抽成" : "发布到策略广场"} · 资金≤${studio.capital}% · 止损${studio.stopLoss}% · 止盈${studio.takeProfit}%` : "完成对话和参数设置后生成结构化候选规则。"}</p></div>
+        <div><small>STRUCTURED STRATEGY</small><h3>{hasGeneratedStrategy ? generatedSpecification?.name || studio.name || "未命名候选策略" : "等待生成策略"}</h3><p>{hasGeneratedStrategy ? generatedExplanation : "完成对话和参数设置后，由 AI 提案并通过平台 DSL 校验器生成候选规则。"}</p>{hasGeneratedStrategy && generatedSpecification && <details className="strategy-dsl-preview"><summary>查看已校验 JSON DSL</summary><pre>{JSON.stringify(generatedSpecification, null, 2)}</pre></details>}</div>
         {backtest && <div className="backtest-result"><span>真实回测收益<b>{backtest.netReturnPct == null ? "—" : `${backtest.netReturnPct > 0 ? "+" : ""}${backtest.netReturnPct.toFixed(2)}%`}</b></span><span>最大回撤<b>{backtest.maxDrawdownPct == null ? "—" : `${backtest.maxDrawdownPct.toFixed(2)}%`}</b></span><span>胜率<b>{backtest.winRatePct == null ? "—" : `${backtest.winRatePct.toFixed(1)}%`}</b></span><span>样本数<b>{backtest.sampleSize ?? 0} 笔</b></span></div>}
         {backtest && <p className="strategy-data-note">来源：{backtest.provider || "平台行情引擎"}；手续费 {backtest.feesUsdt?.toFixed(2) || "0.00"} USDT；滑点 {backtest.slippageUsdt?.toFixed(2) || "0.00"} USDT；证据哈希已留存。</p>}
-        <div className="studio-actions"><button onClick={generate}>生成候选规则</button><button disabled={!generated || Boolean(busy)} onClick={() => void runDraftBacktest()}>{busy.startsWith("backtest") ? "回测中…" : "真实历史回测"}</button><button className="primary" disabled={!generated || Boolean(busy)} onClick={() => void save()}>{busy === "save" ? "保存中…" : "保存到我的策略"}</button></div>
+        <div className="studio-actions"><button disabled={Boolean(busy)} onClick={() => void generate()}>{busy === "generate" ? "校验生成中…" : "生成候选规则"}</button><button disabled={!hasGeneratedStrategy || Boolean(busy)} onClick={() => void runDraftBacktest()}>{busy.startsWith("backtest") ? "回测中…" : "真实历史回测"}</button><button className="primary" disabled={!hasGeneratedStrategy || Boolean(busy)} onClick={() => void save()}>{busy === "save" ? "保存中…" : "保存到我的策略"}</button></div>
       </section>
     </div>;
   }

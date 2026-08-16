@@ -3,8 +3,9 @@ import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { aiConversations, aiMessages, aiUsageDaily, auditLogs } from "@/db/schema";
 import { AiApiError } from "@/lib/ai-api";
+import { sha256 } from "@/lib/auth";
 import { deriveConversationTitle } from "@/lib/ai-chat-protocol";
-import { aiRequestLimit } from "@/lib/ai-safety";
+import { aiConversationLimit, aiRequestLimit } from "@/lib/ai-safety";
 
 function publicConversation(row: typeof aiConversations.$inferSelect, messageCount = 0) {
   return {
@@ -67,6 +68,25 @@ export async function getConversationMessages(userId: string, conversationId: st
 }
 
 export async function createAiConversation(userId: string, input: Record<string, unknown>) {
+  const db = getDb();
+  const minuteStart = new Date(Date.now() - 60_000).toISOString();
+  const [activeCount, recentCount] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` }).from(aiConversations).where(and(
+      eq(aiConversations.userId, userId),
+      eq(aiConversations.status, "active"),
+    )),
+    db.select({ count: sql<number>`count(*)` }).from(auditLogs).where(and(
+      eq(auditLogs.actorUserId, userId),
+      eq(auditLogs.action, "ai.conversation.created"),
+      gte(auditLogs.createdAt, minuteStart),
+    )),
+  ]);
+  if (Number(activeCount[0]?.count || 0) >= aiConversationLimit.active) {
+    throw new AiApiError("CONVERSATION_LIMIT_REACHED", "活跃对话已达上限，请先归档旧对话", 409);
+  }
+  if (Number(recentCount[0]?.count || 0) >= aiConversationLimit.perMinute) {
+    throw new AiApiError("RATE_LIMITED", "新建对话过于频繁，请稍后再试", 429);
+  }
   const title = String(input.title || "新对话").trim().replace(/\s+/g, " ").slice(0, 80) || "新对话";
   const purpose = input.purpose === "strategy" ? "strategy" as const : "consultation" as const;
   const now = new Date().toISOString();
@@ -80,9 +100,9 @@ export async function createAiConversation(userId: string, input: Record<string,
     createdAt: now,
     updatedAt: now,
   };
-  await getDb().batch([
-    getDb().insert(aiConversations).values(row),
-    getDb().insert(auditLogs).values({
+  await db.batch([
+    db.insert(aiConversations).values(row),
+    db.insert(auditLogs).values({
       id: crypto.randomUUID(),
       actorUserId: userId,
       action: "ai.conversation.created",
@@ -173,6 +193,8 @@ export async function recordStrategyGeneration(options: {
   specificationJson: string;
 }) {
   const now = new Date().toISOString();
+  const generationId = crypto.randomUUID();
+  const specificationHash = await sha256(options.specificationJson);
   await getDb().batch([
     getDb().update(aiUsageDaily).set({
       outputChars: sql`${aiUsageDaily.outputChars} + ${options.specificationJson.length}`,
@@ -182,14 +204,55 @@ export async function recordStrategyGeneration(options: {
       eq(aiUsageDaily.usageDate, now.slice(0, 10)),
     )),
     getDb().insert(auditLogs).values({
-      id: crypto.randomUUID(),
+      id: generationId,
       actorUserId: options.userId,
       action: "ai.strategy.generated",
       subjectType: "ai_conversation",
       subjectId: options.conversationId,
-      afterJson: JSON.stringify({ mode: options.mode, outputChars: options.specificationJson.length }),
+      afterJson: JSON.stringify({
+        mode: options.mode,
+        outputChars: options.specificationJson.length,
+        specificationHash,
+      }),
     }),
   ]);
+  return generationId;
+}
+
+export async function resolveStrategyVersionSource(options: {
+  userId: string;
+  conversationId: string | null;
+  generationId: string | null;
+  specificationJson: string;
+}) {
+  if (!options.generationId) return "manual" as const;
+  if (!options.conversationId) {
+    throw new AiApiError("GENERATION_CONTEXT_REQUIRED", "AI 生成记录缺少对应的策略对话", 409);
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(options.generationId)) {
+    throw new AiApiError("GENERATION_NOT_FOUND", "AI 生成记录无效或已失效", 409);
+  }
+  const row = (await getDb().select({ afterJson: auditLogs.afterJson }).from(auditLogs).where(and(
+    eq(auditLogs.id, options.generationId),
+    eq(auditLogs.actorUserId, options.userId),
+    eq(auditLogs.action, "ai.strategy.generated"),
+    eq(auditLogs.subjectType, "ai_conversation"),
+    eq(auditLogs.subjectId, options.conversationId),
+  )).limit(1))[0];
+  if (!row) throw new AiApiError("GENERATION_NOT_FOUND", "AI 生成记录无效或已失效", 409);
+  let metadata: { mode?: unknown; specificationHash?: unknown } = {};
+  try {
+    metadata = JSON.parse(row.afterJson || "{}") as typeof metadata;
+  } catch {
+    throw new AiApiError("GENERATION_RECORD_INVALID", "AI 生成记录无法校验", 409);
+  }
+  if (metadata.specificationHash !== await sha256(options.specificationJson)) {
+    throw new AiApiError("GENERATION_MISMATCH", "当前策略规则与 AI 生成记录不一致，请重新生成", 409);
+  }
+  if (metadata.mode !== "ai_provider" && metadata.mode !== "guided_rules") {
+    throw new AiApiError("GENERATION_RECORD_INVALID", "AI 生成记录无法校验", 409);
+  }
+  return metadata.mode;
 }
 
 export async function appendUserMessage(

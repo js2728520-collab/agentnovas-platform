@@ -1,4 +1,5 @@
 export const aiRequestLimit = { perMinute: 10, perDay: 100 } as const;
+export const aiConversationLimit = { perMinute: 10, active: 50 } as const;
 
 const potentialSecretPatterns = [
   /\bsk-(?:proj-)?[a-z0-9_-]{16,}\b/i,
