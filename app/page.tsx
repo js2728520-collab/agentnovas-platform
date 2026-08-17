@@ -240,10 +240,10 @@ function Membership(){
   const [network,setNetwork]=useState("TRON (TRC20)");
   const [order,setOrder]=useState(false);
   const plans=[
-    ["月卡","28","30 天","20%"],
-    ["季卡","58","90 天","20%"],
-    ["年卡","198","365 天","20%"],
-    ["终身会员","588","永久有效","16%"],
+    ["月卡","59","30 天","20%"],
+    ["季卡","129","90 天","19%"],
+    ["年卡","499","365 天","18%"],
+    ["终身会员","1999","永久有效","16%"],
   ];
   const price=plans.find(x=>x[0]===plan)?.[1];
   return <>

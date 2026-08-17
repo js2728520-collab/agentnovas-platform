@@ -42,7 +42,14 @@ export function calculatePerformanceFee(input: {
   const weeklyProfitUsdt = Number(input.weeklyRealizedNetPnlUsdt ?? input.realizedNetPnlUsdt ?? 0);
   if (!Number.isFinite(weeklyProfitUsdt)) throw new Error("Invalid weekly profit amount");
   const chargeableProfitUsdt = Math.max(0, weeklyProfitUsdt);
-  const feeRate = String(input.membershipPlanCode || "").toLowerCase().includes("lifetime") ? .16 : .2;
+  const planCode = String(input.membershipPlanCode || "").toLowerCase();
+  const feeRate = planCode.includes("lifetime") || planCode.includes("终身")
+    ? .16
+    : /annual|year|年/.test(planCode)
+      ? .18
+      : /quarter|season|季/.test(planCode)
+        ? .19
+        : .2;
   return {
     period: "weekly" as const,
     feeRate,

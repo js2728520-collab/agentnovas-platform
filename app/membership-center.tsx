@@ -3,10 +3,10 @@
 import { useRef, useState } from "react";
 
 const plans = [
-  { name: "月卡", price: 28, period: "30 天", fee: "20%", credits: 1_000 },
-  { name: "季卡", price: 58, period: "90 天", fee: "20%", credits: 3_000 },
-  { name: "年卡", price: 198, period: "365 天", fee: "20%", credits: 12_000 },
-  { name: "终身会员", price: 588, period: "永久有效", fee: "16%", credits: 36_000 },
+  { name: "月卡", price: 59, period: "30 天", fee: "20%", credits: 1_000 },
+  { name: "季卡", price: 129, period: "90 天", fee: "19%", credits: 3_000 },
+  { name: "年卡", price: 499, period: "365 天", fee: "18%", credits: 12_000 },
+  { name: "终身会员", price: 1_999, period: "永久有效", fee: "16%", credits: 36_000 },
 ];
 const topups = [[50, 5_000, ""], [100, 10_500, "赠送 5%"], [250, 27_500, "赠送 10%"], [500, 60_000, "赠送 20%"], [1_000, 130_000, "赠送 30%"]];
 
