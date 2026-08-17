@@ -30,3 +30,16 @@ test("strategy studio generates a validated server-side DSL without client histo
   assert.doesNotMatch(studio, /generationMode,\s*specification/);
   assert.doesNotMatch(studio, /conversation:\s*messages|history:\s*messages/);
 });
+
+test("customer AI workspaces expose the private LLM configuration", async () => {
+  const [chat, studio, config] = await Promise.all([
+    source("../app/agent-chat.tsx"),
+    source("../app/community-strategy-center.tsx"),
+    source("../app/llm-config.tsx"),
+  ]);
+
+  assert.match(chat, /<CustomLlmButton\s*\/>/);
+  assert.match(studio, /<CustomLlmButton\s*\/>/);
+  assert.match(config, /endpoint="\/api\/account\/llm-config"/);
+  assert.match(config, /type="password"/);
+});

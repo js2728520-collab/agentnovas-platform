@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { consumeAiEventStream } from "./ai-sse";
+import { CustomLlmButton } from "./llm-config";
 
 type Conversation = {
   id: string;
@@ -233,7 +234,7 @@ export default function AgentChat({
         <footer><span><i />持久化对话服务</span><small>不会执行交易</small></footer>
       </aside>
       <section className="agent-chat-main" aria-busy={loading || sending}>
-        <header className="agent-chat-page-head"><div><span className="eyebrow">AI CONSULTATION</span><h2>与 Agent 团队对话</h2><p>服务端结合当前账号的行情、持仓摘要和策略关系回答。</p></div><span className="agent-chat-status"><i />{sending ? "回复生成中" : "对话服务在线"}</span></header>
+        <header className="agent-chat-page-head"><div><span className="eyebrow">AI CONSULTATION</span><h2>与 Agent 团队对话</h2><p>服务端结合当前账号的行情、持仓摘要和策略关系回答。</p></div><div className="agent-chat-header-actions"><CustomLlmButton /><span className="agent-chat-status"><i />{sending ? "回复生成中" : "对话服务在线"}</span></div></header>
         <div className="agent-chat-current"><span>当前会话</span><b>{active?.title || "新对话"}</b><small>市场分析 · 风险解释 · 策略研究</small>{active && <button className="agent-chat-archive" type="button" onClick={() => void archiveConversation()}>归档</button>}</div>
         {error && <div className="agent-chat-error" role="alert">{error}</div>}
         <div className="agent-chat-messages" aria-live="polite">

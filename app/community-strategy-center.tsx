@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { StrategyDsl } from "@/lib/strategy-dsl";
 import { consumeAiEventStream } from "./ai-sse";
+import { CustomLlmButton } from "./llm-config";
 import type { StrategyDetailData } from "./strategy-detail";
 
 type Row = Record<string, unknown>;
@@ -567,7 +568,7 @@ export default function CommunityStrategyCenter({
       <header>
         <button onClick={() => setScreen("list")}>返回我的策略</button>
         <div><small>AI STRATEGY LAB</small><h2>创建策略</h2><p>专业引导、真实历史回测、作者策略模拟测试和平台人工审核。</p></div>
-        <span>{draftId ? `草稿 V${draftVersion}` : "尚未保存"}</span>
+        <div className="strategy-studio-header-actions"><CustomLlmButton /><span>{draftId ? `草稿 V${draftVersion}` : "尚未保存"}</span></div>
       </header>
       {message && <div className="notice">{message}</div>}
       <div className="studio-layout">
