@@ -114,4 +114,3 @@ test("maps V1 to a V2 long-only runtime without rewriting the stored V1 object",
   assert.equal(v1.schemaVersion, 1);
   assert.equal("legs" in v1, false);
 });
-
