@@ -8,6 +8,7 @@ import {
   trades,
 } from "@/db/schema";
 import type { AssistantContext } from "@/lib/ai-chat-protocol";
+import { summarizeResearchCandles, type ResearchCandle } from "@/lib/ai-research";
 import { fetchPublicMarketJson, publicMarketProviderName } from "@/lib/public-market-source";
 
 const allowedMarketSymbols = new Set([
@@ -31,6 +32,29 @@ function requestedSymbol(message: string) {
 async function marketContext(message: string): Promise<AssistantContext["market"]> {
   const symbol = requestedSymbol(message);
   if (!symbol) return null;
+  try {
+    const { data, base } = await fetchPublicMarketJson<unknown[]>(
+      `/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1h&limit=120`,
+      4_000,
+    );
+    const candles = data.flatMap((row): ResearchCandle[] => {
+      if (!Array.isArray(row) || row.length < 7) return [];
+      const values = [row[0], row[1], row[2], row[3], row[4], row[5], row[6]].map(Number);
+      if (!values.every(Number.isFinite)) return [];
+      return [{
+        openTime: values[0],
+        open: values[1],
+        high: values[2],
+        low: values[3],
+        close: values[4],
+        volume: values[5],
+        closeTime: values[6],
+      }];
+    });
+    return summarizeResearchCandles(symbol, candles, publicMarketProviderName(base));
+  } catch {
+    // Preserve the lightweight ticker fallback when the K-line endpoint is unavailable.
+  }
   try {
     const { data, base } = await fetchPublicMarketJson<{
       lastPrice: string;

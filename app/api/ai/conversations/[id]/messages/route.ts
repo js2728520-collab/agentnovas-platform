@@ -49,11 +49,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           userMessage: savedUser.message,
         });
         try {
-          const [history, context, config] = await Promise.all([
+          const [history, config] = await Promise.all([
             getConversationMessages(user.id, id),
-            buildAssistantContext(user.id, content),
             resolveLlmConfig(user.id),
           ]);
+          const researchPrompt = history
+            .filter((message) => message.role === "user")
+            .slice(-6)
+            .map((message) => message.content)
+            .join("\n");
+          const context = await buildAssistantContext(user.id, researchPrompt || content);
           const result = await generateAssistantReply({
             latestMessage: content,
             history: history.map((message) => ({ role: message.role, content: message.content })),
