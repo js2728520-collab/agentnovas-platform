@@ -55,6 +55,7 @@ type StrategyDetailPayload = {
     id: string;
     version: number;
     source: string;
+    restoredFromVersion?: number | null;
     createdAt: string;
   }>;
   backtests: Array<{
@@ -186,12 +187,37 @@ export function StrategyBacktestDetail({
     }
   }
 
+  async function rollbackVersion(sourceVersion: number) {
+    if (!detail || busy || sourceVersion === detail.strategy.version) return;
+    const nextVersion = detail.strategy.version + 1;
+    if (!window.confirm(`确认回滚到 V${sourceVersion}？\n\n系统不会覆盖历史记录，而是将生成新的 V${nextVersion}。`)) return;
+    setBusy(true);
+    setMessage(`正在将 V${sourceVersion} 恢复为新的 V${nextVersion}…`);
+    try {
+      const response = await fetch(`/api/strategy-marketplace/${encodeURIComponent(strategyId)}/versions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sourceVersion }),
+      });
+      const payload = await response.json().catch(() => null) as { message?: string; error?: string; version?: number } | null;
+      if (!response.ok) throw new Error(apiError(payload, "策略版本回滚失败"));
+      await refresh();
+      onUpdated?.();
+      setMessage(payload?.message || `已将 V${sourceVersion} 恢复为新的 V${payload?.version || nextVersion}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "策略版本回滚失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading && !detail) return <div className="strategy-detail-page"><button onClick={onBack}>返回我的策略</button><div className="notice">正在加载策略详情…</div></div>;
   if (!detail) return <div className="strategy-detail-page"><button onClick={onBack}>返回我的策略</button><div className="notice">{message || "策略详情不可用"}</div></div>;
 
   const { strategy } = detail;
   const latest = detail.backtests[0]?.metrics;
   const canBacktest = ["draft", "testing", "rejected"].includes(strategy.status);
+  const canChangeVersion = ["draft", "testing", "rejected"].includes(strategy.status);
 
   return <div className="strategy-detail-page">
     <header className="strategy-detail-header">
@@ -249,6 +275,28 @@ export function StrategyBacktestDetail({
       </> : <div className="notice">尚未运行回测。选择预设与参数后，首份报告会保存在这里。</div>}
     </section>
 
-    <section className="strategy-version-section"><div className="strategy-detail-title"><div><small>IMMUTABLE HISTORY</small><h3>版本记录</h3></div><span>{detail.versions.length} 个版本</span></div><div>{detail.versions.map((version) => <article key={version.id}><b>V{version.version}</b><span>{version.source === "ai_provider" ? "AI 服务生成" : version.source === "guided_rules" ? "平台规则生成" : "人工编辑"}</span><time>{dateText(version.createdAt)}</time></article>)}</div></section>
+    <section className="strategy-version-section">
+      <div className="strategy-detail-title"><div><small>IMMUTABLE HISTORY</small><h3>版本记录</h3><p>每次调整自动增加版本号；回滚会复制历史规则并生成新的最新版本。</p></div><span>{detail.versions.length} 个版本</span></div>
+      <div>{detail.versions.map((version) => {
+        const currentVersion = version.version === strategy.version;
+        const sourceLabel = version.restoredFromVersion
+          ? `回滚自 V${version.restoredFromVersion}`
+          : version.source === "ai_provider"
+            ? "AI 服务生成"
+            : version.source === "guided_rules"
+              ? "平台规则生成"
+              : "人工编辑";
+        return <article key={version.id}>
+          <b>V{version.version}</b>
+          <span>{sourceLabel}</span>
+          <time>{dateText(version.createdAt)}</time>
+          {currentVersion
+            ? <em>当前版本</em>
+            : canChangeVersion
+              ? <button aria-label={`回滚到 V${version.version}`} disabled={busy} onClick={() => void rollbackVersion(version.version)}>回滚到 V{version.version}</button>
+              : <em>需先创建可编辑草稿</em>}
+        </article>;
+      })}</div>
+    </section>
   </div>;
 }

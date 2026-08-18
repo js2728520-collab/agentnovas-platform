@@ -313,6 +313,7 @@ export const strategyVersions = sqliteTable("strategy_versions", {
   specificationJson: text("specification_json").notNull(),
   conversationId: text("conversation_id").references(() => aiConversations.id),
   source: text("source", { enum: ["manual", "ai_provider", "guided_rules"] }).notNull().default("manual"),
+  restoredFromVersion: integer("restored_from_version"),
   createdByUserId: text("created_by_user_id").notNull().references(() => users.id),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (t) => [
