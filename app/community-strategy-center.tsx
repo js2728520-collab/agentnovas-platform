@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import type { StrategyDsl } from "@/lib/strategy-dsl";
+import { AiMessageContent } from "./ai-message-content";
 import { consumeAiEventStream } from "./ai-sse";
 import { CustomLlmButton } from "./llm-config";
 import type { StrategyDetailData } from "./strategy-detail";
 import { StrategyBacktestDetail } from "./strategy-backtest-detail";
 
 type Row = Record<string, unknown>;
-type ChatMessage = { role: "user" | "assistant"; text: string };
+type ChatMessage = { role: "user" | "assistant"; text: string; autoPrompt?: boolean };
 type Studio = {
   name: string;
   publicationMode: "marketplace" | "self_use";
@@ -392,11 +393,14 @@ export default function CommunityStrategyCenter({
     return id;
   }
 
-  async function ask() {
-    const text = prompt.trim();
+  async function ask(contentOverride?: string) {
+    const text = (contentOverride ?? prompt).trim();
     if (!text || busy) return;
-    setChat((items) => [...items, { role: "user", text }]);
-    setPrompt("");
+    setChat((items) => [
+      ...items.map((item) => ({ ...item, autoPrompt: false })),
+      { role: "user", text },
+    ]);
+    if (contentOverride === undefined) setPrompt("");
     setBusy("chat");
     setChatStreamText("");
     try {
@@ -417,6 +421,7 @@ export default function CommunityStrategyCenter({
           if (content) setChat((items) => [...items, {
             role: "assistant",
             text: `${content}${saved?.generationMode === "guided_rules" ? "（当前为平台规则引导模式）" : ""}`,
+            autoPrompt: true,
           }]);
           setChatStreamText("");
         } else if (event === "error") {
@@ -590,7 +595,7 @@ export default function CommunityStrategyCenter({
             <p>研究员会把你的想法拆成可验证的入场、退出、仓位和熔断条件；不承诺收益，也不会用虚构数据替代回测。</p>
             <div className="studio-quick-prompts">{quickPrompts.map((item) => <button type="button" key={item} onClick={() => setPrompt(item)}>{item}</button>)}</div>
           </div>
-          <div className="studio-chat-log" aria-live="polite">{chat.map((item, index) => <div className={item.role === "assistant" ? "ai" : "user"} key={`${item.role}-${index}`}><b>{item.role === "assistant" ? "策略研究 Agent" : "我"}</b><p>{item.text}</p></div>)}{chatStreamText && <div className="ai streaming"><b>策略研究 Agent</b><p>{chatStreamText}<span aria-hidden="true">▋</span></p></div>}</div>
+          <div className="studio-chat-log" aria-live="polite">{chat.map((item, index) => <div className={item.role === "assistant" ? "ai" : "user"} key={`${item.role}-${index}`}><b>{item.role === "assistant" ? "策略研究 Agent" : "我"}</b>{item.role === "assistant" ? <AiMessageContent content={item.text} autoPrompt={item.autoPrompt} onAnswer={(answer) => void ask(answer)} /> : <p>{item.text}</p>}</div>)}{chatStreamText && <div className="ai streaming"><b>策略研究 Agent</b><AiMessageContent content={chatStreamText} streaming /></div>}</div>
           <div className="studio-prompt"><textarea aria-label="策略研究问题" maxLength={2_000} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="例如：BTC 15分钟趋势策略，震荡行情不交易，最大回撤不超过12%……" /><button disabled={busy === "chat" || !prompt.trim()} onClick={() => void ask()}>{busy === "chat" ? "生成中…" : "发送"}</button></div>
         </section>
         <aside className="strategy-parameter-panel">

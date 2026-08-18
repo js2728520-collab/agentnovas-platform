@@ -22,6 +22,14 @@ export type AiMessageSection = {
 
 export type AiMessagePresentation = {
   sections: AiMessageSection[];
+  questions: AiMessageQuestion[];
+};
+
+export type AiMessageQuestion = {
+  id: string;
+  prompt: string;
+  options: string[];
+  defaultOption: string;
 };
 
 const sectionDefinitions: Record<string, { kind: AiMessageSectionKind; title: string }> = {
@@ -96,6 +104,12 @@ function contentSection(label: string | undefined, lines: string[], codeBlocks: 
       flushParagraph();
       continue;
     }
+    if (
+      (section.kind === "questions" || section.kind === "next_step") &&
+      /^(?:候选(?:项)?|选项|建议选择)[:：]/.test(cleanInlineMarkdown(line))
+    ) {
+      continue;
+    }
     const item = line.match(/^(?:[-*•]|\d+[.、])\s*(.+)$/);
     if (item) {
       flushParagraph();
@@ -109,11 +123,87 @@ function contentSection(label: string | undefined, lines: string[], codeBlocks: 
   return section;
 }
 
+function fallbackQuestionOptions(prompt: string) {
+  if (/止损/.test(prompt) && /ATR/i.test(prompt)) {
+    return ["两者并行，先触发者优先（推荐）", "固定止损优先", "ATR 移动止损优先"];
+  }
+  if (/重复开仓|再次开仓|加仓/.test(prompt)) {
+    return ["持仓期间禁止重复开仓（推荐）", "仅允许一次加仓", "允许按新信号重复开仓"];
+  }
+  if (/周期|时间框架/.test(prompt)) {
+    return ["1 小时周期（推荐）", "4 小时周期", "日线周期"];
+  }
+  if (/最大回撤|回撤上限/.test(prompt)) {
+    return ["10%（推荐）", "15%", "20%"];
+  }
+  return ["采用推荐设置（推荐）", "保持当前设置", "暂不确定，请继续说明"];
+}
+
+function extractQuestions(value: string): AiMessageQuestion[] {
+  const rows: Array<{ prompt: string; options: string[] }> = [];
+  let active = false;
+  let current: { prompt: string; options: string[] } | undefined;
+
+  for (const rawLine of value.split("\n")) {
+    const header = rawLine.trim().match(/^\[\[AI_SECTION_(.+)\]\]$/);
+    if (header) {
+      active = header[1] === "下一步" || header[1] === "待确认问题";
+      current = undefined;
+      continue;
+    }
+    if (!active) continue;
+    const line = cleanInlineMarkdown(rawLine.replace(/^\s*(?:[-*•]|\d+[.、])\s*/, ""));
+    if (!line) continue;
+    const candidate = line.match(/^(?:候选(?:项)?|选项|建议选择)[:：]\s*(.+)$/);
+    if (candidate && current) {
+      current.options = candidate[1]
+        .split(/[|｜]/)
+        .map((option) => cleanInlineMarkdown(option).slice(0, 120))
+        .filter(Boolean)
+        .slice(0, 4);
+      continue;
+    }
+    if (/[?？]$/.test(line)) {
+      current = { prompt: line.slice(0, 200), options: [] };
+      rows.push(current);
+    }
+  }
+
+  return rows.slice(0, 4).map((row, index) => {
+    const uniqueOptions = [...new Set(row.options)];
+    const options = uniqueOptions.length >= 2 ? uniqueOptions : fallbackQuestionOptions(row.prompt);
+    return {
+      id: `question-${index + 1}`,
+      prompt: row.prompt,
+      options,
+      defaultOption: options[0],
+    };
+  });
+}
+
+export function formatAiQuestionAnswers(answers: Array<{ prompt: string; answer: string }>) {
+  const rows = answers
+    .map(({ prompt, answer }) => ({
+      prompt: prompt.trim(),
+      answer: answer.trim().replace(/[（(]推荐[）)]\s*$/, ""),
+    }))
+    .filter(({ prompt, answer }) => prompt && answer)
+    .slice(0, 4);
+  return [
+    "关于你提出的待确认问题，我的选择是：",
+    ...rows.flatMap(({ prompt, answer }, index) => [
+      `${index + 1}. ${prompt}`,
+      `   回答：${answer}`,
+    ]),
+  ].join("\n");
+}
+
 export function parseAiMessage(value: string): AiMessagePresentation {
   const normalized = String(value || "").replace(/\r\n?/g, "\n").trim();
-  if (!normalized) return { sections: [] };
+  if (!normalized) return { sections: [], questions: [] };
   const { text, codeBlocks } = extractCodeBlocks(normalized);
-  const lines = markSectionHeaders(text).split("\n");
+  const markedText = markSectionHeaders(text);
+  const lines = markedText.split("\n");
   const sections: AiMessageSection[] = [];
   let label: string | undefined;
   let content: string[] = [];
@@ -134,5 +224,5 @@ export function parseAiMessage(value: string): AiMessagePresentation {
     }
   }
   flush();
-  return { sections };
+  return { sections, questions: extractQuestions(markedText) };
 }

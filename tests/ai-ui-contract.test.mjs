@@ -16,6 +16,7 @@ test("agent page uses persistent server conversations and streamed messages", as
   assert.match(chat, /\/api\/ai\/conversations/);
   assert.match(chat, /consumeAiEventStream/);
   assert.match(chat, /AiMessageContent/);
+  assert.match(chat, /onAnswer=\{\(answer\) => void send\(answer\)\}/);
   assert.match(chat, /body: JSON\.stringify\(\{ message: content \}\)/);
   assert.doesNotMatch(chat, /body: JSON\.stringify\(\{[^}]*history/);
 });
@@ -25,11 +26,23 @@ test("strategy studio generates a validated server-side DSL without client histo
 
   assert.match(studio, /\/api\/strategy-studio\/generate/);
   assert.match(studio, /consumeAiEventStream/);
+  assert.match(studio, /AiMessageContent/);
+  assert.match(studio, /onAnswer=\{\(answer\) => void ask\(answer\)\}/);
   assert.match(studio, /generatedSpecification/);
   assert.match(studio, /generationId/);
   assert.doesNotMatch(studio, /\/api\/strategy-studio\/chat/);
   assert.doesNotMatch(studio, /generationMode,\s*specification/);
   assert.doesNotMatch(studio, /conversation:\s*messages|history:\s*messages/);
+});
+
+test("shared AI message UI exposes an accessible confirmation dialog and custom answer", async () => {
+  const content = await source("../app/ai-message-content.tsx");
+
+  assert.match(content, /<dialog/);
+  assert.match(content, /<fieldset/);
+  assert.match(content, /type="radio"/);
+  assert.match(content, /自定义填写/);
+  assert.match(content, /确认并发送/);
 });
 
 test("customer AI workspaces expose the private LLM configuration", async () => {

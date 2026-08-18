@@ -59,6 +59,7 @@ export default function AgentChat({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [promptMessageId, setPromptMessageId] = useState("");
   const messageEndRef = useRef<HTMLDivElement>(null);
   const active = conversations.find((item) => item.id === activeId) || null;
   const prompts = ["BTC 当前行情与风险如何？", "解释我的持仓风险", "当前跟随策略有哪些？", "帮我生成一个策略"];
@@ -71,6 +72,7 @@ export default function AgentChat({
     setActiveId(id);
     setError("");
     setSuggestedAction(null);
+    setPromptMessageId("");
     const response = await fetch(`/api/ai/conversations/${encodeURIComponent(id)}`, { cache: "no-store" });
     const payload = await response.json().catch(() => null) as { messages?: Message[] } | null;
     if (!response.ok) throw new Error(apiError(payload, "对话加载失败"));
@@ -89,6 +91,7 @@ export default function AgentChat({
     setMessages([]);
     setActiveId(payload.conversation.id);
     setSuggestedAction(null);
+    setPromptMessageId("");
     return payload.conversation;
   }
 
@@ -169,17 +172,19 @@ export default function AgentChat({
     const remaining = conversations.filter((item) => item.id !== activeId);
     setConversations(remaining);
     setMessages([]);
+    setPromptMessageId("");
     if (remaining[0]) await loadConversation(remaining[0].id).catch(() => undefined);
     else await createConversation().catch(() => undefined);
   }
 
-  async function send() {
-    const content = question.trim();
+  async function send(contentOverride?: string) {
+    const content = (contentOverride ?? question).trim();
     if (!content || sending || !activeId) return;
     const temporaryId = `pending-${Date.now()}`;
-    setQuestion("");
+    if (contentOverride === undefined) setQuestion("");
     setError("");
     setSuggestedAction(null);
+    setPromptMessageId("");
     setSending(true);
     setStreamingText("");
     setMessages((items) => [...items, {
@@ -205,7 +210,10 @@ export default function AgentChat({
           setStreamingText((value) => value + data.text);
         } else if (event === "done") {
           const saved = data.message as Message | undefined;
-          if (saved) setMessages((items) => [...items, saved]);
+          if (saved) {
+            setMessages((items) => [...items, saved]);
+            setPromptMessageId(saved.id);
+          }
           setStreamingText("");
           setSuggestedAction(data.suggestedAction === "strategy" ? "strategy" : null);
           setConversations((items) => items.map((item) => item.id === activeId
@@ -241,7 +249,7 @@ export default function AgentChat({
         <div className="agent-chat-messages" aria-live="polite">
           {loading && <div className="agent-chat-empty">正在加载对话…</div>}
           {!loading && !messages.length && <div className="agent-chat-empty"><b>开始一段真实对话</b><span>可以咨询行情依据、持仓风险，或讨论一个待回测策略。</span></div>}
-          {messages.map((message) => <article className={message.role === "user" ? "agent-chat-message-user" : "answer"} key={message.id}><i>{message.role === "user" ? "我" : "AI"}</i><div><b>{message.role === "user" ? "我" : "AI 团队"}</b>{message.role === "assistant" ? <AiMessageContent content={message.content} /> : <p>{message.content}</p>}<small>{message.generationMode === "guided_rules" ? "平台规则引导 · " : message.providerName ? `${message.providerName} · ` : ""}{formatRelative(message.createdAt)}</small></div></article>)}
+          {messages.map((message) => <article className={message.role === "user" ? "agent-chat-message-user" : "answer"} key={message.id}><i>{message.role === "user" ? "我" : "AI"}</i><div><b>{message.role === "user" ? "我" : "AI 团队"}</b>{message.role === "assistant" ? <AiMessageContent content={message.content} autoPrompt={message.id === promptMessageId} onAnswer={(answer) => void send(answer)} /> : <p>{message.content}</p>}<small>{message.generationMode === "guided_rules" ? "平台规则引导 · " : message.providerName ? `${message.providerName} · ` : ""}{formatRelative(message.createdAt)}</small></div></article>)}
           {streamingText && <article className="answer agent-chat-streaming"><i>AI</i><div><b>AI 团队</b><AiMessageContent content={streamingText} streaming /><small>正在生成…</small></div></article>}
           {suggestedAction === "strategy" && <button type="button" className="agent-chat-open-strategy" onClick={onOpenStrategies}>前往策略工作室创建可回测规则 →</button>}
           <div ref={messageEndRef} />

@@ -3508,6 +3508,26 @@ body:has(.membership-plans) .content>.page-head{
 .ai-message-code{min-width:0;border:1px solid #253b4f;border-radius:7px;background:#07111a}
 .ai-message-code summary{padding:8px 10px;color:#80b7e5;font-size:10px;cursor:pointer}
 .ai-message-code pre{max-height:280px;overflow:auto;margin:0;padding:11px;border-top:1px solid #203447;color:#a9cce8;font-size:10px;line-height:1.55;white-space:pre-wrap}
+.ai-message-question-cta{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid #3b668c;border-radius:9px;background:linear-gradient(135deg,#102a40,#101d2b)}
+.ai-message-question-cta>div{display:grid;gap:3px}.ai-message-question-cta strong{color:#d6e9fa;font-size:11px}.ai-message-question-cta span{color:#7895ad;font-size:9px}
+.ai-message-question-cta button{flex:0 0 auto;padding:7px 10px;border:1px solid #4b94cf;border-radius:7px;background:#1b5684;color:#eef8ff;font-size:10px;font-weight:700;cursor:pointer}
+.ai-answer-dialog{width:min(680px,calc(100vw - 32px));max-height:min(760px,calc(100vh - 32px));padding:0;overflow:hidden;border:1px solid #385a77;border-radius:14px;background:#0d1722;color:#dce9f5;box-shadow:0 30px 90px rgba(0,0,0,.7)}
+.ai-answer-dialog::backdrop{background:rgba(2,7,12,.76);backdrop-filter:blur(5px)}
+.ai-answer-dialog>form{display:flex;max-height:min(760px,calc(100vh - 32px));flex-direction:column}
+.ai-answer-dialog>form>header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:20px 22px 16px;border-bottom:1px solid #263c50;background:radial-gradient(circle at 82% 0,rgba(57,139,210,.17),transparent 42%)}
+.ai-answer-dialog>form>header span{color:#62afe9;font-size:8px;font-weight:700;letter-spacing:.2em}.ai-answer-dialog>form>header h2{margin:5px 0 0;color:#e7f2fc;font-size:20px}
+.ai-answer-dialog-close{display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid #38516a;border-radius:50%;background:#111e2b;color:#b7cadb;font-size:21px;cursor:pointer}
+.ai-answer-dialog-intro{margin:0;padding:14px 22px 0;color:#849caf;font-size:11px;line-height:1.6}
+.ai-answer-dialog-fields{display:grid;gap:12px;overflow:auto;padding:14px 22px 18px}
+.ai-answer-dialog fieldset{display:grid;gap:7px;margin:0;padding:13px;border:1px solid #263f55;border-radius:10px;background:#0a141e}
+.ai-answer-dialog legend{display:flex;align-items:flex-start;gap:9px;padding:0 4px;color:#d4e2ee;font-size:12px;font-weight:700;line-height:1.55}
+.ai-answer-dialog legend span{display:grid;place-items:center;flex:0 0 22px;width:22px;height:22px;border-radius:6px;background:#17456b;color:#91ccfb;font-size:10px}
+.ai-answer-dialog fieldset label{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;border:1px solid #20364a;border-radius:7px;background:#0e1b27;color:#aebfd0;font-size:11px;line-height:1.45;cursor:pointer}
+.ai-answer-dialog fieldset label:has(input:checked){border-color:#4389c2;background:#12304a;color:#e1effb;box-shadow:inset 3px 0 #55aaf0}
+.ai-answer-dialog input[type="radio"]{flex:0 0 auto;margin:2px 0 0;accent-color:#4fa7ed}
+.ai-answer-custom-input{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #4389c2;border-radius:7px;outline:0;background:#07131d;color:#e4f0fa;font-size:11px}.ai-answer-custom-input:focus{box-shadow:0 0 0 3px rgba(79,167,237,.14)}
+.ai-answer-dialog>form>footer{display:flex;justify-content:flex-end;gap:9px;padding:14px 22px;border-top:1px solid #263c50;background:#0b141e}
+.ai-answer-dialog>form>footer button{min-height:36px;padding:8px 14px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer}.ai-answer-dialog>form>footer .secondary{border:1px solid #334a5e;background:#101c27;color:#9fb2c3}.ai-answer-dialog>form>footer .primary{border:1px solid #4f9bd6;background:#236da7;color:#f2f9ff}.ai-answer-dialog>form>footer .primary:disabled{cursor:not-allowed;opacity:.45}
 .ai-message-cursor{color:#6ec4ff;animation:ai-cursor-blink .8s steps(1) infinite}
 @media(max-width:900px){
   .agent-chat-workspace{grid-template-columns:1fr;min-height:0}
@@ -3521,6 +3541,9 @@ body:has(.membership-plans) .content>.page-head{
   .agent-chat-current{flex-wrap:wrap}
   .agent-chat-current small{width:100%;margin-left:0}
 .agent-chat-prompts>div{grid-template-columns:1fr 1fr}
+.ai-message-question-cta{align-items:stretch;flex-direction:column}.ai-message-question-cta button{width:100%}
+.ai-answer-dialog>form>header,.ai-answer-dialog-fields,.ai-answer-dialog>form>footer{padding-right:15px;padding-left:15px}
+.ai-answer-dialog-intro{padding-right:15px;padding-left:15px}
 .ai-message-section-body{padding:9px}.ai-message-section>header{padding:7px 9px}
 }
 
