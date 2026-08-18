@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { SystemLlmConfigPanel } from "./llm-config";
+import { AgentRoleAdmin } from "./agent-role-admin";
 
 type IntegrationItem = {
   id: string;
@@ -60,6 +61,7 @@ export default function MarketNewsSettings(){
     </div>
     <div className="integration-env"><span className="eyebrow">CONFIGURATION LOCATION</span><h3>更换供应商时填写这里</h3><p>本地开发：项目根目录的 <code>.env</code>；上线后：Cloudflare Worker → 设置 → 变量和机密。密钥只放服务端，浏览器和客户页面不会读取。</p><div className="env-tags"><code>MARKET_DATA_BASE_URL</code><code>MARKET_DATA_PROVIDER</code><code>MARKET_DATA_TICKER_PATH</code><code>NEWS_RSS_URLS</code><code>AI_API_URL</code><code>AI_API_KEY</code><code>AI_MODEL</code></div></div>
     <SystemLlmConfigPanel/>
+    <AgentRoleAdmin/>
     {groupedCatalog.length > 0 && <div className="integration-catalog">
       <div className="integration-catalog-head"><div><span className="eyebrow">AVAILABLE CONNECTORS</span><h3>免费与可申请接口目录</h3><p>先登记供应商和用途，再由管理员把申请到的 Key 配置到服务端。免费额度不代表无限调用。</p></div><span className="catalog-count">{catalog.length} 个接口</span></div>
       <div className="integration-catalog-groups">

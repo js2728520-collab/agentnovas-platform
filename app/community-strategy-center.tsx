@@ -7,6 +7,7 @@ import { consumeAiEventStream } from "./ai-sse";
 import { CustomLlmButton } from "./llm-config";
 import type { StrategyDetailData } from "./strategy-detail";
 import { StrategyBacktestDetail } from "./strategy-backtest-detail";
+import { MultiAgentResearch } from "./multi-agent-research";
 
 type Row = Record<string, unknown>;
 type ChatMessage = { role: "user" | "assistant"; text: string; autoPrompt?: boolean };
@@ -587,6 +588,23 @@ export default function CommunityStrategyCenter({
         <div className="strategy-studio-header-actions"><CustomLlmButton /><span>{draftId ? `草稿 V${draftVersion}` : "尚未保存"}</span></div>
       </header>
       {message && <div className="notice">{message}</div>}
+      <MultiAgentResearch ensureConversation={ensureStrategyConversation} brief={{
+        name: studio.name || "多 Agent 策略研究",
+        symbol: studio.symbol.replace("/", "").toUpperCase(),
+        timeframe: studio.period.toLowerCase(),
+        style: studio.style,
+        goal: preferences.goal,
+        experience: preferences.experience,
+        marketCondition: preferences.marketCondition,
+        frequency: preferences.frequency,
+        positionSizePct: Number(studio.capital),
+        stopLossPct: Number(studio.stopLoss),
+        takeProfitPct: Number(studio.takeProfit),
+        maxDrawdownPct: Number(studio.maxDrawdown),
+        entryRule: studio.entryRule,
+        exitRule: studio.exitRule,
+        riskRule: studio.riskRule,
+      }} />
       <div className="studio-layout">
         <section className="strategy-chat-panel">
           <div className="studio-panel-title"><b>AI 策略研究员</b><span><i />{busy === "chat" ? "思考中" : "在线"}</span></div>
