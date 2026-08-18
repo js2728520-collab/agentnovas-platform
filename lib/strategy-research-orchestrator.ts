@@ -27,6 +27,7 @@ import {
   upsertResearchCandidate,
 } from "./research-repository.ts";
 import {
+  buildMarketRegimeEvidence,
   createHoldoutGuard,
   evaluateCandidateAdmission,
   rankResearchCandidates,
@@ -492,11 +493,11 @@ export async function processResearchStage(database: Pool, run: ResearchLease, w
       const dataLoading = {
         ...key, startTime, endTime, candleCount: candles.items.length, fundingRateCount: funding.items.length,
         priceChangePct: Number(((candles.items.at(-1)!.close / candles.items[0].open - 1) * 100).toFixed(4)),
-        instrument, fee, dataQuality,
+        instrument, fee, dataQuality, regimeEvidence: buildMarketRegimeEvidence(candles.items),
       };
       await persistAndAdvance(database, run, workerId, {
         patch: { dataLoading }, role: "data_adapter", title: "真实历史行情已加载",
-        content: { exchange: key.exchange, symbol: key.symbol, timeframe: key.timeframe, candleCount: candles.items.length, dataQuality },
+        content: { exchange: key.exchange, symbol: key.symbol, timeframe: key.timeframe, candleCount: candles.items.length, regimeSegmentCount: dataLoading.regimeEvidence.length, dataQuality },
       });
       return;
     }

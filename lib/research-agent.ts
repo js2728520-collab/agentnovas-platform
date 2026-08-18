@@ -6,7 +6,7 @@ type ResearchAgentRole = ResolvedAgentRoleConfig["role"];
 
 const roleInstructions: Record<ResearchAgentRole, string> = {
   requirements: "把输入整理为严格 brief；missingFields 只列出会改变策略结果的缺失条件。输出 conclusion、brief、missingFields、dataReferences。",
-  market_regime: "只识别趋势、震荡、高波动、极端下跌区间；每段必须有 start、end、label、evidence。不要生成策略。",
+  market_regime: "只根据上下文给出的 regimeEvidence 识别 trend、range、high_volatility、extreme_decline；每段必须输出原始 segmentId、允许的 label 和 evidence。不要改写时间，不要生成策略。",
   proposal_a: "独立提出趋势/突破类候选。每项输出 strategyFamily 和严格 DSL V2；不得参考另一提案 Agent。",
   proposal_b: "独立提出均值回归/波动过滤类候选。每项输出 strategyFamily 和严格 DSL V2；不得参考另一提案 Agent。",
   adversarial_review: "审查数据泄漏、样本不足、参数敏感、交易频率、成本假设。输出 verdict、objections、revisionRequests、dataReferences。",
@@ -74,7 +74,21 @@ function validateOutput(role: ResearchAgentRole, output: Record<string, unknown>
     if (!output.brief || typeof output.brief !== "object" || Array.isArray(output.brief)) throw new Error("需求 Agent 未返回 brief");
     if (!Array.isArray(output.missingFields)) throw new Error("需求 Agent 未返回 missingFields");
   }
-  if (role === "market_regime" && !Array.isArray(output.regimes)) throw new Error("市场状态 Agent 未返回 regimes");
+  if (role === "market_regime") {
+    if (!Array.isArray(output.regimes)) throw new Error("市场状态 Agent 未返回 regimes");
+    output.regimes = output.regimes.map((item, index) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`市场状态分段 ${index + 1} 格式无效`);
+      const regime = item as Record<string, unknown>;
+      const segmentId = String(regime.segmentId ?? "").trim();
+      const label = String(regime.label ?? "").trim();
+      if (!/^segment-\d{1,2}$/.test(segmentId)) throw new Error(`市场状态分段 ${index + 1} 未引用有效 segmentId`);
+      if (!["trend", "range", "high_volatility", "extreme_decline"].includes(label)) {
+        throw new Error(`市场状态分段 ${index + 1} 标签无效`);
+      }
+      if (!Array.isArray(regime.evidence)) throw new Error(`市场状态分段 ${index + 1} 未返回 evidence`);
+      return { segmentId, label, evidence: regime.evidence.slice(0, 10) };
+    });
+  }
   if (role === "proposal_a" || role === "proposal_b") {
     if (!Array.isArray(output.candidates) || !output.candidates.length) throw new Error("提案 Agent 未返回候选策略");
     output.candidates = output.candidates.map((item, index) => {
@@ -141,6 +155,16 @@ export async function callStructuredResearchAgent(options: {
     });
     if (!response.ok) throw new Error(`Agent 模型请求失败（HTTP ${response.status}）`);
     const output = validateOutput(options.role, parseObject(extractText(await response.json(), options.config.apiStyle)));
+    if (options.role === "market_regime") {
+      const marketData = options.context.marketData && typeof options.context.marketData === "object"
+        ? options.context.marketData as Record<string, unknown>
+        : options.context;
+      const evidence = Array.isArray(marketData.regimeEvidence) ? marketData.regimeEvidence : [];
+      const allowed = new Set(evidence.map(item => item && typeof item === "object" ? String((item as Record<string, unknown>).segmentId ?? "") : ""));
+      for (const regime of output.regimes as Array<{ segmentId: string }>) {
+        if (!allowed.has(regime.segmentId)) throw new Error(`市场状态 Agent 引用了不存在的分段：${regime.segmentId}`);
+      }
+    }
     return { role: options.role, modelName: options.config.modelName, output };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw new Error("Agent 模型调用超时");

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildMarketRegimeEvidence,
   createHoldoutGuard,
   evaluateCandidateAdmission,
   rankResearchCandidates,
@@ -108,4 +109,21 @@ test("selects the worst deterministic contiguous window without using holdout da
   assert.equal(selected.length, 250);
   assert.ok(selected[0].marker <= 400);
   assert.ok(selected.at(-1).marker >= 600);
+});
+
+test("compresses candles into bounded deterministic regime evidence", () => {
+  const candles = Array.from({ length: 2_400 }, (_, index) => ({
+    openTime: index * 3_600_000,
+    closeTime: (index + 1) * 3_600_000 - 1,
+    open: 100 + index * 0.01,
+    close: 100 + index * 0.01 + (index % 2 ? 0.2 : -0.1),
+    volume: 10 + index % 5,
+  }));
+  const evidence = buildMarketRegimeEvidence(candles);
+
+  assert.equal(evidence.length, 12);
+  assert.equal(evidence[0].segmentId, "segment-1");
+  assert.equal(evidence.at(-1).segmentId, "segment-12");
+  assert.equal(evidence.reduce((sum, segment) => sum + segment.candleCount, 0), candles.length);
+  assert.ok(evidence.every(segment => Number.isFinite(segment.maxDrawdownPct)));
 });

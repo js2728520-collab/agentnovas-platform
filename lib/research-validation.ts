@@ -24,6 +24,17 @@ export type TradeSequenceResampling = {
   p95MaxDrawdownPct: number;
 };
 
+export type MarketRegimeEvidence = {
+  segmentId: string;
+  startTime: number;
+  endTime: number;
+  candleCount: number;
+  returnPct: number;
+  realizedVolatilityPct: number;
+  maxDrawdownPct: number;
+  averageVolume: number;
+};
+
 function finite(value: number) {
   return Number.isFinite(value) ? value : 0;
 }
@@ -116,6 +127,49 @@ export function selectExtremeDrawdownWindow<T extends { open: number; close: num
     }
   }
   return candles.slice(selectedStart, selectedStart + windowSize);
+}
+
+export function buildMarketRegimeEvidence<T extends {
+  openTime: number;
+  closeTime: number;
+  open: number;
+  close: number;
+  volume: number;
+}>(candles: readonly T[], requestedSegments = 12): MarketRegimeEvidence[] {
+  if (candles.length < 200) throw new Error("市场状态分段至少需要 200 根 K 线");
+  const segmentCount = Math.min(Math.max(Math.trunc(requestedSegments), 4), 12, Math.floor(candles.length / 50));
+  const result: MarketRegimeEvidence[] = [];
+  for (let index = 0; index < segmentCount; index += 1) {
+    const start = Math.floor(candles.length * index / segmentCount);
+    const end = Math.floor(candles.length * (index + 1) / segmentCount);
+    const segment = candles.slice(start, end);
+    let peak = segment[0].close;
+    let maximumDrawdown = 0;
+    const returns: number[] = [];
+    for (let candleIndex = 0; candleIndex < segment.length; candleIndex += 1) {
+      const candle = segment[candleIndex];
+      peak = Math.max(peak, candle.close);
+      maximumDrawdown = Math.max(maximumDrawdown, peak > 0 ? (peak - candle.close) / peak * 100 : 0);
+      if (candleIndex > 0 && segment[candleIndex - 1].close > 0) {
+        returns.push(candle.close / segment[candleIndex - 1].close - 1);
+      }
+    }
+    const mean = returns.length ? returns.reduce((sum, value) => sum + value, 0) / returns.length : 0;
+    const variance = returns.length
+      ? returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / returns.length
+      : 0;
+    result.push({
+      segmentId: `segment-${index + 1}`,
+      startTime: segment[0].openTime,
+      endTime: segment.at(-1)!.closeTime,
+      candleCount: segment.length,
+      returnPct: Number(((segment.at(-1)!.close / segment[0].open - 1) * 100).toFixed(4)),
+      realizedVolatilityPct: Number((Math.sqrt(variance) * 100).toFixed(4)),
+      maxDrawdownPct: Number(maximumDrawdown.toFixed(4)),
+      averageVolume: Number((segment.reduce((sum, candle) => sum + candle.volume, 0) / segment.length).toFixed(4)),
+    });
+  }
+  return result;
 }
 
 export function createHoldoutGuard() {

@@ -82,3 +82,19 @@ test("rechecks DNS before a real agent call and rejects mapped private IPv6", as
     fetchImpl: async () => { throw new Error("fetch must not run"); },
   }), /内网/);
 });
+
+test("requires market regime output to cite bounded segment identifiers", async () => {
+  await assert.rejects(callStructuredResearchAgent({
+    config: { ...config, role: "market_regime" },
+    role: "market_regime",
+    context: { regimeEvidence: [{ segmentId: "segment-1" }] },
+    resolver: async () => [{ address: "203.0.114.8" }],
+    fetchImpl: async () => new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        conclusion: "状态分段完成",
+        regimes: [{ start: "invented", end: "invented", label: "bull" }],
+        dataReferences: [],
+      }) } }],
+    }), { status: 200 }),
+  }), /segmentId|标签/);
+});
