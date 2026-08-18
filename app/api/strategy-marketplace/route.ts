@@ -11,7 +11,7 @@ import { getOwnedAiConversation, resolveStrategyVersionSource } from "@/lib/ai-c
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { currentUser, requireUser, responseError } from "@/lib/session";
 import { createStrategyDraft } from "@/lib/strategy-drafts";
-import { normalizeStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
+import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
 
 function parseArray(value: string) {
   try {
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
     }
     let specification;
     try {
-      specification = normalizeStrategyDsl(body.specification);
+      specification = normalizeResearchStrategyDsl(body.specification);
     } catch (error) {
       const details = error instanceof StrategyDslValidationError ? error.issues : [];
       return Response.json({ error: "策略规则未通过 DSL 校验", details }, { status: 422 });

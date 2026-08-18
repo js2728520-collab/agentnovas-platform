@@ -207,6 +207,20 @@ export async function pauseResearchRunForMissingRoles(database: Queryable, input
   return runFromRow(result.rows[0]);
 }
 
+export async function requeueResearchRunsPausedForRoles(database: Queryable) {
+  const result = await database.query<ResearchRunRow>(`
+    UPDATE strategy_research_runs
+    SET status = 'queued',
+        last_error_code = NULL,
+        last_error_message = NULL,
+        next_attempt_at = now(),
+        updated_at = now()
+    WHERE status = 'paused_missing_role' AND cancel_requested_at IS NULL
+    RETURNING *
+  `);
+  return result.rows.map(runFromRow);
+}
+
 const modeBudgets: Record<ResearchMode, { candidates: number; backtests: number }> = {
   quick: { candidates: 3, backtests: 12 },
   standard: { candidates: 6, backtests: 60 },
@@ -315,14 +329,25 @@ export async function requestResearchRunCancellation(database: Queryable, input:
 }) {
   const result = await database.query<ResearchRunRow>(`
     UPDATE strategy_research_runs
-    SET cancel_requested_at = COALESCE(cancel_requested_at, $3),
+    SET cancel_requested_at = CASE
+          WHEN status IN ('completed', 'failed', 'cancelled') THEN cancel_requested_at
+          ELSE COALESCE(cancel_requested_at, $3)
+        END,
         status = CASE
-          WHEN status IN ('queued', 'retry_wait', 'paused_missing_role') THEN 'cancelled'
+          WHEN status NOT IN ('completed', 'failed', 'cancelled') THEN 'cancelled'
           ELSE status
         END,
         completed_at = CASE
-          WHEN status IN ('queued', 'retry_wait', 'paused_missing_role') THEN $3
+          WHEN status NOT IN ('completed', 'failed', 'cancelled') THEN $3
           ELSE completed_at
+        END,
+        lease_owner = CASE
+          WHEN status NOT IN ('completed', 'failed', 'cancelled') THEN NULL
+          ELSE lease_owner
+        END,
+        lease_expires_at = CASE
+          WHEN status NOT IN ('completed', 'failed', 'cancelled') THEN NULL
+          ELSE lease_expires_at
         END,
         updated_at = $3
     WHERE id = $1 AND owner_user_id = $2

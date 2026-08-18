@@ -1,6 +1,7 @@
-import { bindAgentRole, listAgentRoleBindings } from "@/lib/agent-model-profiles";
+import { bindAgentRole, listAgentRoleBindings, missingAgentRoles } from "@/lib/agent-model-profiles";
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { getPostgresPool } from "@/lib/postgres";
+import { requeueResearchRunsPausedForRoles } from "@/lib/postgres-research-queue";
 import { readResearchJson, requireResearchUser, researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request) {
@@ -28,7 +29,11 @@ export async function PUT(request: Request) {
       profileId: String(body.profileId ?? ""),
       enabled: body.enabled !== false,
     });
-    return Response.json({ binding });
+    const missingRoles = await missingAgentRoles(pool);
+    const resumedRuns = missingRoles.length === 0
+      ? await requeueResearchRunsPausedForRoles(pool)
+      : [];
+    return Response.json({ binding, missingRoles, resumedRunCount: resumedRuns.length });
   } catch (error) {
     return researchErrorResponse(error);
   }

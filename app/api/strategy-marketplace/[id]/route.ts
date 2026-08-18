@@ -10,7 +10,7 @@ import { AiApiError, aiErrorResponse } from "@/lib/ai-api";
 import { getOwnedAiConversation, resolveStrategyVersionSource } from "@/lib/ai-conversations";
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { requireUser, responseError } from "@/lib/session";
-import { normalizeStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
+import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
 
 function parseJsonObject(value: string) {
   try {
@@ -97,7 +97,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!body.name?.trim() || !body.summary?.trim()) return Response.json({ error: "策略名称和说明为必填" }, { status: 400 });
     let specification;
     try {
-      specification = normalizeStrategyDsl(body.specification);
+      specification = normalizeResearchStrategyDsl(body.specification);
     } catch (error) {
       const details = error instanceof StrategyDslValidationError ? error.issues : [];
       return Response.json({ error: "策略规则未通过 DSL 校验", details }, { status: 422 });
@@ -111,7 +111,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const nextVersion = current.version + 1;
     const specificationJson = JSON.stringify(specification);
     const source = await resolveStrategyVersionSource({ userId: me.id, conversationId, generationId: String(body.generationId || "").trim() || null, specificationJson });
-    const changes = { name: body.name.trim(), summary: body.summary.trim(), symbolsJson: JSON.stringify([specification.symbol.replace(/USDT$/, "/USDT")]), riskLevel: body.riskLevel || "medium" as const, publicationMode: body.publicationMode === "self_use" ? "self_use" as const : "marketplace" as const, conversationJson: "[]", specificationJson, version: nextVersion, status: "draft" as const, rejectionReason: null, updatedAt: now };
+    const changes = { name: body.name.trim(), summary: body.summary.trim(), symbolsJson: JSON.stringify([specification.symbol.replace(/USDT$/, "/USDT")]), riskLevel: body.riskLevel || "medium" as const, publicationMode: body.publicationMode === "self_use" ? "self_use" as const : "marketplace" as const, conversationJson: "[]", specificationJson, version: nextVersion, status: "draft" as const, validationLabel: "UNVERIFIED" as const, researchRunId: null, researchCandidateId: null, rejectionReason: null, updatedAt: now };
     await db.batch([
       db.update(communityStrategies).set(changes).where(eq(communityStrategies.id, id)),
       db.insert(strategyVersions).values({ id: crypto.randomUUID(), strategyId: id, version: nextVersion, name: body.name.trim(), summary: body.summary.trim(), specificationJson, conversationId, source, createdByUserId: me.id }),

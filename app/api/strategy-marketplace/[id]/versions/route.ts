@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { auditLogs, communityStrategies, strategyVersions } from "@/db/schema";
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { requireUser, responseError } from "@/lib/session";
-import { normalizeStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
+import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
 
 const editableStatuses = ["draft", "testing", "rejected"] as const;
 
@@ -45,7 +45,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     let specification;
     try {
-      specification = normalizeStrategyDsl(JSON.parse(historical.specificationJson));
+      specification = normalizeResearchStrategyDsl(JSON.parse(historical.specificationJson));
     } catch (error) {
       const details = error instanceof StrategyDslValidationError ? error.issues : [];
       return Response.json({ error: "历史版本规则未通过当前 DSL 校验，无法回滚", details }, { status: 422 });
@@ -64,6 +64,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         specificationJson,
         version: nextVersion,
         status: "draft",
+        validationLabel: "UNVERIFIED",
+        researchRunId: null,
+        researchCandidateId: null,
         rejectionReason: null,
         updatedAt: now,
       }).where(and(

@@ -61,6 +61,8 @@ export function MultiAgentResearch({
       if (roleResponse.ok) {
         setRoles(roleResponse.data.roles || []);
         setReady(Boolean(roleResponse.data.ready));
+      } else {
+        setMessage(errorMessage(roleResponse.data, "多 Agent 服务尚未配置"));
       }
     }).catch(() => {});
     return () => { active = false; };

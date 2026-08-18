@@ -45,8 +45,8 @@ export async function POST(request: Request) {
       eq(exchangeAccounts.id, exchangeAccountId),
       eq(exchangeAccounts.customerId, user.id),
     )).limit(1))[0];
-    if (!account || !account.canRead || account.withdrawalAuthorized) {
-      throw new ResearchApiError("INVALID_EXCHANGE_ACCOUNT", "交易所账户不存在、无只读权限或包含提现权限", 422);
+    if (!account || account.status !== "active" || !account.canRead || account.withdrawalAuthorized) {
+      throw new ResearchApiError("INVALID_EXCHANGE_ACCOUNT", "交易所账户不存在、尚未通过连通检测、无只读权限或包含提现权限", 422);
     }
     if (!["OKX", "BINANCE", "BYBIT"].includes(account.exchange.toUpperCase())) {
       throw new ResearchApiError("UNSUPPORTED_EXCHANGE", "策略研发首期仅支持 OKX、Binance 和 Bybit 永续", 422);

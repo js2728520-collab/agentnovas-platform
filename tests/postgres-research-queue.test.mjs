@@ -9,6 +9,8 @@ import {
   appendResearchEvent,
   createResearchRun,
   leaseNextResearchRun,
+  pauseResearchRunForMissingRoles,
+  requeueResearchRunsPausedForRoles,
   requestResearchRunCancellation,
 } from "../lib/postgres-research-queue.ts";
 import {
@@ -116,6 +118,9 @@ test("records cancellation without allowing another worker to reclaim the run", 
     now: new Date("2026-08-18T11:00:01.000Z"),
   });
   assert.equal(cancelled.cancelRequestedAt.toISOString(), "2026-08-18T11:00:01.000Z");
+  assert.equal(cancelled.status, "cancelled");
+  assert.equal(cancelled.leaseOwner, null);
+  assert.equal(cancelled.completedAt.toISOString(), "2026-08-18T11:00:01.000Z");
 
   const reclaimed = await leaseNextResearchRun(pool, {
     workerId: "worker-after-cancel",
@@ -123,6 +128,24 @@ test("records cancellation without allowing another worker to reclaim the run", 
     leaseSeconds: 30,
   });
   assert.equal(reclaimed, null);
+});
+
+test("requeues every non-cancelled run paused for missing roles", async () => {
+  const resumable = await createResearchRun(pool, runInput());
+  const cancelled = await createResearchRun(pool, runInput());
+  await pauseResearchRunForMissingRoles(pool, { runId: resumable.id, missingRoles: ["report"] });
+  await pauseResearchRunForMissingRoles(pool, { runId: cancelled.id, missingRoles: ["report"] });
+  await requestResearchRunCancellation(pool, {
+    runId: cancelled.id,
+    ownerUserId: "user-a",
+    now: new Date("2026-08-18T11:10:00.000Z"),
+  });
+
+  const resumed = await requeueResearchRunsPausedForRoles(pool);
+
+  assert.deepEqual(resumed.map((run) => run.id), [resumable.id]);
+  assert.equal(resumed[0].status, "queued");
+  assert.equal(resumed[0].lastErrorCode, null);
 });
 
 test("appends public events with a transactionally increasing sequence", async () => {
