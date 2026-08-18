@@ -5,6 +5,7 @@ import {
   type StrategyCandle,
   type StrategyDsl,
 } from "./strategy-dsl.ts";
+import { fetchPublicMarketJson, publicMarketProviderName } from "./public-market-source.ts";
 
 // Kept for the existing deterministic demo strategy runtime. New community
 // strategy backtests use StrategyDsl below.
@@ -155,33 +156,29 @@ async function sha256(value: string) {
   return `sha256:${Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
-async function loadCandles(specification: StrategyDsl, limit: number): Promise<StrategyCandle[]> {
-  const base = (process.env.MARKET_DATA_BASE_URL || "https://api-gcp.binance.com").replace(/\/$/, "");
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12_000);
-  try {
-    const url = `${base}/api/v3/klines?symbol=${encodeURIComponent(specification.symbol)}&interval=${encodeURIComponent(specification.timeframe)}&limit=${limit}`;
-    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
-    if (!response.ok) throw new Error(`历史行情服务返回 ${response.status}`);
-    const data = await response.json() as unknown;
-    if (!Array.isArray(data)) throw new Error("历史行情数据格式无效");
-    const candles = data.map((row) => {
-      if (!Array.isArray(row) || row.length < 7) throw new Error("历史K线字段不完整");
-      return {
-        openTime: Number(row[0]),
-        open: Number(row[1]),
-        high: Number(row[2]),
-        low: Number(row[3]),
-        close: Number(row[4]),
-        volume: Number(row[5]),
-        closeTime: Number(row[6]),
-      };
-    }).filter((candle) => Object.values(candle).every(Number.isFinite));
-    if (candles.length < 200) throw new Error("历史K线样本不足 200 根，平台拒绝生成回测结论");
-    return candles;
-  } finally {
-    clearTimeout(timer);
-  }
+export async function loadBacktestCandles(
+  specification: Pick<StrategyDsl, "symbol" | "timeframe">,
+  limit: number,
+): Promise<{ candles: StrategyCandle[]; provider: string }> {
+  const { data, base } = await fetchPublicMarketJson<unknown[]>(
+    `/api/v3/klines?symbol=${encodeURIComponent(specification.symbol)}&interval=${encodeURIComponent(specification.timeframe)}&limit=${limit}`,
+    12_000,
+  );
+  if (!Array.isArray(data)) throw new Error("历史行情数据格式无效");
+  const candles = data.map((row) => {
+    if (!Array.isArray(row) || row.length < 7) throw new Error("历史K线字段不完整");
+    return {
+      openTime: Number(row[0]),
+      open: Number(row[1]),
+      high: Number(row[2]),
+      low: Number(row[3]),
+      close: Number(row[4]),
+      volume: Number(row[5]),
+      closeTime: Number(row[6]),
+    };
+  }).filter((candle) => Object.values(candle).every(Number.isFinite));
+  if (candles.length < 200) throw new Error("历史K线样本不足 200 根，平台拒绝生成回测结论");
+  return { candles, provider: publicMarketProviderName(base) };
 }
 
 function validateCandles(candles: StrategyCandle[]) {
@@ -351,6 +348,6 @@ export async function runHistoricalBacktest(
 ): Promise<BacktestResult> {
   const specification = normalizeBacktestDsl(rawSpecification);
   const options = normalizeBacktestOptions(rawOptions);
-  const candles = await loadCandles(specification, options.candleLimit);
-  return runBacktestOnCandles(specification, candles, options);
+  const { candles, provider } = await loadBacktestCandles(specification, options.candleLimit);
+  return runBacktestOnCandles(specification, candles, { ...options, provider });
 }
