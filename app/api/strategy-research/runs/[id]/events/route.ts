@@ -1,4 +1,4 @@
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
 import { getOwnedResearchRun, listResearchEvents } from "@/lib/postgres-research-queue";
 import { requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
@@ -7,7 +7,7 @@ const terminalStatuses = new Set(["completed", "failed", "cancelled"]);
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireResearchUser(request, ["customer"]);
     const { id } = await params;
     const url = new URL(request.url);

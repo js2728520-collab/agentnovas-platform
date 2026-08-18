@@ -111,7 +111,10 @@ function boundedBacktestNumber(
   return number;
 }
 
-export function normalizeBacktestOptions(input: BacktestOptionsInput = {}): BacktestOptions {
+function normalizeBacktestOptionsWithCandleMaximum(
+  input: BacktestOptionsInput,
+  maximumCandleLimit: number,
+): BacktestOptions {
   const preset = input.preset ?? "live_aligned";
   if (preset !== "live_aligned" && preset !== "exploration") throw new Error("不支持的回测预设");
   return {
@@ -125,8 +128,16 @@ export function normalizeBacktestOptions(input: BacktestOptionsInput = {}): Back
       "滑点率",
     ),
     initialEquityUsdt: boundedBacktestNumber(input.initialEquityUsdt, 10_000, 100, 1_000_000, "初始资金"),
-    candleLimit: boundedBacktestNumber(input.candleLimit, 1_000, 200, 1_000, "K线数量", true),
+    candleLimit: boundedBacktestNumber(input.candleLimit, 1_000, 200, maximumCandleLimit, "K线数量", true),
   };
+}
+
+export function normalizeBacktestOptions(input: BacktestOptionsInput = {}): BacktestOptions {
+  return normalizeBacktestOptionsWithCandleMaximum(input, 1_000);
+}
+
+export function normalizePerpetualBacktestOptions(input: BacktestOptionsInput = {}): BacktestOptions {
+  return normalizeBacktestOptionsWithCandleMaximum(input, 30_000);
 }
 
 const legacyIntervals = new Set(["5m", "15m", "1h", "4h", "1d"]);
@@ -412,7 +423,7 @@ export async function runPerpetualBacktestOnCandles(
   const specification = strategyDslToRuntime(storedSpecification);
   validatePerpetualCandles(candles);
   const fundingRates = normalizeFundingRates(rawFundingRates);
-  const options = normalizeBacktestOptions(rawOptions);
+  const options = normalizePerpetualBacktestOptions(rawOptions);
   const maintenanceMarginRate = boundedBacktestNumber(
     rawOptions.maintenanceMarginRate,
     0.005,
@@ -421,7 +432,7 @@ export async function runPerpetualBacktestOnCandles(
     "维持保证金率",
   );
   const provider = rawOptions.provider || process.env.MARKET_DATA_PROVIDER || "Perpetual market adapter";
-  const engineVersion = "3.0.0-dsl-v2-perpetual";
+  const engineVersion = "4.0.0-dsl-v3-unified";
   const evaluators = {
     long: specification.legs.long ? createStrategyLegEvaluator(specification.legs.long, candles) : null,
     short: specification.legs.short ? createStrategyLegEvaluator(specification.legs.short, candles) : null,

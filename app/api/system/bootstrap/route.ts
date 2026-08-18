@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { auditLogs, organizations, sessions, users } from "@/db/schema";
 import { hashPassword, normalizeEmail, validEmail } from "@/lib/auth";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { runtimeSetting } from "@/lib/runtime-setting";
 
 export async function POST(request: Request) {
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const body = await request.json() as { email?: string; password?: string };
     const email = normalizeEmail(body.email ?? ""); if (!validEmail(email)) return Response.json({ error: "邮箱无效" }, { status: 400 });
     if ((body.password ?? "").length < 10) return Response.json({ error: "管理员密码至少需要 10 位" }, { status: 400 });
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const db = getDb();
     const existingAdmin = (await db.select().from(users).where(eq(users.role, "hq_admin")).limit(1))[0];
     if (existingAdmin) {

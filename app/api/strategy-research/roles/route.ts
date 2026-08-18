@@ -1,11 +1,11 @@
 import { listAgentRoleBindings, missingAgentRoles } from "@/lib/agent-model-profiles";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
 import { requireResearchUser, researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     await requireResearchUser(request, ["customer"]);
     const pool = await getPostgresPool();
     const [roles, missingRoles] = await Promise.all([

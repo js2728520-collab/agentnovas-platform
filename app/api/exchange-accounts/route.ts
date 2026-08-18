@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     const id = crypto.randomUUID();
     const encrypted = await encryptExchangeCredential({
       apiKey: body.apiKey.trim(),
-      secretKey: walletConnection ? "wallet-connection" : body.secretKey.trim(),
+      secretKey: walletConnection ? "wallet-connection" : body.secretKey!.trim(),
       passphrase: body.passphrase?.trim(),
     });
     await db.batch([

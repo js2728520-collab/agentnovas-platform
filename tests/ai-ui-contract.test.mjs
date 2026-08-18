@@ -21,18 +21,21 @@ test("agent page uses persistent server conversations and streamed messages", as
   assert.doesNotMatch(chat, /body: JSON\.stringify\(\{[^}]*history/);
 });
 
-test("strategy studio generates a validated server-side DSL without client history", async () => {
-  const studio = await source("../app/community-strategy-center.tsx");
+test("strategy creation uses the resumable multi-Agent pipeline without a duplicate chat workflow", async () => {
+  const [studio, research] = await Promise.all([
+    source("../app/community-strategy-center.tsx"),
+    source("../app/multi-agent-research.tsx"),
+  ]);
 
-  assert.match(studio, /\/api\/strategy-studio\/generate/);
-  assert.match(studio, /consumeAiEventStream/);
-  assert.match(studio, /AiMessageContent/);
-  assert.match(studio, /onAnswer=\{\(answer\) => void ask\(answer\)\}/);
-  assert.match(studio, /generatedSpecification/);
-  assert.match(studio, /generationId/);
-  assert.doesNotMatch(studio, /\/api\/strategy-studio\/chat/);
-  assert.doesNotMatch(studio, /generationMode,\s*specification/);
-  assert.doesNotMatch(studio, /conversation:\s*messages|history:\s*messages/);
+  assert.match(studio, /<MultiAgentResearch/);
+  assert.match(studio, /后台研发任务会继续运行/);
+  assert.doesNotMatch(studio, /ensureStrategyConversation/);
+  assert.doesNotMatch(studio, /\/api\/strategy-studio\/generate/);
+  assert.doesNotMatch(studio, /className="strategy-chat-panel"/);
+  assert.match(research, /\/api\/strategy-research\/runs\?scope=latest&limit=1/);
+  assert.match(research, /正在恢复最近的研发任务/);
+  assert.doesNotMatch(research, /ensureConversation/);
+  assert.doesNotMatch(research, /conversationId,/);
 });
 
 test("shared AI message UI exposes an accessible confirmation dialog and custom answer", async () => {
@@ -62,4 +65,10 @@ test("customer AI workspaces expose the private LLM configuration", async () => 
   assert.match(studio, /<CustomLlmButton\s*\/>/);
   assert.match(config, /endpoint="\/api\/account\/llm-config"/);
   assert.match(config, /type="password"/);
+});
+
+test("Agent conversation history hides legacy empty strategy threads", async () => {
+  const conversations = await source("../lib/ai-conversations.ts");
+
+  assert.match(conversations, /row\.purpose === "consultation" \|\| messageCount > 0/);
 });

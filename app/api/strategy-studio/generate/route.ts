@@ -5,7 +5,7 @@ import {
   getOwnedAiConversation,
   recordStrategyGeneration,
 } from "@/lib/ai-conversations";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { resolveLlmConfig } from "@/lib/llm-config";
 import {
   generateStrategyProposal,
@@ -15,7 +15,7 @@ import { StrategyDslValidationError } from "@/lib/strategy-dsl";
 
 export async function POST(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireAiCustomer(request);
     const body = await readAiJson(request);
     const conversationId = String(body.conversationId || "").trim();

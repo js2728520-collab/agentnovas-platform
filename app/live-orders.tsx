@@ -1,1 +1,0 @@
-export default function LiveOrders(){return <><PageHead title="交易记录" sub="实盘订单路由尚未开放；页面不会展示任何模拟订单"/><section className="wide-panel"><div className="widget-head"><b>订单流水</b><span>实盘路由未启用</span></div><p>当前暂无可展示的实盘订单。客户创建的策略请在“我的策略”中使用独立的策略模拟测试。</p></section></>}

@@ -2,11 +2,12 @@ import os from "node:os";
 
 import pg from "pg";
 
+import { researchDatabaseUrl } from "../lib/postgres.ts";
 import { leaseNextResearchRun, renewResearchRunLease } from "../lib/postgres-research-queue.ts";
 import { processResearchStage } from "../lib/strategy-research-orchestrator.ts";
 
-const connectionString = process.env.DATABASE_URL?.trim();
-if (!connectionString) throw new Error("DATABASE_URL is required");
+const connectionString = researchDatabaseUrl();
+if (!connectionString) throw new Error("RESEARCH_DATABASE_URL or DATABASE_URL is required");
 if (process.env.STRATEGY_RESEARCH_ENABLED !== "true") throw new Error("STRATEGY_RESEARCH_ENABLED must be true");
 
 const pool = new pg.Pool({

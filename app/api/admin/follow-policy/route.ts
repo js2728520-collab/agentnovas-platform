@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { auditLogs, platformFollowPolicies } from "@/db/schema";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
 
 const POLICY_ID = "default";
@@ -18,7 +18,7 @@ async function readPolicy() {
 
 export async function GET(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     await requireUser(request, ["hq_admin"]);
     const policy = await readPolicy();
     return Response.json({
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireUser(request, ["hq_admin"]);
     const body = await request.json() as { allowFollowWithoutWithdrawal?: boolean };
     const allowFollowWithoutWithdrawal = body.allowFollowWithoutWithdrawal === true;

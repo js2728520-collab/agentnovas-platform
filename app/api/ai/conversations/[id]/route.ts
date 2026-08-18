@@ -1,4 +1,4 @@
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { aiErrorResponse, readAiJson, requireAiCustomer } from "@/lib/ai-api";
 import {
   getConversationMessages,
@@ -9,7 +9,7 @@ import {
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireAiCustomer(request);
     const { id } = await params;
     const conversation = await getOwnedAiConversation(user.id, id);
@@ -40,7 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireAiCustomer(request);
     const { id } = await params;
     const body = await readAiJson(request);

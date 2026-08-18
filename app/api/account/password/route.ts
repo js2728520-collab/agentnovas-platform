@@ -2,13 +2,13 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 import { requireUser, responseError } from "@/lib/session";
 
 export async function POST(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const current = await requireUser(request);
     const input = await request.json() as { currentPassword?: unknown; newPassword?: unknown };
     const currentPassword = String(input.currentPassword ?? "");

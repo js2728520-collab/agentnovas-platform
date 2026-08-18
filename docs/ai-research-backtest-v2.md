@@ -9,7 +9,7 @@
 ## 1. 假设与边界
 
 1. “继承 QuantDinger”指继承业务能力与工作流，不复制其前端，也不在 AgentNovas 中执行 LLM 生成的任意 Python。
-2. 继续使用 AgentNovas 已有的受限 JSON DSL、D1 租户模型、个人/系统 LLM 配置和草稿审核流程。
+2. 继续使用 AgentNovas 已有的受限 JSON DSL、PostgreSQL 租户模型、个人/系统 LLM 配置和草稿审核流程。
 3. V2 只支持平台白名单中的 USDT 现货、`5m/15m/1h/4h/1d` 周期和最多 1,000 根历史 K 线。
 4. 回测仍是研究工具，不会自动启用跟单、模拟盘或实盘。
 5. 不新增数据库表；回测参数、交易明细和报告继续保存在现有 `strategy_validations.metrics_json` 中。
@@ -27,8 +27,8 @@
 
 ## 3. 技术栈与命令
 
-- React 19.2.6、TypeScript 5.9.3、Vinext 1.0.0-beta.2、Vite 8.0.13。
-- Drizzle ORM 0.45.2 + Cloudflare D1/SQLite。
+- React 19.2.6、TypeScript 5.9.3、Next.js 16.2.6。
+- Drizzle ORM 0.45.2 + PostgreSQL。
 - 测试：Node `node:test`。
 
 ```bash

@@ -34,7 +34,7 @@ jobs:
       - run: npm run postgres:migrate
       - run: >-
           node --test --experimental-strip-types
-          tests/d1-postgres-migration.test.mjs
+          tests/legacy-sqlite-postgres-migration.test.mjs
           tests/postgres-research-queue.test.mjs
           tests/agent-model-profiles.test.mjs
           tests/strategy-dsl-v2.test.mjs
@@ -44,7 +44,7 @@ jobs:
           tests/research-validation.test.mjs
       - run: >-
           npx eslint
-          lib/d1-postgres-migration.ts
+          lib/legacy-sqlite-postgres-migration.ts
           lib/postgres-research-queue.ts
           lib/agent-model-profiles.ts
           lib/strategy-dsl.ts

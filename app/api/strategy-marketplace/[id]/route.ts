@@ -8,7 +8,7 @@ import {
 } from "@/db/schema";
 import { AiApiError, aiErrorResponse } from "@/lib/ai-api";
 import { getOwnedAiConversation, resolveStrategyVersionSource } from "@/lib/ai-conversations";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
 import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
 
@@ -32,7 +32,7 @@ function parseJsonArray(value: string) {
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const me = await requireUser(request, ["customer"]);
     const { id } = await params;
     const db = getDb();
@@ -86,7 +86,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const me = await requireUser(request, ["customer"]);
     const { id } = await params;
     const db = getDb();

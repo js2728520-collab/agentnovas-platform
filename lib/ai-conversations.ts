@@ -47,7 +47,12 @@ export async function listAiConversations(userId: string) {
         .groupBy(aiMessages.conversationId)
     : [];
   const countMap = new Map(counts.map((row) => [row.conversationId, Number(row.count)]));
-  return rows.map((row) => publicConversation(row, countMap.get(row.id) || 0));
+  return rows.flatMap((row) => {
+    const messageCount = countMap.get(row.id) || 0;
+    return row.purpose === "consultation" || messageCount > 0
+      ? [publicConversation(row, messageCount)]
+      : [];
+  });
 }
 
 export async function getOwnedAiConversation(userId: string, conversationId: string) {

@@ -10,7 +10,7 @@ import pg from "pg";
 
 import { createPostgresBusinessDb } from "../db/postgres.ts";
 import { exchangeAccounts, organizations, users } from "../db/schema.ts";
-import { migrateD1Database } from "../lib/d1-postgres-migration.ts";
+import { migrateLegacySqliteDatabase } from "../lib/legacy-sqlite-postgres-migration.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
 const schemaName = `business_data_test_${process.pid}_${Date.now()}`;
@@ -83,8 +83,8 @@ test("rolls back the complete compatibility batch when any statement fails", asy
   assert.equal(rows.length, 0);
 });
 
-test("imports and verifies the complete final D1 business snapshot", async () => {
-  const sqlitePath = join(temporaryDirectory, "complete-d1.sqlite");
+test("imports and verifies the complete legacy SQLite business snapshot", async () => {
+  const sqlitePath = join(temporaryDirectory, "complete-legacy.sqlite");
   const source = new DatabaseSync(sqlitePath);
   const migrationDirectory = new URL("../drizzle/", import.meta.url);
   const files = (await readdir(migrationDirectory)).filter(name => /^\d+_[a-z0-9_]+\.sql$/.test(name)).sort();
@@ -101,11 +101,11 @@ test("imports and verifies the complete final D1 business snapshot", async () =>
   `);
   source.close();
 
-  const result = await migrateD1Database({
+  const result = await migrateLegacySqliteDatabase({
     sqlitePath,
     database: pool,
     batchId: "complete-business-cutover",
-    sourceRef: "d1-complete-fixture",
+    sourceRef: "legacy-sqlite-complete-fixture",
   });
 
   assert.equal(result.status, "verified");

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { loadBacktestCandles, normalizeBacktestOptions } from "../lib/backtest-engine.ts";
+import { loadBacktestCandles, normalizeBacktestOptions, normalizePerpetualBacktestOptions } from "../lib/backtest-engine.ts";
 
 test("normalizes live-aligned and exploration backtest presets", () => {
   assert.deepEqual(normalizeBacktestOptions(), {
@@ -28,6 +28,13 @@ test("rejects backtest parameters outside platform safety and data limits", () =
   assert.throws(() => normalizeBacktestOptions({ feeRate: "0.001" }), /手续费.*数字/);
   assert.throws(() => normalizeBacktestOptions({ candleLimit: 1_001 }), /K线/);
   assert.throws(() => normalizeBacktestOptions({ preset: "optimistic" }), /回测预设/);
+});
+
+test("allows supplied-candle research backtests to use up to 30,000 candles", () => {
+  assert.equal(normalizePerpetualBacktestOptions({ candleLimit: 5_000 }).candleLimit, 5_000);
+  assert.equal(normalizePerpetualBacktestOptions({ candleLimit: 30_000 }).candleLimit, 30_000);
+  assert.throws(() => normalizePerpetualBacktestOptions({ candleLimit: 30_001 }), /K线/);
+  assert.throws(() => normalizeBacktestOptions({ candleLimit: 1_001 }), /K线/);
 });
 
 test("historical candle loading falls back after a provider abort and reports the successful source", async () => {

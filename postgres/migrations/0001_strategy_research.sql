@@ -7,17 +7,50 @@ CREATE TABLE IF NOT EXISTS llm_profiles (
   encrypted_api_key text NOT NULL,
   masked_api_key text NOT NULL DEFAULT '',
   enabled boolean NOT NULL DEFAULT true,
+  current_revision_id text,
   created_by_user_id text NOT NULL,
   updated_by_user_id text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS llm_profile_revisions (
+  id text PRIMARY KEY,
+  profile_id text NOT NULL REFERENCES llm_profiles(id) ON DELETE RESTRICT,
+  revision_number integer NOT NULL CHECK (revision_number > 0),
+  name text NOT NULL,
+  provider_name text NOT NULL,
+  base_url text NOT NULL,
+  model_name text NOT NULL,
+  encrypted_api_key text NOT NULL,
+  masked_api_key text NOT NULL DEFAULT '',
+  enabled boolean NOT NULL DEFAULT true,
+  created_by_user_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (profile_id, revision_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_profile_revisions_profile
+  ON llm_profile_revisions (profile_id, revision_number DESC);
+
 CREATE TABLE IF NOT EXISTS agent_role_bindings (
   id text PRIMARY KEY,
   role text NOT NULL CHECK (role IN (
     'requirements', 'market_regime', 'proposal_a', 'proposal_b',
     'adversarial_review', 'risk_review', 'report'
+  )),
+  llm_profile_id text NOT NULL REFERENCES llm_profiles(id),
+  enabled boolean NOT NULL DEFAULT true,
+  updated_by_user_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (role)
+);
+
+CREATE TABLE IF NOT EXISTS runtime_explanation_bindings (
+  id text PRIMARY KEY,
+  role text NOT NULL CHECK (role IN (
+    'market_summary', 'adversarial_explanation', 'risk_explanation'
   )),
   llm_profile_id text NOT NULL REFERENCES llm_profiles(id),
   enabled boolean NOT NULL DEFAULT true,
@@ -40,6 +73,7 @@ CREATE TABLE IF NOT EXISTS strategy_research_runs (
   )),
   progress integer NOT NULL DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),
   brief_json jsonb NOT NULL,
+  agent_role_snapshot_json jsonb NOT NULL DEFAULT '{}'::jsonb,
   result_json jsonb,
   final_conclusion text CHECK (final_conclusion IN ('QUALIFIED', 'NOT_QUALIFIED')),
   idempotency_key text NOT NULL,
@@ -68,6 +102,30 @@ CREATE INDEX IF NOT EXISTS idx_strategy_research_runs_queue
   ON strategy_research_runs (status, next_attempt_at, lease_expires_at, created_at);
 CREATE INDEX IF NOT EXISTS idx_strategy_research_runs_owner_time
   ON strategy_research_runs (owner_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS strategy_research_steps (
+  id text PRIMARY KEY,
+  run_id text NOT NULL REFERENCES strategy_research_runs(id) ON DELETE CASCADE,
+  stage text NOT NULL,
+  step_key text NOT NULL,
+  status text NOT NULL CHECK (status IN ('running', 'completed', 'failed')),
+  input_sha256 text NOT NULL CHECK (input_sha256 ~ '^[a-f0-9]{64}$'),
+  output_json jsonb,
+  model_profile_id text,
+  model_revision_id text,
+  model_name text,
+  prompt_version text,
+  prompt_sha256 text,
+  attempt_count integer NOT NULL DEFAULT 1 CHECK (attempt_count > 0),
+  started_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  last_error_code text,
+  last_error_message text,
+  UNIQUE (run_id, step_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_strategy_research_steps_run_stage
+  ON strategy_research_steps (run_id, stage, started_at);
 
 CREATE TABLE IF NOT EXISTS strategy_agent_events (
   id text PRIMARY KEY,
@@ -101,6 +159,7 @@ CREATE TABLE IF NOT EXISTS strategy_candidates (
     'UNVERIFIED', 'EXPLORATION_ONLY', 'STANDARD_FAILED', 'STANDARD_VERIFIED'
   )),
   saved_strategy_id text,
+  saved_strategy_version_id text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (run_id, candidate_key)
@@ -119,6 +178,10 @@ CREATE TABLE IF NOT EXISTS strategy_evaluations (
   period_end timestamptz NOT NULL,
   metrics_json jsonb NOT NULL,
   data_quality_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  parameter_set_sha256 text NOT NULL,
+  data_slice_sha256 text NOT NULL,
+  backtest_engine_version text NOT NULL,
+  cost_scenario text NOT NULL,
   passed boolean NOT NULL DEFAULT false,
   is_final_holdout boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),

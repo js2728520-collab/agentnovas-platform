@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, communityStrategies, strategyVersions } from "@/db/schema";
@@ -35,13 +35,19 @@ export async function createStrategyDraft(options: {
       eq(communityStrategies.id, id),
       eq(communityStrategies.authorUserId, options.userId),
     )).limit(1))[0];
-    if (existing) return { id, status: existing.status, version: existing.version, created: false };
+    if (existing) {
+      const revision = (await db.select({ id: strategyVersions.id }).from(strategyVersions)
+        .where(eq(strategyVersions.strategyId, id)).orderBy(desc(strategyVersions.version)).limit(1))[0];
+      if (!revision) throw new Error("策略缺少不可变版本记录");
+      return { id, status: existing.status, version: existing.version, versionId: revision.id, created: false };
+    }
   }
 
   const name = options.name.trim();
   const summary = options.summary.trim();
   const symbols = [specification.symbol.replace(/USDT$/, "/USDT")];
   const specificationJson = JSON.stringify(specification);
+  const versionId = crypto.randomUUID();
   await db.batch([
     db.insert(communityStrategies).values({
       id,
@@ -58,7 +64,7 @@ export async function createStrategyDraft(options: {
       specificationJson,
     }),
     db.insert(strategyVersions).values({
-      id: crypto.randomUUID(),
+      id: versionId,
       strategyId: id,
       version: 1,
       name,
@@ -87,5 +93,5 @@ export async function createStrategyDraft(options: {
       }),
     }),
   ]);
-  return { id, status: "draft" as const, version: 1, created: true };
+  return { id, status: "draft" as const, version: 1, versionId, created: true };
 }

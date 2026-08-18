@@ -21,11 +21,11 @@ test("rollback creates a new immutable version from an owned historical snapshot
 });
 
 test("rollback preserves protected strategy states and records its provenance", async () => {
-  const [route, schema, migration, registry] = await Promise.all([
+  const [route, schema, migration, postgresMigration] = await Promise.all([
     readFile(new URL("../app/api/strategy-marketplace/[id]/versions/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0024_strategy_version_restore.sql", import.meta.url), "utf8"),
-    readFile(new URL("../lib/d1-migrations.ts", import.meta.url), "utf8"),
+    readFile(new URL("../postgres/migrations/0000_business_schema.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(route, /\["draft", "testing", "rejected"\]/);
@@ -33,7 +33,7 @@ test("rollback preserves protected strategy states and records its provenance", 
   assert.match(route, /restoredFromVersion: sourceVersion/);
   assert.match(schema, /restoredFromVersion: integer\("restored_from_version"\)/);
   assert.match(migration, /ALTER TABLE `strategy_versions` ADD `restored_from_version` integer/);
-  assert.match(registry, /0024_strategy_version_restore/);
+  assert.match(postgresMigration, /"restored_from_version" integer/);
 });
 
 test("strategy history UI exposes an explicit version restore action", async () => {

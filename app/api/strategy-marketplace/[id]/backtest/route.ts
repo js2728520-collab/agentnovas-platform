@@ -10,7 +10,7 @@ import {
   runHistoricalBacktest,
   runPerpetualBacktestOnCandles,
 } from "@/lib/backtest-engine";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import {
   assessPerpetualDataQuality,
   createPerpetualMarketAdapter,
@@ -89,7 +89,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const me = await requireUser(request, ["customer"]);
     const { id } = await params;
     const db = getDb();

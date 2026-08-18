@@ -1,11 +1,11 @@
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
 import { getOwnedResearchRun, listResearchCandidates, listResearchEvaluations, listResearchEvents } from "@/lib/postgres-research-queue";
 import { requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireResearchUser(request, ["customer"]);
     const { id } = await params;
     const pool = await getPostgresPool();

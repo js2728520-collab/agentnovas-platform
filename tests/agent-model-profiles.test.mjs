@@ -6,11 +6,15 @@ import pg from "pg";
 
 import {
   bindAgentRole,
+  bindRuntimeExplanationRole,
   listAgentRoleBindings,
   listLlmProfiles,
+  listRuntimeExplanationBindings,
   missingAgentRoles,
   resolveAgentRoleConfig,
+  resolveRuntimeExplanationRoleConfig,
   saveLlmProfile,
+  snapshotAgentRoleBindings,
 } from "../lib/agent-model-profiles.ts";
 import { testAgentRoleConnection } from "../lib/llm-profile-connection.ts";
 
@@ -38,7 +42,41 @@ test.after(async () => {
 });
 
 test.beforeEach(async () => {
-  await pool.query("TRUNCATE agent_role_bindings, llm_profiles CASCADE");
+  await pool.query("TRUNCATE agent_role_bindings, runtime_explanation_bindings, llm_profiles CASCADE");
+});
+
+test("keeps optional runtime explanation bindings separate from research roles", async () => {
+  const profile = await saveLlmProfile(pool, {
+    actorUserId: "admin-a",
+    input: {
+      name: "运行解释模型",
+      providerName: "Private Runtime Provider",
+      baseUrl: "https://runtime-llm.example.com/v1",
+      modelName: "runtime-explainer-1",
+      apiKey: "sk-runtime-secret",
+      enabled: true,
+    },
+  });
+  await bindRuntimeExplanationRole(pool, {
+    actorUserId: "admin-a",
+    role: "risk_explanation",
+    profileId: profile.id,
+  });
+
+  const researchBindings = await listAgentRoleBindings(pool, { visibility: "administrator" });
+  const customerBindings = await listRuntimeExplanationBindings(pool, { visibility: "customer" });
+  const resolved = await resolveRuntimeExplanationRoleConfig(pool, "risk_explanation");
+
+  assert.equal(researchBindings.length, 0);
+  assert.deepEqual(customerBindings, [{
+    role: "risk_explanation",
+    modelName: "runtime-explainer-1",
+    enabled: true,
+    configured: true,
+  }]);
+  assert.equal(resolved.apiKey, "sk-runtime-secret");
+  assert.equal(JSON.stringify(customerBindings).includes("Private Runtime Provider"), false);
+  assert.equal(JSON.stringify(customerBindings).includes("runtime-llm.example.com"), false);
 });
 
 test("encrypts profile keys and never exposes plaintext in administrator listings", async () => {
@@ -96,6 +134,50 @@ test("binds roles and gives customers model names without provider or endpoint m
   assert.equal(JSON.stringify(publicBindings).includes("llm.example.com"), false);
   assert.equal(resolved.apiKey, "sk-test-role-secret");
   assert.equal(resolved.apiStyle, "responses");
+});
+
+test("creates immutable profile revisions and resolves a task-pinned revision", async () => {
+  const original = await saveLlmProfile(pool, {
+    actorUserId: "admin-a",
+    input: {
+      name: "修订模型",
+      providerName: "Provider",
+      baseUrl: "https://llm.example.com/v1",
+      modelName: "model-v1",
+      apiKey: "sk-revision-one",
+      enabled: true,
+    },
+  });
+  await bindAgentRole(pool, { actorUserId: "admin-a", role: "requirements", profileId: original.id });
+  const before = await snapshotAgentRoleBindings(pool);
+  const pinned = before.roles.requirements;
+
+  await saveLlmProfile(pool, {
+    id: original.id,
+    actorUserId: "admin-b",
+    input: {
+      name: "修订模型",
+      providerName: "Provider",
+      baseUrl: "https://llm.example.com/v1/responses",
+      modelName: "model-v2",
+      apiKey: "sk-revision-two",
+      enabled: true,
+    },
+  });
+
+  const revisions = await pool.query("SELECT revision_number, model_name FROM llm_profile_revisions WHERE profile_id = $1 ORDER BY revision_number", [original.id]);
+  const current = await resolveAgentRoleConfig(pool, "requirements");
+  const historical = await resolveAgentRoleConfig(pool, "requirements", { revisionId: pinned.revisionId });
+
+  assert.deepEqual(revisions.rows, [
+    { revision_number: 1, model_name: "model-v1" },
+    { revision_number: 2, model_name: "model-v2" },
+  ]);
+  assert.equal(current.modelName, "model-v2");
+  assert.equal(historical.modelName, "model-v1");
+  assert.equal(historical.apiKey, "sk-revision-one");
+  assert.equal(JSON.stringify(before).includes("Provider"), false);
+  assert.equal(JSON.stringify(before).includes("sk-revision"), false);
 });
 
 test("reports every missing critical role and ignores bindings to disabled profiles", async () => {

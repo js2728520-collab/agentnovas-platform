@@ -86,16 +86,15 @@ function categoryFor(title: string): NewsItem["category"] {
 
 function parseFeed(xml: string, source: string): NewsItem[] {
   const blocks = [...xml.matchAll(/<(?:item|entry)\b[^>]*>([\s\S]*?)<\/(?:item|entry)>/gi)];
-  return blocks
-    .map((match, index) => {
+  return blocks.flatMap((match, index): NewsItem[] => {
       const block = match[1] || "";
       const title = pick(block, "title");
       const summary = pick(block, "description") || pick(block, "summary") || pick(block, "content");
       const publishedAt = pick(block, "pubDate") || pick(block, "published") || pick(block, "updated");
       const link = pick(block, "link") || block.match(/<link[^>]+href=["']([^"']+)["']/i)?.[1] || "";
-      if (!title) return null;
+      if (!title) return [];
       const parsedDate = new Date(publishedAt);
-      return {
+      return [{
         id: `${source.toLowerCase()}-${parsedDate.getTime() || Date.now()}-${index}`,
         title,
         summary: summary.slice(0, 150),
@@ -104,9 +103,8 @@ function parseFeed(xml: string, source: string): NewsItem[] {
         source,
         link,
         live: true,
-      } satisfies NewsItem;
-    })
-    .filter((item): item is NewsItem => Boolean(item));
+      }];
+    });
 }
 
 function ageLabel(value: string, now: number) {

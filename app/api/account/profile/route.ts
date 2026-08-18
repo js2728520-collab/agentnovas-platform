@@ -2,7 +2,7 @@ import { and, eq, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
 import { isAvatarPreset } from "@/lib/avatar-presets";
 
@@ -12,14 +12,14 @@ function safeUser(user: typeof users.$inferSelect) {
 
 export async function GET(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     return Response.json({ user: safeUser(await requireUser(request)) });
   } catch (error) { return responseError(error); }
 }
 
 export async function PATCH(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const current = await requireUser(request);
     const input = await request.json() as { username?: unknown; nickname?: unknown; avatarUrl?: unknown; phone?: unknown; dateOfBirth?: unknown; gender?: unknown; timezone?: unknown };
     const username = String(input.username ?? "").trim();

@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { approvalDecisions, approvalRequests } from "@/db/schema";
 import { branchApprovalRoles } from "@/lib/permissions";

@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, communityStrategies, strategyVersions } from "@/db/schema";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
 import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
 
@@ -10,7 +10,7 @@ const editableStatuses = ["draft", "testing", "rejected"] as const;
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const me = await requireUser(request, ["customer"]);
     const { id } = await params;
     let body: { sourceVersion?: unknown };
@@ -19,8 +19,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } catch {
       return Response.json({ error: "回滚请求格式无效" }, { status: 400 });
     }
-    const sourceVersion = body.sourceVersion;
-    if (!Number.isInteger(sourceVersion) || Number(sourceVersion) < 1) {
+    const sourceVersion = Number(body.sourceVersion);
+    if (!Number.isInteger(sourceVersion) || sourceVersion < 1) {
       return Response.json({ error: "回滚版本号必须是正整数" }, { status: 400 });
     }
 

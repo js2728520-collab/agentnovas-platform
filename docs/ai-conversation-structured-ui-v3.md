@@ -12,7 +12,7 @@
 ## Tech Stack
 
 - React 19 客户端组件与 TypeScript。
-- 现有 SSE 消息接口和 D1 会话持久化。
+- 现有 SSE 消息接口和 PostgreSQL 会话持久化。
 - 无新增前端依赖；使用平台现有 CSS 设计语言。
 
 ## Commands

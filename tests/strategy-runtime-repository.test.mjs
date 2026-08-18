@@ -1,0 +1,363 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+import pg from "pg";
+
+import {
+  applyPaperFundingRates,
+  completeRuntimeExplanationJob,
+  completeStrategyRuntimeCycle,
+  createStrategyDeployment,
+  leaseNextRuntimeExplanationJob,
+  leaseNextStrategyDeployment,
+  renewStrategyRuntimeLease,
+} from "../lib/strategy-runtime-repository.ts";
+import {
+  processLeasedStrategyRuntimeDeployment,
+  processNextRuntimeExplanation,
+} from "../lib/strategy-runtime-worker.ts";
+
+const { Pool } = pg;
+const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
+const schema = `strategy_runtime_test_${process.pid}_${Date.now()}`;
+const adminPool = new Pool({ connectionString: databaseUrl, max: 2 });
+const pool = new Pool({ connectionString: databaseUrl, max: 6, options: `-c search_path=${schema}` });
+
+const dsl = {
+  schemaVersion: 3,
+  name: "运行时测试策略",
+  market: "usdt_perpetual",
+  marginMode: "isolated",
+  leverage: 1,
+  symbol: "BTCUSDT",
+  timeframe: "1h",
+  direction: "long_only",
+  legs: { long: {
+    entry: { all: [{ type: "channel_breakout", period: 20, direction: "above" }] },
+    exit: { any: [{ type: "candle_direction", direction: "bearish" }] },
+    stopLossPct: 2,
+    takeProfitPct: 4,
+  } },
+  risk: { positionSizePct: 5, maxDrawdownPct: 12, maxDailyLossPct: 3, maxConsecutiveLosses: 4 },
+};
+
+function candleRows(count = 30) {
+  const rows = Array.from({ length: count }, (_, index) => ({
+    openTime: index * 3_600_000,
+    closeTime: (index + 1) * 3_600_000 - 1,
+    open: 100,
+    high: 101,
+    low: 99,
+    close: 100,
+    volume: 100,
+  }));
+  rows[29] = { ...rows[29], open: 100, high: 112, low: 99, close: 111 };
+  return rows;
+}
+
+async function seedDeployment(mode = "shadow", key = crypto.randomUUID()) {
+  return createStrategyDeployment(pool, {
+    ownerUserId: "owner-a",
+    strategyId: "strategy-a",
+    strategyVersionId: "version-a",
+    exchangeAccountId: "account-a",
+    mode,
+    validationLabel: "UNVERIFIED",
+    idempotencyKey: key,
+    riskAcknowledged: true,
+  });
+}
+
+test.before(async () => {
+  assert.match(schema, /^[a-z0-9_]+$/);
+  await adminPool.query(`CREATE SCHEMA "${schema}"`);
+  await pool.query(`
+    CREATE TABLE strategy_versions (id text PRIMARY KEY, specification_json text NOT NULL);
+    CREATE TABLE exchange_accounts (id text PRIMARY KEY, exchange text NOT NULL);
+    CREATE TABLE strategy_subscriptions (id text PRIMARY KEY);
+    CREATE TABLE platform_decisions (id text PRIMARY KEY);
+    CREATE TABLE trades (id text PRIMARY KEY);
+  `);
+  for (const filename of [
+    "0001_strategy_research.sql",
+    "0007_strategy_runtime.sql",
+    "0013_runtime_explanations.sql",
+  ]) {
+    const migration = await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8");
+    await pool.query(migration);
+  }
+  await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
+  await pool.query(`INSERT INTO exchange_accounts (id, exchange) VALUES ('account-a', 'binance')`);
+});
+
+test.beforeEach(async () => {
+  await pool.query("TRUNCATE strategy_deployments, runtime_explanation_bindings, llm_profiles CASCADE");
+});
+
+test.after(async () => {
+  await pool.end();
+  await adminPool.query(`DROP SCHEMA "${schema}" CASCADE`);
+  await adminPool.end();
+});
+
+test("leases with fencing tokens and recovers an expired runtime worker", async () => {
+  const deployment = await seedDeployment("shadow");
+  const now = new Date(Date.now() + 60_000);
+  const first = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now, leaseSeconds: 30 });
+  assert.equal(first.id, deployment.id);
+  assert.equal(first.fencingToken, 1);
+
+  const unavailable = await leaseNextStrategyDeployment(pool, {
+    workerId: "runtime-b", now: new Date(now.getTime() + 10_000), leaseSeconds: 30,
+  });
+  assert.equal(unavailable, null);
+
+  const renewed = await renewStrategyRuntimeLease(pool, {
+    deploymentId: deployment.id,
+    workerId: "runtime-a",
+    fencingToken: first.fencingToken,
+    now: new Date(now.getTime() + 20_000),
+    leaseSeconds: 30,
+  });
+  assert.equal(renewed.leaseExpiresAt.getTime(), now.getTime() + 50_000);
+
+  const stillUnavailable = await leaseNextStrategyDeployment(pool, {
+    workerId: "runtime-b", now: new Date(now.getTime() + 31_000), leaseSeconds: 30,
+  });
+  assert.equal(stillUnavailable, null);
+
+  const recovered = await leaseNextStrategyDeployment(pool, {
+    workerId: "runtime-b", now: new Date(now.getTime() + 51_000), leaseSeconds: 30,
+  });
+  assert.equal(recovered.id, deployment.id);
+  assert.equal(recovered.fencingToken, 2);
+});
+
+test("deployment idempotency returns the same resource and rejects a changed payload", async () => {
+  const key = "same-deployment-request";
+  const first = await seedDeployment("shadow", key);
+  const repeated = await seedDeployment("shadow", key);
+
+  assert.equal(repeated.id, first.id);
+  await assert.rejects(
+    createStrategyDeployment(pool, {
+      ownerUserId: "owner-a",
+      strategyId: "strategy-a",
+      strategyVersionId: "version-a",
+      exchangeAccountId: "account-a",
+      mode: "paper",
+      validationLabel: "UNVERIFIED",
+      idempotencyKey: key,
+      riskAcknowledged: true,
+    }),
+    error => error?.name === "StrategyDeploymentIdempotencyConflictError",
+  );
+});
+
+test("persists exactly seven role events and makes a repeated candle idempotent", async () => {
+  const deployment = await seedDeployment("shadow");
+  const now = new Date(Date.now() + 60_000);
+  const lease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now, leaseSeconds: 30 });
+  const events = [
+    "market_data", "technical_analysis", "strategy_decision", "adversarial_review",
+    "risk", "execution", "audit",
+  ].map((role, index) => ({ sequence: index + 1, role, conclusion: role, evidence: {}, durationMs: 0, llmUsed: false }));
+  const input = {
+    cycleId: "cycle-a", deploymentId: deployment.id, workerId: "runtime-a", fencingToken: lease.fencingToken,
+    candleOpenTime: new Date(0), candleCloseTime: new Date(3_599_999), marketDataSnapshotId: "snapshot-a",
+    decision: { action: "hold" }, orderIntent: null, events, traceId: "trace-a", startedAt: now,
+    nextCycleAt: new Date(now.getTime() + 15_000), positionSizePct: 5,
+  };
+  const completed = await completeStrategyRuntimeCycle(pool, input);
+  const repeated = await completeStrategyRuntimeCycle(pool, input);
+
+  assert.equal(completed.duplicate, false);
+  assert.equal(repeated.duplicate, true);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_runtime_cycles")).rows[0].count, 1);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_runtime_events")).rows[0].count, 7);
+});
+
+test("queues pinned asynchronous explanations without changing deterministic conclusions", async () => {
+  await pool.query(`
+    INSERT INTO llm_profiles (
+      id, name, provider_name, base_url, model_name, encrypted_api_key,
+      enabled, current_revision_id, created_by_user_id, updated_by_user_id
+    ) VALUES ('runtime-profile', 'Runtime', 'Private', 'https://llm.example.com/v1',
+              'runtime-model', 'encrypted', true, 'runtime-revision', 'admin', 'admin')
+  `);
+  await pool.query(`
+    INSERT INTO llm_profile_revisions (
+      id, profile_id, revision_number, name, provider_name, base_url,
+      model_name, encrypted_api_key, enabled, created_by_user_id
+    ) VALUES ('runtime-revision', 'runtime-profile', 1, 'Runtime', 'Private',
+              'https://llm.example.com/v1', 'runtime-model', 'encrypted', true, 'admin')
+  `);
+  for (const role of ["market_summary", "adversarial_explanation", "risk_explanation"]) {
+    await pool.query(`
+      INSERT INTO runtime_explanation_bindings (
+        id, role, llm_profile_id, enabled, updated_by_user_id
+      ) VALUES ($1, $2, 'runtime-profile', true, 'admin')
+    `, [`binding-${role}`, role]);
+  }
+  const deployment = await seedDeployment("shadow");
+  const now = new Date(Date.now() + 60_000);
+  const lease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now, leaseSeconds: 30 });
+  const roles = [
+    "market_data", "technical_analysis", "strategy_decision", "adversarial_review",
+    "risk", "execution", "audit",
+  ];
+  const events = roles.map((role, index) => ({
+    sequence: index + 1,
+    role,
+    conclusion: `deterministic:${role}`,
+    evidence: role === "market_data" ? { marketState: "trend_up" } : {},
+    durationMs: 1,
+    llmUsed: false,
+  }));
+  await completeStrategyRuntimeCycle(pool, {
+    cycleId: "cycle-explanation", deploymentId: deployment.id, workerId: "runtime-a", fencingToken: lease.fencingToken,
+    candleOpenTime: new Date(0), candleCloseTime: new Date(3_599_999), marketDataSnapshotId: "snapshot-a",
+    decision: { action: "enter_long", riskApproved: false, rejectionReasons: ["最大回撤边界已触发"] },
+    orderIntent: null, events, traceId: "trace-explanation", startedAt: now,
+    nextCycleAt: new Date(now.getTime() + 15_000), positionSizePct: 5,
+  });
+
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_runtime_explanation_jobs")).rows[0].count, 3);
+  const job = await leaseNextRuntimeExplanationJob(pool, {
+    workerId: "explanation-worker",
+    now: new Date(now.getTime() + 1_000),
+    leaseSeconds: 30,
+  });
+  assert.equal(job.profileRevisionId, "runtime-revision");
+  assert.ok(["market_summary", "adversarial_explanation", "risk_explanation"].includes(job.explanationRole));
+  await assert.rejects(
+    completeRuntimeExplanationJob(pool, {
+      jobId: job.id,
+      workerId: "wrong-worker",
+      fencingToken: job.fencingToken,
+      output: { summary: "wrong", evidenceRefs: [], cautions: [] },
+      modelName: "runtime-model",
+      durationMs: 5,
+    }),
+    /租约|fencing token/,
+  );
+  await completeRuntimeExplanationJob(pool, {
+    jobId: job.id,
+    workerId: "explanation-worker",
+    fencingToken: job.fencingToken,
+    output: { summary: "仅补充解释，不改变结论。", evidenceRefs: [], cautions: [] },
+    modelName: "runtime-model",
+    durationMs: 5,
+  });
+  const event = (await pool.query(`
+    SELECT conclusion, explanation_status, explanation_json, explanation_model_name, llm_used
+    FROM strategy_runtime_events WHERE cycle_id = 'cycle-explanation' AND role = $1
+  `, [job.eventRole])).rows[0];
+  assert.equal(event.conclusion, `deterministic:${job.eventRole}`);
+  assert.equal(event.explanation_status, "completed");
+  assert.equal(event.explanation_json.summary, "仅补充解释，不改变结论。");
+  assert.equal(event.explanation_model_name, "runtime-model");
+  assert.equal(event.llm_used, true);
+
+  const failedExplanation = await processNextRuntimeExplanation(pool, {
+    workerId: "failing-explanation-worker",
+  }, {
+    now: () => new Date(now.getTime() + 2_000),
+    resolveConfig: async (_database, role) => ({
+      role,
+      profileId: "runtime-profile",
+      revisionId: "runtime-revision",
+      revisionNumber: 1,
+      model: "runtime-model",
+      modelName: "runtime-model",
+      providerName: "Private",
+      endpoint: "https://llm.example.com/v1/chat/completions",
+      apiStyle: "chat_completions",
+      apiKey: "secret",
+    }),
+    callExplanation: async () => { throw new Error("运行时解释模型调用超时"); },
+  });
+  assert.equal(failedExplanation.status, "retry_wait");
+  assert.equal(failedExplanation.errorCode, "RUNTIME_EXPLANATION_TIMEOUT");
+  const cycle = (await pool.query("SELECT decision_json, status FROM strategy_runtime_cycles WHERE id = 'cycle-explanation'")).rows[0];
+  assert.equal(cycle.status, "completed");
+  assert.equal(cycle.decision_json.riskApproved, false);
+});
+
+test("paper runtime fills a prior signal only at the next complete candle open", async () => {
+  const deployment = await seedDeployment("paper");
+  let rows = candleRows();
+  const adapter = {
+    exchange: "binance",
+    async getInstrument() {
+      return { exchange: "binance", symbol: "BTCUSDT", exchangeSymbol: "BTCUSDT", status: "live", quoteAsset: "USDT", tickSize: 0.1, lotSize: 0.001, fundingIntervalHours: 8 };
+    },
+    async getCandles() {
+      return { items: rows, duplicateCount: 0, incompleteCount: 0, invalidCount: 0, reversedInput: false };
+    },
+    async getFundingRates() {
+      return { items: [{ time: rows.at(-1).openTime, rate: 0.0001 }], duplicateCount: 0, incompleteCount: 0, invalidCount: 0, reversedInput: false };
+    },
+    async getFeeSchedule() {
+      return { makerRate: 0.0005, takerRate: 0.0007, estimated: true, source: "test" };
+    },
+  };
+  const dependencies = {
+    createAdapter: () => adapter,
+    saveSnapshot: async (_database, input) => ({ id: input.sourceId, candleSha256: "a", fundingSha256: "b", datasetSha256: "c" }),
+  };
+  const firstNow = new Date(Date.now() + 60_000);
+  const firstLease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now: firstNow, leaseSeconds: 30 });
+  const first = await processLeasedStrategyRuntimeDeployment(pool, firstLease, "runtime-a", { ...dependencies, now: () => firstNow });
+  assert.equal(first.decision.action, "enter_long");
+  assert.equal((await pool.query("SELECT status FROM strategy_paper_order_intents")).rows[0].status, "pending");
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_paper_positions")).rows[0].count, 0);
+
+  rows = [...rows, {
+    openTime: 30 * 3_600_000, closeTime: 31 * 3_600_000 - 1,
+    open: 113, high: 114, low: 112, close: 113, volume: 100,
+  }];
+  const secondNow = new Date(firstNow.getTime() + 16_000);
+  const secondLease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-b", now: secondNow, leaseSeconds: 30 });
+  await processLeasedStrategyRuntimeDeployment(pool, secondLease, "runtime-b", { ...dependencies, now: () => secondNow });
+  const position = (await pool.query("SELECT entry_price, status FROM strategy_paper_positions")).rows[0];
+  assert.equal(Number(position.entry_price), 113);
+  assert.equal(position.status, "open");
+  assert.equal((await pool.query("SELECT status FROM strategy_paper_order_intents ORDER BY created_at LIMIT 1")).rows[0].status, "filled");
+  const repeatedFunding = await applyPaperFundingRates(pool, {
+    deploymentId: deployment.id,
+    rates: [{ time: rows.at(-1).openTime, rate: 0.0001 }],
+  });
+  assert.equal(repeatedFunding.applied, 0);
+  assert.ok(Number((await pool.query("SELECT funding_usdt FROM strategy_paper_positions WHERE status = 'open'")).rows[0].funding_usdt) > 0);
+});
+
+test("positive funding charges longs, credits shorts, and is idempotent by funding timestamp", async () => {
+  const deployment = await seedDeployment("paper");
+  await pool.query(`
+    INSERT INTO strategy_runtime_cycles (
+      id, deployment_id, sequence, fencing_token, candle_open_time, candle_close_time,
+      status, decision_json, trace_id, started_at
+    ) VALUES ('funding-cycle', $1, 1, 1, now() - interval '2 hours', now() - interval '1 hour',
+              'completed', '{}', 'funding-trace', now() - interval '1 hour')
+  `, [deployment.id]);
+  await pool.query(`
+    INSERT INTO strategy_paper_positions (
+      id, deployment_id, side, status, quantity, entry_price, opened_cycle_id, opened_at
+    ) VALUES ('short-position', $1, 'short', 'open', 2, 100, 'funding-cycle', now() - interval '1 hour')
+  `, [deployment.id]);
+  const fundingTime = Date.now();
+  const first = await applyPaperFundingRates(pool, {
+    deploymentId: deployment.id,
+    rates: [{ time: fundingTime, rate: 0.001 }],
+  });
+  const repeated = await applyPaperFundingRates(pool, {
+    deploymentId: deployment.id,
+    rates: [{ time: fundingTime, rate: 0.001 }],
+  });
+  assert.equal(first.applied, 1);
+  assert.equal(first.fundingCostUsdt, -0.2);
+  assert.equal(repeated.applied, 0);
+  assert.equal(Number((await pool.query("SELECT funding_usdt FROM strategy_paper_positions WHERE id = 'short-position'")).rows[0].funding_usdt), -0.2);
+});

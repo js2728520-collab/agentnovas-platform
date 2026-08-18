@@ -46,15 +46,17 @@ test("AI persistence migration creates tenant-scoped conversations, messages, us
   );
 });
 
-test("Drizzle schema and runtime migration registry include the AI tables", async () => {
-  const [schema, migrations] = await Promise.all([
+test("Drizzle compatibility schema and PostgreSQL migration include the AI tables", async () => {
+  const [schema, migration] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
-    readFile(new URL("../lib/d1-migrations.ts", import.meta.url), "utf8"),
+    readFile(new URL("../postgres/migrations/0000_business_schema.sql", import.meta.url), "utf8"),
   ]);
 
   for (const exportName of ["aiConversations", "aiMessages", "aiUsageDaily", "strategyVersions"]) {
     assert.match(schema, new RegExp(`export const ${exportName} = sqliteTable`));
   }
-  assert.match(migrations, /0023_ai_assistant_strategy_dsl/);
-  assert.match(migrations, /0024_strategy_version_restore/);
+  for (const tableName of ["ai_conversations", "ai_messages", "ai_usage_daily", "strategy_versions"]) {
+    assert.match(migration, new RegExp(`CREATE TABLE IF NOT EXISTS "${tableName}"`));
+  }
+  assert.match(migration, /"restored_from_version" integer/);
 });

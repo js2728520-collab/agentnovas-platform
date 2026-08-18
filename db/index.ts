@@ -1,29 +1,16 @@
-import { drizzle } from "drizzle-orm/d1";
+import type { drizzle as createTypedBusinessDb } from "drizzle-orm/d1";
 import { getPostgresPool } from "@/lib/postgres";
+import { createPostgresBusinessDb } from "./postgres";
 import * as schema from "./schema";
 
-type D1BusinessDatabase = ReturnType<typeof drizzle<typeof schema>>;
-type BusinessDatabase = Omit<D1BusinessDatabase, "batch"> & {
+type BusinessDatabase = Omit<ReturnType<typeof createTypedBusinessDb<typeof schema>>, "batch"> & {
   batch: (queries: readonly unknown[]) => Promise<unknown[]>;
 };
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
-const postgresDatabase = databaseUrl
-  ? await import("./postgres").then(async ({ createPostgresBusinessDb }) => (
-      createPostgresBusinessDb(await getPostgresPool()) as unknown as BusinessDatabase
-    ))
-  : null;
-const workerEnvironment = databaseUrl
-  ? null
-  : await import("cloudflare:workers").then(module => module.env);
+if (!databaseUrl) throw new Error("DATABASE_URL 尚未配置；AgentNovas 仅支持 Node.js + PostgreSQL 运行时");
+const postgresDatabase = createPostgresBusinessDb(await getPostgresPool()) as unknown as BusinessDatabase;
 
-export function getDb(): BusinessDatabase {
-  if (postgresDatabase) return postgresDatabase;
-  if (!workerEnvironment?.DB) {
-    throw new Error(
-      "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database."
-    );
-  }
-
-  return drizzle(workerEnvironment.DB, { schema }) as unknown as BusinessDatabase;
+export function getDb() {
+  return postgresDatabase;
 }

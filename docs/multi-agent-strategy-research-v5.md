@@ -142,10 +142,10 @@ SSE 事件携带单调递增 `id`；重连从 `afterSequence` 继续。服务端
 ## 9. 数据与部署
 
 - 生产目标：Linux + Node Web + PostgreSQL 16+ + 独立 Worker；不使用 Redis。
-- 旧业务 Drizzle 查询通过 PostgreSQL 方言兼容层运行；业务布尔值继续使用整数、时间继续使用 ISO 文本，确保 D1 快照哈希和运行时字段语义不漂移。
+- 旧业务 Drizzle 查询通过 PostgreSQL 方言兼容层运行；业务布尔值继续使用整数、时间继续使用 ISO 文本，确保旧 SQLite 快照哈希和运行时字段语义不漂移。
 - 新表：`llm_profiles`、`agent_role_bindings`、`strategy_research_runs`、`strategy_agent_events`、`strategy_candidates`、`strategy_evaluations`、`market_candles`、`funding_rates`。
-- D1 迁移先全量导出，再在 PostgreSQL 事务中导入；记录每表行数和按主键排序的关键字段 SHA-256。任一核对失败整批回滚；迁移批次号确保重复执行安全。
-- 切换仅在维护窗口完成，不做长期双写。回滚保留 D1 只读快照和前一版应用制品。
+- 旧 SQLite 数据只允许从完整备份在 PostgreSQL 事务中一次性导入；记录每表行数和按主键排序的关键字段 SHA-256。任一核对失败整批回滚；迁移批次号确保重复执行安全。
+- 切换仅在维护窗口完成，不做长期双写。回滚保留旧 SQLite 只读快照和前一版应用制品。
 
 ## 10. 验收标准
 

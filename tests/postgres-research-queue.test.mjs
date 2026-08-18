@@ -8,6 +8,7 @@ import {
   advanceResearchRun,
   appendResearchEvent,
   createResearchRun,
+  listOwnedResearchRuns,
   leaseNextResearchRun,
   pauseResearchRunForMissingRoles,
   pauseResearchRunForUserInput,
@@ -22,6 +23,7 @@ import {
   reserveResearchModelCalls,
   upsertResearchCandidate,
 } from "../lib/research-repository.ts";
+import { runCheckpointedResearchStep } from "../lib/research-steps.ts";
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
@@ -41,6 +43,11 @@ test.before(async () => {
     "utf8",
   );
   await pool.query(migration);
+  const conversationDecouplingMigration = await readFile(
+    new URL("../postgres/migrations/0014_research_conversation_decoupling.sql", import.meta.url),
+    "utf8",
+  );
+  await pool.query(conversationDecouplingMigration);
 });
 
 test.beforeEach(async () => {
@@ -75,6 +82,68 @@ test("creates research runs idempotently per tenant", async () => {
   assert.notEqual(first.id, otherTenant.id);
   assert.equal(first.status, "queued");
   assert.equal(first.mode, "standard");
+});
+
+test("lists only the owner's latest runs and supports conversation-free research tasks", async () => {
+  const older = await createResearchRun(pool, runInput({
+    conversationId: null,
+    idempotencyKey: "owner-a-older",
+  }));
+  await pool.query("UPDATE strategy_research_runs SET created_at = $2 WHERE id = $1", [
+    older.id,
+    new Date("2026-08-18T00:00:00.000Z"),
+  ]);
+  const latest = await createResearchRun(pool, runInput({
+    conversationId: null,
+    idempotencyKey: "owner-a-latest",
+  }));
+  await createResearchRun(pool, runInput({
+    ownerUserId: "user-b",
+    conversationId: null,
+    idempotencyKey: "owner-b-latest",
+  }));
+
+  const runs = await listOwnedResearchRuns(pool, {
+    ownerUserId: "user-a",
+    limit: 1,
+  });
+
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].id, latest.id);
+  assert.equal(runs[0].conversationId, null);
+});
+
+test("reuses a completed step checkpoint without calling the model twice", async () => {
+  const run = await createResearchRun(pool, runInput({
+    agentRoleSnapshot: {
+      requirements: { profileId: "profile-a", revisionId: "revision-a", revisionNumber: 1, modelName: "model-a" },
+    },
+  }));
+  let calls = 0;
+  const execute = async () => {
+    calls += 1;
+    return { modelName: "model-a", promptVersion: "2.0.0", promptHash: "a".repeat(64), output: { conclusion: "done" } };
+  };
+  const options = {
+    runId: run.id,
+    stage: "requirements",
+    stepKey: "requirements:agent",
+    input: { brief: run.brief },
+    modelProfileId: "profile-a",
+    modelRevisionId: "revision-a",
+    execute,
+  };
+
+  const first = await runCheckpointedResearchStep(pool, options);
+  const recovered = await runCheckpointedResearchStep(pool, options);
+  const row = (await pool.query("SELECT * FROM strategy_research_steps WHERE run_id = $1", [run.id])).rows[0];
+
+  assert.equal(calls, 1);
+  assert.deepEqual(recovered, first);
+  assert.equal(row.status, "completed");
+  assert.equal(row.attempt_count, 1);
+  assert.equal(row.model_revision_id, "revision-a");
+  assert.equal(row.prompt_sha256, "a".repeat(64));
 });
 
 test("leases distinct runs concurrently and recovers an expired worker lease", async () => {
@@ -313,7 +382,7 @@ test("stores candidates idempotently and enforces tenant ownership when saving",
   assert.equal(await getOwnedCandidateForSave(pool, { runId: run.id, candidateId: firstId, ownerUserId: "other-user" }), null);
   const owned = await getOwnedCandidateForSave(pool, { runId: run.id, candidateId: firstId, ownerUserId: "user-a" });
   assert.equal(owned.id, firstId);
-  assert.equal(await markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-a" }), "strategy-a");
-  assert.equal(await markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-a" }), "strategy-a");
-  await assert.rejects(markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-b" }), /其他策略/);
+  assert.equal(await markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-a", strategyVersionId: "version-a" }), "strategy-a");
+  assert.equal(await markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-a", strategyVersionId: "version-a" }), "strategy-a");
+  await assert.rejects(markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-b", strategyVersionId: "version-b" }), /其他策略/);
 });

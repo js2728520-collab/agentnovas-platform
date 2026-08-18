@@ -1,17 +1,27 @@
-# 自有 Linux 上线与 D1 切换运行手册
+# 自有 Linux 上线运行手册
 
 ## 边界
 
-本手册覆盖 Node Web、PostgreSQL、独立研究 Worker、Nginx/SSE 和 D1 一次性迁移。代码已提供完整业务 PostgreSQL schema、D1 兼容查询层和 40 表迁移核验；真正的生产备份、目标服务器预演、整站冒烟和维护窗口切换仍必须按本手册执行，不能把本地验证视为已上线证明。
+生产架构固定为自有 Linux 服务器上的 Node Web、PostgreSQL、独立 Research Worker、独立 Runtime Worker 和 Nginx。三个服务共享 PostgreSQL，但必须分别启停；数据库迁移是显式部署步骤，不放进并发的服务启动钩子。不部署 Redis，也不使用边缘 Runtime 或代理平台。
 
 ## 1. 服务器准备
 
-- Linux、Node.js 22.13+、PostgreSQL 16+、Nginx、Certbot。
-- 创建无登录用户 `agentnovas`，代码只读部署到 `/opt/agentnovas/current`。
-- 环境文件放在 `/etc/agentnovas/agentnovas.env`，权限 `0600`；参考 `deploy/agentnovas.env.example`。
-- `DATABASE_URL` 使用专用最小权限数据库用户；模型密钥加密主密钥不得提交到 Git。
+- 安装 Linux、Node.js 22.13+、PostgreSQL 16+、Nginx 和 Certbot。
+- 创建无登录用户 `agentnovas`，将只读应用制品部署到 `/opt/agentnovas/current`。
+- 将环境文件放在 `/etc/agentnovas/agentnovas.env`，所有者为 `root:agentnovas`，权限为 `0640` 或更严格。
+- 为应用创建最小权限 PostgreSQL 用户；模型和交易所密钥的加密主密钥不得提交到 Git。
 
-## 2. 构建与全量 PostgreSQL schema 迁移
+## 2. 数据备份与迁移
+
+在每次发布前执行 PostgreSQL 逻辑备份并记录 SHA-256：
+
+```bash
+install -d -m 0700 /var/backups/agentnovas
+pg_dump --format=custom --file=/var/backups/agentnovas/predeploy.dump "$DATABASE_URL"
+sha256sum /var/backups/agentnovas/predeploy.dump
+```
+
+先在隔离数据库恢复备份并验证关键表行数、登录、租户隔离和研究队列，再在维护窗口执行：
 
 ```bash
 npm ci
@@ -19,50 +29,46 @@ npm run build
 DATABASE_URL='postgresql://…' npm run postgres:migrate
 ```
 
-迁移脚本按文件名顺序执行 `postgres/migrations/*.sql`。`0000_business_schema.sql` 建立与最终 D1 线协议兼容的 40 张业务表，后续文件建立研究队列与模型编排表；全部迁移可重复运行。
+`postgres/migrations/*.sql` 按文件名顺序执行并可重复运行。迁移失败时禁止启动新版本，恢复上一应用制品；涉及不可逆数据变更时，从已验证备份恢复到新的数据库实例后再切换连接串。
 
-## 3. D1 全量备份与预演
+## 3. 启动顺序
 
-在 Cloudflare 凭据已配置的受控主机导出只读备份：
+1. 停止 Research Worker 与 Runtime Worker，等待已租任务完成或租约安全过期。
+2. 开启维护页并停止 Web 写入。
+3. 备份 PostgreSQL，执行迁移和核验。
+4. 启动 Web，检查 `/api/health`、登录、租户隔离、账户读取、策略详情与版本回滚。
+5. 确认七个研发 Agent 角色均已绑定并通过连通测试；按需单独绑定市场摘要、反方异议和风控结论三个运行时解释模型。运行时解释未配置不阻止确定性周期。
+6. 设置 `STRATEGY_RESEARCH_ENABLED=true`，启动研究 Worker。
+7. 验证任务创建、SSE 断线续传、候选保存、回测结果和取消恢复。
+8. 先设置 `STRATEGY_RUNTIME_ENABLED=true` 启动 Runtime Worker，完成至少一个影子周期和一个模拟开平仓闭环。若启用运行时解释，另外验证模型超时后周期仍为 `completed`，解释任务进入有限重试且订单意图不变。
+9. Nginx 直接切换 `agentnovas.com` 流量并持续观察错误率、两类队列租约和数据库连接。
+
+## 4. systemd 与 Nginx
+
+复制 `deploy/systemd/*.service` 到 `/etc/systemd/system/`，复制 Nginx 示例并先执行 `nginx -t`。Web 和 Worker 使用同一个只读部署目录；运行时只允许写入 `/var/lib/agentnovas`。
+
+证书直接使用 Certbot 申请和续期：
 
 ```bash
-npx wrangler d1 export AGENTNOVAS_DB --remote --output /var/backups/agentnovas/d1-precutover.sqlite
-sha256sum /var/backups/agentnovas/d1-precutover.sqlite
+certbot certonly --nginx -d agentnovas.com -d www.agentnovas.com
+nginx -t && systemctl reload nginx
+systemctl enable --now certbot.timer
 ```
 
-先在隔离 PostgreSQL 数据库执行 `npm run postgres:migrate`，再确认 40 张目标业务表全部为空：
+SSE 路由必须设置 `proxy_buffering off`，并将读取超时提高到一小时。验收断线后通过事件序号恢复，同时确认轮询回退可用。
 
-```bash
-DATABASE_URL='postgresql://…/agentnovas_staging' \
-D1_SQLITE_PATH='/var/backups/agentnovas/d1-precutover.sqlite' \
-D1_MIGRATION_BATCH_ID='preflight-20260818-01' \
-D1_SOURCE_REF='cloudflare-d1-export:sha256:…' \
-npm run postgres:migrate:d1
-```
+## 5. 回滚条件
 
-命令在一个事务内导入，外键延迟到提交时检查，并逐表核对行数和规范化 SHA-256；任一目标表非空、表缺失、外键异常或哈希失败都会回滚所有业务行并写入失败批次。相同已验证批次重复执行为只读 no-op。
+出现关键表校验不一致、跨租户可见、登录失败、Worker 无法续租、行情数据质量异常或持续 5xx 时：
 
-## 4. 维护窗口切换
+1. 停止两个 Worker，开启维护页。
+2. 回切上一应用制品。
+3. 如果 schema 向后兼容，直接启动旧 Web；否则把已验证备份恢复到新实例并回切 `DATABASE_URL`。
+4. 保留失败版本日志、迁移记录和研究任务事件，禁止把密钥或个人信息写入事故报告。
 
-1. 将旧站切到维护页，停止所有写入和定时任务。
-2. 导出最终 D1 备份并记录 SHA-256、对象存储版本和操作人。
-3. 对空的生产 PostgreSQL 业务 schema 执行一次性导入与核验；禁止长期双写。
-4. 运行登录、租户隔离、账户读取、策略详情、版本回滚和研究 API 冒烟测试。
-5. 使用带 `DATABASE_URL` 的生产构建启动 Web，确认健康检查为 ready、登录和核心业务冒烟全部通过；Worker 仍保持关闭。
-6. 管理员建立并测试七个模型角色；确认密钥未进入日志后，把 `STRATEGY_RESEARCH_ENABLED` 改为 `true`，再启动 Worker。
-7. 观察错误率、队列租约、数据库连接、SSE 重连和外部模型成本，确认稳定后切换 `agentnovas.com`。
+## 6. 发布证据
 
-回滚条件包括关键表哈希不一致、跨租户可见、登录失败、Worker 无法续租或行情质量错误。回滚时停止新服务，恢复维护页，将域名流量指回旧版本；不要反向覆盖最终 D1 备份。
-
-## 5. systemd 与 Nginx
-
-复制 `deploy/systemd/*.service` 到 `/etc/systemd/system/`，复制 Nginx 示例并先运行 `nginx -t`。Web 和 Worker 必须分别启停；数据库迁移作为部署步骤显式执行，不放在两个服务的并发 `ExecStartPre` 中。
-
-SSE 路由必须关闭代理缓冲并把读取超时提高到一小时。上线前验证断线时携带最后序号恢复，且轮询回退仍可用。
-
-## 6. 验收与证据
-
-- 保存 D1 文件 SHA-256、逐表核验 JSON、迁移批次状态和备份位置。
-- 保存定向测试、全量测试、构建、ESLint、依赖审计和浏览器验收输出。
-- 保存 systemd 状态、Nginx 配置测试、PostgreSQL 备份恢复演练和功能开关变更审计。
-- 不保存模型 API Key、交易所密钥、数据库密码或隐藏推理内容。
+- PostgreSQL 备份 SHA-256、恢复演练和关键表核验结果。
+- 定向测试、全量测试、生产构建、ESLint、依赖审计和真实浏览器验收输出。
+- systemd 状态、`nginx -t`、健康检查和功能开关变更记录；健康检查应包含解释角色数、待处理解释任务和近 24 小时解释失败数。
+- 不保存模型 API Key、交易所密钥、数据库密码或 Agent 隐藏推理内容。

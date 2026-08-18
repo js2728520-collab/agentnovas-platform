@@ -108,7 +108,11 @@ function ruleLabel(rule: StrategyRule) {
   if (rule.type === "volume_ratio") return `成交量/${rule.period}周期均量 ${rule.operator === "gte" ? "≥" : "≤"} ${rule.value}`;
   if (rule.type === "adx_threshold") return `ADX${rule.period} ${rule.operator === "gte" ? "≥" : "≤"} ${rule.value}`;
   if (rule.type === "atr_volatility") return `ATR${rule.period}/价格 ${rule.operator === "gte" ? "≥" : "≤"} ${rule.valuePct}%`;
-  return `布林带${rule.period}/${rule.stdDev}σ ${rule.band === "upper" ? "上轨" : "下轨"}${rule.operator === "above" ? "上方" : "下方"}`;
+  if (rule.type === "bollinger_band") return `布林带${rule.period}/${rule.stdDev}σ ${rule.band === "upper" ? "上轨" : "下轨"}${rule.operator === "above" ? "上方" : "下方"}`;
+  if (rule.type === "ema_alignment") return `EMA ${rule.periods.join("/")} ${rule.direction === "bullish" ? "多头" : "空头"}排列`;
+  if (rule.type === "price_ema") return `价格位于 EMA${rule.period} ${rule.operator === "above" ? "上方" : "下方"}`;
+  if (rule.type === "momentum") return `${rule.period} 周期动量 ${rule.operator === "gte" ? "≥" : "≤"} ${rule.valuePct}%`;
+  return rule.direction === "bullish" ? "阳线" : "阴线";
 }
 
 export function strategyDslExplanation(input: unknown) {

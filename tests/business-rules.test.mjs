@@ -14,9 +14,14 @@ test("employee attribution allocates 10/80/2/3/5", () => {
   assert.deepEqual(rows.map(x => x.amountUsdt), [10, 80, 2, 3, 5]);
 });
 
-test("high water mark charges only new realized profit", () => {
-  assert.deepEqual(calculatePerformanceFee({ realizedNetPnlUsdt: 1100, previousHighWaterMarkUsdt: 1000, withdrawalAuthorizedAtClose: true }), { feeRate: .18, chargeableProfitUsdt: 100, feeUsdt: 18, newHighWaterMarkUsdt: 1100 });
-  assert.equal(calculatePerformanceFee({ realizedNetPnlUsdt: 950, previousHighWaterMarkUsdt: 1000, withdrawalAuthorizedAtClose: false }).feeUsdt, 0);
+test("weekly performance fee charges positive realized profit using the membership rate", () => {
+  assert.deepEqual(calculatePerformanceFee({ weeklyRealizedNetPnlUsdt: 1100, membershipPlanCode: "annual" }), {
+    period: "weekly", feeRate: .2, chargeableProfitUsdt: 1100, feeUsdt: 220, carryForwardLoss: 0,
+  });
+  assert.deepEqual(calculatePerformanceFee({ weeklyRealizedNetPnlUsdt: 100, membershipPlanCode: "lifetime" }), {
+    period: "weekly", feeRate: .16, chargeableProfitUsdt: 100, feeUsdt: 16, carryForwardLoss: 0,
+  });
+  assert.equal(calculatePerformanceFee({ weeklyRealizedNetPnlUsdt: -50 }).feeUsdt, 0);
 });
 
 test("mandatory collection notifications cannot be disabled", () => assert.equal(canDisableNotification("performance_fee_collection"), false));

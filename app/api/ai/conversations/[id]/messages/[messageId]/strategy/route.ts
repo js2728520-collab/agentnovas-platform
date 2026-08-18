@@ -1,7 +1,7 @@
 import { AiApiError, aiErrorResponse, requireAiCustomer } from "@/lib/ai-api";
 import { getOwnedAiConversation, getOwnedAiMessage } from "@/lib/ai-conversations";
 import { strategyDraftFromAiMessage } from "@/lib/ai-strategy-save";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { createStrategyDraft } from "@/lib/strategy-drafts";
 import { StrategyDslValidationError } from "@/lib/strategy-dsl";
 
@@ -12,7 +12,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string; messageId: string }> },
 ) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireAiCustomer(request);
     const { id, messageId } = await params;
     if (!uuidPattern.test(id) || !uuidPattern.test(messageId)) {

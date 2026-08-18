@@ -210,6 +210,65 @@ function exchangeTimeframe(exchange: PerpetualExchange, timeframe: string) {
   return timeframe;
 }
 
+function positive(value: unknown) {
+  const number = finite(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function instrumentFromRow(exchange: PerpetualExchange, raw: unknown): PerpetualInstrument | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const item = raw as Record<string, unknown>;
+  let rawSymbol = "";
+  let symbol = "";
+  let tickSize: number | null = null;
+  let lotSize: number | null = null;
+  let fundingIntervalHours = 8;
+  let live = false;
+
+  if (exchange === "okx") {
+    rawSymbol = String(item.instId || "").toUpperCase();
+    symbol = rawSymbol.replace(/-USDT-SWAP$/, "USDT").replace(/[^A-Z0-9]/g, "");
+    tickSize = positive(item.tickSz);
+    lotSize = positive(item.lotSz);
+    live = item.state === "live" && item.settleCcy === "USDT" && /-USDT-SWAP$/.test(rawSymbol);
+  } else if (exchange === "binance") {
+    rawSymbol = String(item.symbol || "").toUpperCase();
+    symbol = rawSymbol.replace(/[^A-Z0-9]/g, "");
+    const filters = Array.isArray(item.filters) ? item.filters.filter(value => value && typeof value === "object") as Record<string, unknown>[] : [];
+    tickSize = positive(filters.find(filter => filter.filterType === "PRICE_FILTER")?.tickSize);
+    lotSize = positive(filters.find(filter => filter.filterType === "LOT_SIZE")?.stepSize);
+    live = item.status === "TRADING"
+      && item.contractType === "PERPETUAL"
+      && item.quoteAsset === "USDT"
+      && (item.marginAsset === undefined || item.marginAsset === "USDT");
+  } else {
+    rawSymbol = String(item.symbol || "").toUpperCase();
+    symbol = rawSymbol.replace(/[^A-Z0-9]/g, "");
+    const priceFilter = item.priceFilter && typeof item.priceFilter === "object" ? item.priceFilter as Record<string, unknown> : {};
+    const lotSizeFilter = item.lotSizeFilter && typeof item.lotSizeFilter === "object" ? item.lotSizeFilter as Record<string, unknown> : {};
+    tickSize = positive(priceFilter.tickSize);
+    lotSize = positive(lotSizeFilter.qtyStep);
+    const intervalMinutes = positive(item.fundingInterval);
+    fundingIntervalHours = intervalMinutes ? intervalMinutes / 60 : 8;
+    live = item.status === "Trading"
+      && item.contractType === "LinearPerpetual"
+      && item.quoteCoin === "USDT"
+      && item.settleCoin === "USDT";
+  }
+
+  if (!live || !tickSize || !lotSize || !/^[A-Z0-9]{2,20}USDT$/.test(symbol)) return null;
+  return {
+    exchange,
+    symbol,
+    exchangeSymbol: rawSymbol,
+    status: "live",
+    quoteAsset: "USDT",
+    tickSize,
+    lotSize,
+    fundingIntervalHours,
+  };
+}
+
 async function defaultFetchJson(url: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
@@ -235,6 +294,46 @@ export function createPerpetualMarketAdapter(exchange: PerpetualExchange, depend
 
   return {
     exchange,
+
+    async listInstruments(input: { quote: "USDT" }) {
+      if (input.quote !== "USDT") throw new Error("仅支持 USDT 永续合约目录");
+      const instruments = new Map<string, PerpetualInstrument>();
+      let cursor = "";
+      for (let page = 0; page < (exchange === "bybit" ? 20 : 1); page += 1) {
+        const url = new URL(exchange === "okx"
+          ? "/api/v5/public/instruments"
+          : exchange === "binance" ? "/fapi/v1/exchangeInfo" : "/v5/market/instruments-info", base);
+        if (exchange === "okx") url.searchParams.set("instType", "SWAP");
+        if (exchange === "bybit") {
+          url.searchParams.set("category", "linear");
+          url.searchParams.set("limit", "1000");
+          if (cursor) url.searchParams.set("cursor", cursor);
+        }
+        const payload = await fetchJson(url.toString());
+        let rows: unknown[];
+        let nextCursor = "";
+        if (exchange === "okx") {
+          const root = record(payload);
+          if (root.code !== "0") throw new Error(`OKX 合约接口失败：${String(root.msg || root.code || "unknown")}`);
+          rows = array(root.data);
+        } else if (exchange === "binance") {
+          rows = array(record(payload).symbols);
+        } else {
+          const root = record(payload);
+          if (root.retCode !== 0) throw new Error(`Bybit 合约接口失败：${String(root.retMsg || root.retCode || "unknown")}`);
+          const result = record(root.result);
+          rows = array(result.list);
+          nextCursor = String(result.nextPageCursor || "").trim();
+        }
+        for (const row of rows) {
+          const instrument = instrumentFromRow(exchange, row);
+          if (instrument) instruments.set(instrument.exchangeSymbol, instrument);
+        }
+        if (exchange !== "bybit" || !nextCursor || nextCursor === cursor) break;
+        cursor = nextCursor;
+      }
+      return [...instruments.values()].sort((left, right) => left.symbol.localeCompare(right.symbol));
+    },
 
     async getCandles(input: { symbol: string; timeframe: string; limit: number }) {
       if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 30_000) throw new Error("K 线数量无效");

@@ -1,4 +1,4 @@
--- Generated from the final Cloudflare D1 schema by scripts/generate-postgres-business-schema.mjs.
+-- PostgreSQL business schema used by the self-hosted Linux deployment.
 -- Keep legacy booleans as integers and timestamps as ISO text so the existing Drizzle schema remains wire-compatible.
 
 CREATE TABLE IF NOT EXISTS "_agentnovas_migrations" (

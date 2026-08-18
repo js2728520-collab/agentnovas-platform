@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { auditLogs, customerAttributions, invitations, memberships, notificationDeliveries, users } from "@/db/schema";
 import { hashPassword, normalizeEmail, sha256, validEmail } from "@/lib/auth";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
 
 function normalizeInvitationCode(input: string) {
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     if (password.length < 10) return Response.json({ error: "密码至少需要 10 位字符" }, { status: 400 });
     if (!invitationCode) return Response.json({ error: "必须填写邀请码" }, { status: 400 });
 
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const db = getDb();
     if ((await db.select({ id: users.id }).from(users).where(eq(users.phone, phone.value)).limit(1))[0]) {
       return Response.json({ error: "该手机号已注册" }, { status: 409 });

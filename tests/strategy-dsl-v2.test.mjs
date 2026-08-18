@@ -84,7 +84,7 @@ test("rejects unsupported V2 fields, arbitrary code, unsafe leverage, and incomp
   );
 });
 
-test("maps V1 to a V2 long-only runtime without rewriting the stored V1 object", () => {
+test("maps V1 to a V3 long-only runtime without rewriting the stored V1 object", () => {
   const v1 = {
     schemaVersion: 1,
     name: "兼容策略",
@@ -107,7 +107,7 @@ test("maps V1 to a V2 long-only runtime without rewriting the stored V1 object",
 
   const runtime = strategyDslToRuntime(v1);
 
-  assert.equal(runtime.schemaVersion, 2);
+  assert.equal(runtime.schemaVersion, 3);
   assert.equal(runtime.direction, "long_only");
   assert.equal(runtime.legs.long.entry.all[0].type, "rsi_threshold");
   assert.equal(runtime.risk.positionSizePct, 3);

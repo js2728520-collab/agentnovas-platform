@@ -69,14 +69,14 @@ export async function upsertResearchCandidate(database: Queryable, input: {
   const result = await database.query(`
     INSERT INTO strategy_candidates (
       id, run_id, candidate_key, strategy_family, source_role, dsl_json
-    ) VALUES ($1, $2, $3, $4, $5, $6)
+    ) VALUES ($1, $2, $3, $4, $5, $6::jsonb)
     ON CONFLICT (run_id, candidate_key) DO UPDATE SET
       strategy_family = EXCLUDED.strategy_family,
       source_role = EXCLUDED.source_role,
       dsl_json = EXCLUDED.dsl_json,
       updated_at = now()
     RETURNING id
-  `, [crypto.randomUUID(), input.runId, input.key, input.strategyFamily, input.sourceRole, input.dsl]);
+  `, [crypto.randomUUID(), input.runId, input.key, input.strategyFamily, input.sourceRole, JSON.stringify(input.dsl)]);
   return String(result.rows[0].id);
 }
 
@@ -116,19 +116,38 @@ export async function saveResearchEvaluation(database: Queryable, input: {
   periodEnd: Date;
   metrics: Record<string, unknown>;
   dataQuality: Record<string, unknown>;
+  parameterSetSha256: string;
+  dataSliceSha256: string;
+  backtestEngineVersion: string;
+  costScenario: string;
   passed: boolean;
   finalHoldout?: boolean;
 }) {
-  await database.query(`
+  if (!/^[a-f0-9]{64}$/.test(input.parameterSetSha256) || !/^[a-f0-9]{64}$/.test(input.dataSliceSha256)) {
+    throw new Error("研发评估审计哈希格式无效");
+  }
+  if (!input.backtestEngineVersion.trim() || !input.costScenario.trim()) throw new Error("研发评估审计版本或成本场景缺失");
+  const result = await database.query(`
     INSERT INTO strategy_evaluations (
       id, run_id, candidate_id, evaluation_kind, window_index,
-      period_start, period_end, metrics_json, data_quality_json, passed, is_final_holdout
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-    ON CONFLICT (candidate_id, evaluation_kind, window_index) DO NOTHING
+      period_start, period_end, metrics_json, data_quality_json,
+      parameter_set_sha256, data_slice_sha256, backtest_engine_version, cost_scenario,
+      passed, is_final_holdout
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14, $15)
+    ON CONFLICT (candidate_id, evaluation_kind, window_index) DO UPDATE
+    SET evaluation_kind = EXCLUDED.evaluation_kind
+    WHERE strategy_evaluations.parameter_set_sha256 = EXCLUDED.parameter_set_sha256
+      AND strategy_evaluations.data_slice_sha256 = EXCLUDED.data_slice_sha256
+      AND strategy_evaluations.backtest_engine_version = EXCLUDED.backtest_engine_version
+      AND strategy_evaluations.cost_scenario = EXCLUDED.cost_scenario
+    RETURNING id
   `, [
     crypto.randomUUID(), input.runId, input.candidateId, input.kind, input.windowIndex,
-    input.periodStart, input.periodEnd, input.metrics, input.dataQuality, input.passed, input.finalHoldout ?? false,
+    input.periodStart, input.periodEnd, JSON.stringify(input.metrics), JSON.stringify(input.dataQuality),
+    input.parameterSetSha256, input.dataSliceSha256, input.backtestEngineVersion, input.costScenario,
+    input.passed, input.finalHoldout ?? false,
   ]);
+  if (!result.rows[0]) throw new Error("同一研发评估检查点的审计指纹不一致");
 }
 
 export async function updateCandidateValidation(database: Queryable, input: {
@@ -142,11 +161,18 @@ export async function updateCandidateValidation(database: Queryable, input: {
   await database.query(`
     UPDATE strategy_candidates
     SET status = $2, score = $3, validation_label = $4,
-        rejection_reasons_json = $5,
-        dsl_json = COALESCE($6, dsl_json),
+        rejection_reasons_json = $5::jsonb,
+        dsl_json = COALESCE($6::jsonb, dsl_json),
         updated_at = now()
     WHERE id = $1
-  `, [input.candidateId, input.status, input.score, input.validationLabel, input.reasons, input.dsl ?? null]);
+  `, [
+    input.candidateId,
+    input.status,
+    input.score,
+    input.validationLabel,
+    JSON.stringify(input.reasons),
+    input.dsl ? JSON.stringify(input.dsl) : null,
+  ]);
 }
 
 export async function setCandidateRanks(database: Queryable, ranked: Array<{ id: string; rank: number }>) {
@@ -166,7 +192,7 @@ export async function getOwnedCandidateForSave(database: Queryable, input: {
     strategy_family: string;
     validation_label: "UNVERIFIED" | "EXPLORATION_ONLY" | "STANDARD_FAILED" | "STANDARD_VERIFIED";
     saved_strategy_id: string | null;
-    conversation_id: string;
+    conversation_id: string | null;
   }>(`
     SELECT candidate.id, candidate.dsl_json, candidate.strategy_family,
            candidate.validation_label, candidate.saved_strategy_id, run.conversation_id
@@ -188,13 +214,18 @@ export async function getOwnedCandidateForSave(database: Queryable, input: {
 export async function markCandidateSaved(database: Queryable, input: {
   candidateId: string;
   strategyId: string;
+  strategyVersionId: string;
 }) {
-  const result = await database.query<{ saved_strategy_id: string }>(`
+  const result = await database.query<{ saved_strategy_id: string; saved_strategy_version_id: string }>(`
     UPDATE strategy_candidates
-    SET saved_strategy_id = COALESCE(saved_strategy_id, $2), updated_at = now()
-    WHERE id = $1 AND (saved_strategy_id IS NULL OR saved_strategy_id = $2)
-    RETURNING saved_strategy_id
-  `, [input.candidateId, input.strategyId]);
+    SET saved_strategy_id = COALESCE(saved_strategy_id, $2),
+        saved_strategy_version_id = COALESCE(saved_strategy_version_id, $3),
+        updated_at = now()
+    WHERE id = $1
+      AND (saved_strategy_id IS NULL OR saved_strategy_id = $2)
+      AND (saved_strategy_version_id IS NULL OR saved_strategy_version_id = $3)
+    RETURNING saved_strategy_id, saved_strategy_version_id
+  `, [input.candidateId, input.strategyId, input.strategyVersionId]);
   if (!result.rows[0]) throw new Error("候选策略已保存为其他策略记录");
   return result.rows[0].saved_strategy_id;
 }
@@ -222,8 +253,8 @@ export async function completeResearchRun(database: Pool | PoolClient, input: {
     if (!run.rows[0]) throw new Error("任务租约无效，不能完成报告");
     await client.query(`
       INSERT INTO strategy_agent_events (id, run_id, sequence, role, event_type, title, content_json)
-      VALUES ($1, $2, $3, 'report', 'final_report', $4, $5)
-    `, [crypto.randomUUID(), input.runId, run.rows[0].event_sequence, input.event.title, input.event.content]);
+      VALUES ($1, $2, $3, 'report', 'final_report', $4, $5::jsonb)
+    `, [crypto.randomUUID(), input.runId, run.rows[0].event_sequence, input.event.title, JSON.stringify(input.event.content)]);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");

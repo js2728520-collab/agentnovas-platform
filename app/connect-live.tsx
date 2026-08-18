@@ -20,6 +20,21 @@ type AdapterStatus = {
   note: string;
 };
 
+type ExchangeAccount = {
+  id: string;
+  exchange: string;
+  label: string;
+  environment: Environment;
+  status: string;
+  routing?: {
+    ready?: boolean;
+    code?: string;
+    reason?: string;
+    supportedOperations?: string[];
+    adapter?: { docsUrl?: string; testnetUrl?: string };
+  };
+};
+
 const orderOperationLabels: Record<string, string> = {
   place: "下单",
   cancel: "撤单",
@@ -77,7 +92,7 @@ const emptyForm: FormState = {
 };
 
 export default function ConnectLive() {
-  const [accounts, setAccounts] = useState<Array<Record<string, unknown>>>([]);
+  const [accounts, setAccounts] = useState<ExchangeAccount[]>([]);
   const [exchangeCatalog, setExchangeCatalog] = useState<ExchangeInfo[]>(fallbackExchanges);
   const [adapterStatus, setAdapterStatus] = useState<AdapterStatus[]>([]);
   const [selected, setSelected] = useState("OKX");

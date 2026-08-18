@@ -8,7 +8,7 @@ import {
   strategySubscriptions,
   trades,
 } from "@/db/schema";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { decryptExchangeCredential } from "@/lib/exchange-credentials";
 import { getOkxDemoOrder, okxFeeInUsdt, placeOkxDemoMarketOrder } from "@/lib/okx-demo-execution";
 import { requireUser, responseError } from "@/lib/session";
@@ -81,7 +81,7 @@ async function closeOkxDemoTrade(position: OpenTrade, account: typeof exchangeAc
 
 export async function POST(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const me = await requireUser(request, ["customer"]);
     const body = await request.json().catch(() => ({})) as { closePositions?: boolean };
     const closePositions = body.closePositions === true;

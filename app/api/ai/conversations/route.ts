@@ -1,10 +1,10 @@
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { aiErrorResponse, readAiJson, requireAiCustomer } from "@/lib/ai-api";
 import { createAiConversation, listAiConversations } from "@/lib/ai-conversations";
 
 export async function GET(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireAiCustomer(request);
     return Response.json({ conversations: await listAiConversations(user.id) });
   } catch (error) {
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireAiCustomer(request);
     const body = await readAiJson(request);
     const conversation = await createAiConversation(user.id, body);

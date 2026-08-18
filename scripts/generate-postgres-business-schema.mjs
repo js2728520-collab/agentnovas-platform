@@ -52,7 +52,7 @@ const tables = database.prepare(`
 `).all().map(row => row.name);
 
 const lines = [
-  "-- Generated from the final Cloudflare D1 schema by scripts/generate-postgres-business-schema.mjs.",
+  "-- Generated from the legacy SQLite schema by scripts/generate-postgres-business-schema.mjs.",
   "-- Keep legacy booleans as integers and timestamps as ISO text so the existing Drizzle schema remains wire-compatible.",
   "",
   `CREATE TABLE IF NOT EXISTS "_agentnovas_migrations" (`,

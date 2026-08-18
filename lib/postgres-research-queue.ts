@@ -9,13 +9,14 @@ type ResearchMode = "quick" | "standard" | "deep";
 type ResearchRunRow = QueryResultRow & {
   id: string;
   owner_user_id: string;
-  conversation_id: string;
+  conversation_id: string | null;
   exchange_account_id: string;
   mode: ResearchMode;
   stage: string;
   status: string;
   progress: number;
   brief_json: Record<string, unknown>;
+  agent_role_snapshot_json: Record<string, unknown>;
   lease_owner: string | null;
   lease_expires_at: Date | null;
   attempts: number;
@@ -46,6 +47,7 @@ function runFromRow(row: ResearchRunRow) {
     status: row.status,
     progress: row.progress,
     brief: row.brief_json,
+    agentRoleSnapshot: row.agent_role_snapshot_json ?? {},
     leaseOwner: row.lease_owner,
     leaseExpiresAt: row.lease_expires_at,
     attempts: row.attempts,
@@ -74,6 +76,26 @@ export async function getOwnedResearchRun(database: Queryable, input: {
     SELECT * FROM strategy_research_runs WHERE id = $1 AND owner_user_id = $2
   `, [input.runId, input.ownerUserId]);
   return result.rows[0] ? runFromRow(result.rows[0]) : null;
+}
+
+export async function listOwnedResearchRuns(database: Queryable, input: {
+  ownerUserId: string;
+  limit?: number;
+  activeOnly?: boolean;
+}) {
+  const limit = Math.min(Math.max(input.limit ?? 10, 1), 20);
+  const activeFilter = input.activeOnly
+    ? "AND status IN ('queued', 'running', 'retry_wait', 'paused_missing_role', 'awaiting_user_input')"
+    : "";
+  const result = await database.query<ResearchRunRow>(`
+    SELECT *
+    FROM strategy_research_runs
+    WHERE owner_user_id = $1
+      ${activeFilter}
+    ORDER BY created_at DESC, id DESC
+    LIMIT $2
+  `, [input.ownerUserId, limit]);
+  return result.rows.map(runFromRow);
 }
 
 export async function listResearchEvents(database: Queryable, input: {
@@ -127,6 +149,7 @@ export async function listResearchCandidates(database: Queryable, input: {
     rejection_reasons_json: string[];
     validation_label: string;
     saved_strategy_id: string | null;
+    saved_strategy_version_id: string | null;
   }>(`
     SELECT candidate.*
     FROM strategy_candidates AS candidate
@@ -146,6 +169,7 @@ export async function listResearchCandidates(database: Queryable, input: {
     rejectionReasons: row.rejection_reasons_json,
     validationLabel: row.validation_label,
     savedStrategyId: row.saved_strategy_id,
+    savedStrategyVersionId: row.saved_strategy_version_id,
   }));
 }
 
@@ -216,17 +240,21 @@ export async function pauseResearchRunForMissingRoles(database: Queryable, input
   return runFromRow(result.rows[0]);
 }
 
-export async function requeueResearchRunsPausedForRoles(database: Queryable) {
+export async function requeueResearchRunsPausedForRoles(
+  database: Queryable,
+  agentRoleSnapshot?: Record<string, unknown>,
+) {
   const result = await database.query<ResearchRunRow>(`
     UPDATE strategy_research_runs
     SET status = 'queued',
+        agent_role_snapshot_json = COALESCE($1::jsonb, agent_role_snapshot_json),
         last_error_code = NULL,
         last_error_message = NULL,
         next_attempt_at = now(),
         updated_at = now()
     WHERE status = 'paused_missing_role' AND cancel_requested_at IS NULL
     RETURNING *
-  `);
+  `, [agentRoleSnapshot ? JSON.stringify(agentRoleSnapshot) : null]);
   const runs = result.rows.map(runFromRow);
   for (const run of runs) {
     await appendResearchEvent(database as Pool | PoolClient, {
@@ -267,12 +295,12 @@ export async function pauseResearchRunForUserInput(database: Pool | PoolClient, 
     if (!result.rows[0]) throw new Error("任务租约已失效、阶段不匹配或任务已取消");
     await client.query(`
       INSERT INTO strategy_agent_events (id, run_id, sequence, role, event_type, title, content_json)
-      VALUES ($1, $2, $3, 'requirements', 'input_required', '需要补充会改变策略结果的条件', $4)
-    `, [crypto.randomUUID(), input.runId, result.rows[0].event_sequence, {
+      VALUES ($1, $2, $3, 'requirements', 'input_required', '需要补充会改变策略结果的条件', $4::jsonb)
+    `, [crypto.randomUUID(), input.runId, result.rows[0].event_sequence, JSON.stringify({
       modelName: input.modelName,
       missingFields: input.missingFields,
       conclusion: input.requirements.conclusion,
-    }]);
+    })]);
     await client.query("COMMIT");
     return runFromRow(result.rows[0]);
   } catch (error) {
@@ -309,8 +337,8 @@ export async function resumeResearchRunWithAnswers(database: Pool | PoolClient, 
     if (!result.rows[0]) throw new Error("研发任务不存在、无需补充输入或已取消");
     await client.query(`
       INSERT INTO strategy_agent_events (id, run_id, sequence, role, event_type, title, content_json)
-      VALUES ($1, $2, $3, 'requirements', 'input_received', '用户已补充研发条件', $4)
-    `, [crypto.randomUUID(), input.runId, result.rows[0].event_sequence, { answeredFields: Object.keys(input.answers) }]);
+      VALUES ($1, $2, $3, 'requirements', 'input_received', '用户已补充研发条件', $4::jsonb)
+    `, [crypto.randomUUID(), input.runId, result.rows[0].event_sequence, JSON.stringify({ answeredFields: Object.keys(input.answers) })]);
     await client.query("COMMIT");
     return runFromRow(result.rows[0]);
   } catch (error) {
@@ -329,10 +357,11 @@ const modeBudgets: Record<ResearchMode, { candidates: number; backtests: number;
 
 export async function createResearchRun(database: Queryable, input: {
   ownerUserId: string;
-  conversationId: string;
+  conversationId?: string | null;
   exchangeAccountId: string;
   mode: ResearchMode;
   brief: Record<string, unknown>;
+  agentRoleSnapshot?: Record<string, unknown>;
   idempotencyKey: string;
 }) {
   const budget = modeBudgets[input.mode];
@@ -343,18 +372,20 @@ export async function createResearchRun(database: Queryable, input: {
   const result = await database.query<ResearchRunRow>(`
     INSERT INTO strategy_research_runs (
       id, owner_user_id, conversation_id, exchange_account_id, mode, stage,
-      brief_json, idempotency_key, candidate_budget, backtest_budget, model_call_budget
-    ) VALUES ($1, $2, $3, $4, $5, 'requirements', $6, $7, $8, $9, $10)
+      brief_json, agent_role_snapshot_json, idempotency_key,
+      candidate_budget, backtest_budget, model_call_budget
+    ) VALUES ($1, $2, $3, $4, $5, 'requirements', $6::jsonb, $7::jsonb, $8, $9, $10, $11)
     ON CONFLICT (owner_user_id, idempotency_key)
     DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
     RETURNING *
   `, [
     crypto.randomUUID(),
     input.ownerUserId,
-    input.conversationId,
+    input.conversationId ?? null,
     input.exchangeAccountId,
     input.mode,
-    input.brief,
+    JSON.stringify(input.brief),
+    JSON.stringify(input.agentRoleSnapshot ?? {}),
     input.idempotencyKey,
     budget.candidates,
     budget.backtests,
@@ -492,9 +523,9 @@ export async function appendResearchEvent(database: Pool | PoolClient, input: {
     }>(`
       INSERT INTO strategy_agent_events (
         id, run_id, sequence, role, event_type, title, content_json
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
       RETURNING *
-    `, [crypto.randomUUID(), input.runId, sequence, input.role, input.type, input.title, input.content]);
+    `, [crypto.randomUUID(), input.runId, sequence, input.role, input.type, input.title, JSON.stringify(input.content)]);
     await client.query("COMMIT");
     const row = eventResult.rows[0];
     return {
@@ -569,7 +600,7 @@ export async function advanceResearchRun(database: Pool | PoolClient, input: {
     }>(`
       INSERT INTO strategy_agent_events (
         id, run_id, sequence, role, event_type, title, content_json
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
       RETURNING *
     `, [
       crypto.randomUUID(),
@@ -578,7 +609,7 @@ export async function advanceResearchRun(database: Pool | PoolClient, input: {
       input.event.role,
       input.event.type,
       input.event.title,
-      input.event.content,
+      JSON.stringify(input.event.content),
     ]);
     await client.query("COMMIT");
     const event = eventResult.rows[0];

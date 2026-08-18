@@ -8,7 +8,7 @@ import {
 } from "@/db/schema";
 import { AiApiError, aiErrorResponse } from "@/lib/ai-api";
 import { getOwnedAiConversation, resolveStrategyVersionSource } from "@/lib/ai-conversations";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { currentUser, requireUser, responseError } from "@/lib/session";
 import { createStrategyDraft } from "@/lib/strategy-drafts";
 import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
@@ -33,7 +33,7 @@ function parseObject(value: string) {
 
 export async function GET(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const me = await currentUser(request);
     const db = getDb();
     const fields = {
@@ -118,7 +118,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const me = await requireUser(request, ["customer"]);
     const body = (await request.json()) as {
       name?: string;

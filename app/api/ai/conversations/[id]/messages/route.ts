@@ -10,7 +10,7 @@ import {
   recordAiMessageFailure,
 } from "@/lib/ai-conversations";
 import { buildAssistantContext } from "@/lib/ai-context";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { resolveLlmConfig } from "@/lib/llm-config";
 import { normalizeAiMessage } from "@/lib/ai-safety";
 
@@ -18,7 +18,7 @@ const encoder = new TextEncoder();
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireAiCustomer(request);
     const { id } = await params;
     const body = await readAiJson(request);

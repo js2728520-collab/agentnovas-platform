@@ -131,3 +131,45 @@ test("uses conservative fees when authenticated fee access is unavailable", asyn
   assert.ok(fee.takerRate >= fee.makerRate);
   assert.ok(fee.takerRate > 0);
 });
+
+test("lists only live USDT perpetual instruments with normalized trading rules", async () => {
+  const fixtures = {
+    okx: [{
+      code: "0",
+      data: [
+        { instId: "BTC-USDT-SWAP", settleCcy: "USDT", state: "live", tickSz: "0.1", lotSz: "0.001" },
+        { instId: "ETH-USD-SWAP", settleCcy: "USD", state: "live", tickSz: "0.1", lotSz: "0.01" },
+      ],
+    }],
+    binance: [{
+      symbols: [
+        { symbol: "BTCUSDT", pair: "BTCUSDT", quoteAsset: "USDT", marginAsset: "USDT", status: "TRADING", contractType: "PERPETUAL", filters: [{ filterType: "PRICE_FILTER", tickSize: "0.1" }, { filterType: "LOT_SIZE", stepSize: "0.001" }] },
+        { symbol: "ETHUSDT_250926", quoteAsset: "USDT", status: "TRADING", contractType: "CURRENT_QUARTER", filters: [] },
+      ],
+    }],
+    bybit: [
+      { retCode: 0, result: { nextPageCursor: "next", list: [{ symbol: "BTCUSDT", quoteCoin: "USDT", settleCoin: "USDT", status: "Trading", contractType: "LinearPerpetual", fundingInterval: "480", priceFilter: { tickSize: "0.1" }, lotSizeFilter: { qtyStep: "0.001" } }] } },
+      { retCode: 0, result: { nextPageCursor: "", list: [{ symbol: "ETHUSDT", quoteCoin: "USDT", settleCoin: "USDT", status: "Trading", contractType: "LinearPerpetual", fundingInterval: "240", priceFilter: { tickSize: "0.01" }, lotSizeFilter: { qtyStep: "0.01" } }] } },
+    ],
+  };
+
+  for (const exchange of ["okx", "binance", "bybit"]) {
+    const urls = [];
+    const adapter = createPerpetualMarketAdapter(exchange, {
+      fetchJson: async (url) => {
+        urls.push(url);
+        return fixtures[exchange][Math.min(urls.length - 1, fixtures[exchange].length - 1)];
+      },
+    });
+    const instruments = await adapter.listInstruments({ quote: "USDT" });
+    assert.ok(instruments.length >= 1, exchange);
+    assert.ok(instruments.every((item) => item.quoteAsset === "USDT" && item.status === "live"), exchange);
+    assert.ok(instruments.every((item) => item.tickSize > 0 && item.lotSize > 0), exchange);
+    if (exchange === "bybit") {
+      assert.deepEqual(instruments.map((item) => item.symbol), ["BTCUSDT", "ETHUSDT"]);
+      assert.equal(new URL(urls[1]).searchParams.get("cursor"), "next");
+    } else {
+      assert.equal(urls.length, 1, exchange);
+    }
+  }
+});

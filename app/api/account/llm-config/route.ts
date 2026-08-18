@@ -2,13 +2,13 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { llmConfigurations } from "@/db/schema";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { publicLlmConfig, saveLlmConfig, type LlmConfigInput } from "@/lib/llm-config";
 import { requireUser, responseError } from "@/lib/session";
 
 export async function GET(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireUser(request);
     const db = getDb();
     const config = await db.query.llmConfigurations.findFirst({ where: eq(llmConfigurations.id, `user-${user.id}`) });
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireUser(request);
     const input = await request.json() as LlmConfigInput;
     const config = await saveLlmConfig({ id: `user-${user.id}`, scope: "user", ownerUserId: user.id, updatedByUserId: user.id, input });

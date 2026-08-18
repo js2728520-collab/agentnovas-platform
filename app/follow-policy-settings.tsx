@@ -174,7 +174,7 @@ export default function FollowPolicySettings() {
 
   return <section className="wide-panel follow-policy-panel">
     <header><div><small>{copy.eyebrow}</small><h2>{copy.title}</h2><p>{copy.intro}</p></div><span className={enabled ? "policy-status enabled" : "policy-status"}>{enabled ? copy.on : copy.off}</span></header>
-    <label className="follow-policy-toggle"><input type="checkbox" checked={enabled} disabled={loading || saving} onChange={(event) => setEnabled(event.target.checked)} /><span><b>{copy.toggle}</b><small>{enabled ? copy.onDetail : copy.offDetail}</small></span></label>
+    <label className="follow-policy-toggle" htmlFor="allow-follow-without-withdrawal"><input id="allow-follow-without-withdrawal" aria-label={copy.toggle} type="checkbox" checked={enabled} disabled={loading || saving} onChange={(event) => setEnabled(event.target.checked)} /><span><b>{copy.toggle}</b><small>{enabled ? copy.onDetail : copy.offDetail}</small></span></label>
     <p className="follow-policy-private"><i />{copy.privateDetail}</p>
     <div className="follow-policy-actions"><button className="primary" disabled={loading || saving} onClick={() => void save()}>{loading ? copy.loading : saving ? copy.saving : copy.save}</button>{notice && <span className="admin-notice">{notice}</span>}</div>
   </section>;

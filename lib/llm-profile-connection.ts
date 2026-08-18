@@ -2,7 +2,11 @@ import { lookup as dnsLookup } from "node:dns/promises";
 
 import type { Pool, PoolClient } from "pg";
 
-import { resolveAgentRoleConfig } from "./agent-model-profiles.ts";
+import {
+  resolveAgentRoleConfig,
+  resolveRuntimeExplanationRoleConfig,
+} from "./agent-model-profiles.ts";
+import type { ResolvedLlmProfileConfig } from "./research-types.ts";
 import { privateNetworkHost } from "./llm-endpoint.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
@@ -35,6 +39,25 @@ export async function testAgentRoleConnection(database: Queryable, options: {
 }) {
   const config = await resolveAgentRoleConfig(database, options.role);
   if (!config) throw new Error("该角色尚未绑定可用模型");
+  return testResolvedModelConnection(config, options);
+}
+
+export async function testRuntimeExplanationRoleConnection(database: Queryable, options: {
+  role: string;
+  fetchImpl?: typeof fetch;
+  resolver?: (hostname: string) => Promise<LookupAddress[]>;
+  timeoutMs?: number;
+}) {
+  const config = await resolveRuntimeExplanationRoleConfig(database, options.role);
+  if (!config) throw new Error("该运行时解释角色尚未绑定可用模型");
+  return testResolvedModelConnection(config, options);
+}
+
+async function testResolvedModelConnection(config: ResolvedLlmProfileConfig, options: {
+  fetchImpl?: typeof fetch;
+  resolver?: (hostname: string) => Promise<LookupAddress[]>;
+  timeoutMs?: number;
+}) {
   await assertPublicLlmEndpoint(config.endpoint, options.resolver);
 
   const controller = new AbortController();

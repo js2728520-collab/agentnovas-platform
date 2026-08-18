@@ -1,11 +1,11 @@
 import { listLlmProfiles, saveLlmProfile, type LlmProfileInput } from "@/lib/agent-model-profiles";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, requireResearchUser, researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     await requireResearchUser(request, ["hq_admin"]);
     const pool = await getPostgresPool();
     return Response.json({ profiles: await listLlmProfiles(pool) }, {
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireResearchUser(request, ["hq_admin"]);
     const input = await readResearchJson(request) as LlmProfileInput;
     const pool = await getPostgresPool();

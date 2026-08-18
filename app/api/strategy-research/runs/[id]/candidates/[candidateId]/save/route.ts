@@ -1,4 +1,4 @@
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
 import { getOwnedCandidateForSave, markCandidateSaved } from "@/lib/research-repository";
 import { requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
@@ -9,7 +9,7 @@ export async function POST(request: Request, { params }: {
   params: Promise<{ id: string; candidateId: string }>;
 }) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireResearchUser(request, ["customer"]);
     const { id, candidateId } = await params;
     const pool = await getPostgresPool();
@@ -37,10 +37,11 @@ export async function POST(request: Request, { params }: {
       researchRunId: id,
       researchCandidateId: candidate.id,
     });
-    await markCandidateSaved(pool, { candidateId: candidate.id, strategyId: saved.id });
+    await markCandidateSaved(pool, { candidateId: candidate.id, strategyId: saved.id, strategyVersionId: saved.versionId });
     return Response.json({
       strategyId: saved.id,
       version: saved.version,
+      versionId: saved.versionId,
       created: saved.created,
       validationLabel: candidate.validationLabel,
       simulationOnly: candidate.validationLabel !== "STANDARD_VERIFIED",

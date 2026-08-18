@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { llmConfigurations } from "@/db/schema";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { publicLlmConfig, saveLlmConfig, type LlmConfigInput } from "@/lib/llm-config";
 import { requireUser, responseError } from "@/lib/session";
 
@@ -10,7 +10,7 @@ const CONFIG_ID = "system-default";
 
 export async function GET(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     await requireUser(request, ["hq_admin"]);
     const db = getDb();
     const config = await db.query.llmConfigurations.findFirst({ where: eq(llmConfigurations.id, CONFIG_ID) });
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireUser(request, ["hq_admin"]);
     const input = await request.json() as LlmConfigInput;
     const config = await saveLlmConfig({ id: CONFIG_ID, scope: "system", ownerUserId: null, updatedByUserId: user.id, input });

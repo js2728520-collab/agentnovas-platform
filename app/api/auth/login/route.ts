@@ -2,14 +2,14 @@ import { eq, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { auditLogs, sessions, users } from "@/db/schema";
 import { normalizeEmail, randomToken, sha256, verifyPassword } from "@/lib/auth";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
 import { responseError } from "@/lib/session";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json() as { identifier?: string; email?: string; password?: string };
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const db = getDb();
     const rawIdentifier = String(body.identifier ?? body.email ?? "").trim();
     const email = normalizeEmail(rawIdentifier);
