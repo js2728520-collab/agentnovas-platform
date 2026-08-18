@@ -12,7 +12,7 @@ test("rollback creates a new immutable version from an owned historical snapshot
   assert.match(route, /eq\(communityStrategies\.authorUserId, me\.id\)/);
   assert.match(route, /eq\(strategyVersions\.strategyId, id\)/);
   assert.match(route, /Number\.isInteger\(sourceVersion\)/);
-  assert.match(route, /normalizeStrategyDsl/);
+  assert.match(route, /normalizeResearchStrategyDsl/);
   assert.match(route, /const nextVersion = current\.version \+ 1/);
   assert.match(route, /insert\(strategyVersions\)/);
   assert.match(route, /restoredFromVersion: sourceVersion/);
