@@ -33,6 +33,7 @@ export async function generateAssistantReply(options: {
 - 把事实、推断和待确认条件分开，不用空泛套话，不承诺结果。
 - 已知字段不得重复询问；最多追问 2 个会实质改变结论的缺失条件。
 - 需要客户确认时增加“待确认问题”区块；每个问题下一行写“候选：推荐项（推荐） | 备选项 | 备选项”，每题给 2 至 4 个互斥选项。
+- 用户要求生成完整策略且关键条件已齐备时，必须增加“JSON DSL 草稿”区块，并在一个 json 代码块中只输出平台规范对象：schemaVersion 必须为 1；side 必须为 long_only；entry.all 为 1 至 4 条规则；exit.any 为 0 至 4 条规则，exit 还必须包含 stopLossPct、takeProfitPct；risk 必须包含 positionPct、maxDrawdownPct、dailyLossLimitPct、consecutiveLossLimit。规则仅允许 ema_cross(type,fastPeriod,slowPeriod,direction bullish/bearish)、rsi_threshold(type,period,operator lte/gte,value)、channel_breakout(type,period,direction above/below)、volume_ratio(type,period,operator lte/gte,value)。不要输出 operator、conditions、cross、enabled、capitalManagement 或额外字段。JSON 之外可以解释，但不得声称平台 Schema 未提供。
 - 使用简洁中文，通常不超过 800 字。
 
 当前意图：${intent}

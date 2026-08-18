@@ -203,14 +203,42 @@ export function hasStrategyDslCodeBlock(presentation: AiMessagePresentation) {
     if (block.language.toLowerCase() !== "json") return false;
     try {
       const value = JSON.parse(block.code) as Record<string, unknown>;
-      return (value?.schemaVersion === 1 || value?.schemaVersion === "1.0")
+      const entry = value.entry && typeof value.entry === "object"
+        ? value.entry as Record<string, unknown>
+        : {};
+      const entryWhen = entry.when && typeof entry.when === "object"
+        ? entry.when as Record<string, unknown>
+        : {};
+      const entryRules = Array.isArray(entry.all)
+        ? entry.all
+        : Array.isArray(entry.conditions)
+          ? entry.conditions
+          : Array.isArray(entryWhen.all)
+            ? entryWhen.all
+            : [];
+      const supportedRule = entryRules.some((candidate) => {
+        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return false;
+        const rule = candidate as Record<string, unknown>;
+        return ["ema_cross", "rsi_threshold", "channel_breakout", "volume_ratio"].includes(String(rule.type || ""))
+          || Array.isArray(rule.crossesAbove)
+          || Array.isArray(rule.crossesBelow)
+          || Array.isArray(rule.gt)
+          || Array.isArray(rule.gte);
+      });
+      const schemaVersionSupported = value.schemaVersion === undefined
+        || value.schemaVersion === 1
+        || value.schemaVersion === "1.0";
+      const sideSupported = value.side === undefined || value.side === "long" || value.side === "long_only";
+      return schemaVersionSupported
+        && sideSupported
         && typeof value.name === "string"
         && typeof value.symbol === "string"
         && typeof value.timeframe === "string"
         && Boolean(value.entry && typeof value.entry === "object")
         && Boolean(value.exit && typeof value.exit === "object")
         && Boolean((value.risk && typeof value.risk === "object")
-          || (value.capitalManagement && typeof value.capitalManagement === "object"));
+          || (value.capitalManagement && typeof value.capitalManagement === "object"))
+        && (supportedRule || value.schemaVersion === 1 || value.schemaVersion === "1.0");
     } catch {
       return false;
     }

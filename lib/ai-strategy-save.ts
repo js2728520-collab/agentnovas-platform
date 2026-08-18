@@ -22,6 +22,53 @@ function emaPeriods(value: unknown) {
   return { fastPeriod: Math.min(first, second), slowPeriod: Math.max(first, second) };
 }
 
+function directStrategyRule(value: unknown): StrategyRule | null {
+  const rule = record(value);
+  if (rule.type === "ema_cross") {
+    const fastPeriod = Number(rule.fastPeriod);
+    const slowPeriod = Number(rule.slowPeriod);
+    if (!Number.isFinite(fastPeriod) || !Number.isFinite(slowPeriod)) return null;
+    const directionValue = String(rule.direction ?? rule.cross ?? "").toLowerCase();
+    const direction = ["bullish", "above", "up"].includes(directionValue)
+      ? "bullish" as const
+      : ["bearish", "below", "down"].includes(directionValue)
+        ? "bearish" as const
+        : null;
+    return direction ? { type: "ema_cross", fastPeriod, slowPeriod, direction } : null;
+  }
+  if (rule.type === "volume_ratio" || rule.type === "rsi_threshold") {
+    const period = Number(rule.period);
+    const threshold = Number(rule.value);
+    if (!Number.isFinite(period) || !Number.isFinite(threshold)) return null;
+    const operatorValue = String(rule.operator || "").toLowerCase();
+    const operator = ["gte", ">="].includes(operatorValue)
+      ? "gte" as const
+      : ["lte", "<="].includes(operatorValue)
+        ? "lte" as const
+        : null;
+    if (!operator) return null;
+    return rule.type === "volume_ratio"
+      ? { type: "volume_ratio", period, operator, value: threshold }
+      : { type: "rsi_threshold", period, operator, value: threshold };
+  }
+  if (rule.type === "channel_breakout") {
+    const period = Number(rule.period);
+    if (!Number.isFinite(period) || (rule.direction !== "above" && rule.direction !== "below")) return null;
+    return { type: "channel_breakout", period, direction: rule.direction };
+  }
+  return null;
+}
+
+function ruleCandidates(container: Record<string, unknown>, nestedKey?: string) {
+  if (Array.isArray(container.all)) return container.all;
+  if (Array.isArray(container.conditions)) return container.conditions;
+  if (nestedKey) {
+    const nested = record(container[nestedKey]);
+    if (Array.isArray(nested.all)) return nested.all;
+  }
+  return [];
+}
+
 function compatibleStrategyDsl(content: string) {
   try {
     return { specification: extractStrategyDslFromText(content), conversionWarnings: [] as string[] };
@@ -33,13 +80,20 @@ function compatibleStrategyDsl(content: string) {
     if (typeof source.timeframe !== "string" || !source.timeframe.trim()) {
       throw new Error("扩展策略缺少明确信号周期");
     }
+    if (source.side !== undefined && source.side !== "long" && source.side !== "long_only") {
+      throw new Error("当前回测 DSL 仅支持仅做多策略");
+    }
     const capital = record(source.capitalManagement || source.risk);
     const entry = record(source.entry);
-    const entryWhen = record(entry.when);
-    const entryCandidates = Array.isArray(entryWhen.all) ? entryWhen.all : [];
+    const entryCandidates = ruleCandidates(entry, "when");
     const entryRules: StrategyRule[] = [];
     for (const candidate of entryCandidates) {
       const rule = record(candidate);
+      const direct = directStrategyRule(rule);
+      if (direct) {
+        entryRules.push(direct);
+        continue;
+      }
       const cross = emaPeriods(rule.crossesAbove);
       if (cross) entryRules.push({ type: "ema_cross", ...cross, direction: "bullish" });
       const volume = Array.isArray(rule.gt) ? rule.gt : Array.isArray(rule.gte) ? rule.gte : [];
@@ -55,12 +109,21 @@ function compatibleStrategyDsl(content: string) {
     if (!entryRules.length) throw new Error("扩展策略中没有当前回测引擎支持的入场规则");
 
     const exit = record(source.exit);
-    const exitCandidates = Array.isArray(exit.any) ? exit.any : [];
+    const exitCandidates = Array.isArray(exit.any)
+      ? exit.any
+      : Array.isArray(exit.conditions)
+        ? exit.conditions
+        : [];
     const exitRules: StrategyRule[] = [];
-    let stopLossPct = 2;
-    let takeProfitPct = 4;
+    let stopLossPct = boundedNumber(exit.stopLossPct ?? capital.stopLossPct, 2, 0.1, 20);
+    let takeProfitPct = boundedNumber(exit.takeProfitPct ?? capital.takeProfitPct, 4, 0.1, 30);
     for (const candidate of exitCandidates) {
       const rule = record(candidate);
+      const direct = directStrategyRule(rule);
+      if (direct) {
+        exitRules.push(direct);
+        continue;
+      }
       const when = record(rule.when);
       const cross = emaPeriods(when.crossesBelow);
       if (cross) exitRules.push({ type: "ema_cross", ...cross, direction: "bearish" });

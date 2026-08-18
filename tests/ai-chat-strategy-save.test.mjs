@@ -71,10 +71,44 @@ test("converts an extended provider DSL into the platform backtest schema with w
   assert.match(result.conversionWarnings.join(" "), /ATR/);
 });
 
+test("converts the provider's simplified conditions draft into the platform backtest schema", () => {
+  const result = strategyDraftFromAiMessage(`\`\`\`json
+  {
+    "name":"BTCUSDT_1h_EMA20x60_Volume_LowRisk",
+    "symbol":"BTCUSDT",
+    "timeframe":"1h",
+    "side":"long",
+    "entry":{"operator":"AND","conditions":[{"type":"ema_cross","fastPeriod":20,"slowPeriod":60,"cross":"above"},{"type":"volume_ratio","period":20,"operator":">=","value":1}]},
+    "exit":{"operator":"OR","conditions":[{"type":"ema_cross","fastPeriod":20,"slowPeriod":60,"cross":"below"}]},
+    "risk":{"positionPct":3,"maxDrawdownPct":10,"dailyLossLimitPct":2,"stopLossPct":2,"takeProfitPct":4},
+    "enabled":false
+  }
+  \`\`\``);
+
+  assert.equal(result.specification.schemaVersion, 1);
+  assert.equal(result.specification.side, "long_only");
+  assert.deepEqual(result.specification.entry.all, [
+    { type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bullish" },
+    { type: "volume_ratio", period: 20, operator: "gte", value: 1 },
+  ]);
+  assert.deepEqual(result.specification.exit.any, [
+    { type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bearish" },
+  ]);
+  assert.equal(result.specification.exit.stopLossPct, 2);
+  assert.equal(result.specification.exit.takeProfitPct, 4);
+});
+
 test("does not invent a symbol or timeframe when an extended provider DSL omits them", () => {
   assert.throws(
     () => strategyDraftFromAiMessage(`\`\`\`json\n{"schemaVersion":"1.0","name":"缺字段策略","entry":{"when":{"all":[{"crossesAbove":["ema20","ema60"]}]}},"exit":{"any":[]},"capitalManagement":{"positionPct":3,"maxDrawdownPct":10}}\n\`\`\``),
     /交易对|周期/,
+  );
+});
+
+test("does not silently turn a provider short strategy into a long-only draft", () => {
+  assert.throws(
+    () => strategyDraftFromAiMessage(`\`\`\`json\n{"name":"BTC short","symbol":"BTCUSDT","timeframe":"1h","side":"short","entry":{"conditions":[{"type":"ema_cross","fastPeriod":20,"slowPeriod":60,"cross":"below"}]},"exit":{"conditions":[]},"risk":{"positionPct":3}}\n\`\`\``),
+    /仅支持仅做多/,
   );
 });
 
@@ -113,4 +147,14 @@ test("agent chat renders generation progress as a new assistant reply, not butto
   assert.doesNotMatch(chat, /\{sending \? "生成中…" : "发送问题 →"\}/);
   assert.match(styles, /\.agent-chat-generating-dots/);
   assert.match(styles, /@keyframes ai-generating-dot/);
+});
+
+test("assistant prompt gives the provider the exact canonical strategy DSL contract", async () => {
+  const assistant = await readFile(new URL("../lib/ai-assistant.ts", import.meta.url), "utf8");
+
+  assert.match(assistant, /schemaVersion.*必须为 1/s);
+  assert.match(assistant, /entry\.all/);
+  assert.match(assistant, /exit\.any/);
+  assert.match(assistant, /side.*long_only/s);
+  assert.match(assistant, /不要输出.*conditions/s);
 });

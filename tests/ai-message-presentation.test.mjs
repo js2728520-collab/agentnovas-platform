@@ -46,6 +46,31 @@ test("detects a strategy DSL code block even when the provider uses a custom hea
   assert.equal(hasStrategyDslCodeBlock(result), true);
 });
 
+test("detects a provider strategy draft that omits schemaVersion but contains convertible rules", () => {
+  const result = parseAiMessage(`**JSON DSL 草稿**\n\`\`\`json
+  {
+    "name":"BTCUSDT_1h_EMA20x60_Volume_LowRisk",
+    "symbol":"BTCUSDT",
+    "timeframe":"1h",
+    "side":"long",
+    "entry":{"operator":"AND","conditions":[{"type":"ema_cross","fastPeriod":20,"slowPeriod":60,"cross":"above"},{"type":"volume_ratio","period":20,"operator":">=","value":1}]},
+    "exit":{"operator":"OR","conditions":[{"type":"ema_cross","fastPeriod":20,"slowPeriod":60,"cross":"below"}]},
+    "risk":{"positionPct":3,"maxDrawdownPct":10,"dailyLossLimitPct":2,"stopLossPct":2,"takeProfitPct":4},
+    "enabled":false
+  }
+  \`\`\``);
+
+  assert.equal(hasStrategyDslCodeBlock(result), true);
+});
+
+test("does not expose saving for a provider draft that requests a short strategy", () => {
+  const result = parseAiMessage(`\`\`\`json
+  {"name":"BTC short","symbol":"BTCUSDT","timeframe":"1h","side":"short","entry":{"conditions":[{"type":"ema_cross","fastPeriod":20,"slowPeriod":60,"cross":"below"}]},"exit":{"conditions":[]},"risk":{"positionPct":3}}
+  \`\`\``);
+
+  assert.equal(hasStrategyDslCodeBlock(result), false);
+});
+
 test("extracts explicit candidates and selects the recommended first option by default", () => {
   const result = parseAiMessage(`**待确认问题**\n1. 固定止损和 ATR 止损哪个优先？\n候选：两者并行，先触发者优先（推荐） | 固定止损优先 | ATR 止损优先`);
 
