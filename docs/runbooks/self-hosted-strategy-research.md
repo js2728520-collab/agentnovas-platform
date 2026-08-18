@@ -2,7 +2,7 @@
 
 ## 边界
 
-本手册覆盖 Node Web、PostgreSQL、独立研究 Worker、Nginx/SSE 和 D1 一次性迁移。新研究子系统已使用 PostgreSQL；旧业务表仍由现有 Drizzle/D1 数据层读取。在旧业务数据访问层完成 PostgreSQL 切换并通过整站回归前，不得执行最终域名切换，也不得把本手册视为生产就绪证明。
+本手册覆盖 Node Web、PostgreSQL、独立研究 Worker、Nginx/SSE 和 D1 一次性迁移。代码已提供完整业务 PostgreSQL schema、D1 兼容查询层和 40 表迁移核验；真正的生产备份、目标服务器预演、整站冒烟和维护窗口切换仍必须按本手册执行，不能把本地验证视为已上线证明。
 
 ## 1. 服务器准备
 
@@ -11,7 +11,7 @@
 - 环境文件放在 `/etc/agentnovas/agentnovas.env`，权限 `0600`；参考 `deploy/agentnovas.env.example`。
 - `DATABASE_URL` 使用专用最小权限数据库用户；模型密钥加密主密钥不得提交到 Git。
 
-## 2. 构建与研究库迁移
+## 2. 构建与全量 PostgreSQL schema 迁移
 
 ```bash
 npm ci
@@ -19,7 +19,7 @@ npm run build
 DATABASE_URL='postgresql://…' npm run postgres:migrate
 ```
 
-迁移脚本按文件名顺序执行 `postgres/migrations/*.sql`，迁移必须可重复运行。
+迁移脚本按文件名顺序执行 `postgres/migrations/*.sql`。`0000_business_schema.sql` 建立与最终 D1 线协议兼容的 40 张业务表，后续文件建立研究队列与模型编排表；全部迁移可重复运行。
 
 ## 3. D1 全量备份与预演
 
@@ -30,7 +30,7 @@ npx wrangler d1 export AGENTNOVAS_DB --remote --output /var/backups/agentnovas/d
 sha256sum /var/backups/agentnovas/d1-precutover.sqlite
 ```
 
-先在隔离 PostgreSQL 数据库预演。目标业务表必须先由 PostgreSQL 业务 schema 建立，且必须为空：
+先在隔离 PostgreSQL 数据库执行 `npm run postgres:migrate`，再确认 40 张目标业务表全部为空：
 
 ```bash
 DATABASE_URL='postgresql://…/agentnovas_staging' \
@@ -40,7 +40,7 @@ D1_SOURCE_REF='cloudflare-d1-export:sha256:…' \
 npm run postgres:migrate:d1
 ```
 
-命令在一个事务内导入，逐表核对行数和规范化 SHA-256；任一表失败会回滚所有业务行，并写入失败批次。相同已验证批次重复执行为只读 no-op。
+命令在一个事务内导入，外键延迟到提交时检查，并逐表核对行数和规范化 SHA-256；任一目标表非空、表缺失、外键异常或哈希失败都会回滚所有业务行并写入失败批次。相同已验证批次重复执行为只读 no-op。
 
 ## 4. 维护窗口切换
 
@@ -48,7 +48,7 @@ npm run postgres:migrate:d1
 2. 导出最终 D1 备份并记录 SHA-256、对象存储版本和操作人。
 3. 对空的生产 PostgreSQL 业务 schema 执行一次性导入与核验；禁止长期双写。
 4. 运行登录、租户隔离、账户读取、策略详情、版本回滚和研究 API 冒烟测试。
-5. 仅在旧业务数据访问层已切到 PostgreSQL且测试全部通过后，启用 Web；Worker 仍保持关闭。
+5. 使用带 `DATABASE_URL` 的生产构建启动 Web，确认健康检查为 ready、登录和核心业务冒烟全部通过；Worker 仍保持关闭。
 6. 管理员建立并测试七个模型角色；确认密钥未进入日志后，把 `STRATEGY_RESEARCH_ENABLED` 改为 `true`，再启动 Worker。
 7. 观察错误率、队列租约、数据库连接、SSE 重连和外部模型成本，确认稳定后切换 `agentnovas.com`。
 

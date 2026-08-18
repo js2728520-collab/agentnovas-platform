@@ -37,12 +37,12 @@
 
 ## 当前验收状态（2026-08-18）
 
-- 最新需求追问/恢复链路定向测试 23/23 通过；完整测试 128 项中 127 项通过，唯一失败是本分支开始前已存在的高水位计费合同不一致。
+- 最新 PostgreSQL 切换、需求追问和账户费率定向测试 40/40 通过；完整测试 138 项中 137 项通过，唯一失败是本分支开始前已存在的高水位计费合同不一致。
 - 生产构建、V5 定向 ESLint、浏览器管理员/客户空状态与控制台检查通过。
-- 全项目 TypeScript 检查仍被旧 Cloudflare D1 类型、旧页面缺失组件和历史路由类型错误阻断；新增 V5 文件的定向类型构建与生产打包通过。
+- 全项目 TypeScript 检查中的 Cloudflare/D1 运行时类型已补齐，仍有 40 个旧页面缺失组件和历史路由类型错误；全量 ESLint 仍有 61 个旧错误和 7 个警告。新增 V5 与 PostgreSQL 兼容层的定向 ESLint、类型构建和生产打包通过。
 - `npm audit --omit=dev` 为 0；完整依赖树仍有 15 个 high、4 个 moderate、1 个 low，均在开发/构建工具链，未自动执行可能破坏 Vinext/Cloudflare 兼容的升级。
-- Node/Worker systemd、Nginx/SSE、环境示例、D1 迁移核验和切换手册已提供。
-- 旧业务表仍使用现有 Drizzle/D1 数据访问层；在该层完成 PostgreSQL 迁移与整站回归前，`agentnovas.com` 生产切换保持阻断，研究功能开关保持关闭。
+- Node/Worker systemd、Nginx/SSE、环境示例、完整业务 PostgreSQL schema、D1 40 表迁移核验和切换手册已提供。
+- PostgreSQL 模式生产进程的健康检查和登录查询探针已通过；在目标 Linux 完成真实 D1 备份、空库导入、整站冒烟与回滚演练前，`agentnovas.com` 生产切换仍保持阻断，研究功能开关保持关闭。
 
 ---
 

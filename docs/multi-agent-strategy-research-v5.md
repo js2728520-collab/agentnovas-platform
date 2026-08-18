@@ -40,6 +40,7 @@
 任意阶段还可进入：
 
 - `paused_missing_role`：关键角色没有启用的模型绑定；配置完成后可恢复。
+- `awaiting_user_input`：需求 Agent 仅对会改变结果的缺失条件提出结构化选项；客户回答后从需求阶段恢复。
 - `retry_wait`：可重试的模型/交易所错误，记录下次执行时间。
 - `cancelled`：用户取消且 Worker 已确认停止。
 - `failed`：预算耗尽、不可恢复错误或数据不足。
@@ -99,6 +100,7 @@ type StrategyLeg = {
 - 同一交易对同一时刻最多一个净头寸，不允许对冲。
 - 计入开平手续费、滑点、按方向结算的历史资金费率和逐仓维持保证金；模拟爆仓立即失败。
 - 未完成 K 线不入库；重复时间去重；资金费率缺口、K 线断层和估算费率进入数据质量结果。
+- Worker 在加载数据前重新验证账户所有权、激活状态、只读和无提现权限；实盘账户从 OKX、Binance 或 Bybit 官方签名接口读取实际永续费率，接口失败或模拟账户使用管理员保守费率并标记为估算。
 - 训练集用于参数搜索，验证集用于排名，最终留出集只运行一次且其结果不得返回优化器。
 
 `standard`/`deep` 自动通过必须同时满足：最终样本外净收益 > 0、至少 2/3 走查为正、样本外盈亏因子 ≥ 1.1、完成交易 ≥ 20、最大回撤不超过 Brief 上限、无模拟爆仓，并且极端行情未突破单日损失/连续亏损熔断。
@@ -133,12 +135,14 @@ SSE 事件携带单调递增 `id`；重连从 `afterSequence` 继续。服务端
 
 ### 取消与保存
 
+- `POST /api/strategy-research/runs/:id/answer`：仅任务所有者可提交当前 `missingFields` 中的受限字段，成功后返回 `202` 并恢复排队。
 - `POST /api/strategy-research/runs/:id/cancel`：终态重复调用返回当前终态。
 - `POST /api/strategy-research/runs/:id/candidates/:candidateId/save`：同一用户+候选只创建一个策略；重复请求返回原策略。
 
 ## 9. 数据与部署
 
 - 生产目标：Linux + Node Web + PostgreSQL 16+ + 独立 Worker；不使用 Redis。
+- 旧业务 Drizzle 查询通过 PostgreSQL 方言兼容层运行；业务布尔值继续使用整数、时间继续使用 ISO 文本，确保 D1 快照哈希和运行时字段语义不漂移。
 - 新表：`llm_profiles`、`agent_role_bindings`、`strategy_research_runs`、`strategy_agent_events`、`strategy_candidates`、`strategy_evaluations`、`market_candles`、`funding_rates`。
 - D1 迁移先全量导出，再在 PostgreSQL 事务中导入；记录每表行数和按主键排序的关键字段 SHA-256。任一核对失败整批回滚；迁移批次号确保重复执行安全。
 - 切换仅在维护窗口完成，不做长期双写。回滚保留 D1 只读快照和前一版应用制品。
