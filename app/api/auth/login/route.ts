@@ -1,7 +1,7 @@
 import { eq, or } from "drizzle-orm";
 import { getDb } from "@/db";
-import { auditLogs, organizations, sessions, users } from "@/db/schema";
-import { hashPassword, normalizeEmail, randomToken, sha256, verifyPassword } from "@/lib/auth";
+import { auditLogs, sessions, users } from "@/db/schema";
+import { normalizeEmail, randomToken, sha256, verifyPassword } from "@/lib/auth";
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { normalizePhone } from "@/lib/phone";
 import { responseError } from "@/lib/session";
@@ -14,22 +14,7 @@ export async function POST(request: Request) {
     const rawIdentifier = String(body.identifier ?? body.email ?? "").trim();
     const email = normalizeEmail(rawIdentifier);
     const phone = normalizePhone(rawIdentifier)?.value ?? "__not_a_phone__";
-    let user = (await db.select().from(users).where(or(eq(users.phone, phone), eq(users.email, email), eq(users.username, rawIdentifier))).limit(1))[0];
-
-    const hostname = new URL(request.url).hostname;
-    if (!user && (hostname === "localhost" || hostname === "127.0.0.1") && email === "anko98727@gmail.com" && (body.password ?? "").length >= 10) {
-      const adminCount = (await db.select().from(users).where(eq(users.role, "hq_admin")).limit(1))[0];
-      if (!adminCount) {
-        const organizationId = crypto.randomUUID();
-        const userId = crypto.randomUUID();
-        const now = new Date().toISOString();
-        await db.batch([
-          db.insert(organizations).values({ id: organizationId, type: "headquarters", name: "AgentNovas 总公司" }),
-          db.insert(users).values({ id: userId, email, passwordHash: await hashPassword(body.password ?? ""), role: "hq_admin", organizationId, status: "active", emailVerifiedAt: now }),
-        ]);
-        user = (await db.select().from(users).where(eq(users.id, userId)).limit(1))[0];
-      }
-    }
+    const user = (await db.select().from(users).where(or(eq(users.phone, phone), eq(users.email, email), eq(users.username, rawIdentifier))).limit(1))[0];
 
     if (!user || !(await verifyPassword(body.password ?? "", user.passwordHash))) {
       return Response.json({ error: "账号或密码错误" }, { status: 401 });
