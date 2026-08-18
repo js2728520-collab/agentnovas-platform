@@ -16,6 +16,7 @@ import {
   type PerpetualExchange,
 } from "./perpetual-market-adapters.ts";
 import { callStructuredResearchAgent } from "./research-agent.ts";
+import { createAuthenticatedFeeFetcher, loadResearchExchangeAccount } from "./research-exchange-account.ts";
 import {
   completeResearchRun,
   loadInternalCandidates,
@@ -491,7 +492,14 @@ export async function processResearchStage(database: Pool, run: ResearchLease, w
       const key = marketKey(run);
       const configuration = researchModeConfiguration[run.mode];
       const requested = Math.min(Math.max(Number(run.brief.candleCount) || configuration.minimumCandles, configuration.minimumCandles), 30_000);
-      const adapter = createPerpetualMarketAdapter(key.exchange);
+      const exchangeAccount = await loadResearchExchangeAccount(database, {
+        accountId: run.exchangeAccountId,
+        ownerUserId: run.ownerUserId,
+      });
+      if (exchangeAccount.exchange !== key.exchange) throw new Error("研发任务的交易所与账户不一致");
+      const adapter = createPerpetualMarketAdapter(key.exchange, {
+        fetchAuthenticatedJson: createAuthenticatedFeeFetcher(exchangeAccount),
+      });
       const [instrument, candles, fee] = await Promise.all([
         adapter.getInstrument({ symbol: key.symbol }),
         adapter.getCandles({ symbol: key.symbol, timeframe: key.timeframe, limit: requested }),
@@ -509,7 +517,7 @@ export async function processResearchStage(database: Pool, run: ResearchLease, w
       });
       await cachePerpetualMarketData(database, { ...key, candles: candles.items, fundingRates: funding.items });
       const dataLoading = {
-        ...key, startTime, endTime, candleCount: candles.items.length, fundingRateCount: funding.items.length,
+        ...key, accountEnvironment: exchangeAccount.environment, startTime, endTime, candleCount: candles.items.length, fundingRateCount: funding.items.length,
         priceChangePct: Number(((candles.items.at(-1)!.close / candles.items[0].open - 1) * 100).toFixed(4)),
         instrument, fee, dataQuality, regimeEvidence: buildMarketRegimeEvidence(candles.items),
       };

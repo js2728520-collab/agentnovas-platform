@@ -310,13 +310,14 @@ export function createPerpetualMarketAdapter(exchange: PerpetualExchange, depend
     },
 
     async getFeeSchedule(input: { symbol: string }): Promise<FeeSchedule> {
+      const conservative = (source: string): FeeSchedule => ({
+        makerRate: conservativeRate("CONSERVATIVE_PERPETUAL_MAKER_RATE", dependencies.conservativeMakerRate, 0.0005),
+        takerRate: conservativeRate("CONSERVATIVE_PERPETUAL_TAKER_RATE", dependencies.conservativeTakerRate, 0.0007),
+        estimated: true,
+        source,
+      });
       if (!dependencies.fetchAuthenticatedJson) {
-        return {
-          makerRate: conservativeRate("CONSERVATIVE_PERPETUAL_MAKER_RATE", dependencies.conservativeMakerRate, 0.0005),
-          takerRate: conservativeRate("CONSERVATIVE_PERPETUAL_TAKER_RATE", dependencies.conservativeTakerRate, 0.0007),
-          estimated: true,
-          source: "administrator_conservative_default",
-        };
+        return conservative("administrator_conservative_default");
       }
       const symbol = exchangeSymbol(exchange, input.symbol);
       const url = new URL(exchange === "okx"
@@ -329,24 +330,28 @@ export function createPerpetualMarketAdapter(exchange: PerpetualExchange, depend
         if (exchange === "bybit") url.searchParams.set("category", "linear");
         url.searchParams.set("symbol", symbol);
       }
-      const payload = await dependencies.fetchAuthenticatedJson(url.toString());
-      let makerRate: number;
-      let takerRate: number;
-      if (exchange === "okx") {
-        const item = record(array(record(payload).data)[0]);
-        makerRate = Math.abs(finite(item.maker));
-        takerRate = Math.abs(finite(item.taker));
-      } else if (exchange === "binance") {
-        const item = record(payload);
-        makerRate = Math.abs(finite(item.makerCommissionRate));
-        takerRate = Math.abs(finite(item.takerCommissionRate));
-      } else {
-        const item = record(array(record(record(payload).result).list)[0]);
-        makerRate = Math.abs(finite(item.makerFeeRate));
-        takerRate = Math.abs(finite(item.takerFeeRate));
+      try {
+        const payload = await dependencies.fetchAuthenticatedJson(url.toString());
+        let makerRate: number;
+        let takerRate: number;
+        if (exchange === "okx") {
+          const item = record(array(record(payload).data)[0]);
+          makerRate = Math.abs(finite(item.maker));
+          takerRate = Math.abs(finite(item.taker));
+        } else if (exchange === "binance") {
+          const item = record(payload);
+          makerRate = Math.abs(finite(item.makerCommissionRate));
+          takerRate = Math.abs(finite(item.takerCommissionRate));
+        } else {
+          const item = record(array(record(record(payload).result).list)[0]);
+          makerRate = Math.abs(finite(item.makerFeeRate));
+          takerRate = Math.abs(finite(item.takerFeeRate));
+        }
+        if (![makerRate, takerRate].every(Number.isFinite)) return conservative("administrator_conservative_default_after_fee_api_failure");
+        return { makerRate, takerRate, estimated: false, source: `${exchange}_authenticated_fee_api` };
+      } catch {
+        return conservative("administrator_conservative_default_after_fee_api_failure");
       }
-      if (![makerRate, takerRate].every(Number.isFinite)) throw new Error("交易所费率响应无效");
-      return { makerRate, takerRate, estimated: false, source: `${exchange}_authenticated_fee_api` };
     },
 
     async getInstrument(input: { symbol: string }): Promise<PerpetualInstrument> {
