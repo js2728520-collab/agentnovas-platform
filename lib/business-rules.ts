@@ -11,24 +11,33 @@ export type Allocation = { beneficiary: "headquarters" | "branch" | "manager" | 
 
 const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
+const OPERATING_COST_RATE = .5;
+const DISTRIBUTABLE_HEADQUARTERS_RATE = .2;
+const DISTRIBUTABLE_BRANCH_RATE = .8;
+
 export function allocateRevenue(amountUsdt: number, confirmedAt: string, attribution: Attribution): Allocation[] {
   if (amountUsdt < 0 || !Number.isFinite(amountUsdt)) throw new Error("Invalid revenue amount");
   const active = attribution.status === "active" && attribution.effectiveAt && confirmedAt >= attribution.effectiveAt;
   if (!active) return [{ beneficiary: "headquarters", rate: 1, amountUsdt: money(amountUsdt) }];
 
-  const result: Allocation[] = [
-    { beneficiary: "headquarters", rate: .1, amountUsdt: money(amountUsdt * .1) },
-    { beneficiary: "branch", beneficiaryId: attribution.branchId, rate: .8, amountUsdt: money(amountUsdt * .8) },
+  return [
+    { beneficiary: "headquarters", rate: DISTRIBUTABLE_HEADQUARTERS_RATE, amountUsdt: money(amountUsdt * DISTRIBUTABLE_HEADQUARTERS_RATE) },
+    { beneficiary: "branch", beneficiaryId: attribution.branchId, rate: DISTRIBUTABLE_BRANCH_RATE, amountUsdt: money(amountUsdt * DISTRIBUTABLE_BRANCH_RATE) },
   ];
-  if (attribution.employeeId) result.push(
-    { beneficiary: "manager", beneficiaryId: attribution.managerId, rate: .02, amountUsdt: money(amountUsdt * .02) },
-    { beneficiary: "supervisor", beneficiaryId: attribution.supervisorId, rate: .03, amountUsdt: money(amountUsdt * .03) },
-    { beneficiary: "employee", beneficiaryId: attribution.employeeId, rate: .05, amountUsdt: money(amountUsdt * .05) },
-  ); else if (attribution.supervisorId) result.push(
-    { beneficiary: "manager", beneficiaryId: attribution.managerId, rate: .02, amountUsdt: money(amountUsdt * .02) },
-    { beneficiary: "supervisor", beneficiaryId: attribution.supervisorId, rate: .08, amountUsdt: money(amountUsdt * .08) },
-  ); else result.push({ beneficiary: "manager", beneficiaryId: attribution.managerId, rate: .1, amountUsdt: money(amountUsdt * .1) });
-  return result;
+}
+
+export function allocateMembershipRevenue(grossAmountUsdt: number, confirmedAt: string, attribution: Attribution): Allocation[] {
+  if (grossAmountUsdt < 0 || !Number.isFinite(grossAmountUsdt)) throw new Error("Invalid membership revenue amount");
+  const operatingCostUsdt = money(grossAmountUsdt * OPERATING_COST_RATE);
+  const distributableRevenueUsdt = money(grossAmountUsdt - operatingCostUsdt);
+  const distributableAllocations = allocateRevenue(distributableRevenueUsdt, confirmedAt, attribution);
+  if (distributableAllocations.length === 1) {
+    return [{ beneficiary: "headquarters", rate: 1, amountUsdt: money(grossAmountUsdt) }];
+  }
+  return [
+    { beneficiary: "headquarters", rate: OPERATING_COST_RATE + OPERATING_COST_RATE * DISTRIBUTABLE_HEADQUARTERS_RATE, amountUsdt: money(operatingCostUsdt + distributableRevenueUsdt * DISTRIBUTABLE_HEADQUARTERS_RATE) },
+    { beneficiary: "branch", beneficiaryId: attribution.branchId, rate: OPERATING_COST_RATE * DISTRIBUTABLE_BRANCH_RATE, amountUsdt: money(distributableRevenueUsdt * DISTRIBUTABLE_BRANCH_RATE) },
+  ];
 }
 
 export function calculatePerformanceFee(input: {

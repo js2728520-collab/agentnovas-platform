@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { allocateRevenue, calculatePerformanceFee, canDisableNotification } from "../lib/business-rules.ts";
+import { allocateMembershipRevenue, allocateRevenue, calculatePerformanceFee, canDisableNotification } from "../lib/business-rules.ts";
 import { collectionState } from "../lib/collection-rules.ts";
 import { canSeeCustomer } from "../lib/permissions.ts";
 
@@ -9,9 +9,15 @@ test("public pool revenue is 100% headquarters and never backdated", () => {
   assert.deepEqual(allocateRevenue(100, "2026-08-01T00:00:00Z", { status: "active", effectiveAt: "2026-08-02T00:00:00Z" }), [{ beneficiary: "headquarters", rate: 1, amountUsdt: 100 }]);
 });
 
-test("employee attribution allocates 10/80/2/3/5", () => {
+test("active attribution allocates website revenue 20/80", () => {
   const rows = allocateRevenue(100, "2026-08-03T00:00:00Z", { status: "active", effectiveAt: "2026-08-02T00:00:00Z", branchId: "b", managerId: "m", supervisorId: "s", employeeId: "e" });
-  assert.deepEqual(rows.map(x => x.amountUsdt), [10, 80, 2, 3, 5]);
+  assert.deepEqual(rows.map(x => x.amountUsdt), [20, 80]);
+});
+
+test("membership revenue keeps 50% operating cost and splits the remaining 50% 20/80", () => {
+  const rows = allocateMembershipRevenue(100, "2026-08-03T00:00:00Z", { status: "active", effectiveAt: "2026-08-02T00:00:00Z", branchId: "b" });
+  assert.deepEqual(rows.map(x => x.amountUsdt), [60, 40]);
+  assert.deepEqual(allocateMembershipRevenue(100, "2026-08-01T00:00:00Z", { status: "public_pool_pending" }), [{ beneficiary: "headquarters", rate: 1, amountUsdt: 100 }]);
 });
 
 test("weekly performance fee charges only positive realized profit", () => {
