@@ -20,14 +20,14 @@ export type IntegrationDefinition = {
  */
 export const INTEGRATION_CATALOG: IntegrationDefinition[] = [
   {
-    id: "binance-public-market",
+    id: "multi-exchange-public-market",
     category: "market",
-    name: "Binance Public REST / WebSocket",
-    description: "币种报价、24 小时涨跌、K 线与实时行情雷达",
+    name: "Multi-exchange Public REST / WebSocket",
+    description: "Coinbase 默认，按用户配置或页面选择交易所，提供报价、24 小时涨跌、K 线与实时行情雷达",
     freeTier: "公共行情无需 API Key",
     requiresKey: false,
     envKeys: ["MARKET_DATA_BASE_URL", "MARKET_DATA_PROVIDER"],
-    docsUrl: "https://developers.binance.com/docs/binance-spot-api-docs",
+    docsUrl: "https://docs.cdp.coinbase.com/exchange/introduction",
     status: "wired",
     serverOnly: true,
   },

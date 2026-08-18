@@ -1,3 +1,5 @@
+import { getPlatformSetting } from "@/lib/platform-settings";
+
 type NewsItem = {
   id: string;
   title: string;
@@ -14,10 +16,13 @@ const defaultFeeds = [
   { url: "https://cointelegraph.com/rss", source: "Cointelegraph" },
 ];
 
-function configuredFeeds() {
+async function configuredFeeds() {
+  const settings = await getPlatformSetting("integrations").catch(() => null);
   const value = process.env.NEWS_RSS_URLS || process.env.NEWS_API_URL || "";
   const urls = value.split(",").map((url) => url.trim()).filter(Boolean);
-  return urls.length ? urls.map((url, index) => ({ url, source: `配置新闻源 ${index + 1}` })) : defaultFeeds;
+  if (urls.length) return { feeds: urls.map((url, index) => ({ url, source: `环境新闻源 ${index + 1}` })), refreshSeconds: settings?.newsRefreshSeconds || 60 };
+  if (settings?.newsRssUrls.length) return { feeds: settings.newsRssUrls.map((url, index) => ({ url, source: `运维新闻源 ${index + 1}` })), refreshSeconds: settings.newsRefreshSeconds };
+  return { feeds: defaultFeeds, refreshSeconds: settings?.newsRefreshSeconds || 60 };
 }
 
 const fallbackNews: NewsItem[] = [
@@ -123,8 +128,10 @@ function ageLabel(value: string, now: number) {
 export async function GET(request: Request) {
   const coin = new URL(request.url).searchParams.get("coin")?.toUpperCase() || "";
   const now = Date.now();
+  const feedConfiguration = await configuredFeeds();
+  const feeds = feedConfiguration.feeds;
   const results = await Promise.all(
-    configuredFeeds().map(async (feed) => {
+    feeds.map(async (feed) => {
       try {
         const response = await fetch(feed.url, {
           headers: { accept: "application/rss+xml, application/xml, text/xml" },
@@ -152,9 +159,10 @@ export async function GET(request: Request) {
 
   return Response.json(
     {
-      source: ranked.length ? (process.env.NEWS_RSS_URLS || process.env.NEWS_API_URL ? "configured-rss" : "CoinDesk / Cointelegraph RSS") : "fallback",
+      source: ranked.length ? feeds.map((feed) => feed.source).join(" / ") : "fallback",
       live: ranked.length > 0,
       updatedAt: new Date().toISOString(),
+      refreshSeconds: feedConfiguration.refreshSeconds,
       items,
     },
     {

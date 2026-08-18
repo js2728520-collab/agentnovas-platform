@@ -23,6 +23,9 @@ import migration0019 from "@/drizzle/0019_strategy_publication_mode.sql?raw";
 import migration0020 from "@/drizzle/0020_platform_follow_policy.sql?raw";
 import migration0021 from "@/drizzle/0021_platform_ai_strategies.sql?raw";
 import migration0022 from "@/drizzle/0022_market_watchlist.sql?raw";
+import migration0023 from "@/drizzle/0023_personal_agent_commissions.sql?raw";
+import migration0024 from "@/drizzle/0024_customer_points_balance.sql?raw";
+import migration0025 from "@/drizzle/0025_platform_maintenance_settings.sql?raw";
 
 const migrations = [
   ["0000_small_dreadnoughts", migration0000],
@@ -48,6 +51,9 @@ const migrations = [
   ["0020_platform_follow_policy", migration0020],
   ["0021_platform_ai_strategies", migration0021],
   ["0022_market_watchlist", migration0022],
+  ["0023_personal_agent_commissions", migration0023],
+  ["0024_customer_points_balance", migration0024],
+  ["0025_platform_maintenance_settings", migration0025],
 ] as const;
 
 function statements(sql: string) {

@@ -16,6 +16,7 @@ import {
   users,
 } from "@/db/schema";
 import { canSeeCustomer } from "@/lib/permissions";
+import { ensureD1Schema } from "@/lib/d1-migrations";
 import { requireUser, responseError } from "@/lib/session";
 
 const roles = ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "finance", "auditor"] as const;
@@ -68,6 +69,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const actor = await requireUser(request, [...roles]);
     const { id } = await params;
+    await ensureD1Schema();
     const db = getDb();
     const attributionRows = await db.select({
       customerId: users.id,
@@ -97,7 +99,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!canSeeCustomer(actor.role, actor.id, actor.organizationId, attribution)) return Response.json({ error: "无权查看该客户" }, { status: 403 });
 
     const chainIds = [attribution.managerId, attribution.supervisorId, attribution.employeeId].filter((value): value is string => Boolean(value));
-    const [profile, membership, channels, firstSession, lastSession, registrationLog, lastLoginLog, financialEvents, branch, people, customerTrades, customerAccounts, subscriptions, strategies] = await Promise.all([
+    const [profile, membership, channels, firstSession, lastSession, registrationLog, lastLoginLog, tradingControlLogs, financialEvents, branch, people, customerTrades, customerAccounts, subscriptions, strategies] = await Promise.all([
       db.select().from(customerProfiles).where(eq(customerProfiles.customerId, id)).limit(1).then(rows => rows[0]),
       db.select().from(memberships).where(eq(memberships.customerId, id)).orderBy(desc(memberships.createdAt)).limit(1).then(rows => rows[0]),
       db.select({ channel: notificationChannels.channel, destination: notificationChannels.destination, status: notificationChannels.status, verifiedAt: notificationChannels.verifiedAt }).from(notificationChannels).where(eq(notificationChannels.userId, id)),
@@ -105,11 +107,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       db.select({ ipAddress: sessions.ipAddress, userAgent: sessions.userAgent, createdAt: sessions.createdAt }).from(sessions).where(eq(sessions.userId, id)).orderBy(desc(sessions.createdAt)).limit(1).then(rows => rows[0]),
       db.select({ ipAddress: auditLogs.ipAddress, createdAt: auditLogs.createdAt }).from(auditLogs).where(and(eq(auditLogs.subjectId, id), eq(auditLogs.action, "customer.registered"))).orderBy(asc(auditLogs.createdAt)).limit(1).then(rows => rows[0]),
       db.select({ ipAddress: auditLogs.ipAddress, userAgent: auditLogs.userAgent, createdAt: auditLogs.createdAt, afterJson: auditLogs.afterJson }).from(auditLogs).where(and(eq(auditLogs.subjectId, id), eq(auditLogs.action, "auth.login"))).orderBy(desc(auditLogs.createdAt)).limit(1).then(rows => rows[0]),
+      db.select({ action: auditLogs.action, createdAt: auditLogs.createdAt, afterJson: auditLogs.afterJson }).from(auditLogs).where(and(eq(auditLogs.subjectType, "customer_trading_control"), eq(auditLogs.subjectId, id))).orderBy(desc(auditLogs.createdAt)).limit(100),
       db.select({ type: revenueEvents.type, amountUsdt: revenueEvents.amountUsdt, status: revenueEvents.status }).from(revenueEvents).where(eq(revenueEvents.customerId, id)),
       attribution.branchId ? db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(eq(organizations.id, attribution.branchId)).limit(1).then(rows => rows[0]) : Promise.resolve(undefined),
       chainIds.length ? db.select({ id: users.id, email: users.email, username: users.username, nickname: users.nickname, role: users.role }).from(users).where(inArray(users.id, chainIds)) : Promise.resolve([]),
       db.select().from(trades).where(eq(trades.customerId, id)).orderBy(asc(trades.closedAt)),
-      db.select({ id: exchangeAccounts.id, name: exchangeAccounts.exchange, label: exchangeAccounts.label, environment: exchangeAccounts.environment, status: exchangeAccounts.status }).from(exchangeAccounts).where(eq(exchangeAccounts.customerId, id)),
+      db.select({ id: exchangeAccounts.id, name: exchangeAccounts.exchange, label: exchangeAccounts.label, environment: exchangeAccounts.environment, status: exchangeAccounts.status, canRead: exchangeAccounts.canRead, canTrade: exchangeAccounts.canTrade, withdrawalAuthorized: exchangeAccounts.withdrawalAuthorized, lastCheckedAt: exchangeAccounts.lastCheckedAt }).from(exchangeAccounts).where(eq(exchangeAccounts.customerId, id)),
       db.select().from(strategySubscriptions).where(eq(strategySubscriptions.customerId, id)),
       db.select({ id: communityStrategies.id, name: communityStrategies.name }).from(communityStrategies),
     ]);
@@ -122,9 +125,34 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const login = lastLoginLog || lastSession;
     const closedTrades = customerTrades.filter(trade => trade.closedAt);
     const openTrades = customerTrades.filter(trade => !trade.closedAt);
+    const tradingControlEvents = tradingControlLogs.map(log => {
+      let details: { closePositions?: boolean; pausedPlatform?: number; pausedCommunity?: number; openPositions?: number } = {};
+      try { details = JSON.parse(log.afterJson || "{}"); } catch { /* keep the audit row visible even if legacy JSON is malformed */ }
+      return {
+        at: log.createdAt,
+        action: log.action,
+        actionLabel: details.closePositions ? "停止交易并请求平仓" : "停止交易，保留当前仓位",
+        closePositions: Boolean(details.closePositions),
+        pausedStrategies: Number(details.pausedPlatform || 0) + Number(details.pausedCommunity || 0),
+        openPositions: Number(details.openPositions || 0),
+      };
+    });
+    const accountAssets = customerAccounts.map(account => {
+      const accountTrades = customerTrades.filter(trade => trade.exchangeAccountId === account.id);
+      const openAccountTrades = accountTrades.filter(trade => !trade.closedAt);
+      return {
+        ...account,
+        apiConnectionStatus: account.status === "active" ? "已连接" : account.status === "pending" ? "待检查" : account.status === "disconnected" ? "已断开" : "已撤销",
+        balanceUsdt: null,
+        balanceStatus: "等待交易所余额同步",
+        holdingValueUsdt: Number(openAccountTrades.reduce((sum, trade) => sum + trade.entryValueUsdt, 0).toFixed(2)),
+        openPositions: openAccountTrades.length,
+        lastCheckedAt: account.lastCheckedAt,
+      };
+    });
     const strategyNames = new Map(strategies.map(strategy => [strategy.id, strategy.name]));
     const organizationChain = [
-      { role: "总部", name: "Riverton Capital 总公司" },
+      { role: "总部", name: "AgentNovas 总公司" },
       ...(attribution.branchId ? [{ role: "分公司", name: branch?.name || attribution.branchId }] : [{ role: "归属", name: "总公司公海客户池" }]),
       ...([attribution.managerId, attribution.supervisorId, attribution.employeeId] as Array<string | null>).flatMap((personId, index) => {
         if (!personId) return [];
@@ -151,12 +179,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         timezone: attribution.timezone,
       },
       membership: membership ? { planCode: membership.planCode, vipLevel: vipLevel(membership.planCode), status: membership.status, startsAt: membership.startsAt, expiresAt: membership.expiresAt } : { planCode: null, vipLevel: "未开通", status: "none", startsAt: null, expiresAt: null },
-      financials: { pointsBalance: null, pointsLedgerConnected: false, totalRechargeUsdt: Number(totalRechargeUsdt.toFixed(2)), totalSpentUsdt: Number(Math.max(0, totalSpentUsdt).toFixed(2)) },
+      financials: { pointsBalance: profile?.pointsBalance ?? 0, pointsLedgerConnected: true, totalRechargeUsdt: Number(totalRechargeUsdt.toFixed(2)), totalSpentUsdt: Number(Math.max(0, totalSpentUsdt).toFixed(2)) },
       login: { type: loginType(lastLoginLog?.afterJson), ipAddress: login?.ipAddress || null, lastLoginAt: login?.createdAt || null, deviceBrowser: deviceBrowser(login?.userAgent), userAgent: login?.userAgent || null },
       attribution: { source: attribution.source, status: attribution.attributionStatus, effectiveAt: attribution.effectiveAt, directOwner: directOwner ? { id: directOwner.id, role: directOwner.role, name: displayName(directOwner) } : null },
       organizationChain,
       contactNote: profile?.contactNote || "",
-      exchanges: customerAccounts,
+      exchanges: accountAssets,
+      tradingControl: {
+        hasClicked: tradingControlEvents.length > 0,
+        clickCount: tradingControlEvents.length,
+        lastClickedAt: tradingControlEvents[0]?.at || null,
+        events: tradingControlEvents,
+      },
       following: subscriptions.filter(subscription => ["active", "paused", "pending"].includes(subscription.status)).map(subscription => ({ id: subscription.strategyId, name: strategyNames.get(subscription.strategyId) || "未知策略", status: subscription.status })),
       metrics: {
         principal: openTrades.reduce((sum, trade) => sum + trade.entryValueUsdt, 0),

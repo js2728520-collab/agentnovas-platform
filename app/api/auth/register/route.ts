@@ -1,9 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { auditLogs, customerAttributions, invitations, memberships, notificationDeliveries, users } from "@/db/schema";
-import { hashPassword, normalizeEmail, sha256, validEmail } from "@/lib/auth";
+import { auditLogs, authTokens, customerAttributions, invitations, memberships, notificationDeliveries, users } from "@/db/schema";
+import { hashPassword, normalizeEmail, randomToken, sha256, validEmail } from "@/lib/auth";
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { normalizePhone } from "@/lib/phone";
+import { getAllPlatformSettings } from "@/lib/platform-settings";
 
 function normalizeInvitationCode(input: string) {
   const value = input.trim();
@@ -24,6 +25,9 @@ function normalizeInvitationCode(input: string) {
 
 export async function POST(request: Request) {
   try {
+    await ensureD1Schema();
+    const platform = await getAllPlatformSettings();
+    if (!platform.features.inviteRegistration) return Response.json({ error: "平台当前暂停邀请码注册" }, { status: 503 });
     const body = await request.json() as { phone?: string; email?: string; password?: string; invitationCode?: string };
     const phone = normalizePhone(body.phone ?? "");
     const email = normalizeEmail(body.email ?? "");
@@ -31,16 +35,15 @@ export async function POST(request: Request) {
     const invitationCode = normalizeInvitationCode(body.invitationCode ?? "");
 
     if (!phone) return Response.json({ error: "请输入有效手机号（可包含国际区号）" }, { status: 400 });
-    if (email && !validEmail(email)) return Response.json({ error: "邮箱格式不正确" }, { status: 400 });
-    if (password.length < 10) return Response.json({ error: "密码至少需要 10 位字符" }, { status: 400 });
+    if (!email || !validEmail(email)) return Response.json({ error: "请输入有效邮箱" }, { status: 400 });
+    if (password.length < platform.security.passwordMinLength) return Response.json({ error: `密码至少需要 ${platform.security.passwordMinLength} 位字符` }, { status: 400 });
     if (!invitationCode) return Response.json({ error: "必须填写邀请码" }, { status: 400 });
 
-    await ensureD1Schema();
     const db = getDb();
     if ((await db.select({ id: users.id }).from(users).where(eq(users.phone, phone.value)).limit(1))[0]) {
       return Response.json({ error: "该手机号已注册" }, { status: 409 });
     }
-    if (email && (await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0]) {
+    if ((await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0]) {
       return Response.json({ error: "该邮箱已注册" }, { status: 409 });
     }
 
@@ -51,10 +54,10 @@ export async function POST(request: Request) {
     const nowDate = new Date();
     const now = nowDate.toISOString();
     const userId = crypto.randomUUID();
-    const accountEmail = email || `phone-${(await sha256(phone.value)).slice(0, 18)}@unverified.agentnovas.local`;
     const trialExpiresAt = new Date(nowDate.getTime() + 3 * 86400_000).toISOString();
     const trialGraceEndsAt = new Date(nowDate.getTime() + 4 * 86400_000).toISOString();
     const publicPool = invite.kind === "public_pool_single_use";
+    const verificationToken = platform.security.requireEmailVerification ? randomToken() : "";
     let managerId: string | null = null;
     let supervisorId: string | null = null;
     let employeeId: string | null = null;
@@ -75,12 +78,12 @@ export async function POST(request: Request) {
     await db.batch([
       db.insert(users).values({
         id: userId,
-        email: accountEmail,
+        email,
         phone: phone.value,
         passwordHash: await hashPassword(password),
         role: "customer",
         organizationId: publicPool ? null : invite.organizationId,
-        status: "active",
+        status: platform.security.requireEmailVerification ? "pending" : "active",
       }),
       db.insert(customerAttributions).values({
         id: crypto.randomUUID(),
@@ -115,6 +118,10 @@ export async function POST(request: Request) {
         payloadJson: JSON.stringify({ trialExpiresAt, trialGraceEndsAt, entitlement: "monthly" }),
         scheduledAt: now,
       }),
+      ...(verificationToken ? [
+        db.insert(authTokens).values({ id: crypto.randomUUID(), userId, tokenHash: await sha256(verificationToken), purpose: "verify_email", expiresAt: new Date(nowDate.getTime() + 24 * 3600_000).toISOString() }),
+        db.insert(notificationDeliveries).values({ id: crypto.randomUUID(), userId, channel: "email", category: "login_security", templateKey: "verify_email", payloadJson: JSON.stringify({ token: verificationToken }), scheduledAt: now }),
+      ] : []),
       db.insert(auditLogs).values({
         id: crypto.randomUUID(),
         actorUserId: userId,
@@ -129,8 +136,8 @@ export async function POST(request: Request) {
 
     return Response.json({
       ok: true,
-      message: "注册成功，无需短信验证码；已开通3天月卡同等权益体验",
-      verificationRequired: false,
+      message: platform.security.requireEmailVerification ? "注册成功，验证邮件已进入发送队列；验证后可登录" : "注册成功，无需短信验证码；已开通3天月卡同等权益体验",
+      verificationRequired: platform.security.requireEmailVerification,
       trial: { expiresAt: trialExpiresAt, graceEndsAt: trialGraceEndsAt, entitlement: "monthly" },
     }, { status: 201 });
   } catch (error) {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AVATAR_PRESETS, avatarPresetValue, getAvatarPreset } from "@/lib/avatar-presets";
 
-export type AccountViewer={id:string;email:string;username?:string|null;nickname?:string|null;avatarUrl?:string|null;phone?:string|null;dateOfBirth?:string|null;gender?:string|null;role:string;organizationId?:string|null;locale?:string|null;timezone?:string|null;membership?:{planCode:string;status:string;expiresAt:string|null}|null};
+export type AccountViewer={id:string;email:string;username?:string|null;nickname?:string|null;avatarUrl?:string|null;phone?:string|null;dateOfBirth?:string|null;gender?:string|null;role:string;organizationId?:string|null;locale?:string|null;timezone?:string|null;personalAgent?:boolean;membership?:{planCode:string;status:string;expiresAt:string|null}|null};
 
 const roleLabels:Record<string,{zh:string;en:string}>={hq_admin:{zh:"总公司超级管理员",en:"HQ Super Admin"},branch_admin:{zh:"分公司管理员",en:"Branch Admin"},manager:{zh:"经理",en:"Manager"},supervisor:{zh:"主管",en:"Supervisor"},employee:{zh:"员工",en:"Employee"},customer:{zh:"用户",en:"Member"}};
 const DEFAULT_AVATAR = avatarPresetValue("robot");

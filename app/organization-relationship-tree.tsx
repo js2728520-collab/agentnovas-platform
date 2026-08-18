@@ -20,6 +20,8 @@ type RelationshipNode = {
   effectiveAt?: string | null;
   canManuallyActivate?: boolean;
   canRestoreClosed?: boolean;
+  canRestoreFrozen?: boolean;
+  canDeactivate?: boolean;
 };
 
 type ActivationCredentials = {
@@ -58,6 +60,7 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [activatingId, setActivatingId] = useState("");
   const [restoringId, setRestoringId] = useState("");
+  const [deactivatingId, setDeactivatingId] = useState("");
   const [activationError, setActivationError] = useState("");
   const [activationCredentials, setActivationCredentials] = useState<ActivationCredentials | null>(null);
   const [credentialsCopied, setCredentialsCopied] = useState(false);
@@ -195,7 +198,10 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
   }
 
   async function restoreMember(node: RelationshipNode) {
-    if (!window.confirm(`确定恢复账号 ${node.email}？\n\n恢复后账号会变为“待激活”，旧密码仍不可登录，需要继续手动激活并生成新临时密码。`)) return;
+    const frozen = node.status === "frozen";
+    if (!window.confirm(frozen
+      ? `确定恢复账号 ${node.email}？\n\n恢复后账号可以重新登录，原有密码继续有效。`
+      : `确定恢复账号 ${node.email}？\n\n恢复后账号会变为“待激活”，旧密码仍不可登录，需要继续手动激活并生成新临时密码。`)) return;
     setRestoringId(node.id);
     setActivationError("");
     setActivationCredentials(null);
@@ -207,9 +213,10 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
         ...current,
         nodes: current.nodes.map(item => item.id === node.id ? {
           ...item,
-          status: "pending",
+          status: frozen ? "active" : "pending",
           canRestoreClosed: false,
-          canManuallyActivate: true,
+          canRestoreFrozen: false,
+          canManuallyActivate: !frozen,
         } : item),
       } : current);
     } catch (reason) {
@@ -219,8 +226,34 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
     }
   }
 
+  async function deactivateMember(node: RelationshipNode) {
+    if (!window.confirm(`确定停用账号 ${node.email}？\n\n停用后将立即撤销登录会话，历史记录会保留；之后可以在这里恢复。`)) return;
+    setDeactivatingId(node.id);
+    setActivationError("");
+    try {
+      const response = await fetch(`/api/organization/members/${encodeURIComponent(node.subjectId)}/deactivate`, { method: "POST" });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || "停用账户失败");
+      setPayload(current => current ? {
+        ...current,
+        nodes: current.nodes.map(item => item.id === node.id ? {
+          ...item,
+          status: "frozen",
+          canDeactivate: false,
+          canRestoreFrozen: true,
+          canManuallyActivate: false,
+        } : item),
+        summary: { ...current.summary, active: Math.max(0, current.summary.active - 1) },
+      } : current);
+    } catch (reason) {
+      setActivationError(reason instanceof Error ? reason.message : "停用账户失败");
+    } finally {
+      setDeactivatingId("");
+    }
+  }
+
   async function copyCredentials(credentials: ActivationCredentials) {
-    const content = `Riverton Capital 登录信息\n登录地址：${credentials.loginUrl}\n账号：${credentials.email}\n临时密码：${credentials.temporaryPassword}\n首次登录后，请点击顶部账号头像并修改密码。`;
+    const content = `AgentNovas 登录信息\n登录地址：${credentials.loginUrl}\n账号：${credentials.email}\n临时密码：${credentials.temporaryPassword}\n首次登录后，请点击顶部账号头像并修改密码。`;
     try {
       await navigator.clipboard.writeText(content);
       setCredentialsCopied(true);
@@ -298,10 +331,20 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
               <p>恢复后先进入待激活状态，旧密码不会恢复使用。</p>
               <button type="button" disabled={Boolean(restoringId || activatingId)} onClick={() => void restoreMember(selected)}>{restoringId === selected.id ? "正在恢复…" : "恢复为待激活账户"}</button>
             </section>}
+            {selected.canRestoreFrozen && <section className="organization-tree-restore">
+              <h4>已停用账户</h4>
+              <p>恢复后账号可以重新登录，原有密码继续有效。</p>
+              <button type="button" disabled={Boolean(restoringId || activatingId || deactivatingId)} onClick={() => void restoreMember(selected)}>{restoringId === selected.id ? "正在恢复…" : "恢复账号"}</button>
+            </section>}
             {selected.canManuallyActivate && <section className="organization-tree-activation">
               <h4>待激活账户</h4>
               <p>手动激活后，系统会立即生成一组新的临时登录密码。</p>
               <button type="button" disabled={Boolean(activatingId)} onClick={() => void activateMember(selected)}>{activatingId === selected.id ? "正在激活…" : "手动激活并生成临时密码"}</button>
+            </section>}
+            {selected.canDeactivate && <section className="organization-tree-deactivate">
+              <h4>账号管理</h4>
+              <p>停用后立即禁止登录并撤销现有会话，不删除任何历史记录。</p>
+              <button type="button" disabled={Boolean(deactivatingId || restoringId || activatingId)} onClick={() => void deactivateMember(selected)}>{deactivatingId === selected.id ? "正在停用…" : "停用账号"}</button>
             </section>}
             {activationCredentials?.memberId === selected.subjectId && <section className="organization-tree-credentials">
               <header><div><small>ACTIVATED</small><h4>激活成功</h4></div><span>仅显示本次</span></header>

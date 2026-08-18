@@ -34,6 +34,9 @@ export async function POST(
     const evidence = {
       version: strategy.version,
       authorUserId: me.id,
+      strategyName: strategy.name,
+      summary: strategy.summary,
+      riskLevel: strategy.riskLevel,
       submittedAt: now,
       reviewMode: "human_review",
     };

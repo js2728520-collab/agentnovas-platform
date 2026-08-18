@@ -1,3 +1,5 @@
+import { getPublicMarketCandles, getPublicMarketSource } from "@/lib/market-sources";
+
 export type StrategySpecification = {
   symbol: string;
   period: string;
@@ -127,24 +129,12 @@ async function sha256(value: string) {
 }
 
 async function loadCandles(specification: StrategySpecification): Promise<Candle[]> {
-  const base = (process.env.MARKET_DATA_BASE_URL || "https://api-gcp.binance.com").replace(/\/$/, "");
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12_000);
-  try {
-    const url = `${base}/api/v3/klines?symbol=${encodeURIComponent(specification.symbol)}&interval=${encodeURIComponent(specification.period)}&limit=1000`;
-    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
-    if (!response.ok) throw new Error(`历史行情服务返回 ${response.status}`);
-    const data = await response.json() as unknown;
-    if (!Array.isArray(data)) throw new Error("历史行情数据格式无效");
-    const candles = data.map((row) => {
-      if (!Array.isArray(row) || row.length < 7) throw new Error("历史K线字段不完整");
-      return { openTime: Number(row[0]), open: Number(row[1]), high: Number(row[2]), low: Number(row[3]), close: Number(row[4]), volume: Number(row[5]), closeTime: Number(row[6]) };
-    }).filter((candle) => Object.values(candle).every(Number.isFinite));
-    if (candles.length < 200) throw new Error("历史K线样本不足 200 根，平台拒绝生成回测结论");
-    return candles;
-  } finally {
-    clearTimeout(timer);
-  }
+  const source = getPublicMarketSource(process.env.MARKET_DATA_PROVIDER) || getPublicMarketSource("COINBASE")!;
+  const result = await getPublicMarketCandles(source, specification.symbol, specification.period, 500);
+  const duration = ({ "5m": 300_000, "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 } as Record<string, number>)[specification.period] || 900_000;
+  const candles = result.candles.map((candle) => ({ ...candle, openTime: candle.time, closeTime: candle.time + duration - 1 }));
+  if (candles.length < 200) throw new Error("历史K线样本不足 200 根，平台拒绝生成回测结论");
+  return candles;
 }
 
 export async function runHistoricalBacktest(rawSpecification: Record<string, unknown>): Promise<BacktestResult> {
@@ -218,7 +208,7 @@ export async function runHistoricalBacktest(rawSpecification: Record<string, unk
   const warnings: string[] = [];
   if (trades.length < 5) warnings.push("当前回测区间内交易样本少于 5 笔，统计结果仅供参考");
   if (maxDrawdownPct > specification.maxDrawdown) warnings.push(`回测最大回撤高于策略设置的 ${specification.maxDrawdown}%`);
-  const immutableEvidence = { provider: process.env.MARKET_DATA_PROVIDER || "Binance Spot REST", engineVersion: "1.0.0", specification, firstCandle: candles[0].openTime, lastCandle: candles[candles.length - 1].closeTime, candleCount: candles.length, trades };
+  const immutableEvidence = { provider: process.env.MARKET_DATA_PROVIDER || "Coinbase public market data", engineVersion: "1.0.0", specification, firstCandle: candles[0].openTime, lastCandle: candles[candles.length - 1].closeTime, candleCount: candles.length, trades };
   const evidenceRef = await sha256(JSON.stringify(immutableEvidence));
   return {
     provider: immutableEvidence.provider,

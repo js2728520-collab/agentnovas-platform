@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { approvalRequests, auditLogs, authTokens, customerAttributions, customerProfiles, notificationDeliveries, organizations, sessions, users } from "@/db/schema";
 import { hashPassword, normalizeEmail, randomToken, sha256, validEmail } from "@/lib/auth";
-import { canManuallyActivateMember, canRestoreClosedMember, canSeeCustomer, childRole, roleLabels } from "@/lib/permissions";
+import { canDeactivateMember, canManuallyActivateMember, canRestoreClosedMember, canRestoreFrozenMember, canSeeCustomer, childRole, roleLabels } from "@/lib/permissions";
 import { requireUser, responseError } from "@/lib/session";
 
 const creators = ["hq_admin","branch_admin","manager","supervisor"] as const;
@@ -25,6 +25,8 @@ type RelationshipNode = {
   effectiveAt?: string | null;
   canManuallyActivate?: boolean;
   canRestoreClosed?: boolean;
+  canRestoreFrozen?: boolean;
+  canDeactivate?: boolean;
 };
 
 const customerStatusPriority: Record<string, number> = { active: 5, review_pending: 4, public_pool_pending: 3, rejected: 2, ended: 1 };
@@ -115,10 +117,12 @@ async function relationshipTree(request: Request) {
       roleLabel: roleLabels[row.role] || row.role,
       status: row.status,
       organizationId: row.organizationId,
-      organizationName: row.organizationId ? organizationNames.get(row.organizationId) || "未命名组织" : row.role === "hq_admin" ? "Riverton Capital 总公司" : "总公司职能部门",
+      organizationName: row.organizationId ? organizationNames.get(row.organizationId) || "未命名组织" : row.role === "hq_admin" ? "AgentNovas 总公司" : "总公司职能部门",
       createdAt: row.createdAt,
       canManuallyActivate: canManuallyActivateMember(actor, row),
       canRestoreClosed: canRestoreClosedMember(actor, row),
+      canRestoreFrozen: canRestoreFrozenMember(actor, row),
+      canDeactivate: canDeactivateMember(actor, row),
     };
   });
 

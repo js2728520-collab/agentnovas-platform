@@ -22,7 +22,7 @@ export async function GET() {
       && runtimeSetting("AI_API_KEY")
       && runtimeSetting("AI_MODEL"),
   );
-  const marketData = Boolean(runtimeSetting("MARKET_DATA_BASE_URL") || "https://api-gcp.binance.com");
+  const marketData = true;
 
   return Response.json({
     status: database === "ok" && encryptionKey ? "ready" : "degraded",
@@ -33,7 +33,7 @@ export async function GET() {
       automationKey,
       aiProvider,
       marketData,
-      marketProvider: runtimeSetting("MARKET_DATA_PROVIDER") || "Binance Spot REST",
+      marketProvider: runtimeSetting("MARKET_DATA_PROVIDER") || "Coinbase default · multi-source enabled",
       emergencyStop: runtimeSetting("PLATFORM_EMERGENCY_STOP") === "true",
       platformAiCycle: automationKey ? "scheduled" : "missing_automation_secret",
       liveTradingEnabled: false,

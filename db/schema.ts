@@ -70,6 +70,14 @@ export const llmConfigurations = sqliteTable("llm_configurations", {
   ...timestamps,
 }, (t) => [uniqueIndex("idx_llm_config_scope_owner_unique").on(t.scope, t.ownerUserId), index("idx_llm_config_scope_enabled").on(t.scope, t.enabled)]);
 
+export const platformSettings = sqliteTable("platform_settings", {
+  id: text("id").primaryKey(),
+  section: text("section", { enum: ["system", "features", "billing", "integrations", "security"] }).notNull(),
+  payloadJson: text("payload_json").notNull().default("{}"),
+  updatedByUserId: text("updated_by_user_id").references(() => users.id),
+  ...timestamps,
+}, (t) => [uniqueIndex("idx_platform_settings_section_unique").on(t.section), index("idx_platform_settings_updated").on(t.updatedAt)]);
+
 export const platformFollowPolicies = sqliteTable("platform_follow_policies", {
   id: text("id").primaryKey(),
   allowFollowWithoutWithdrawal: integer("allow_follow_without_withdrawal", { mode: "boolean" }).notNull().default(false),
@@ -162,7 +170,7 @@ export const customerAttributions = sqliteTable("customer_attributions", {
 }, (t) => [index("idx_attribution_customer_effective").on(t.customerId, t.effectiveAt), index("idx_attribution_branch_status").on(t.branchId, t.status)]);
 
 export const customerProfiles = sqliteTable("customer_profiles", {
-  id: text("id").primaryKey(), customerId: text("customer_id").notNull().references(() => users.id), displayName: text("display_name").notNull().default(""), contactNote: text("contact_note").notNull().default(""), archivedAt: text("archived_at"), archivedBy: text("archived_by").references(() => users.id), ...timestamps,
+  id: text("id").primaryKey(), customerId: text("customer_id").notNull().references(() => users.id), displayName: text("display_name").notNull().default(""), contactNote: text("contact_note").notNull().default(""), pointsBalance: integer("points_balance").notNull().default(0), archivedAt: text("archived_at"), archivedBy: text("archived_by").references(() => users.id), ...timestamps,
 }, t => [uniqueIndex("idx_customer_profiles_customer_unique").on(t.customerId)]);
 
 export const customerHandoverNotes = sqliteTable("customer_handover_notes", {

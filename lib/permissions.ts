@@ -1,10 +1,10 @@
 export const childRole: Record<string, string | undefined> = { hq_admin: "branch_admin", branch_admin: "manager", manager: "supervisor", supervisor: "employee", employee: "customer" };
 export const branchApprovalRoles = ["branch_admin", "finance", "auditor"] as const;
-export const invitationRoles = ["manager", "supervisor", "employee", "hq_support", "hq_admin"] as const;
+export const invitationRoles = ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee"] as const;
 
 export function canCreateInvitation(role: string, kind: string) {
   return kind === "employee_reusable"
-    ? ["manager", "supervisor", "employee"].includes(role)
+    ? ["hq_admin", "branch_admin", "manager", "supervisor", "employee"].includes(role)
     : role === "hq_support" || role === "hq_admin";
 }
 
@@ -32,6 +32,14 @@ export function canManuallyActivateMember(actor: MemberActivationActor, member: 
 
 export function canRestoreClosedMember(actor: MemberActivationActor, member: MemberActivationTarget) {
   return member.status === "closed" && canManageInternalMember(actor, member);
+}
+
+export function canRestoreFrozenMember(actor: MemberActivationActor, member: MemberActivationTarget) {
+  return member.status === "frozen" && canManageInternalMember(actor, member);
+}
+
+export function canDeactivateMember(actor: MemberActivationActor, member: MemberActivationTarget) {
+  return member.status === "active" && canManageInternalMember(actor, member);
 }
 
 export function canSeeCustomer(role: string, viewerId: string, viewerOrgId: string | null, row: { branchId: string | null; managerId: string | null; supervisorId: string | null; employeeId: string | null }) {

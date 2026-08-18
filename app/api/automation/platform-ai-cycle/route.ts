@@ -15,6 +15,7 @@ import { decryptExchangeCredential } from "@/lib/exchange-credentials";
 import { evaluateFollowPolicy } from "@/lib/follow-policy";
 import { getSpotCandles, getSpotPrice, marketDataIsHealthy } from "@/lib/market-data";
 import { membershipAccess } from "@/lib/membership-rules";
+import { getPlatformSetting } from "@/lib/platform-settings";
 import { getOkxDemoOrder, okxFeeInUsdt, placeOkxDemoMarketOrder } from "@/lib/okx-demo-execution";
 import {
   evaluatePlatformStrategy,
@@ -145,7 +146,7 @@ async function synchronizePendingPosition(options: {
   return { status: "pending" as const, message: closing ? "平仓指令等待交易所回执" : "开仓指令等待交易所回执", tradeId: options.position.id };
 }
 
-async function processSubscription(subscription: Subscription): Promise<CycleResult> {
+async function processSubscription(subscription: Subscription, platformEmergencyStop: boolean): Promise<CycleResult> {
   const db = getDb();
   const now = new Date().toISOString();
   if (!isPlatformStrategyCode(subscription.strategyCode)) return { subscriptionId: subscription.id, strategyCode: subscription.strategyCode, status: "rejected", message: "平台策略编号无效" };
@@ -183,6 +184,7 @@ async function processSubscription(subscription: Subscription): Promise<CycleRes
   const newEntriesAllowed = Boolean(access?.newEntriesAllowed)
     && !blockedCollection
     && followPolicy.allowed
+    && !platformEmergencyStop
     && runtimeSetting("PLATFORM_EMERGENCY_STOP") !== "true";
   const hardChecks = {
     demoOnly: account.environment === "demo",
@@ -192,7 +194,7 @@ async function processSubscription(subscription: Subscription): Promise<CycleRes
     membership: Boolean(access?.newEntriesAllowed),
     collection: !blockedCollection,
     followPolicy: followPolicy.allowed,
-    emergencyStopClear: runtimeSetting("PLATFORM_EMERGENCY_STOP") !== "true",
+    emergencyStopClear: !platformEmergencyStop && runtimeSetting("PLATFORM_EMERGENCY_STOP") !== "true",
     riskModelApproved: selected.signal.riskReview.approved,
     noLeverage: true,
   };
@@ -337,14 +339,17 @@ async function processSubscription(subscription: Subscription): Promise<CycleRes
 }
 
 export async function runPlatformAiCycle() {
-  if (!(await marketDataIsHealthy())) return Response.json({ error: "实时行情源健康检查失败，本轮未生成交易决策" }, { status: 503 });
   await ensureD1Schema();
+  const [features, security] = await Promise.all([getPlatformSetting("features"), getPlatformSetting("security")]);
+  if (!features.autoTrading) return Response.json({ error: "自动交易功能当前已由运维后台关闭" }, { status: 503 });
+  if (!(await marketDataIsHealthy())) return Response.json({ error: "实时行情源健康检查失败，本轮未生成交易决策" }, { status: 503 });
+  const platformEmergencyStop = security.emergencyStop;
   const limit = Math.min(500, Math.max(1, Number(runtimeSetting("AUTOMATION_MAX_SUBSCRIPTIONS_PER_RUN") || 100)));
   const subscriptions = await getDb().select().from(platformStrategySubscriptions).where(eq(platformStrategySubscriptions.status, "active")).limit(limit);
   const results: CycleResult[] = [];
   for (const subscription of subscriptions) {
     try {
-      results.push(await processSubscription(subscription));
+      results.push(await processSubscription(subscription, platformEmergencyStop));
     } catch (error) {
       results.push({ subscriptionId: subscription.id, strategyCode: subscription.strategyCode, status: "failed", message: error instanceof Error ? error.message : "平台 AI 策略运行失败" });
     }
