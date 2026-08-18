@@ -224,6 +224,7 @@ test("advances one fixed stage only for the active lease owner", async () => {
 
   assert.equal(advanced.run.stage, "data_loading");
   assert.equal(advanced.run.status, "queued");
+  assert.equal(advanced.run.attempts, 0);
   assert.equal(advanced.run.progress, 15);
   assert.equal(advanced.event.sequence, 1);
 });

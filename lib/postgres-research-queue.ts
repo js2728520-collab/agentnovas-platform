@@ -193,6 +193,7 @@ export async function pauseResearchRunForMissingRoles(database: Queryable, input
   const result = await database.query<ResearchRunRow>(`
     UPDATE strategy_research_runs
     SET status = 'paused_missing_role', lease_owner = NULL, lease_expires_at = NULL,
+        attempts = 0,
         last_error_code = 'MISSING_AGENT_ROLE',
         last_error_message = $2,
         updated_at = now()
@@ -454,6 +455,7 @@ export async function advanceResearchRun(database: Pool | PoolClient, input: {
       SET stage = $4,
           progress = $5,
           status = 'queued',
+          attempts = 0,
           lease_owner = NULL,
           lease_expires_at = NULL,
           event_sequence = event_sequence + 1,
