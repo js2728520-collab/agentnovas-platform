@@ -12,6 +12,7 @@ import {
   resolveAgentRoleConfig,
   saveLlmProfile,
 } from "../lib/agent-model-profiles.ts";
+import { testAgentRoleConnection } from "../lib/llm-profile-connection.ts";
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
@@ -136,6 +137,46 @@ test("rejects insecure or private model endpoints", async () => {
   );
   await assert.rejects(
     saveLlmProfile(pool, { actorUserId: "admin-a", input: { ...base, baseUrl: "https://127.0.0.1/v1" } }),
+    /内网/,
+  );
+});
+
+test("tests a bound role without exposing its key and rejects private DNS resolution", async () => {
+  const profile = await saveLlmProfile(pool, {
+    actorUserId: "admin-a",
+    input: {
+      name: "测试模型",
+      providerName: "Provider",
+      baseUrl: "https://llm.example.com/v1/responses",
+      modelName: "model-safe",
+      apiKey: "sk-test-connection-secret",
+      enabled: true,
+    },
+  });
+  await bindAgentRole(pool, {
+    actorUserId: "admin-a",
+    role: "report",
+    profileId: profile.id,
+  });
+  let authorization = "";
+  const result = await testAgentRoleConnection(pool, {
+    role: "report",
+    resolver: async () => [{ address: "203.0.114.5" }],
+    fetchImpl: async (_url, init) => {
+      authorization = new Headers(init.headers).get("authorization") || "";
+      return new Response(JSON.stringify({ output: [] }), { status: 200 });
+    },
+  });
+  assert.equal(result.modelName, "model-safe");
+  assert.equal(authorization, "Bearer sk-test-connection-secret");
+  assert.equal(JSON.stringify(result).includes("secret"), false);
+
+  await assert.rejects(
+    testAgentRoleConnection(pool, {
+      role: "report",
+      resolver: async () => [{ address: "10.0.0.8" }],
+      fetchImpl: async () => new Response(null, { status: 200 }),
+    }),
     /内网/,
   );
 });

@@ -1,4 +1,4 @@
-function privateNetworkHost(hostname: string) {
+export function privateNetworkHost(hostname: string) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (
     host === "localhost"
