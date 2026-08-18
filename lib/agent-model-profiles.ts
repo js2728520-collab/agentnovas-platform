@@ -6,6 +6,7 @@ import {
   maskedIntegrationSecret,
 } from "./integration-credentials.ts";
 import { normalizeLlmBaseUrl, normalizeLlmCompletionEndpoint } from "./llm-endpoint.ts";
+import type { ResolvedAgentRoleConfig } from "./research-types.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
 
@@ -243,7 +244,7 @@ export async function missingAgentRoles(database: Queryable) {
   return result.rows.map(row => row.role);
 }
 
-export async function resolveAgentRoleConfig(database: Queryable, role: string) {
+export async function resolveAgentRoleConfig(database: Queryable, role: string): Promise<ResolvedAgentRoleConfig | null> {
   assertAgentRole(role);
   const result = await database.query<BindingRow>(`
     SELECT binding.id, binding.role, binding.llm_profile_id, binding.enabled,
