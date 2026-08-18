@@ -1,5 +1,3 @@
-import { env } from "cloudflare:workers";
-
 import migration0000 from "@/drizzle/0000_small_dreadnoughts.sql?raw";
 import migration0001 from "@/drizzle/0001_red_loki.sql?raw";
 import migration0002 from "@/drizzle/0002_lean_skreet.sql?raw";
@@ -103,6 +101,10 @@ function normalizedSchemaName(name: string) {
 }
 
 export async function ensureD1Schema() {
+  // PostgreSQL migrations are applied once by the release command. Business
+  // requests must never attempt to run the legacy D1 migrator after cutover.
+  if (process.env.DATABASE_URL?.trim()) return;
+  const { env } = await import("cloudflare:workers");
   const database = env.DB;
   if (!database) throw new Error("D1 数据库 DB 尚未绑定");
 

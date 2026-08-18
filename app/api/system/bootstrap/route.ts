@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
-import { env } from "cloudflare:workers";
 import { getDb } from "@/db";
 import { auditLogs, organizations, sessions, users } from "@/db/schema";
 import { hashPassword, normalizeEmail, validEmail } from "@/lib/auth";
 import { ensureD1Schema } from "@/lib/d1-migrations";
+import { runtimeSetting } from "@/lib/runtime-setting";
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const isLocalPreview = hostname === "localhost" || hostname === "127.0.0.1";
     // Read secrets from the Worker runtime. `process.env` is not populated for
     // deployed Cloudflare Workers, so using it made online setup impossible.
-    const bootstrapSecret = env.BOOTSTRAP_SECRET || (isLocalPreview ? "AN-Admin-2026-Strong-9xKp!72" : undefined);
+    const bootstrapSecret = runtimeSetting("BOOTSTRAP_SECRET") || (isLocalPreview ? "AN-Admin-2026-Strong-9xKp!72" : undefined);
     if (!bootstrapSecret || !supplied || supplied !== bootstrapSecret) return Response.json({ error: "初始化密钥无效" }, { status: 403 });
     const body = await request.json() as { email?: string; password?: string };
     const email = normalizeEmail(body.email ?? ""); if (!validEmail(email)) return Response.json({ error: "邮箱无效" }, { status: 400 });

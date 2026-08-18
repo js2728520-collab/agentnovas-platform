@@ -114,3 +114,28 @@ test("rolls back all copied rows and records a failed batch when any target tabl
   assert.equal(copied.rows[0].count, 0);
   assert.equal(batch.rows[0].status, "failed");
 });
+
+test("refuses to merge a D1 snapshot into a non-empty PostgreSQL target", async () => {
+  const sourcePath = sqliteFile("non-empty.sqlite", [
+    "CREATE TABLE migration_fixture (id text PRIMARY KEY, amount real NOT NULL, enabled integer NOT NULL)",
+    "INSERT INTO migration_fixture VALUES ('source', 12.5, 1)",
+  ]);
+  await pool.query(`
+    CREATE TABLE migration_fixture (
+      id text PRIMARY KEY,
+      amount double precision NOT NULL,
+      enabled integer NOT NULL
+    )
+  `);
+  await pool.query("INSERT INTO migration_fixture VALUES ('existing', 1, 0)");
+
+  await assert.rejects(migrateD1Database({
+    sqlitePath: sourcePath,
+    database: pool,
+    batchId: "batch-non-empty",
+    sourceRef: "d1-backup-non-empty",
+  }), /目标表不是空表/);
+
+  const rows = await pool.query("SELECT id FROM migration_fixture ORDER BY id");
+  assert.deepEqual(rows.rows, [{ id: "existing" }]);
+});

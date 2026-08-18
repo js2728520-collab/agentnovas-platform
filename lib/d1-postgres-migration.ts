@@ -112,6 +112,15 @@ async function insertRows(client: PoolClient, tableName: string, columns: string
   }
 }
 
+async function assertEmptyTarget(client: PoolClient, tableName: string) {
+  const result = await client.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM ${safeIdentifier(tableName)}`,
+  );
+  if (Number(result.rows[0]?.count || 0) !== 0) {
+    throw new Error(`${tableName} 目标表不是空表，拒绝合并迁移`);
+  }
+}
+
 async function targetRows(client: PoolClient, tableName: string, columns: string[], order: string[]) {
   const selected = columns.map(safeIdentifier).join(", ");
   const ordered = order.map(safeIdentifier).join(", ");
@@ -136,6 +145,7 @@ export async function migrateD1Database(options: {
   const results: MigrationTableResult[] = [];
   try {
     await client.query("BEGIN");
+    await client.query("SET CONSTRAINTS ALL DEFERRED");
     await client.query(`
       INSERT INTO migration_batches (id, source_kind, source_ref, status)
       VALUES ($1, 'cloudflare_d1_sqlite', $2, 'running')
@@ -147,6 +157,7 @@ export async function migrateD1Database(options: {
       const { names, order } = tableShape(source, tableName);
       const fromSource = sourceRows(source, tableName, names, order);
       try {
+        await assertEmptyTarget(client, tableName);
         await insertRows(client, tableName, names, fromSource);
       } catch (error) {
         const detail = error instanceof Error ? error.message : "未知错误";
