@@ -35,6 +35,27 @@ export const users = sqliteTable("users", {
   ...timestamps,
 }, (t) => [uniqueIndex("idx_users_email_unique").on(t.email), uniqueIndex("idx_users_phone_unique").on(t.phone), uniqueIndex("idx_users_username_unique").on(t.username), index("idx_users_org_role").on(t.organizationId, t.role)]);
 
+// A personal agent is an internal account with a separate commission profile.
+// Keeping the profile outside users avoids changing the existing organization
+// role hierarchy while still giving HQ its own creation and settlement flow.
+export const personalAgents = sqliteTable("personal_agents", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  organizationId: text("organization_id").references(() => organizations.id),
+  status: text("status", { enum: ["active", "suspended", "closed"] }).notNull().default("active"),
+  ...timestamps,
+}, (t) => [uniqueIndex("idx_personal_agents_user_unique").on(t.userId), index("idx_personal_agents_org_status").on(t.organizationId, t.status)]);
+
+export const personalAgentMonthlyPeriods = sqliteTable("personal_agent_monthly_periods", {
+  id: text("id").primaryKey(),
+  agentId: text("agent_id").notNull().references(() => personalAgents.id),
+  month: text("month").notNull(),
+  performanceUsdt: real("performance_usdt").notNull().default(0),
+  commissionRate: real("commission_rate").notNull().default(.2),
+  commissionUsdt: real("commission_usdt").notNull().default(0),
+  ...timestamps,
+}, (t) => [uniqueIndex("idx_personal_agent_period_unique").on(t.agentId, t.month), index("idx_personal_agent_period_month").on(t.month)]);
+
 export const llmConfigurations = sqliteTable("llm_configurations", {
   id: text("id").primaryKey(),
   scope: text("scope", { enum: ["system", "user"] }).notNull(),

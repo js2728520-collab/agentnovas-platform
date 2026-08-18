@@ -15,6 +15,58 @@ const OPERATING_COST_RATE = .5;
 const DISTRIBUTABLE_HEADQUARTERS_RATE = .2;
 const DISTRIBUTABLE_BRANCH_RATE = .8;
 
+/**
+ * The department rates are percentages of the website distributable revenue
+ * pool, not percentages of gross top-ups. They total 20%, which matches the
+ * previously agreed headquarters share of that pool.
+ */
+export const headquartersDepartmentRates = [
+  { code: "technology", label: "技术部", rate: .025 },
+  { code: "business_development", label: "招商部", rate: .025 },
+  { code: "operations", label: "运营部", rate: .15 },
+] as const;
+
+export type HeadquartersDepartmentAllocation = {
+  code: (typeof headquartersDepartmentRates)[number]["code"];
+  label: string;
+  rate: number;
+  amountUsdt: number;
+};
+
+export function allocateHeadquartersDepartments(websiteRevenueUsdt: number): HeadquartersDepartmentAllocation[] {
+  if (websiteRevenueUsdt < 0 || !Number.isFinite(websiteRevenueUsdt)) throw new Error("Invalid website revenue amount");
+  return headquartersDepartmentRates.map((department) => ({
+    ...department,
+    amountUsdt: money(websiteRevenueUsdt * department.rate),
+  }));
+}
+
+export const personalAgentCommissionTiers = [
+  { minUsdt: 0, maxUsdt: 1000, rate: .2, label: "低于 1,000 USDT" },
+  { minUsdt: 1000, maxUsdt: 5000, rate: .25, label: "1,000–4,999.99 USDT" },
+  { minUsdt: 5000, maxUsdt: 10000, rate: .3, label: "5,000–9,999.99 USDT" },
+  { minUsdt: 10000, maxUsdt: 20000, rate: .35, label: "10,000–19,999.99 USDT" },
+  { minUsdt: 20000, maxUsdt: 50000, rate: .4, label: "20,000–49,999.99 USDT" },
+  { minUsdt: 50000, maxUsdt: Number.POSITIVE_INFINITY, rate: .5, label: "50,000 USDT 及以上" },
+] as const;
+
+export function personalAgentCommissionRate(monthlyPerformanceUsdt: number): number {
+  if (monthlyPerformanceUsdt < 0 || !Number.isFinite(monthlyPerformanceUsdt)) throw new Error("Invalid personal agent monthly performance");
+  return personalAgentCommissionTiers.find((tier) => monthlyPerformanceUsdt >= tier.minUsdt && monthlyPerformanceUsdt < tier.maxUsdt)?.rate ?? .5;
+}
+
+export function calculatePersonalAgentCommission(monthlyPerformanceUsdt: number) {
+  const performanceUsdt = money(monthlyPerformanceUsdt);
+  const commissionRate = personalAgentCommissionRate(performanceUsdt);
+  return {
+    period: "monthly" as const,
+    performanceUsdt,
+    commissionRate,
+    commissionUsdt: money(performanceUsdt * commissionRate),
+    resetAtMonthEnd: true,
+  };
+}
+
 export function allocateRevenue(amountUsdt: number, confirmedAt: string, attribution: Attribution): Allocation[] {
   if (amountUsdt < 0 || !Number.isFinite(amountUsdt)) throw new Error("Invalid revenue amount");
   const active = attribution.status === "active" && attribution.effectiveAt && confirmedAt >= attribution.effectiveAt;

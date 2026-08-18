@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { allocateMembershipRevenue, allocateRevenue, calculatePerformanceFee, canDisableNotification } from "../lib/business-rules.ts";
+import { allocateHeadquartersDepartments, allocateMembershipRevenue, allocateRevenue, calculatePersonalAgentCommission, calculatePerformanceFee, canDisableNotification, headquartersDepartmentRates } from "../lib/business-rules.ts";
 import { collectionState } from "../lib/collection-rules.ts";
 import { canSeeCustomer } from "../lib/permissions.ts";
 
@@ -18,6 +18,25 @@ test("membership revenue keeps 50% operating cost and splits the remaining 50% 2
   const rows = allocateMembershipRevenue(100, "2026-08-03T00:00:00Z", { status: "active", effectiveAt: "2026-08-02T00:00:00Z", branchId: "b" });
   assert.deepEqual(rows.map(x => x.amountUsdt), [60, 40]);
   assert.deepEqual(allocateMembershipRevenue(100, "2026-08-01T00:00:00Z", { status: "public_pool_pending" }), [{ beneficiary: "headquarters", rate: 1, amountUsdt: 100 }]);
+});
+
+test("headquarters departments consume exactly the agreed 20% share", () => {
+  assert.equal(headquartersDepartmentRates.reduce((sum, row) => sum + row.rate, 0), .2);
+  assert.deepEqual(allocateHeadquartersDepartments(100), [
+    { code: "technology", label: "技术部", rate: .025, amountUsdt: 2.5 },
+    { code: "business_development", label: "招商部", rate: .025, amountUsdt: 2.5 },
+    { code: "operations", label: "运营部", rate: .15, amountUsdt: 15 },
+  ]);
+});
+
+test("personal agent commission tiers reset by month and respect boundaries", () => {
+  assert.equal(calculatePersonalAgentCommission(999.99).commissionRate, .2);
+  assert.equal(calculatePersonalAgentCommission(1000).commissionRate, .25);
+  assert.equal(calculatePersonalAgentCommission(4999.99).commissionRate, .25);
+  assert.equal(calculatePersonalAgentCommission(5000).commissionRate, .3);
+  assert.equal(calculatePersonalAgentCommission(10000).commissionRate, .35);
+  assert.equal(calculatePersonalAgentCommission(20000).commissionRate, .4);
+  assert.deepEqual(calculatePersonalAgentCommission(50000), { period: "monthly", performanceUsdt: 50000, commissionRate: .5, commissionUsdt: 25000, resetAtMonthEnd: true });
 });
 
 test("weekly performance fee charges only positive realized profit", () => {
