@@ -35,9 +35,6 @@ export function calculatePerformanceFee(input: {
   weeklyRealizedNetPnlUsdt?: number;
   realizedNetPnlUsdt?: number;
   membershipPlanCode?: string;
-  // Kept as optional compatibility fields; weekly settlement intentionally ignores them.
-  previousHighWaterMarkUsdt?: number;
-  withdrawalAuthorizedAtClose?: boolean;
 }) {
   const weeklyProfitUsdt = Number(input.weeklyRealizedNetPnlUsdt ?? input.realizedNetPnlUsdt ?? 0);
   if (!Number.isFinite(weeklyProfitUsdt)) throw new Error("Invalid weekly profit amount");
