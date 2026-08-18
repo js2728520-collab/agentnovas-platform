@@ -17,8 +17,68 @@ export type AdmissionMetrics = {
 
 export type ValidationLabel = "EXPLORATION_ONLY" | "STANDARD_FAILED" | "STANDARD_VERIFIED";
 
+export type TradeSequenceResampling = {
+  iterations: number;
+  probabilityPositive: number;
+  p05NetReturnPct: number;
+  p95MaxDrawdownPct: number;
+};
+
 function finite(value: number) {
   return Number.isFinite(value) ? value : 0;
+}
+
+function percentile(values: number[], quantile: number) {
+  const sorted = [...values].sort((left, right) => left - right);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * quantile)));
+  return sorted[index];
+}
+
+export function resampleTradeSequence(input: {
+  trades: Array<{ netPnl: number }>;
+  initialEquityUsdt: number;
+  iterations?: number;
+  seed?: number;
+}): TradeSequenceResampling {
+  const iterations = input.iterations ?? 500;
+  if (!Number.isInteger(iterations) || iterations < 100 || iterations > 5_000) {
+    throw new Error("交易序列重采样次数必须在 100–5000 之间");
+  }
+  if (!Number.isFinite(input.initialEquityUsdt) || input.initialEquityUsdt <= 0) {
+    throw new Error("重采样初始资金无效");
+  }
+  if (!input.trades.length || input.trades.some(trade => !Number.isFinite(trade.netPnl))) {
+    return { iterations, probabilityPositive: 0, p05NetReturnPct: 0, p95MaxDrawdownPct: 0 };
+  }
+  let state = (input.seed ?? 0x6d2b79f5) >>> 0;
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x1_0000_0000;
+  };
+  const returns: number[] = [];
+  const drawdowns: number[] = [];
+  let positive = 0;
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    let equity = input.initialEquityUsdt;
+    let peak = equity;
+    let maximumDrawdown = 0;
+    for (let index = 0; index < input.trades.length; index += 1) {
+      const sampled = input.trades[Math.floor(random() * input.trades.length)];
+      equity += sampled.netPnl;
+      peak = Math.max(peak, equity);
+      maximumDrawdown = Math.max(maximumDrawdown, peak > 0 ? (peak - equity) / peak * 100 : 100);
+    }
+    const netReturn = (equity - input.initialEquityUsdt) / input.initialEquityUsdt * 100;
+    returns.push(netReturn);
+    drawdowns.push(maximumDrawdown);
+    if (netReturn > 0) positive += 1;
+  }
+  return {
+    iterations,
+    probabilityPositive: Number((positive / iterations).toFixed(4)),
+    p05NetReturnPct: Number(percentile(returns, 0.05).toFixed(4)),
+    p95MaxDrawdownPct: Number(percentile(drawdowns, 0.95).toFixed(4)),
+  };
 }
 
 export function splitResearchCandles<T>(mode: ResearchMode, candles: readonly T[]) {

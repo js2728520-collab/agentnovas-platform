@@ -5,6 +5,7 @@ import {
   createHoldoutGuard,
   evaluateCandidateAdmission,
   rankResearchCandidates,
+  resampleTradeSequence,
   splitResearchCandles,
 } from "../lib/research-validation.ts";
 
@@ -77,4 +78,20 @@ test("ranks qualified candidates first and returns at most three", () => {
   ]);
   assert.deepEqual(ranked.map(item => item.id), ["pass-high", "pass-low", "failed-high"]);
   assert.deepEqual(ranked.map(item => item.rank), [1, 2, 3]);
+});
+
+test("produces deterministic deep-mode trade-sequence resampling statistics", () => {
+  const input = {
+    trades: [{ netPnl: 120 }, { netPnl: -50 }, { netPnl: 80 }, { netPnl: -20 }],
+    initialEquityUsdt: 10_000,
+    iterations: 500,
+    seed: 42,
+  };
+  const first = resampleTradeSequence(input);
+  const second = resampleTradeSequence(input);
+
+  assert.deepEqual(first, second);
+  assert.equal(first.iterations, 500);
+  assert.ok(first.probabilityPositive > 0.5);
+  assert.ok(first.p95MaxDrawdownPct >= 0);
 });

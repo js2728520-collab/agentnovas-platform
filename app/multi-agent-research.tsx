@@ -37,7 +37,7 @@ export function MultiAgentResearch({
   brief: Record<string, unknown>;
 }) {
   const [mode, setMode] = useState<Mode>("standard");
-  const [accounts, setAccounts] = useState<Array<{ id: string; label: string; exchange: string; canRead: boolean; status: string }>>([]);
+  const [accounts, setAccounts] = useState<Array<{ id: string; label: string; exchange: string; canRead: boolean; withdrawalAuthorized?: boolean; status: string }>>([]);
   const [accountId, setAccountId] = useState("");
   const [roles, setRoles] = useState<Array<{ role: string; modelName: string; configured: boolean; enabled: boolean }>>([]);
   const [ready, setReady] = useState(false);
@@ -54,7 +54,11 @@ export function MultiAgentResearch({
     ]).then(([accountResponse, roleResponse]) => {
       if (!active) return;
       if (accountResponse.ok) {
-        const available = (accountResponse.data.accounts || []).filter((item: { exchange?: string }) => ["OKX", "BINANCE", "BYBIT"].includes(String(item.exchange).toUpperCase()));
+        const available = (accountResponse.data.accounts || []).filter((item: { exchange?: string; status?: string; canRead?: boolean; withdrawalAuthorized?: boolean }) =>
+          ["OKX", "BINANCE", "BYBIT"].includes(String(item.exchange).toUpperCase())
+          && item.status === "active"
+          && item.canRead === true
+          && item.withdrawalAuthorized !== true);
         setAccounts(available);
         setAccountId(available[0]?.id || "");
       }
@@ -84,8 +88,11 @@ export function MultiAgentResearch({
       if (["completed", "failed", "cancelled"].includes(status)) setBusy(false);
     };
     void load();
-    const timer = setInterval(() => void load(), 2_000);
-    return () => { active = false; clearInterval(timer); };
+    const source = new EventSource(`/api/strategy-research/runs/${encodeURIComponent(runId)}/events?afterSequence=0`);
+    source.addEventListener("update", () => void load());
+    source.addEventListener("done", () => { void load(); source.close(); });
+    const timer = setInterval(() => void load(), 10_000);
+    return () => { active = false; source.close(); clearInterval(timer); };
   }, [runId]);
 
   const evaluationByCandidate = useMemo(() => {
@@ -120,7 +127,7 @@ export function MultiAgentResearch({
     if (!runId) return;
     const response = await fetch(`/api/strategy-research/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
     const data = await response.json().catch(() => null);
-    setMessage(response.ok ? "已请求取消，Worker 会在安全检查点停止。" : errorMessage(data, "取消失败"));
+    setMessage(response.ok ? "任务已取消；运行中的阶段结果不会再推进或保存。" : errorMessage(data, "取消失败"));
   }
 
   async function save(candidate: Candidate) {
@@ -151,6 +158,13 @@ export function MultiAgentResearch({
           <button disabled={Boolean(candidate.savedStrategyId)} onClick={() => void save(candidate)}>{candidate.savedStrategyId ? "已保存到我的策略" : "保存到我的策略"}</button>
         </article>;
       })}</div>}
+      {payload.candidates.some(candidate => candidate.rank == null) && <details className="research-other-candidates">
+        <summary>查看其他研究候选（{payload.candidates.filter(candidate => candidate.rank == null).length}）</summary>
+        <div>{payload.candidates.filter(candidate => candidate.rank == null).map(candidate => <article key={candidate.id}>
+          <span><b>{candidate.strategyFamily}</b><small>{candidate.validationLabel} · {candidate.score?.toFixed(2) ?? "未评分"}</small></span>
+          <button disabled={Boolean(candidate.savedStrategyId)} onClick={() => void save(candidate)}>{candidate.savedStrategyId ? "已保存" : "保存为研究草稿"}</button>
+        </article>)}</div>
+      </details>}
       {payload.run.finalConclusion && <div className={`research-conclusion ${payload.run.finalConclusion === "QUALIFIED" ? "pass" : "fail"}`}><b>{payload.run.finalConclusion === "QUALIFIED" ? "存在通过标准验证的候选" : "本轮没有候选通过标准验证"}</b><p>历史回测是研究证据，不代表未来收益。未通过候选不会被包装为已验证。</p></div>}
     </>}
   </section>;

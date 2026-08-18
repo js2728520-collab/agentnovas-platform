@@ -2,7 +2,7 @@ import os from "node:os";
 
 import pg from "pg";
 
-import { leaseNextResearchRun } from "../lib/postgres-research-queue.ts";
+import { leaseNextResearchRun, renewResearchRunLease } from "../lib/postgres-research-queue.ts";
 import { processResearchStage } from "../lib/strategy-research-orchestrator.ts";
 
 const connectionString = process.env.DATABASE_URL?.trim();
@@ -25,6 +25,26 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function leaseHeartbeat(runId) {
+  let timer;
+  let stopped = false;
+  let failure = null;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      await renewResearchRunLease(pool, { runId, workerId, now: new Date(), leaseSeconds: 300 });
+    } catch (error) {
+      failure = error;
+    }
+    if (!stopped) timer = setTimeout(tick, 60_000);
+  };
+  timer = setTimeout(tick, 60_000);
+  return {
+    stop() { stopped = true; clearTimeout(timer); },
+    failure() { return failure; },
+  };
+}
+
 try {
   while (!stopping) {
     const run = await leaseNextResearchRun(pool, {
@@ -36,14 +56,18 @@ try {
       await delay(1_000);
       continue;
     }
+    const heartbeat = leaseHeartbeat(run.id);
     try {
       await processResearchStage(pool, run, workerId);
+      if (heartbeat.failure()) throw heartbeat.failure();
     } catch (error) {
       console.error("Research stage failed", {
         runId: run.id,
         stage: run.stage,
         message: error instanceof Error ? error.message.slice(0, 300) : "unknown",
       });
+    } finally {
+      heartbeat.stop();
     }
   }
 } finally {

@@ -15,6 +15,7 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "postgres:migrate": "node --experimental-strip-types scripts/apply-postgres-migrations.mjs",
+    "postgres:migrate:d1": "node --experimental-strip-types scripts/migrate-d1-to-postgres.mjs",
     "worker:research": "node --experimental-strip-types scripts/strategy-research-worker.mjs"
   },
   "dependencies": {

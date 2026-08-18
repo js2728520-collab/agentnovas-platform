@@ -1,4 +1,5 @@
 import type { ResolvedAgentRoleConfig } from "./research-types.ts";
+import { assertPublicLlmEndpoint } from "./llm-profile-connection.ts";
 import { normalizeStrategyDslV2 } from "./strategy-dsl.ts";
 
 type ResearchAgentRole = ResolvedAgentRoleConfig["role"];
@@ -88,6 +89,21 @@ function validateOutput(role: ResearchAgentRole, output: Record<string, unknown>
       }
     });
   }
+  if (role === "adversarial_review") {
+    if (typeof output.verdict !== "string") throw new Error("反方审查 Agent 未返回 verdict");
+    if (!Array.isArray(output.objections)) throw new Error("反方审查 Agent 未返回 objections");
+    if (!Array.isArray(output.revisionRequests)) throw new Error("反方审查 Agent 未返回 revisionRequests");
+  }
+  if (role === "risk_review") {
+    if (typeof output.verdict !== "string") throw new Error("风控 Agent 未返回 verdict");
+    if (!Array.isArray(output.vetoReasons)) throw new Error("风控 Agent 未返回 vetoReasons");
+    if (!Array.isArray(output.boundaries)) throw new Error("风控 Agent 未返回 boundaries");
+  }
+  if (role === "report") {
+    if (typeof output.recommendedCandidateId !== "string") throw new Error("报告 Agent 未返回 recommendedCandidateId");
+    if (typeof output.summary !== "string") throw new Error("报告 Agent 未返回 summary");
+    if (!Array.isArray(output.risks)) throw new Error("报告 Agent 未返回 risks");
+  }
   return output;
 }
 
@@ -97,6 +113,7 @@ export async function callStructuredResearchAgent(options: {
   context: Record<string, unknown>;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  resolver?: (hostname: string) => Promise<Array<{ address: string }>>;
 }) {
   if (options.config.role !== options.role) throw new Error("Agent 角色与模型绑定不匹配");
   const system = [
@@ -114,6 +131,7 @@ export async function callStructuredResearchAgent(options: {
   const timeoutMs = Math.min(Math.max(options.timeoutMs ?? 45_000, 5_000), 90_000);
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    await assertPublicLlmEndpoint(options.config.endpoint, options.resolver);
     const response = await (options.fetchImpl ?? fetch)(options.config.endpoint, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${options.config.apiKey}` },

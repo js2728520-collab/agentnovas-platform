@@ -4,23 +4,41 @@ import type { ResearchStrategyDsl } from "./strategy-dsl.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
 
+export async function reserveResearchModelCalls(database: Queryable, input: {
+  runId: string;
+  workerId: string;
+  count?: number;
+}) {
+  const count = input.count ?? 1;
+  if (!Number.isInteger(count) || count < 1 || count > 10) throw new Error("模型调用预留数量无效");
+  const result = await database.query<{ model_calls_used: number; model_call_budget: number }>(`
+    UPDATE strategy_research_runs
+    SET model_calls_used = model_calls_used + $3, updated_at = now()
+    WHERE id = $1 AND lease_owner = $2 AND status = 'running'
+      AND cancel_requested_at IS NULL
+      AND model_calls_used + $3 <= model_call_budget
+    RETURNING model_calls_used, model_call_budget
+  `, [input.runId, input.workerId, count]);
+  if (!result.rows[0]) throw new Error("任务租约无效、任务已取消或模型调用预算已耗尽");
+  return result.rows[0];
+}
+
 export async function patchResearchRunResult(database: Queryable, input: {
   runId: string;
   workerId: string;
   patch: Record<string, unknown>;
-  modelCalls?: number;
   backtests?: number;
 }) {
   const result = await database.query(`
     UPDATE strategy_research_runs
     SET result_json = COALESCE(result_json, '{}'::jsonb) || $3::jsonb,
-        model_calls_used = model_calls_used + $4,
-        backtests_used = backtests_used + $5,
+        backtests_used = backtests_used + $4,
         updated_at = now()
     WHERE id = $1 AND lease_owner = $2 AND status = 'running'
-      AND backtests_used + $5 <= backtest_budget
+      AND cancel_requested_at IS NULL
+      AND backtests_used + $4 <= backtest_budget
     RETURNING result_json, model_calls_used, backtests_used
-  `, [input.runId, input.workerId, JSON.stringify(input.patch), input.modelCalls ?? 0, input.backtests ?? 0]);
+  `, [input.runId, input.workerId, JSON.stringify(input.patch), input.backtests ?? 0]);
   if (!result.rows[0]) throw new Error("任务租约无效或回测预算已耗尽");
   return result.rows[0];
 }

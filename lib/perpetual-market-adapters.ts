@@ -43,6 +43,11 @@ const timeframeMs: Record<string, number> = {
   "1d": 24 * 60 * 60_000,
 };
 
+function conservativeRate(name: string, explicit: number | undefined, fallback: number) {
+  const configured = explicit ?? Number(process.env[name]);
+  return Number.isFinite(configured) && configured >= 0 && configured <= 0.01 ? configured : fallback;
+}
+
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("交易所响应必须是对象");
   return value as Record<string, unknown>;
@@ -307,8 +312,8 @@ export function createPerpetualMarketAdapter(exchange: PerpetualExchange, depend
     async getFeeSchedule(input: { symbol: string }): Promise<FeeSchedule> {
       if (!dependencies.fetchAuthenticatedJson) {
         return {
-          makerRate: dependencies.conservativeMakerRate ?? 0.0005,
-          takerRate: dependencies.conservativeTakerRate ?? 0.0007,
+          makerRate: conservativeRate("CONSERVATIVE_PERPETUAL_MAKER_RATE", dependencies.conservativeMakerRate, 0.0005),
+          takerRate: conservativeRate("CONSERVATIVE_PERPETUAL_TAKER_RATE", dependencies.conservativeTakerRate, 0.0007),
           estimated: true,
           source: "administrator_conservative_default",
         };

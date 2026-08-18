@@ -25,6 +25,7 @@ type ResearchRunRow = QueryResultRow & {
   event_sequence: string;
   candidate_budget: number;
   backtest_budget: number;
+  model_call_budget: number;
   backtests_used: number;
   model_calls_used: number;
   last_error_code: string | null;
@@ -54,6 +55,7 @@ function runFromRow(row: ResearchRunRow) {
     eventSequence: Number(row.event_sequence),
     candidateBudget: row.candidate_budget,
     backtestBudget: row.backtest_budget,
+    modelCallBudget: row.model_call_budget,
     backtestsUsed: row.backtests_used,
     modelCallsUsed: row.model_calls_used,
     lastErrorCode: row.last_error_code,
@@ -186,6 +188,7 @@ export async function listResearchEvaluations(database: Queryable, input: {
 export async function pauseResearchRunForMissingRoles(database: Queryable, input: {
   runId: string;
   missingRoles: string[];
+  workerId?: string;
 }) {
   const result = await database.query<ResearchRunRow>(`
     UPDATE strategy_research_runs
@@ -193,10 +196,15 @@ export async function pauseResearchRunForMissingRoles(database: Queryable, input
         last_error_code = 'MISSING_AGENT_ROLE',
         last_error_message = $2,
         updated_at = now()
-    WHERE id = $1 AND status NOT IN ('completed', 'failed', 'cancelled')
+    WHERE id = $1
+      AND cancel_requested_at IS NULL
+      AND (
+        ($3::text IS NULL AND status = 'queued')
+        OR ($3::text IS NOT NULL AND status = 'running' AND lease_owner = $3)
+      )
     RETURNING *
-  `, [input.runId, `缺少角色配置：${input.missingRoles.join(", ")}`]);
-  if (!result.rows[0]) throw new Error("研发任务不存在或已结束");
+  `, [input.runId, `缺少角色配置：${input.missingRoles.join(", ")}`, input.workerId ?? null]);
+  if (!result.rows[0]) throw new Error("研发任务不存在、已结束或租约已失效");
   await appendResearchEvent(database as Pool | PoolClient, {
     runId: input.runId,
     role: "orchestrator",
@@ -218,13 +226,23 @@ export async function requeueResearchRunsPausedForRoles(database: Queryable) {
     WHERE status = 'paused_missing_role' AND cancel_requested_at IS NULL
     RETURNING *
   `);
-  return result.rows.map(runFromRow);
+  const runs = result.rows.map(runFromRow);
+  for (const run of runs) {
+    await appendResearchEvent(database as Pool | PoolClient, {
+      runId: run.id,
+      role: "orchestrator",
+      type: "resumed",
+      title: "Agent 模型已补齐，任务恢复排队",
+      content: {},
+    });
+  }
+  return runs;
 }
 
-const modeBudgets: Record<ResearchMode, { candidates: number; backtests: number }> = {
-  quick: { candidates: 3, backtests: 12 },
-  standard: { candidates: 6, backtests: 60 },
-  deep: { candidates: 10, backtests: 200 },
+const modeBudgets: Record<ResearchMode, { candidates: number; backtests: number; modelCalls: number }> = {
+  quick: { candidates: 3, backtests: 12, modelCalls: 10 },
+  standard: { candidates: 6, backtests: 60, modelCalls: 20 },
+  deep: { candidates: 10, backtests: 200, modelCalls: 28 },
 };
 
 export async function createResearchRun(database: Queryable, input: {
@@ -243,8 +261,8 @@ export async function createResearchRun(database: Queryable, input: {
   const result = await database.query<ResearchRunRow>(`
     INSERT INTO strategy_research_runs (
       id, owner_user_id, conversation_id, exchange_account_id, mode, stage,
-      brief_json, idempotency_key, candidate_budget, backtest_budget
-    ) VALUES ($1, $2, $3, $4, $5, 'requirements', $6, $7, $8, $9)
+      brief_json, idempotency_key, candidate_budget, backtest_budget, model_call_budget
+    ) VALUES ($1, $2, $3, $4, $5, 'requirements', $6, $7, $8, $9, $10)
     ON CONFLICT (owner_user_id, idempotency_key)
     DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
     RETURNING *
@@ -258,6 +276,7 @@ export async function createResearchRun(database: Queryable, input: {
     input.idempotencyKey,
     budget.candidates,
     budget.backtests,
+    budget.modelCalls,
   ]);
   return runFromRow(result.rows[0]);
 }

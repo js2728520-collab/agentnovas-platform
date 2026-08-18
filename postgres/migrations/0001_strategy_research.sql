@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS strategy_research_runs (
   event_sequence bigint NOT NULL DEFAULT 0,
   candidate_budget integer NOT NULL,
   backtest_budget integer NOT NULL,
+  model_call_budget integer NOT NULL,
   backtests_used integer NOT NULL DEFAULT 0,
   model_calls_used integer NOT NULL DEFAULT 0,
   started_at timestamptz,

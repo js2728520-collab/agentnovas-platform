@@ -125,7 +125,7 @@ export async function POST(
         strategyId: id,
         strategyVersion: strategy.version,
         kind: "backtest",
-        status: "completed",
+        status: "passed",
         source: "platform_engine",
         periodStart: result.periodStart,
         periodEnd: result.periodEnd,

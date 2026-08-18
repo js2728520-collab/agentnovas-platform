@@ -2380,6 +2380,15 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
   .dialog-backdrop{padding:12px}.dialog-card{width:100%;padding:22px 18px;border-radius:16px}.llm-config-panel{padding:18px}.llm-config-grid{grid-template-columns:1fr}.llm-wide{grid-column:auto}.llm-config-footer{align-items:flex-start}.llm-actions{width:100%}.llm-actions button{flex:1}.account-button span:last-child{display:none}.account-button{padding:5px 8px}
 }
 
+.research-other-candidates{margin-top:12px;border:1px solid #294256;border-radius:10px;background:#09131b}
+.research-other-candidates summary{padding:12px 14px;color:#89bce2;cursor:pointer}
+.research-other-candidates>div{display:grid;gap:7px;padding:0 12px 12px}
+.research-other-candidates article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px;border-top:1px solid #1e3445}
+.research-other-candidates article span,.research-other-candidates article small{display:block}
+.research-other-candidates article small{margin-top:4px;color:#728fa5}
+.research-other-candidates button{padding:8px 12px;border:1px solid #315674;border-radius:8px;background:#153b5c;color:#dbeaf6}
+@media(max-width:1000px){.research-other-candidates article{align-items:flex-start;flex-direction:column}.research-other-candidates button{width:100%}}
+
 /* Keep the visual canvas compact on ultra-wide displays. */
 @media (min-width:1281px){
   .landing{

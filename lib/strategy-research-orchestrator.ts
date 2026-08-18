@@ -5,6 +5,7 @@ import { runPerpetualBacktestOnCandles, type BacktestResult, type HistoricalFund
 import { cachePerpetualMarketData, loadCachedPerpetualMarketData } from "./postgres-market-cache.ts";
 import {
   advanceResearchRun,
+  appendResearchEvent,
   pauseResearchRunForMissingRoles,
   renewResearchRunLease,
 } from "./postgres-research-queue.ts";
@@ -19,6 +20,7 @@ import {
   loadInternalCandidates,
   markResearchRunError,
   patchResearchRunResult,
+  reserveResearchModelCalls,
   saveResearchEvaluation,
   setCandidateRanks,
   updateCandidateValidation,
@@ -28,6 +30,7 @@ import {
   createHoldoutGuard,
   evaluateCandidateAdmission,
   rankResearchCandidates,
+  resampleTradeSequence,
   researchModeConfiguration,
   splitResearchCandles,
   type AdmissionMetrics,
@@ -47,6 +50,7 @@ type ResearchLease = {
   result: Record<string, unknown> | null;
   candidateBudget: number;
   backtestBudget: number;
+  modelCallBudget: number;
   backtestsUsed: number;
   attempts: number;
 };
@@ -104,13 +108,18 @@ function deterministicBaseline(run: ResearchLease): StrategyDslV2 {
 }
 
 function parameterVariants(dsl: StrategyDslV2, mode: ResearchMode) {
-  const factors = mode === "deep" ? [[1, 1], [0.9, 1.1], [1.1, 0.9]] : [[1, 1], [0.9, 1.1]];
+  const factors = mode === "deep"
+    ? [[1, 1], [0.9, 1], [1.1, 1], [1, 0.9], [1, 1.1]]
+    : [[1, 1], [0.9, 1.1]];
   return factors.map(([stopFactor, takeFactor]) => {
     const candidate = structuredClone(dsl);
     for (const leg of [candidate.legs.long, candidate.legs.short]) {
       if (!leg) continue;
-      leg.stopLossPct = Number((leg.stopLossPct * stopFactor).toFixed(4));
-      leg.takeProfitPct = Number((leg.takeProfitPct * takeFactor).toFixed(4));
+      leg.stopLossPct = Number(Math.min(
+        Math.max(leg.stopLossPct * stopFactor, 0.1),
+        Math.min(20, candidate.risk.maxDrawdownPct - 0.0001),
+      ).toFixed(4));
+      leg.takeProfitPct = Number(Math.min(Math.max(leg.takeProfitPct * takeFactor, 0.1), 30).toFixed(4));
     }
     return normalizeStrategyDslV2(candidate);
   });
@@ -155,9 +164,19 @@ async function agentCall(database: Pool, role: AgentRole, context: Record<string
   return callStructuredResearchAgent({ config, role, context });
 }
 
+async function reservedAgentCall(
+  database: Pool,
+  run: ResearchLease,
+  workerId: string,
+  role: AgentRole,
+  context: Record<string, unknown>,
+) {
+  await reserveResearchModelCalls(database, { runId: run.id, workerId });
+  return agentCall(database, role, context);
+}
+
 async function persistAndAdvance(database: Pool, run: ResearchLease, workerId: string, input: {
   patch: Record<string, unknown>;
-  modelCalls?: number;
   backtests?: number;
   role: string;
   title: string;
@@ -167,7 +186,6 @@ async function persistAndAdvance(database: Pool, run: ResearchLease, workerId: s
     runId: run.id,
     workerId,
     patch: input.patch,
-    modelCalls: input.modelCalls,
     backtests: input.backtests,
   });
   return advanceResearchRun(database, {
@@ -177,6 +195,112 @@ async function persistAndAdvance(database: Pool, run: ResearchLease, workerId: s
     now: new Date(),
     event: { role: input.role, type: "conclusion", title: input.title, content: input.content },
   });
+}
+
+async function runPreflightRevisions(database: Pool, run: ResearchLease, workerId: string) {
+  const existing = run.result?.preflightRevisions as Record<string, unknown> | undefined;
+  if (existing?.complete === true) return existing;
+  const maximumRounds = researchModeConfiguration[run.mode].revisionRounds;
+  const rounds: Array<Record<string, unknown>> = [];
+
+  for (let round = 1; round <= maximumRounds; round += 1) {
+    await renewResearchRunLease(database, { runId: run.id, workerId, now: new Date(), leaseSeconds: 300 });
+    let candidates = (await loadInternalCandidates(database, run.id)).filter(item => item.status !== "rejected");
+    const review = await reservedAgentCall(database, run, workerId, "adversarial_review", {
+      phase: "preflight_before_holdout",
+      round,
+      maximumRounds,
+      brief: run.brief,
+      candidates: candidates.map(item => ({
+        id: item.id,
+        key: item.key,
+        family: item.strategyFamily,
+        sourceRole: item.sourceRole,
+        dsl: item.dsl,
+      })),
+      instruction: "只根据 brief 与 DSL 审查未来函数、参数边界、交易频率和成本假设；此阶段没有最终留出集结果。",
+    });
+    const requests = (review.output.revisionRequests as unknown[]).slice(0, 20);
+    const record: Record<string, unknown> = {
+      round,
+      modelName: review.modelName,
+      conclusion: review.output.conclusion,
+      objections: review.output.objections,
+      revisionRequests: requests,
+      revised: false,
+    };
+    rounds.push(record);
+    await appendResearchEvent(database, {
+      runId: run.id,
+      role: "adversarial_review",
+      type: "preflight_review",
+      title: `反方预检第 ${round} 轮完成`,
+      content: {
+        modelName: review.modelName,
+        conclusion: review.output.conclusion,
+        objections: review.output.objections,
+        revisionRequests: requests,
+      },
+    });
+    if (requests.length === 0) break;
+
+    const priorA = candidates.filter(item => item.sourceRole === "proposal_a");
+    const priorB = candidates.filter(item => item.sourceRole === "proposal_b");
+    await reserveResearchModelCalls(database, { runId: run.id, workerId, count: 2 });
+    const revisionContext = {
+      phase: "bounded_revision_before_holdout",
+      round,
+      maximumRounds,
+      brief: run.brief,
+      objections: review.output.objections,
+      revisionRequests: requests,
+      instruction: "只能在 DSL V2 白名单和原候选家族内修订，不得扩大风险边界，不得使用或猜测最终留出集。",
+    };
+    const [revisionA, revisionB] = await Promise.all([
+      agentCall(database, "proposal_a", { ...revisionContext, maximumCandidates: priorA.length, priorCandidates: priorA.map(item => ({ key: item.key, family: item.strategyFamily, dsl: item.dsl })) }),
+      agentCall(database, "proposal_b", { ...revisionContext, maximumCandidates: priorB.length, priorCandidates: priorB.map(item => ({ key: item.key, family: item.strategyFamily, dsl: item.dsl })) }),
+    ]);
+    const replacements = [
+      { prior: priorA, role: "proposal_a", output: revisionA.output.candidates as Array<{ strategyFamily: string; dsl: StrategyDslV2 }> },
+      { prior: priorB, role: "proposal_b", output: revisionB.output.candidates as Array<{ strategyFamily: string; dsl: StrategyDslV2 }> },
+    ] as const;
+    for (const group of replacements) {
+      for (let index = 0; index < group.prior.length; index += 1) {
+        const replacement = group.output[index];
+        if (!replacement) continue;
+        await upsertResearchCandidate(database, {
+          runId: run.id,
+          key: group.prior[index].key,
+          strategyFamily: replacement.strategyFamily,
+          sourceRole: group.role,
+          dsl: replacement.dsl,
+        });
+      }
+    }
+    record.revised = true;
+    record.revisionModels = [revisionA.modelName, revisionB.modelName];
+    candidates = (await loadInternalCandidates(database, run.id)).filter(item => item.status !== "rejected");
+    record.candidateCount = candidates.length;
+    await appendResearchEvent(database, {
+      runId: run.id,
+      role: "proposal_team",
+      type: "bounded_revision",
+      title: `候选策略第 ${round} 轮有限修订完成`,
+      content: {
+        models: [revisionA.modelName, revisionB.modelName],
+        candidateCount: candidates.length,
+        revisionRequestCount: requests.length,
+      },
+    });
+  }
+
+  const artifact = { complete: true, maximumRounds, completedRounds: rounds.length, rounds };
+  await patchResearchRunResult(database, {
+    runId: run.id,
+    workerId,
+    patch: { preflightRevisions: artifact },
+  });
+  return artifact;
 }
 
 async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: string) {
@@ -258,6 +382,26 @@ async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: 
         metrics: persistedMetrics(stressResult), dataQuality: quality as unknown as Record<string, unknown>,
         passed: stressResult.maxDrawdownPct <= best.dsl.risk.maxDrawdownPct,
       });
+      if (run.mode === "deep") {
+        const seed = [...candidate.id].reduce((value, character) => (value * 31 + character.charCodeAt(0)) >>> 0, 17);
+        const resampling = resampleTradeSequence({
+          trades: holdoutResult.trades,
+          initialEquityUsdt: 10_000,
+          iterations: 1_000,
+          seed,
+        });
+        await saveResearchEvaluation(database, {
+          runId: run.id,
+          candidateId: candidate.id,
+          kind: "trade_sequence_resample",
+          windowIndex: 0,
+          periodStart: new Date(finalCandles[0].openTime),
+          periodEnd: new Date(finalCandles.at(-1)!.closeTime),
+          metrics: resampling as unknown as Record<string, unknown>,
+          dataQuality: quality as unknown as Record<string, unknown>,
+          passed: resampling.p95MaxDrawdownPct <= best.dsl.risk.maxDrawdownPct,
+        });
+      }
     }
     const admission = evaluateCandidateAdmission({
       mode: run.mode,
@@ -282,14 +426,14 @@ async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: 
 export async function processResearchStage(database: Pool, run: ResearchLease, workerId: string) {
   const missing = await missingAgentRoles(database);
   if (missing.length) {
-    await pauseResearchRunForMissingRoles(database, { runId: run.id, missingRoles: missing });
+    await pauseResearchRunForMissingRoles(database, { runId: run.id, missingRoles: missing, workerId });
     return;
   }
   try {
     if (run.stage === "requirements") {
-      const response = await agentCall(database, "requirements", { requestedBrief: run.brief });
+      const response = await reservedAgentCall(database, run, workerId, "requirements", { requestedBrief: run.brief });
       await persistAndAdvance(database, run, workerId, {
-        patch: { requirements: response.output }, modelCalls: 1, role: "requirements",
+        patch: { requirements: response.output }, role: "requirements",
         title: "需求已结构化", content: { modelName: response.modelName, conclusion: response.output.conclusion, missingFields: response.output.missingFields },
       });
       return;
@@ -327,9 +471,9 @@ export async function processResearchStage(database: Pool, run: ResearchLease, w
       return;
     }
     if (run.stage === "regime_analysis") {
-      const response = await agentCall(database, "market_regime", { brief: run.brief, marketData: run.result?.dataLoading });
+      const response = await reservedAgentCall(database, run, workerId, "market_regime", { brief: run.brief, marketData: run.result?.dataLoading });
       await persistAndAdvance(database, run, workerId, {
-        patch: { marketRegime: response.output }, modelCalls: 1, role: "market_regime",
+        patch: { marketRegime: response.output }, role: "market_regime",
         title: "市场状态分段完成", content: { modelName: response.modelName, conclusion: response.output.conclusion, regimes: response.output.regimes },
       });
       return;
@@ -337,6 +481,7 @@ export async function processResearchStage(database: Pool, run: ResearchLease, w
     if (run.stage === "proposing") {
       const total = run.candidateBudget - 1;
       const context = { brief: run.brief, requirements: run.result?.requirements, marketRegime: run.result?.marketRegime, maximumCandidates: Math.ceil(total / 2) };
+      await reserveResearchModelCalls(database, { runId: run.id, workerId, count: 2 });
       const [proposalA, proposalB] = await Promise.all([
         agentCall(database, "proposal_a", context),
         agentCall(database, "proposal_b", { ...context, maximumCandidates: Math.floor(total / 2) }),
@@ -353,7 +498,7 @@ export async function processResearchStage(database: Pool, run: ResearchLease, w
       await upsertResearchCandidate(database, { runId: run.id, key: "deterministic-baseline", strategyFamily: "EMA 趋势基准", sourceRole: "deterministic_baseline", dsl: deterministicBaseline(run) });
       await persistAndAdvance(database, run, workerId, {
         patch: { proposals: { proposalA: proposalA.output.conclusion, proposalB: proposalB.output.conclusion, candidateCount: proposals.length + 1 } },
-        modelCalls: 2, role: "proposal_team", title: "独立候选策略已生成",
+        role: "proposal_team", title: "独立候选策略已生成",
         content: { models: [proposalA.modelName, proposalB.modelName], candidateCount: proposals.length + 1, includesDeterministicBaseline: true },
       });
       return;
@@ -370,7 +515,8 @@ export async function processResearchStage(database: Pool, run: ResearchLease, w
         }
       }
       if (!valid) throw new Error("所有候选均未通过 DSL V2 校验");
-      await persistAndAdvance(database, run, workerId, { patch: { dslValidation: { valid, total: candidates.length } }, role: "dsl_validator", title: "DSL 白名单校验完成", content: { valid, rejected: candidates.length - valid } });
+      const revisions = await runPreflightRevisions(database, run, workerId);
+      await persistAndAdvance(database, run, workerId, { patch: { dslValidation: { valid, total: candidates.length } }, role: "dsl_validator", title: "DSL 白名单校验与有限修订完成", content: { valid, rejected: candidates.length - valid, revisionRounds: revisions.completedRounds } });
       return;
     }
     if (run.stage === "optimizing") {
@@ -380,14 +526,14 @@ export async function processResearchStage(database: Pool, run: ResearchLease, w
     }
     if (run.stage === "adversarial_review") {
       const candidates = await loadInternalCandidates(database, run.id);
-      const response = await agentCall(database, "adversarial_review", { candidates: candidates.map(item => ({ id: item.id, family: item.strategyFamily, score: item.score, label: item.validationLabel, reasons: item.rejectionReasons })) });
-      await persistAndAdvance(database, run, workerId, { patch: { adversarialReview: response.output }, modelCalls: 1, role: "adversarial_review", title: "反方审查完成", content: { modelName: response.modelName, conclusion: response.output.conclusion, objections: response.output.objections, revisionRequests: response.output.revisionRequests } });
+      const response = await reservedAgentCall(database, run, workerId, "adversarial_review", { phase: "final_audit_after_bounded_revisions", instruction: "有限修订阶段已经结束；本阶段只记录残余异议和失败原因，不再修改候选或确定性指标。", candidates: candidates.map(item => ({ id: item.id, family: item.strategyFamily, score: item.score, label: item.validationLabel, reasons: item.rejectionReasons })) });
+      await persistAndAdvance(database, run, workerId, { patch: { adversarialReview: response.output }, role: "adversarial_review", title: "反方审查完成", content: { modelName: response.modelName, conclusion: response.output.conclusion, objections: response.output.objections, revisionRequests: response.output.revisionRequests } });
       return;
     }
     if (run.stage === "risk_review") {
       const candidates = await loadInternalCandidates(database, run.id);
-      const response = await agentCall(database, "risk_review", { brief: run.brief, candidates: candidates.map(item => ({ id: item.id, score: item.score, label: item.validationLabel, reasons: item.rejectionReasons })), adversarialReview: run.result?.adversarialReview });
-      await persistAndAdvance(database, run, workerId, { patch: { riskReview: response.output }, modelCalls: 1, role: "risk_review", title: "风险审核完成", content: { modelName: response.modelName, conclusion: response.output.conclusion, vetoReasons: response.output.vetoReasons, boundaries: response.output.boundaries } });
+      const response = await reservedAgentCall(database, run, workerId, "risk_review", { brief: run.brief, candidates: candidates.map(item => ({ id: item.id, score: item.score, label: item.validationLabel, reasons: item.rejectionReasons })), adversarialReview: run.result?.adversarialReview });
+      await persistAndAdvance(database, run, workerId, { patch: { riskReview: response.output }, role: "risk_review", title: "风险审核完成", content: { modelName: response.modelName, conclusion: response.output.conclusion, vetoReasons: response.output.vetoReasons, boundaries: response.output.boundaries } });
       return;
     }
     if (run.stage === "ranking") {
@@ -401,7 +547,7 @@ export async function processResearchStage(database: Pool, run: ResearchLease, w
       const candidates = await loadInternalCandidates(database, run.id);
       const top = candidates.filter(item => item.rank != null).sort((a, b) => a.rank! - b.rank!).slice(0, 3);
       const qualified = top.some(item => item.validationLabel === "STANDARD_VERIFIED");
-      const response = await agentCall(database, "report", { conclusion: qualified ? "QUALIFIED" : "NOT_QUALIFIED", candidates: top.map(item => ({ id: item.id, rank: item.rank, family: item.strategyFamily, score: item.score, label: item.validationLabel, failureReasons: item.rejectionReasons })), riskReview: run.result?.riskReview, adversarialReview: run.result?.adversarialReview });
+      const response = await reservedAgentCall(database, run, workerId, "report", { conclusion: qualified ? "QUALIFIED" : "NOT_QUALIFIED", candidates: top.map(item => ({ id: item.id, rank: item.rank, family: item.strategyFamily, score: item.score, label: item.validationLabel, failureReasons: item.rejectionReasons })), riskReview: run.result?.riskReview, adversarialReview: run.result?.adversarialReview });
       await completeResearchRun(database, {
         runId: run.id, workerId, conclusion: qualified ? "QUALIFIED" : "NOT_QUALIFIED",
         result: { report: response.output, reportModelName: response.modelName },

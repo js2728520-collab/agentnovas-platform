@@ -17,6 +17,7 @@ import {
   getOwnedCandidateForSave,
   loadInternalCandidates,
   markCandidateSaved,
+  reserveResearchModelCalls,
   upsertResearchCandidate,
 } from "../lib/research-repository.ts";
 
@@ -146,6 +147,23 @@ test("requeues every non-cancelled run paused for missing roles", async () => {
   assert.deepEqual(resumed.map((run) => run.id), [resumable.id]);
   assert.equal(resumed[0].status, "queued");
   assert.equal(resumed[0].lastErrorCode, null);
+  const events = await pool.query("SELECT event_type FROM strategy_agent_events WHERE run_id = $1 ORDER BY sequence", [resumable.id]);
+  assert.deepEqual(events.rows.map(row => row.event_type), ["paused", "resumed"]);
+});
+
+test("does not let a stale worker pause a run owned by another lease", async () => {
+  const run = await createResearchRun(pool, runInput());
+  const now = new Date("2026-08-18T11:20:00.000Z");
+  await leaseNextResearchRun(pool, { workerId: "worker-current", now, leaseSeconds: 30 });
+
+  await assert.rejects(
+    pauseResearchRunForMissingRoles(pool, {
+      runId: run.id,
+      missingRoles: ["report"],
+      workerId: "worker-stale",
+    }),
+    /租约已失效/,
+  );
 });
 
 test("appends public events with a transactionally increasing sequence", async () => {
@@ -208,6 +226,24 @@ test("advances one fixed stage only for the active lease owner", async () => {
   assert.equal(advanced.run.status, "queued");
   assert.equal(advanced.run.progress, 15);
   assert.equal(advanced.event.sequence, 1);
+});
+
+test("reserves model calls atomically and rejects calls beyond the run budget", async () => {
+  const run = await createResearchRun(pool, runInput({ mode: "quick" }));
+  assert.equal(run.modelCallBudget, 10);
+  const now = new Date("2026-08-18T12:30:00.000Z");
+  await leaseNextResearchRun(pool, { workerId: "worker-budget", now, leaseSeconds: 30 });
+
+  const reserved = await reserveResearchModelCalls(pool, {
+    runId: run.id,
+    workerId: "worker-budget",
+    count: 10,
+  });
+  assert.equal(reserved.model_calls_used, 10);
+  await assert.rejects(
+    reserveResearchModelCalls(pool, { runId: run.id, workerId: "worker-budget" }),
+    /预算已耗尽/,
+  );
 });
 
 test("stores candidates idempotently and enforces tenant ownership when saving", async () => {

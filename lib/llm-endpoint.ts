@@ -1,5 +1,6 @@
 export function privateNetworkHost(hostname: string) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host.startsWith("::ffff:")) return privateNetworkHost(host.slice("::ffff:".length));
   if (
     host === "localhost"
     || host === "0.0.0.0"

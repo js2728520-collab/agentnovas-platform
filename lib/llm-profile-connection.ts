@@ -19,6 +19,14 @@ async function assertPublicDns(hostname: string, resolver: (hostname: string) =>
   }
 }
 
+export async function assertPublicLlmEndpoint(
+  endpoint: string,
+  resolver?: (hostname: string) => Promise<LookupAddress[]>,
+) {
+  const target = new URL(endpoint);
+  await assertPublicDns(target.hostname, resolver);
+}
+
 export async function testAgentRoleConnection(database: Queryable, options: {
   role: string;
   fetchImpl?: typeof fetch;
@@ -27,8 +35,7 @@ export async function testAgentRoleConnection(database: Queryable, options: {
 }) {
   const config = await resolveAgentRoleConfig(database, options.role);
   if (!config) throw new Error("该角色尚未绑定可用模型");
-  const target = new URL(config.endpoint);
-  await assertPublicDns(target.hostname, options.resolver);
+  await assertPublicLlmEndpoint(config.endpoint, options.resolver);
 
   const controller = new AbortController();
   const timeoutMs = Math.min(Math.max(options.timeoutMs ?? 12_000, 1_000), 30_000);
