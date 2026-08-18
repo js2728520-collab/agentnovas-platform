@@ -1,0 +1,59 @@
+name: Strategy research verification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      INTEGRATION_CREDENTIAL_ENCRYPTION_KEY: ci-only-encryption-key-with-32-characters
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run postgres:migrate
+      - run: >-
+          node --test --experimental-strip-types
+          tests/d1-postgres-migration.test.mjs
+          tests/postgres-research-queue.test.mjs
+          tests/agent-model-profiles.test.mjs
+          tests/strategy-dsl-v2.test.mjs
+          tests/perpetual-backtest.test.mjs
+          tests/perpetual-market-adapters.test.mjs
+          tests/research-agent.test.mjs
+          tests/research-validation.test.mjs
+      - run: >-
+          npx eslint
+          lib/d1-postgres-migration.ts
+          lib/postgres-research-queue.ts
+          lib/agent-model-profiles.ts
+          lib/strategy-dsl.ts
+          lib/backtest-engine.ts
+          lib/perpetual-market-adapters.ts
+          lib/research-agent.ts
+          lib/research-validation.ts
+          lib/strategy-research-orchestrator.ts
+          app/multi-agent-research.tsx
+          app/agent-role-admin.tsx
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=critical
