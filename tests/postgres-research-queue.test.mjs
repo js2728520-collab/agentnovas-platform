@@ -11,6 +11,12 @@ import {
   leaseNextResearchRun,
   requestResearchRunCancellation,
 } from "../lib/postgres-research-queue.ts";
+import {
+  getOwnedCandidateForSave,
+  loadInternalCandidates,
+  markCandidateSaved,
+  upsertResearchCandidate,
+} from "../lib/research-repository.ts";
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
@@ -179,4 +185,33 @@ test("advances one fixed stage only for the active lease owner", async () => {
   assert.equal(advanced.run.status, "queued");
   assert.equal(advanced.run.progress, 15);
   assert.equal(advanced.event.sequence, 1);
+});
+
+test("stores candidates idempotently and enforces tenant ownership when saving", async () => {
+  const run = await createResearchRun(pool, runInput());
+  const dsl = {
+    schemaVersion: 2,
+    name: "候选",
+    market: "usdt_perpetual",
+    marginMode: "isolated",
+    leverage: 1,
+    symbol: "BTCUSDT",
+    timeframe: "1h",
+    direction: "long_only",
+    legs: { long: { entry: { all: [{ type: "ema_cross", fastPeriod: 10, slowPeriod: 30, direction: "bullish" }] }, exit: { any: [] }, stopLossPct: 2, takeProfitPct: 4 } },
+    risk: { positionSizePct: 10, maxDrawdownPct: 12, maxDailyLossPct: 5, maxConsecutiveLosses: 4 },
+  };
+  const firstId = await upsertResearchCandidate(pool, { runId: run.id, key: "proposal-a-1", strategyFamily: "趋势", sourceRole: "proposal_a", dsl });
+  const repeatedId = await upsertResearchCandidate(pool, { runId: run.id, key: "proposal-a-1", strategyFamily: "趋势修订", sourceRole: "proposal_a", dsl: { ...dsl, name: "候选修订" } });
+  const candidates = await loadInternalCandidates(pool, run.id);
+
+  assert.equal(firstId, repeatedId);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].dsl.name, "候选修订");
+  assert.equal(await getOwnedCandidateForSave(pool, { runId: run.id, candidateId: firstId, ownerUserId: "other-user" }), null);
+  const owned = await getOwnedCandidateForSave(pool, { runId: run.id, candidateId: firstId, ownerUserId: "user-a" });
+  assert.equal(owned.id, firstId);
+  assert.equal(await markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-a" }), "strategy-a");
+  assert.equal(await markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-a" }), "strategy-a");
+  await assert.rejects(markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-b" }), /其他策略/);
 });

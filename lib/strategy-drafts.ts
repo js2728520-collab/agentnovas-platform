@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, communityStrategies, strategyVersions } from "@/db/schema";
-import { normalizeStrategyDsl, type StrategyDsl } from "@/lib/strategy-dsl";
+import { normalizeResearchStrategyDsl, type ResearchStrategyDsl } from "@/lib/strategy-dsl";
 
 type StrategyDraftSource = "manual" | "ai_provider" | "guided_rules";
 
@@ -13,14 +13,17 @@ export async function createStrategyDraft(options: {
   summary: string;
   riskLevel: "low" | "medium" | "high";
   publicationMode: "marketplace" | "self_use";
-  specification: StrategyDsl;
+  specification: ResearchStrategyDsl;
   conversationId: string | null;
   source: StrategyDraftSource;
   sourceMessageId?: string;
   conversionWarnings?: string[];
+  validationLabel?: "UNVERIFIED" | "EXPLORATION_ONLY" | "STANDARD_FAILED" | "STANDARD_VERIFIED";
+  researchRunId?: string;
+  researchCandidateId?: string;
 }) {
   const db = getDb();
-  const specification = normalizeStrategyDsl(options.specification);
+  const specification = normalizeResearchStrategyDsl(options.specification);
   const id = options.id || crypto.randomUUID();
 
   if (options.id) {
@@ -48,6 +51,9 @@ export async function createStrategyDraft(options: {
       symbolsJson: JSON.stringify(symbols),
       riskLevel: options.riskLevel,
       publicationMode: options.publicationMode,
+      validationLabel: options.validationLabel ?? "UNVERIFIED",
+      researchRunId: options.researchRunId ?? null,
+      researchCandidateId: options.researchCandidateId ?? null,
       conversationJson: "[]",
       specificationJson,
     }),

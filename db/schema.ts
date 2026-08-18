@@ -295,6 +295,9 @@ export const communityStrategies = sqliteTable("community_strategies", {
   riskLevel: text("risk_level", { enum: ["low", "medium", "high"] }).notNull().default("medium"),
   status: text("status", { enum: ["draft", "testing", "submitted", "approved", "rejected", "published", "paused"] }).notNull().default("draft"),
   publicationMode: text("publication_mode", { enum: ["marketplace", "self_use"] }).notNull().default("marketplace"),
+  validationLabel: text("validation_label", { enum: ["UNVERIFIED", "EXPLORATION_ONLY", "STANDARD_FAILED", "STANDARD_VERIFIED"] }).notNull().default("UNVERIFIED"),
+  researchRunId: text("research_run_id"),
+  researchCandidateId: text("research_candidate_id"),
   conversationJson: text("conversation_json").notNull().default("[]"),
   specificationJson: text("specification_json").notNull().default("{}"),
   version: integer("version").notNull().default(1),
@@ -302,7 +305,7 @@ export const communityStrategies = sqliteTable("community_strategies", {
   rejectionReason: text("rejection_reason"),
   featuredRank: integer("featured_rank"), rankingScore: real("ranking_score").notNull().default(0),
   ...timestamps,
-}, (t) => [index("idx_community_strategies_status").on(t.status, t.publishedAt), index("idx_community_strategies_author").on(t.authorUserId, t.createdAt), uniqueIndex("idx_community_strategies_featured_unique").on(t.featuredRank), index("idx_community_strategies_ranking").on(t.status,t.rankingScore)]);
+}, (t) => [index("idx_community_strategies_status").on(t.status, t.publishedAt), index("idx_community_strategies_author").on(t.authorUserId, t.createdAt), uniqueIndex("idx_community_strategies_featured_unique").on(t.featuredRank), uniqueIndex("idx_community_strategies_research_candidate_unique").on(t.researchCandidateId), index("idx_community_strategies_ranking").on(t.status,t.rankingScore)]);
 
 export const strategyVersions = sqliteTable("strategy_versions", {
   id: text("id").primaryKey(),

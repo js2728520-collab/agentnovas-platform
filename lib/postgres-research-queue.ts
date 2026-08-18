@@ -147,6 +147,42 @@ export async function listResearchCandidates(database: Queryable, input: {
   }));
 }
 
+export async function listResearchEvaluations(database: Queryable, input: {
+  runId: string;
+  ownerUserId: string;
+}) {
+  const result = await database.query<{
+    id: string;
+    candidate_id: string;
+    evaluation_kind: string;
+    window_index: number;
+    period_start: Date;
+    period_end: Date;
+    metrics_json: Record<string, unknown>;
+    data_quality_json: Record<string, unknown>;
+    passed: boolean;
+    is_final_holdout: boolean;
+  }>(`
+    SELECT evaluation.*
+    FROM strategy_evaluations AS evaluation
+    JOIN strategy_research_runs AS run ON run.id = evaluation.run_id
+    WHERE evaluation.run_id = $1 AND run.owner_user_id = $2
+    ORDER BY evaluation.candidate_id, evaluation.evaluation_kind, evaluation.window_index
+  `, [input.runId, input.ownerUserId]);
+  return result.rows.map(row => ({
+    id: row.id,
+    candidateId: row.candidate_id,
+    kind: row.evaluation_kind,
+    windowIndex: row.window_index,
+    periodStart: row.period_start,
+    periodEnd: row.period_end,
+    metrics: row.metrics_json,
+    dataQuality: row.data_quality_json,
+    passed: row.passed,
+    finalHoldout: row.is_final_holdout,
+  }));
+}
+
 export async function pauseResearchRunForMissingRoles(database: Queryable, input: {
   runId: string;
   missingRoles: string[];
@@ -251,6 +287,27 @@ export async function leaseNextResearchRun(database: Queryable, input: {
   return result.rows[0] ? runFromRow(result.rows[0]) : null;
 }
 
+export async function renewResearchRunLease(database: Queryable, input: {
+  runId: string;
+  workerId: string;
+  now: Date;
+  leaseSeconds: number;
+}) {
+  if (!Number.isInteger(input.leaseSeconds) || input.leaseSeconds < 5 || input.leaseSeconds > 300) {
+    throw new Error("任务租约必须在 5 到 300 秒之间");
+  }
+  const expiresAt = new Date(input.now.getTime() + input.leaseSeconds * 1_000);
+  const result = await database.query(`
+    UPDATE strategy_research_runs
+    SET lease_expires_at = $3, updated_at = $4
+    WHERE id = $1 AND lease_owner = $2 AND status = 'running'
+      AND cancel_requested_at IS NULL AND lease_expires_at >= $4
+    RETURNING id
+  `, [input.runId, input.workerId, expiresAt, input.now]);
+  if (!result.rows[0]) throw new Error("任务租约已失效或任务已取消");
+  return expiresAt;
+}
+
 export async function requestResearchRunCancellation(database: Queryable, input: {
   runId: string;
   ownerUserId: string;
@@ -276,7 +333,7 @@ export async function requestResearchRunCancellation(database: Queryable, input:
 }
 
 async function poolClient(database: Pool | PoolClient): Promise<{ client: PoolClient; release: boolean }> {
-  if ("connect" in database) return { client: await database.connect(), release: true };
+  if ("totalCount" in database) return { client: await database.connect(), release: true };
   return { client: database as PoolClient, release: false };
 }
 

@@ -25,6 +25,7 @@ import migration0021 from "@/drizzle/0021_platform_ai_strategies.sql?raw";
 import migration0022 from "@/drizzle/0022_market_watchlist.sql?raw";
 import migration0023 from "@/drizzle/0023_ai_assistant_strategy_dsl.sql?raw";
 import migration0024 from "@/drizzle/0024_strategy_version_restore.sql?raw";
+import migration0025 from "@/drizzle/0025_strategy_research_validation.sql?raw";
 
 const migrations = [
   ["0000_small_dreadnoughts", migration0000],
@@ -52,6 +53,7 @@ const migrations = [
   ["0022_market_watchlist", migration0022],
   ["0023_ai_assistant_strategy_dsl", migration0023],
   ["0024_strategy_version_restore", migration0024],
+  ["0025_strategy_research_validation", migration0025],
 ] as const;
 
 function statements(sql: string) {
