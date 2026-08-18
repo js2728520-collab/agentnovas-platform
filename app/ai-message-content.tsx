@@ -71,10 +71,10 @@ export function AiMessageContent({ content, streaming = false, autoPrompt = fals
         </details>)}
       </div>
     </section>)}
-    {onAnswer && presentation.questions.length > 0 && <aside className="ai-message-question-cta">
+    {onAnswer && presentation.questions.length > 0 && <div aria-label="待确认问题" className="ai-message-question-cta" role="group">
       <div><strong>有 {presentation.questions.length} 项需要确认</strong><span>默认已选择推荐项，也可以自行填写。</span></div>
       <button type="button" onClick={() => setOpen(true)}>回答待确认问题</button>
-    </aside>}
+    </div>}
     {onAnswer && presentation.questions.length > 0 && <dialog
       aria-labelledby={titleId}
       className="ai-answer-dialog"

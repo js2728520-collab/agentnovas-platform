@@ -3512,6 +3512,7 @@ body:has(.membership-plans) .content>.page-head{
 .ai-message-question-cta>div{display:grid;gap:3px}.ai-message-question-cta strong{color:#d6e9fa;font-size:11px}.ai-message-question-cta span{color:#7895ad;font-size:9px}
 .ai-message-question-cta button{flex:0 0 auto;padding:7px 10px;border:1px solid #4b94cf;border-radius:7px;background:#1b5684;color:#eef8ff;font-size:10px;font-weight:700;cursor:pointer}
 .ai-answer-dialog{width:min(680px,calc(100vw - 32px));max-height:min(760px,calc(100vh - 32px));padding:0;overflow:hidden;border:1px solid #385a77;border-radius:14px;background:#0d1722;color:#dce9f5;box-shadow:0 30px 90px rgba(0,0,0,.7)}
+.ai-answer-dialog[open]{position:fixed;left:50%;top:50%;right:auto;bottom:auto;margin:0;transform:translate(-50%,-50%)}
 .ai-answer-dialog::backdrop{background:rgba(2,7,12,.76);backdrop-filter:blur(5px)}
 .ai-answer-dialog>form{display:flex;max-height:min(760px,calc(100vh - 32px));flex-direction:column}
 .ai-answer-dialog>form>header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:20px 22px 16px;border-bottom:1px solid #263c50;background:radial-gradient(circle at 82% 0,rgba(57,139,210,.17),transparent 42%)}

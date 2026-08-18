@@ -36,13 +36,19 @@ test("strategy studio generates a validated server-side DSL without client histo
 });
 
 test("shared AI message UI exposes an accessible confirmation dialog and custom answer", async () => {
-  const content = await source("../app/ai-message-content.tsx");
+  const [content, styles] = await Promise.all([
+    source("../app/ai-message-content.tsx"),
+    source("../app/globals.css"),
+  ]);
 
   assert.match(content, /<dialog/);
   assert.match(content, /<fieldset/);
   assert.match(content, /type="radio"/);
   assert.match(content, /自定义填写/);
   assert.match(content, /确认并发送/);
+  assert.match(content, /<div[^>]*className="ai-message-question-cta"[^>]*>/);
+  assert.doesNotMatch(content, /<aside className="ai-message-question-cta">/);
+  assert.match(styles, /\.ai-answer-dialog\[open\]\{position:fixed;left:50%;top:50%;right:auto;bottom:auto;margin:0;transform:translate\(-50%,-50%\)/);
 });
 
 test("customer AI workspaces expose the private LLM configuration", async () => {
