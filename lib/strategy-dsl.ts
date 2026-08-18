@@ -35,11 +35,36 @@ export type VolumeRatioRule = {
   value: number;
 };
 
+export type AdxThresholdRule = {
+  type: "adx_threshold";
+  period: number;
+  operator: "lte" | "gte";
+  value: number;
+};
+
+export type BollingerBandRule = {
+  type: "bollinger_band";
+  period: number;
+  stdDev: number;
+  band: "upper" | "lower";
+  operator: "above" | "below";
+};
+
+export type AtrVolatilityRule = {
+  type: "atr_volatility";
+  period: number;
+  operator: "lte" | "gte";
+  valuePct: number;
+};
+
 export type StrategyRule =
   | EmaCrossRule
   | RsiThresholdRule
   | ChannelBreakoutRule
-  | VolumeRatioRule;
+  | VolumeRatioRule
+  | AdxThresholdRule
+  | BollingerBandRule
+  | AtrVolatilityRule;
 
 export type StrategyDsl = {
   schemaVersion: 1;
@@ -60,6 +85,36 @@ export type StrategyDsl = {
     consecutiveLossLimit: number;
   };
 };
+
+export type StrategyLegV2 = {
+  entry: { all: StrategyRule[] };
+  exit: { any: StrategyRule[] };
+  stopLossPct: number;
+  takeProfitPct: number;
+};
+
+export type StrategyDslV2 = {
+  schemaVersion: 2;
+  name: string;
+  market: "usdt_perpetual";
+  marginMode: "isolated";
+  leverage: 1;
+  symbol: string;
+  timeframe: string;
+  direction: "long_only" | "short_only" | "both";
+  legs: {
+    long?: StrategyLegV2;
+    short?: StrategyLegV2;
+  };
+  risk: {
+    positionSizePct: number;
+    maxDrawdownPct: number;
+    maxDailyLossPct: number;
+    maxConsecutiveLosses: number;
+  };
+};
+
+export type ResearchStrategyDsl = StrategyDsl | StrategyDslV2;
 
 export type StrategyCandle = {
   openTime: number;
@@ -170,6 +225,31 @@ function normalizeRule(value: unknown, path: string): StrategyRule {
     return { type, period, operator: rule.operator, value: ratio };
   }
 
+  if (type === "adx_threshold") {
+    rejectUnknownKeys(rule, ["type", "period", "operator", "value"], path);
+    const period = numberAt(rule.period, `${path}.period`, 2, 100, true);
+    const threshold = numberAt(rule.value, `${path}.value`, 1, 100);
+    if (rule.operator !== "lte" && rule.operator !== "gte") fail(`${path}.operator`, "必须是 lte 或 gte");
+    return { type, period, operator: rule.operator, value: threshold };
+  }
+
+  if (type === "bollinger_band") {
+    rejectUnknownKeys(rule, ["type", "period", "stdDev", "band", "operator"], path);
+    const period = numberAt(rule.period, `${path}.period`, 2, 200, true);
+    const stdDev = numberAt(rule.stdDev, `${path}.stdDev`, 0.5, 5);
+    if (rule.band !== "upper" && rule.band !== "lower") fail(`${path}.band`, "必须是 upper 或 lower");
+    if (rule.operator !== "above" && rule.operator !== "below") fail(`${path}.operator`, "必须是 above 或 below");
+    return { type, period, stdDev, band: rule.band, operator: rule.operator };
+  }
+
+  if (type === "atr_volatility") {
+    rejectUnknownKeys(rule, ["type", "period", "operator", "valuePct"], path);
+    const period = numberAt(rule.period, `${path}.period`, 2, 100, true);
+    const valuePct = numberAt(rule.valuePct, `${path}.valuePct`, 0.1, 20);
+    if (rule.operator !== "lte" && rule.operator !== "gte") fail(`${path}.operator`, "必须是 lte 或 gte");
+    return { type, period, operator: rule.operator, valuePct };
+  }
+
   fail(`${path}.type`, "不支持的策略规则");
 }
 
@@ -219,6 +299,116 @@ export function normalizeStrategyDsl(input: unknown): StrategyDsl {
   };
 }
 
+function normalizeStrategyLegV2(value: unknown, path: string): StrategyLegV2 {
+  const leg = objectAt(value, path);
+  rejectUnknownKeys(leg, ["entry", "exit", "stopLossPct", "takeProfitPct"], path);
+  const entry = objectAt(leg.entry, `${path}.entry`);
+  rejectUnknownKeys(entry, ["all"], `${path}.entry`);
+  const exit = objectAt(leg.exit, `${path}.exit`);
+  rejectUnknownKeys(exit, ["any"], `${path}.exit`);
+  return {
+    entry: { all: normalizeRules(entry.all, `${path}.entry.all`, 1) },
+    exit: { any: normalizeRules(exit.any, `${path}.exit.any`, 0) },
+    stopLossPct: numberAt(leg.stopLossPct, `${path}.stopLossPct`, 0.1, 20),
+    takeProfitPct: numberAt(leg.takeProfitPct, `${path}.takeProfitPct`, 0.1, 30),
+  };
+}
+
+export function normalizeStrategyDslV2(input: unknown): StrategyDslV2 {
+  const value = objectAt(input, "$ ".trim());
+  rejectUnknownKeys(value, [
+    "schemaVersion", "name", "market", "marginMode", "leverage",
+    "symbol", "timeframe", "direction", "legs", "risk",
+  ]);
+  if (value.schemaVersion !== 2) fail("schemaVersion", "V2 策略版本必须是 2");
+  if (value.market !== "usdt_perpetual") fail("market", "V2 仅支持 usdt_perpetual");
+  if (value.marginMode !== "isolated") fail("marginMode", "V2 仅支持 isolated 逐仓");
+  if (value.leverage !== 1) fail("leverage", "V2 杠杆固定为 1");
+  if (!["long_only", "short_only", "both"].includes(String(value.direction))) {
+    fail("direction", "必须是 long_only、short_only 或 both");
+  }
+
+  const direction = value.direction as StrategyDslV2["direction"];
+  const legsInput = objectAt(value.legs, "legs");
+  rejectUnknownKeys(legsInput, ["long", "short"], "legs");
+  if ((direction === "long_only" || direction === "both") && !legsInput.long) {
+    fail("legs.long", "当前方向必须提供多头腿");
+  }
+  if ((direction === "short_only" || direction === "both") && !legsInput.short) {
+    fail("legs.short", "当前方向必须提供空头腿");
+  }
+  if (direction === "long_only" && legsInput.short !== undefined) fail("legs.short", "long_only 不允许空头腿");
+  if (direction === "short_only" && legsInput.long !== undefined) fail("legs.long", "short_only 不允许多头腿");
+
+  const risk = objectAt(value.risk, "risk");
+  rejectUnknownKeys(risk, [
+    "positionSizePct", "maxDrawdownPct", "maxDailyLossPct", "maxConsecutiveLosses",
+  ], "risk");
+  const maxDrawdownPct = numberAt(risk.maxDrawdownPct, "risk.maxDrawdownPct", 1, 50);
+  const legs: StrategyDslV2["legs"] = {};
+  if (legsInput.long !== undefined) legs.long = normalizeStrategyLegV2(legsInput.long, "legs.long");
+  if (legsInput.short !== undefined) legs.short = normalizeStrategyLegV2(legsInput.short, "legs.short");
+  for (const [side, leg] of Object.entries(legs)) {
+    if (leg.stopLossPct >= maxDrawdownPct) {
+      fail(`legs.${side}.stopLossPct`, "单笔止损必须小于最大回撤限制");
+    }
+  }
+
+  return {
+    schemaVersion: 2,
+    name: stringAt(value.name, "name", 80),
+    market: "usdt_perpetual",
+    marginMode: "isolated",
+    leverage: 1,
+    symbol: normalizeSymbol(value.symbol),
+    timeframe: normalizeTimeframe(value.timeframe),
+    direction,
+    legs,
+    risk: {
+      positionSizePct: numberAt(risk.positionSizePct, "risk.positionSizePct", 0.1, 30, false, "单次资金占比"),
+      maxDrawdownPct,
+      maxDailyLossPct: numberAt(risk.maxDailyLossPct, "risk.maxDailyLossPct", 0.5, 20),
+      maxConsecutiveLosses: numberAt(risk.maxConsecutiveLosses, "risk.maxConsecutiveLosses", 1, 10, true),
+    },
+  };
+}
+
+export function normalizeResearchStrategyDsl(input: unknown): ResearchStrategyDsl {
+  if (!isRecord(input)) fail("$", "必须是对象");
+  if (input.schemaVersion === 1) return normalizeStrategyDsl(input);
+  if (input.schemaVersion === 2) return normalizeStrategyDslV2(input);
+  fail("schemaVersion", "当前只支持版本 1 或 2");
+}
+
+export function strategyDslToRuntime(input: unknown): StrategyDslV2 {
+  const normalized = normalizeResearchStrategyDsl(input);
+  if (normalized.schemaVersion === 2) return normalized;
+  return {
+    schemaVersion: 2,
+    name: normalized.name,
+    market: "usdt_perpetual",
+    marginMode: "isolated",
+    leverage: 1,
+    symbol: normalized.symbol,
+    timeframe: normalized.timeframe,
+    direction: "long_only",
+    legs: {
+      long: {
+        entry: normalized.entry,
+        exit: { any: normalized.exit.any },
+        stopLossPct: normalized.exit.stopLossPct,
+        takeProfitPct: normalized.exit.takeProfitPct,
+      },
+    },
+    risk: {
+      positionSizePct: normalized.risk.positionPct,
+      maxDrawdownPct: normalized.risk.maxDrawdownPct,
+      maxDailyLossPct: normalized.risk.dailyLossLimitPct,
+      maxConsecutiveLosses: normalized.risk.consecutiveLossLimit,
+    },
+  };
+}
+
 function ema(values: number[], period: number) {
   const result = Array(values.length).fill(Number.NaN) as number[];
   if (values.length < period) return result;
@@ -254,6 +444,67 @@ function rsi(values: number[], period: number) {
   return result;
 }
 
+function atr(candles: StrategyCandle[], period: number) {
+  const result = Array(candles.length).fill(Number.NaN) as number[];
+  if (candles.length <= period) return result;
+  const ranges = candles.map((candle, index) => index === 0
+    ? candle.high - candle.low
+    : Math.max(
+      candle.high - candle.low,
+      Math.abs(candle.high - candles[index - 1].close),
+      Math.abs(candle.low - candles[index - 1].close),
+    ));
+  let current = ranges.slice(1, period + 1).reduce((sum, value) => sum + value, 0) / period;
+  result[period] = current;
+  for (let index = period + 1; index < candles.length; index += 1) {
+    current = (current * (period - 1) + ranges[index]) / period;
+    result[index] = current;
+  }
+  return result;
+}
+
+function adx(candles: StrategyCandle[], period: number) {
+  const result = Array(candles.length).fill(Number.NaN) as number[];
+  if (candles.length <= period * 2) return result;
+  const trueRanges = Array(candles.length).fill(0) as number[];
+  const positiveDm = Array(candles.length).fill(0) as number[];
+  const negativeDm = Array(candles.length).fill(0) as number[];
+  for (let index = 1; index < candles.length; index += 1) {
+    const up = candles[index].high - candles[index - 1].high;
+    const down = candles[index - 1].low - candles[index].low;
+    positiveDm[index] = up > down && up > 0 ? up : 0;
+    negativeDm[index] = down > up && down > 0 ? down : 0;
+    trueRanges[index] = Math.max(
+      candles[index].high - candles[index].low,
+      Math.abs(candles[index].high - candles[index - 1].close),
+      Math.abs(candles[index].low - candles[index - 1].close),
+    );
+  }
+  let smoothedTr = trueRanges.slice(1, period + 1).reduce((sum, value) => sum + value, 0);
+  let smoothedPositive = positiveDm.slice(1, period + 1).reduce((sum, value) => sum + value, 0);
+  let smoothedNegative = negativeDm.slice(1, period + 1).reduce((sum, value) => sum + value, 0);
+  const dx = Array(candles.length).fill(Number.NaN) as number[];
+  for (let index = period; index < candles.length; index += 1) {
+    if (index > period) {
+      smoothedTr = smoothedTr - smoothedTr / period + trueRanges[index];
+      smoothedPositive = smoothedPositive - smoothedPositive / period + positiveDm[index];
+      smoothedNegative = smoothedNegative - smoothedNegative / period + negativeDm[index];
+    }
+    const plusDi = smoothedTr ? smoothedPositive / smoothedTr * 100 : 0;
+    const minusDi = smoothedTr ? smoothedNegative / smoothedTr * 100 : 0;
+    const denominator = plusDi + minusDi;
+    dx[index] = denominator ? Math.abs(plusDi - minusDi) / denominator * 100 : 0;
+  }
+  const firstIndex = period * 2 - 1;
+  let current = dx.slice(period, firstIndex + 1).reduce((sum, value) => sum + value, 0) / period;
+  result[firstIndex] = current;
+  for (let index = firstIndex + 1; index < candles.length; index += 1) {
+    current = (current * (period - 1) + dx[index]) / period;
+    result[index] = current;
+  }
+  return result;
+}
+
 function compare(value: number, operator: "lte" | "gte", threshold: number) {
   return operator === "gte" ? value >= threshold : value <= threshold;
 }
@@ -263,6 +514,8 @@ export function createStrategyEvaluator(dsl: StrategyDsl, candles: StrategyCandl
   const volumes = candles.map((candle) => candle.volume);
   const emaCache = new Map<number, number[]>();
   const rsiCache = new Map<number, number[]>();
+  const atrCache = new Map<number, number[]>();
+  const adxCache = new Map<number, number[]>();
   const emaFor = (period: number) => {
     if (!emaCache.has(period)) emaCache.set(period, ema(closes, period));
     return emaCache.get(period)!;
@@ -270,6 +523,14 @@ export function createStrategyEvaluator(dsl: StrategyDsl, candles: StrategyCandl
   const rsiFor = (period: number) => {
     if (!rsiCache.has(period)) rsiCache.set(period, rsi(closes, period));
     return rsiCache.get(period)!;
+  };
+  const atrFor = (period: number) => {
+    if (!atrCache.has(period)) atrCache.set(period, atr(candles, period));
+    return atrCache.get(period)!;
+  };
+  const adxFor = (period: number) => {
+    if (!adxCache.has(period)) adxCache.set(period, adx(candles, period));
+    return adxCache.get(period)!;
   };
 
   function condition(rule: StrategyRule, index: number) {
@@ -293,6 +554,23 @@ export function createStrategyEvaluator(dsl: StrategyDsl, candles: StrategyCandl
         ? candles[index].close > Math.max(...previous.map((candle) => candle.high))
         : candles[index].close < Math.min(...previous.map((candle) => candle.low));
     }
+    if (rule.type === "adx_threshold") {
+      const value = adxFor(rule.period)[index];
+      return Number.isFinite(value) && compare(value, rule.operator, rule.value);
+    }
+    if (rule.type === "bollinger_band") {
+      if (index + 1 < rule.period) return false;
+      const values = closes.slice(index - rule.period + 1, index + 1);
+      const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+      const deviation = Math.sqrt(values.reduce((sum, value) => sum + (value - average) ** 2, 0) / values.length);
+      const band = rule.band === "upper" ? average + deviation * rule.stdDev : average - deviation * rule.stdDev;
+      return rule.operator === "above" ? closes[index] > band : closes[index] < band;
+    }
+    if (rule.type === "atr_volatility") {
+      const value = atrFor(rule.period)[index];
+      const percentage = closes[index] > 0 ? value / closes[index] * 100 : Number.NaN;
+      return Number.isFinite(percentage) && compare(percentage, rule.operator, rule.valuePct);
+    }
     if (index < rule.period) return false;
     const average = volumes.slice(index - rule.period, index).reduce((sum, volume) => sum + volume, 0) / rule.period;
     if (!Number.isFinite(average) || average <= 0) return false;
@@ -307,6 +585,28 @@ export function createStrategyEvaluator(dsl: StrategyDsl, candles: StrategyCandl
       return dsl.exit.any.some((rule) => condition(rule, index));
     },
   };
+}
+
+export function createStrategyLegEvaluator(leg: StrategyLegV2, candles: StrategyCandle[]) {
+  return createStrategyEvaluator({
+    schemaVersion: 1,
+    name: "runtime-leg",
+    symbol: "BTCUSDT",
+    timeframe: "1h",
+    side: "long_only",
+    entry: leg.entry,
+    exit: {
+      any: leg.exit.any,
+      stopLossPct: leg.stopLossPct,
+      takeProfitPct: leg.takeProfitPct,
+    },
+    risk: {
+      positionPct: 1,
+      maxDrawdownPct: 50,
+      dailyLossLimitPct: 20,
+      consecutiveLossLimit: 10,
+    },
+  }, candles);
 }
 
 export function evaluateStrategyEntryAt(dsl: StrategyDsl, candles: StrategyCandle[], index: number) {

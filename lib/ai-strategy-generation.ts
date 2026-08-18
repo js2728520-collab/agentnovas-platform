@@ -105,7 +105,10 @@ function ruleLabel(rule: StrategyRule) {
   if (rule.type === "ema_cross") return `EMA${rule.fastPeriod}/${rule.slowPeriod} ${rule.direction === "bullish" ? "金叉" : "死叉"}`;
   if (rule.type === "rsi_threshold") return `RSI${rule.period} ${rule.operator === "gte" ? "≥" : "≤"} ${rule.value}`;
   if (rule.type === "channel_breakout") return `${rule.period} 周期通道${rule.direction === "above" ? "向上" : "向下"}突破`;
-  return `成交量/${rule.period}周期均量 ${rule.operator === "gte" ? "≥" : "≤"} ${rule.value}`;
+  if (rule.type === "volume_ratio") return `成交量/${rule.period}周期均量 ${rule.operator === "gte" ? "≥" : "≤"} ${rule.value}`;
+  if (rule.type === "adx_threshold") return `ADX${rule.period} ${rule.operator === "gte" ? "≥" : "≤"} ${rule.value}`;
+  if (rule.type === "atr_volatility") return `ATR${rule.period}/价格 ${rule.operator === "gte" ? "≥" : "≤"} ${rule.valuePct}%`;
+  return `布林带${rule.period}/${rule.stdDev}σ ${rule.band === "upper" ? "上轨" : "下轨"}${rule.operator === "above" ? "上方" : "下方"}`;
 }
 
 export function strategyDslExplanation(input: unknown) {
