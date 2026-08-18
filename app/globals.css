@@ -3489,6 +3489,26 @@ body:has(.membership-plans) .content>.page-head{
 .agent-chat-prompts button i{color:#5fa9e9;font-style:normal;font-size:12px}
 .agent-chat-open-strategy{display:inline-flex;align-items:center;margin:4px 0 8px;padding:7px 10px;border:1px solid #3d83b8;border-radius:7px;background:#123452;color:#a9d7ff;font-size:10px;font-weight:700}
 .agent-chat-open-strategy:hover{border-color:#74c1ff;background:#1a4d75;color:#f0f8ff}
+.ai-message-content{display:grid;min-width:0;gap:9px;margin-top:8px}
+.ai-message-section{overflow:hidden;border:1px solid #2a455d;border-radius:9px;background:#0b1824}
+.ai-message-section>header{display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid #243d52;background:#102437}
+.ai-message-section>header span{display:grid;place-items:center;min-width:24px;height:24px;padding:0 4px;border:1px solid #356992;border-radius:6px;background:#153957;color:#8dcaff;font-size:9px;font-weight:800}
+.ai-message-section>header h3{margin:0;color:#dceaf7;font-size:11px}
+.ai-message-section-body{display:grid;gap:8px;padding:10px 12px}
+.agent-chat-messages article .ai-message-section-body p,.studio-chat-log .ai-message-section-body p{margin:0;padding:0;border:0;background:transparent;color:#bdccda;font-size:11px;line-height:1.7;white-space:pre-wrap}
+.ai-message-section-body ul{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.ai-message-section-body li{position:relative;padding-left:14px;color:#aebfce;font-size:11px;line-height:1.6}
+.ai-message-section-body li:before{content:"";position:absolute;left:0;top:.65em;width:5px;height:5px;border-radius:50%;background:#5299d3}
+.ai-message-section.conclusion{border-color:#336b98;background:#0c1d2c}.ai-message-section.conclusion>header{background:#12304a}
+.ai-message-section.evidence>header span{border-color:#2b725f;background:#123b31;color:#7be2c0}
+.ai-message-section.invalidations>header span{border-color:#775f31;background:#3a2b14;color:#efc36b}
+.ai-message-section.next_step>header span{border-color:#4e568c;background:#242947;color:#b9c0ff}
+.ai-message-section.strategy_dsl>header span{border-color:#526273;background:#1a2733;color:#a9bfd2}
+.ai-message-section.body{border:0;background:transparent}.ai-message-section.body .ai-message-section-body{padding:0}
+.ai-message-code{min-width:0;border:1px solid #253b4f;border-radius:7px;background:#07111a}
+.ai-message-code summary{padding:8px 10px;color:#80b7e5;font-size:10px;cursor:pointer}
+.ai-message-code pre{max-height:280px;overflow:auto;margin:0;padding:11px;border-top:1px solid #203447;color:#a9cce8;font-size:10px;line-height:1.55;white-space:pre-wrap}
+.ai-message-cursor{color:#6ec4ff;animation:ai-cursor-blink .8s steps(1) infinite}
 @media(max-width:900px){
   .agent-chat-workspace{grid-template-columns:1fr;min-height:0}
   .agent-chat-history{min-height:0}
@@ -3501,6 +3521,7 @@ body:has(.membership-plans) .content>.page-head{
   .agent-chat-current{flex-wrap:wrap}
   .agent-chat-current small{width:100%;margin-left:0}
 .agent-chat-prompts>div{grid-template-columns:1fr 1fr}
+.ai-message-section-body{padding:9px}.ai-message-section>header{padding:7px 9px}
 }
 
 /* Keep the eight dashboard title cards close to the top divider without

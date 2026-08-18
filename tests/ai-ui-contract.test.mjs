@@ -15,6 +15,7 @@ test("agent page uses persistent server conversations and streamed messages", as
   assert.match(page, /PersistentAgentChat/);
   assert.match(chat, /\/api\/ai\/conversations/);
   assert.match(chat, /consumeAiEventStream/);
+  assert.match(chat, /AiMessageContent/);
   assert.match(chat, /body: JSON\.stringify\(\{ message: content \}\)/);
   assert.doesNotMatch(chat, /body: JSON\.stringify\(\{[^}]*history/);
 });

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { consumeAiEventStream } from "./ai-sse";
+import { AiMessageContent } from "./ai-message-content";
 import { CustomLlmButton } from "./llm-config";
 
 type Conversation = {
@@ -240,8 +241,8 @@ export default function AgentChat({
         <div className="agent-chat-messages" aria-live="polite">
           {loading && <div className="agent-chat-empty">正在加载对话…</div>}
           {!loading && !messages.length && <div className="agent-chat-empty"><b>开始一段真实对话</b><span>可以咨询行情依据、持仓风险，或讨论一个待回测策略。</span></div>}
-          {messages.map((message) => <article className={message.role === "user" ? "agent-chat-message-user" : "answer"} key={message.id}><i>{message.role === "user" ? "我" : "AI"}</i><div><b>{message.role === "user" ? "我" : "AI 团队"}</b><p>{message.content}</p><small>{message.generationMode === "guided_rules" ? "平台规则引导 · " : message.providerName ? `${message.providerName} · ` : ""}{formatRelative(message.createdAt)}</small></div></article>)}
-          {streamingText && <article className="answer agent-chat-streaming"><i>AI</i><div><b>AI 团队</b><p>{streamingText}<span aria-hidden="true">▋</span></p><small>正在生成…</small></div></article>}
+          {messages.map((message) => <article className={message.role === "user" ? "agent-chat-message-user" : "answer"} key={message.id}><i>{message.role === "user" ? "我" : "AI"}</i><div><b>{message.role === "user" ? "我" : "AI 团队"}</b>{message.role === "assistant" ? <AiMessageContent content={message.content} /> : <p>{message.content}</p>}<small>{message.generationMode === "guided_rules" ? "平台规则引导 · " : message.providerName ? `${message.providerName} · ` : ""}{formatRelative(message.createdAt)}</small></div></article>)}
+          {streamingText && <article className="answer agent-chat-streaming"><i>AI</i><div><b>AI 团队</b><AiMessageContent content={streamingText} streaming /><small>正在生成…</small></div></article>}
           {suggestedAction === "strategy" && <button type="button" className="agent-chat-open-strategy" onClick={onOpenStrategies}>前往策略工作室创建可回测规则 →</button>}
           <div ref={messageEndRef} />
         </div>
