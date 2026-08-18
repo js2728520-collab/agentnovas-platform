@@ -2,7 +2,10 @@ import { drizzle } from "drizzle-orm/d1";
 import { getPostgresPool } from "@/lib/postgres";
 import * as schema from "./schema";
 
-type BusinessDatabase = ReturnType<typeof drizzle<typeof schema>>;
+type D1BusinessDatabase = ReturnType<typeof drizzle<typeof schema>>;
+type BusinessDatabase = Omit<D1BusinessDatabase, "batch"> & {
+  batch: (queries: readonly unknown[]) => Promise<unknown[]>;
+};
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
 const postgresDatabase = databaseUrl
@@ -22,5 +25,5 @@ export function getDb(): BusinessDatabase {
     );
   }
 
-  return drizzle(workerEnvironment.DB, { schema });
+  return drizzle(workerEnvironment.DB, { schema }) as unknown as BusinessDatabase;
 }

@@ -105,8 +105,9 @@ export async function ensureD1Schema() {
   // requests must never attempt to run the legacy D1 migrator after cutover.
   if (process.env.DATABASE_URL?.trim()) return;
   const { env } = await import("cloudflare:workers");
-  const database = env.DB;
-  if (!database) throw new Error("D1 数据库 DB 尚未绑定");
+  const boundDatabase = env.DB;
+  if (!boundDatabase) throw new Error("D1 数据库 DB 尚未绑定");
+  const database: D1Database = boundDatabase;
 
   await database
     .prepare(
