@@ -6,6 +6,7 @@ import {
   evaluateCandidateAdmission,
   rankResearchCandidates,
   resampleTradeSequence,
+  selectExtremeDrawdownWindow,
   splitResearchCandles,
 } from "../lib/research-validation.ts";
 
@@ -94,4 +95,17 @@ test("produces deterministic deep-mode trade-sequence resampling statistics", ()
   assert.equal(first.iterations, 500);
   assert.ok(first.probabilityPositive > 0.5);
   assert.ok(first.p95MaxDrawdownPct >= 0);
+});
+
+test("selects the worst deterministic contiguous window without using holdout data", () => {
+  const candles = Array.from({ length: 1_000 }, (_, index) => ({
+    open: index >= 400 && index < 650 ? 200 - (index - 400) * 0.3 : 200,
+    close: index >= 400 && index < 650 ? 199.7 - (index - 400) * 0.3 : 200,
+    marker: index,
+  }));
+  const selected = selectExtremeDrawdownWindow(candles);
+
+  assert.equal(selected.length, 250);
+  assert.ok(selected[0].marker <= 400);
+  assert.ok(selected.at(-1).marker >= 600);
 });

@@ -32,6 +32,7 @@ import {
   rankResearchCandidates,
   resampleTradeSequence,
   researchModeConfiguration,
+  selectExtremeDrawdownWindow,
   splitResearchCandles,
   type AdmissionMetrics,
   type ResearchMode,
@@ -138,6 +139,18 @@ function metrics(result: BacktestResult): AdmissionMetrics {
     sampleSize: result.sampleSize,
     liquidated: result.liquidated,
     riskBoundaryBreached: result.warnings.some(item => /单日亏损|连续亏损/.test(item)),
+  };
+}
+
+function worstStressMetrics(results: BacktestResult[]): AdmissionMetrics {
+  const mapped = results.map(metrics);
+  return {
+    netReturnPct: Math.min(...mapped.map(item => item.netReturnPct)),
+    maxDrawdownPct: Math.max(...mapped.map(item => item.maxDrawdownPct)),
+    profitFactor: Math.min(...mapped.map(item => item.profitFactor)),
+    sampleSize: Math.min(...mapped.map(item => item.sampleSize)),
+    liquidated: mapped.some(item => item.liquidated),
+    riskBoundaryBreached: mapped.some(item => item.riskBoundaryBreached),
   };
 }
 
@@ -354,6 +367,7 @@ async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: 
     const best = compared.sort((left, right) => right.score - left.score)[0];
     let holdoutResult = best.validation;
     let stressResult = best.validation;
+    let admissionStress = metrics(best.validation);
     let walks = [best.validation];
     if (run.mode !== "quick") {
       walks = [];
@@ -370,6 +384,9 @@ async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: 
       const finalCandles = holdoutGuard.claim(candidate.id, split.holdout);
       holdoutResult = await backtest(best.dsl, finalCandles);
       stressResult = await backtest(best.dsl, finalCandles, 2);
+      const extremeCandles = selectExtremeDrawdownWindow(split.validation);
+      const extremeResult = await backtest(best.dsl, extremeCandles, 2);
+      admissionStress = worstStressMetrics([stressResult, extremeResult]);
       await saveResearchEvaluation(database, {
         runId: run.id, candidateId: candidate.id, kind: "final_holdout", windowIndex: 0,
         periodStart: new Date(finalCandles[0].openTime), periodEnd: new Date(finalCandles.at(-1)!.closeTime),
@@ -381,6 +398,19 @@ async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: 
         periodStart: new Date(finalCandles[0].openTime), periodEnd: new Date(finalCandles.at(-1)!.closeTime),
         metrics: persistedMetrics(stressResult), dataQuality: quality as unknown as Record<string, unknown>,
         passed: stressResult.maxDrawdownPct <= best.dsl.risk.maxDrawdownPct,
+      });
+      await saveResearchEvaluation(database, {
+        runId: run.id,
+        candidateId: candidate.id,
+        kind: "extreme_market_stress",
+        windowIndex: 0,
+        periodStart: new Date(extremeCandles[0].openTime),
+        periodEnd: new Date(extremeCandles.at(-1)!.closeTime),
+        metrics: persistedMetrics(extremeResult),
+        dataQuality: quality as unknown as Record<string, unknown>,
+        passed: extremeResult.maxDrawdownPct <= best.dsl.risk.maxDrawdownPct
+          && !extremeResult.liquidated
+          && !metrics(extremeResult).riskBoundaryBreached,
       });
       if (run.mode === "deep") {
         const seed = [...candidate.id].reduce((value, character) => (value * 31 + character.charCodeAt(0)) >>> 0, 17);
@@ -407,7 +437,7 @@ async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: 
       mode: run.mode,
       holdout: metrics(holdoutResult),
       walkForward: walks.map(metrics),
-      stress: metrics(stressResult),
+      stress: admissionStress,
       maxDrawdownPct: best.dsl.risk.maxDrawdownPct,
       dataQuality: quality,
     });

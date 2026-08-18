@@ -101,6 +101,23 @@ export function splitResearchCandles<T>(mode: ResearchMode, candles: readonly T[
   };
 }
 
+export function selectExtremeDrawdownWindow<T extends { open: number; close: number }>(candles: readonly T[]) {
+  if (candles.length < 200) throw new Error("极端行情压力窗口至少需要 200 根 K 线");
+  const windowSize = Math.min(candles.length, Math.max(200, Math.floor(candles.length * 0.25)));
+  let selectedStart = 0;
+  let worstReturn = Number.POSITIVE_INFINITY;
+  for (let start = 0; start + windowSize <= candles.length; start += 1) {
+    const first = candles[start];
+    const last = candles[start + windowSize - 1];
+    const windowReturn = first.open > 0 ? last.close / first.open - 1 : Number.POSITIVE_INFINITY;
+    if (windowReturn < worstReturn) {
+      worstReturn = windowReturn;
+      selectedStart = start;
+    }
+  }
+  return candles.slice(selectedStart, selectedStart + windowSize);
+}
+
 export function createHoldoutGuard() {
   const claimed = new Set<string>();
   return {
