@@ -5,6 +5,7 @@ import type { StrategyDsl } from "@/lib/strategy-dsl";
 import { consumeAiEventStream } from "./ai-sse";
 import { CustomLlmButton } from "./llm-config";
 import type { StrategyDetailData } from "./strategy-detail";
+import { StrategyBacktestDetail } from "./strategy-backtest-detail";
 
 type Row = Record<string, unknown>;
 type ChatMessage = { role: "user" | "assistant"; text: string };
@@ -256,7 +257,8 @@ export default function CommunityStrategyCenter({
 }) {
   const [rows, setRows] = useState<Row[]>(demos);
   const [mine, setMine] = useState<Row[]>([]);
-  const [screen, setScreen] = useState<"list" | "create">(createRequest > 0 ? "create" : "list");
+  const [screen, setScreen] = useState<"list" | "create" | "detail">(createRequest > 0 ? "create" : "list");
+  const [selectedStrategyId, setSelectedStrategyId] = useState("");
   const [message, setMessage] = useState("");
   const [studio, setStudio] = useState<Studio>(initial);
   const [preferences, setPreferences] = useState({
@@ -537,10 +539,11 @@ export default function CommunityStrategyCenter({
     }
     setBusy("save");
     try {
-      await ensureDraft();
+      const saved = await ensureDraft();
       await load();
-      setScreen("list");
-      setMessage("策略已真实保存到“我的策略”");
+      setSelectedStrategyId(saved.id);
+      setScreen("detail");
+      setMessage("策略已真实保存，可继续查看规则并运行回测");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "策略保存失败");
     } finally {
@@ -561,6 +564,14 @@ export default function CommunityStrategyCenter({
     } finally {
       setBusy("");
     }
+  }
+
+  if (view === "mine" && screen === "detail" && selectedStrategyId) {
+    return <StrategyBacktestDetail
+      strategyId={selectedStrategyId}
+      onBack={() => { setScreen("list"); setSelectedStrategyId(""); }}
+      onUpdated={() => void load()}
+    />;
   }
 
   if (view === "mine" && screen === "create") {
@@ -651,7 +662,7 @@ export default function CommunityStrategyCenter({
           <header><span>{selfUse ? "自用策略" : String(row.status) === "published" ? "已上架" : String(row.status) === "submitted" ? "审核中" : "我的策略"}</span><em>V{String(row.version)}</em></header>
           <h3>{String(row.name)}</h3><p>{((row.symbols || []) as string[]).join(" · ")} · {riskName(row.riskLevel)}{selfUse ? " · 平台不抽成" : ""}</p>
           <div><span className={hasBacktest ? "complete" : ""}>回测报告 {hasBacktest ? "已生成" : "可选"}</span><span>模拟测试 可选</span></div>
-          {!submitted && <div className="strategy-backtest-actions"><button disabled={Boolean(busy)} onClick={() => void runBacktest(id)}>{busy === `backtest:${id}` ? "回测中…" : "运行历史回测"}</button></div>}
+          <div className="strategy-backtest-actions"><button onClick={() => { setSelectedStrategyId(id); setScreen("detail"); }}>查看策略</button>{!submitted && <button disabled={Boolean(busy)} onClick={() => void runBacktest(id)}>{busy === `backtest:${id}` ? "回测中…" : "快速回测"}</button>}</div>
           {selfUse ? <div className="strategy-self-use-note">自用策略 · 不进入策略广场 · 平台不抽成</div> : <button className="primary" disabled={submitted || Boolean(busy)} onClick={() => void submit(id)}>{String(row.status) === "published" ? "已上架策略广场" : String(row.status) === "submitted" ? "等待平台人工审核" : "提交到策略广场"}</button>}
         </article>;
       })}</div>

@@ -5,7 +5,8 @@ import {
   communityStrategies,
   strategyValidations as strategyBacktestReports,
 } from "@/db/schema";
-import { runHistoricalBacktest } from "@/lib/backtest-engine";
+import { normalizeBacktestOptions, runHistoricalBacktest } from "@/lib/backtest-engine";
+import { ensureD1Schema } from "@/lib/d1-migrations";
 import { requireUser, responseError } from "@/lib/session";
 
 export async function POST(
@@ -13,6 +14,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    await ensureD1Schema();
     const me = await requireUser(request, ["customer"]);
     const { id } = await params;
     const db = getDb();
@@ -29,8 +31,17 @@ export async function POST(
       return Response.json({ error: "策略不存在或当前状态不可回测" }, { status: 409 });
     }
 
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    let options;
+    try {
+      options = normalizeBacktestOptions(body);
+    } catch (error) {
+      return Response.json({ error: error instanceof Error ? error.message : "回测参数无效" }, { status: 400 });
+    }
+
     const result = await runHistoricalBacktest(
       JSON.parse(strategy.specificationJson || "{}") as Record<string, unknown>,
+      options,
     );
     const reportId = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -68,6 +79,7 @@ export async function POST(
           source: "platform_engine",
           evidenceRef: result.evidenceRef,
           warnings: result.warnings,
+          parameters: result.parameters,
         }),
       }),
     ]);

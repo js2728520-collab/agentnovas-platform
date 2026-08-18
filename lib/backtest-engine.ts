@@ -57,9 +57,57 @@ export type BacktestResult = {
     feeRate: number;
     slippageRate: number;
     initialEquityUsdt: number;
+    preset: BacktestPreset;
+    candleLimit: number;
   };
   trades: CompletedTrade[];
 };
+
+export type BacktestPreset = "live_aligned" | "exploration";
+
+export type BacktestOptions = {
+  preset: BacktestPreset;
+  feeRate: number;
+  slippageRate: number;
+  initialEquityUsdt: number;
+  candleLimit: number;
+};
+
+export type BacktestOptionsInput = Partial<BacktestOptions> & { provider?: string };
+
+function boundedBacktestNumber(
+  value: unknown,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+  label: string,
+  integer = false,
+) {
+  if (value !== undefined && typeof value !== "number") throw new Error(`${label}必须是数字`);
+  const number = value === undefined ? fallback : value;
+  if (!Number.isFinite(number) || number < minimum || number > maximum || (integer && !Number.isInteger(number))) {
+    throw new Error(`${label}必须在 ${minimum}–${maximum}${integer ? " 的整数" : ""}范围内`);
+  }
+  return number;
+}
+
+export function normalizeBacktestOptions(input: BacktestOptionsInput = {}): BacktestOptions {
+  const preset = input.preset ?? "live_aligned";
+  if (preset !== "live_aligned" && preset !== "exploration") throw new Error("不支持的回测预设");
+  return {
+    preset,
+    feeRate: boundedBacktestNumber(input.feeRate, 0.001, 0, 0.01, "手续费率"),
+    slippageRate: boundedBacktestNumber(
+      input.slippageRate,
+      preset === "live_aligned" ? 0.0005 : 0,
+      0,
+      0.02,
+      "滑点率",
+    ),
+    initialEquityUsdt: boundedBacktestNumber(input.initialEquityUsdt, 10_000, 100, 1_000_000, "初始资金"),
+    candleLimit: boundedBacktestNumber(input.candleLimit, 1_000, 200, 1_000, "K线数量", true),
+  };
+}
 
 const legacyIntervals = new Set(["5m", "15m", "1h", "4h", "1d"]);
 const legacyAllowedSymbols = new Set([
@@ -107,12 +155,12 @@ async function sha256(value: string) {
   return `sha256:${Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
-async function loadCandles(specification: StrategyDsl): Promise<StrategyCandle[]> {
+async function loadCandles(specification: StrategyDsl, limit: number): Promise<StrategyCandle[]> {
   const base = (process.env.MARKET_DATA_BASE_URL || "https://api-gcp.binance.com").replace(/\/$/, "");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12_000);
   try {
-    const url = `${base}/api/v3/klines?symbol=${encodeURIComponent(specification.symbol)}&interval=${encodeURIComponent(specification.timeframe)}&limit=1000`;
+    const url = `${base}/api/v3/klines?symbol=${encodeURIComponent(specification.symbol)}&interval=${encodeURIComponent(specification.timeframe)}&limit=${limit}`;
     const response = await fetch(url, { cache: "no-store", signal: controller.signal });
     if (!response.ok) throw new Error(`历史行情服务返回 ${response.status}`);
     const data = await response.json() as unknown;
@@ -146,21 +194,15 @@ function validateCandles(candles: StrategyCandle[]) {
 export async function runBacktestOnCandles(
   rawSpecification: unknown,
   candles: StrategyCandle[],
-  options: {
-    provider?: string;
-    feeRate?: number;
-    slippageRate?: number;
-    initialEquityUsdt?: number;
-  } = {},
+  options: BacktestOptionsInput = {},
 ): Promise<BacktestResult> {
   const specification = normalizeBacktestDsl(rawSpecification);
   validateCandles(candles);
+  const normalizedOptions = normalizeBacktestOptions(options);
   const evaluator = createStrategyEvaluator(specification, candles);
   const provider = options.provider || process.env.MARKET_DATA_PROVIDER || "Binance Spot REST";
   const engineVersion = "2.0.0-dsl-v1";
-  const feeRate = options.feeRate ?? 0.001;
-  const slippageRate = options.slippageRate ?? 0.0005;
-  const initialEquityUsdt = options.initialEquityUsdt ?? 10_000;
+  const { feeRate, slippageRate, initialEquityUsdt } = normalizedOptions;
   let equity = initialEquityUsdt;
   let peak = equity;
   let maxDrawdownPct = 0;
@@ -275,6 +317,7 @@ export async function runBacktestOnCandles(
     firstCandle: candles[0].openTime,
     lastCandle: candles[candles.length - 1].closeTime,
     candleCount: candles.length,
+    backtestOptions: normalizedOptions,
     trades,
   };
   const evidenceRef = await sha256(JSON.stringify(immutableEvidence));
@@ -297,13 +340,17 @@ export async function runBacktestOnCandles(
     finalEquityUsdt: Number(equity.toFixed(4)),
     warnings,
     evidenceRef,
-    parameters: { ...specification, feeRate, slippageRate, initialEquityUsdt },
+    parameters: { ...specification, ...normalizedOptions },
     trades,
   };
 }
 
-export async function runHistoricalBacktest(rawSpecification: unknown): Promise<BacktestResult> {
+export async function runHistoricalBacktest(
+  rawSpecification: unknown,
+  rawOptions: BacktestOptionsInput = {},
+): Promise<BacktestResult> {
   const specification = normalizeBacktestDsl(rawSpecification);
-  const candles = await loadCandles(specification);
-  return runBacktestOnCandles(specification, candles);
+  const options = normalizeBacktestOptions(rawOptions);
+  const candles = await loadCandles(specification, options.candleLimit);
+  return runBacktestOnCandles(specification, candles, options);
 }

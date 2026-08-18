@@ -1,11 +1,88 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { auditLogs, communityStrategies, strategyVersions } from "@/db/schema";
+import {
+  auditLogs,
+  communityStrategies,
+  strategyValidations as strategyBacktestReports,
+  strategyVersions,
+} from "@/db/schema";
 import { AiApiError, aiErrorResponse } from "@/lib/ai-api";
 import { getOwnedAiConversation, resolveStrategyVersionSource } from "@/lib/ai-conversations";
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { requireUser, responseError } from "@/lib/session";
 import { normalizeStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
+
+function parseJsonObject(value: string) {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function parseJsonArray(value: string) {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await ensureD1Schema();
+    const me = await requireUser(request, ["customer"]);
+    const { id } = await params;
+    const db = getDb();
+    const strategy = (await db.select().from(communityStrategies).where(and(
+      eq(communityStrategies.id, id),
+      eq(communityStrategies.authorUserId, me.id),
+    )).limit(1))[0];
+    if (!strategy) return Response.json({ error: "策略不存在" }, { status: 404 });
+
+    const [versions, reports] = await Promise.all([
+      db.select().from(strategyVersions)
+        .where(eq(strategyVersions.strategyId, id))
+        .orderBy(desc(strategyVersions.version))
+        .limit(25),
+      db.select().from(strategyBacktestReports)
+        .where(and(
+          eq(strategyBacktestReports.strategyId, id),
+          eq(strategyBacktestReports.kind, "backtest"),
+        ))
+        .orderBy(desc(strategyBacktestReports.createdAt))
+        .limit(25),
+    ]);
+
+    return Response.json({
+      strategy: {
+        ...strategy,
+        symbols: parseJsonArray(strategy.symbolsJson),
+        specification: parseJsonObject(strategy.specificationJson),
+        symbolsJson: undefined,
+        specificationJson: undefined,
+        conversationJson: undefined,
+      },
+      versions: versions.map((version) => ({
+        ...version,
+        specification: parseJsonObject(version.specificationJson),
+        specificationJson: undefined,
+      })),
+      backtests: reports.map((report, index) => {
+        const metrics = parseJsonObject(report.metricsJson) as Record<string, unknown>;
+        return {
+          ...report,
+          metrics: index === 0 ? metrics : { ...metrics, trades: undefined },
+          metricsJson: undefined,
+        };
+      }),
+    });
+  } catch (error) {
+    return responseError(error);
+  }
+}
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
