@@ -20,6 +20,16 @@ type ResearchRunRow = QueryResultRow & {
   lease_expires_at: Date | null;
   attempts: number;
   cancel_requested_at: Date | null;
+  result_json: Record<string, unknown> | null;
+  final_conclusion: "QUALIFIED" | "NOT_QUALIFIED" | null;
+  event_sequence: string;
+  candidate_budget: number;
+  backtest_budget: number;
+  backtests_used: number;
+  model_calls_used: number;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  completed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -39,9 +49,126 @@ function runFromRow(row: ResearchRunRow) {
     leaseExpiresAt: row.lease_expires_at,
     attempts: row.attempts,
     cancelRequestedAt: row.cancel_requested_at,
+    result: row.result_json,
+    finalConclusion: row.final_conclusion,
+    eventSequence: Number(row.event_sequence),
+    candidateBudget: row.candidate_budget,
+    backtestBudget: row.backtest_budget,
+    backtestsUsed: row.backtests_used,
+    modelCallsUsed: row.model_calls_used,
+    lastErrorCode: row.last_error_code,
+    lastErrorMessage: row.last_error_message,
+    completedAt: row.completed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+export async function getOwnedResearchRun(database: Queryable, input: {
+  runId: string;
+  ownerUserId: string;
+}) {
+  const result = await database.query<ResearchRunRow>(`
+    SELECT * FROM strategy_research_runs WHERE id = $1 AND owner_user_id = $2
+  `, [input.runId, input.ownerUserId]);
+  return result.rows[0] ? runFromRow(result.rows[0]) : null;
+}
+
+export async function listResearchEvents(database: Queryable, input: {
+  runId: string;
+  ownerUserId: string;
+  afterSequence?: number;
+  limit?: number;
+}) {
+  const limit = Math.min(Math.max(input.limit ?? 200, 1), 500);
+  const result = await database.query<{
+    id: string;
+    sequence: string;
+    role: string;
+    event_type: string;
+    title: string;
+    content_json: Record<string, unknown>;
+    created_at: Date;
+  }>(`
+    SELECT event.id, event.sequence, event.role, event.event_type,
+           event.title, event.content_json, event.created_at
+    FROM strategy_agent_events AS event
+    JOIN strategy_research_runs AS run ON run.id = event.run_id
+    WHERE event.run_id = $1 AND run.owner_user_id = $2 AND event.sequence > $3
+    ORDER BY event.sequence
+    LIMIT $4
+  `, [input.runId, input.ownerUserId, input.afterSequence ?? 0, limit]);
+  return result.rows.map(row => ({
+    id: row.id,
+    sequence: Number(row.sequence),
+    role: row.role,
+    type: row.event_type,
+    title: row.title,
+    content: row.content_json,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function listResearchCandidates(database: Queryable, input: {
+  runId: string;
+  ownerUserId: string;
+}) {
+  const result = await database.query<{
+    id: string;
+    candidate_key: string;
+    strategy_family: string;
+    source_role: string;
+    dsl_json: Record<string, unknown>;
+    status: string;
+    rank: number | null;
+    score: number | null;
+    rejection_reasons_json: string[];
+    validation_label: string;
+    saved_strategy_id: string | null;
+  }>(`
+    SELECT candidate.*
+    FROM strategy_candidates AS candidate
+    JOIN strategy_research_runs AS run ON run.id = candidate.run_id
+    WHERE candidate.run_id = $1 AND run.owner_user_id = $2
+    ORDER BY candidate.rank NULLS LAST, candidate.score DESC NULLS LAST, candidate.created_at
+  `, [input.runId, input.ownerUserId]);
+  return result.rows.map(row => ({
+    id: row.id,
+    key: row.candidate_key,
+    strategyFamily: row.strategy_family,
+    sourceRole: row.source_role,
+    dsl: row.dsl_json,
+    status: row.status,
+    rank: row.rank,
+    score: row.score,
+    rejectionReasons: row.rejection_reasons_json,
+    validationLabel: row.validation_label,
+    savedStrategyId: row.saved_strategy_id,
+  }));
+}
+
+export async function pauseResearchRunForMissingRoles(database: Queryable, input: {
+  runId: string;
+  missingRoles: string[];
+}) {
+  const result = await database.query<ResearchRunRow>(`
+    UPDATE strategy_research_runs
+    SET status = 'paused_missing_role', lease_owner = NULL, lease_expires_at = NULL,
+        last_error_code = 'MISSING_AGENT_ROLE',
+        last_error_message = $2,
+        updated_at = now()
+    WHERE id = $1 AND status NOT IN ('completed', 'failed', 'cancelled')
+    RETURNING *
+  `, [input.runId, `缺少角色配置：${input.missingRoles.join(", ")}`]);
+  if (!result.rows[0]) throw new Error("研发任务不存在或已结束");
+  await appendResearchEvent(database as Pool | PoolClient, {
+    runId: input.runId,
+    role: "orchestrator",
+    type: "paused",
+    title: "等待管理员配置 Agent 模型",
+    content: { missingRoles: input.missingRoles },
+  });
+  return runFromRow(result.rows[0]);
 }
 
 const modeBudgets: Record<ResearchMode, { candidates: number; backtests: number }> = {
@@ -148,9 +275,9 @@ export async function requestResearchRunCancellation(database: Queryable, input:
   return runFromRow(result.rows[0]);
 }
 
-async function poolClient(database: Pool | PoolClient) {
+async function poolClient(database: Pool | PoolClient): Promise<{ client: PoolClient; release: boolean }> {
   if ("connect" in database) return { client: await database.connect(), release: true };
-  return { client: database, release: false };
+  return { client: database as PoolClient, release: false };
 }
 
 export async function appendResearchEvent(database: Pool | PoolClient, input: {
