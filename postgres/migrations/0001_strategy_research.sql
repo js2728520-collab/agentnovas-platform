@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS strategy_research_runs (
   mode text NOT NULL CHECK (mode IN ('quick', 'standard', 'deep')),
   stage text NOT NULL DEFAULT 'requirements',
   status text NOT NULL DEFAULT 'queued' CHECK (status IN (
-    'queued', 'running', 'retry_wait', 'paused_missing_role',
+    'queued', 'running', 'retry_wait', 'paused_missing_role', 'awaiting_user_input',
     'completed', 'failed', 'cancelled'
   )),
   progress integer NOT NULL DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),

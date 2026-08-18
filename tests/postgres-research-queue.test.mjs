@@ -10,8 +10,10 @@ import {
   createResearchRun,
   leaseNextResearchRun,
   pauseResearchRunForMissingRoles,
+  pauseResearchRunForUserInput,
   requeueResearchRunsPausedForRoles,
   requestResearchRunCancellation,
+  resumeResearchRunWithAnswers,
 } from "../lib/postgres-research-queue.ts";
 import {
   getOwnedCandidateForSave,
@@ -166,6 +168,40 @@ test("does not let a stale worker pause a run owned by another lease", async () 
   );
 });
 
+test("pauses for bounded customer input and resumes only for the owning tenant", async () => {
+  const run = await createResearchRun(pool, runInput());
+  const now = new Date("2026-08-18T11:30:00.000Z");
+  await leaseNextResearchRun(pool, { workerId: "worker-input", now, leaseSeconds: 30 });
+  const missingFields = [{ key: "maxDrawdownPct", question: "最大回撤限制？", options: [8, 12], defaultValue: 12 }];
+  const paused = await pauseResearchRunForUserInput(pool, {
+    runId: run.id,
+    workerId: "worker-input",
+    requirements: { conclusion: "需要风险边界", brief: {}, missingFields },
+    missingFields,
+    modelName: "requirements-model",
+  });
+  assert.equal(paused.status, "awaiting_user_input");
+  assert.equal(paused.leaseOwner, null);
+
+  await assert.rejects(
+    resumeResearchRunWithAnswers(pool, {
+      runId: run.id,
+      ownerUserId: "other-user",
+      answers: { maxDrawdownPct: 8 },
+    }),
+    /不存在|无需补充/,
+  );
+  const resumed = await resumeResearchRunWithAnswers(pool, {
+    runId: run.id,
+    ownerUserId: "user-a",
+    answers: { maxDrawdownPct: 8 },
+  });
+  assert.equal(resumed.status, "queued");
+  assert.equal(resumed.brief.maxDrawdownPct, 8);
+  const events = await pool.query("SELECT event_type FROM strategy_agent_events WHERE run_id = $1 ORDER BY sequence", [run.id]);
+  assert.deepEqual(events.rows.map(row => row.event_type), ["input_required", "input_received"]);
+});
+
 test("appends public events with a transactionally increasing sequence", async () => {
   const run = await createResearchRun(pool, runInput());
   const first = await appendResearchEvent(pool, {
@@ -231,7 +267,7 @@ test("advances one fixed stage only for the active lease owner", async () => {
 
 test("reserves model calls atomically and rejects calls beyond the run budget", async () => {
   const run = await createResearchRun(pool, runInput({ mode: "quick" }));
-  assert.equal(run.modelCallBudget, 10);
+  assert.equal(run.modelCallBudget, 14);
   const now = new Date("2026-08-18T12:30:00.000Z");
   await leaseNextResearchRun(pool, { workerId: "worker-budget", now, leaseSeconds: 30 });
 
@@ -241,6 +277,12 @@ test("reserves model calls atomically and rejects calls beyond the run budget", 
     count: 10,
   });
   assert.equal(reserved.model_calls_used, 10);
+  const fullyReserved = await reserveResearchModelCalls(pool, {
+    runId: run.id,
+    workerId: "worker-budget",
+    count: run.modelCallBudget - 10,
+  });
+  assert.equal(fullyReserved.model_calls_used, run.modelCallBudget);
   await assert.rejects(
     reserveResearchModelCalls(pool, { runId: run.id, workerId: "worker-budget" }),
     /预算已耗尽/,

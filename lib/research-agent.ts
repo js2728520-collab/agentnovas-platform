@@ -5,7 +5,7 @@ import { normalizeStrategyDslV2 } from "./strategy-dsl.ts";
 type ResearchAgentRole = ResolvedAgentRoleConfig["role"];
 
 const roleInstructions: Record<ResearchAgentRole, string> = {
-  requirements: "把输入整理为严格 brief；missingFields 只列出会改变策略结果的缺失条件。输出 conclusion、brief、missingFields、dataReferences。",
+  requirements: "把输入整理为严格 brief；只保留 symbol、timeframe、direction、objective、maxDrawdownPct、positionSizePct、maxDailyLossPct、maxConsecutiveLosses、slippageRate、candleCount。missingFields 只列出会改变策略结果的缺失条件，每项输出 key、question、options、defaultValue。输出 conclusion、brief、missingFields、dataReferences。",
   market_regime: "只根据上下文给出的 regimeEvidence 识别 trend、range、high_volatility、extreme_decline；每段必须输出原始 segmentId、允许的 label 和 evidence。不要改写时间，不要生成策略。",
   proposal_a: "独立提出趋势/突破类候选。每项输出 strategyFamily 和严格 DSL V2；不得参考另一提案 Agent。",
   proposal_b: "独立提出均值回归/波动过滤类候选。每项输出 strategyFamily 和严格 DSL V2；不得参考另一提案 Agent。",
@@ -65,6 +65,27 @@ function parseObject(text: string) {
   return output as Record<string, unknown>;
 }
 
+const requirementBriefKeys = new Set([
+  "symbol", "timeframe", "direction", "objective", "maxDrawdownPct",
+  "positionSizePct", "maxDailyLossPct", "maxConsecutiveLosses", "slippageRate", "candleCount",
+]);
+
+function normalizeRequirementBrief(value: Record<string, unknown>) {
+  const result: Record<string, string | number | boolean> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (!requirementBriefKeys.has(key)) throw new Error(`需求 Agent 返回了不允许的 brief 字段：${key}`);
+    if (typeof item === "string") {
+      if (!item.trim() || item.length > 500) throw new Error(`需求字段 ${key} 无效`);
+      result[key] = item.trim();
+    } else if (typeof item === "number") {
+      if (!Number.isFinite(item)) throw new Error(`需求字段 ${key} 无效`);
+      result[key] = item;
+    } else if (typeof item === "boolean") result[key] = item;
+    else throw new Error(`需求字段 ${key} 类型无效`);
+  }
+  return result;
+}
+
 function validateOutput(role: ResearchAgentRole, output: Record<string, unknown>) {
   if (typeof output.conclusion !== "string" || !output.conclusion.trim()) throw new Error("Agent 结论不能为空");
   if (output.dataReferences !== undefined && !Array.isArray(output.dataReferences)) {
@@ -73,6 +94,23 @@ function validateOutput(role: ResearchAgentRole, output: Record<string, unknown>
   if (role === "requirements") {
     if (!output.brief || typeof output.brief !== "object" || Array.isArray(output.brief)) throw new Error("需求 Agent 未返回 brief");
     if (!Array.isArray(output.missingFields)) throw new Error("需求 Agent 未返回 missingFields");
+    output.brief = normalizeRequirementBrief(output.brief as Record<string, unknown>);
+    if (output.missingFields.length > 8) throw new Error("需求 Agent 追问数量超过限制");
+    output.missingFields = output.missingFields.map((item, index) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`需求追问 ${index + 1} 格式无效`);
+      const field = item as Record<string, unknown>;
+      const key = String(field.key ?? "").trim();
+      const question = String(field.question ?? "").trim();
+      if (!requirementBriefKeys.has(key)) throw new Error(`需求追问 ${index + 1} 的 key 无效`);
+      if (!question || question.length > 300) throw new Error(`需求追问 ${index + 1} 的问题无效`);
+      const options = field.options === undefined ? [] : field.options;
+      if (!Array.isArray(options) || options.length > 6 || options.some(option => !["string", "number", "boolean"].includes(typeof option))) {
+        throw new Error(`需求追问 ${index + 1} 的候选项无效`);
+      }
+      const defaultValue = field.defaultValue ?? options[0] ?? "";
+      if (!["string", "number", "boolean"].includes(typeof defaultValue)) throw new Error(`需求追问 ${index + 1} 的默认值无效`);
+      return { key, question, options, defaultValue };
+    });
   }
   if (role === "market_regime") {
     if (!Array.isArray(output.regimes)) throw new Error("市场状态 Agent 未返回 regimes");

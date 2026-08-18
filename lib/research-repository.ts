@@ -23,6 +23,22 @@ export async function reserveResearchModelCalls(database: Queryable, input: {
   return result.rows[0];
 }
 
+export async function patchResearchRunBrief(database: Queryable, input: {
+  runId: string;
+  workerId: string;
+  brief: Record<string, unknown>;
+}) {
+  const result = await database.query<{ brief_json: Record<string, unknown> }>(`
+    UPDATE strategy_research_runs
+    SET brief_json = brief_json || $3::jsonb, updated_at = now()
+    WHERE id = $1 AND lease_owner = $2 AND status = 'running'
+      AND stage = 'requirements' AND cancel_requested_at IS NULL
+    RETURNING brief_json
+  `, [input.runId, input.workerId, JSON.stringify(input.brief)]);
+  if (!result.rows[0]) throw new Error("任务租约无效、阶段不匹配或任务已取消");
+  return result.rows[0].brief_json;
+}
+
 export async function patchResearchRunResult(database: Queryable, input: {
   runId: string;
   workerId: string;

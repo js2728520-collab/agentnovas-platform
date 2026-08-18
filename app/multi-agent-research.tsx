@@ -6,7 +6,8 @@ type Mode = "quick" | "standard" | "deep";
 type EventRow = { id: string; sequence: number; role: string; type: string; title: string; content: Record<string, unknown>; createdAt: string };
 type Candidate = { id: string; strategyFamily: string; sourceRole: string; dsl: Record<string, unknown>; status: string; rank: number | null; score: number | null; rejectionReasons: string[]; validationLabel: string; savedStrategyId: string | null };
 type Evaluation = { candidateId: string; kind: string; metrics: { netReturnPct?: number; maxDrawdownPct?: number; profitFactor?: number; sampleSize?: number }; passed: boolean; finalHoldout: boolean };
-type RunPayload = { run: { id: string; status: string; stage: string; progress: number; finalConclusion?: string | null; lastErrorMessage?: string | null }; events: EventRow[]; candidates: Candidate[]; evaluations: Evaluation[] };
+type MissingField = { key: string; question: string; options: Array<string | number | boolean>; defaultValue: string | number | boolean };
+type RunPayload = { run: { id: string; status: string; stage: string; progress: number; result?: { requirements?: { missingFields?: MissingField[] } }; finalConclusion?: string | null; lastErrorMessage?: string | null }; events: EventRow[]; candidates: Candidate[]; evaluations: Evaluation[] };
 
 const modes: Array<{ id: Mode; name: string; detail: string }> = [
   { id: "quick", name: "快速探索", detail: "3 个候选 · 12 次回测 · 仅模拟" },
@@ -45,6 +46,8 @@ export function MultiAgentResearch({
   const [payload, setPayload] = useState<RunPayload | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [answerBusy, setAnswerBusy] = useState(false);
+  const [inputAnswers, setInputAnswers] = useState<Record<string, string | number | boolean>>({});
 
   useEffect(() => {
     let active = true;
@@ -83,8 +86,15 @@ export function MultiAgentResearch({
         setMessage(errorMessage(data, "读取研发任务失败"));
         return;
       }
-      setPayload(data as RunPayload);
-      const status = String((data as RunPayload).run.status);
+      const nextPayload = data as RunPayload;
+      setPayload(nextPayload);
+      const missingFields = nextPayload.run.result?.requirements?.missingFields || [];
+      if (nextPayload.run.status === "awaiting_user_input" && missingFields.length) {
+        setInputAnswers(previous => Object.keys(previous).length ? previous : Object.fromEntries(
+          missingFields.map(field => [field.key, field.defaultValue ?? field.options[0] ?? ""]),
+        ));
+      }
+      const status = String(nextPayload.run.status);
       if (["completed", "failed", "cancelled"].includes(status)) setBusy(false);
     };
     void load();
@@ -106,6 +116,7 @@ export function MultiAgentResearch({
   async function start() {
     if (!accountId) { setMessage("请先连接一个具有只读权限的 OKX、Binance 或 Bybit 账户"); return; }
     setBusy(true); setMessage(""); setPayload(null);
+    setInputAnswers({});
     try {
       const conversationId = await ensureConversation();
       const response = await fetch("/api/strategy-research/runs", {
@@ -137,6 +148,21 @@ export function MultiAgentResearch({
     setMessage(data.simulationOnly ? "已保存到我的策略；该候选仅可用于模拟盘。" : "已保存到我的策略；已保留标准验证标签。");
   }
 
+  async function answerRequirements() {
+    if (!runId) return;
+    setAnswerBusy(true);
+    const response = await fetch(`/api/strategy-research/runs/${encodeURIComponent(runId)}/answer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ answers: inputAnswers }),
+    });
+    const data = await response.json().catch(() => null);
+    setAnswerBusy(false);
+    if (!response.ok) { setMessage(errorMessage(data, "补充条件失败")); return; }
+    setInputAnswers({});
+    setMessage("研发条件已补充，需求 Agent 将重新核对后自动继续。");
+  }
+
   return <section className="multi-agent-research">
     <header><div><small>MULTI-AGENT RESEARCH</small><h3>多 Agent 策略研发与验证</h3><p>模型负责提出与审查，参数搜索、真实历史回测、评分和准入由确定性引擎完成。</p></div><span className={ready ? "ready" : "waiting"}>{ready ? "7 个角色已配置" : "等待角色配置"}</span></header>
     <div className="research-role-strip">{roles.map(role => <span key={role.role}><b>{roleNames[role.role] || role.role}</b><small>{role.modelName}</small></span>)}</div>
@@ -148,6 +174,15 @@ export function MultiAgentResearch({
     {message && <p className="research-message">{message}</p>}
     {payload && <>
       <div className="research-progress"><span><i style={{ width: `${payload.run.progress}%` }} /></span><b>{payload.run.progress}%</b><em>{payload.run.stage} · {payload.run.status}</em></div>
+      {payload.run.status === "awaiting_user_input" && (payload.run.result?.requirements?.missingFields || []).length > 0 && <section className="research-input-request">
+        <header><b>需要你补充几个关键条件</b><p>这里只追问会改变策略和回测结论的条件。</p></header>
+        {(payload.run.result?.requirements?.missingFields || []).map(field => <label key={field.key}>
+          <span>{field.question}</span>
+          {field.options.length > 0 && <div>{field.options.map(option => <button type="button" className={inputAnswers[field.key] === option ? "selected" : ""} key={String(option)} onClick={() => setInputAnswers(current => ({ ...current, [field.key]: option }))}>{String(option)}</button>)}</div>}
+          <input value={String(inputAnswers[field.key] ?? "")} onChange={event => setInputAnswers(current => ({ ...current, [field.key]: event.target.value }))} />
+        </label>)}
+        <button className="primary" disabled={answerBusy} onClick={() => void answerRequirements()}>{answerBusy ? "正在提交…" : "确认条件并继续研发"}</button>
+      </section>}
       <div className="research-timeline">{payload.events.map(event => <article key={event.id}><i>{event.sequence}</i><div><small>{roleNames[event.role] || event.role}</small><b>{event.title}</b><p>{String(event.content.conclusion || event.content.summary || "阶段结果已结构化保存")}</p></div></article>)}</div>
       {payload.candidates.length > 0 && <div className="research-candidates">{payload.candidates.filter(candidate => candidate.rank != null).slice(0, 3).map(candidate => {
         const evaluation = evaluationByCandidate.get(candidate.id);

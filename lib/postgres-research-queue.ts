@@ -240,10 +240,91 @@ export async function requeueResearchRunsPausedForRoles(database: Queryable) {
   return runs;
 }
 
+export async function pauseResearchRunForUserInput(database: Pool | PoolClient, input: {
+  runId: string;
+  workerId: string;
+  requirements: Record<string, unknown>;
+  missingFields: Array<Record<string, unknown>>;
+  modelName: string;
+}) {
+  const { client, release } = await poolClient(database);
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<ResearchRunRow>(`
+      UPDATE strategy_research_runs
+      SET status = 'awaiting_user_input',
+          progress = $4,
+          attempts = 0,
+          result_json = COALESCE(result_json, '{}'::jsonb) || $3::jsonb,
+          lease_owner = NULL,
+          lease_expires_at = NULL,
+          event_sequence = event_sequence + 1,
+          updated_at = now()
+      WHERE id = $1 AND lease_owner = $2 AND status = 'running'
+        AND stage = 'requirements' AND cancel_requested_at IS NULL
+      RETURNING *
+    `, [input.runId, input.workerId, JSON.stringify({ requirements: input.requirements }), researchStageProgress("requirements")]);
+    if (!result.rows[0]) throw new Error("任务租约已失效、阶段不匹配或任务已取消");
+    await client.query(`
+      INSERT INTO strategy_agent_events (id, run_id, sequence, role, event_type, title, content_json)
+      VALUES ($1, $2, $3, 'requirements', 'input_required', '需要补充会改变策略结果的条件', $4)
+    `, [crypto.randomUUID(), input.runId, result.rows[0].event_sequence, {
+      modelName: input.modelName,
+      missingFields: input.missingFields,
+      conclusion: input.requirements.conclusion,
+    }]);
+    await client.query("COMMIT");
+    return runFromRow(result.rows[0]);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    if (release) client.release();
+  }
+}
+
+export async function resumeResearchRunWithAnswers(database: Pool | PoolClient, input: {
+  runId: string;
+  ownerUserId: string;
+  answers: Record<string, string | number | boolean>;
+}) {
+  const { client, release } = await poolClient(database);
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<ResearchRunRow>(`
+      UPDATE strategy_research_runs
+      SET status = 'queued',
+          stage = 'requirements',
+          attempts = 0,
+          brief_json = brief_json || $3::jsonb,
+          result_json = COALESCE(result_json, '{}'::jsonb) - 'requirements',
+          last_error_code = NULL,
+          last_error_message = NULL,
+          event_sequence = event_sequence + 1,
+          updated_at = now()
+      WHERE id = $1 AND owner_user_id = $2 AND status = 'awaiting_user_input'
+        AND cancel_requested_at IS NULL
+      RETURNING *
+    `, [input.runId, input.ownerUserId, JSON.stringify(input.answers)]);
+    if (!result.rows[0]) throw new Error("研发任务不存在、无需补充输入或已取消");
+    await client.query(`
+      INSERT INTO strategy_agent_events (id, run_id, sequence, role, event_type, title, content_json)
+      VALUES ($1, $2, $3, 'requirements', 'input_received', '用户已补充研发条件', $4)
+    `, [crypto.randomUUID(), input.runId, result.rows[0].event_sequence, { answeredFields: Object.keys(input.answers) }]);
+    await client.query("COMMIT");
+    return runFromRow(result.rows[0]);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    if (release) client.release();
+  }
+}
+
 const modeBudgets: Record<ResearchMode, { candidates: number; backtests: number; modelCalls: number }> = {
-  quick: { candidates: 3, backtests: 12, modelCalls: 10 },
-  standard: { candidates: 6, backtests: 60, modelCalls: 20 },
-  deep: { candidates: 10, backtests: 200, modelCalls: 28 },
+  quick: { candidates: 3, backtests: 12, modelCalls: 14 },
+  standard: { candidates: 6, backtests: 60, modelCalls: 24 },
+  deep: { candidates: 10, backtests: 200, modelCalls: 32 },
 };
 
 export async function createResearchRun(database: Queryable, input: {

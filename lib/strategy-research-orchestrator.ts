@@ -7,6 +7,7 @@ import {
   advanceResearchRun,
   appendResearchEvent,
   pauseResearchRunForMissingRoles,
+  pauseResearchRunForUserInput,
   renewResearchRunLease,
 } from "./postgres-research-queue.ts";
 import {
@@ -20,6 +21,7 @@ import {
   loadInternalCandidates,
   markResearchRunError,
   patchResearchRunResult,
+  patchResearchRunBrief,
   reserveResearchModelCalls,
   saveResearchEvaluation,
   setCandidateRanks,
@@ -463,6 +465,22 @@ export async function processResearchStage(database: Pool, run: ResearchLease, w
   try {
     if (run.stage === "requirements") {
       const response = await reservedAgentCall(database, run, workerId, "requirements", { requestedBrief: run.brief });
+      await patchResearchRunBrief(database, {
+        runId: run.id,
+        workerId,
+        brief: response.output.brief as Record<string, unknown>,
+      });
+      const missingFields = response.output.missingFields as Array<Record<string, unknown>>;
+      if (missingFields.length) {
+        await pauseResearchRunForUserInput(database, {
+          runId: run.id,
+          workerId,
+          requirements: response.output,
+          missingFields,
+          modelName: response.modelName,
+        });
+        return;
+      }
       await persistAndAdvance(database, run, workerId, {
         patch: { requirements: response.output }, role: "requirements",
         title: "需求已结构化", content: { modelName: response.modelName, conclusion: response.output.conclusion, missingFields: response.output.missingFields },

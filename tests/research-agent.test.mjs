@@ -98,3 +98,35 @@ test("requires market regime output to cite bounded segment identifiers", async 
     }), { status: 200 }),
   }), /segmentId|标签/);
 });
+
+test("normalizes bounded requirement questions and rejects arbitrary brief fields", async () => {
+  const result = await callStructuredResearchAgent({
+    config,
+    role: "requirements",
+    context: {},
+    resolver: async () => [{ address: "203.0.114.8" }],
+    fetchImpl: async () => new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        conclusion: "需要最大回撤",
+        brief: { symbol: "BTCUSDT", timeframe: "1h" },
+        missingFields: [{ key: "maxDrawdownPct", question: "最大回撤限制？", options: [8, 12], defaultValue: 12 }],
+        dataReferences: [],
+      }) } }],
+    }), { status: 200 }),
+  });
+  assert.equal(result.output.missingFields[0].key, "maxDrawdownPct");
+
+  await assert.rejects(callStructuredResearchAgent({
+    config,
+    role: "requirements",
+    context: {},
+    resolver: async () => [{ address: "203.0.114.8" }],
+    fetchImpl: async () => new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        conclusion: "bad",
+        brief: { arbitraryCode: "run()" },
+        missingFields: [],
+      }) } }],
+    }), { status: 200 }),
+  }), /不允许/);
+});

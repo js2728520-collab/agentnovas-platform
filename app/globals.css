@@ -2388,6 +2388,14 @@ body .top-actions .account-button:hover{background:linear-gradient(135deg,#17263
 .research-other-candidates article small{margin-top:4px;color:#728fa5}
 .research-other-candidates button{padding:8px 12px;border:1px solid #315674;border-radius:8px;background:#153b5c;color:#dbeaf6}
 @media(max-width:1000px){.research-other-candidates article{align-items:flex-start;flex-direction:column}.research-other-candidates button{width:100%}}
+.research-input-request{display:grid;gap:13px;margin:14px 0;padding:16px;border:1px solid #376489;border-radius:12px;background:#0b1b28}
+.research-input-request header p{margin:4px 0 0;color:#809bb0}
+.research-input-request label{display:grid;gap:8px;color:#c5d7e5}
+.research-input-request label>div{display:flex;gap:7px;flex-wrap:wrap}
+.research-input-request label button{padding:7px 10px;border:1px solid #31516b;border-radius:8px;background:#0a141d;color:#9bb7cc}
+.research-input-request label button.selected{border-color:#4aa6eb;background:#153b5c;color:#e3f2fe}
+.research-input-request input{min-height:40px;padding:0 11px;border:1px solid #31516b;border-radius:8px;background:#08121a;color:#e8f3fb}
+.research-input-request>.primary{justify-self:start;padding:10px 15px;border:1px solid #3d8dd0;border-radius:9px;background:#21649c;color:#fff}
 
 /* Keep the visual canvas compact on ultra-wide displays. */
 @media (min-width:1281px){
