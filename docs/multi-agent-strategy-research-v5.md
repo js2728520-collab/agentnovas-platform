@@ -76,16 +76,21 @@ type StrategyDslV2 = {
   };
   risk: {
     positionSizePct: number;
-    stopLossPct: number;
-    takeProfitPct: number;
+    maxDrawdownPct: number;
     maxDailyLossPct: number;
     maxConsecutiveLosses: number;
-    maxDrawdownPct: number;
   };
+};
+
+type StrategyLeg = {
+  entry: { all: StrategyRule[] };
+  exit: { any: StrategyRule[] };
+  stopLossPct: number;
+  takeProfitPct: number;
 };
 ```
 
-白名单指标为 EMA、RSI、通道突破、成交量比例、ADX、布林带和 ATR 百分比波动过滤。未知字段、任意脚本、超出参数范围、`both` 缺少任一腿、非 USDT 永续/逐仓/1x 均拒绝。V1 只在运行时映射到 V2 `long_only`，不批量改写旧记录。
+白名单指标为 EMA、RSI、通道突破、成交量比例、ADX、布林带和 ATR 百分比波动过滤。未知字段、任意脚本、超出参数范围、`both` 缺少任一腿、非 USDT 永续/逐仓/1x 均拒绝。V1 只在运行时映射到 V2 `long_only`，不批量改写旧记录。每个 `StrategyLeg` 独立定义入场、退出、止损和止盈。
 
 ## 7. 回测与准入合同
 
