@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { aiConversations, aiMessages, aiUsageDaily, auditLogs } from "@/db/schema";
+import { aiConversations, aiMessages, aiUsageDaily, auditLogs, communityStrategies } from "@/db/schema";
 import { AiApiError } from "@/lib/ai-api";
 import { sha256 } from "@/lib/auth";
 import { deriveConversationTitle } from "@/lib/ai-chat-protocol";
@@ -26,7 +26,7 @@ function publicMessage(row: typeof aiMessages.$inferSelect) {
     role: row.role,
     content: row.content,
     generationMode: row.generationMode,
-    providerName: row.providerName,
+    model: row.model,
     createdAt: row.createdAt,
   };
 }
@@ -65,6 +65,26 @@ export async function getConversationMessages(userId: string, conversationId: st
     eq(aiMessages.conversationId, conversationId),
   )).orderBy(desc(aiMessages.createdAt)).limit(100);
   return rows.reverse();
+}
+
+export async function getOwnedAiMessage(userId: string, conversationId: string, messageId: string) {
+  const row = (await getDb().select().from(aiMessages).where(and(
+    eq(aiMessages.id, messageId),
+    eq(aiMessages.conversationId, conversationId),
+    eq(aiMessages.userId, userId),
+  )).limit(1))[0];
+  if (!row) throw new AiApiError("MESSAGE_NOT_FOUND", "对话回复不存在", 404);
+  return row;
+}
+
+export async function getSavedStrategyIdsForAiMessages(userId: string, messageIds: string[]) {
+  if (!messageIds.length) return new Map<string, string>();
+  const strategyIds = messageIds.map((messageId) => `ai-message-${messageId}`);
+  const rows = await getDb().select({ id: communityStrategies.id }).from(communityStrategies).where(and(
+    eq(communityStrategies.authorUserId, userId),
+    inArray(communityStrategies.id, strategyIds),
+  ));
+  return new Map(rows.map((row) => [row.id.replace(/^ai-message-/, ""), row.id]));
 }
 
 export async function createAiConversation(userId: string, input: Record<string, unknown>) {

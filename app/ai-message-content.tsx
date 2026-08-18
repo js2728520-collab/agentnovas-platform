@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import {
   formatAiQuestionAnswers,
+  hasStrategyDslCodeBlock,
   parseAiMessage,
   type AiMessageSectionKind,
 } from "@/lib/ai-message-presentation";
@@ -23,9 +24,20 @@ type AiMessageContentProps = {
   streaming?: boolean;
   autoPrompt?: boolean;
   onAnswer?: (answer: string) => void;
+  onSaveStrategy?: () => void;
+  strategySaveState?: "idle" | "saving" | "saved";
+  strategySaveNotice?: string;
 };
 
-export function AiMessageContent({ content, streaming = false, autoPrompt = false, onAnswer }: AiMessageContentProps) {
+export function AiMessageContent({
+  content,
+  streaming = false,
+  autoPrompt = false,
+  onAnswer,
+  onSaveStrategy,
+  strategySaveState = "idle",
+  strategySaveNotice,
+}: AiMessageContentProps) {
   const presentation = parseAiMessage(content);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -34,6 +46,7 @@ export function AiMessageContent({ content, streaming = false, autoPrompt = fals
     presentation.questions.map((question) => [question.id, question.defaultOption]),
   ));
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
+  const hasStrategyDsl = hasStrategyDslCodeBlock(presentation);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -74,6 +87,14 @@ export function AiMessageContent({ content, streaming = false, autoPrompt = fals
     {onAnswer && presentation.questions.length > 0 && <div aria-label="待确认问题" className="ai-message-question-cta" role="group">
       <div><strong>有 {presentation.questions.length} 项需要确认</strong><span>默认已选择推荐项，也可以自行填写。</span></div>
       <button type="button" onClick={() => setOpen(true)}>回答待确认问题</button>
+    </div>}
+    {onSaveStrategy && hasStrategyDsl && <div aria-label="策略保存操作" className="ai-message-strategy-save" role="group">
+      <div><strong>已识别策略 DSL</strong><span>{strategySaveNotice || "保存时服务端会转换并校验为平台可回测规则，作为自用草稿进入“我的策略”。"}</span></div>
+      <button
+        disabled={strategySaveState !== "idle"}
+        onClick={onSaveStrategy}
+        type="button"
+      >{strategySaveState === "saving" ? "正在保存…" : strategySaveState === "saved" ? "已保存到我的策略" : "保存到我的策略"}</button>
     </div>}
     {onAnswer && presentation.questions.length > 0 && <dialog
       aria-labelledby={titleId}

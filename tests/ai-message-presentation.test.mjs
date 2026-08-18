@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatAiQuestionAnswers, parseAiMessage } from "../lib/ai-message-presentation.ts";
+import {
+  formatAiQuestionAnswers,
+  hasStrategyDslCodeBlock,
+  parseAiMessage,
+} from "../lib/ai-message-presentation.ts";
 
 test("parses professional AI replies into ordered semantic sections without Markdown noise", () => {
   const result = parseAiMessage(`**结论**\nBTC 1h 结构偏强，但不应追价。\n\n**关键证据**\n- EMA20 高于 EMA60\n- RSI14 为 69\n\n**失效条件**\n- 跌破 63295 支撑\n\n**下一步**\n等待收盘确认。`);
@@ -33,6 +37,13 @@ test("keeps fenced strategy JSON in a dedicated code block instead of flattening
   assert.ok(dsl);
   assert.equal(dsl.codeBlocks[0].language, "json");
   assert.equal(dsl.codeBlocks[0].code, '{"schemaVersion":1}');
+});
+
+test("detects a strategy DSL code block even when the provider uses a custom heading", () => {
+  const result = parseAiMessage(`**关键证据**\n## 可保存、可回测的策略DSL（草稿最终版）\n\`\`\`json\n{"schemaVersion":"1.0","name":"BTC 趋势","symbol":"BTCUSDT","timeframe":"1h","entry":{"when":{"all":[]}},"exit":{"any":[]},"capitalManagement":{"positionPct":3,"maxDrawdownPct":10}}\n\`\`\``);
+
+  assert.equal(result.sections[0].kind, "evidence");
+  assert.equal(hasStrategyDslCodeBlock(result), true);
 });
 
 test("extracts explicit candidates and selects the recommended first option by default", () => {

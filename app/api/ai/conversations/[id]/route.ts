@@ -3,6 +3,7 @@ import { aiErrorResponse, readAiJson, requireAiCustomer } from "@/lib/ai-api";
 import {
   getConversationMessages,
   getOwnedAiConversation,
+  getSavedStrategyIdsForAiMessages,
   updateAiConversation,
 } from "@/lib/ai-conversations";
 
@@ -13,6 +14,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const conversation = await getOwnedAiConversation(user.id, id);
     const messages = await getConversationMessages(user.id, id);
+    const savedStrategyIds = await getSavedStrategyIdsForAiMessages(user.id, messages.map((message) => message.id));
     return Response.json({
       conversation: {
         id: conversation.id,
@@ -26,7 +28,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         role: message.role,
         content: message.content,
         generationMode: message.generationMode,
-        providerName: message.providerName,
+        model: message.model,
+        savedStrategyId: savedStrategyIds.get(message.id) || null,
         createdAt: message.createdAt,
       })),
     });

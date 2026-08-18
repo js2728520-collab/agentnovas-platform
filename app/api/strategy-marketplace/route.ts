@@ -1,10 +1,8 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
-  auditLogs,
   communityStrategies,
   strategySubscriptions,
-  strategyVersions,
   strategyValidations as strategyBacktestReports,
   users,
 } from "@/db/schema";
@@ -12,6 +10,7 @@ import { AiApiError, aiErrorResponse } from "@/lib/ai-api";
 import { getOwnedAiConversation, resolveStrategyVersionSource } from "@/lib/ai-conversations";
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { currentUser, requireUser, responseError } from "@/lib/session";
+import { createStrategyDraft } from "@/lib/strategy-drafts";
 import { normalizeStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
 
 function parseArray(value: string) {
@@ -148,7 +147,6 @@ export async function POST(request: Request) {
         return Response.json({ error: "当前对话不是策略研究对话" }, { status: 409 });
       }
     }
-    const symbols = [specification.symbol.replace(/USDT$/, "/USDT")];
     const riskLevel = ["low", "medium", "high"].includes(String(body.riskLevel))
       ? body.riskLevel!
       : "medium";
@@ -160,40 +158,17 @@ export async function POST(request: Request) {
       generationId: String(body.generationId || "").trim() || null,
       specificationJson,
     });
-    const id = crypto.randomUUID();
-    await getDb().batch([
-      getDb().insert(communityStrategies).values({
-        id,
-        authorUserId: me.id,
-        name: body.name.trim(),
-        summary: body.summary.trim(),
-        symbolsJson: JSON.stringify(symbols),
-        riskLevel,
-        publicationMode,
-        conversationJson: "[]",
-        specificationJson,
-      }),
-      getDb().insert(strategyVersions).values({
-        id: crypto.randomUUID(),
-        strategyId: id,
-        version: 1,
-        name: body.name.trim(),
-        summary: body.summary.trim(),
-        specificationJson,
-        conversationId,
-        source,
-        createdByUserId: me.id,
-      }),
-      getDb().insert(auditLogs).values({
-        id: crypto.randomUUID(),
-        actorUserId: me.id,
-        action: "strategy.draft.created",
-        subjectType: "community_strategy",
-        subjectId: id,
-        afterJson: JSON.stringify({ name: body.name.trim(), symbols, riskLevel, publicationMode, version: 1, source, schemaVersion: specification.schemaVersion }),
-      }),
-    ]);
-    return Response.json({ id, status: "draft", version: 1, message: "策略草稿已保存" }, { status: 201 });
+    const saved = await createStrategyDraft({
+      userId: me.id,
+      name: body.name,
+      summary: body.summary,
+      riskLevel,
+      publicationMode,
+      specification,
+      conversationId,
+      source,
+    });
+    return Response.json({ id: saved.id, status: saved.status, version: saved.version, message: "策略草稿已保存" }, { status: 201 });
   } catch (error) {
     if (error instanceof AiApiError) return aiErrorResponse(error);
     return responseError(error);

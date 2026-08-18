@@ -19,7 +19,8 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   generationMode?: "ai_provider" | "guided_rules" | null;
-  providerName?: string | null;
+  model?: string | null;
+  savedStrategyId?: string | null;
   createdAt: string;
 };
 
@@ -60,6 +61,9 @@ export default function AgentChat({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [promptMessageId, setPromptMessageId] = useState("");
+  const [savingStrategyMessageId, setSavingStrategyMessageId] = useState("");
+  const [savedStrategyMessageIds, setSavedStrategyMessageIds] = useState<Record<string, string>>({});
+  const [strategySaveNotices, setStrategySaveNotices] = useState<Record<string, string>>({});
   const messageEndRef = useRef<HTMLDivElement>(null);
   const active = conversations.find((item) => item.id === activeId) || null;
   const prompts = ["BTC 当前行情与风险如何？", "解释我的持仓风险", "当前跟随策略有哪些？", "帮我生成一个策略"];
@@ -231,6 +235,31 @@ export default function AgentChat({
     }
   }
 
+  async function saveStrategy(messageId: string) {
+    if (!activeId || savingStrategyMessageId || savedStrategyMessageIds[messageId]) return;
+    setError("");
+    setSavingStrategyMessageId(messageId);
+    try {
+      const response = await fetch(`/api/ai/conversations/${encodeURIComponent(activeId)}/messages/${encodeURIComponent(messageId)}/strategy`, {
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => null) as { strategy?: { id?: string }; message?: string; warnings?: string[] } | null;
+      if (!response.ok || !payload?.strategy?.id) throw new Error(apiError(payload, "策略保存失败"));
+      const strategyId = payload.strategy.id;
+      setSavedStrategyMessageIds((current) => ({ ...current, [messageId]: strategyId }));
+      setStrategySaveNotices((current) => ({
+        ...current,
+        [messageId]: payload.warnings?.length
+          ? `已保存；兼容提示：${payload.warnings.join("；")}`
+          : payload.message || "已保存到我的策略",
+      }));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "策略保存失败");
+    } finally {
+      setSavingStrategyMessageId("");
+    }
+  }
+
   return <>
     <div className="page-head"><div><h1>{title}</h1><p>与你的 AI 量化团队持续对话，历史由服务端安全保存</p></div></div>
     <div className="agent-chat-workspace">
@@ -249,13 +278,13 @@ export default function AgentChat({
         <div className="agent-chat-messages" aria-live="polite">
           {loading && <div className="agent-chat-empty">正在加载对话…</div>}
           {!loading && !messages.length && <div className="agent-chat-empty"><b>开始一段真实对话</b><span>可以咨询行情依据、持仓风险，或讨论一个待回测策略。</span></div>}
-          {messages.map((message) => <article className={message.role === "user" ? "agent-chat-message-user" : "answer"} key={message.id}><i>{message.role === "user" ? "我" : "AI"}</i><div><b>{message.role === "user" ? "我" : "AI 团队"}</b>{message.role === "assistant" ? <AiMessageContent content={message.content} autoPrompt={message.id === promptMessageId} onAnswer={(answer) => void send(answer)} /> : <p>{message.content}</p>}<small>{message.generationMode === "guided_rules" ? "平台规则引导 · " : message.providerName ? `${message.providerName} · ` : ""}{formatRelative(message.createdAt)}</small></div></article>)}
-          {streamingText && <article className="answer agent-chat-streaming"><i>AI</i><div><b>AI 团队</b><AiMessageContent content={streamingText} streaming /><small>正在生成…</small></div></article>}
+          {messages.map((message) => <article className={message.role === "user" ? "agent-chat-message-user" : "answer"} key={message.id}><i>{message.role === "user" ? "我" : "AI"}</i><div><b>{message.role === "user" ? "我" : "AI 团队"}</b>{message.role === "assistant" ? <AiMessageContent content={message.content} autoPrompt={message.id === promptMessageId} onAnswer={(answer) => void send(answer)} onSaveStrategy={() => void saveStrategy(message.id)} strategySaveNotice={strategySaveNotices[message.id]} strategySaveState={savedStrategyMessageIds[message.id] || message.savedStrategyId ? "saved" : savingStrategyMessageId === message.id ? "saving" : "idle"} /> : <p>{message.content}</p>}<small>{message.generationMode === "guided_rules" ? "平台规则引导 · " : message.model ? `${message.model} · ` : ""}{formatRelative(message.createdAt)}</small></div></article>)}
+          {sending && <article className="answer agent-chat-streaming"><i>AI</i><div><b>AI 团队</b>{streamingText ? <AiMessageContent content={streamingText} streaming /> : <div className="agent-chat-generating-dots" role="status"><span>正在生成回复</span><i /><i /><i /></div>}<small>Agent 正在分析当前会话…</small></div></article>}
           {suggestedAction === "strategy" && <button type="button" className="agent-chat-open-strategy" onClick={onOpenStrategies}>前往策略工作室创建可回测规则 →</button>}
           <div ref={messageEndRef} />
         </div>
         <section className="agent-chat-prompts"><header><b>快速问题</b><span>点击填入输入框</span></header><div>{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => setQuestion(prompt)} disabled={sending}>{prompt}<i>→</i></button>)}</div></section>
-        <label className="agent-chat-composer"><textarea aria-label="AI 对话内容" maxLength={2_000} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="输入你想咨询的问题…" disabled={sending || loading} /><button type="button" onClick={() => void send()} disabled={sending || loading || !question.trim()}>{sending ? "生成中…" : "发送问题 →"}</button></label>
+        <label className="agent-chat-composer"><textarea aria-label="AI 对话内容" maxLength={2_000} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="输入你想咨询的问题…" disabled={sending || loading} /><button type="button" onClick={() => void send()} disabled={sending || loading || !question.trim()}>发送问题 →</button></label>
         <small className="agent-chat-disclaimer">请勿提交 API Key、密码、私钥或令牌。AI 内容仅用于信息与策略研究，不构成投资建议。</small>
       </section>
     </div>

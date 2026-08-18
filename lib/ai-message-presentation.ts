@@ -198,6 +198,25 @@ export function formatAiQuestionAnswers(answers: Array<{ prompt: string; answer:
   ].join("\n");
 }
 
+export function hasStrategyDslCodeBlock(presentation: AiMessagePresentation) {
+  return presentation.sections.some((section) => section.codeBlocks.some((block) => {
+    if (block.language.toLowerCase() !== "json") return false;
+    try {
+      const value = JSON.parse(block.code) as Record<string, unknown>;
+      return (value?.schemaVersion === 1 || value?.schemaVersion === "1.0")
+        && typeof value.name === "string"
+        && typeof value.symbol === "string"
+        && typeof value.timeframe === "string"
+        && Boolean(value.entry && typeof value.entry === "object")
+        && Boolean(value.exit && typeof value.exit === "object")
+        && Boolean((value.risk && typeof value.risk === "object")
+          || (value.capitalManagement && typeof value.capitalManagement === "object"));
+    } catch {
+      return false;
+    }
+  }));
+}
+
 export function parseAiMessage(value: string): AiMessagePresentation {
   const normalized = String(value || "").replace(/\r\n?/g, "\n").trim();
   if (!normalized) return { sections: [], questions: [] };

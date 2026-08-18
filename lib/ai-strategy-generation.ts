@@ -65,7 +65,7 @@ export function normalizeStrategyBrief(input: unknown): StrategyBrief {
   return result;
 }
 
-function firstJsonObject(value: string) {
+export function extractFirstJsonObject(value: string) {
   if (!value || value.length > 20_000) throw new Error("AI 策略响应为空或过长");
   const start = value.indexOf("{");
   if (start < 0) throw new Error("AI 策略响应中没有 JSON 对象");
@@ -93,7 +93,7 @@ function firstJsonObject(value: string) {
 export function extractStrategyDslFromText(value: string) {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(firstJsonObject(value));
+    parsed = JSON.parse(extractFirstJsonObject(value));
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("AI 策略")) throw error;
     throw new Error("AI 策略 JSON 无法解析");
