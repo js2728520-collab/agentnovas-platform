@@ -104,12 +104,13 @@ export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id),
   tokenHash: text("token_hash").notNull(),
+  appAudience: text("app_audience", { enum: ["client", "operations", "maintenance"] }).notNull().default("client"),
   expiresAt: text("expires_at").notNull(),
   revokedAt: text("revoked_at"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-}, (t) => [uniqueIndex("idx_sessions_token_unique").on(t.tokenHash), index("idx_sessions_user_expiry").on(t.userId, t.expiresAt)]);
+}, (t) => [uniqueIndex("idx_sessions_token_unique").on(t.tokenHash), index("idx_sessions_user_expiry").on(t.userId, t.expiresAt), index("idx_sessions_user_app_expiry").on(t.userId, t.appAudience, t.expiresAt)]);
 
 export const aiConversations = sqliteTable("ai_conversations", {
   id: text("id").primaryKey(),

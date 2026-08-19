@@ -1,0 +1,25 @@
+[Unit]
+Description=Riverton Capital payment worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agentnovas
+Group=agentnovas
+WorkingDirectory=/opt/agentnovas/current
+EnvironmentFile=/etc/agentnovas/agentnovas.env
+Environment=PAYMENT_WORKER_ENABLED=true
+ExecStart=/usr/bin/npm run worker:payment
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/agentnovas
+
+[Install]
+WantedBy=multi-user.target
+

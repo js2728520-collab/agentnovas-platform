@@ -4,6 +4,7 @@ import { auditLogs, customerAttributions, invitations, memberships, notification
 import { hashPassword, normalizeEmail, sha256, validEmail } from "@/lib/auth";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
+import { clientIpFromRequest } from "@/lib/riverton-apps";
 
 function normalizeInvitationCode(input: string) {
   const value = input.trim();
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
         subjectType: "user",
         subjectId: userId,
         afterJson: JSON.stringify({ phone: phone.masked, emailProvided: Boolean(email), invitationKind: invite.kind, smsVerification: false }),
-        ipAddress: request.headers.get("cf-connecting-ip"),
+        ipAddress: clientIpFromRequest(request),
         userAgent: request.headers.get("user-agent"),
       }),
     ]);

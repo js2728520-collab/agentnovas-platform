@@ -12,7 +12,7 @@
 6. `docs/runbooks/self-hosted-strategy-research.md`
 7. `git log -1 --stat` 与 `git status --short --branch`
 
-当前开发分支为 `codex/multi-agent-strategy-research`。交接版本以本文件所在的最新本地提交为准，不依赖未提交文件。
+当前开发分支已从 `codex/multi-agent-strategy-research` 切到 `codex/three-app-riverton-split`。交接版本以本文件所在的最新本地提交为准，不依赖未提交文件。
 
 未经用户明确授权，禁止推送远程、创建 PR 或把仓库发布到任何托管平台。代码交接优先使用本地 Git bundle。
 
@@ -120,7 +120,7 @@ npm run postgres:migrate
 ```bash
 git status --short --branch
 git bundle create ../agentnovas-codex-handoff.bundle \
-  codex/multi-agent-strategy-research
+  codex/three-app-riverton-split
 git bundle verify ../agentnovas-codex-handoff.bundle
 ```
 
@@ -129,7 +129,7 @@ git bundle verify ../agentnovas-codex-handoff.bundle
 ```bash
 git clone agentnovas-codex-handoff.bundle agentnovas-platform
 cd agentnovas-platform
-git switch codex/multi-agent-strategy-research
+git switch codex/three-app-riverton-split
 git log -1 --stat
 git status --short --branch
 ```
@@ -142,13 +142,13 @@ Git bundle 包含该分支的已提交代码和历史，不包含 `.env`、Postg
 
 在新环境用 Codex 打开仓库根目录后，可直接发送：
 
-> 请先完整阅读 `AGENTS.md`、`docs/DEVELOPMENT_HANDOFF.md`、相关 ADR 和 `git log -1 --stat`，然后检查 `git status --short --branch`。继续在 `codex/multi-agent-strategy-research` 分支工作。不得推送远程或创建 PR，除非我明确授权。先报告当前架构、可运行状态和未完成事项，再开始修改。
+> 请先完整阅读 `AGENTS.md`、`docs/DEVELOPMENT_HANDOFF.md`、相关 ADR 和 `git log -1 --stat`，然后检查 `git status --short --branch`。继续在 `codex/three-app-riverton-split` 分支工作。不得推送远程或创建 PR，除非我明确授权。先报告当前架构、可运行状态和未完成事项，再开始修改。
 
 Codex 仍然是同类开发代理，但新任务不会天然拥有旧聊天的短期记忆；仓库中的规则、交接文档、ADR、测试和 Git 历史才是可持续上下文。
 
 ## 8. 接管核验清单
 
-- 分支为 `codex/multi-agent-strategy-research`，工作区干净，最新提交与旧环境一致。
+- 分支为 `codex/three-app-riverton-split`，工作区干净，最新提交与旧环境一致。
 - Node.js 不低于 22.21.0，`npm ci` 成功。
 - PostgreSQL 恢复后的关键表行数和备份 SHA-256 记录一致，迁移完成。
 - 登录、多租户隔离、模型角色绑定、交易所账户读取正常。
@@ -164,3 +164,39 @@ Codex 仍然是同类开发代理，但新任务不会天然拥有旧聊天的�
 - 生产 Linux 部署、真实域名切换和生产数据库迁移尚未在本次本地提交中执行。
 - 交易所公开接口的可用性取决于新环境网络；代理配置不应被误判为 Cloudflare 依赖。
 - 当前 lint 的 7 个既有 warning 可在后续独立清理，不能用全局忽略规则掩盖。
+
+## 10. 2026-08-19 Riverton 三应用、RBAC、充值账本与邮件切片
+
+本次后续增量以本地提交 `64ba128` 为基线，新建本地分支 `codex/three-app-riverton-split`，未推送远端。
+
+已落地：
+
+- 三应用 audience 合同：客户端 `agentnovas.com`、运营端 `zht.agentnovas.com`、运维端 `xm.agentnovas.com`。
+- 三套独立本地脚本：`npm run dev:client`、`npm run dev:operations`、`npm run dev:maintenance`；生产启动脚本也按 audience 分开。
+- 登录 session 增加 `app_audience`，三个应用使用独立 Cookie；客户端保留旧 `an_session` 兼容。
+- 新增 RBAC 权限目录、固定数据范围、旧角色兼容映射、派生角色降权校验、敏感权限双审规则和有效权限 API。
+- 新增 RBAC 管理 API 骨架：权限目录、有效权限、角色模板、角色、分配、变更申请、审批和审计查询。
+- 新增 PostgreSQL 迁移 `0015_riverton_three_app_rbac_wallet.sql`，覆盖 RBAC、充值订单、双式账本、钱包余额、风险、人工操作、对账、导出和通知服务商配置。
+- 新增充值/钱包 API 骨架：余额、流水、充值订单创建和查询；未配置服务商时明确拒绝生成虚假充值地址。
+- 新增运营端充值 API 骨架：列表、详情、统计、人工操作申请和审批；默认脱敏 PII。
+- 新增运维端邮件/支付状态 API 和 webhook 安全占位；未配置签名密钥时不处理回调。
+- 新增 Payment Worker 与 Notification Worker 启动骨架，默认通过环境变量关闭。
+- 新增 Riverton systemd 与 Nginx 模板，仍为 Linux/Nginx/Certbot 直连，不使用 Cloudflare Runtime 或 Redis。
+- 新增 ADR：`docs/adr/0005-riverton-three-app-rbac-wallet.md`。
+
+仍未完成：
+
+- 尚未把根 `app/` 真实搬迁为三个完全独立的 Next 应用；当前是同一代码基线通过 audience、端口、Cookie 和构建目录隔离。
+- RBAC 管理 UI 尚未实现；API 已有最小持久化骨架。
+- 敏感权限审批目前只记录审批结果，尚未自动应用 `after_json` 中的角色变更；直接分配敏感角色已被阻止。
+- 真实 USDT 托管/支付服务商尚未选型，链上自动扫描、确认、入账和对账 Worker 仍是后续实现。
+- Resend 真实发送、Webhook 签名验签和模板渲染仍待接入；当前只暴露安全状态和占位入口。
+
+本次验证：
+
+- `node --test tests/*.test.mjs`：211 项通过。
+- `npx tsc --noEmit`：通过。
+- `npm run lint`：0 error，保留 7 个既有 warning。
+- `npm run build`：通过。
+- `npm run build:operations`：通过。
+- `npm run build:maintenance`：通过。

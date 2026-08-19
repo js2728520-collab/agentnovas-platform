@@ -2,6 +2,7 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { sessions, users } from "@/db/schema";
 import { sha256 } from "@/lib/auth";
+import { cookieNamesForRequest } from "@/lib/riverton-apps";
 
 export type CurrentUser = typeof users.$inferSelect;
 
@@ -11,9 +12,10 @@ function cookieValue(request: Request, name: string) {
 }
 
 export async function currentUser(request: Request): Promise<CurrentUser | null> {
-  const token = cookieValue(request, "an_session"); if (!token) return null;
+  const { audience, names } = cookieNamesForRequest(request);
+  const token = names.map((name) => cookieValue(request, name)).find(Boolean); if (!token) return null;
   const db = getDb(); const now = new Date().toISOString();
-  const row = (await db.select({ user: users }).from(sessions).innerJoin(users, eq(users.id, sessions.userId)).where(and(eq(sessions.tokenHash, await sha256(token)), gt(sessions.expiresAt, now), isNull(sessions.revokedAt), eq(users.status, "active"))).limit(1))[0];
+  const row = (await db.select({ user: users }).from(sessions).innerJoin(users, eq(users.id, sessions.userId)).where(and(eq(sessions.tokenHash, await sha256(token)), eq(sessions.appAudience, audience), gt(sessions.expiresAt, now), isNull(sessions.revokedAt), eq(users.status, "active"))).limit(1))[0];
   return row?.user ?? null;
 }
 

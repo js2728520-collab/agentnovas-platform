@@ -1,14 +1,15 @@
-# AgentNovas
+# Riverton Capital
 
-AgentNovas 是面向数字资产策略研究、真实历史回测和模拟盘验证的平台。本仓库的运行底座是原生 Next.js/Node.js、PostgreSQL、独立研究 Worker 和独立运行时 Worker，目标部署环境为自有 Linux 服务器。
+Riverton Capital 是面向数字资产策略研究、真实历史回测、模拟盘验证、会员和充值账务的平台。本仓库的运行底座是原生 Next.js/Node.js、PostgreSQL、独立 Worker 和 Nginx，目标部署环境为自有 Linux 服务器。
 
 ## 技术边界
 
-- Web：Next.js 16 / React 19，运行于 Node.js。
+- Web：Next.js 16 / React 19，运行于 Node.js。客户端、运营端和运维端使用独立 audience、端口和 Cookie。
 - 数据库：PostgreSQL；Web 与 Worker 使用同一个 `DATABASE_URL`。
-- 后台任务：研究与运行时使用两个独立 Node Worker，通过 PostgreSQL 租约和 `FOR UPDATE SKIP LOCKED` 取任务，不依赖 Redis。
+- 后台任务：研究、运行时、支付和通知使用独立 Node Worker，通过 PostgreSQL 持久化状态，不依赖 Redis。
 - 反向代理：生产环境使用 Nginx，SSE 路由关闭代理缓冲。
 - 交易：本期只开放策略生成、历史回测和模拟盘闭环，真实永续订单路由保持关闭。
+- Cloudflare 仅可作为 DNS 注册商/权威 DNS；不使用 Proxy、Workers、Pages、D1 或 Tunnel。
 
 ## 本地启动
 
@@ -17,14 +18,24 @@ AgentNovas 是面向数字资产策略研究、真实历史回测和模拟盘验
 ```bash
 npm ci
 npm run postgres:migrate
-npm run dev
+npm run dev:client
 ```
 
-在另一个终端启动研究 Worker：
+三个应用本地入口：
+
+```bash
+npm run dev:client       # http://127.0.0.1:3000
+npm run dev:operations   # http://127.0.0.1:3001
+npm run dev:maintenance  # http://127.0.0.1:3002
+```
+
+在另一个终端按需启动 Worker：
 
 ```bash
 npm run worker:research
 npm run worker:runtime
+npm run worker:payment
+npm run worker:notification
 ```
 
 本地环境变量放在 `.env.local`，至少配置：
@@ -36,6 +47,8 @@ EXCHANGE_CREDENTIAL_ENCRYPTION_KEY=replace-with-32-byte-key
 LLM_PROFILE_ENCRYPTION_KEY=replace-with-32-byte-key
 STRATEGY_RESEARCH_ENABLED=true
 STRATEGY_RUNTIME_ENABLED=true
+PAYMENT_WORKER_ENABLED=false
+NOTIFICATION_WORKER_ENABLED=false
 STRATEGY_RUNTIME_EXPLANATION_TIMEOUT_MS=30000
 PLATFORM_EMERGENCY_STOP=false
 ```
@@ -44,9 +57,13 @@ PLATFORM_EMERGENCY_STOP=false
 
 ## 常用命令
 
-- `npm run dev`：启动本地 Node Web 服务。
+- `npm run dev:client`：启动客户端，端口 3000。
+- `npm run dev:operations`：启动运营端，端口 3001。
+- `npm run dev:maintenance`：启动运维端，端口 3002。
 - `npm run worker:research`：启动独立策略研究 Worker。
 - `npm run worker:runtime`：启动影子盘/模拟盘 Runtime Worker；不会发送真实订单。
+- `npm run worker:payment`：启动支付 Worker；默认要求 `PAYMENT_WORKER_ENABLED=true`。
+- `npm run worker:notification`：启动通知 Worker；默认要求 `NOTIFICATION_WORKER_ENABLED=true`。
 - `npm run postgres:migrate`：应用 PostgreSQL 迁移。
 - `npm run build`：生成生产构建并执行 TypeScript 检查。
 - `npm run start`：启动生产构建。
@@ -55,14 +72,18 @@ PLATFORM_EMERGENCY_STOP=false
 
 ## Linux 部署
 
-生产环境使用 `/etc/agentnovas/agentnovas.env` 保存 `0600` 权限的环境变量，通过 systemd 分别管理 Web、Research Worker 和 Runtime Worker，再由 Nginx 直接为 `agentnovas.com` 提供 TLS 与反向代理。
+生产环境使用 `/etc/agentnovas/agentnovas.env` 保存 `0600` 权限的环境变量，通过 systemd 分别管理三个 Web 服务、Research Worker、Runtime Worker、Payment Worker 和 Notification Worker，再由 Nginx 直接为 `agentnovas.com`、`zht.agentnovas.com` 和 `xm.agentnovas.com` 提供 TLS 与反向代理。
 
 部署模板位于：
 
-- `deploy/systemd/agentnovas-web.service`
+- `deploy/systemd/riverton-client.service`
+- `deploy/systemd/riverton-operations.service`
+- `deploy/systemd/riverton-maintenance.service`
+- `deploy/systemd/riverton-payment-worker.service`
+- `deploy/systemd/riverton-notification-worker.service`
 - `deploy/systemd/agentnovas-research-worker.service`
 - `deploy/systemd/agentnovas-runtime-worker.service`
-- `deploy/nginx/agentnovas.com.conf`
+- `deploy/nginx/riverton-three-apps.conf`
 - `docs/runbooks/self-hosted-strategy-research.md`
 
 发布前先迁移数据库，再启动 Web；健康检查、登录和租户隔离通过后，最后开启研究功能并启动 Worker。
