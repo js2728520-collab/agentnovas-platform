@@ -11,6 +11,7 @@ export type SystemSettings = {
   siteName: string;
   primaryDomain: string;
   supportEmail: string;
+  telegramSupportUrl: string;
   copyrightOwner: string;
   defaultLocale: PlatformLocale;
   supportedLocales: PlatformLocale[];
@@ -68,10 +69,11 @@ export type AllPlatformSettings = {
 
 export const defaultPlatformSettings: AllPlatformSettings = {
   system: {
-    siteName: "AgentNovas",
+    siteName: "Riverton Capital",
     primaryDomain: "www.tzxsea.com",
     supportEmail: "support@agentnovas.com",
-    copyrightOwner: "AgentNovas",
+    telegramSupportUrl: "",
+    copyrightOwner: "Riverton Capital",
     defaultLocale: "zh-CN",
     supportedLocales: [...supportedPlatformLocales],
     maintenanceBanner: "",
@@ -134,6 +136,10 @@ function stringList(value: unknown, maxItems = 100) {
   return [...new Set(rows.map((item) => String(item).trim()).filter(Boolean))].slice(0, maxItems);
 }
 
+export function replaceLegacyBrand(value: string) {
+  return value.replace(/AgentNovas/gi, "Riverton Capital");
+}
+
 export function normalizePlatformSetting<S extends PlatformSettingSection>(section: S, value: unknown): AllPlatformSettings[S] {
   const input = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   if (section === "system") {
@@ -141,10 +147,18 @@ export function normalizePlatformSetting<S extends PlatformSettingSection>(secti
     const locales = stringList(input.supportedLocales, supportedPlatformLocales.length).filter((locale): locale is PlatformLocale => (supportedPlatformLocales as readonly string[]).includes(locale));
     const defaultLocale = (supportedPlatformLocales as readonly string[]).includes(String(input.defaultLocale)) ? input.defaultLocale as PlatformLocale : fallback.defaultLocale;
     return {
-      siteName: textValue(input.siteName, fallback.siteName, 80),
+      siteName: replaceLegacyBrand(textValue(input.siteName, fallback.siteName, 80)),
       primaryDomain: textValue(input.primaryDomain, fallback.primaryDomain, 160).replace(/^https?:\/\//i, "").replace(/\/$/, ""),
       supportEmail: textValue(input.supportEmail, fallback.supportEmail, 160),
-      copyrightOwner: textValue(input.copyrightOwner, fallback.copyrightOwner, 120),
+      telegramSupportUrl: (() => {
+        const candidate = textValue(input.telegramSupportUrl, fallback.telegramSupportUrl, 240);
+        try {
+          const parsed = new URL(candidate);
+          const host = parsed.hostname.toLowerCase();
+          return parsed.protocol === "https:" && ["t.me", "telegram.me", "www.telegram.me", "web.telegram.org"].includes(host) ? candidate : fallback.telegramSupportUrl;
+        } catch { return fallback.telegramSupportUrl; }
+      })(),
+      copyrightOwner: replaceLegacyBrand(textValue(input.copyrightOwner, fallback.copyrightOwner, 120)),
       defaultLocale,
       supportedLocales: locales.length ? locales : fallback.supportedLocales,
       maintenanceBanner: textValue(input.maintenanceBanner, "", 240),

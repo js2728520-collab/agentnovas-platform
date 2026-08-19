@@ -31,7 +31,7 @@ export async function POST(request: Request) {
         const userId = crypto.randomUUID();
         const now = new Date().toISOString();
         await db.batch([
-          db.insert(organizations).values({ id: organizationId, type: "headquarters", name: "AgentNovas 总公司" }),
+          db.insert(organizations).values({ id: organizationId, type: "headquarters", name: "Riverton Capital 总公司" }),
           db.insert(users).values({ id: userId, email, passwordHash: await hashPassword(body.password ?? ""), role: "hq_admin", organizationId, status: "active", emailVerifiedAt: now }),
         ]);
         user = (await db.select().from(users).where(eq(users.id, userId)).limit(1))[0];

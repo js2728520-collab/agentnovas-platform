@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AgentNovas — AI 智能交易平台",
+  title: "Riverton Capital — AI 智能交易平台",
   description: "集行情、AI 策略、风险控制、组织运营与可审计交易流程于一体的智能交易平台。",
   icons: {
     icon: "/favicon.svg",

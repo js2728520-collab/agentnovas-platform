@@ -152,7 +152,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     });
     const strategyNames = new Map(strategies.map(strategy => [strategy.id, strategy.name]));
     const organizationChain = [
-      { role: "总部", name: "AgentNovas 总公司" },
+      { role: "总部", name: "Riverton Capital 总公司" },
       ...(attribution.branchId ? [{ role: "分公司", name: branch?.name || attribution.branchId }] : [{ role: "归属", name: "总公司公海客户池" }]),
       ...([attribution.managerId, attribution.supervisorId, attribution.employeeId] as Array<string | null>).flatMap((personId, index) => {
         if (!personId) return [];

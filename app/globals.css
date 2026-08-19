@@ -1,11 +1,11 @@
 @import "tailwindcss";
 .hall-stats>.agent-live-strip{margin-left:auto;flex:0 0 calc((100% - 10px)*.62/2.17)}.agent-live-strip{width:auto;height:38px;overflow:hidden;border:1px solid #29394b;border-radius:6px;background:#0b121b;padding:4px 12px}.agent-live-track{animation:agent-talk-scroll 24s linear infinite}.agent-live-strip:hover .agent-live-track{animation-play-state:paused}.agent-live-track p{height:19px;margin:0;display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:8px}.agent-live-track p b{min-width:64px;color:#6eb5ff;font-weight:600}.agent-live-track p b:after{content:"："}.agent-live-track p span{overflow:hidden;text-overflow:ellipsis;color:#aab8c8}@keyframes agent-talk-scroll{0%,10%{transform:translateY(0)}14%,24%{transform:translateY(-19px)}28%,38%{transform:translateY(-38px)}42%,52%{transform:translateY(-57px)}56%,66%{transform:translateY(-76px)}70%,80%{transform:translateY(-95px)}84%,94%{transform:translateY(-114px)}100%{transform:translateY(-133px)}}@media(max-width:1000px){.hall-stats>.agent-live-strip{flex-basis:34%}}@media(max-width:760px){.hall-stats>.agent-live-strip{display:none}}
-/* AgentNovas deep-blue theme override */
+/* Riverton Capital deep-blue theme override */
 :root{--bg:#030815!important;--panel:#071226!important;--panel2:#0a1933!important;--line:#183664!important;--muted:#7891b4!important;--text:#e2edff!important;--green:#43a9ff!important;--blue:#4c8dff!important}
 body{background:radial-gradient(circle at 72% -10%,#102e64 0,#07132b 27%,#030815 58%) fixed!important;color:#e2edff!important}.topbar{background:#040c1dee!important;border-color:#17345f!important}.dash aside{background:#040d20!important;border-color:#17345f!important}.panel,.wide-panel,.work-card,.dialog-card,.chart-panel,.strategy-card,.exchange,.security-grid article,.kpi,.settings,.transcript,.market-widget,.agent-chat,.market-table,.coin-detail,.hall-bottom>section{background:#07152b!important;border-color:#193a69!important}.flow,.home-ticker button,.hall-stats,.lower-stream,.feed{background:#061126!important;border-color:#193a69!important}.hero:before{background:#1a56bf2c!important}.core{background:radial-gradient(circle,#69b9ff 0,#1b5ba2 7%,#07162e 62%)!important;border-color:#4aa9ff!important;box-shadow:0 0 75px #268cff55!important}.orbit{border-color:#24558c!important}.agent-tag{border-color:#43a9ff!important}.role-grid article,.safety-grid article{background:linear-gradient(145deg,#0a1a35,#061126)!important;border-color:#193a69!important}.role-grid article>i,.coin-list>button>i,.market-table button>i,.coin-title>i{background:#102f61!important;color:#62b7ff!important}.scene-preview{border-color:#245b9a!important}.safety-section{border-color:#17345f!important}.exchange-band{background:radial-gradient(circle at 70%,#154c9d55,#061126 50%)!important;border-color:#1b3c6b!important}.exchange-logos span{background:#091a34!important;border-color:#244d82!important}.final-cta{background:radial-gradient(circle,#123a78,#061126 68%)!important;border-color:#245b9a!important}.dash aside>button.active,.tabs button.active,.coin-list>button.active,.market-table>button.active{background:#102f61!important;color:#68bbff!important}.top-actions>button:last-child,.primary{background:#348ff0!important;color:#f5f9ff!important}.account>i{background-color:#0d2b59!important}.progress i,.gauge i{background:#43a9ff!important}.decision-card{background:#0b2850!important;border-color:#2869a9!important}.guard-card{background:linear-gradient(135deg,#0b2850,#07152b)!important;border-color:#315f91!important}.security-checks span{background:#0d2b59!important;color:#70bdff!important}
 /* Web-ready brand lockup: cropped symbol + live type, instead of the source banner. */
 .topbar .logo{width:auto!important;height:52px!important;background:none!important;display:flex!important;align-items:center!important;gap:9px!important;margin-right:34px!important}.topbar .logo span{display:block!important;width:34px!important;height:34px!important;border-radius:50%!important;background-image:url('/riverton-capital-logo.png')!important;background-size:350% auto!important;background-position:4% center!important;background-repeat:no-repeat!important;background-color:#05080b!important;box-shadow:0 0 18px #fff2!important}.topbar .logo b{display:block!important;font-size:18px!important;letter-spacing:-.35px!important;font-weight:650!important;color:#f5f7f8!important}.topbar .logo b:after{content:"";display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--green);margin-left:7px;vertical-align:top;box-shadow:0 0 8px var(--green)}
-.landing footer>b{width:auto!important;height:auto!important;background:none!important;font-size:14px!important;display:flex!important;align-items:center!important;gap:7px!important}.landing footer>b:before{content:"";width:25px;height:25px;border-radius:50%;background:url('/riverton-capital-logo.png') 4% center/350% auto no-repeat #05080b;box-shadow:0 0 12px #fff2}.auth-brand>span{width:190px!important;height:52px!important;background:none!important;color:#f6f8f9!important;display:flex!important;align-items:center!important;border-radius:0!important;font-size:0!important}.auth-brand>span:before{content:"";width:42px;height:42px;border-radius:50%;background:url('/riverton-capital-logo.png') 4% center/350% auto no-repeat #05080b}.auth-brand>span:after{content:"AgentNovas";font-size:20px;font-weight:650;margin-left:10px;letter-spacing:-.4px}
+.landing footer>b{width:auto!important;height:auto!important;background:none!important;font-size:14px!important;display:flex!important;align-items:center!important;gap:7px!important}.landing footer>b:before{content:"";width:25px;height:25px;border-radius:50%;background:url('/riverton-capital-logo.png') 4% center/350% auto no-repeat #05080b;box-shadow:0 0 12px #fff2}.auth-brand>span{width:190px!important;height:52px!important;background:none!important;color:#f6f8f9!important;display:flex!important;align-items:center!important;border-radius:0!important;font-size:0!important}.auth-brand>span:before{content:"";width:42px;height:42px;border-radius:50%;background:url('/riverton-capital-logo.png') 4% center/350% auto no-repeat #05080b}.auth-brand>span:after{content:"Riverton Capital";font-size:20px;font-weight:650;margin-left:10px;letter-spacing:-.4px}
 .orbital:before,.orbital:after{position:absolute;z-index:5;border-left:2px solid var(--green);padding-left:8px;font-size:9px;line-height:1.55;color:#53727d}.orbital:before{content:"TECHNICAL\A Technical analysis";white-space:pre;left:4px;top:47%}.orbital:after{content:"EXECUTION\A Trade execution";white-space:pre;right:0;top:50%}.agent-tag.a4:after{content:"CRITIC  Adversarial review";position:absolute;display:block;width:110px;left:-145px;top:-128px;border-left:2px solid var(--amber);padding-left:8px;color:#c09453;font-size:9px;line-height:1.5}.agent-tag.a1:after{content:"7 AGENTS ONLINE";position:absolute;top:-34px;left:105px;width:130px;text-align:center;color:var(--green);font-size:8px;letter-spacing:1.5px}
 html[lang^="zh"] .orbital:before{content:"TECHNICAL\A 技术分析"}html[lang^="zh"] .orbital:after{content:"EXECUTION\A 交易执行"}html[lang^="zh"] .agent-tag.a4:after{content:"CRITIC  反方审查"}
 .exchange-band .exchange-logos:after{content:"BITGET　 ·　 GATE.IO　 ·　 KUCOIN　 ·　 COINBASE　 ·　 KRAKEN";display:block;flex-basis:100%;color:#8fa4ad;font-size:9px;padding:10px 2px}.exchange-band .exchange-logos{flex-wrap:wrap}
@@ -28,7 +28,7 @@ html[lang^="zh"] .orbital:before{content:"TECHNICAL\A 技术分析"}html[lang^="
 .topbar .logo:hover{background:#ffffff05!important}
 .auth-brand>span{width:auto!important;height:58px!important;display:flex!important;align-items:center!important;margin-bottom:68px!important;background:none!important;color:transparent!important;font-size:0!important}
 .auth-brand>span:before{content:""!important;width:52px!important;height:52px!important;flex:0 0 52px!important;border-radius:13px!important;background:radial-gradient(circle at 94% 88%,#02050a 0 6px,transparent 6.5px),#02050a url('/agentnovas-mark-transparent.png') 46% 50%/108% auto no-repeat!important;box-shadow:0 10px 30px #0009!important}
-.auth-brand>span:after{content:"AgentNovas"!important;margin-left:13px!important;color:#f5f8ff!important;font-size:25px!important;font-weight:560!important;letter-spacing:-.9px!important}
+.auth-brand>span:after{content:"Riverton Capital"!important;margin-left:13px!important;color:#f5f8ff!important;font-size:25px!important;font-weight:560!important;letter-spacing:-.9px!important}
 .landing footer>b{width:auto!important;height:auto!important;display:flex!important;align-items:center!important;gap:8px!important;background:none!important;color:#d8e7ff!important;font-size:13px!important;letter-spacing:-.2px!important}
 .landing footer>b:before{content:""!important;width:29px!important;height:29px!important;border-radius:8px!important;background:#02050a url('/agentnovas-mark-transparent.png') 46% 50%/108% auto no-repeat!important;box-shadow:none!important}
 @media(max-width:560px){.topbar .logo{margin-right:8px!important}.topbar .logo b{font-size:16px!important}.topbar .logo span{width:33px!important;height:33px!important;flex-basis:33px!important}}
@@ -3892,3 +3892,123 @@ body:has(.membership-plans) .content>.page-head{
 .maintenance-invite-action{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px 16px;align-items:center;margin-top:12px;padding:16px 18px;border:1px solid #58456e;border-radius:12px;background:linear-gradient(135deg,#211a2f,#111b29)}.maintenance-invite-action h3{margin:5px 0;color:#eadbfa;font-size:16px}.maintenance-invite-action p,.maintenance-invite-action small{color:#9aa9bc;font-size:10px;line-height:1.55}.maintenance-invite-action p{margin:0}.maintenance-invite-action button{min-height:38px;padding:0 14px;border-radius:8px;font-size:11px}.maintenance-invite-action code{grid-column:1/-1;padding:10px 12px;border:1px dashed #a778d0;border-radius:8px;background:#0b101b;color:#f0d7ff;font:700 17px/1.2 var(--font-geist-mono);letter-spacing:.12em}.maintenance-invite-action small{grid-column:1/-1}.maintenance-invite-action small:not(:empty){color:#8fc9ad}
 .admin-page-head>div:last-child>button.danger:first-child{display:none}.admin-emergency-stop-button{min-height:38px;padding:0 14px;border-radius:8px;font-size:12px}.admin-emergency-stop-button.is-active{background:#7d2630;color:#fff1f2;border-color:#d95d69}.admin-emergency-stop-message{display:inline-block;max-width:300px;margin-left:8px;color:#ffbd88;font-size:10px;vertical-align:middle}.admin-emergency-stop-dialog{width:min(560px,calc(100vw - 32px))}.admin-emergency-stop-dialog h2{margin:10px 0;color:#f2f6fa;font-size:22px}.admin-emergency-stop-dialog p{color:#91a8ba;font-size:12px;line-height:1.7}.admin-emergency-stop-dialog p b{color:#f1d39c}.admin-emergency-stop-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:18px}.admin-emergency-stop-actions button{min-height:76px;padding:12px;border:1px solid #345a78;border-radius:10px;background:#0a1825;color:#dbeaf5;text-align:left}.admin-emergency-stop-actions button b,.admin-emergency-stop-actions button small{display:block}.admin-emergency-stop-actions button b{font-size:13px}.admin-emergency-stop-actions button small{margin-top:6px;color:#8fa8ba;font-size:10px;line-height:1.45}.admin-emergency-stop-actions .emergency-close-all{border-color:#9f4d59;background:#351922;color:#ffe7e9}.admin-emergency-stop-actions .emergency-close-all small{color:#e5a9ae}.admin-emergency-stop-actions .emergency-keep{border-color:#83643b;background:#2b2114}.admin-emergency-stop-actions .emergency-keep small{color:#d2b687}.admin-emergency-stop-dialog>.admin-emergency-stop-actions:has(.primary){grid-template-columns:1fr}.admin-emergency-stop-dialog .emergency-cancel{width:100%;margin-top:14px;min-height:36px;border:1px solid #30465c;border-radius:8px;color:#9bb1c0;background:#0b1621}
 @media(max-width:620px){.maintenance-announcement-head,.maintenance-announcement-actions{align-items:stretch;flex-direction:column}.maintenance-announcement-actions button{width:100%}}
+
+/* Final Riverton Capital logo lock: use the tightly cropped transparent mark.
+   The wider legacy mark export includes a stray white fragment at its right
+   edge, so every symbol-only placement uses the clean asset and has no
+   decorative pseudo-elements layered on top. */
+.topbar .logo,
+.topbar .logo>span,
+.auth-page .auth-brand-mark,
+.landing footer>b:before,
+.account>i{
+  background-color:transparent!important;
+  box-shadow:none!important;
+}
+.topbar .logo{background-image:none!important}
+.topbar .logo>span,
+.auth-page .auth-brand-mark,
+.landing footer>b:before,
+.account>i{
+  background-image:url('/agentnovas-mark-clean.png')!important;
+  background-position:center!important;
+  background-size:contain!important;
+  background-repeat:no-repeat!important;
+}
+.topbar .logo>span:before,
+.topbar .logo>span:after,
+.topbar .logo>b:before,
+.topbar .logo>b:after,
+.auth-brand>span:before,
+.auth-brand>span:after,
+.landing footer>b:after,
+.account>i:before,
+.account>i:after{
+  content:none!important;
+  display:none!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+
+/* Use the supplied Riverton Capital wordmark as a single transparent lockup so the
+   English lettering stays identical across the header and auth screens. */
+.topbar .logo{
+  width:208px!important;
+  min-width:208px!important;
+  height:52px!important;
+  min-height:52px!important;
+  padding:0!important;
+  gap:0!important;
+  margin-right:28px!important;
+  transform:none!important;
+  background:transparent url('/riverton-capital-logo.png') center/contain no-repeat!important;
+}
+.topbar .logo>span,
+.topbar .logo>b{
+  display:none!important;
+}
+.auth-brand-lockup{gap:0!important}
+.auth-page .auth-brand-mark{
+  width:220px!important;
+  height:54px!important;
+  flex:0 0 220px!important;
+  background-image:url('/riverton-capital-logo.png')!important;
+  background-size:contain!important;
+}
+.auth-brand-lockup>div{display:none!important}
+.landing footer>b{
+  width:180px!important;
+  height:38px!important;
+  background:transparent url('/riverton-capital-logo.png') left center/contain no-repeat!important;
+  font-size:0!important;
+  letter-spacing:0!important;
+}
+.landing footer>b:before{display:none!important}
+@media(max-width:560px){
+  .topbar .logo{width:158px!important;min-width:158px!important;height:40px!important;min-height:40px!important;margin-right:8px!important}
+  .auth-page .auth-brand-mark{width:190px!important;height:48px!important;flex-basis:190px!important}
+}
+
+/* Customer contact entry: a compact human support avatar with the label
+   beneath it, instead of the previous status-dot pill. */
+.support-floating{right:24px!important;bottom:24px!important}
+.support-fab{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:5px!important;
+  width:82px!important;
+  min-width:82px!important;
+  height:auto!important;
+  min-height:88px!important;
+  padding:8px 7px 7px!important;
+  border:1px solid rgba(105,190,238,.56)!important;
+  border-radius:16px!important;
+  background:linear-gradient(145deg,rgba(19,53,82,.96),rgba(8,24,43,.96))!important;
+  opacity:1!important;
+  color:#f1f9ff!important;
+  font-size:11px!important;
+  font-weight:800!important;
+  letter-spacing:0!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.13),0 9px 24px rgba(0,0,0,.3)!important;
+}
+.support-fab img{
+  display:block;
+  width:54px;
+  height:54px;
+  flex:0 0 54px;
+  object-fit:cover;
+  border:2px solid rgba(149,216,255,.76);
+  border-radius:50%;
+  box-shadow:0 4px 13px rgba(0,0,0,.32);
+}
+.support-fab:hover{opacity:1!important;background:linear-gradient(145deg,rgba(27,86,126,.98),rgba(10,37,62,.98))!important}
+.support-popover{bottom:104px!important}
+.support-telegram-unconfigured{margin-top:14px;padding:10px 11px;border:1px solid #6b5432;border-radius:9px;background:#251d11;color:#e1c37f;font-size:11px;line-height:1.55}
+@media(max-width:780px){
+  .support-floating{right:14px!important;bottom:14px!important}
+  .support-fab{width:74px!important;min-width:74px!important;min-height:81px!important;padding:6px 6px 6px!important;font-size:10px!important}
+  .support-fab img{width:48px;height:48px;flex-basis:48px}
+  .support-popover{bottom:96px!important}
+}

@@ -94,8 +94,8 @@ def setup_document(title: str, subject: str) -> Document:
     doc = Document()
     doc.core_properties.title = title
     doc.core_properties.subject = subject
-    doc.core_properties.author = "AgentNovas / Codex"
-    doc.core_properties.keywords = "AgentNovas, WOX, 运营后台, 运维后台, 权限, 分成"
+    doc.core_properties.author = "Riverton Capital / Codex"
+    doc.core_properties.keywords = "Riverton Capital, WOX, 运营后台, 运维后台, 权限, 分成"
     section = doc.sections[0]
     section.page_height = Cm(29.7)
     section.page_width = Cm(21)
@@ -129,7 +129,7 @@ def setup_document(title: str, subject: str) -> Document:
     hp = header.paragraphs[0]
     hp.clear()
     hp.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    run = hp.add_run("AGENTNOVAS  ·  WOX LOCAL REVIEW")
+    run = hp.add_run("RIVERTON CAPITAL  ·  WOX LOCAL REVIEW")
     set_font(run, 8, True, CYAN)
     hp.paragraph_format.space_after = Pt(2)
     footer = section.footer
@@ -150,7 +150,7 @@ def add_cover(doc: Document, title: str, subtitle: str, badge: str) -> None:
 
     p = doc.add_paragraph()
     p.paragraph_format.space_before = Pt(24)
-    r = p.add_run("AGENTNOVAS")
+    r = p.add_run("RIVERTON CAPITAL")
     set_font(r, 12, True, CYAN)
     p = doc.add_paragraph(style="Title")
     p.add_run(title)
@@ -200,7 +200,7 @@ def add_cover(doc: Document, title: str, subtitle: str, badge: str) -> None:
     p = doc.add_paragraph()
     p.paragraph_format.space_before = Pt(28)
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    r = p.add_run("AgentNovas · 智能交易中枢")
+    r = p.add_run("Riverton Capital · 智能交易中枢")
     set_font(r, 9, True, MUTED)
     doc.add_page_break()
 
@@ -320,7 +320,7 @@ def add_status_table(doc: Document, rows: Sequence[Sequence[str]]) -> None:
 
 
 def build_website_guide() -> Path:
-    doc = setup_document("AgentNovas 网站功能与后台体系说明书", "网站功能、后台体系、权限范围与奖励分成说明")
+    doc = setup_document("Riverton Capital 网站功能与后台体系说明书", "网站功能、后台体系、权限范围与奖励分成说明")
     add_cover(doc, "网站功能与后台体系说明书", "核心功能 · 运营后台 · 运维后台 · 权限矩阵 · 奖励分成", "当前结论：产品骨架与后台治理体系已形成，构建与核心页面验收通过")
     add_toc(doc, [
         ("01", "执行摘要与产品定位"), ("02", "全站架构与数据边界"), ("03", "用户侧核心功能"),
@@ -329,7 +329,7 @@ def build_website_guide() -> Path:
         ("10", "核心亮点与竞争优势"), ("11", "本地验收结果"), ("A", "系统规模附录"),
     ])
 
-    heading(doc, "01", "执行摘要与产品定位", "AgentNovas 是一个面向交易用户、组织运营团队和总部技术团队的一体化智能交易平台。当前本地版已完成用户门户、行情与新闻、AI 助手、策略广场、交易账户连接、会员、通知、组织运营和技术运维的统一产品框架。")
+    heading(doc, "01", "执行摘要与产品定位", "Riverton Capital 是一个面向交易用户、组织运营团队和总部技术团队的一体化智能交易平台。当前本地版已完成用户门户、行情与新闻、AI 助手、策略广场、交易账户连接、会员、通知、组织运营和技术运维的统一产品框架。")
     add_callout(doc, "一句话定位", "以客户归属链和权限隔离为基础，把行情研究、AI 策略、交易连接、会员计费、组织运营、策略审核与系统运维放在同一个可审计平台中。")
     subsection(doc, "当前完成度判断")
     add_status_table(doc, [
@@ -521,15 +521,15 @@ def build_website_guide() -> Path:
         ("主要语言", "简体中文、繁体中文、英语、日语、韩语、西班牙语、俄语"),
         ("本次新增持久配置", "系统、功能、计费、集成、安全 5 个设置域"),
     ], [5.0, 12.5])
-    doc.add_paragraph("文档结束。有关风险、差距、优先级和后续执行计划，请参阅单独的《AgentNovas 改进事项与下一阶段路线图》。")
+    doc.add_paragraph("文档结束。有关风险、差距、优先级和后续执行计划，请参阅单独的《Riverton Capital 改进事项与下一阶段路线图》。")
 
-    path = OUTPUT / "AgentNovas网站功能与后台体系说明书.docx"
+    path = OUTPUT / "Riverton Capital网站功能与后台体系说明书.docx"
     doc.save(path)
     return path
 
 
 def build_roadmap() -> Path:
-    doc = setup_document("AgentNovas 改进事项与下一阶段路线图", "逻辑不足、风险优先级、执行计划与验收标准")
+    doc = setup_document("Riverton Capital 改进事项与下一阶段路线图", "逻辑不足、风险优先级、执行计划与验收标准")
     add_cover(doc, "改进事项与下一阶段路线图", "逻辑不足 · 风险优先级 · 0–90 天执行计划 · 上线验收清单", "建议：先完成资金与权限安全闭环，再扩大市场与自动交易能力")
     add_toc(doc, [
         ("01", "管理层结论"), ("02", "P0 上线阻断项"), ("03", "P1 重要增强项"),
@@ -645,9 +645,9 @@ def build_roadmap() -> Path:
         ("数据保留", "审计和历史记录倾向保留", "客户关闭账号、隐私删除请求与监管保留期限如何平衡"),
     ], [4.1, 7.0, 6.4], 8.0)
     add_callout(doc, "建议的下一次决策会议", "先只讨论 P0：生产支付范围、真实交易开放边界、技术/财务角色、双人审批范围、适用国家和数据许可。上述五项确认后，再确定 90 天排期和预算。", BLUE)
-    doc.add_paragraph("文档结束。本路线图与《AgentNovas 网站功能与后台体系说明书》配套使用。")
+    doc.add_paragraph("文档结束。本路线图与《Riverton Capital 网站功能与后台体系说明书》配套使用。")
 
-    path = OUTPUT / "AgentNovas改进事项与下一阶段路线图.docx"
+    path = OUTPUT / "Riverton Capital改进事项与下一阶段路线图.docx"
     doc.save(path)
     return path
 

@@ -91,7 +91,7 @@ export default function StrategyDetail({ strategy, onBack }: { strategy: Strateg
     ? `${selectedAccount.exchange} 当前连接按现货处理，不能跟随需要合约的策略，请更换支持合约的交易所。`
     : "";
   const curve = curves[period];
-  const authorName = strategy.authorName || strategy.authorEmail?.split("@")[0] || (strategy.source === "platform" ? "AgentNovas AI Core" : "社区策略作者");
+  const authorName = strategy.authorName || strategy.authorEmail?.split("@")[0] || (strategy.source === "platform" ? "Riverton Capital AI Core" : "社区策略作者");
   const authorRole = authorRoleNames[strategy.authorRole || ""] || strategy.authorRole || (strategy.source === "platform" ? "平台 AI 策略团队" : "社区策略作者");
 
   useEffect(() => {

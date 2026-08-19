@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     }
     const hqId=crypto.randomUUID(), userId=crypto.randomUUID(), now=new Date().toISOString();
     await db.batch([
-      db.insert(organizations).values({id:hqId,type:"headquarters",name:"AgentNovas 总公司"}),
+      db.insert(organizations).values({id:hqId,type:"headquarters",name:"Riverton Capital 总公司"}),
       db.insert(users).values({id:userId,email,passwordHash:await hashPassword(body.password??""),role:"hq_admin",organizationId:hqId,status:"active",emailVerifiedAt:now}),
       db.insert(auditLogs).values({id:crypto.randomUUID(),actorUserId:userId,action:"system.bootstrap",subjectType:"organization",subjectId:hqId,afterJson:JSON.stringify({email})}),
     ]);

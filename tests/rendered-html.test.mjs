@@ -28,19 +28,19 @@ async function render() {
   );
 }
 
-test("server-renders the AgentNovas platform shell", async () => {
+test("server-renders the Riverton Capital platform shell", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.doesNotMatch(html, developmentPreviewMeta);
-  assert.match(html, /AgentNovas/i);
+  assert.match(html, /Riverton Capital/i);
   assert.match(html, /AI/);
   assert.match(html, /交易大厅|Trading Hall/i);
 });
 
-test("keeps the AgentNovas shell and core modules present", async () => {
+test("keeps the Riverton Capital shell and core modules present", async () => {
   const [css, page, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -54,6 +54,6 @@ test("keeps the AgentNovas shell and core modules present", async () => {
   assert.match(page, /CommunityStrategyCenter/);
   assert.match(page, /StrategyDetail/);
   assert.match(layout, /export const metadata:\s*Metadata/);
-  assert.match(layout, /AgentNovas/);
+  assert.match(layout, /Riverton Capital/);
   assert.match(packageJson, /"build"/);
 });
