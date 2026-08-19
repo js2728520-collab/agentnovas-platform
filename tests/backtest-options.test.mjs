@@ -81,5 +81,6 @@ test("strategy detail and backtest routes enforce ownership and persist parsed r
   assert.match(detailRoute, /metricsJson/);
   assert.match(backtestRoute, /request\.json/);
   assert.match(backtestRoute, /normalizeBacktestOptions/);
-  assert.match(backtestRoute, /runHistoricalBacktest\([\s\S]*options/);
+  assert.match(backtestRoute, /loadBacktestCandles\([\s\S]*options\.candleLimit/);
+  assert.match(backtestRoute, /runBacktestOnCandles\([\s\S]*options/);
 });

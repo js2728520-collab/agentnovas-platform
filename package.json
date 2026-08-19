@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.21.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "NODE_USE_ENV_PROXY=1 next dev",
     "prebuild": "npm run icons:generate",
     "build": "next build",
     "icons:generate": "node scripts/generate-product-icons.mjs",
-    "start": "next start",
+    "start": "NODE_USE_ENV_PROXY=1 next start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",

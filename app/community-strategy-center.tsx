@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CustomLlmButton } from "./llm-config";
 import type { StrategyDetailData } from "./strategy-detail";
+import { StrategyBacktestCenter, type StrategyBacktestSummary } from "./strategy-backtest-center";
 import { StrategyBacktestDetail } from "./strategy-backtest-detail";
 import { MultiAgentResearch } from "./multi-agent-research";
 
@@ -217,19 +218,36 @@ function riskName(value: unknown) {
   return value === "high" ? "高风险" : value === "low" ? "低风险" : "中风险";
 }
 
+function dateName(value: unknown) {
+  if (!value) return "时间待同步";
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime())
+    ? "时间待同步"
+    : date.toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function validationName(value: unknown) {
+  return value === "STANDARD_VERIFIED" ? "标准验证通过" : "未通过标准验证";
+}
+
+type MineScreen = "list" | "create" | "detail" | "backtest";
+
 export default function CommunityStrategyCenter({
   view = "market",
   onOpenStrategy,
   createRequest = 0,
+  onWorkspaceScreenChange,
 }: {
   view?: "market" | "mine";
   onOpenStrategy?: (strategy: StrategyDetailData) => void;
   createRequest?: number;
+  onWorkspaceScreenChange?: (screen: MineScreen) => void;
 }) {
   const [rows, setRows] = useState<Row[]>(demos);
   const [mine, setMine] = useState<Row[]>([]);
-  const [screen, setScreen] = useState<"list" | "create" | "detail">(createRequest > 0 ? "create" : "list");
+  const [screen, setScreen] = useState<MineScreen>(createRequest > 0 ? "create" : "list");
   const [selectedStrategyId, setSelectedStrategyId] = useState("");
+  const [autoStartBacktest, setAutoStartBacktest] = useState(false);
   const [message, setMessage] = useState("");
   const [studio, setStudio] = useState<Studio>(initial);
   const [preferences, setPreferences] = useState({
@@ -271,6 +289,15 @@ export default function CommunityStrategyCenter({
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    onWorkspaceScreenChange?.(screen);
+  }, [onWorkspaceScreenChange, screen]);
+
+  function openScreen(next: MineScreen, strategyId = "") {
+    setSelectedStrategyId(strategyId);
+    setScreen(next);
+  }
+
   function applyPreset(preset: FactorPreset) {
     setStudio((current) => ({ ...current, ...preset.defaults }));
     setMessage(`已载入“${preset.title}”研究模板。请结合自己的交易目标修改规则，再启动多 Agent 研发。`);
@@ -288,29 +315,14 @@ export default function CommunityStrategyCenter({
     !studio.riskRule.trim() ? "建议补充连续亏损暂停和单日熔断条件。" : "",
   ].filter(Boolean);
 
-  async function runBacktest(id: string) {
-    setBusy(`backtest:${id}`);
-    setMessage("正在获取历史K线并计算手续费、滑点和回撤…");
-    try {
-      const response = await fetch(`/api/strategy-marketplace/${id}/backtest`, {
-        method: "POST",
-      });
-      const raw = await response.text();
-      const result = safeJson<{ message?: string; error?: string }>(raw);
-      if (!response.ok || !result) throw new Error(result?.error || "回测服务没有返回有效结果");
-      setMessage(result.message || "回测完成");
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "回测失败");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function submit(id: string) {
+  async function submit(id: string, shareToMarketplace = false) {
     setBusy(`submit:${id}`);
     try {
-      const response = await fetch(`/api/strategy-marketplace/${id}/submit`, { method: "POST" });
+      const response = await fetch(`/api/strategy-marketplace/${id}/submit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shareToMarketplace }),
+      });
       const raw = await response.text();
       const result = safeJson<{ message?: string; error?: string }>(raw);
       setMessage(result?.message || result?.error || "提交审核失败");
@@ -325,7 +337,26 @@ export default function CommunityStrategyCenter({
   if (view === "mine" && screen === "detail" && selectedStrategyId) {
     return <StrategyBacktestDetail
       strategyId={selectedStrategyId}
-      onBack={() => { setScreen("list"); setSelectedStrategyId(""); }}
+      onBack={() => openScreen("list")}
+      onUpdated={() => void load()}
+    />;
+  }
+
+  if (view === "mine" && screen === "backtest") {
+    const summaries: StrategyBacktestSummary[] = mine.map(row => ({
+      id: String(row.id),
+      name: String(row.name || "未命名策略"),
+      version: Number(row.version || 1),
+      symbols: (row.symbols || []) as string[],
+      status: String(row.status || "draft"),
+      createdAt: row.createdAt ? String(row.createdAt) : undefined,
+    }));
+    return <StrategyBacktestCenter
+      strategies={summaries}
+      initialStrategyId={selectedStrategyId}
+      autoStart={autoStartBacktest}
+      onBack={() => { setAutoStartBacktest(false); openScreen("list"); }}
+      onOpenDetail={id => { setAutoStartBacktest(false); openScreen("detail", id); }}
       onUpdated={() => void load()}
     />;
   }
@@ -333,7 +364,7 @@ export default function CommunityStrategyCenter({
   if (view === "mine" && screen === "create") {
     return <div className="strategy-studio-page">
       <header>
-        <button onClick={() => setScreen("list")}>返回我的策略</button>
+        <button onClick={() => openScreen("list")}>返回我的策略</button>
         <div><small>AI STRATEGY LAB</small><h2>创建策略</h2><p>专业引导、真实历史回测、作者策略模拟测试和平台人工审核。</p></div>
         <div className="strategy-studio-header-actions"><CustomLlmButton /><span>后台任务可恢复</span></div>
       </header>
@@ -375,10 +406,10 @@ export default function CommunityStrategyCenter({
           <label className="studio-rule-field">入场规则<textarea value={studio.entryRule} onChange={(event) => setStudio({ ...studio, entryRule: event.target.value })} placeholder="例：EMA20 上穿 EMA60 且 ADX14 ≥ 22，收盘确认后入场" /></label>
           <label className="studio-rule-field">退出规则<textarea value={studio.exitRule} onChange={(event) => setStudio({ ...studio, exitRule: event.target.value })} placeholder="例：跌破 EMA60 或触发 2×ATR 移动止损" /></label>
           <label className="studio-rule-field">风控与暂停条件<textarea value={studio.riskRule} onChange={(event) => setStudio({ ...studio, riskRule: event.target.value })} placeholder="例：连续3次亏损暂停，单日亏损2%停止开仓" /></label>
-          <section className="studio-factor-library">
-            <div className="studio-card-heading"><b>成熟因子模板</b><small>点击载入，可继续修改</small></div>
+          <details className="studio-factor-library">
+            <summary><span><b>成熟因子模板</b><small>按需展开 · {allFactorPresets.length} 个可审计研究模板</small></span><em>展开选择</em></summary>
             <div className="studio-factor-grid">{allFactorPresets.map((preset) => <button type="button" className="studio-factor-card" key={preset.id} onClick={() => applyPreset(preset)}><strong>{preset.title}</strong><span>{preset.summary}</span><small>{preset.tags.join(" · ")}</small></button>)}</div>
-          </section>
+          </details>
           <section className="studio-quality-card">
             <div className="studio-card-heading"><b>回测前检查</b><small>{qualityChecks.filter((item) => item.ok).length}/{qualityChecks.length} 已完成</small></div>
             <div className="studio-quality-list">{qualityChecks.map((item) => <span className={item.ok ? "ok" : "todo"} key={item.label}>{item.ok ? "✓" : "!"} {item.label}</span>)}</div>
@@ -413,10 +444,10 @@ export default function CommunityStrategyCenter({
   if (view === "mine") {
     return <div className="community-center">
       {message && <div className="notice">{message}</div>}
-      <section className="my-strategy-modules">
-        <article><i>01</i><div><small>STRATEGY MANAGEMENT</small><h3>策略管理</h3><p>查看草稿、回测报告、审核状态和版本。</p></div><span>{mine.length} 个策略</span></article>
-        <article><i>02</i><div><small>BACKTEST CENTER</small><h3>回测与模拟测试</h3><p>历史回测与作者策略模拟测试均为研究工具，不会触发真实订单。</p></div><span>自由测试</span></article>
-      </section>
+      <nav className="strategy-workspace-tabs" aria-label="策略工作区">
+        <button type="button" className="active" aria-current="page"><b>策略列表</b><small>{mine.length} 个策略 · 版本、审核与分享</small></button>
+        <button type="button" onClick={() => { setAutoStartBacktest(false); openScreen("backtest"); }}><b>回测与模拟</b><small>动态进度、资金曲线与模拟说明</small></button>
+      </nav>
       <div className="my-strategy-card-grid">{mine.map((row) => {
         const hasBacktest = Boolean(backtestFor(row));
         const id = String(row.id);
@@ -425,9 +456,10 @@ export default function CommunityStrategyCenter({
         return <article key={id}>
           <header><span>{selfUse ? "自用策略" : String(row.status) === "published" ? "已上架" : String(row.status) === "submitted" ? "审核中" : "我的策略"}</span><em>V{String(row.version)}</em></header>
           <h3>{String(row.name)}</h3><p>{((row.symbols || []) as string[]).join(" · ")} · {riskName(row.riskLevel)}{selfUse ? " · 平台不抽成" : ""}</p>
-          <div><span className={hasBacktest ? "complete" : ""}>回测报告 {hasBacktest ? "已生成" : "可选"}</span><span>模拟测试 可选</span></div>
-          <div className="strategy-backtest-actions"><button onClick={() => { setSelectedStrategyId(id); setScreen("detail"); }}>查看策略</button>{!submitted && <button disabled={Boolean(busy)} onClick={() => void runBacktest(id)}>{busy === `backtest:${id}` ? "回测中…" : "快速回测"}</button>}</div>
-          {selfUse ? <div className="strategy-self-use-note">自用策略 · 不进入策略广场 · 平台不抽成</div> : <button className="primary" disabled={submitted || Boolean(busy)} onClick={() => void submit(id)}>{String(row.status) === "published" ? "已上架策略广场" : String(row.status) === "submitted" ? "等待平台人工审核" : "提交到策略广场"}</button>}
+          <dl className="my-strategy-card-meta"><div><dt>创建时间</dt><dd>{dateName(row.createdAt)}</dd></div><div><dt>验证状态</dt><dd className={row.validationLabel === "STANDARD_VERIFIED" ? "verified" : "unverified"}>{validationName(row.validationLabel)}</dd></div></dl>
+          <div className="my-strategy-card-status"><span className={hasBacktest ? "complete" : ""}>回测报告 {hasBacktest ? "已生成" : "待运行"}</span><span>模拟运行 未启动</span></div>
+          <div className="strategy-backtest-actions"><button type="button" onClick={() => openScreen("detail", id)}>查看策略</button>{!submitted && <button type="button" disabled={Boolean(busy)} onClick={() => { setAutoStartBacktest(true); openScreen("backtest", id); }}>快速回测</button>}</div>
+          <button type="button" className="strategy-share-action" disabled={submitted || Boolean(busy)} onClick={() => void submit(id, selfUse)}>{String(row.status) === "published" ? "已分享到策略广场" : String(row.status) === "submitted" ? "等待平台人工审核" : selfUse ? "分享到策略广场" : "提交到策略广场"}</button>
         </article>;
       })}</div>
       {!mine.length && <div className="notice">当前账号还没有真实保存的策略。点击“创建策略”开始，不会再展示虚构草稿。</div>}

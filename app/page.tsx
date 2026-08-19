@@ -1762,18 +1762,20 @@ function PageHead({
 function Strategies() {
   const [mine, setMine] = useState(false),
     [detail, setDetail] = useState<StrategyDetailData | null>(null),
-    [createRequest, setCreateRequest] = useState(0);
+    [createRequest, setCreateRequest] = useState(0),
+    [workspaceScreen, setWorkspaceScreen] = useState<"list" | "create" | "detail" | "backtest">("list");
   if (detail)
     return <StrategyDetail strategy={detail} onBack={() => setDetail(null)} />;
   const toggleMine = () => {
     if (mine) {
       setMine(false);
       setCreateRequest(0);
+      setWorkspaceScreen("list");
     } else setMine(true);
   };
   return (
     <>
-      <PageHead
+      {(!mine || workspaceScreen === "list") && <PageHead
         className={mine ? "my-strategy-page-head" : undefined}
         title={mine ? "我的策略" : "策略广场"}
         sub={
@@ -1786,7 +1788,7 @@ function Strategies() {
             {mine && (
               <button
                 className="strategy-create-top"
-                onClick={() => setCreateRequest((value) => value + 1)}
+                onClick={() => { setWorkspaceScreen("create"); setCreateRequest((value) => value + 1); }}
               >
                 创建策略
               </button>
@@ -1799,13 +1801,14 @@ function Strategies() {
             </button>
           </>
         }
-      />
+      />}
       {mine ? (
         <CommunityStrategyCenter
           key={createRequest}
           view="mine"
           onOpenStrategy={setDetail}
           createRequest={createRequest}
+          onWorkspaceScreenChange={setWorkspaceScreen}
         />
       ) : (
         <>

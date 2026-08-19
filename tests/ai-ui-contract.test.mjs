@@ -72,3 +72,16 @@ test("Agent conversation history hides legacy empty strategy threads", async () 
 
   assert.match(conversations, /row\.purpose === "consultation" \|\| messageCount > 0/);
 });
+
+test("strategy research instrument loading exposes retry state and server proxy support", async () => {
+  const [research, packageSource] = await Promise.all([
+    source("../app/multi-agent-research.tsx"),
+    source("../package.json"),
+  ]);
+
+  assert.match(research, /instrumentError/);
+  assert.match(research, /重新读取合约/);
+  assert.match(research, /setInstrumentBusy\(true\)/);
+  assert.match(packageSource, /NODE_USE_ENV_PROXY=1 next dev/);
+  assert.match(packageSource, /NODE_USE_ENV_PROXY=1 next start/);
+});

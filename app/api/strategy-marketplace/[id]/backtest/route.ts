@@ -6,8 +6,9 @@ import {
   strategyValidations as strategyBacktestReports,
 } from "@/db/schema";
 import {
+  loadBacktestCandles,
   normalizeBacktestOptions,
-  runHistoricalBacktest,
+  runBacktestOnCandles,
   runPerpetualBacktestOnCandles,
 } from "@/lib/backtest-engine";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
@@ -20,6 +21,16 @@ import { getPostgresPool } from "@/lib/postgres";
 import { getOwnedResearchRun } from "@/lib/postgres-research-queue";
 import { requireUser, responseError } from "@/lib/session";
 import { normalizeResearchStrategyDsl } from "@/lib/strategy-dsl";
+
+type BacktestStage = "validating" | "market_data" | "funding" | "engine" | "saving";
+type BacktestProgress = (event: {
+  type: "progress";
+  stage: BacktestStage;
+  progress: number;
+  message: string;
+}) => void;
+
+const noProgress: BacktestProgress = () => {};
 
 async function resolveResearchExchange(strategy: typeof communityStrategies.$inferSelect, ownerUserId: string) {
   if (!strategy.researchRunId) return "binance" as const;
@@ -37,13 +48,23 @@ async function runSavedStrategyBacktest(
   strategy: typeof communityStrategies.$inferSelect,
   ownerUserId: string,
   rawOptions: Record<string, unknown>,
+  onProgress: BacktestProgress = noProgress,
 ) {
+  onProgress({ type: "progress", stage: "validating", progress: 8, message: "正在校验策略 DSL 与回测参数" });
   const specification = normalizeResearchStrategyDsl(JSON.parse(strategy.specificationJson || "{}"));
-  if (specification.schemaVersion === 1) return runHistoricalBacktest(specification, rawOptions);
+  if (specification.schemaVersion === 1) {
+    const options = normalizeBacktestOptions(rawOptions);
+    onProgress({ type: "progress", stage: "market_data", progress: 22, message: "正在读取完整历史 K 线" });
+    const { candles, provider } = await loadBacktestCandles(specification, options.candleLimit);
+    onProgress({ type: "progress", stage: "funding", progress: 55, message: "现货策略无需资金费率，正在核对成本参数" });
+    onProgress({ type: "progress", stage: "engine", progress: 68, message: "确定性回测引擎正在逐根处理 K 线" });
+    return runBacktestOnCandles(specification, candles, { ...options, provider });
+  }
 
   const options = normalizeBacktestOptions(rawOptions);
   const exchange = await resolveResearchExchange(strategy, ownerUserId);
   const adapter = createPerpetualMarketAdapter(exchange);
+  onProgress({ type: "progress", stage: "market_data", progress: 22, message: "正在读取合约规则、历史 K 线和费率" });
   const [instrument, candles, fee] = await Promise.all([
     adapter.getInstrument({ symbol: specification.symbol }),
     adapter.getCandles({
@@ -61,6 +82,7 @@ async function runSavedStrategyBacktest(
     Math.ceil((endTime - startTime) / (instrument.fundingIntervalHours * 3_600_000)) + 10,
     10_000,
   );
+  onProgress({ type: "progress", stage: "funding", progress: 52, message: "正在加载并校验历史资金费率" });
   const funding = await adapter.getFundingRates({
     symbol: specification.symbol,
     startTime,
@@ -74,6 +96,7 @@ async function runSavedStrategyBacktest(
     expectedFundingIntervalHours: instrument.fundingIntervalHours,
     feeEstimated: fee.estimated,
   });
+  onProgress({ type: "progress", stage: "engine", progress: 68, message: "确定性回测引擎正在逐根处理 K 线" });
   const result = await runPerpetualBacktestOnCandles(specification, candles.items, funding.items, {
     ...options,
     feeRate: fee.takerRate,
@@ -82,6 +105,108 @@ async function runSavedStrategyBacktest(
   if (fee.estimated) result.warnings.push("账户实际手续费不可读取，本次采用管理员保守费率估算");
   if (!quality.isVerifiable) result.warnings.push("行情或资金费率存在质量缺口，本次结果不能作为标准验证结论");
   return { ...result, dataQuality: quality, feeSchedule: fee };
+}
+
+async function persistBacktest(
+  db: ReturnType<typeof getDb>,
+  strategy: typeof communityStrategies.$inferSelect,
+  ownerUserId: string,
+  id: string,
+  options: Record<string, unknown>,
+  onProgress: BacktestProgress = noProgress,
+) {
+  const result = await runSavedStrategyBacktest(strategy, ownerUserId, options, onProgress);
+  onProgress({ type: "progress", stage: "saving", progress: 90, message: "正在保存报告、证据哈希和审计记录" });
+  const reportId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  await db.batch([
+    db.insert(strategyBacktestReports).values({
+      id: reportId,
+      strategyId: id,
+      strategyVersion: strategy.version,
+      kind: "backtest",
+      status: "passed",
+      source: "platform_engine",
+      periodStart: result.periodStart,
+      periodEnd: result.periodEnd,
+      sampleSize: result.sampleSize,
+      netReturnPct: result.netReturnPct,
+      maxDrawdownPct: result.maxDrawdownPct,
+      winRatePct: result.winRatePct,
+      evidenceRef: result.evidenceRef,
+      metricsJson: JSON.stringify(result),
+      completedAt: now,
+    }),
+    db.update(communityStrategies)
+      .set({ status: "testing", updatedAt: now })
+      .where(eq(communityStrategies.id, id)),
+    db.insert(auditLogs).values({
+      id: crypto.randomUUID(),
+      actorUserId: ownerUserId,
+      action: "strategy.backtest.completed",
+      subjectType: "community_strategy",
+      subjectId: id,
+      afterJson: JSON.stringify({
+        reportId,
+        source: "platform_engine",
+        evidenceRef: result.evidenceRef,
+        warnings: result.warnings,
+        parameters: result.parameters,
+      }),
+    }),
+  ]);
+
+  return {
+    reportId,
+    result,
+    message: result.warnings.length
+      ? `历史回测已完成：${result.warnings.join("；")}`
+      : "历史回测已完成，报告已保存",
+  };
+}
+
+function streamBacktest(run: (onProgress: BacktestProgress) => Promise<Awaited<ReturnType<typeof persistBacktest>>>) {
+  const encoder = new TextEncoder();
+  let controllerClosed = false;
+  let streamController: ReadableStreamDefaultController<Uint8Array>;
+  const emit = (event: Record<string, unknown>) => {
+    if (controllerClosed) return;
+    try {
+      streamController.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+    } catch {
+      controllerClosed = true;
+    }
+  };
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller;
+      void run(event => emit(event)).then(payload => {
+        emit({ type: "completed", progress: 100, ...payload });
+      }).catch(error => {
+        emit({
+          type: "failed",
+          progress: 100,
+          error: { code: "BACKTEST_FAILED", message: error instanceof Error ? error.message : "历史回测失败" },
+        });
+      }).finally(() => {
+        if (!controllerClosed) controller.close();
+        controllerClosed = true;
+      });
+    },
+    cancel() {
+      // 客户端切换页面只关闭进度订阅，不取消已经开始的服务端回测和报告保存。
+      controllerClosed = true;
+    },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "cache-control": "no-store, no-transform",
+      "x-accel-buffering": "no",
+    },
+  });
 }
 
 export async function POST(
@@ -114,55 +239,12 @@ export async function POST(
       return Response.json({ error: error instanceof Error ? error.message : "回测参数无效" }, { status: 400 });
     }
 
-    const result = await runSavedStrategyBacktest(strategy, me.id, options);
-    const reportId = crypto.randomUUID();
-    const now = new Date().toISOString();
+    if (new URL(request.url).searchParams.get("stream") === "1") {
+      return streamBacktest(onProgress => persistBacktest(db, strategy, me.id, id, options, onProgress));
+    }
 
-    // 复用已有历史数据表保存回测报告，但报告不构成提交或审核门槛。
-    await db.batch([
-      db.insert(strategyBacktestReports).values({
-        id: reportId,
-        strategyId: id,
-        strategyVersion: strategy.version,
-        kind: "backtest",
-        status: "passed",
-        source: "platform_engine",
-        periodStart: result.periodStart,
-        periodEnd: result.periodEnd,
-        sampleSize: result.sampleSize,
-        netReturnPct: result.netReturnPct,
-        maxDrawdownPct: result.maxDrawdownPct,
-        winRatePct: result.winRatePct,
-        evidenceRef: result.evidenceRef,
-        metricsJson: JSON.stringify(result),
-        completedAt: now,
-      }),
-      db.update(communityStrategies)
-        .set({ status: "testing", updatedAt: now })
-        .where(eq(communityStrategies.id, id)),
-      db.insert(auditLogs).values({
-        id: crypto.randomUUID(),
-        actorUserId: me.id,
-        action: "strategy.backtest.completed",
-        subjectType: "community_strategy",
-        subjectId: id,
-        afterJson: JSON.stringify({
-          reportId,
-          source: "platform_engine",
-          evidenceRef: result.evidenceRef,
-          warnings: result.warnings,
-          parameters: result.parameters,
-        }),
-      }),
-    ]);
-
-    return Response.json({
-      reportId,
-      result,
-      message: result.warnings.length
-        ? `历史回测已完成：${result.warnings.join("；")}`
-        : "历史回测已完成，报告已保存",
-    }, { status: 201 });
+    const payload = await persistBacktest(db, strategy, me.id, id, options);
+    return Response.json(payload, { status: 201 });
   } catch (error) {
     return responseError(error);
   }

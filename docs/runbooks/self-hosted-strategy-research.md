@@ -6,7 +6,7 @@
 
 ## 1. 服务器准备
 
-- 安装 Linux、Node.js 22.13+、PostgreSQL 16+、Nginx 和 Certbot。
+- 安装 Linux、Node.js 22.21+、PostgreSQL 16+、Nginx 和 Certbot。
 - 创建无登录用户 `agentnovas`，将只读应用制品部署到 `/opt/agentnovas/current`。
 - 将环境文件放在 `/etc/agentnovas/agentnovas.env`，所有者为 `root:agentnovas`，权限为 `0640` 或更严格。
 - 为应用创建最小权限 PostgreSQL 用户；模型和交易所密钥的加密主密钥不得提交到 Git。

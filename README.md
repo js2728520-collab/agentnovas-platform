@@ -12,7 +12,7 @@ AgentNovas 是面向数字资产策略研究、真实历史回测和模拟盘验
 
 ## 本地启动
 
-要求 Node.js 22.13+ 和 PostgreSQL 16+。
+要求 Node.js 22.21+ 和 PostgreSQL 16+。Node 版本要求包含环境代理支持，供交易所合约与行情请求使用。
 
 ```bash
 npm ci

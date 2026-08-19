@@ -78,6 +78,8 @@ export function MultiAgentResearch({ brief }: { brief: Record<string, unknown> }
   const [direction, setDirection] = useState<Direction | "">("");
   const [targetConfirmed, setTargetConfirmed] = useState(false);
   const [instrumentBusy, setInstrumentBusy] = useState(false);
+  const [instrumentError, setInstrumentError] = useState("");
+  const [instrumentRetry, setInstrumentRetry] = useState(0);
   const [roles, setRoles] = useState<Array<{ role: string; modelName: string; configured: boolean; enabled: boolean }>>([]);
   const [ready, setReady] = useState(false);
   const [restoringRun, setRestoringRun] = useState(true);
@@ -132,6 +134,7 @@ export function MultiAgentResearch({ brief }: { brief: Record<string, unknown> }
         const restoredDirection = String(nestedTarget.direction ?? "").toLowerCase();
         setRunId(run.id);
         setMode(run.mode);
+        setInstrumentBusy(true);
         setAccountId(run.exchangeAccountId);
         setInstrumentId(String(nestedTarget.instrumentId ?? ""));
         if (timeframes.includes(restoredTimeframe as Timeframe)) setTimeframe(restoredTimeframe as Timeframe);
@@ -159,6 +162,7 @@ export function MultiAgentResearch({ brief }: { brief: Record<string, unknown> }
       if (!response.ok) throw new Error(errorMessage(data, "读取永续合约失败"));
       const next = Array.isArray(data?.instruments) ? data.instruments as ResearchInstrument[] : [];
       setInstruments(next);
+      if (!next.length) setInstrumentError("该账户当前没有可用的 USDT 永续合约");
       const preferredSymbol = String(brief.symbol ?? "").replace(/[^a-z0-9]/gi, "").toUpperCase();
       const preferred = next.find(item => item.symbol === preferredSymbol);
       setInstrumentId(current => current && next.some(item => item.exchangeSymbol === current)
@@ -170,12 +174,13 @@ export function MultiAgentResearch({ brief }: { brief: Record<string, unknown> }
       if (directions.some(item => item.id === preferredDirection)) setDirection(current => current || preferredDirection as Direction);
     }).catch(error => {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setMessage(error instanceof Error ? error.message : "读取永续合约失败");
+      setInstruments([]);
+      setInstrumentError(error instanceof Error ? error.message : "读取永续合约失败");
     }).finally(() => {
       if (!controller.signal.aborted) setInstrumentBusy(false);
     });
     return () => controller.abort();
-  }, [accountId, brief.direction, brief.symbol, brief.timeframe]);
+  }, [accountId, brief.direction, brief.symbol, brief.timeframe, instrumentRetry]);
 
   useEffect(() => {
     if (!runId) return;
@@ -362,8 +367,8 @@ export function MultiAgentResearch({ brief }: { brief: Record<string, unknown> }
     <div className="research-role-strip">{roles.map(role => <span key={role.role}><b>{roleNames[role.role] || role.role}</b><small>{role.modelName}</small></span>)}</div>
     <div className="research-launch-grid">
       <div className="research-mode-grid">{modes.map(item => <button type="button" className={mode === item.id ? "selected" : ""} key={item.id} onClick={() => { setMode(item.id); setTargetConfirmed(false); }}><b>{item.name}</b><small>{item.detail}</small></button>)}</div>
-      <label>交易所与数据账户<select value={accountId} onChange={event => { const value = event.target.value; setAccountId(value); setInstruments([]); setInstrumentId(""); setInstrumentBusy(Boolean(value)); setTargetConfirmed(false); }}><option value="">请选择只读交易所账户</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.label} · {account.exchange}</option>)}</select></label>
-      <label>USDT 永续合约<select value={instrumentId} disabled={!accountId || instrumentBusy} onChange={event => { setInstrumentId(event.target.value); setTargetConfirmed(false); }}><option value="">{instrumentBusy ? "正在读取真实合约…" : "请选择永续合约"}</option>{instruments.map(instrument => <option key={instrument.exchangeSymbol} value={instrument.exchangeSymbol}>{instrument.symbol} · tick {instrument.tickSize}</option>)}</select></label>
+      <label>交易所与数据账户<select value={accountId} onChange={event => { const value = event.target.value; setAccountId(value); setInstruments([]); setInstrumentId(""); setInstrumentBusy(Boolean(value)); setInstrumentError(""); setTargetConfirmed(false); }}><option value="">请选择只读交易所账户</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.label} · {account.exchange}</option>)}</select></label>
+      <label className="research-instrument-field">USDT 永续合约<select value={instrumentId} disabled={!accountId || instrumentBusy || Boolean(instrumentError)} onChange={event => { setInstrumentId(event.target.value); setTargetConfirmed(false); }}><option value="">{instrumentBusy ? "正在读取真实合约…" : instrumentError ? "合约读取失败" : "请选择永续合约"}</option>{instruments.map(instrument => <option key={instrument.exchangeSymbol} value={instrument.exchangeSymbol}>{instrument.symbol} · tick {instrument.tickSize}</option>)}</select>{instrumentError && <span role="alert">{instrumentError}<button type="button" onClick={() => { setInstrumentBusy(true); setInstrumentError(""); setInstrumentRetry(value => value + 1); }}>重新读取合约</button></span>}</label>
       <label>K 线周期<select value={timeframe} onChange={event => { setTimeframe(event.target.value as Timeframe); setTargetConfirmed(false); }}><option value="">请选择周期</option>{timeframes.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
       <label>交易方向<select value={direction} onChange={event => { setDirection(event.target.value as Direction); setTargetConfirmed(false); }}><option value="">请选择交易方向</option>{directions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
       <section className="research-target-confirmation" aria-label="研发条件确认">
