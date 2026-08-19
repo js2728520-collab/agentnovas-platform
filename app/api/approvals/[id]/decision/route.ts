@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const isStrategyReview = approval.type === "strategy_listing";
     if (isStrategyReview) {
-      if (!["hq_admin", "auditor"].includes(user.role)) return Response.json({ error: "仅总公司管理员或审核员可以审核策略上架" }, { status: 403 });
+      if (user.role !== "maintenance_admin") return Response.json({ error: "仅运维角色可以审核策略上架" }, { status: 403 });
     } else {
       if (user.role !== "branch_admin") return Response.json({ error: "仅分公司账号可以审批运营申请" }, { status: 403 });
       if (user.organizationId !== approval.branchId) return Response.json({ error: "不能审批其他分公司的申请" }, { status: 403 });
@@ -50,7 +50,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json({ status: "rejected" });
     }
     const approvals = decisions.filter((row) => row.decision === "approve");
-    const requiredApprovals = isStrategyReview ? 2 : 1;
+    const requiredApprovals = 1;
     if (approvals.length < requiredApprovals) return Response.json({ status: "pending", approvals: approvals.length, required: requiredApprovals });
 
     if (isStrategyReview) {

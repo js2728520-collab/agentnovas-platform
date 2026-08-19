@@ -67,7 +67,7 @@ export async function POST(
     return Response.json({
       approvalId,
       status: "submitted",
-      message: "已提交平台双人审核",
+      message: "已提交运维审核",
     });
   } catch (error) {
     return responseError(error);

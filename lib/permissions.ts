@@ -1,8 +1,10 @@
 export const childRole: Record<string, string | undefined> = { hq_admin: "branch_admin", branch_admin: "manager", manager: "supervisor", supervisor: "employee", employee: "customer" };
 export const branchApprovalRoles = ["branch_admin", "finance", "auditor"] as const;
 export const invitationRoles = ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee"] as const;
+export const maintenanceRoles = ["hq_admin", "maintenance_admin"] as const;
 
 export function canCreateInvitation(role: string, kind: string) {
+  if (kind === "maintenance_admin_single_use") return role === "hq_admin";
   return kind === "employee_reusable"
     ? ["hq_admin", "branch_admin", "manager", "supervisor", "employee"].includes(role)
     : role === "hq_support" || role === "hq_admin";
@@ -10,7 +12,7 @@ export function canCreateInvitation(role: string, kind: string) {
 
 export function isBranchReviewer(role: string) { return (branchApprovalRoles as readonly string[]).includes(role); }
 
-export const roleLabels: Record<string, string> = { hq_admin: "总公司", hq_support: "总公司客服", branch_admin: "分公司", manager: "经理", supervisor: "主管", employee: "员工", customer: "客户", finance: "财务", auditor: "审核员" };
+export const roleLabels: Record<string, string> = { hq_admin: "总公司", maintenance_admin: "运维", hq_support: "总公司客服", branch_admin: "分公司", manager: "经理", supervisor: "主管", employee: "员工", customer: "客户", finance: "财务", auditor: "审核员" };
 
 type MemberActivationActor = { id: string; role: string; organizationId: string | null };
 type MemberActivationTarget = MemberActivationActor & { reportsToUserId: string | null; status: string };

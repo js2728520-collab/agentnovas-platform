@@ -9,7 +9,7 @@ const sections = new Set<PlatformSettingSection>(["system", "features", "billing
 export async function GET(request: Request) {
   try {
     await ensureD1Schema();
-    await requireUser(request, ["hq_admin"]);
+    await requireUser(request, ["hq_admin", "maintenance_admin"]);
     return Response.json({ settings: await getAllPlatformSettings() }, { headers: { "cache-control": "no-store" } });
   } catch (error) { return responseError(error); }
 }
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     await ensureD1Schema();
-    const actor = await requireUser(request, ["hq_admin"]);
+    const actor = await requireUser(request, ["hq_admin", "maintenance_admin"]);
     const body = await request.json() as { section?: PlatformSettingSection; value?: unknown };
     if (!body.section || !sections.has(body.section)) return Response.json({ error: "无效的配置分区" }, { status: 400 });
     const before = (await getAllPlatformSettings())[body.section];

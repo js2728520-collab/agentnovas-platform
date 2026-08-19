@@ -11,6 +11,7 @@ import {
 import { ensureD1Schema } from "@/lib/d1-migrations";
 import { evaluateFollowPolicy } from "@/lib/follow-policy";
 import { membershipAccess } from "@/lib/membership-rules";
+import { isCustomerTradingEmergencyStopped } from "@/lib/trading-emergency";
 import { isPlatformStrategyCode, PLATFORM_AI_STRATEGIES } from "@/lib/platform-ai-strategies";
 import { requireUser, responseError } from "@/lib/session";
 
@@ -18,6 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
   try {
     await ensureD1Schema();
     const me = await requireUser(request, ["customer"]);
+    if (await isCustomerTradingEmergencyStopped(me.id)) return Response.json({ error: "当前所属范围处于紧急停止状态，暂不能开启平台策略" }, { status: 503 });
     const { code } = await params;
     if (!isPlatformStrategyCode(code)) return Response.json({ error: "平台 AI 策略不存在" }, { status: 404 });
     const definition = PLATFORM_AI_STRATEGIES[code];

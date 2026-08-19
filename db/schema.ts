@@ -26,7 +26,7 @@ export const users = sqliteTable("users", {
   gender: text("gender").notNull().default(""),
   passwordHash: text("password_hash").notNull(),
   emailVerifiedAt: text("email_verified_at"),
-  role: text("role", { enum: ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "customer", "finance", "auditor"] }).notNull(),
+  role: text("role", { enum: ["hq_admin", "maintenance_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "customer", "finance", "auditor"] }).notNull(),
   organizationId: text("organization_id").references(() => organizations.id),
   reportsToUserId: text("reports_to_user_id"),
   status: text("status", { enum: ["pending", "active", "frozen", "closed"] }).notNull().default("pending"),
@@ -34,6 +34,19 @@ export const users = sqliteTable("users", {
   timezone: text("timezone").notNull().default("Asia/Shanghai"),
   ...timestamps,
 }, (t) => [uniqueIndex("idx_users_email_unique").on(t.email), uniqueIndex("idx_users_phone_unique").on(t.phone), uniqueIndex("idx_users_username_unique").on(t.username), index("idx_users_org_role").on(t.organizationId, t.role)]);
+
+export const tradingEmergencyStops = sqliteTable("trading_emergency_stops", {
+  id: text("id").primaryKey(),
+  scopeKey: text("scope_key").notNull(),
+  scopeType: text("scope_type", { enum: ["platform", "organization"] }).notNull(),
+  organizationId: text("organization_id").references(() => organizations.id),
+  active: integer("active", { mode: "boolean" }).notNull().default(false),
+  reason: text("reason").notNull().default(""),
+  activatedByUserId: text("activated_by_user_id").references(() => users.id),
+  activatedAt: text("activated_at"),
+  deactivatedAt: text("deactivated_at"),
+  ...timestamps,
+}, (t) => [uniqueIndex("idx_trading_emergency_scope_unique").on(t.scopeKey), index("idx_trading_emergency_active").on(t.active, t.scopeType)]);
 
 // A personal agent is an internal account with a separate commission profile.
 // Keeping the profile outside users avoids changing the existing organization
@@ -143,7 +156,7 @@ export const sessions = sqliteTable("sessions", {
 export const invitations = sqliteTable("invitations", {
   id: text("id").primaryKey(),
   codeHash: text("code_hash").notNull(),
-  kind: text("kind", { enum: ["employee_reusable", "public_pool_single_use"] }).notNull(),
+  kind: text("kind", { enum: ["employee_reusable", "public_pool_single_use", "maintenance_admin_single_use"] }).notNull(),
   issuerUserId: text("issuer_user_id").notNull().references(() => users.id),
   ownerEmployeeId: text("owner_employee_id").references(() => users.id),
   organizationId: text("organization_id").references(() => organizations.id),

@@ -12,7 +12,7 @@ const total = (value: unknown) => Number(value || 0);
 export async function GET(request: Request) {
   try {
     await ensureD1Schema();
-    await requireUser(request, ["hq_admin"]);
+    await requireUser(request, ["hq_admin", "maintenance_admin"]);
     const db = getDb();
     const now = new Date().toISOString();
     const [userCount, organizationCount, activeSessionCount, pendingApprovalCount, pendingStrategyCount, tradeCount, auditCount, recentAudit, llm, integrations, security] = await Promise.all([

@@ -12,6 +12,7 @@ import { ensureD1Schema } from "@/lib/d1-migrations";
 import { membershipAccess } from "@/lib/membership-rules";
 import { checkExchangeForStrategy } from "@/lib/exchange-capabilities";
 import { evaluateFollowPolicy } from "@/lib/follow-policy";
+import { isCustomerTradingEmergencyStopped } from "@/lib/trading-emergency";
 import { requireUser, responseError } from "@/lib/session";
 
 type LifecycleAction = "pause" | "resume" | "stop";
@@ -35,6 +36,7 @@ export async function PATCH(
       eq(strategySubscriptions.customerId, me.id),
     )).limit(1))[0];
     if (!subscription) return Response.json({ error: "跟随关系不存在" }, { status: 404 });
+    if (body.action === "resume" && await isCustomerTradingEmergencyStopped(me.id)) return Response.json({ error: "当前所属范围处于紧急停止状态，暂不能恢复策略" }, { status: 503 });
 
     const now = new Date().toISOString();
     let nextStatus: "active" | "paused" | "ended";

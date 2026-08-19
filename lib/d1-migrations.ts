@@ -26,6 +26,7 @@ import migration0022 from "@/drizzle/0022_market_watchlist.sql?raw";
 import migration0023 from "@/drizzle/0023_personal_agent_commissions.sql?raw";
 import migration0024 from "@/drizzle/0024_customer_points_balance.sql?raw";
 import migration0025 from "@/drizzle/0025_platform_maintenance_settings.sql?raw";
+import migration0026 from "@/drizzle/0026_trading_emergency_scopes.sql?raw";
 
 const migrations = [
   ["0000_small_dreadnoughts", migration0000],
@@ -54,6 +55,7 @@ const migrations = [
   ["0023_personal_agent_commissions", migration0023],
   ["0024_customer_points_balance", migration0024],
   ["0025_platform_maintenance_settings", migration0025],
+  ["0026_trading_emergency_scopes", migration0026],
 ] as const;
 
 function statements(sql: string) {

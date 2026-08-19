@@ -5,12 +5,14 @@ import { ensureD1Schema } from "@/lib/d1-migrations";
 import { membershipAccess } from "@/lib/membership-rules";
 import { checkExchangeForStrategy } from "@/lib/exchange-capabilities";
 import { evaluateFollowPolicy } from "@/lib/follow-policy";
+import { isCustomerTradingEmergencyStopped } from "@/lib/trading-emergency";
 import { requireUser, responseError } from "@/lib/session";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await ensureD1Schema();
     const me = await requireUser(request, ["customer"]);
+    if (await isCustomerTradingEmergencyStopped(me.id)) return Response.json({ error: "当前所属范围处于紧急停止状态，暂不能开启策略跟随" }, { status: 503 });
     return Response.json({ error: "实盘跟单尚未开放；客户策略请先使用历史回测和作者模拟测试" }, { status: 403 });
     const { id } = await params;
     const body = await request.json() as { exchangeAccountId?: string; capitalPct?: number; stopLossPct?: number; executionMode?: "proportional" | "fixed_risk"; riskConsent?: boolean };

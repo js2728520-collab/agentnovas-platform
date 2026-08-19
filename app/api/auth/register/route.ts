@@ -57,12 +57,13 @@ export async function POST(request: Request) {
     const trialExpiresAt = new Date(nowDate.getTime() + 3 * 86400_000).toISOString();
     const trialGraceEndsAt = new Date(nowDate.getTime() + 4 * 86400_000).toISOString();
     const publicPool = invite.kind === "public_pool_single_use";
+    const maintenanceInvite = invite.kind === "maintenance_admin_single_use";
     const verificationToken = platform.security.requireEmailVerification ? randomToken() : "";
     let managerId: string | null = null;
     let supervisorId: string | null = null;
     let employeeId: string | null = null;
 
-    if (!publicPool && invite.ownerEmployeeId) {
+    if (!publicPool && !maintenanceInvite && invite.ownerEmployeeId) {
       const people = await db.select({ id: users.id, role: users.role, reportsToUserId: users.reportsToUserId }).from(users);
       const peopleById = new Map(people.map((person) => [person.id, person]));
       let person = peopleById.get(invite.ownerEmployeeId);
@@ -81,11 +82,11 @@ export async function POST(request: Request) {
         email,
         phone: phone.value,
         passwordHash: await hashPassword(password),
-        role: "customer",
-        organizationId: publicPool ? null : invite.organizationId,
+        role: maintenanceInvite ? "maintenance_admin" : "customer",
+        organizationId: publicPool || maintenanceInvite ? null : invite.organizationId,
         status: platform.security.requireEmailVerification ? "pending" : "active",
       }),
-      db.insert(customerAttributions).values({
+      ...(maintenanceInvite ? [] : [db.insert(customerAttributions).values({
         id: crypto.randomUUID(),
         customerId: userId,
         source: publicPool ? "public_pool" : "employee_invite",
@@ -96,8 +97,8 @@ export async function POST(request: Request) {
         employeeId: publicPool ? null : employeeId,
         effectiveAt: publicPool ? null : now,
         reason: publicPool ? "总公司客服一次性邀请码" : "邀请码自动归因",
-      }),
-      db.insert(memberships).values({
+      })]),
+      ...(maintenanceInvite ? [] : [db.insert(memberships).values({
         id: crypto.randomUUID(),
         customerId: userId,
         planCode: "trial_monthly_equivalent",
@@ -107,9 +108,9 @@ export async function POST(request: Request) {
         graceEndsAt: trialGraceEndsAt,
         maxExchangeAccounts: 1,
         maxActiveStrategies: 1,
-      }),
-      ...(publicPool ? [db.update(invitations).set({ status: "used", usedByUserId: userId, usedAt: now, updatedAt: now }).where(eq(invitations.id, invite.id))] : []),
-      db.insert(notificationDeliveries).values({
+      })]),
+      ...((publicPool || maintenanceInvite) ? [db.update(invitations).set({ status: "used", usedByUserId: userId, usedAt: now, updatedAt: now }).where(eq(invitations.id, invite.id))] : []),
+      ...(maintenanceInvite ? [] : [db.insert(notificationDeliveries).values({
         id: crypto.randomUUID(),
         userId,
         channel: "in_app",
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
         templateKey: "trial_started",
         payloadJson: JSON.stringify({ trialExpiresAt, trialGraceEndsAt, entitlement: "monthly" }),
         scheduledAt: now,
-      }),
+      })]),
       ...(verificationToken ? [
         db.insert(authTokens).values({ id: crypto.randomUUID(), userId, tokenHash: await sha256(verificationToken), purpose: "verify_email", expiresAt: new Date(nowDate.getTime() + 24 * 3600_000).toISOString() }),
         db.insert(notificationDeliveries).values({ id: crypto.randomUUID(), userId, channel: "email", category: "login_security", templateKey: "verify_email", payloadJson: JSON.stringify({ token: verificationToken }), scheduledAt: now }),
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
       db.insert(auditLogs).values({
         id: crypto.randomUUID(),
         actorUserId: userId,
-        action: "customer.registered",
+        action: maintenanceInvite ? "maintenance_admin.registered" : "customer.registered",
         subjectType: "user",
         subjectId: userId,
         afterJson: JSON.stringify({ phone: phone.masked, emailProvided: Boolean(email), invitationKind: invite.kind, smsVerification: false }),
@@ -136,9 +137,9 @@ export async function POST(request: Request) {
 
     return Response.json({
       ok: true,
-      message: platform.security.requireEmailVerification ? "注册成功，验证邮件已进入发送队列；验证后可登录" : "注册成功，无需短信验证码；已开通3天月卡同等权益体验",
+      message: platform.security.requireEmailVerification ? (maintenanceInvite ? "运维账户注册成功，验证邮件已进入发送队列；验证后可登录" : "注册成功，验证邮件已进入发送队列；验证后可登录") : (maintenanceInvite ? "运维账户注册成功，可以登录运维后台" : "注册成功，无需短信验证码；已开通3天月卡同等权益体验"),
       verificationRequired: platform.security.requireEmailVerification,
-      trial: { expiresAt: trialExpiresAt, graceEndsAt: trialGraceEndsAt, entitlement: "monthly" },
+      trial: maintenanceInvite ? null : { expiresAt: trialExpiresAt, graceEndsAt: trialGraceEndsAt, entitlement: "monthly" },
     }, { status: 201 });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "注册失败" }, { status: 500 });
