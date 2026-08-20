@@ -23,6 +23,8 @@ test("stable routes use the same audience dispatcher and reject wrong applicatio
   assert.match(dispatcher, /resolveAppAudienceStrict/);
   assert.match(dispatcher, /if \(!audience\) notFound\(\)/);
   assert.match(dispatcher, /root !== "wallet" && segments\.length > 1/);
+  assert.match(dispatcher, /"membership-orders", "performance-statements"/);
+  assert.match(dispatcher, /"email", "payments", "demo-exchanges"/);
   assert.doesNotMatch(dispatcher, /^import .*@\/apps\//m);
   assert.match(dispatcher, /CurrentApp/);
 });

@@ -1754,6 +1754,71 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/maintenance/demo-exchanges",
+    "source": "app/api/maintenance/demo-exchanges/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.demo_exchanges.view"
+    ],
+    "permissionMfa": {
+      "maint.demo_exchanges.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/demo-exchanges/:id/control",
+    "source": "app/api/maintenance/demo-exchanges/[id]/control/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.demo_exchanges.kill",
+      "maint.demo_exchanges.manage"
+    ],
+    "permissionMfa": {
+      "maint.demo_exchanges.kill": "recent",
+      "maint.demo_exchanges.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/demo-exchanges/:id/verify",
+    "source": "app/api/maintenance/demo-exchanges/[id]/verify/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.demo_exchanges.verify"
+    ],
+    "permissionMfa": {
+      "maint.demo_exchanges.verify": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "GET",
     "route": "/api/maintenance/email/status",
     "source": "app/api/maintenance/email/status/route.ts",
     "audiences": [
@@ -2348,6 +2413,27 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/operations/credits",
+    "source": "app/api/operations/credits/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.credits.view"
+    ],
+    "permissionMfa": {
+      "ops.credits.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
     "route": "/api/operations/deposit-action-requests",
     "source": "app/api/operations/deposit-action-requests/route.ts",
     "audiences": [
@@ -2602,6 +2688,27 @@ export const API_ROUTE_INVENTORY = [
     "method": "GET",
     "route": "/api/operations/performance-statements",
     "source": "app/api/operations/performance-statements/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.performance_fees.view"
+    ],
+    "permissionMfa": {
+      "ops.performance_fees.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/operations/performance-statements/:id",
+    "source": "app/api/operations/performance-statements/[id]/route.ts",
     "audiences": [
       "operations"
     ],
