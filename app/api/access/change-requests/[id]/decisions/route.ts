@@ -129,7 +129,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     return Response.json({ ok: true, status });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 

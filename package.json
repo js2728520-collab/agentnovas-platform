@@ -33,7 +33,8 @@
     "worker:research": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/strategy-research-worker.mjs",
     "worker:runtime": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/strategy-runtime-worker.mjs",
     "worker:payment": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/payment-worker.mjs",
-    "worker:notification": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/notification-worker.mjs"
+    "worker:notification": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/notification-worker.mjs",
+    "worker:demo": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/platform-demo-worker.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "2.1.0",

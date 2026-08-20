@@ -87,8 +87,8 @@ export async function POST(request: Request, { params }: {
         "IDEMPOTENCY_CONFLICT",
         error.message,
         409,
-      ));
+      ), request);
     }
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

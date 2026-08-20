@@ -86,7 +86,7 @@ export async function GET(request: Request) {
       nextCursor: next ? accessPageCursor({ createdAt: next.requested_at.toISOString(), id: next.id }) : null,
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -177,6 +177,6 @@ export async function POST(request: Request) {
     if (error instanceof Error && error.message === "ACCESS_REFERENCE_NOT_FOUND") {
       return Response.json({ error: { code: "NOT_FOUND", message: "目标不存在、应用不匹配或状态不允许", details: {} } }, { status: 404 });
     }
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

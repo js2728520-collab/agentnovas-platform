@@ -147,7 +147,9 @@ test("performance generation accepts no caller-selected strategy scope", async (
     "utf8",
   );
   assert.match(boundary, /OfficialThreeCardPortfolioScopeResolver/);
-  assert.match(boundary, /NOT_CONFIGURED/);
+  assert.match(boundary, /aggregateOfficialThreeCardPreviousUtcWeek/);
+  assert.match(boundary, /resolveCommercialOfficialPaperScope/);
+  assert.doesNotMatch(boundary, /NOT_CONFIGURED|strategyIds/);
 });
 
 test("client and operations statement lists select replacement lineage", async () => {

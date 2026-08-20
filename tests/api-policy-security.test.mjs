@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { relative, sep } from "node:path";
 import test from "node:test";
+import ts from "typescript";
 import { promisify } from "node:util";
 
 import { API_ROUTE_INVENTORY } from "../lib/api-route-inventory.ts";
@@ -13,6 +14,8 @@ import {
   evaluateApiRequestPolicy,
   normalizeRequestId,
 } from "../lib/api-policy.ts";
+import { researchErrorResponse } from "../lib/research-error-response.ts";
+import { ResearchApiError } from "../lib/research-errors.ts";
 import { resolveAppAudienceStrict } from "../lib/riverton-apps.ts";
 import { SENSITIVE_PERMISSION_KEYS } from "../lib/rbac.ts";
 
@@ -130,6 +133,24 @@ test("session metadata names a method-level enforcing helper and public routes s
   assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "POST").authentication, "session");
 });
 
+test("commercial and official paper client routes declare exact RBAC permissions", () => {
+  const expected = new Map([
+    ["GET /api/credits/me", "client.credits.view"],
+    ["GET /api/membership/me", "client.membership.view"],
+    ["POST /api/membership/orders", "client.membership.order"],
+    ["GET /api/trading-hall", "client.paper.view"],
+    ["GET /api/trading-hall/paper/portfolio", "client.paper.view"],
+    ["GET /api/trading-hall/paper/trades", "client.paper.view"],
+    ["POST /api/platform-strategies/:code/follow", "client.paper.manage"],
+  ]);
+  for (const [key, permission] of expected) {
+    const [method, route] = key.split(" ");
+    const entry = API_ROUTE_INVENTORY.find((candidate) => candidate.method === method && candidate.route === route);
+    assert.equal(entry?.authentication, "permission", key);
+    assert.deepEqual(entry?.permissionKeys, [permission], key);
+  }
+});
+
 test("payment webhook stays disabled until a provider verifier is implemented", () => {
   assert.equal(apiPolicyForRoute("/api/integrations/payments/:provider/webhook", "POST").authentication, "disabled");
   assert.throws(() => evaluateApiRequestPolicy(new Request(
@@ -235,6 +256,55 @@ test("request ids are bounded and internal errors are not exposed", async () => 
   assert.doesNotMatch(sessionSource, /error instanceof Error \? error\.message/);
   assert.match(sessionSource, /requestId/);
   assert.match(sessionSource, /INTERNAL_ERROR/);
+});
+
+test("domain error envelopes carry the bounded request id in body and headers", async () => {
+  const request = new Request("http://localhost:3000/api/membership/orders", {
+    headers: { "x-request-id": "commercial-request-123" },
+  });
+  const response = researchErrorResponse(
+    new ResearchApiError("VALIDATION_ERROR", "输入无效", 422, { fields: ["planCode"] }),
+    request,
+  );
+  assert.equal(response.status, 422);
+  assert.equal(response.headers.get("x-request-id"), "commercial-request-123");
+  assert.deepEqual(await response.json(), {
+    error: { code: "VALIDATION_ERROR", message: "输入无效", details: { fields: ["planCode"] } },
+    requestId: "commercial-request-123",
+  });
+});
+
+test("Route Handlers preserve the proxy request id in domain error responses", async () => {
+  for (const file of await routeFiles(appApi)) {
+    if (!file.pathname.endsWith("/route.ts")) continue;
+    const source = await readFile(file, "utf8");
+    if (!source.includes("researchErrorResponse")) continue;
+    const sourceFile = ts.createSourceFile(file.pathname, source, ts.ScriptTarget.Latest, true);
+    const visit = (node) => {
+      if (ts.isCallExpression(node)
+        && ts.isIdentifier(node.expression)
+        && node.expression.text === "researchErrorResponse") {
+        assert.ok(
+          node.arguments.length >= 2,
+          `${relative(appApi.pathname, file.pathname)} drops the request correlation id`,
+        );
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+});
+
+test("untyped configuration errors never disclose environment or tenant details", async () => {
+  const response = researchErrorResponse(
+    new Error("INTEGRATION_CREDENTIAL_ENCRYPTION_KEY 尚未配置: tenant secret detail"),
+    "commercial-request-456",
+  );
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), {
+    error: { code: "INTERNAL_ERROR", message: "策略研发服务处理失败", details: {} },
+    requestId: "commercial-request-456",
+  });
 });
 
 test("browser mutations require an exact same-origin header", () => {

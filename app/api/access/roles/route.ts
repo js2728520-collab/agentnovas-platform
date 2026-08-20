@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
     })) }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -86,6 +86,6 @@ export async function POST(request: Request) {
       client.release();
     }
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

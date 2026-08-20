@@ -16,6 +16,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
     return Response.json({ runId: run.id, status: run.status, cancelRequestedAt: run.cancelRequestedAt });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

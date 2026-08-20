@@ -62,6 +62,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       },
     });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

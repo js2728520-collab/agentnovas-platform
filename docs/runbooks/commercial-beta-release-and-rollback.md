@@ -4,13 +4,16 @@
 
 - 核对 commit、artifact hash、Node/PostgreSQL 版本、migration checksums 和所有 Gate 证据。
 - 检查 `.env`、密钥、密码、私钥、数据库备份、日志、截图、trace 和 fixture 未进入 Git/artifact。
-- 三端/Workers/migrator 使用独立最小 env/DB role；Payment Worker disabled。
+- 三端/Workers/migrator 使用独立最小 env/DB role；Payment Worker disabled。Demo Worker 的 `DEMO_EXECUTION_WORKER_ENABLED` 与 `PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED` 分离管理，进程存活不等于已授权向 provider 写入。
+- 从 `deploy/env/*.env.example` 分别生成 `/etc/agentnovas/client.env`、`operations.env`、`maintenance.env`、`notification.env`、`demo.env`、`research.env`、`runtime.env`；权限不得高于 `0640`，禁止重新合并成共享密钥文件。
+- 仓库不再提供旧 `agentnovas-web.service`、Payment Worker unit 或旧单端 Nginx 配置；只安装 `deploy/systemd/` 当前 units 与 `deploy/nginx/riverton-three-apps.conf`。
 - `systemd-analyze verify`、`nginx -t`、端口/server name/Cookie/Host/TLS/CSP smoke 通过。
 - 备份恢复、fresh/N-1 migration、current/previous 应用回滚演练完成。
 
 ## 2. 部署
 
 1. 迁移只在显式 staging/生产变更授权后执行；本实施阶段不得运行生产 migration。
+   迁移 registry 中任何已应用文件缺 checksum 或 checksum 不匹配都会失败关闭；不得直接补写 hash。先核对最后部署版本，必要时用新的 forward migration 修复。
 2. 部署新 release 目录并验证 hash，不覆盖 previous。
 3. 原子切换 current；按 Client→Operations→Maintenance→Workers 顺序 readiness。
 4. 运行三 Host 登录/404/Cookie、安全 header 与关键只读 smoke。
@@ -31,4 +34,3 @@
 ## 5. 数据恢复
 
 只在 incident commander、数据库负责人和业务负责人共同批准后恢复。先在隔离实例验证备份时间、checksum、迁移版本和关键行数；确定 RPO/RTO 与影响客户。恢复不能代替账本 reversal，也不能覆盖更晚的合法商业事件。
-

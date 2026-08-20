@@ -21,6 +21,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.payment_test_recorded", subjectType: "payment_provider_config", subjectId: id, reason });
     return Response.json({ ok: false, status: "configured_not_called", providerConfigId: id }, { status: 202 });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

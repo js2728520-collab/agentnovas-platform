@@ -64,7 +64,7 @@ export async function GET(request: Request) {
       })),
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
       },
     }, { status: 201 });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 

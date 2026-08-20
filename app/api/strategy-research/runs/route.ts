@@ -52,7 +52,7 @@ export async function GET(request: Request) {
       })),
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -145,6 +145,6 @@ export async function POST(request: Request) {
     }
     return Response.json({ runId: run.id, status: run.status }, { status: 202 });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

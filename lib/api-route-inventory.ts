@@ -1257,6 +1257,27 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/credits/me",
+    "source": "app/api/credits/me/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.credits.view"
+    ],
+    "permissionMfa": {
+      "client.credits.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
     "route": "/api/data-center",
     "source": "app/api/data-center/route.ts",
     "audiences": [
@@ -2089,6 +2110,111 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/membership/me",
+    "source": "app/api/membership/me/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.membership.view"
+    ],
+    "permissionMfa": {
+      "client.membership.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/membership/orders",
+    "source": "app/api/membership/orders/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.membership.view"
+    ],
+    "permissionMfa": {
+      "client.membership.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/membership/orders",
+    "source": "app/api/membership/orders/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.membership.order"
+    ],
+    "permissionMfa": {
+      "client.membership.order": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/membership/performance-statements",
+    "source": "app/api/membership/performance-statements/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.membership.view"
+    ],
+    "permissionMfa": {
+      "client.membership.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/membership/plans",
+    "source": "app/api/membership/plans/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.membership.view"
+    ],
+    "permissionMfa": {
+      "client.membership.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
     "route": "/api/notifications/channels",
     "source": "app/api/notifications/channels/route.ts",
     "audiences": [
@@ -2369,6 +2495,216 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/operations/membership-orders",
+    "source": "app/api/operations/membership-orders/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.membership_orders.view"
+    ],
+    "permissionMfa": {
+      "ops.membership_orders.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/operations/membership-orders/:id",
+    "source": "app/api/operations/membership-orders/[id]/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.membership_orders.view"
+    ],
+    "permissionMfa": {
+      "ops.membership_orders.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/membership-orders/:id/decision",
+    "source": "app/api/operations/membership-orders/[id]/decision/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.membership_orders.approve"
+    ],
+    "permissionMfa": {
+      "ops.membership_orders.approve": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/membership-orders/:id/evidence",
+    "source": "app/api/operations/membership-orders/[id]/evidence/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.membership_orders.evidence"
+    ],
+    "permissionMfa": {
+      "ops.membership_orders.evidence": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/membership-orders/:id/submit",
+    "source": "app/api/operations/membership-orders/[id]/submit/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.membership_orders.evidence"
+    ],
+    "permissionMfa": {
+      "ops.membership_orders.evidence": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/operations/performance-statements",
+    "source": "app/api/operations/performance-statements/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.performance_fees.view"
+    ],
+    "permissionMfa": {
+      "ops.performance_fees.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/performance-statements/:id/decision",
+    "source": "app/api/operations/performance-statements/[id]/decision/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.performance_fees.approve"
+    ],
+    "permissionMfa": {
+      "ops.performance_fees.approve": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/performance-statements/:id/payment-decision",
+    "source": "app/api/operations/performance-statements/[id]/payment-decision/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.performance_fees.payment_approve"
+    ],
+    "permissionMfa": {
+      "ops.performance_fees.payment_approve": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/performance-statements/:id/payment-evidence",
+    "source": "app/api/operations/performance-statements/[id]/payment-evidence/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.performance_fees.payment_evidence"
+    ],
+    "permissionMfa": {
+      "ops.performance_fees.payment_evidence": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/performance-statements/generate",
+    "source": "app/api/operations/performance-statements/generate/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.performance_fees.generate"
+    ],
+    "permissionMfa": {
+      "ops.performance_fees.generate": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "GET",
     "route": "/api/organization/customers",
     "source": "app/api/organization/customers/route.ts",
     "audiences": [
@@ -2542,16 +2878,18 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireResearchUser"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.manage"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.paper.manage": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "normal",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": true
   },
   {
@@ -3544,13 +3882,57 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireUser"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/trading-hall/paper/portfolio",
+    "source": "app/api/trading-hall/paper/portfolio/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
+    ],
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/trading-hall/paper/trades",
+    "source": "app/api/trading-hall/paper/trades/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
+    ],
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",

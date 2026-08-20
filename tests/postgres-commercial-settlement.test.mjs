@@ -19,6 +19,7 @@ import {
 import {
   fingerprintPaymentReference,
   PAYMENT_REFERENCE_FINGERPRINT_VERSION,
+  previousCompleteUtcWeek,
 } from "../lib/commercial-api-support.ts";
 import {
   ensurePlatformLedgerAccount,
@@ -30,6 +31,7 @@ import {
   generatePerformanceStatement,
   recordPerformancePaymentEvidence,
 } from "../lib/performance-fee-service.ts";
+import { membershipAccess } from "../lib/membership-rules.ts";
 
 const databaseUrl =
   process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
@@ -49,11 +51,70 @@ const legalIds = [
   "fee-opinion-v1",
   "refund-v1",
 ];
-const officialScope = async () => ({
-  strategyIds: ["strategy-0", "strategy-1", "strategy-2"],
-  scopeVersion: "official-three-card-v1",
-  source: "official_three_card_portfolio",
-});
+const officialAggregate = async (
+  client,
+  { membershipId, customerId, asOf },
+) => {
+  const period = previousCompleteUtcWeek(asOf);
+  const metric = async (index) =>
+    (
+      await client.query(
+        `SELECT
+           to_char(COALESCE(sum(realized_net_pnl_usdt)
+             FILTER(WHERE closed_at >= $3 AND closed_at < $4),0),
+             'FM999999999999999999990.000000000000') AS week_pnl,
+           to_char(COALESCE(sum(realized_net_pnl_usdt)
+             FILTER(WHERE closed_at < $4),0),
+             'FM999999999999999999990.000000000000') AS cumulative_pnl,
+           to_char(COALESCE(sum(realized_net_pnl_usdt)
+             FILTER(WHERE closed_at < $3),0),
+             'FM999999999999999999990.000000000000') AS prior_pnl
+         FROM commercial_closed_paper_pnl
+         WHERE user_id=$1 AND strategy_id=$2`,
+        [customerId, `strategy-${index}`, period.weekStart, period.weekEnd],
+      )
+    ).rows[0];
+  const metrics = [];
+  for (const index of [0, 1, 2]) metrics.push(await metric(index));
+  const total = (key) => {
+    const scaled = metrics.reduce(
+      (sum, row) => sum + BigInt(row[key].replace(".", "")),
+      0n,
+    );
+    const sign = scaled < 0n ? "-" : "";
+    const digits = (scaled < 0n ? -scaled : scaled).toString().padStart(13, "0");
+    return `${sign}${digits.slice(0, -12)}.${digits.slice(-12)}`;
+  };
+  const strategies = [
+    "ai_conservative",
+    "ai_balanced",
+    "ai_aggressive",
+  ].map((strategyCode, index) => ({
+    strategyCode,
+    portfolioId: `official-paper:${membershipId}:${strategyCode}`,
+    realizedGrossPnlUsdt: metrics[index].week_pnl,
+    realizedNetPnlUsdt: metrics[index].week_pnl,
+    feesUsdt: "0.000000000000",
+    cumulativeNetPnl: metrics[index].cumulative_pnl,
+    priorNetPnl: metrics[index].prior_pnl,
+  }));
+  return {
+    customerId,
+    membershipId,
+    scopeKey: `official-three:${membershipId}`,
+    scopeVersion: "official-paper-closed-sells-v1",
+    period: { start: period.weekStart, end: period.weekEnd },
+    periodStart: period.weekStart,
+    periodEnd: period.weekEnd,
+    weekNetPnl: total("week_pnl"),
+    cumulativeNetPnl: total("cumulative_pnl"),
+    priorNetPnl: total("prior_pnl"),
+    realizedGrossPnlUsdt: total("week_pnl"),
+    realizedNetPnlUsdt: total("week_pnl"),
+    feesUsdt: "0.000000000000",
+    strategies,
+  };
+};
 let cleanFingerprintNMinusOneVerified = false;
 
 test.before(async () => {
@@ -98,6 +159,15 @@ test.before(async () => {
   );
   await pool.query(commercialMigration);
   await pool.query(commercialMigration);
+  await pool.query(
+    await readFile(
+      new URL(
+        "../postgres/migrations/0024_platform_demo_execution.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
   cleanFingerprintNMinusOneVerified = (await pool.query(`
     SELECT c.is_nullable='NO'
       AND EXISTS (
@@ -113,6 +183,8 @@ test.before(async () => {
   await pool.query(`INSERT INTO organizations(id,type,name) VALUES('org','headquarters','Org');
     INSERT INTO users(id,email,password_hash,role,organization_id,status) VALUES
       ('customer','customer@example.test','x','customer','org','active'),('customer2','customer2@example.test','x','customer','org','active'),
+      ('official-customer','official-customer@example.test','x','customer','org','active'),
+      ('portfolio-failure-customer','portfolio-failure@example.test','x','customer','org','active'),
       ('maker','maker@example.test','x','finance','org','active'),('checker','checker@example.test','x','admin','org','active'),('checker2','checker2@example.test','x','admin','org','active');
     INSERT INTO commercial_legal_document_versions(id,document_type,version,content_sha256,status,approved_by_user_id,approved_at,effective_at) VALUES
       ('entity-v1','service_entity',1,repeat('a',64),'active','checker','2026-01-01','2026-01-01'),
@@ -943,6 +1015,33 @@ test("different concurrent orders serialize on one membership row and lifetime c
     ).rows[0],
     { status: "active", expires_at: null },
   );
+  assert.deepEqual(
+    (
+      await pool.query(
+        `SELECT strategy_code,principal_usdt::text,cash_usdt::text
+         FROM official_paper_portfolios
+         WHERE customer_id='customer'
+         ORDER BY strategy_code`,
+      )
+    ).rows,
+    [
+      {
+        strategy_code: "ai_aggressive",
+        principal_usdt: "10000.000000000000",
+        cash_usdt: "10000.000000000000",
+      },
+      {
+        strategy_code: "ai_balanced",
+        principal_usdt: "10000.000000000000",
+        cash_usdt: "10000.000000000000",
+      },
+      {
+        strategy_code: "ai_conservative",
+        principal_usdt: "10000.000000000000",
+        cash_usdt: "10000.000000000000",
+      },
+    ],
+  );
   const finite = await readyOrder(
     "membership_monthly_v1",
     "finite-after-lifetime",
@@ -958,6 +1057,234 @@ test("different concurrent orders serialize on one membership row and lifetime c
       requestId: "finite-approve",
     }),
     /终身会员不得/,
+  );
+});
+
+test("membership activation provisions official portfolios and settles their prior complete UTC week", async () => {
+  const order = await readyOrder(
+    "membership_lifetime_v1",
+    "official-three-card",
+    { userId: "official-customer" },
+  );
+  const activation = await decideMembershipOrder(pool, {
+    orderId: order.id,
+    reviewerUserId: "checker",
+    decision: "approve",
+    note: "activate official portfolios",
+    paymentEvidenceId: order.paymentEvidenceId,
+    idempotencyKey: "official-three-card-approve",
+    requestId: "official-three-card-approve",
+  });
+  assert.equal(activation.status, "activated");
+  assert.deepEqual(
+    membershipAccess("2099-01-01T00:00:00.000Z", {
+      status: "active",
+      expiresAt: null,
+      graceEndsAt: null,
+    }),
+    { status: "active", newEntriesAllowed: true, closeOnly: false },
+  );
+
+  const portfolios = (
+    await pool.query(
+      `SELECT id,strategy_code FROM official_paper_portfolios
+       WHERE membership_id=$1 AND customer_id='official-customer'
+       ORDER BY strategy_code`,
+      [activation.membershipId],
+    )
+  ).rows;
+  assert.equal(portfolios.length, 3);
+  assert.equal(
+    (
+      await pool.query(
+        `SELECT count(*)::int AS count
+         FROM official_paper_ledger_entries
+         WHERE portfolio_id=ANY($1::text[]) AND entry_type='initial_cash'`,
+        [portfolios.map(({ id }) => id)],
+      )
+    ).rows[0].count,
+    3,
+  );
+  const replay = await decideMembershipOrder(pool, {
+    orderId: order.id,
+    reviewerUserId: "checker",
+    decision: "approve",
+    note: "activate official portfolios",
+    paymentEvidenceId: order.paymentEvidenceId,
+    idempotencyKey: "official-three-card-approve",
+    requestId: "official-three-card-approve",
+  });
+  assert.equal(replay.membershipId, activation.membershipId);
+  assert.equal(
+    (
+      await pool.query(
+        `SELECT count(*)::int AS count FROM official_paper_portfolios
+         WHERE membership_id=$1`,
+        [activation.membershipId],
+      )
+    ).rows[0].count,
+    3,
+  );
+
+  for (const [index, portfolio] of portfolios.entries()) {
+    const deploymentId = `official-settlement-deployment-${index}`;
+    const cycleId = `official-settlement-cycle-${index}`;
+    await pool.query(
+      `INSERT INTO strategy_deployments(
+         id,owner_user_id,strategy_id,strategy_version_id,exchange_account_id,
+         mode,status,validation_label,idempotency_key,execution_product,
+         platform_strategy_code,membership_id,paper_portfolio_id
+       ) VALUES($1,'official-customer',$2,$3,NULL,'paper','active','UNVERIFIED',$1,
+         'spot_usdt',$4,$5,$6)`,
+      [
+        deploymentId,
+        `official-settlement-strategy-${index}`,
+        `official-settlement-version-${index}`,
+        portfolio.strategy_code,
+        activation.membershipId,
+        portfolio.id,
+      ],
+    );
+    await pool.query(
+      `INSERT INTO strategy_runtime_cycles(
+         id,deployment_id,sequence,fencing_token,candle_open_time,candle_close_time,
+         status,decision_json,trace_id,started_at
+       ) VALUES($1,$2,1,1,'2026-09-01','2026-09-02','completed','{}',$1,'2026-09-01')`,
+      [cycleId, deploymentId],
+    );
+    for (const [label, filledAt, gross, fee, entryFee, net] of [
+      ["prior", "2026-09-02T12:00:00Z", "11", "0.5", "0.5", "10"],
+      ["week", "2026-09-08T12:00:00Z", "101", "0.5", "0.5", "100"],
+    ]) {
+      const intentId = `official-settlement-${label}-intent-${index}`;
+      await pool.query(
+        `INSERT INTO official_paper_order_intents(
+           id,portfolio_id,deployment_id,runtime_cycle_id,idempotency_key,symbol,
+           action,execution_timing,status,payload_json,filled_at
+         ) VALUES($1,$2,$3,$4,$1,'BTCUSDT','sell','next_candle_open','filled','{}',$5)`,
+        [intentId, portfolio.id, deploymentId, cycleId, filledAt],
+      );
+      await pool.query(
+        `INSERT INTO official_paper_fill_receipts(
+           id,intent_id,portfolio_id,symbol,action,quantity,fill_price,notional_usdt,
+           fee_usdt,allocated_entry_fee_usdt,realized_pnl_usdt,
+           realized_gross_pnl_usdt,realized_net_pnl_usdt,trace_id,filled_at
+         ) VALUES($1,$2,$3,'BTCUSDT','sell',1,100,100,$4,$5,$6,$7,$6,$1,$8)`,
+        [
+          `official-settlement-${label}-receipt-${index}`,
+          intentId,
+          portfolio.id,
+          fee,
+          entryFee,
+          net,
+          gross,
+          filledAt,
+        ],
+      );
+    }
+  }
+
+  const statement = await generatePerformanceStatement(pool, {
+    userId: "official-customer",
+    generatedByUserId: "maker",
+    requestId: "official-statement",
+    idempotencyKey: "official-statement",
+    now: new Date("2026-09-14T12:00:00Z"),
+  });
+  assert.equal(statement.week_net_pnl, "300.000000000000000000");
+  assert.equal(statement.cumulative_net_pnl, "330.000000000000000000");
+  assert.equal(statement.prior_high_water_mark, "30.000000000000000000");
+  assert.equal(statement.fee_amount, "48.000000000000000000");
+  assert.equal(statement.strategy_codes_json.strategyIds, undefined);
+  assert.equal(
+    statement.strategy_codes_json.scopeVersion,
+    "official-paper-closed-sells-v1",
+  );
+  assert.equal(statement.strategy_codes_json.strategies.length, 3);
+  assert.deepEqual(statement.strategy_codes_json.period, {
+    start: "2026-09-07T00:00:00.000Z",
+    end: "2026-09-14T00:00:00.000Z",
+  });
+  assert.equal(
+    (
+      await pool.query(
+        `SELECT (after_json::jsonb)->'scope'->>'scopeKey' AS scope_key
+         FROM audit_logs
+         WHERE subject_id=$1 AND action='commercial.performance.generated'`,
+        [statement.id],
+      )
+    ).rows[0].scope_key,
+    `official-three:${activation.membershipId}`,
+  );
+  assert.equal(
+    (
+      await decidePerformanceAssessment(pool, {
+        statementId: statement.id,
+        reviewerUserId: "checker2",
+        decision: "approve",
+        note: "official aggregate recomputed",
+        idempotencyKey: "official-statement-assess",
+      })
+    ).status,
+    "payment_pending",
+  );
+});
+
+test("official portfolio provisioning failure rolls back membership activation", async () => {
+  const order = await readyOrder(
+    "membership_monthly_v1",
+    "official-provision-failure",
+    { userId: "portfolio-failure-customer" },
+  );
+  await pool.query(
+    `CREATE FUNCTION reject_test_portfolio_provision() RETURNS trigger AS $$
+       BEGIN
+         IF NEW.customer_id='portfolio-failure-customer' THEN
+           RAISE EXCEPTION 'forced official portfolio provision failure';
+         END IF;
+         RETURN NEW;
+       END $$ LANGUAGE plpgsql;
+     CREATE TRIGGER reject_test_portfolio_provision
+       BEFORE INSERT ON official_paper_portfolios
+       FOR EACH ROW EXECUTE FUNCTION reject_test_portfolio_provision();`,
+  );
+  await assert.rejects(
+    decideMembershipOrder(pool, {
+      orderId: order.id,
+      reviewerUserId: "checker",
+      decision: "approve",
+      note: "must roll back",
+      paymentEvidenceId: order.paymentEvidenceId,
+      idempotencyKey: "official-provision-failure-approve",
+      requestId: "official-provision-failure-approve",
+    }),
+    /forced official portfolio provision failure/,
+  );
+  assert.deepEqual(
+    (
+      await pool.query(
+        `SELECT commercial_order.status AS order_status,
+                evidence.status AS evidence_status,
+                count(membership.id)::int AS membership_count
+         FROM commercial_membership_orders AS commercial_order
+         JOIN commercial_payment_evidence AS evidence
+           ON evidence.membership_order_id=commercial_order.id
+         LEFT JOIN memberships AS membership
+           ON membership.customer_id=commercial_order.user_id
+         WHERE commercial_order.id=$1
+         GROUP BY commercial_order.status,evidence.status`,
+        [order.id],
+      )
+    ).rows[0],
+    {
+      order_status: "pending_review",
+      evidence_status: "recorded",
+      membership_count: 0,
+    },
+  );
+  await pool.query(
+    `DROP TRIGGER reject_test_portfolio_provision ON official_paper_portfolios;
+     DROP FUNCTION reject_test_portfolio_provision();`,
   );
 });
 
@@ -1073,23 +1400,13 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   await pool.query(
     `INSERT INTO strategy_runtime_cycles(id,deployment_id,sequence,fencing_token,candle_open_time,candle_close_time,status,decision_json,trace_id,started_at) VALUES('historic-cycle','deployment-0',0,1,'2026-07-20','2026-07-21','completed','{}','historic','2026-07-20'); INSERT INTO strategy_paper_positions(id,deployment_id,side,status,quantity,entry_price,exit_price,opened_cycle_id,closed_cycle_id,realized_net_pnl_usdt,opened_at,closed_at) VALUES('historic-position','deployment-0','long','closed',1,100,101,'historic-cycle','historic-cycle',1000,'2026-07-20','2026-07-21')`,
   );
-  await assert.rejects(
-    generatePerformanceStatement(pool, {
-      userId: "customer",
-      generatedByUserId: "maker",
-      requestId: "unresolved",
-      idempotencyKey: "unresolved",
-      now: new Date("2026-08-12T00:00:00Z"),
-    }),
-    /解析器尚未接入/,
-  );
   const statement = await generatePerformanceStatement(pool, {
     userId: "customer",
     generatedByUserId: "maker",
     requestId: "statement-1",
     idempotencyKey: "statement-1",
     now: new Date("2026-08-12T00:00:00Z"),
-    resolvePortfolioScope: officialScope,
+    readOfficialAggregate: officialAggregate,
   });
   assert.equal(statement.week_start.toISOString(), "2026-08-03T00:00:00.000Z");
   assert.equal(statement.fee_amount, "40.000000000000000000");
@@ -1103,6 +1420,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
       decision: "approve",
       note: "stale",
       idempotencyKey: "statement-stale",
+      readOfficialAggregate: officialAggregate,
     }),
     /数据已变化/,
   );
@@ -1113,6 +1431,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     decision: "approve",
     note: "approved",
     idempotencyKey: "statement-approved",
+    readOfficialAggregate: officialAggregate,
   });
   await assert.rejects(
     recordPerformancePaymentEvidence(pool, {
@@ -1227,6 +1546,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
       decision: "reject",
       note: "collision",
       idempotencyKey: "statement-approved",
+      readOfficialAggregate: officialAggregate,
     }),
     /已绑定其他操作/,
   );
@@ -1237,7 +1557,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
       requestId: "blocked",
       idempotencyKey: "statement-blocked",
       now: new Date("2026-08-19T00:00:00Z"),
-      resolvePortfolioScope: officialScope,
+      readOfficialAggregate: officialAggregate,
     }),
     /前序结算单尚未完成/,
   );
@@ -1456,7 +1776,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     requestId: "statement-loss",
     idempotencyKey: "statement-loss",
     now: new Date("2026-08-19T00:00:00Z"),
-    resolvePortfolioScope: officialScope,
+    readOfficialAggregate: officialAggregate,
   });
   assert.equal(loss.fee_amount, "0.000000000000000000");
   assert.equal(loss.loss_carry, "300.000000000000000000");
@@ -1467,6 +1787,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     decision: "reject",
     note: "regenerate",
     idempotencyKey: "loss-reject",
+    readOfficialAggregate: officialAggregate,
   });
   assert.equal(
     (
@@ -1476,7 +1797,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
         requestId: "replay",
         idempotencyKey: "statement-loss",
         now: new Date("2026-08-19T00:00:00Z"),
-        resolvePortfolioScope: officialScope,
+        readOfficialAggregate: officialAggregate,
       })
     ).id,
     loss.id,
@@ -1487,7 +1808,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     requestId: "replacement-trace",
     idempotencyKey: "statement-loss-replacement",
     now: new Date("2026-08-19T00:00:00Z"),
-    resolvePortfolioScope: officialScope,
+    readOfficialAggregate: officialAggregate,
   });
   assert.equal(replacement.revision, 2);
   assert.equal(replacement.replaces_statement_id, loss.id);
@@ -1499,6 +1820,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
         decision: "approve",
         note: "replacement verified",
         idempotencyKey: "loss-replacement-approved",
+        readOfficialAggregate: officialAggregate,
       })
     ).status,
     "no_fee",
@@ -1509,7 +1831,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     requestId: "statement-following",
     idempotencyKey: "statement-following",
     now: new Date("2026-08-26T00:00:00Z"),
-    resolvePortfolioScope: officialScope,
+    readOfficialAggregate: officialAggregate,
   });
   assert.equal(following.week_start.toISOString(), "2026-08-17T00:00:00.000Z");
 });

@@ -16,7 +16,7 @@ export async function GET(request: Request) {
       headers: { "cache-control": "no-store" },
     });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -32,6 +32,6 @@ export async function POST(request: Request) {
     await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.llm_profile_created", subjectType: "llm_profile", subjectId: profile.id, reason });
     return Response.json({ profile: maintenanceLlmProfileView(profile) }, { status: 201 });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

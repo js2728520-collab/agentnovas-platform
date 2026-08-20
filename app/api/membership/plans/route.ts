@@ -14,5 +14,5 @@ export async function GET(request: Request) {
         WHERE status='active' AND effective_at<=now() AND approved_at IS NOT NULL ORDER BY document_type`),
     ]);
     return Response.json({plans:plans.rows.map(commercialPlanDto),requiredLegalDocuments:legal.rows.map(row=>({id:row.id,type:row.document_type,version:row.version,contentSha256:row.content_sha256,effectiveAt:new Date(row.effective_at).toISOString()})),orderCreationAvailable:legal.rows.length===7},{headers:{"cache-control":"no-store"}});
-  } catch(error){return researchErrorResponse(error);}
+  } catch(error){return researchErrorResponse(error, request);}
 }

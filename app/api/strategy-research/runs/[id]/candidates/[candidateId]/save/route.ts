@@ -47,6 +47,6 @@ export async function POST(request: Request, { params }: {
       simulationOnly: candidate.validationLabel !== "STANDARD_VERIFIED",
     }, { status: saved.created ? 201 : 200 });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

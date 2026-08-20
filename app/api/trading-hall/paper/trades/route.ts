@@ -1,7 +1,10 @@
+import { requireAccessPermission } from "@/lib/access-control";
 import { listOfficialPaperTrades } from "@/lib/official-paper-repository";
+import { officialPaperTradeDto } from "@/lib/official-paper-public-contract";
+import { cursorPage } from "@/lib/commercial-public-contract";
 import { parseOfficialPaperTradeLimit } from "@/lib/official-paper-pagination";
 import { getPostgresPool } from "@/lib/postgres";
-import { requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+import { ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
 type TradeCursor = { filledAt: string; id: string };
 
@@ -24,7 +27,7 @@ function encodeCursor(value: { filledAt: Date; id: string }) {
 
 export async function GET(request: Request) {
   try {
-    const user = await requireResearchUser(request, ["customer"]);
+    const { user } = await requireAccessPermission(request, "client.paper.view");
     const url = new URL(request.url);
     const limit = parseOfficialPaperTradeLimit(url.searchParams.get("limit"));
     const result = await listOfficialPaperTrades(await getPostgresPool(), {
@@ -32,11 +35,12 @@ export async function GET(request: Request) {
       cursor: decodeCursor(url.searchParams.get("cursor")),
       limit,
     });
-    return Response.json({
-      items: result.items,
-      nextCursor: result.nextCursor ? encodeCursor(result.nextCursor) : null,
-    }, { headers: { "cache-control": "no-store" } });
+    const nextCursor = result.nextCursor ? encodeCursor(result.nextCursor) : null;
+    return Response.json(
+      cursorPage(result.items.map(officialPaperTradeDto), limit, nextCursor),
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

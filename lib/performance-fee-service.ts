@@ -20,10 +20,15 @@ import {
   compareSignedDecimalStrings,
 } from "./commercial-membership-domain.ts";
 import {
-  type OfficialThreeCardPortfolioScopeResolver,
-  unresolvedOfficialThreeCardPortfolioScope,
+  type OfficialThreeCardAggregateReader,
+  resolveCommercialOfficialPaperScope,
 } from "./commercial-portfolio-scope.ts";
 import { ResearchApiError } from "./research-errors.ts";
+
+type CommercialMutationAuthorization = (
+  client: PoolClient,
+  customerId: string,
+) => Promise<void>;
 
 async function transaction<T>(
   pool: Pool,
@@ -87,16 +92,19 @@ export async function generatePerformanceStatement(
     requestId: string;
     idempotencyKey: string;
     now?: Date;
-    resolvePortfolioScope?: OfficialThreeCardPortfolioScopeResolver;
+    readOfficialAggregate?: OfficialThreeCardAggregateReader;
+    authorize?: CommercialMutationAuthorization;
   },
 ) {
-  const period = previousCompleteUtcWeek(input.now ?? new Date()),
-    resolver =
-      input.resolvePortfolioScope ?? unresolvedOfficialThreeCardPortfolioScope;
+  const asOf = input.now ?? new Date();
+  const period = previousCompleteUtcWeek(asOf);
   return transaction(pool, async (client) => {
-    await client.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [
+    const customer = await client.query(`SELECT id FROM users WHERE id=$1 FOR UPDATE`, [
       input.userId,
     ]);
+    if (!customer.rows[0])
+      throw new ResearchApiError("CUSTOMER_NOT_FOUND", "客户不存在", 404);
+    await input.authorize?.(client, input.userId);
     const claim = await claimCommercialIdempotency(client, {
       operation: "performance.statement.generate",
       key: input.idempotencyKey,
@@ -169,37 +177,38 @@ export async function generatePerformanceStatement(
         "客户在该完整周没有覆盖全周的商业会员权益",
         422,
       );
-    const scope = await resolver(client, {
-      userId: input.userId,
-      weekStart: period.weekStart,
-      weekEnd: period.weekEnd,
-    });
-    const strategyIds = [...new Set(scope.strategyIds)].sort();
-    if (strategyIds.length !== 3)
-      throw new ResearchApiError(
-        "OFFICIAL_PORTFOLIO_SCOPE_INVALID",
-        "官方三卡组合解析结果必须正好包含三个策略",
-        503,
-      );
-    const pnl = await client.query<{
-      week_pnl: string;
-      cumulative_pnl: string;
-      prior_pnl: string;
-    }>(
-      `SELECT COALESCE(sum(realized_net_pnl_usdt) FILTER(WHERE closed_at >= $3 AND closed_at < $4),0)::text AS week_pnl,COALESCE(sum(realized_net_pnl_usdt) FILTER(WHERE closed_at < $4),0)::text AS cumulative_pnl,COALESCE(sum(realized_net_pnl_usdt) FILTER(WHERE closed_at < $3),0)::text AS prior_pnl FROM commercial_closed_paper_pnl WHERE user_id=$1 AND strategy_id=ANY($2::text[])`,
-      [input.userId, strategyIds, period.weekStart, period.weekEnd],
+    const scope = await resolveCommercialOfficialPaperScope(
+      client,
+      {
+        membershipId: entitlement.rows[0].membership_id,
+        customerId: input.userId,
+        asOf,
+      },
+      { aggregate: input.readOfficialAggregate },
     );
+    const scopeSnapshot = {
+      source: "official_three_card_portfolio" as const,
+      scopeKey: scope.scopeKey,
+      scopeVersion: scope.scopeVersion,
+      customerId: scope.customerId,
+      membershipId: scope.membershipId,
+      period: scope.period,
+      strategies: scope.strategies.map(({ strategyCode, portfolioId }) => ({
+        strategyCode,
+        portfolioId,
+      })),
+    };
     await client.query(
       `INSERT INTO performance_fee_high_water_marks(user_id,cumulative_net_pnl,high_water_mark) VALUES($1,$2,$2) ON CONFLICT DO NOTHING`,
-      [input.userId, pnl.rows[0].prior_pnl],
+      [input.userId, scope.priorNetPnl],
     );
     const hwm = await client.query<{ high_water_mark: string }>(
       `SELECT high_water_mark::text FROM performance_fee_high_water_marks WHERE user_id=$1 FOR UPDATE`,
       [input.userId],
     );
     const fee = calculateWeeklyPerformanceFee({
-      weekNetPnl: pnl.rows[0].week_pnl,
-      cumulativeNetPnl: pnl.rows[0].cumulative_pnl,
+      weekNetPnl: scope.weekNetPnl,
+      cumulativeNetPnl: scope.cumulativeNetPnl,
       committedHighWaterMark: hwm.rows[0].high_water_mark,
       feeBps: entitlement.rows[0].performance_fee_bps,
     });
@@ -213,11 +222,7 @@ export async function generatePerformanceStatement(
         entitlement.rows[0].plan_version_id,
         period.weekStart,
         period.weekEnd,
-        JSON.stringify({
-          strategyIds,
-          scopeVersion: scope.scopeVersion,
-          source: scope.source,
-        }),
+        JSON.stringify(scopeSnapshot),
         fee.weekNetPnl,
         fee.cumulativeNetPnl,
         fee.committedHighWaterMark,
@@ -242,6 +247,7 @@ export async function generatePerformanceStatement(
         weekStart: period.weekStart,
         weekEnd: period.weekEnd,
         revision,
+        scope: scopeSnapshot,
       },
       templateKey: "performance_statement_generated",
       dedupeKey: `performance-generated:${id}`,
@@ -260,9 +266,18 @@ async function recomputeStatement(
   client: PoolClient,
   row: {
     user_id: string;
+    membership_id: string;
     week_start: Date;
     week_end: Date;
-    strategy_codes_json: { strategyIds?: string[] };
+    strategy_codes_json: {
+      source?: string;
+      scopeKey?: string;
+      scopeVersion?: string;
+      customerId?: string;
+      membershipId?: string;
+      period?: { start?: string; end?: string };
+      strategies?: Array<{ strategyCode?: string; portfolioId?: string }>;
+    };
     week_net_pnl: string;
     cumulative_net_pnl: string;
     prior_high_water_mark: string;
@@ -271,21 +286,58 @@ async function recomputeStatement(
     fee_bps: number;
     fee_amount: string;
   },
+  readOfficialAggregate?: OfficialThreeCardAggregateReader,
 ) {
-  const ids = row.strategy_codes_json.strategyIds;
-  if (!Array.isArray(ids) || ids.length !== 3)
+  const scope = await resolveCommercialOfficialPaperScope(
+    client,
+    {
+      membershipId: row.membership_id,
+      customerId: row.user_id,
+      asOf: row.week_end,
+    },
+    { aggregate: readOfficialAggregate },
+  );
+  const expectedSnapshot = {
+    source: "official_three_card_portfolio",
+    scopeKey: scope.scopeKey,
+    scopeVersion: scope.scopeVersion,
+    customerId: scope.customerId,
+    membershipId: scope.membershipId,
+    period: scope.period,
+    strategies: scope.strategies.map(({ strategyCode, portfolioId }) => ({
+      strategyCode,
+      portfolioId,
+    })),
+  };
+  const storedStrategies = row.strategy_codes_json.strategies;
+  if (
+    row.week_start.toISOString() !== scope.period.start ||
+    row.week_end.toISOString() !== scope.period.end ||
+    row.strategy_codes_json.source !== expectedSnapshot.source ||
+    row.strategy_codes_json.scopeKey !== expectedSnapshot.scopeKey ||
+    row.strategy_codes_json.scopeVersion !== expectedSnapshot.scopeVersion ||
+    row.strategy_codes_json.customerId !== expectedSnapshot.customerId ||
+    row.strategy_codes_json.membershipId !== expectedSnapshot.membershipId ||
+    row.strategy_codes_json.period?.start !== expectedSnapshot.period.start ||
+    row.strategy_codes_json.period?.end !== expectedSnapshot.period.end ||
+    !Array.isArray(storedStrategies) ||
+    storedStrategies.length !== expectedSnapshot.strategies.length ||
+    expectedSnapshot.strategies.some((expected, index) => {
+      const stored = storedStrategies[index];
+      return (
+        stored?.strategyCode !== expected.strategyCode ||
+        stored.portfolioId !== expected.portfolioId
+      );
+    })
+  )
     throw new ResearchApiError(
       "STATEMENT_SCOPE_INVALID",
-      "结算单策略范围无效",
+      "结算单官方三卡范围快照无效",
       409,
     );
-  const pnl = await client.query<{ week_pnl: string; cumulative_pnl: string }>(
-    `SELECT COALESCE(sum(realized_net_pnl_usdt) FILTER(WHERE closed_at >= $3 AND closed_at < $4),0)::text AS week_pnl,COALESCE(sum(realized_net_pnl_usdt) FILTER(WHERE closed_at < $4),0)::text AS cumulative_pnl FROM commercial_closed_paper_pnl WHERE user_id=$1 AND strategy_id=ANY($2::text[])`,
-    [row.user_id, ids, row.week_start, row.week_end],
-  );
   const fee = calculateWeeklyPerformanceFee({
-    weekNetPnl: pnl.rows[0].week_pnl,
-    cumulativeNetPnl: pnl.rows[0].cumulative_pnl,
+    weekNetPnl: scope.weekNetPnl,
+    cumulativeNetPnl: scope.cumulativeNetPnl,
     committedHighWaterMark: row.prior_high_water_mark,
     feeBps: row.fee_bps,
   });
@@ -325,11 +377,13 @@ export async function decidePerformanceAssessment(
     decision: "approve" | "reject";
     note: string;
     idempotencyKey: string;
+    readOfficialAggregate?: OfficialThreeCardAggregateReader;
+    authorize?: CommercialMutationAuthorization;
   },
 ) {
   return transaction(pool, async (client) => {
     const result = await client.query(
-      `SELECT id,user_id,status,generated_by_user_id,fee_amount::text,currency,week_start,week_end,strategy_codes_json,week_net_pnl::text,cumulative_net_pnl::text,prior_high_water_mark::text,eligible_profit::text,loss_carry::text,fee_bps FROM performance_fee_statements WHERE id=$1 FOR UPDATE`,
+      `SELECT id,user_id,membership_id,status,generated_by_user_id,fee_amount::text,currency,week_start,week_end,strategy_codes_json,week_net_pnl::text,cumulative_net_pnl::text,prior_high_water_mark::text,eligible_profit::text,loss_carry::text,fee_bps FROM performance_fee_statements WHERE id=$1 FOR UPDATE`,
       [input.statementId],
     );
     const row = result.rows[0];
@@ -339,6 +393,7 @@ export async function decidePerformanceAssessment(
         "分成结算单不存在",
         404,
       );
+    await input.authorize?.(client, row.user_id);
     const claim = await claimCommercialIdempotency(client, {
       operation: "performance.statement.assessment",
       key: input.idempotencyKey,
@@ -393,7 +448,7 @@ export async function decidePerformanceAssessment(
         "高水位已变化，请重新生成",
         409,
       );
-    await recomputeStatement(client, row);
+    await recomputeStatement(client, row, input.readOfficialAggregate);
     await client.query(
       `INSERT INTO performance_fee_decisions(id,statement_id,stage,reviewer_user_id,decision,note,idempotency_key) VALUES($1,$2,'assessment',$3,$4,$5,$6)`,
       [
@@ -412,7 +467,7 @@ export async function decidePerformanceAssessment(
         [input.statementId],
       );
       response = { status: "rejected", replayed: false };
-    } else if (Number(row.fee_amount) === 0) {
+    } else if (compareSignedDecimalStrings(row.fee_amount, "0") === 0) {
       await client.query(
         `UPDATE performance_fee_statements SET status='no_fee',updated_at=now() WHERE id=$1`,
         [input.statementId],
@@ -462,6 +517,7 @@ export async function recordPerformancePaymentEvidence(
     occurredAt: string;
     note?: string;
     idempotencyKey: string;
+    authorize?: CommercialMutationAuthorization;
   },
 ) {
   if (
@@ -490,6 +546,7 @@ export async function recordPerformancePaymentEvidence(
         "分成结算单不存在",
         404,
       );
+    await input.authorize?.(client, row.user_id);
     const unresolvedFingerprintVersion = await client.query<{ present: boolean }>(
       `SELECT EXISTS(
          SELECT 1 FROM commercial_payment_evidence
@@ -612,6 +669,7 @@ export async function decidePerformancePayment(
     paymentEvidenceId: string;
     idempotencyKey: string;
     requestId: string;
+    authorize?: CommercialMutationAuthorization;
   },
 ) {
   return transaction(pool, async (client) => {
@@ -632,6 +690,7 @@ export async function decidePerformancePayment(
         "分成结算单不存在",
         404,
       );
+    await input.authorize?.(client, row.user_id);
     const claim = await claimCommercialIdempotency(client, {
       operation: "performance.payment.decision",
       key: input.idempotencyKey,

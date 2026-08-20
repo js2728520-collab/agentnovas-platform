@@ -19,7 +19,13 @@ import {
   compareSignedDecimalStrings,
   requiredLegalDocumentTypes,
 } from "./commercial-membership-domain.ts";
+import { ensureOfficialPaperPortfolios } from "./official-paper-repository.ts";
 import { ResearchApiError } from "./research-errors.ts";
+
+type CommercialMutationAuthorization = (
+  client: PoolClient,
+  customerId: string,
+) => Promise<void>;
 
 async function inTransaction<T>(
   pool: Pool,
@@ -284,6 +290,7 @@ export async function recordMembershipPaymentEvidence(
     occurredAt: string;
     note?: string;
     idempotencyKey: string;
+    authorize?: CommercialMutationAuthorization;
   },
 ) {
   assertEvidence(input, "USD");
@@ -295,6 +302,7 @@ export async function recordMembershipPaymentEvidence(
     const row = order.rows[0];
     if (!row)
       throw new ResearchApiError("ORDER_NOT_FOUND", "会员订单不存在", 404);
+    await input.authorize?.(client, row.user_id);
     const unresolvedFingerprintVersion = await client.query<{ present: boolean }>(
       `SELECT EXISTS(
          SELECT 1 FROM commercial_payment_evidence
@@ -409,7 +417,12 @@ export async function recordMembershipPaymentEvidence(
 
 export async function submitMembershipOrder(
   pool: Pool,
-  input: { orderId: string; actorUserId: string; idempotencyKey: string },
+  input: {
+    orderId: string;
+    actorUserId: string;
+    idempotencyKey: string;
+    authorize?: CommercialMutationAuthorization;
+  },
 ) {
   return inTransaction(pool, async (client) => {
     const order = await client.query<{ status: string; user_id: string }>(
@@ -419,6 +432,7 @@ export async function submitMembershipOrder(
     const row = order.rows[0];
     if (!row)
       throw new ResearchApiError("ORDER_NOT_FOUND", "会员订单不存在", 404);
+    await input.authorize?.(client, row.user_id);
     const claim = await claimCommercialIdempotency(client, {
       operation: "membership.order.submit",
       key: input.idempotencyKey,
@@ -484,6 +498,7 @@ export async function decideMembershipOrder(
     paymentEvidenceId: string;
     idempotencyKey: string;
     requestId: string;
+    authorize?: CommercialMutationAuthorization;
   },
 ) {
   return inTransaction(pool, async (client) => {
@@ -504,6 +519,7 @@ export async function decideMembershipOrder(
     const row = order.rows[0];
     if (!row)
       throw new ResearchApiError("ORDER_NOT_FOUND", "会员订单不存在", 404);
+    await input.authorize?.(client, row.user_id);
     const claim = await claimCommercialIdempotency(client, {
       operation: "membership.order.decision",
       key: input.idempotencyKey,
@@ -622,9 +638,19 @@ export async function decideMembershipOrder(
       id: string;
       expires_at: string | null;
       status: string;
-      plan_code: string;
+      plan_version_id: string;
+      commercial_plan_code: string | null;
     }>(
-      `SELECT id,expires_at,status,plan_code FROM memberships WHERE customer_id=$1 AND status IN ('active','grace','read_only') ORDER BY created_at DESC FOR UPDATE`,
+      `SELECT membership.id,membership.expires_at,membership.status,
+              membership.plan_code AS plan_version_id,
+              plan_version.plan_code AS commercial_plan_code
+       FROM memberships AS membership
+       LEFT JOIN commercial_plan_versions AS plan_version
+         ON plan_version.id=membership.plan_code
+       WHERE membership.customer_id=$1
+         AND membership.status IN ('active','grace','read_only')
+       ORDER BY membership.created_at DESC
+       FOR UPDATE OF membership`,
       [row.user_id],
     );
     if (memberships.rows.length > 1)
@@ -635,7 +661,7 @@ export async function decideMembershipOrder(
       );
     const before = memberships.rows[0] ?? null;
     if (
-      before?.plan_code === "membership_lifetime_v1" &&
+      before?.commercial_plan_code === "lifetime_v1" &&
       row.duration_days !== null
     )
       throw new ResearchApiError(
@@ -671,6 +697,10 @@ export async function decideMembershipOrder(
           expiresAt,
         ],
       );
+    await ensureOfficialPaperPortfolios(client, {
+      membershipId,
+      customerId: row.user_id,
+    });
     const clearingId = await ensurePlatformLedgerAccount(
         client,
         "platform_deposit_clearing",

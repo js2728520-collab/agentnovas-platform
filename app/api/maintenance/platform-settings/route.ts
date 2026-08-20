@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     await requireAccessPermission(request, PERMISSION);
     return Response.json({ system: await getSystemSettings() }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -66,6 +66,6 @@ export async function PUT(request: Request) {
     }
     return Response.json({ system: next, message: "平台公开设置已保存并记录审计" });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

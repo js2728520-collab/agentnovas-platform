@@ -15,6 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
     return Response.json({ deployment });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

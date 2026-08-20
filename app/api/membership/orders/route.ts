@@ -16,6 +16,7 @@ import {
 import { getPostgresPool } from "@/lib/postgres";
 import { researchErrorResponse } from "@/lib/research-api";
 import { ResearchApiError } from "@/lib/research-errors";
+import { clientIpFromRequest } from "@/lib/riverton-apps";
 
 export async function GET(request: Request) {
   try {
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
       { headers: { "cache-control": "no-store" } },
     );
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 export async function POST(request: Request) {
@@ -84,11 +85,11 @@ export async function POST(request: Request) {
       ),
       idempotencyKey: idempotencyKey(request),
       requestId: requestId(request),
-      trustedIp: null,
+      trustedIp: clientIpFromRequest(request),
       userAgent: request.headers.get("user-agent") ?? undefined,
     });
     return Response.json({ order: membershipOrderDto(row) }, { status: 201 });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

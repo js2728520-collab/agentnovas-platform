@@ -24,6 +24,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "client.membership.order", appId: "client", label: "提交会员订单", sensitive: true },
   { key: "client.credits.view", appId: "client", label: "查看积分余额" },
   { key: "client.paper.view", appId: "client", label: "查看模拟交易" },
+  { key: "client.paper.manage", appId: "client", label: "启动与停止模拟策略", sensitive: true },
   { key: "ops.customers.view", appId: "operations", label: "查看客户" },
   { key: "ops.customers.manage", appId: "operations", label: "管理客户", sensitive: true },
   { key: "ops.deposits.view", appId: "operations", label: "查看充值订单" },
@@ -230,6 +231,7 @@ function clientCustomerPermissions(): RolePermission[] {
     { permissionKey: "client.membership.order", scope: "SELF" },
     { permissionKey: "client.credits.view", scope: "SELF" },
     { permissionKey: "client.paper.view", scope: "SELF" },
+    { permissionKey: "client.paper.manage", scope: "SELF" },
   ];
 }
 

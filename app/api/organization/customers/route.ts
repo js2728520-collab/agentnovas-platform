@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       canManage: Boolean(access.permissions["ops.customers.manage"]),
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -91,6 +91,6 @@ export async function PATCH(request: Request) {
     }
     return Response.json({ ok: true, message: action === "archive" ? "客户已归档，历史记录已保留" : "客户资料已更新" });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

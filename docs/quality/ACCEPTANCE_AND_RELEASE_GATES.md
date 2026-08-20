@@ -70,6 +70,7 @@
 ## 8. Gate 7：迁移、恢复与部署
 
 - migration fresh、N-1、rerun、checksum mismatch、concurrent、backup restore 通过。
+- 已部署 registry 的每条记录必须有可验证 checksum；NULL/历史不明记录必须先做受控 reconciliation，禁止静默采用当前文件 hash。
 - 三端/Workers/migrator 使用独立最小 env 与 DB roles；Payment Worker 无业务写权限。
 - systemd/nginx 校验通过，无旧 Web unit、重复 3000 端口或重复 server name。
 - current/previous 原子部署，应用回滚演练 <5 分钟；DB expand/contract 前向兼容。

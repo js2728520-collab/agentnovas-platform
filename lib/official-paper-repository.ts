@@ -590,15 +590,17 @@ export async function listOfficialPaperPortfolios(database: Queryable, customerI
     id: string; membership_id: string; strategy_code: StrategyCode; principal_usdt: string;
     cash_usdt: string; realized_pnl_usdt: string; realized_gross_pnl_usdt: string;
     realized_net_pnl_usdt: string; fees_usdt: string; access_status: string;
-    updated_at: Date; position_count: number; position_value_usdt: string; unrealized_pnl_usdt: string;
+    updated_at: Date; position_count: number; position_value_usdt: string; equity_usdt: string;
+    unrealized_pnl_usdt: string;
   }>(`
     SELECT portfolio.id, portfolio.membership_id, portfolio.strategy_code,
            portfolio.principal_usdt, portfolio.cash_usdt, portfolio.realized_pnl_usdt,
            portfolio.realized_gross_pnl_usdt, portfolio.realized_net_pnl_usdt,
            portfolio.fees_usdt, portfolio.access_status, portfolio.updated_at,
            count(position.id)::int AS position_count,
-           COALESCE(sum(position.quantity * position.last_mark_price), 0)::text AS position_value_usdt,
-           COALESCE(sum(position.unrealized_pnl_usdt), 0)::text AS unrealized_pnl_usdt
+           round(COALESCE(sum(position.quantity * position.last_mark_price), 0), 12)::numeric(30,12)::text AS position_value_usdt,
+           round(portfolio.cash_usdt + COALESCE(sum(position.quantity * position.last_mark_price), 0), 12)::numeric(30,12)::text AS equity_usdt,
+           round(COALESCE(sum(position.unrealized_pnl_usdt), 0), 12)::numeric(30,12)::text AS unrealized_pnl_usdt
     FROM official_paper_portfolios AS portfolio
     LEFT JOIN official_paper_positions AS position
       ON position.portfolio_id = portfolio.id AND position.status = 'open'
@@ -620,32 +622,30 @@ export async function listOfficialPaperPortfolios(database: Queryable, customerI
     ORDER BY position.opened_at, position.id
   `, [customerId]);
   return result.rows.map((row) => {
-    const cash = Number(row.cash_usdt);
-    const positionValue = Number(row.position_value_usdt);
     return {
       id: row.id,
       membershipId: row.membership_id,
       strategyCode: row.strategy_code,
-      principalUsdt: Number(row.principal_usdt),
-      cashUsdt: cash,
-      equityUsdt: cash + positionValue,
-      realizedPnlUsdt: Number(row.realized_net_pnl_usdt),
-      realizedGrossPnlUsdt: Number(row.realized_gross_pnl_usdt),
-      realizedNetPnlUsdt: Number(row.realized_net_pnl_usdt),
-      unrealizedPnlUsdt: Number(row.unrealized_pnl_usdt),
-      feesUsdt: Number(row.fees_usdt),
+      principalUsdt: row.principal_usdt,
+      cashUsdt: row.cash_usdt,
+      marketValueUsdt: row.position_value_usdt,
+      equityUsdt: row.equity_usdt,
+      realizedGrossPnlUsdt: row.realized_gross_pnl_usdt,
+      realizedNetPnlUsdt: row.realized_net_pnl_usdt,
+      unrealizedPnlUsdt: row.unrealized_pnl_usdt,
+      feesUsdt: row.fees_usdt,
       access: row.access_status,
       openPositionCount: row.position_count,
       positions: positions.rows.filter((position) => position.portfolio_id === row.id).map((position) => ({
         id: position.id,
         symbol: position.symbol,
         side: position.side,
-        quantity: Number(position.quantity),
-        averageEntryPrice: Number(position.average_entry_price),
-        costBasisUsdt: Number(position.cost_basis_usdt),
-        entryFeesUsdt: Number(position.entry_fees_usdt),
-        lastMarkPrice: Number(position.last_mark_price),
-        unrealizedPnlUsdt: Number(position.unrealized_pnl_usdt),
+        quantity: position.quantity,
+        averageEntryPrice: position.average_entry_price,
+        costBasisUsdt: position.cost_basis_usdt,
+        entryFeesUsdt: position.entry_fees_usdt,
+        lastMarkPrice: position.last_mark_price,
+        unrealizedPnlUsdt: position.unrealized_pnl_usdt,
         openedAt: position.opened_at.toISOString(),
       })),
       updatedAt: row.updated_at.toISOString(),
@@ -671,15 +671,17 @@ export async function listOfficialPaperTrades(database: Queryable, input: {
     quantity: string; fill_price: string; notional_usdt: string; fee_usdt: string;
     allocated_entry_fee_usdt: string; realized_pnl_usdt: string;
     realized_gross_pnl_usdt: string; realized_net_pnl_usdt: string;
-    trace_id: string; filled_at: Date;
+    decision_round_id: string; trace_id: string; filled_at: Date;
   }>(`
     SELECT receipt.id, receipt.portfolio_id, portfolio.strategy_code,
            receipt.symbol, receipt.action, receipt.quantity, receipt.fill_price,
            receipt.notional_usdt, receipt.fee_usdt, receipt.allocated_entry_fee_usdt,
            receipt.realized_pnl_usdt, receipt.realized_gross_pnl_usdt,
            receipt.realized_net_pnl_usdt,
+           intent.runtime_cycle_id AS decision_round_id,
            receipt.trace_id, receipt.filled_at
     FROM official_paper_fill_receipts AS receipt
+    JOIN official_paper_order_intents AS intent ON intent.id = receipt.intent_id
     JOIN official_paper_portfolios AS portfolio ON portfolio.id = receipt.portfolio_id
     WHERE portfolio.customer_id = $1 ${cursorSql}
     ORDER BY receipt.filled_at DESC, receipt.id DESC
@@ -694,14 +696,14 @@ export async function listOfficialPaperTrades(database: Queryable, input: {
       strategyCode: row.strategy_code,
       symbol: row.symbol,
       action: row.action,
-      quantity: Number(row.quantity),
-      fillPrice: Number(row.fill_price),
-      notionalUsdt: Number(row.notional_usdt),
-      feeUsdt: Number(row.fee_usdt),
-      allocatedEntryFeeUsdt: Number(row.allocated_entry_fee_usdt),
-      realizedPnlUsdt: Number(row.realized_net_pnl_usdt),
-      realizedGrossPnlUsdt: Number(row.realized_gross_pnl_usdt),
-      realizedNetPnlUsdt: Number(row.realized_net_pnl_usdt),
+      quantity: row.quantity,
+      fillPrice: row.fill_price,
+      notionalUsdt: row.notional_usdt,
+      feeUsdt: row.fee_usdt,
+      allocatedEntryFeeUsdt: row.allocated_entry_fee_usdt,
+      realizedGrossPnlUsdt: row.realized_gross_pnl_usdt,
+      realizedNetPnlUsdt: row.realized_net_pnl_usdt,
+      decisionRoundId: row.decision_round_id,
       traceId: row.trace_id,
       filledAt: row.filled_at.toISOString(),
     })),

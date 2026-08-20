@@ -12,7 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { user, scope } = await requireAccessPermission(
+    const { user, scope, organizationIds } = await requireAccessPermission(
         request,
         "ops.membership_orders.view",
       ),
@@ -24,6 +24,7 @@ export async function GET(
         "scope_order",
         "o.user_id",
         2,
+        organizationIds,
       );
     values.push(...scoped.values);
     const pool = await getPostgresPool(),
@@ -59,6 +60,6 @@ export async function GET(
       { headers: { "cache-control": "no-store" } },
     );
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

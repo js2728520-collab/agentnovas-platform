@@ -13,20 +13,18 @@ export const performanceFeeCurrency = "USDT" as const;
 export const membershipOrderStatuses = [
   "AWAITING_EVIDENCE",
   "SUBMITTED",
-  "APPROVED",
   "REJECTED",
   "ACTIVATED",
   "CANCELLED",
 ] as const;
 
 export const performanceFeeStatementStatuses = [
-  "DRAFT",
   "SUBMITTED",
   "APPROVED",
   "REJECTED",
   "INVOICED",
   "PAID",
-  "VOID",
+  "CLOSED_NO_FEE",
 ] as const;
 
 export type CommercialPlanCode = typeof commercialBetaPlans[number]["code"];
@@ -72,7 +70,12 @@ export type MembershipOrder = {
   customerId: string;
   status: MembershipOrderStatus;
   plan: Omit<CommercialPlan, "isActive">;
-  legalDocumentVersion: string;
+  legalDocuments: Array<{
+    id: string;
+    type: string;
+    version: string;
+    contentSha256: string;
+  }>;
   paymentInstructionsStatus: "CONFIGURED" | "UNAVAILABLE";
   submittedAt: string | null;
   activatedAt: string | null;
@@ -120,6 +123,8 @@ export type PerformanceFeeStatement = {
   billableProfit: string;
   feeRate: string;
   feeAmount: string;
+  revision: number;
+  replacesStatementId: string | null;
   submittedAt: string | null;
   approvedAt: string | null;
   paidAt: string | null;
@@ -128,13 +133,31 @@ export type PerformanceFeeStatement = {
 
 export type PaperPortfolio = {
   id: string;
+  membershipId: string;
   strategyCode: OfficialStrategyCode;
-  initialCashUsdt: typeof betaPaperCapitalUsdt;
+  initialCashUsdt: string;
   cashUsdt: string;
   marketValueUsdt: string;
+  equityUsdt: string;
+  realizedGrossPnlUsdt: string;
   realizedPnlUsdt: string;
+  realizedNetPnlUsdt: string;
   unrealizedPnlUsdt: string;
+  feesUsdt: string;
   status: "ACTIVE" | "CLOSE_ONLY" | "READ_ONLY";
+  openPositionCount: number;
+  positions: Array<{
+    id: string;
+    symbol: "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
+    side: "LONG";
+    quantity: string;
+    averageEntryPrice: string;
+    costBasisUsdt: string;
+    entryFeesUsdt: string;
+    lastMarkPrice: string;
+    unrealizedPnlUsdt: string;
+    openedAt: string;
+  }>;
   updatedAt: string;
 };
 
@@ -146,36 +169,12 @@ export type PaperTrade = {
   side: "BUY" | "SELL";
   quantity: string;
   priceUsdt: string;
+  notionalUsdt: string;
   feeUsdt: string;
-  realizedPnlUsdt: string;
+  allocatedEntryFeeUsdt: string;
+  realizedGrossPnlUsdt: string;
+  realizedNetPnlUsdt: string;
   decisionRoundId: string;
   traceId: string;
   filledAt: string;
-};
-
-export type PlatformDemoExecutionReceipt = {
-  id: string;
-  provider: PlatformDemoProvider;
-  strategyCode: OfficialStrategyCode;
-  symbol: "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
-  side: "BUY" | "SELL";
-  status: "QUEUED" | "SUBMITTED" | "PARTIALLY_FILLED" | "FILLED" | "CANCELLED" | "FAILED" | "UNKNOWN";
-  notionalLimitUsdt: string;
-  providerOrderReference: string | null;
-  failureCode: string | null;
-  decisionRoundId: string;
-  traceId: string;
-  submittedAt: string | null;
-  updatedAt: string;
-};
-
-export type MaintenanceDemoAccount = {
-  id: string;
-  provider: PlatformDemoProvider;
-  status: "DISABLED" | "SANDBOX" | "PAUSED";
-  hasSecret: boolean;
-  isVerified: boolean;
-  lastVerifiedAt: string | null;
-  lastVerificationCode: string | null;
-  updatedAt: string;
 };

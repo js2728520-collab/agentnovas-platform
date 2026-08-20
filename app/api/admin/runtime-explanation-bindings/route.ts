@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       })),
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -45,6 +45,6 @@ export async function PUT(request: Request) {
     await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.runtime_binding_changed", subjectType: "runtime_explanation_role", subjectId: String(body.role ?? ""), reason });
     return Response.json({ binding });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

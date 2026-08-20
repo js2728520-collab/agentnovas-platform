@@ -24,5 +24,5 @@ export async function GET(request: Request) {
       amountUsdt: row.amount_usdt, dueAt: row.due_at, graceEndsAt: row.grace_ends_at,
       status: row.status, newEntriesAllowed: Boolean(row.new_entries_allowed), remindersSent: row.reminders_sent,
     })) }, { headers: { "cache-control": "no-store" } });
-  } catch (error) { return researchErrorResponse(error); }
+  } catch (error) { return researchErrorResponse(error, request); }
 }

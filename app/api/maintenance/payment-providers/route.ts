@@ -33,6 +33,6 @@ export async function GET(request: Request) {
       })),
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

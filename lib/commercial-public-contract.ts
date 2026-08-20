@@ -10,9 +10,10 @@ const membershipStatuses = {
 } as const;
 const performanceStatuses = {
   pending_review: "SUBMITTED",
+  approved: "APPROVED",
   payment_pending: "INVOICED",
   paid: "PAID",
-  no_fee: "VOID",
+  no_fee: "CLOSED_NO_FEE",
   rejected: "REJECTED",
 } as const;
 const evidenceStatuses = {
@@ -74,15 +75,19 @@ function rate(value: unknown) {
 function timestamp(value: unknown) {
   return value ? new Date(value as string | Date).toISOString() : null;
 }
-function legalBundle(value: unknown) {
-  if (!Array.isArray(value)) return "";
-  return value
-    .map((item) => {
-      const row = item as Record<string, unknown>;
-      return `${row.type}@${row.version}`;
-    })
-    .sort()
-    .join("|");
+function legalDocuments(value: unknown) {
+  if (!Array.isArray(value)) throw new Error("INVALID_LEGAL_SNAPSHOT");
+  return value.map((item) => {
+    const row = item as Record<string, unknown>;
+    const id = String(row.id ?? "");
+    const type = String(row.type ?? "");
+    const version = String(row.version ?? "");
+    const contentSha256 = String(row.contentSha256 ?? "").toLowerCase();
+    if (!id || !type || !version || !/^[a-f0-9]{64}$/.test(contentSha256)) {
+      throw new Error("INVALID_LEGAL_SNAPSHOT");
+    }
+    return { id, type, version, contentSha256 };
+  });
 }
 
 export function commercialPlanDto(row: Record<string, unknown>) {
@@ -119,7 +124,7 @@ export function membershipOrderDto(row: Record<string, unknown>) {
       isLifetime: plan.isLifetime,
       version: plan.version,
     },
-    legalDocumentVersion: legalBundle(row.legal_snapshot_json),
+    legalDocuments: legalDocuments(row.legal_snapshot_json),
     paymentInstructionsStatus: "UNAVAILABLE" as const,
     submittedAt: timestamp(row.submitted_at),
     activatedAt: timestamp(row.activated_at),

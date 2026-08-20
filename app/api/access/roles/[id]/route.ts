@@ -20,6 +20,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!result.rows[0]) throw new ResearchApiError("NOT_FOUND", "角色不存在或系统角色不可直接修改", 404);
     return Response.json({ role: result.rows[0] });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

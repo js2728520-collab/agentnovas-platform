@@ -8,6 +8,8 @@ import {
   deriveWorkerHealthState,
   normalizeWorkerErrorCode,
 } from "../lib/worker-observability.ts";
+import { demoExecutionWorkerConfig } from "../lib/demo-worker-config.ts";
+import { runDemoWorkerIteration } from "../lib/demo-worker-loop.ts";
 
 test("classifies missing, alive and stale worker heartbeats", () => {
   const now = new Date("2026-08-20T12:00:00.000Z");
@@ -79,4 +81,62 @@ test("public health is coarse while maintenance diagnostics remain permission pr
   assert.match(internalHealth, /configured/);
   assert.match(internalHealth, /enabled/);
   assert.match(internalHealth, /health/);
+});
+
+test("platform Demo worker reports lifecycle health and stays explicitly gated", async () => {
+  const worker = await readFile(new URL("../scripts/platform-demo-worker.mjs", import.meta.url), "utf8");
+  const health = await readFile(new URL("../app/api/maintenance/payment-workers/health/route.ts", import.meta.url), "utf8");
+  const demoEnvironment = await readFile(new URL("../deploy/env/demo.env.example", import.meta.url), "utf8");
+  const maintenanceEnvironment = await readFile(new URL("../deploy/env/maintenance.env.example", import.meta.url), "utf8");
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+
+  assert.match(worker, /workerConfig\.processEnabled/);
+  assert.doesNotMatch(worker, /if\s*\([^)]*PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED/);
+  assert.match(worker, /createWorkerHeartbeatReporter/);
+  assert.match(worker, /workerType:\s*"demo_execution"/);
+  assert.match(worker, /heartbeat\.start\(\)/);
+  assert.match(worker, /heartbeat\.markSuccess\(\)/);
+  assert.match(worker, /heartbeat\.markFailure\(error\)/);
+  assert.match(worker, /heartbeat\.stop\(\)/);
+  assert.match(health, /externalWritesEnabled/);
+  assert.match(health, /executionEnabled/);
+  assert.match(demoEnvironment, /^DEMO_EXECUTION_WORKER_ENABLED=false$/m);
+  assert.match(demoEnvironment, /^PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false$/m);
+  assert.match(maintenanceEnvironment, /^DEMO_EXECUTION_WORKER_ENABLED=false$/m);
+  assert.match(maintenanceEnvironment, /^PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false$/m);
+  assert.match(packageJson.scripts["worker:demo"], /scripts\/platform-demo-worker\.mjs/);
+});
+
+test("Demo process liveness and external-write authorization remain independent", () => {
+  assert.deepEqual(demoExecutionWorkerConfig({
+    DEMO_EXECUTION_WORKER_ENABLED: "true",
+    PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED: "false",
+  }), {
+    processEnabled: true,
+    externalWritesEnabled: false,
+    executionEnabled: false,
+  });
+  assert.deepEqual(demoExecutionWorkerConfig({
+    DEMO_EXECUTION_WORKER_ENABLED: "true",
+    PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED: "true",
+  }), {
+    processEnabled: true,
+    externalWritesEnabled: true,
+    executionEnabled: true,
+  });
+});
+
+test("Demo standby mode backs off without recording false execution success", async () => {
+  const calls = [];
+  const result = await runDemoWorkerIteration({
+    processNext: async () => {
+      calls.push("process");
+      return { status: "disabled" };
+    },
+    markSuccess: async () => calls.push("success"),
+    sleep: async (milliseconds) => calls.push(`sleep:${milliseconds}`),
+    idleDelayMs: 5_000,
+  });
+  assert.deepEqual(result, { status: "disabled" });
+  assert.deepEqual(calls, ["process", "sleep:5000"]);
 });

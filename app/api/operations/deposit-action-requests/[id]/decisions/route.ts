@@ -47,6 +47,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     return Response.json({ ok: true, status: decision === "approve" ? "approved" : "rejected" });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

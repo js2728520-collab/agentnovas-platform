@@ -16,6 +16,6 @@ export async function POST(request: Request) {
     await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.agent_binding_test_requested", subjectType: "agent_role", subjectId: role, reason });
     return Response.json(await testAgentRoleConnection(pool, { role }));
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

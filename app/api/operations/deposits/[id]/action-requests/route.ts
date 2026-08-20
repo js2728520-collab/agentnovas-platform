@@ -55,6 +55,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       },
     }, { status: 201 });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

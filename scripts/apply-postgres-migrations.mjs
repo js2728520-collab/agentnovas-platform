@@ -8,7 +8,7 @@ const pool = new pg.Pool({ connectionString, max: 1, application_name: "agentnov
 
 try {
   const result = await runPostgresMigrations(pool);
-  process.stdout.write(`PostgreSQL migrations complete (${result.applied.length} applied, ${result.skipped.length} skipped, ${result.backfilled.length} legacy checksums recorded, ${result.total} total).\n`);
+  process.stdout.write(`PostgreSQL migrations complete (${result.applied.length} applied, ${result.skipped.length} skipped, ${result.total} total).\n`);
 } finally {
   await pool.end();
 }

@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const scoped = organizationScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "beneficiary_id", 1, organizationIds);
     const result = await pool.query(`SELECT id, kind, period_start, period_end, beneficiary_id, amount_usdt, network, status, approval_id, created_at FROM settlements WHERE ${scoped.clause} ORDER BY created_at DESC LIMIT 200`, scoped.values);
     return Response.json({ settlements: result.rows.map((row) => ({ id: row.id, kind: row.kind, periodStart: row.period_start, periodEnd: row.period_end, beneficiaryId: row.beneficiary_id, amountUsdt: row.amount_usdt, network: row.network, status: row.status, approvalId: row.approval_id, createdAt: row.created_at })) }, { headers: { "cache-control": "no-store" } });
-  } catch (error) { return researchErrorResponse(error); }
+  } catch (error) { return researchErrorResponse(error, request); }
 }
 
 export async function POST(request: Request) {
@@ -36,5 +36,5 @@ export async function POST(request: Request) {
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
     return Response.json({ settlementId, approvalId, status: "review", paymentExecuted: false }, { status: 201 });
-  } catch (error) { return researchErrorResponse(error); }
+  } catch (error) { return researchErrorResponse(error, request); }
 }

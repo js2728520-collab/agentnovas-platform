@@ -42,6 +42,6 @@ export async function GET(request: Request) {
       id: next.id,
     }) : null }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

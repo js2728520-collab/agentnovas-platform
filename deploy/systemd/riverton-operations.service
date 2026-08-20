@@ -8,7 +8,7 @@ Type=simple
 User=agentnovas
 Group=agentnovas
 WorkingDirectory=/opt/agentnovas/current
-EnvironmentFile=/etc/agentnovas/agentnovas.env
+EnvironmentFile=/etc/agentnovas/operations.env
 Environment=RIVERTON_APP_AUDIENCE=operations
 Environment=PORT=3001
 ExecStart=/usr/bin/npm run start:operations -- --hostname 127.0.0.1
@@ -23,4 +23,3 @@ ReadWritePaths=/var/lib/agentnovas
 
 [Install]
 WantedBy=multi-user.target
-

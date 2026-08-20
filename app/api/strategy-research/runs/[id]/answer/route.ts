@@ -38,6 +38,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const resumed = await resumeResearchRunWithAnswers(pool, { runId: id, ownerUserId: user.id, answers });
     return Response.json({ runId: resumed.id, status: resumed.status }, { status: 202 });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

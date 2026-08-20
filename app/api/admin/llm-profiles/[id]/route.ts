@@ -25,6 +25,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       : [];
     return Response.json({ profile: maintenanceLlmProfileView(profile), missingRoles, resumedRunCount: resumedRuns.length });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

@@ -20,5 +20,5 @@ export async function POST(request: Request) {
     const requestId = crypto.randomUUID();
     await pool.query(`INSERT INTO approval_requests (id, type, branch_id, subject_type, subject_id, payload_json, requested_by) VALUES ($1, 'revenue_adjustment', $2, 'customer', $3, $4, $5)`, [requestId, user.organizationId, customerId, JSON.stringify({ sourceId, amountUsdt, reason, evidence }), user.id]);
     return Response.json({ requestId, status: "pending", requiredApprovals: 2, ledgerChanged: false }, { status: 201 });
-  } catch (error) { return researchErrorResponse(error); }
+  } catch (error) { return researchErrorResponse(error, request); }
 }

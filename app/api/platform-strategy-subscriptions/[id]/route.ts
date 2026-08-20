@@ -65,6 +65,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       client.release();
     }
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

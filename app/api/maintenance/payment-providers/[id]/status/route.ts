@@ -31,6 +31,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!changed) throw new ResearchApiError("NOT_FOUND", "支付渠道不存在", 404);
     return Response.json({ ok: true, id, status });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

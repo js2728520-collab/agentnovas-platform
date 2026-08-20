@@ -135,6 +135,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       piiRevealed: canRevealPii,
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

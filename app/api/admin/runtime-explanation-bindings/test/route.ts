@@ -21,6 +21,6 @@ export async function POST(request: Request) {
       role,
     }));
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

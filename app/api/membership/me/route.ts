@@ -10,5 +10,5 @@ export async function GET(request:Request){
     if(!row)return Response.json({membership:null},{headers:{"cache-control":"no-store"}});
     const status=statuses[row.status as keyof typeof statuses];if(!status)throw new Error("UNKNOWN_MEMBERSHIP_STATUS");
     return Response.json({membership:{id:row.id,planCode:row.plan_code,status,startsAt:new Date(row.starts_at).toISOString(),expiresAt:row.expires_at?new Date(row.expires_at).toISOString():null,closeOnly:["READ_ONLY","EXPIRED","CANCELLED"].includes(status)}},{headers:{"cache-control":"no-store"}});
-  }catch(error){return researchErrorResponse(error);}
+  }catch(error){return researchErrorResponse(error, request);}
 }

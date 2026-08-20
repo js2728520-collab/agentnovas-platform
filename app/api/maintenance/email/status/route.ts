@@ -27,6 +27,6 @@ export async function GET(request: Request) {
       lastTestAt: row?.last_test_at?.toISOString() ?? null,
     }), { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

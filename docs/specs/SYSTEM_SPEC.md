@@ -13,7 +13,7 @@ Maintenance Web ─┘       ├─ Notification Worker
                           ├─ Paper Runtime Worker
                           └─ Demo Execution Worker
 
-Payment Worker：部署存在但始终 disabled
+Payment Worker：Beta 不部署 unit，接口与外部副作用路径 disabled
 真实交易/提现/自动支付：代码路径硬关闭
 ```
 
@@ -124,6 +124,7 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 - 每个用户/卡片组合初始 `10,000 USDT`，只支持 BTC/ETH/SOL spot long-only。
 - runtime 对完整 candle 幂等地产生七事件、paper intent/trade 和 trace；到期停止新开仓。
 - Demo intent 与 paper trade 使用不同表、状态机和金额；provider 失败不改变 paper。
+- Demo Worker 的进程启用与 provider 外部写授权是两个独立开关；Maintenance 诊断必须分别报告 `processEnabled`/`externalWritesEnabled`/`alive`/`healthy`，不得用已配置或已存活代替写入授权。
 - OKX 强制 Demo header；Binance 只允许 Spot Testnet；Bybit 只允许 Demo 域名。生产域名和提现/划转/杠杆/衍生品 endpoint 不在 allowlist。
 - provider/card/round 使用确定性 clientOrderId；单笔默认上限 10 USDT、provider 日上限 100 USDT；kill switch 默认安全。
 - CI 只用净化 fixture。真实 Demo smoke 只允许 staging、显式开关和已配置平台测试凭证。

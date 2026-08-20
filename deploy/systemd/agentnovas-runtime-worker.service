@@ -1,6 +1,6 @@
 [Unit]
 Description=AgentNovas strategy runtime worker
-After=network-online.target postgresql.service agentnovas-web.service
+After=network-online.target postgresql.service riverton-client.service
 Wants=network-online.target
 
 [Service]
@@ -8,7 +8,7 @@ Type=simple
 User=agentnovas
 Group=agentnovas
 WorkingDirectory=/opt/agentnovas/current
-EnvironmentFile=/etc/agentnovas/agentnovas.env
+EnvironmentFile=/etc/agentnovas/runtime.env
 ExecStart=/usr/bin/npm run worker:runtime
 Restart=on-failure
 RestartSec=5

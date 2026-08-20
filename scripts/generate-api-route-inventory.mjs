@@ -85,7 +85,13 @@ function hasPrefix(route, prefixes) {
 function basePolicy(route, method) {
   const mutation = !["GET", "HEAD", "OPTIONS"].includes(method);
   if (route === "/api/credits/me" || route === "/api/membership" || route.startsWith("/api/membership/")) {
-    return { audiences: ["client"], authentication: "session", sameOrigin: mutation };
+    return { audiences: ["client"], authentication: "permission", sameOrigin: mutation };
+  }
+  if (route === "/api/trading-hall" || route.startsWith("/api/trading-hall/paper/")) {
+    return { audiences: ["client"], authentication: "permission", sameOrigin: mutation };
+  }
+  if (route === "/api/platform-strategies/:code/follow") {
+    return { audiences: ["client"], authentication: "permission", sameOrigin: true };
   }
   if (route === "/api/auth/login" || route === "/api/auth/logout" || route === "/api/auth/me") {
     return { audiences: ALL_AUDIENCES, authentication: "anonymous", sameOrigin: mutation };

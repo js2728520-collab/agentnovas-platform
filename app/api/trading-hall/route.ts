@@ -1,5 +1,6 @@
+import { requireAccessPermission } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
-import { requireUser, responseError } from "@/lib/session";
+import { researchErrorResponse } from "@/lib/research-api";
 import {
   officialTradingHallStrategies,
   tradingHallAgentCatalog,
@@ -144,7 +145,7 @@ function strategyCode(value: string): OfficialTradingHallStrategy["code"] | null
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser(request, ["customer"]);
+    const { user } = await requireAccessPermission(request, "client.paper.view");
     const pool = await getPostgresPool();
     const deployments = await pool.query<DeploymentRow>(`
       SELECT DISTINCT ON (mapping.strategy_code)
@@ -275,6 +276,6 @@ export async function GET(request: Request) {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
   } catch (error) {
-    return responseError(error);
+    return researchErrorResponse(error, request);
   }
 }

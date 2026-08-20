@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       headers: { "cache-control": "no-store" },
     });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -45,6 +45,6 @@ export async function PUT(request: Request) {
       : [];
     return Response.json({ binding, missingRoles, resumedRunCount: resumedRuns.length });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

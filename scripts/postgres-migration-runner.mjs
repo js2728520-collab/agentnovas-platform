@@ -10,7 +10,6 @@ export function migrationChecksum(sql) {
 
 export function planPostgresMigrations(migrations, appliedRows) {
   const pending = [];
-  const legacyBackfills = [];
   const skipped = [];
 
   for (const migration of [...migrations].sort((a, b) => a.name.localeCompare(b.name))) {
@@ -22,14 +21,13 @@ export function planPostgresMigrations(migrations, appliedRows) {
       continue;
     }
     if (!applied.checksum) {
-      legacyBackfills.push({ name: migration.name, checksum });
-      continue;
+      throw new Error(`Legacy migration checksum missing for ${migration.name}; controlled reconciliation is required`);
     }
     if (applied.checksum !== checksum) throw new Error(`Checksum mismatch for ${migration.name}`);
     skipped.push(migration.name);
   }
 
-  return { pending, legacyBackfills, skipped };
+  return { pending, skipped };
 }
 
 export async function loadPostgresMigrations(directory) {
@@ -67,13 +65,6 @@ export async function runPostgresMigrations(pool, {
     const appliedRows = new Map(result.rows.map((row) => [row.name, { checksum: row.checksum ?? null }]));
     const plan = planPostgresMigrations(migrations, appliedRows);
 
-    for (const migration of plan.legacyBackfills) {
-      await client.query(
-        `UPDATE "_agentnovas_migrations" SET "checksum" = $2, "commit_sha" = COALESCE("commit_sha", $3) WHERE "name" = $1 AND "checksum" IS NULL`,
-        [migration.name, migration.checksum, commitSha],
-      );
-    }
-
     for (const migration of plan.pending) {
       await client.query("BEGIN");
       try {
@@ -91,7 +82,6 @@ export async function runPostgresMigrations(pool, {
 
     return {
       applied: plan.pending.map((migration) => migration.name),
-      backfilled: plan.legacyBackfills.map((migration) => migration.name),
       skipped: plan.skipped,
       total: migrations.length,
     };

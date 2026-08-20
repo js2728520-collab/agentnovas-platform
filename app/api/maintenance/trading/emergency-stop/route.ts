@@ -63,7 +63,7 @@ export async function GET(request: Request) {
       demoCloseOnly: true,
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -149,6 +149,6 @@ export async function POST(request: Request) {
         : `已解除${scope.label}的紧急暂停；策略不会自动恢复`,
     });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

@@ -26,6 +26,6 @@ export async function POST(request: Request) {
       testedAt,
     }, { status: 202 });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

@@ -6,6 +6,7 @@ import {
   cursorPage,
   databaseMembershipOrderStatus,
   databasePerformanceStatementStatus,
+  membershipOrderDto,
   membershipActionDto,
   paymentEvidenceDto,
   performanceActionDto,
@@ -26,8 +27,9 @@ test("database workflow states never leak through the public contract", () => {
   assert.equal(publicMembershipOrderStatus("pending_review"), "SUBMITTED");
   assert.equal(publicMembershipOrderStatus("activated"), "ACTIVATED");
   assert.equal(publicPerformanceStatementStatus("pending_review"), "SUBMITTED");
+  assert.equal(publicPerformanceStatementStatus("approved"), "APPROVED");
   assert.equal(publicPerformanceStatementStatus("payment_pending"), "INVOICED");
-  assert.equal(publicPerformanceStatementStatus("no_fee"), "VOID");
+  assert.equal(publicPerformanceStatementStatus("no_fee"), "CLOSED_NO_FEE");
   assert.throws(
     () => publicMembershipOrderStatus("approved"),
     /UNKNOWN_MEMBERSHIP_ORDER_STATUS/,
@@ -64,6 +66,32 @@ test("plan and cursor DTOs match the commercial beta contract", () => {
   });
 });
 
+test("membership orders expose a structured immutable legal snapshot", () => {
+  const order = membershipOrderDto({
+    id: "order-1",
+    order_no: "MEM-1",
+    user_id: "customer-1",
+    status: "pending_evidence",
+    plan_code: "monthly_v1",
+    version: 1,
+    price_amount: "28",
+    duration_days: 30,
+    ai_credit_grant: "1000",
+    performance_fee_bps: 2000,
+    legal_snapshot_json: [
+      { id: "legal-1", type: "terms", version: "2026-08-20", contentSha256: "a".repeat(64) },
+    ],
+    submitted_at: null,
+    activated_at: null,
+    created_at: "2026-08-20T00:00:00Z",
+    updated_at: "2026-08-20T00:00:00Z",
+  });
+  assert.deepEqual(order.legalDocuments, [
+    { id: "legal-1", type: "terms", version: "2026-08-20", contentSha256: "a".repeat(64) },
+  ]);
+  assert.equal("legalDocumentVersion" in order, false);
+});
+
 test("public workflow filters map to database states and reject unknown values", () => {
   assert.equal(databaseMembershipOrderStatus("SUBMITTED"), "pending_review");
   assert.equal(
@@ -83,16 +111,25 @@ test("public workflow filters map to database states and reject unknown values",
   );
 });
 
-test("commercial operations scope is fail closed until the security resolver is merged", async () => {
-  assert.equal(commercialCustomerScopePredicate().clause, "FALSE");
+test("commercial operations scope requires explicit assignment and active attribution context", async () => {
+  const scoped = commercialCustomerScopePredicate(
+    "ORGANIZATION_SET",
+    { userId: "ops", organizationId: "org-a" },
+    "scope_order",
+    "o.user_id",
+    1,
+    ["org-a"],
+  );
+  assert.match(scoped.clause, /customer_attributions/);
   await assert.rejects(
     assertOperationsCustomerScope(
-      {},
-      "PLATFORM",
-      { userId: "ops", organizationId: null },
+      { query: async () => ({ rows: [] }) },
+      "ORGANIZATION_SET",
+      { userId: "ops", organizationId: "org-a" },
       "customer",
+      ["org-a"],
     ),
-    /尚未接入安全策略/,
+    (error) => error.code === "RESOURCE_NOT_FOUND" && error.status === 404,
   );
 });
 

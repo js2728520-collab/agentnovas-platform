@@ -23,8 +23,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         "OFFICIAL_STRATEGY_RESUME_REQUIRES_REVALIDATION",
         error.message,
         409,
-      ));
+      ), request);
     }
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

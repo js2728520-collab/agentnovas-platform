@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       currentVersion: row.current_version,
     })) }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }
 
@@ -79,6 +79,6 @@ export async function POST(request: Request) {
       client.release();
     }
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

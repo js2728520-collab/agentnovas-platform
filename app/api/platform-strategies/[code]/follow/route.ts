@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, memberships } from "@/db/schema";
+import { requireAccessPermission } from "@/lib/access-control";
 import { PLATFORM_AI_STRATEGIES, isPlatformStrategyCode } from "@/lib/platform-ai-strategies";
 import { getPostgresPool } from "@/lib/postgres";
 import {
@@ -12,7 +13,7 @@ import {
 } from "@/lib/strategy-runtime-repository";
 import { membershipAccess } from "@/lib/membership-rules";
 import { ensureOfficialPaperPortfolios } from "@/lib/official-paper-repository";
-import { readResearchJson, requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { isCustomerTradingEmergencyStopped } from "@/lib/trading-emergency";
 
 function normalizeSymbol(value: unknown) {
@@ -21,7 +22,7 @@ function normalizeSymbol(value: unknown) {
 
 export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
-    const user = await requireResearchUser(request, ["customer"]);
+    const { user } = await requireAccessPermission(request, "client.paper.manage");
     if (await isCustomerTradingEmergencyStopped(user.id)) {
       throw new ResearchApiError("TRADING_EMERGENCY_STOPPED", "当前所属范围处于紧急暂停状态，暂不能启动平台策略", 503);
     }
@@ -177,15 +178,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
         "OPEN_POSITION_EXISTS",
         error.message,
         409,
-      ));
+      ), request);
     }
     if (error instanceof StrategyDeploymentIdempotencyConflictError) {
       return researchErrorResponse(new ResearchApiError(
         "IDEMPOTENCY_CONFLICT",
         "该平台策略已有不同卡片、交易对或模式的运行记录，请先停止原部署后创建新的运行配置",
         409,
-      ));
+      ), request);
     }
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

@@ -15,6 +15,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!deployment) throw new ResearchApiError("DEPLOYMENT_NOT_FOUND", "策略部署不存在", 404);
     return Response.json({ deployment }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

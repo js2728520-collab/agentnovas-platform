@@ -18,6 +18,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     ]);
     return Response.json({ run, events, candidates, evaluations }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

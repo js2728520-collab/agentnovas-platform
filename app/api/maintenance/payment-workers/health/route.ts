@@ -1,6 +1,7 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
 import { researchErrorResponse } from "@/lib/research-api";
+import { demoExecutionWorkerConfig } from "@/lib/demo-worker-config";
 import {
   deriveWorkerHealthState,
   loadWorkerDiagnostics,
@@ -48,6 +49,7 @@ export async function GET(request: Request) {
       (await loadWorkerDiagnostics(pool)).map((diagnostic) => [diagnostic.workerType, diagnostic]),
     );
     const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
+    const demoWorkerConfig = demoExecutionWorkerConfig();
     const response = {
       checkedAt: new Date().toISOString(),
       database: { status: "ready" },
@@ -70,15 +72,19 @@ export async function GET(request: Request) {
         configured: databaseConfigured,
         enabled: process.env.STRATEGY_RUNTIME_ENABLED === "true",
       }),
-      demoExecutionWorker: workerStatus(diagnostics, "demo_execution", {
-        configured: databaseConfigured,
-        enabled: process.env.DEMO_EXECUTION_WORKER_ENABLED === "true",
-      }),
+      demoExecutionWorker: {
+        ...workerStatus(diagnostics, "demo_execution", {
+          configured: databaseConfigured && Boolean(process.env.INTEGRATION_CREDENTIAL_ENCRYPTION_KEY?.trim()),
+          enabled: demoWorkerConfig.processEnabled,
+        }),
+        externalWritesEnabled: demoWorkerConfig.externalWritesEnabled,
+        executionEnabled: demoWorkerConfig.executionEnabled,
+      },
     };
     return Response.json(response, {
       headers: { "cache-control": "no-store, max-age=0" },
     });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

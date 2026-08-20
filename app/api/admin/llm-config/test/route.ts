@@ -9,5 +9,5 @@ export async function POST(request: Request) {
     await requireAccessPermission(request, "maint.llm_profiles.manage");
     const input = await request.json() as LlmConfigInput;
     return Response.json(await testLlmConfig({ id: "system-default", input }));
-  } catch (error) { return researchErrorResponse(error); }
+  } catch (error) { return researchErrorResponse(error, request); }
 }

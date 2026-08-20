@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const config = await db.query.llmConfigurations.findFirst({ where: eq(llmConfigurations.id, CONFIG_ID) });
     const value = publicLlmConfig(config);
     return Response.json({ config: value ? { providerName: value.providerName, model: value.model, hasSecret: value.hasApiKey, enabled: value.enabled, updatedAt: value.updatedAt } : null });
-  } catch (error) { return researchErrorResponse(error); }
+  } catch (error) { return researchErrorResponse(error, request); }
 }
 
 export async function PUT(request: Request) {
@@ -28,5 +28,5 @@ export async function PUT(request: Request) {
     const config = await saveLlmConfig({ id: CONFIG_ID, scope: "system", ownerUserId: null, updatedByUserId: user.id, input });
     const value = publicLlmConfig(config);
     return Response.json({ ok: true, config: { providerName: value?.providerName, model: value?.model, hasSecret: value?.hasApiKey, enabled: value?.enabled, updatedAt: value?.updatedAt } });
-  } catch (error) { return researchErrorResponse(error); }
+  } catch (error) { return researchErrorResponse(error, request); }
 }

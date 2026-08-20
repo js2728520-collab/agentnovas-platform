@@ -59,6 +59,6 @@ export async function POST(request: Request) {
     }
     return Response.json({ received: true, ...result, queued: false }, { status: 200 });
   } catch (error) {
-    return researchErrorResponse(error);
+    return researchErrorResponse(error, request);
   }
 }

@@ -1,7 +1,8 @@
-import { currentUser, type CurrentUser } from "./session";
-import { ResearchApiError } from "./research-errors";
+import { currentUser, type CurrentUser } from "./session.ts";
+import { ResearchApiError } from "./research-errors.ts";
 
-export { ResearchApiError } from "./research-errors";
+export { ResearchApiError } from "./research-errors.ts";
+export { researchErrorResponse } from "./research-error-response.ts";
 
 export async function requireResearchUser(request: Request, roles?: CurrentUser["role"][]) {
   const user = await currentUser(request);
@@ -26,20 +27,4 @@ export async function readResearchJson(request: Request, maximumBytes = 32_768) 
   } catch {
     throw new ResearchApiError("INVALID_JSON", "请求 JSON 必须是对象", 400);
   }
-}
-
-export function researchErrorResponse(error: unknown) {
-  if (error instanceof ResearchApiError) {
-    return Response.json({
-      error: { code: error.code, message: error.message, details: error.details },
-    }, { status: error.status });
-  }
-  if (error instanceof Error && /尚未配置/.test(error.message)) {
-    return Response.json({
-      error: { code: "SERVICE_NOT_CONFIGURED", message: error.message, details: {} },
-    }, { status: 503 });
-  }
-  return Response.json({
-    error: { code: "INTERNAL_ERROR", message: "策略研发服务处理失败", details: {} },
-  }, { status: 500 });
 }

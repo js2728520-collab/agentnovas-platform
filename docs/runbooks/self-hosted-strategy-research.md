@@ -2,13 +2,13 @@
 
 ## 边界
 
-生产架构固定为自有 Linux 服务器上的三个 Node Web 应用、PostgreSQL、独立 Research Worker、独立 Runtime Worker、独立 Payment Worker、独立 Notification Worker 和 Nginx。所有服务共享 PostgreSQL，但必须分别启停；数据库迁移是显式部署步骤，不放进并发的服务启动钩子。不部署 Redis，也不使用边缘 Runtime 或代理平台。
+生产架构固定为自有 Linux 服务器上的三个 Node Web 应用、PostgreSQL、独立 Research Worker、独立 Runtime Worker、独立 Notification Worker、受控 Demo Execution Worker 和 Nginx。Beta 不安装 Payment Worker unit。所有服务共享 PostgreSQL，但必须分别启停；数据库迁移是显式部署步骤，不放进并发的服务启动钩子。不部署 Redis，也不使用边缘 Runtime 或代理平台。
 
 ## 1. 服务器准备
 
 - 安装 Linux、Node.js 22.21+、PostgreSQL 16+、Nginx 和 Certbot。
 - 创建无登录用户 `agentnovas`，将只读应用制品部署到 `/opt/agentnovas/current`。
-- 将环境文件放在 `/etc/agentnovas/agentnovas.env`，所有者为 `root:agentnovas`，权限为 `0640` 或更严格。
+- 从 `deploy/env/*.env.example` 分别建立 `/etc/agentnovas/client.env`、`operations.env`、`maintenance.env`、`notification.env`、`demo.env`、`research.env`、`runtime.env`；所有者为 `root:agentnovas`，权限为 `0640` 或更严格。不得合并成共享密钥文件。
 - 为应用创建最小权限 PostgreSQL 用户；模型和交易所密钥的加密主密钥不得提交到 Git。
 - Cloudflare 只作为 DNS 注册商/权威 DNS 使用，三个站点记录必须为 DNS-only，直接指向 Linux/Nginx。
 
@@ -43,13 +43,14 @@ DATABASE_URL='postgresql://…' npm run postgres:migrate
 7. 设置 `STRATEGY_RESEARCH_ENABLED=true`，启动研究 Worker。
 8. 验证任务创建、SSE 断线续传、候选保存、回测结果和取消恢复。
 9. 设置 `STRATEGY_RUNTIME_ENABLED=true` 启动 Runtime Worker，完成至少一个影子周期和一个模拟开平仓闭环。若启用运行时解释，另外验证模型超时后周期仍为 `completed`，解释任务进入有限重试且订单意图不变。
-10. 支付和通知 Worker 默认保持关闭；只有服务商、Resend、Webhook 签名和对账演练完成后，才设置 `PAYMENT_WORKER_ENABLED=true`。邮件外发必须同时设置 `NOTIFICATION_WORKER_ENABLED=true` 与 `NOTIFICATION_EMAIL_SEND_ENABLED=true`，缺少任一开关都不得发送。
-11. Nginx 直接切换三个域名流量并持续观察错误率、队列租约和数据库连接。
+10. Beta 不安装或启用 Payment Worker。Notification Worker 可在外发关闭时运行密文清理与 heartbeat；真实邮件仍必须同时满足 `NOTIFICATION_WORKER_ENABLED=true`、`NOTIFICATION_EMAIL_SEND_ENABLED=true`、Resend/域名/Webhook/suppression/allowlist 完整配置和显式授权。
+11. Demo Execution Worker 默认不启动。`DEMO_EXECUTION_WORKER_ENABLED` 只表示进程应运行并上报 heartbeat；`PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED` 是独立的外部写授权。可先只开前者验证存活与队列诊断；只有 staging 平台测试凭证、provider/card kill switch、告警和值班就绪并获得专项授权后，才可把后者设为 `true`。运维端必须分别显示进程启用、外部写授权和 heartbeat 状态。
+12. Nginx 直接切换三个域名流量并持续观察错误率、队列租约和数据库连接。
 
 ### 3.1 Resend 上线验收
 
 1. 在 Resend 创建 HTTPS Webhook，地址指向 `https://xm.agentnovas.com/api/integrations/resend/webhook`，订阅 `email.sent`、`email.delivery_delayed`、`email.delivered`、`email.opened`、`email.clicked`、`email.complained`、`email.bounced`、`email.failed` 和 `email.suppressed`。
-2. 将独立的 `RESEND_WEBHOOK_SECRET` 和 `RESEND_API_KEY` 写入 root 持有、服务组只读的环境文件。当前 systemd 模板共用该 EnvironmentFile，但只有 Notification Worker 可以使用 API Key 发起外发；Web 端最多返回“是否存在”的布尔状态，不得返回密钥值。不得把任一密钥写入仓库、命令历史或运维截图。
+2. 将 `RESEND_WEBHOOK_SECRET` 仅写入 `maintenance.env`，将 `RESEND_API_KEY` 仅写入 `notification.env`；两者均由 root 持有、服务组只读。Web 端最多返回“是否存在”的布尔状态，不得返回密钥值。不得把任一密钥写入仓库、命令历史或运维截图。
 3. 执行 `npm run postgres:migrate`，确认 `0018_resend_delivery_events.sql` 已应用；检查 `notification_deliveries.provider_event_at` 和 `resend_webhook_events.mapped_delivery_id` 存在。
 4. 在运维端把 Resend 邮件服务商状态设为 `active`，确认 `agentnovas.com` 发件域已验证。保持两个通知开关为 `false`，先使用服务商测试事件验证签名错误返回 401、合法事件在事务提交后返回 200。
 5. 开启 Notification Worker 后发送一个受控测试邮件，确认投递记录依次达到 `sent` 或 `delivered`，相同 `svix-id` 重放不重复应用，旧事件不会覆盖新状态。Webhook 返回非 200 时 Resend 会重试，因此必须先排除数据库迁移、连接和字段映射错误。
@@ -73,7 +74,7 @@ SSE 路由必须设置 `proxy_buffering off`，并将读取超时提高到一小
 
 出现关键表校验不一致、跨租户可见、登录失败、Worker 无法续租、行情数据质量异常或持续 5xx 时：
 
-1. 停止 Research、Runtime、Payment 和 Notification Worker，开启维护页。
+1. 停止 Research、Runtime、Demo Execution 和 Notification Worker，开启维护页。
 2. 回切上一应用制品。
 3. 如果 schema 向后兼容，直接启动旧 Web；否则把已验证备份恢复到新实例并回切 `DATABASE_URL`。
 4. 保留失败版本日志、迁移记录和研究任务事件，禁止把密钥或个人信息写入事故报告。

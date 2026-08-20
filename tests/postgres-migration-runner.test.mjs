@@ -21,7 +21,6 @@ test("plans only unapplied PostgreSQL migrations in filename order", () => {
       sql: "SELECT 2;",
       checksum: migrationChecksum("SELECT 2;"),
     }],
-    legacyBackfills: [],
     skipped: ["0001_first.sql"],
   });
 });
@@ -38,16 +37,12 @@ test("fails closed when an applied migration checksum changes", () => {
   );
 });
 
-test("backfills legacy migration records without pretending they were reapplied", () => {
+test("fails closed when a legacy migration record has no verifiable checksum", () => {
   const migrations = [{ name: "0001_first.sql", sql: "SELECT 1;" }];
   const applied = new Map([["0001_first.sql", { checksum: null }]]);
 
-  assert.deepEqual(planPostgresMigrations(migrations, applied), {
-    pending: [],
-    legacyBackfills: [{
-      name: "0001_first.sql",
-      checksum: migrationChecksum("SELECT 1;"),
-    }],
-    skipped: [],
-  });
+  assert.throws(
+    () => planPostgresMigrations(migrations, applied),
+    /legacy migration checksum missing for 0001_first\.sql/i,
+  );
 });

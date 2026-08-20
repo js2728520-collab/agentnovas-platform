@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const pool = await getPostgresPool();
     const result = await pool.query(`SELECT id, owner_organization_id, network, address, status, approval_id, created_at FROM payout_profiles WHERE ${scoped.clause} ORDER BY created_at DESC`, scoped.values);
     return Response.json({ profiles: result.rows.map((row) => ({ id: row.id, ownerOrganizationId: row.owner_organization_id, network: row.network, address: maskOperationsValue(row.address), status: row.status, approvalId: row.approval_id, createdAt: row.created_at })) }, { headers: { "cache-control": "no-store" } });
-  } catch (error) { return researchErrorResponse(error); }
+  } catch (error) { return researchErrorResponse(error, request); }
 }
 
 export async function POST(request: Request) {
@@ -34,5 +34,5 @@ export async function POST(request: Request) {
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
     return Response.json({ profileId, approvalId, status: "pending_review", paymentExecuted: false }, { status: 201 });
-  } catch (error) { return researchErrorResponse(error); }
+  } catch (error) { return researchErrorResponse(error, request); }
 }

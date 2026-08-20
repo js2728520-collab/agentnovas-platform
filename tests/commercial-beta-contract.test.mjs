@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   betaPaperCapitalUsdt,
   commercialBetaPlans,
+  membershipOrderStatuses,
   performanceFeeCurrency,
   performanceFeeCycle,
+  performanceFeeStatementStatuses,
   platformDemoProviders,
 } from "../packages/contracts/src/commercial-beta.ts";
 
@@ -24,4 +26,31 @@ test("keeps paper settlement and platform Demo evidence separate", () => {
   assert.equal(performanceFeeCycle.cadence, "WEEKLY");
   assert.equal(performanceFeeCurrency, "USDT");
   assert.deepEqual(platformDemoProviders, ["OKX_DEMO", "BINANCE_SPOT_TESTNET", "BYBIT_DEMO"]);
+  assert.ok(performanceFeeStatementStatuses.includes("CLOSED_NO_FEE"));
+  assert.equal(performanceFeeStatementStatuses.includes("VOID"), false);
+});
+
+test("public commercial status enums contain only states an API DTO can emit", () => {
+  assert.deepEqual(membershipOrderStatuses, [
+    "AWAITING_EVIDENCE",
+    "SUBMITTED",
+    "REJECTED",
+    "ACTIVATED",
+    "CANCELLED",
+  ]);
+  assert.deepEqual(performanceFeeStatementStatuses, [
+    "SUBMITTED",
+    "APPROVED",
+    "REJECTED",
+    "INVOICED",
+    "PAID",
+    "CLOSED_NO_FEE",
+  ]);
+});
+
+test("public contracts do not promise Demo account or receipt DTOs before their APIs exist", async () => {
+  const source = await import("node:fs/promises").then(({ readFile }) =>
+    readFile(new URL("../packages/contracts/src/commercial-beta.ts", import.meta.url), "utf8"));
+  assert.doesNotMatch(source, /export type PlatformDemoExecutionReceipt/);
+  assert.doesNotMatch(source, /export type MaintenanceDemoAccount/);
 });
