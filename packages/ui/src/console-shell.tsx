@@ -26,6 +26,9 @@ export function ConsoleShell({
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
   const items = useMemo(() => visibleNavigation(navigation, access.permissions), [access.permissions, navigation]);
+  const currentItem = useMemo(() => items
+    .filter((item) => item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((left, right) => right.href.length - left.href.length)[0], [items, pathname]);
   const displayName = viewer.nickname || viewer.username || viewer.email.split("@")[0];
 
   useEffect(() => {
@@ -92,7 +95,12 @@ export function ConsoleShell({
       </footer>
     </aside>
     <section className="rc-console-main">
-      <div className="rc-console-top"><span><i />当前连接安全</span><small>{appKind === "operations" ? "运营数据按权限范围展示" : appKind === "maintenance" ? "配置密钥不会在浏览器回显" : "客户资产与通知中心"}</small></div>
+      <div className="rc-console-top">
+        <nav className="rc-breadcrumb" aria-label="面包屑">
+          <Link href="/">{appName}</Link><span aria-hidden="true">/</span><span aria-current="page">{currentItem?.label ?? "当前页面"}</span>
+        </nav>
+        <small><i />{appKind === "operations" ? "运营数据按权限范围展示" : appKind === "maintenance" ? "配置密钥不会在浏览器回显" : "客户资产与通知中心"}</small>
+      </div>
       <div id="rc-console-content" className="rc-console-content" tabIndex={-1}>{children}</div>
     </section>
   </main>;

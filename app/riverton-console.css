@@ -42,8 +42,12 @@
 .rc-console > aside > footer button, .rc-state button, .rc-state a { border: 1px solid var(--rc-border); padding: 7px 10px; color: var(--rc-text); background: transparent; text-decoration: none; cursor: pointer; }
 .rc-console-main { min-width: 0; }
 .rc-console-top { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; border-bottom: 1px solid var(--rc-border); color: var(--rc-muted); background: rgba(9, 19, 29, .92); }
-.rc-console-top span { display: flex; align-items: center; gap: 7px; font-size: 12px; }
-.rc-console-top span i { width: 7px; height: 7px; border-radius: 50%; background: var(--rc-accent); box-shadow: 0 0 0 4px rgba(70, 200, 160, .12); }
+.rc-console-top small { display: flex; align-items: center; gap: 7px; font-size: 11px; }
+.rc-console-top small i { width: 7px; height: 7px; border-radius: 50%; background: var(--rc-accent); box-shadow: 0 0 0 4px rgba(70, 200, 160, .12); }
+.rc-breadcrumb { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; }
+.rc-breadcrumb a { color: var(--rc-muted); text-decoration: none; }
+.rc-breadcrumb a:hover, .rc-breadcrumb a:focus-visible { color: var(--rc-text); outline: 2px solid var(--rc-accent); outline-offset: 3px; }
+.rc-breadcrumb span[aria-current="page"] { overflow: hidden; color: var(--rc-text); text-overflow: ellipsis; white-space: nowrap; }
 .rc-console-content { width: min(1480px, 100%); margin: 0 auto; padding: 28px; }
 .rc-mobile-bar { display: none; }
 

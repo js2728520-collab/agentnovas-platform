@@ -86,6 +86,9 @@ test("shared console navigation is hydration-safe and keyboard-contained", async
   assert.match(shell, /event\.key === "Tab"/);
   assert.match(shell, /rc-console-backdrop/);
   assert.match(shell, /returnButton\?\.focus/);
+  assert.match(shell, /aria-label="面包屑"/);
+  assert.match(shell, /aria-current="page"/);
+  assert.match(shell, /currentItem/);
   assert.doesNotMatch(shell, /typeof window === "undefined" \? "\/"/);
 });
 
