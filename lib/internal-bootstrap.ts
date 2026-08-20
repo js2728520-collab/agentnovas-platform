@@ -16,6 +16,8 @@ type BootstrapInput = {
   environment?: Record<string, string | undefined>;
 };
 
+class BootstrapRoleCollisionError extends Error {}
+
 async function ensureHeadquarters(client: PoolClient) {
   const existing = await client.query<{ id: string }>(`
     SELECT id FROM organizations
@@ -44,15 +46,11 @@ async function createSystemRole(client: PoolClient, input: {
       id, application_id, code, name, kind, created_organization_id,
       applies_to_organization_id, status, is_system, created_by_user_id
     ) VALUES ($1, $2, $3, $4, 'system', $5, $5, 'published', true, $6)
-    ON CONFLICT (application_id, code) DO UPDATE SET
-      name = EXCLUDED.name,
-      status = 'published',
-      is_system = true,
-      updated_at = now()
+    ON CONFLICT (application_id, code) DO NOTHING
     RETURNING id
   `, [crypto.randomUUID(), input.appId, input.code, input.name, input.organizationId, input.userId]);
-  const roleId = role.rows[0].id;
-  await client.query(`DELETE FROM role_permissions WHERE role_id = $1`, [roleId]);
+  const roleId = role.rows[0]?.id;
+  if (!roleId) throw new BootstrapRoleCollisionError("reserved bootstrap role code is already owned");
   for (const permission of PERMISSION_DEFINITIONS.filter((definition) => definition.appId === input.appId)) {
     await client.query(`
       INSERT INTO role_permissions (id, role_id, permission_key, scope)
@@ -125,6 +123,18 @@ export async function bootstrapInternalAdmin(pool: Pool, input: BootstrapInput) 
         await client.query("COMMIT");
         return { ok: false as const, code: "ALREADY_BOOTSTRAPPED" as const };
       }
+      const reservedRole = await client.query(`
+        SELECT id FROM roles
+        WHERE (application_id, code) IN (
+          ('operations', 'ops_bootstrap_admin'),
+          ('maintenance', 'maint_bootstrap_admin')
+        )
+        FOR UPDATE
+      `);
+      if (reservedRole.rowCount) {
+        await client.query("ROLLBACK");
+        return { ok: false as const, code: "BOOTSTRAP_ROLE_COLLISION" as const };
+      }
       userId = legacy.id;
       organizationId = legacy.organization_id ?? await ensureHeadquarters(client);
       await client.query(`
@@ -139,6 +149,18 @@ export async function bootstrapInternalAdmin(pool: Pool, input: BootstrapInput) 
       if (emailInUse.rowCount) {
         await client.query("ROLLBACK");
         return { ok: false as const, code: "EMAIL_IN_USE" as const };
+      }
+      const reservedRole = await client.query(`
+        SELECT id FROM roles
+        WHERE (application_id, code) IN (
+          ('operations', 'ops_bootstrap_admin'),
+          ('maintenance', 'maint_bootstrap_admin')
+        )
+        FOR UPDATE
+      `);
+      if (reservedRole.rowCount) {
+        await client.query("ROLLBACK");
+        return { ok: false as const, code: "BOOTSTRAP_ROLE_COLLISION" as const };
       }
       organizationId = await ensureHeadquarters(client);
       userId = crypto.randomUUID();
@@ -190,6 +212,9 @@ export async function bootstrapInternalAdmin(pool: Pool, input: BootstrapInput) 
     };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
+    if (error instanceof BootstrapRoleCollisionError) {
+      return { ok: false as const, code: "BOOTSTRAP_ROLE_COLLISION" as const };
+    }
     throw error;
   } finally {
     client.release();

@@ -87,3 +87,54 @@ test("legacy adoption rejects pending, closed, mismatched, and ambiguous adminis
     });
   }
 });
+
+test("legacy adoption fails closed when a custom role owns a reserved bootstrap code", async () => {
+  await withSchema(async (pool) => {
+    await pool.query(`
+      INSERT INTO organizations (id, type, name) VALUES ('old-org', 'headquarters', 'Old HQ');
+      INSERT INTO users (id, email, password_hash, role, organization_id, status) VALUES
+        ('old-admin', 'old-admin@example.test', 'disabled', 'hq_admin', 'old-org', 'active'),
+        ('custom-assignee', 'assignee@example.test', 'disabled', 'employee', 'old-org', 'active');
+      INSERT INTO roles (
+        id, application_id, code, name, kind, created_organization_id,
+        applies_to_organization_id, status, is_system, created_by_user_id
+      ) VALUES (
+        'custom-collision', 'operations', 'ops_bootstrap_admin', 'Existing custom role',
+        'custom', 'old-org', 'old-org', 'published', false, 'custom-assignee'
+      );
+      INSERT INTO role_permissions (id, role_id, permission_key, scope)
+        VALUES ('custom-permission', 'custom-collision', 'ops.customers.view', 'SELF');
+      INSERT INTO user_role_assignments (
+        id, user_id, role_id, application_id, organization_id, status, effective_at
+      ) VALUES (
+        'custom-assignment', 'custom-assignee', 'custom-collision', 'operations',
+        'old-org', 'active', now()
+      );
+    `);
+
+    const result = await bootstrapInternalAdmin(pool, {
+      email: "old-admin@example.test",
+      password: "new-secure-adopted-password",
+      adoptLegacyAdmin: true,
+      environment,
+    });
+    assert.deepEqual(result, { ok: false, code: "BOOTSTRAP_ROLE_COLLISION" });
+    assert.deepEqual((await pool.query(`
+      SELECT kind, is_system, name FROM roles WHERE id = 'custom-collision'
+    `)).rows[0], {
+      kind: "custom",
+      is_system: false,
+      name: "Existing custom role",
+    });
+    assert.deepEqual((await pool.query(`
+      SELECT permission_key, scope FROM role_permissions WHERE role_id = 'custom-collision'
+    `)).rows, [{ permission_key: "ops.customers.view", scope: "SELF" }]);
+    assert.equal((await pool.query(`
+      SELECT 1 FROM user_role_assignments
+      WHERE user_id = 'custom-assignee' AND role_id = 'custom-collision' AND status = 'active'
+    `)).rowCount, 1);
+    assert.equal((await pool.query(`
+      SELECT 1 FROM user_mfa_totp_credentials WHERE user_id = 'old-admin'
+    `)).rowCount, 0);
+  });
+});
