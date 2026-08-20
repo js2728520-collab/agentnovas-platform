@@ -1,19 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 
 import { AppLogin } from "@/packages/ui/src/app-login";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
 import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 
-import { CreditWorkspace } from "./credit-workspace";
-import { DepositWorkspace } from "./deposit-workspace";
-import MembershipExperience from "./membership-experience";
-import { NotificationWorkspace } from "./notification-workspace";
-import TradingExperience from "./trading-experience";
-import { WalletWorkspace } from "./wallet-workspace";
 import { ClientPortalShell } from "./client-portal-shell";
+import { ClientHomeWorkspace } from "./client-home-workspace";
+
+const workspaceLoading = () => <LoadingState label="正在加载客户端模块…" />;
+const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module) => module.CreditWorkspace), { loading: workspaceLoading });
+const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((module) => module.DepositWorkspace), { loading: workspaceLoading });
+const MembershipExperience = dynamic(() => import("./membership-experience"), { loading: workspaceLoading });
+const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace), { loading: workspaceLoading });
+const TradingExperience = dynamic(() => import("./trading-experience"), { loading: workspaceLoading });
+const WalletWorkspace = dynamic(() => import("./wallet-workspace").then((module) => module.WalletWorkspace), { loading: workspaceLoading });
 
 export default function ClientPortal({ segments, loginMode }: { segments: string[]; loginMode?: "login" | "register" | "forgot" }) {
   const session = useAppSession("client");
@@ -27,6 +31,7 @@ export default function ClientPortal({ segments, loginMode }: { segments: string
   if (route === "login") return <AppLogin audience="client" title="Riverton Capital" description="AI 策略研发、回测、模拟盘和会员资产中心。" allowRegistration initialMode={loginMode} />;
   if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证客户端会话…" />;
   if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
+  if (!route) return <ClientHomeWorkspace viewer={session.viewer} access={session.access} />;
   if (route === "notifications") return <NotificationWorkspace viewer={session.viewer} access={session.access} />;
   if (route === "membership") {
     if (!hasAnyPermission(session.access.permissions, ["client.membership.view"])) return <AccessDenied />;

@@ -13,8 +13,8 @@ test("the server entry dispatches the Riverton shell without relying on generate
   assert.match(page, /resolveAppAudienceStrict/);
   assert.match(dispatcher, /CurrentApp/);
   assert.doesNotMatch(dispatcher, /ClientApp/);
-  assert.match(clientRoot, /ClientApp/);
-  assert.match(clientRoot, /ClientPortal/);
+  assert.match(clientRoot, /client-workspace-root/);
+  assert.match(clientRoot, /client-portal-root/);
   assert.match(client, /交易大厅|Trading Hall/i);
   assert.match(client, /Riverton Capital/);
 });

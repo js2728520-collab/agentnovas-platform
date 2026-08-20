@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import CurrentApp from "@/app/audience/current-root";
 import { resolveAppAudienceStrict } from "@/lib/riverton-apps";
 
-const CLIENT_ROUTES = new Set(["login", "membership", "credits", "paper", "trading-hall", "wallet", "notifications"]);
+const CLIENT_ROUTES = new Set(["login", "membership", "credits", "paper", "trading-hall", "wallet", "notifications", "workspace"]);
 const OPERATIONS_ROUTES = new Set(["login", "customers", "organization", "membership-orders", "performance-statements", "credits", "deposits", "ledger", "finance", "approvals", "access"]);
 const MAINTENANCE_ROUTES = new Set(["login", "models", "integrations", "health", "safety", "settings", "access", "audit"]);
 

@@ -4,7 +4,8 @@ import type { EffectiveAccessPayload, ViewerPayload } from "@/packages/contracts
 import { ConsoleShell } from "@/packages/ui/src/console-shell";
 
 const navigation = [
-  { href: "/", label: "返回交易工作区", icon: "↩" },
+  { href: "/", label: "客户工作台", icon: "⌂" },
+  { href: "/workspace", label: "策略与 Agent", icon: "↗", requiredPermissions: ["client.paper.view"] },
   { href: "/membership", label: "会员中心", icon: "◇", requiredPermissions: ["client.membership.view"] },
   { href: "/credits", label: "AI 积分", icon: "◎", requiredPermissions: ["client.credits.view"] },
   { href: "/paper", label: "模拟组合", icon: "▥", requiredPermissions: ["client.paper.view"] },

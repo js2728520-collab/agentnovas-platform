@@ -1,23 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import AccountSettings, { type AccountViewer } from "./account-settings";
-import LiveMarket from "./live-market";
-import ClientNotificationSettings from "@/apps/client/ui/client-notification-settings";
+import type { AccountViewer } from "./account-settings";
 import SupportFloating from "./support-floating";
-import TradingCenterV2 from "./trading-center";
-import MembershipCenter from "./membership-center";
 import { dedupeAdjacentEnglish, scrubNonChineseText } from "./i18n-runtime";
 import { getAvatarPreset } from "@/lib/avatar-presets";
-import PersistentAgentChat from "./agent-chat";
-import { CustomLlmButton } from "./llm-config";
 import {
   tradingHallAgentCatalog,
   type TradingHallPayload,
   type TradingHallStrategy,
 } from "@/packages/contracts/src/trading-hall";
+
+const pageModuleLoading = () => <div className="notice" role="status" aria-live="polite">正在加载工作区…</div>;
+const AccountSettings = dynamic(() => import("./account-settings"), { loading: pageModuleLoading });
+const LiveMarket = dynamic(() => import("./live-market"), { loading: pageModuleLoading });
+const ClientNotificationSettings = dynamic(() => import("@/apps/client/ui/client-notification-settings"), { loading: pageModuleLoading });
+const TradingCenterV2 = dynamic(() => import("./trading-center"), { loading: pageModuleLoading });
+const MembershipCenter = dynamic(() => import("./membership-center"), { loading: pageModuleLoading });
+const PersistentAgentChat = dynamic(() => import("./agent-chat"), { loading: pageModuleLoading });
+const CustomLlmButton = dynamic(() => import("./llm-config").then((module) => module.CustomLlmButton), { loading: pageModuleLoading });
 
 type Page =
   | "home"

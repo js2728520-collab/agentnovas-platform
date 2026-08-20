@@ -80,6 +80,12 @@
 .rc-kpi-grid small, .rc-panel header small { color: var(--rc-muted); letter-spacing: .08em; }
 .rc-kpi-grid strong { font: 500 clamp(28px, 4vw, 42px) var(--font-geist-mono), monospace; }
 .rc-kpi-grid span { color: var(--rc-muted); font-size: 12px; }
+.rc-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.rc-card-link { display: grid; gap: 9px; min-height: 150px; padding: 20px; border: 1px solid var(--rc-border); color: var(--rc-text); background: #0b1823; text-decoration: none; }
+.rc-card-link:hover, .rc-card-link:focus-visible { border-color: var(--rc-accent-2); outline: 2px solid rgba(119, 168, 255, .16); outline-offset: 2px; }
+.rc-card-link strong { font-size: 17px; }
+.rc-card-link p { margin: 0; color: var(--rc-muted); line-height: 1.6; }
+.rc-card-link span { align-self: end; color: var(--rc-accent-2); font-size: 12px; }
 .rc-panel { margin-top: 18px; padding: 20px; border: 1px solid var(--rc-border); background: var(--rc-surface); }
 .rc-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .rc-panel > header h2 { margin: 3px 0 0; font-size: 18px; font-weight: 600; }
