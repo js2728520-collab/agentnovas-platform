@@ -6,7 +6,7 @@ import { ConsoleShell } from "@/packages/ui/src/console-shell";
 const navigation = [
   { href: "/", label: "返回交易工作区", icon: "↩" },
   { href: "/wallet", label: "钱包与账本", icon: "◫", requiredPermissions: ["client.wallet.view"] },
-  { href: "/wallet/deposits", label: "充值订单", icon: "＋", requiredPermissions: ["client.deposit.create"] },
+  { href: "/wallet/deposits", label: "充值（Beta 暂停）", icon: "＋", requiredPermissions: ["client.wallet.view"] },
   { href: "/notifications", label: "通知中心", icon: "◌" },
 ];
 

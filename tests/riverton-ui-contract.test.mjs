@@ -129,16 +129,17 @@ test("client exposes stable wallet, deposit and notification workspaces", async 
   assert.match(source, /NotificationWorkspace/);
 });
 
-test("client workspaces bind to real wallet, deposit and notification APIs", async () => {
+test("client workspaces bind to real wallet and notifications while deposits remain Beta closed", async () => {
   const wallet = await read("apps/client/ui/wallet-workspace.tsx");
   const deposits = await read("apps/client/ui/deposit-workspace.tsx");
   const notifications = await read("apps/client/ui/notification-workspace.tsx");
   assert.match(wallet, /\/api\/wallet\/balances/);
   assert.match(wallet, /\/api\/wallet\/ledger/);
-  assert.match(deposits, /\/api\/wallet\/deposit-orders/);
-  assert.match(deposits, /response\.status === 503/);
+  assert.match(deposits, /Beta/);
+  assert.match(deposits, /暂不开放/);
+  assert.doesNotMatch(deposits, /fetch\(|\/api\/wallet\/deposit-orders/);
   assert.match(notifications, /\/api\/notifications\/inbox/);
-  assert.match(notifications, /NotificationSettingsPanel/);
+  assert.match(notifications, /ClientNotificationSettings/);
 });
 
 test("access center can publish approved draft roles with an audited reason", async () => {

@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import AccountSettings, { type AccountViewer } from "./account-settings";
 import CommunityStrategyCenter from "./community-strategy-center";
 import ConnectLive from "./connect-live";
 import ExchangeLogo from "./exchange-logo";
-import FollowPolicySettings from "./follow-policy-settings";
 import LiveMarket from "./live-market";
 import MarketNewsSettings from "./market-news-settings";
-import NotificationSettingsPanel from "./notification-settings-panel";
+import ClientNotificationSettings from "@/apps/client/ui/client-notification-settings";
 import OrganizationRelationshipTree from "./organization-relationship-tree";
 import SupportFloating from "./support-floating";
 import TradingCenterV2 from "./trading-center";
@@ -26,13 +26,6 @@ import {
   type TradingHallStrategy,
 } from "@/packages/contracts/src/trading-hall";
 
-const AdminWithPolicy = () => (
-  <>
-    <Admin />
-    <FollowPolicySettings />
-  </>
-);
-
 type Page =
   | "home"
   | "login"
@@ -44,8 +37,7 @@ type Page =
   | "market"
   | "agent"
   | "meeting"
-  | "security"
-  | "admin";
+  | "security";
 type ClientPlatformSettings = {
   system: {
     siteName: string;
@@ -282,7 +274,6 @@ const text: Record<Lang, Record<string, string>> = {
     guard: "安全边界正常",
     meeting: "决策会议",
     agent: "Agent 工作区",
-    admin: "运营后台",
   },
   "zh-TW": {
     home: "首頁",
@@ -308,7 +299,6 @@ const text: Record<Lang, Record<string, string>> = {
     guard: "安全邊界正常",
     meeting: "決策會議",
     agent: "Agent 工作區",
-    admin: "營運後台",
   },
   "en-US": {
     home: "Home",
@@ -334,7 +324,6 @@ const text: Record<Lang, Record<string, string>> = {
     guard: "Safety limits normal",
     meeting: "Decision Meeting",
     agent: "Agent Workspace",
-    admin: "Operations",
   },
   "ru-RU": {
     home: "Главная",
@@ -359,7 +348,6 @@ const text: Record<Lang, Record<string, string>> = {
     guard: "Лимиты в норме",
     meeting: "Совещание",
     agent: "Рабочее место агента",
-    admin: "Операции",
   },
   "es-ES": {
     home: "Inicio",
@@ -384,7 +372,6 @@ const text: Record<Lang, Record<string, string>> = {
     guard: "Límites normales",
     meeting: "Reunión de decisión",
     agent: "Área del agente",
-    admin: "Operaciones",
   },
   "ja-JP": {
     home: "ホーム",
@@ -409,7 +396,6 @@ const text: Record<Lang, Record<string, string>> = {
     guard: "安全基準は正常",
     meeting: "意思決定会議",
     agent: "Agent ワークスペース",
-    admin: "運用管理",
   },
   "ko-KR": {
     home: "홈",
@@ -434,7 +420,6 @@ const text: Record<Lang, Record<string, string>> = {
     guard: "안전 한도 정상",
     meeting: "의사결정 회의",
     agent: "Agent 작업 공간",
-    admin: "운영 관리",
   },
 };
 
@@ -1045,7 +1030,7 @@ export default function Home() {
       ? "login"
       : page;
   return (
-    <main className="app-shell" data-app-shell>
+    <main className="app-shell client-app-shell" data-app-shell>
       <header className="topbar">
         <button className="logo" onClick={go("home")}>
           <span>A</span>
@@ -1309,8 +1294,11 @@ function Landing({
       </section>
       <section className="feature-split">
         <div className="scene-preview">
-          <img
-            src="/trading-hall.png"
+          <Image
+            src="/trading-hall.webp"
+            width={1672}
+            height={941}
+            sizes="(max-width: 768px) 100vw, 55vw"
             alt="AI quantitative trading operations center"
           />
           <div>
@@ -1529,8 +1517,6 @@ function renderPage(
       return <TradingCenterV2 go={go} />;
     case "security":
       return <Security t={t} />;
-    case "admin":
-      return <AdminWithPolicy />;
     default:
       return <Hall t={t} go={go} setSelected={setSelected} />;
   }
@@ -1670,8 +1656,11 @@ function Hall({
       <div className="compact-hall">
         <div className="hall-left">
           <div className="scene compact">
-            <img
-              src="/trading-hall-base.png"
+            <Image
+              src="/trading-hall.webp"
+              width={1672}
+              height={941}
+              sizes="(max-width: 768px) 100vw, 860px"
               alt="AI quantitative trading operations center"
             />
             {agents.map((a, index) => (
@@ -2134,7 +2123,7 @@ function Security({ t }: { t: Record<string, string> }) {
   return (
     <div className="security-center-page">
       <PageHead title={t.security} sub="设置通知渠道与接收偏好" />
-      <NotificationSettingsPanel />
+      <ClientNotificationSettings />
     </div>
   );
 }
@@ -2657,6 +2646,8 @@ function Login({
     </div>
   );
 }
+// The old component is unreachable from Client routing; it remains temporarily as a migration reference while Operations owns the replacement workspace.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Admin() {
   const [tab, setTab] = useState("overview");
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
@@ -4785,7 +4776,7 @@ function NotificationCenter() {
                   <b>{title(row)}</b>
                   <p>
                     {row.category === "team_daily_brief"
-                      ? "今日团队运营数据已汇总，可进入运营后台查看详情。"
+                      ? "今日团队数据已汇总，可在通知详情中核对。"
                       : String(row.templateKey).replaceAll("_", " ")}
                   </p>
                   <time>{String(row.createdAt)}</time>
