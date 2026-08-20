@@ -40,29 +40,34 @@ async function copyMigrations(maximumVersion) {
   }
 }
 
-test("the real runner upgrades 0026 to 0027 and reapplies without drift", async () => {
-  await copyMigrations(26);
+test("the real runner upgrades 0027 to 0028 and reapplies without drift", async () => {
+  await copyMigrations(27);
   const before = await runPostgresMigrations(pool, {
     directory: new URL(`file://${migrationDirectory}/`),
     commitSha: "n-minus-one",
   });
-  assert.equal(before.applied.at(-1), "0026_client_paper_permissions.sql");
+  assert.equal(before.applied.at(-1), "0027_platform_demo_admin_commands.sql");
 
-  await copyMigrations(27);
+  await copyMigrations(28);
   const upgraded = await runPostgresMigrations(pool, {
     directory: new URL(`file://${migrationDirectory}/`),
     commitSha: "current",
   });
-  assert.deepEqual(upgraded.applied, ["0027_platform_demo_admin_commands.sql"]);
+  assert.deepEqual(upgraded.applied, ["0028_commercial_legal_content.sql"]);
   const table = await pool.query(`
-    SELECT to_regclass('platform_demo_admin_commands')::text AS name
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema=current_schema()
+        AND table_name='commercial_legal_document_versions'
+        AND column_name='content_markdown'
+    ) AS present
   `);
-  assert.equal(table.rows[0].name, "platform_demo_admin_commands");
+  assert.equal(table.rows[0].present, true);
 
   const rerun = await runPostgresMigrations(pool, {
     directory: new URL(`file://${migrationDirectory}/`),
     commitSha: "current",
   });
   assert.equal(rerun.applied.length, 0);
-  assert.equal(rerun.skipped.length, 28);
+  assert.equal(rerun.skipped.length, 29);
 });

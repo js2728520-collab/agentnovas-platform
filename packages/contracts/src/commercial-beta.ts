@@ -64,6 +64,16 @@ export type CommercialPlan = {
   isActive: boolean;
 };
 
+export type CommercialLegalDocument = {
+  id: string;
+  type: string;
+  version: string | number;
+  contentSha256: string;
+  locale: string | null;
+  contentMarkdown: string | null;
+  effectiveAt: string;
+};
+
 export type MembershipOrder = {
   id: string;
   orderNo: string;

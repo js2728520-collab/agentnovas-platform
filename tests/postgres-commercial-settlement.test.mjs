@@ -168,6 +168,15 @@ test.before(async () => {
       "utf8",
     ),
   );
+  await pool.query(
+    await readFile(
+      new URL(
+        "../postgres/migrations/0028_commercial_legal_content.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
   cleanFingerprintNMinusOneVerified = (await pool.query(`
     SELECT c.is_nullable='NO'
       AND EXISTS (
@@ -188,14 +197,14 @@ test.before(async () => {
       ('maker','maker@example.test','x','finance','org','active'),('checker','checker@example.test','x','admin','org','active'),('checker2','checker2@example.test','x','admin','org','active'),
       ('payment-maker','payment-maker@example.test','x','finance','org','active'),('payment-checker','payment-checker@example.test','x','admin','org','active'),
       ('payment-reject-checker','payment-reject-checker@example.test','x','admin','org','active');
-    INSERT INTO commercial_legal_document_versions(id,document_type,version,content_sha256,status,approved_by_user_id,approved_at,effective_at) VALUES
-      ('entity-v1','service_entity',1,repeat('a',64),'active','checker','2026-01-01','2026-01-01'),
-      ('jurisdiction-v1','jurisdiction',1,repeat('b',64),'active','checker','2026-01-01','2026-01-01'),
-      ('privacy-v1','privacy',1,repeat('c',64),'active','checker','2026-01-01','2026-01-01'),
-      ('terms-v1','terms',1,repeat('d',64),'active','checker','2026-01-01','2026-01-01'),
-      ('risk-v1','risk_disclosure',1,repeat('e',64),'active','checker','2026-01-01','2026-01-01'),
-      ('fee-opinion-v1','simulated_performance_fee_opinion',1,repeat('f',64),'active','checker','2026-01-01','2026-01-01'),
-      ('refund-v1','refund_policy',1,repeat('0',64),'active','checker','2026-01-01','2026-01-01');`);
+    INSERT INTO commercial_legal_document_versions(id,document_type,version,content_sha256,content_locale,content_markdown,status,approved_by_user_id,approved_at,effective_at) VALUES
+      ('entity-v1','service_entity',1,'9788d0c21820c141fe2209dd562fac1d7f8add1371aa661f4aa64324ad712514','en-US','Approved beta legal document body for automated testing only.','active','checker','2026-01-01','2026-01-01'),
+      ('jurisdiction-v1','jurisdiction',1,'9788d0c21820c141fe2209dd562fac1d7f8add1371aa661f4aa64324ad712514','en-US','Approved beta legal document body for automated testing only.','active','checker','2026-01-01','2026-01-01'),
+      ('privacy-v1','privacy',1,'9788d0c21820c141fe2209dd562fac1d7f8add1371aa661f4aa64324ad712514','en-US','Approved beta legal document body for automated testing only.','active','checker','2026-01-01','2026-01-01'),
+      ('terms-v1','terms',1,'9788d0c21820c141fe2209dd562fac1d7f8add1371aa661f4aa64324ad712514','en-US','Approved beta legal document body for automated testing only.','active','checker','2026-01-01','2026-01-01'),
+      ('risk-v1','risk_disclosure',1,'9788d0c21820c141fe2209dd562fac1d7f8add1371aa661f4aa64324ad712514','en-US','Approved beta legal document body for automated testing only.','active','checker','2026-01-01','2026-01-01'),
+      ('fee-opinion-v1','simulated_performance_fee_opinion',1,'9788d0c21820c141fe2209dd562fac1d7f8add1371aa661f4aa64324ad712514','en-US','Approved beta legal document body for automated testing only.','active','checker','2026-01-01','2026-01-01'),
+      ('refund-v1','refund_policy',1,'9788d0c21820c141fe2209dd562fac1d7f8add1371aa661f4aa64324ad712514','en-US','Approved beta legal document body for automated testing only.','active','checker','2026-01-01','2026-01-01');`);
 });
 
 test("fresh and empty unversioned N-1 fingerprint schemas migrate and reapply", () => {

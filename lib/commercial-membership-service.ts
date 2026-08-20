@@ -19,6 +19,7 @@ import {
   compareSignedDecimalStrings,
   requiredLegalDocumentTypes,
 } from "./commercial-membership-domain.ts";
+import { hasReadableCommercialLegalContent } from "./commercial-legal.ts";
 import { ensureOfficialPaperPortfolios } from "./official-paper-repository.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
@@ -88,17 +89,20 @@ async function currentLegalDocuments(client: PoolClient) {
     document_type: string;
     version: number;
     content_sha256: string;
+    content_locale: string | null;
+    content_markdown: string | null;
   }>(
-    `SELECT id,document_type,version,content_sha256 FROM commercial_legal_document_versions WHERE status='active' AND effective_at<=now() AND approved_at IS NOT NULL ORDER BY document_type FOR SHARE`,
+    `SELECT id,document_type,version,content_sha256,content_locale,content_markdown FROM commercial_legal_document_versions WHERE status='active' AND effective_at<=now() AND approved_at IS NOT NULL ORDER BY document_type FOR SHARE`,
   );
   const byType = new Map(result.rows.map((row) => [row.document_type, row]));
   if (
     !requiredLegalDocumentTypes.every((type) => byType.has(type)) ||
-    result.rows.length !== requiredLegalDocumentTypes.length
+    result.rows.length !== requiredLegalDocumentTypes.length ||
+    result.rows.some((row) => !hasReadableCommercialLegalContent(row))
   )
     throw new ResearchApiError(
       "LEGAL_CONFIGURATION_INCOMPLETE",
-      "当前法务文件尚未完成七项审批配置",
+      "当前法务文件尚未完成七项正文与审批配置",
       503,
       { requiredDocumentTypes: requiredLegalDocumentTypes },
     );
