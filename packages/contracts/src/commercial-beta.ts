@@ -1,13 +1,14 @@
 export const commercialBetaPlans = [
-  { code: "monthly_v1", name: "月卡", priceUsd: "28.00", durationDays: 30, aiCredits: 1_000, performanceFeeRate: "0.20", isLifetime: false },
-  { code: "quarterly_v1", name: "季卡", priceUsd: "58.00", durationDays: 90, aiCredits: 3_000, performanceFeeRate: "0.20", isLifetime: false },
-  { code: "annual_v1", name: "年卡", priceUsd: "198.00", durationDays: 365, aiCredits: 12_000, performanceFeeRate: "0.20", isLifetime: false },
-  { code: "lifetime_v1", name: "终身会员", priceUsd: "588.00", durationDays: null, aiCredits: 36_000, performanceFeeRate: "0.16", isLifetime: true },
+  { code: "monthly_v1", name: "月卡", priceUsd: "28.00", priceCurrency: "USD", durationDays: 30, aiCredits: 1_000, performanceFeeRate: "0.20", isLifetime: false },
+  { code: "quarterly_v1", name: "季卡", priceUsd: "58.00", priceCurrency: "USD", durationDays: 90, aiCredits: 3_000, performanceFeeRate: "0.20", isLifetime: false },
+  { code: "annual_v1", name: "年卡", priceUsd: "198.00", priceCurrency: "USD", durationDays: 365, aiCredits: 12_000, performanceFeeRate: "0.20", isLifetime: false },
+  { code: "lifetime_v1", name: "终身会员", priceUsd: "588.00", priceCurrency: "USD", durationDays: null, aiCredits: 36_000, performanceFeeRate: "0.16", isLifetime: true },
 ] as const;
 
 export const betaPaperCapitalUsdt = "10000.00" as const;
 export const platformDemoProviders = ["OKX_DEMO", "BINANCE_SPOT_TESTNET", "BYBIT_DEMO"] as const;
 export const performanceFeeCycle = { cadence: "WEEKLY", timezone: "UTC" } as const;
+export const performanceFeeCurrency = "USDT" as const;
 
 export const membershipOrderStatuses = [
   "AWAITING_EVIDENCE",
@@ -56,6 +57,7 @@ export type CommercialPlan = {
   code: CommercialPlanCode;
   name: string;
   priceUsd: string;
+  priceCurrency: "USD";
   durationDays: number | null;
   aiCredits: number;
   performanceFeeRate: string;
@@ -112,7 +114,7 @@ export type PerformanceFeeStatement = {
   status: PerformanceFeeStatementStatus;
   cycleStartedAt: string;
   cycleEndedAt: string;
-  currency: "USD";
+  currency: typeof performanceFeeCurrency;
   cumulativeNetRealizedPnl: string;
   settledHighWaterMark: string;
   billableProfit: string;
