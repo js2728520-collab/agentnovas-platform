@@ -66,6 +66,13 @@ export class OfficialStrategyModeSwitchOpenPositionError extends Error {
   }
 }
 
+export class OfficialStrategyGenericResumeBlockedError extends Error {
+  constructor() {
+    super("官方策略必须通过交易大厅重新校验会员、紧急停控与模拟组合后恢复");
+    this.name = "OfficialStrategyGenericResumeBlockedError";
+  }
+}
+
 export async function endConflictingOfficialStrategyDeployments(database: Queryable, input: {
   ownerUserId: string;
   strategyCode: "ai_conservative" | "ai_balanced" | "ai_aggressive";
@@ -138,6 +145,19 @@ export async function createStrategyDeployment(database: Queryable, input: {
   paperPortfolioId?: string | null;
 }) {
   if (input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) throw new Error("部署幂等键长度无效");
+  const executionProduct = input.executionProduct ?? "usdt_perpetual";
+  if (executionProduct === "spot_usdt") {
+    if (!input.platformStrategyCode || !input.membershipId || !input.paperPortfolioId || input.exchangeAccountId) {
+      throw new Error("官方策略部署缺少安全组合绑定或错误使用客户交易账户");
+    }
+    const portfolio = await database.query<{ present: boolean }>(`
+      SELECT true AS present
+      FROM official_paper_portfolios
+      WHERE id = $1 AND membership_id = $2 AND customer_id = $3 AND strategy_code = $4
+      FOR KEY SHARE
+    `, [input.paperPortfolioId, input.membershipId, input.ownerUserId, input.platformStrategyCode]);
+    if (portfolio.rows[0]?.present !== true) throw new Error("官方策略模拟组合与会员、客户归属不匹配");
+  }
   const result = await database.query<DeploymentRow>(`
     INSERT INTO strategy_deployments AS existing (
       id, owner_user_id, strategy_id, strategy_version_id, exchange_account_id,
@@ -165,7 +185,7 @@ export async function createStrategyDeployment(database: Queryable, input: {
     input.exchangeAccountId ?? null, input.mode, input.validationLabel,
     input.validationLabel !== "STANDARD_VERIFIED", input.idempotencyKey, input.riskAcknowledged,
     input.strategySubscriptionId ?? null, input.positionSizePct ?? null, input.stopLossPctOverride ?? null,
-    input.executionProduct ?? "usdt_perpetual", input.platformStrategyCode ?? null,
+    executionProduct, input.platformStrategyCode ?? null,
     input.membershipId ?? null, input.paperPortfolioId ?? null,
   ]);
   if (!result.rows[0]) throw new StrategyDeploymentIdempotencyConflictError();
@@ -187,6 +207,15 @@ export async function changeStrategyDeploymentStatus(database: Queryable, input:
   ownerUserId: string;
   action: "pause" | "resume";
 }) {
+  if (input.action === "resume") {
+    const current = await database.query<Pick<DeploymentRow, "execution_product">>(`
+      SELECT execution_product FROM strategy_deployments
+      WHERE id = $1 AND owner_user_id = $2 AND status = 'paused'
+    `, [input.deploymentId, input.ownerUserId]);
+    if (current.rows[0]?.execution_product === "spot_usdt") {
+      throw new OfficialStrategyGenericResumeBlockedError();
+    }
+  }
   const desired = input.action === "pause" ? "paused" : "active";
   const allowed = input.action === "pause" ? "active" : "paused";
   const result = await database.query<DeploymentRow>(`

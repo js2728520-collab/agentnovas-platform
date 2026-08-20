@@ -2,10 +2,13 @@ export function membershipAccess(
   now: string,
   input: { status: string; expiresAt: string | null; graceEndsAt: string | null },
 ) {
+  if (input.status !== "active" && input.status !== "grace" && input.status !== "trial") {
+    return { status: "read_only" as const, newEntriesAllowed: false, closeOnly: true };
+  }
   if (input.status === "active" && !input.expiresAt) {
     return { status: "active" as const, newEntriesAllowed: true, closeOnly: false };
   }
-  if (input.expiresAt && now < input.expiresAt) {
+  if ((input.status === "active" || input.status === "trial") && input.expiresAt && now < input.expiresAt) {
     return { status: "active" as const, newEntriesAllowed: true, closeOnly: false };
   }
   if (input.graceEndsAt && now < input.graceEndsAt) {

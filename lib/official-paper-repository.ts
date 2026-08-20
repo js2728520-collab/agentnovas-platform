@@ -134,19 +134,42 @@ export async function aggregateOfficialThreeCardPreviousUtcWeek(database: Querya
   const scope = await resolveOfficialThreeCardPortfolioScope(database, input);
   const { periodStart, periodEnd } = previousCompleteUtcWeek(input.asOf ?? new Date());
   const result = await database.query<{
-    portfolio_id: string; strategy_code: StrategyCode; realized_gross_pnl_usdt: string;
-    realized_net_pnl_usdt: string; fees_usdt: string;
+    portfolio_id: string; strategy_code: StrategyCode;
+    week_gross_pnl: string; week_net_pnl: string; week_fees: string;
+    cumulative_net_pnl: string; prior_net_pnl: string;
+    total_week_gross_pnl: string; total_week_net_pnl: string; total_week_fees: string;
+    total_cumulative_net_pnl: string; total_prior_net_pnl: string;
   }>(`
-    SELECT portfolio.id AS portfolio_id, portfolio.strategy_code,
-           COALESCE(sum(receipt.realized_gross_pnl_usdt), 0)::text AS realized_gross_pnl_usdt,
-           COALESCE(sum(receipt.realized_net_pnl_usdt), 0)::text AS realized_net_pnl_usdt,
-           COALESCE(sum(receipt.fee_usdt), 0)::text AS fees_usdt
-    FROM official_paper_portfolios AS portfolio
-    LEFT JOIN official_paper_fill_receipts AS receipt
-      ON receipt.portfolio_id = portfolio.id
-     AND receipt.filled_at >= $2 AND receipt.filled_at < $3
-    WHERE portfolio.id = ANY($1::text[])
-    GROUP BY portfolio.id, portfolio.strategy_code
+    WITH metrics AS (
+      SELECT portfolio.id AS portfolio_id, portfolio.strategy_code,
+             COALESCE(sum(receipt.realized_gross_pnl_usdt)
+               FILTER (WHERE receipt.filled_at >= $2 AND receipt.filled_at < $3), 0) AS week_gross_pnl,
+             COALESCE(sum(receipt.realized_net_pnl_usdt)
+               FILTER (WHERE receipt.filled_at >= $2 AND receipt.filled_at < $3), 0) AS week_net_pnl,
+             COALESCE(sum(receipt.fee_usdt + receipt.allocated_entry_fee_usdt)
+               FILTER (WHERE receipt.filled_at >= $2 AND receipt.filled_at < $3), 0) AS week_fees,
+             COALESCE(sum(receipt.realized_net_pnl_usdt)
+               FILTER (WHERE receipt.filled_at < $3), 0) AS cumulative_net_pnl,
+             COALESCE(sum(receipt.realized_net_pnl_usdt)
+               FILTER (WHERE receipt.filled_at < $2), 0) AS prior_net_pnl
+      FROM official_paper_portfolios AS portfolio
+      LEFT JOIN official_paper_fill_receipts AS receipt
+        ON receipt.portfolio_id = portfolio.id AND receipt.action = 'sell'
+      WHERE portfolio.id = ANY($1::text[])
+      GROUP BY portfolio.id, portfolio.strategy_code
+    )
+    SELECT portfolio_id, strategy_code,
+           to_char(week_gross_pnl, 'FM999999999999999999990.000000000000') AS week_gross_pnl,
+           to_char(week_net_pnl, 'FM999999999999999999990.000000000000') AS week_net_pnl,
+           to_char(week_fees, 'FM999999999999999999990.000000000000') AS week_fees,
+           to_char(cumulative_net_pnl, 'FM999999999999999999990.000000000000') AS cumulative_net_pnl,
+           to_char(prior_net_pnl, 'FM999999999999999999990.000000000000') AS prior_net_pnl,
+           to_char(sum(week_gross_pnl) OVER (), 'FM999999999999999999990.000000000000') AS total_week_gross_pnl,
+           to_char(sum(week_net_pnl) OVER (), 'FM999999999999999999990.000000000000') AS total_week_net_pnl,
+           to_char(sum(week_fees) OVER (), 'FM999999999999999999990.000000000000') AS total_week_fees,
+           to_char(sum(cumulative_net_pnl) OVER (), 'FM999999999999999999990.000000000000') AS total_cumulative_net_pnl,
+           to_char(sum(prior_net_pnl) OVER (), 'FM999999999999999999990.000000000000') AS total_prior_net_pnl
+    FROM metrics
   `, [scope.portfolioIds, periodStart, periodEnd]);
   const byPortfolio = new Map(result.rows.map((row) => [row.portfolio_id, row]));
   const strategies = scope.strategies.map((strategy) => {
@@ -154,23 +177,29 @@ export async function aggregateOfficialThreeCardPreviousUtcWeek(database: Querya
     if (!row || row.strategy_code !== strategy.strategyCode) throw new Error("官方三卡周结算范围不完整");
     return {
       ...strategy,
-      realizedGrossPnlUsdt: Number(row.realized_gross_pnl_usdt),
-      realizedNetPnlUsdt: Number(row.realized_net_pnl_usdt),
-      feesUsdt: Number(row.fees_usdt),
+      realizedGrossPnlUsdt: row.week_gross_pnl,
+      realizedNetPnlUsdt: row.week_net_pnl,
+      feesUsdt: row.week_fees,
+      cumulativeNetPnl: row.cumulative_net_pnl,
+      priorNetPnl: row.prior_net_pnl,
     };
   });
-  const sum = (key: "realizedGrossPnlUsdt" | "realizedNetPnlUsdt" | "feesUsdt") => (
-    Number(strategies.reduce((total, row) => total + row[key], 0).toFixed(8))
-  );
+  const totals = result.rows[0];
+  if (!totals) throw new Error("官方三卡周结算范围不完整");
   return {
     customerId: scope.customerId,
     membershipId: scope.membershipId,
     scopeKey: scope.scopeKey,
+    scopeVersion: "official-paper-closed-sells-v1" as const,
+    period: { start: periodStart.toISOString(), end: periodEnd.toISOString() },
     periodStart: periodStart.toISOString(),
     periodEnd: periodEnd.toISOString(),
-    realizedGrossPnlUsdt: sum("realizedGrossPnlUsdt"),
-    realizedNetPnlUsdt: sum("realizedNetPnlUsdt"),
-    feesUsdt: sum("feesUsdt"),
+    weekNetPnl: totals.total_week_net_pnl,
+    cumulativeNetPnl: totals.total_cumulative_net_pnl,
+    priorNetPnl: totals.total_prior_net_pnl,
+    realizedGrossPnlUsdt: totals.total_week_gross_pnl,
+    realizedNetPnlUsdt: totals.total_week_net_pnl,
+    feesUsdt: totals.total_week_fees,
     strategies,
   };
 }
@@ -221,9 +250,22 @@ export async function refreshOfficialPaperRiskState(database: Queryable, input: 
     : 100;
   const dailyLimit = Number(portfolio.risk_json.dailyLossHaltPct);
   const drawdownLimit = Number(portfolio.risk_json.maxDrawdownPct);
-  const halted = previous.halted === true
-    || (Number.isFinite(dailyLimit) && dailyLossPct >= dailyLimit)
-    || (Number.isFinite(drawdownLimit) && maxDrawdownPct >= drawdownLimit);
+  const sameRiskDay = previous.riskDayUtc === riskDayUtc;
+  const explicitPreviousReasons = Array.isArray(previous.haltReasons)
+    ? previous.haltReasons.filter((value): value is string => typeof value === "string")
+    : [];
+  const inferredPreviousReasons = explicitPreviousReasons.length || previous.halted !== true
+    ? explicitPreviousReasons
+    : Number(previous.dailyLossPct) >= dailyLimit
+      ? ["daily_loss"]
+      : Number(previous.maxDrawdownPct) >= drawdownLimit
+        ? ["max_drawdown"]
+        : ["legacy_manual"];
+  const haltReasons = new Set(inferredPreviousReasons.filter((reason) => sameRiskDay || reason !== "daily_loss"));
+  if (Number.isFinite(dailyLimit) && dailyLossPct >= dailyLimit) haltReasons.add("daily_loss");
+  if (Number.isFinite(drawdownLimit) && maxDrawdownPct >= drawdownLimit) haltReasons.add("max_drawdown");
+  const nextHaltReasons = [...haltReasons].sort();
+  const halted = nextHaltReasons.length > 0;
   const next = {
     ...previous,
     equityUsdt: Number(equityUsdt.toFixed(8)),
@@ -233,6 +275,7 @@ export async function refreshOfficialPaperRiskState(database: Queryable, input: 
     drawdownPct: Number(drawdownPct.toFixed(8)),
     maxDrawdownPct: Number(maxDrawdownPct.toFixed(8)),
     dailyLossPct: Number(dailyLossPct.toFixed(8)),
+    haltReasons: nextHaltReasons,
     halted,
     updatedAt: input.asOf.toISOString(),
   };

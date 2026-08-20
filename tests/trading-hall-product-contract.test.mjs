@@ -98,6 +98,8 @@ test("trading hall API publishes the product boundary and structured decision ro
   assert.match(route, /decisionRounds/);
   assert.match(route, /realOrderRoutingEnabled:\s*false/);
   assert.match(route, /targetMarket:\s*"spot_usdt"/);
+  assert.match(route, /official_paper_positions/);
+  assert.match(route, /paper_portfolio_id/);
 });
 
 test("client hall does not present static market data, fallback performance or a fake emergency stop", async () => {

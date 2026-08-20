@@ -63,6 +63,36 @@ CREATE TABLE IF NOT EXISTS official_paper_portfolios (
 CREATE INDEX IF NOT EXISTS idx_official_paper_portfolios_customer
   ON official_paper_portfolios (customer_id, updated_at DESC, id DESC);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_official_paper_portfolios_identity
+  ON official_paper_portfolios (id, membership_id, customer_id);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'strategy_deployments_official_portfolio_owner_fk'
+      AND conrelid = 'strategy_deployments'::regclass
+  ) THEN
+    ALTER TABLE strategy_deployments
+      ADD CONSTRAINT strategy_deployments_official_portfolio_owner_fk
+      FOREIGN KEY (paper_portfolio_id, membership_id, owner_user_id)
+      REFERENCES official_paper_portfolios(id, membership_id, customer_id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'strategy_deployments_official_binding_check'
+      AND conrelid = 'strategy_deployments'::regclass
+  ) THEN
+    ALTER TABLE strategy_deployments
+      ADD CONSTRAINT strategy_deployments_official_binding_check
+      CHECK (
+        execution_product <> 'spot_usdt'
+        OR (paper_portfolio_id IS NOT NULL AND membership_id IS NOT NULL
+            AND platform_strategy_code IS NOT NULL AND exchange_account_id IS NULL)
+      );
+  END IF;
+END $$;
+
 CREATE OR REPLACE FUNCTION protect_official_paper_principal()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -144,6 +174,17 @@ CREATE TABLE IF NOT EXISTS official_paper_fill_receipts (
 
 CREATE INDEX IF NOT EXISTS idx_official_paper_receipts_week
   ON official_paper_fill_receipts (portfolio_id, filled_at, id);
+
+CREATE OR REPLACE FUNCTION reject_official_paper_receipt_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'official paper fill receipts are append-only';
+END $$;
+
+DROP TRIGGER IF EXISTS trg_official_paper_receipts_immutable ON official_paper_fill_receipts;
+CREATE TRIGGER trg_official_paper_receipts_immutable
+BEFORE UPDATE OR DELETE ON official_paper_fill_receipts
+FOR EACH ROW EXECUTE FUNCTION reject_official_paper_receipt_mutation();
 
 CREATE TABLE IF NOT EXISTS official_paper_ledger_entries (
   id text PRIMARY KEY,
