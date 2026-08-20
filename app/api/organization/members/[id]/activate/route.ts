@@ -2,15 +2,15 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, authTokens, notificationDeliveries, users } from "@/db/schema";
+import { requireAccessPermission } from "@/lib/access-control";
 import { randomToken, sha256 } from "@/lib/auth";
+import { canAccessOrganization } from "@/lib/operations-access";
 import { canManuallyActivateMember } from "@/lib/permissions";
-import { requireUser, responseError } from "@/lib/session";
-
-const activationRoles = ["hq_admin", "branch_admin", "manager", "supervisor"] as const;
+import { responseError } from "@/lib/session";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const actor = await requireUser(request, [...activationRoles]);
+    const { user: actor, scope, organizationIds } = await requireAccessPermission(request, "ops.organization.manage");
     const { id } = await params;
     const db = getDb();
     const member = (await db.select({
@@ -23,6 +23,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }).from(users).where(eq(users.id, id)).limit(1))[0];
 
     if (!member) return Response.json({ error: "成员账户不存在" }, { status: 404 });
+    if (member.organizationId
+      ? !canAccessOrganization(scope, { userId: actor.id, organizationId: actor.organizationId }, member.organizationId, organizationIds)
+      : scope !== "PLATFORM") {
+      return Response.json({ error: "无权邀请授权范围外的成员" }, { status: 403 });
+    }
     if (!canManuallyActivateMember(actor, member)) {
       const message = member.status !== "pending" ? "该账户已激活或当前状态不能邀请" : "无权邀请该成员账户";
       return Response.json({ error: message }, { status: 403 });

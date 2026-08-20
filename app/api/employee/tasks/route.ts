@@ -1,12 +1,12 @@
 import { and, asc, eq, inArray, lte } from "drizzle-orm";
 import { getDb } from "@/db";
 import { collectionCases, customerAttributions, memberships, settlements, trades, users } from "@/db/schema";
-import { canSeeCustomer } from "@/lib/permissions";
-import { requireUser, responseError } from "@/lib/session";
+import { requireAccessPermission } from "@/lib/access-control";
+import { canAccessCustomerAttribution } from "@/lib/operations-access";
+import { responseError } from "@/lib/session";
 
-const roles=["branch_admin","manager","supervisor","employee"] as const;
-export async function GET(request:Request){try{const actor=await requireUser(request,[...roles]);const db=getDb(),now=new Date(),nowIso=now.toISOString(),soon=new Date(now.getTime()+7*86400_000).toISOString();
- const attributions=await db.select().from(customerAttributions).where(eq(customerAttributions.status,"active"));const visibleIds=new Set(attributions.filter(a=>canSeeCustomer(actor.role,actor.id,actor.organizationId,a)).map(a=>a.customerId));
+export async function GET(request:Request){try{const {user:actor,scope,organizationIds}=await requireAccessPermission(request,"ops.team.view");const db=getDb(),now=new Date(),nowIso=now.toISOString(),soon=new Date(now.getTime()+7*86400_000).toISOString();
+ const attributions=await db.select().from(customerAttributions).where(eq(customerAttributions.status,"active"));const visibleIds=new Set(attributions.filter(a=>canAccessCustomerAttribution(scope,{userId:actor.id,organizationId:actor.organizationId},a,organizationIds)).map(a=>a.customerId));
  const allCollections=await db.select({taskId:collectionCases.id,customerId:users.id,email:users.email,status:collectionCases.status,dueAt:collectionCases.dueAt,graceEndsAt:collectionCases.graceEndsAt,amountUsdt:settlements.amountUsdt,remindersSent:collectionCases.remindersSent,newEntriesAllowed:collectionCases.newEntriesAllowed}).from(collectionCases).innerJoin(users,eq(users.id,collectionCases.customerId)).innerJoin(settlements,eq(settlements.id,collectionCases.settlementId)).where(inArray(collectionCases.status,["payment_period","grace","trading_stopped"])).orderBy(asc(collectionCases.dueAt));
  const allExpiring=await db.select({taskId:memberships.id,customerId:users.id,email:users.email,status:memberships.status,planCode:memberships.planCode,expiresAt:memberships.expiresAt,graceEndsAt:memberships.graceEndsAt}).from(memberships).innerJoin(users,eq(users.id,memberships.customerId)).where(and(inArray(memberships.status,["active","grace","expired"]),lte(memberships.expiresAt,soon))).orderBy(asc(memberships.expiresAt));
  const allTrades=await db.select({id:trades.id,customerId:trades.customerId,symbol:trades.symbol,side:trades.side,origin:trades.origin,status:trades.status,realizedNetPnlUsdt:trades.realizedNetPnlUsdt,openedAt:trades.openedAt,closedAt:trades.closedAt}).from(trades).orderBy(asc(trades.updatedAt)).limit(500);

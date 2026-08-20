@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { relative, sep } from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 
 import { API_ROUTE_INVENTORY } from "../lib/api-route-inventory.ts";
 import {
@@ -14,6 +16,7 @@ import {
 import { resolveAppAudienceStrict } from "../lib/riverton-apps.ts";
 
 const appApi = new URL("../app/api/", import.meta.url);
+const execFileAsync = promisify(execFile);
 
 async function routeFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -48,6 +51,40 @@ test("the versioned inventory covers every exported API method and route", async
   );
   for (const entry of API_ROUTE_INVENTORY) {
     assert.doesNotThrow(() => apiPolicyForRoute(entry.route, entry.method), `${entry.method} ${entry.route}`);
+  }
+});
+
+test("the generated route security inventory is current", async () => {
+  await execFileAsync(process.execPath, ["scripts/generate-api-route-inventory.mjs", "--check"], {
+    cwd: new URL("..", import.meta.url),
+  });
+});
+
+test("permission inventory declares exact grants and matches each handler's DB authorization helper", async () => {
+  const wrapperPermissions = {
+    requireCurrentAccessAdmin: ["ops.roles.manage", "maint.roles.manage"],
+    requireCurrentAccessViewer: ["ops.roles.manage", "ops.roles.assign", "ops.roles.approve_sensitive", "maint.roles.manage", "maint.roles.approve_sensitive"],
+    requireCurrentAccessAssignmentAdmin: ["ops.roles.assign", "ops.roles.manage", "maint.roles.manage"],
+    requireCurrentAccessReviewer: ["ops.roles.approve_sensitive", "ops.roles.manage", "maint.roles.approve_sensitive", "maint.roles.manage"],
+    requireCurrentAccessAudit: ["ops.roles.manage", "ops.roles.approve_sensitive", "maint.audit.view", "maint.roles.manage"],
+  };
+  const permissionEntries = API_ROUTE_INVENTORY.filter((entry) => entry.authentication === "permission");
+  assert.ok(permissionEntries.length > 0);
+  for (const entry of permissionEntries) {
+    assert.ok(entry.permissionKeys.length > 0, `${entry.method} ${entry.route} has no exact permission`);
+    assert.ok(["grant", "platform"].includes(entry.scope), `${entry.method} ${entry.route} has no scope contract`);
+    assert.ok(["none", "recent"].includes(entry.mfa), `${entry.method} ${entry.route} has no MFA contract`);
+    assert.ok(["none", "masked", "full"].includes(entry.pii), `${entry.method} ${entry.route} has no PII contract`);
+    assert.ok(["normal", "sensitive"].includes(entry.sensitivity), `${entry.method} ${entry.route} has no sensitivity contract`);
+
+    const source = await readFile(new URL(`../${entry.source}`, import.meta.url), "utf8");
+    assert.match(source, /require(?:Any)?AccessPermission|requireCurrentAccess/, `${entry.method} ${entry.route} has metadata without DB auth`);
+    const declaredBySource = new Set(entry.permissionKeys.filter((key) => source.includes(`"${key}"`)));
+    for (const [helper, keys] of Object.entries(wrapperPermissions)) {
+      if (source.includes(`${helper}(`)) keys.filter((key) => entry.permissionKeys.includes(key)).forEach((key) => declaredBySource.add(key));
+    }
+    assert.deepEqual([...declaredBySource].sort(), [...entry.permissionKeys].sort(), `${entry.method} ${entry.route} metadata does not match helper`);
+    assert.doesNotMatch(source, /\brequireUser\s*\(|\bcurrentUser\s*\(/, `${entry.method} ${entry.route} still relies on a legacy session/role helper`);
   }
 });
 
@@ -120,10 +157,9 @@ test("legacy sensitive surfaces are assigned to their owning application", () =>
       (error) => error instanceof ApiPolicyError && error.status === 404);
   }
   assert.equal(evaluateApiRequestPolicy(new Request("https://xm.agentnovas.com/api/admin/llm-profiles")).audience, "maintenance");
-  assert.deepEqual(apiPolicyForRoute("/api/membership/orders", "POST").audiences, ["client"]);
-  assert.deepEqual(apiPolicyForRoute("/api/credits/me", "GET").audiences, ["client"]);
-  assert.deepEqual(apiPolicyForRoute("/api/operations/performance-statements/:id", "GET").audiences, ["operations"]);
-  assert.deepEqual(apiPolicyForRoute("/api/maintenance/demo-exchanges/:id/kill", "POST").audiences, ["maintenance"]);
+  assert.deepEqual(apiPolicyForRoute("/api/wallet/deposit-orders", "POST").audiences, ["client"]);
+  assert.deepEqual(apiPolicyForRoute("/api/operations/deposits", "GET").audiences, ["operations"]);
+  assert.deepEqual(apiPolicyForRoute("/api/maintenance/payment-providers/:id/status", "PATCH").audiences, ["maintenance"]);
 });
 
 test("request ids are bounded and internal errors are not exposed", async () => {

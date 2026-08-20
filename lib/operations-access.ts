@@ -84,3 +84,30 @@ export function canAccessOrganization(
     effectiveOrganizationIds(identity, assignmentOrganizationIds).includes(organizationId)
   );
 }
+
+export function canAccessCustomerAttribution(
+  scope: DataScope,
+  identity: OperationsIdentity,
+  attribution: {
+    customerId: string;
+    branchId: string | null;
+    managerId: string | null;
+    supervisorId: string | null;
+    employeeId: string | null;
+  },
+  assignmentOrganizationIds: readonly string[] = [],
+) {
+  if (scope === "PLATFORM") return true;
+  if (scope === "SELF") return attribution.customerId === identity.userId;
+  const organizationIds = effectiveOrganizationIds(identity, assignmentOrganizationIds);
+  if (organizationIds.length && (!attribution.branchId || !organizationIds.includes(attribution.branchId))) return false;
+  if (scope === "DIRECT_REPORTS") return attribution.employeeId === identity.userId;
+  if (scope === "TEAM_TREE") {
+    return attribution.managerId === identity.userId
+      || attribution.supervisorId === identity.userId
+      || attribution.employeeId === identity.userId;
+  }
+  return (scope === "ORGANIZATION" || scope === "ORGANIZATION_SET")
+    && Boolean(attribution.branchId)
+    && organizationIds.includes(attribution.branchId!);
+}

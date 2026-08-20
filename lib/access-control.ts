@@ -39,6 +39,9 @@ export async function requireAccessPermission(request: Request, permissionKey: s
   const access = await effectiveAccessForUser(pool, user, definition.appId);
   const grant = access.grants[permissionKey];
   if (!grant) throw new ResearchApiError("FORBIDDEN", "无权执行此操作", 403, { permissionKey });
+  if (definition.appId === "maintenance" && grant.scope !== "PLATFORM") {
+    throw new ResearchApiError("FORBIDDEN", "运维权限必须显式授予平台范围", 403, { permissionKey });
+  }
   return { user, access, scope: grant.scope, organizationIds: grant.organizationIds };
 }
 

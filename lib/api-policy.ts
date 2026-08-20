@@ -6,6 +6,11 @@ export type ApiAuthentication = "anonymous" | "session" | "permission" | "webhoo
 export type ApiRoutePolicy = {
   audiences: readonly AppAudience[];
   authentication: ApiAuthentication;
+  permissionKeys: readonly string[];
+  scope: "none" | "grant" | "platform";
+  mfa: "none" | "recent";
+  pii: "none" | "masked" | "full";
+  sensitivity: "normal" | "sensitive";
   requiresSameOrigin: boolean;
   sensitive: boolean;
 };
@@ -18,39 +23,6 @@ export type ApiRequestContext = {
   inventory: ApiRouteInventoryEntry;
   policy: ApiRoutePolicy;
 };
-
-const ALL_AUDIENCES = ["client", "operations", "maintenance"] as const;
-const INTERNAL_AUDIENCES = ["operations", "maintenance"] as const;
-const OPERATIONS_PREFIXES = [
-  "/api/approvals",
-  "/api/attributions",
-  "/api/data-center",
-  "/api/employee",
-  "/api/finance",
-  "/api/invitations",
-  "/api/operations",
-  "/api/organization",
-  "/api/public-pool",
-  "/api/reports",
-  "/api/team",
-] as const;
-const CLIENT_PREFIXES = [
-  "/api/account",
-  "/api/ai",
-  "/api/automation",
-  "/api/exchange-accounts",
-  "/api/integrations/catalog",
-  "/api/market",
-  "/api/notifications",
-  "/api/platform",
-  "/api/portfolio",
-  "/api/risk",
-  "/api/simulated-orders",
-  "/api/strategies",
-  "/api/strategy-",
-  "/api/trading",
-  "/api/wallet",
-] as const;
 
 export class ApiPolicyError extends Error {
   readonly code: string;
@@ -69,10 +41,6 @@ export class ApiPolicyError extends Error {
     this.status = status;
     this.details = details;
   }
-}
-
-function hasPrefix(route: string, prefixes: readonly string[]) {
-  return prefixes.some((prefix) => route === prefix || route.startsWith(`${prefix}/`) || route.startsWith(prefix));
 }
 
 function routeMatches(pattern: string, pathname: string) {
@@ -100,46 +68,19 @@ export function findApiRouteInventory(method: string, pathname: string): ApiRout
 }
 
 export function apiPolicyForRoute(route: string, method: string): ApiRoutePolicy {
-  const isMutation = !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase());
-  if (route === "/api/credits/me" || route === "/api/membership" || route.startsWith("/api/membership/")) {
-    return { audiences: ["client"], authentication: "session", requiresSameOrigin: isMutation, sensitive: isMutation };
-  }
-  if (route === "/api/auth/login" || route === "/api/auth/logout" || route === "/api/auth/me") {
-    return {
-      audiences: ALL_AUDIENCES,
-      authentication: route === "/api/auth/login" ? "anonymous" : "session",
-      requiresSameOrigin: isMutation,
-      sensitive: true,
-    };
-  }
-  if (route === "/api/auth/mfa/verify") {
-    return { audiences: INTERNAL_AUDIENCES, authentication: "session", requiresSameOrigin: true, sensitive: true };
-  }
-  if (route.startsWith("/api/auth/")) {
-    return { audiences: ["client"], authentication: "anonymous", requiresSameOrigin: isMutation, sensitive: true };
-  }
-  if (route === "/api/system/bootstrap") {
-    return { audiences: ["maintenance"], authentication: "bootstrap", requiresSameOrigin: false, sensitive: true };
-  }
-  if (route.startsWith("/api/integrations/resend/webhook") || route.startsWith("/api/integrations/payments/")) {
-    return { audiences: ["maintenance"], authentication: "webhook", requiresSameOrigin: false, sensitive: true };
-  }
-  if (route.startsWith("/api/access/")) {
-    return { audiences: INTERNAL_AUDIENCES, authentication: "permission", requiresSameOrigin: isMutation, sensitive: true };
-  }
-  if (route.startsWith("/api/maintenance/") || route.startsWith("/api/admin/")) {
-    return { audiences: ["maintenance"], authentication: "permission", requiresSameOrigin: isMutation, sensitive: true };
-  }
-  if (hasPrefix(route, OPERATIONS_PREFIXES)) {
-    return { audiences: ["operations"], authentication: "permission", requiresSameOrigin: isMutation, sensitive: true };
-  }
-  if (hasPrefix(route, CLIENT_PREFIXES)) {
-    return { audiences: ["client"], authentication: "session", requiresSameOrigin: isMutation, sensitive: isMutation };
-  }
-  if (route === "/api/health") {
-    return { audiences: ALL_AUDIENCES, authentication: "anonymous", requiresSameOrigin: false, sensitive: false };
-  }
-  throw new ApiPolicyError("POLICY_NOT_REGISTERED", "接口安全策略尚未注册", 404, { route });
+  const entry = API_ROUTE_INVENTORY.find((candidate) => candidate.route === route && candidate.method === method.toUpperCase());
+  if (!entry) throw new ApiPolicyError("POLICY_NOT_REGISTERED", "接口安全策略尚未注册", 404, { route, method });
+  return {
+    audiences: entry.audiences,
+    authentication: entry.authentication,
+    permissionKeys: entry.permissionKeys,
+    scope: entry.scope,
+    mfa: entry.mfa,
+    pii: entry.pii,
+    sensitivity: entry.sensitivity,
+    requiresSameOrigin: entry.requiresSameOrigin,
+    sensitive: entry.sensitivity === "sensitive",
+  };
 }
 
 export function normalizeRequestId(value: string | null | undefined) {
