@@ -90,6 +90,16 @@ test("internal applications use permission-driven navigation and login without r
   }
 });
 
+test("internal login completes required TOTP enrollment and verification", async () => {
+  const login = await read("packages/ui/src/app-login.tsx");
+  assert.match(login, /mfaEnrollmentRequired/);
+  assert.match(login, /\/api\/auth\/mfa\/enroll\/start/);
+  assert.match(login, /\/api\/auth\/mfa\/enroll\/confirm/);
+  assert.match(login, /\/api\/auth\/mfa\/verify/);
+  assert.match(login, /recoveryCodes/);
+  assert.match(login, /autoComplete="one-time-code"/);
+});
+
 test("shared console navigation is hydration-safe and keyboard-contained", async () => {
   const shell = await read("packages/ui/src/console-shell.tsx");
   assert.match(shell, /usePathname/);

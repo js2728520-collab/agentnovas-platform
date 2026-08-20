@@ -211,6 +211,20 @@ test("unknown hosts and cross-audience sensitive routes fail closed", () => {
     host: "xm.agentnovas.com",
     environment: { RIVERTON_APP_AUDIENCE: "maintenance" },
   }), "maintenance");
+  assert.equal(resolveAppAudienceStrict({
+    host: "localhost:3012",
+    environment: { RIVERTON_APP_AUDIENCE: "maintenance", RIVERTON_APP_LOCAL_PORT: "3012" },
+  }), "maintenance");
+  assert.equal(resolveAppAudienceStrict({
+    host: "localhost:3002",
+    environment: { RIVERTON_APP_AUDIENCE: "maintenance", RIVERTON_APP_LOCAL_PORT: "3012" },
+  }), null);
+  for (const localPort of ["0", "65536", "not-a-port"]) {
+    assert.equal(resolveAppAudienceStrict({
+      host: "xm.agentnovas.com",
+      environment: { RIVERTON_APP_AUDIENCE: "maintenance", RIVERTON_APP_LOCAL_PORT: localPort },
+    }), null);
+  }
 
   assert.throws(() => evaluateApiRequestPolicy(new Request("https://untrusted.example/api/auth/me")),
     (error) => error instanceof ApiPolicyError && error.code === "UNKNOWN_AUDIENCE" && error.status === 404);

@@ -66,18 +66,32 @@ function normalizeHost(host: string | undefined) {
   return (host ?? "").split(",")[0]?.trim().toLowerCase().replace(/:\d+$/, "") ?? "";
 }
 
+function configuredLocalPort(
+  audience: AppAudience,
+  environment: Record<string, string | undefined>,
+) {
+  const value = environment.RIVERTON_APP_LOCAL_PORT?.trim();
+  if (!value) return appById.get(audience)!.localPort;
+  if (!/^\d{1,5}$/.test(value)) return null;
+  const port = Number(value);
+  return Number.isInteger(port) && port >= 1 && port <= 65_535 ? port : null;
+}
+
 export function resolveAppAudienceStrict(input: {
   host?: string;
   environment?: Record<string, string | undefined>;
 } = {}): AppAudience | null {
-  const configured = input.environment?.RIVERTON_APP_AUDIENCE ?? process.env.RIVERTON_APP_AUDIENCE;
+  const environment = input.environment ?? process.env;
+  const configured = environment.RIVERTON_APP_AUDIENCE;
   const host = normalizeHost(input.host);
   if (isAppAudience(configured)) {
     const configuredApp = appById.get(configured)!;
+    const localPort = configuredLocalPort(configured, environment);
+    if (localPort === null) return null;
     if (host === configuredApp.domain) return configured;
     if (host === "localhost" || host === "127.0.0.1") {
       const port = (input.host ?? "").match(/:(\d+)$/)?.[1];
-      return port === String(configuredApp.localPort) ? configured : null;
+      return port === String(localPort) ? configured : null;
     }
     return null;
   }

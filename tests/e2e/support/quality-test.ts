@@ -52,7 +52,12 @@ export const test = base.extend<QualityFixtures>({
         const requestHeaders = await route.request().allHeaders();
         const response = await route.fetch({
           url: forward.url,
-          headers: { ...requestHeaders, host: forward.host },
+          headers: {
+            ...requestHeaders,
+            host: forward.host,
+            "x-forwarded-for": "127.0.0.1",
+            "x-forwarded-proto": "https",
+          },
         });
         await route.fulfill({ response });
       } else if (isAllowedQualityNetworkUrl(url)) await route.continue();
