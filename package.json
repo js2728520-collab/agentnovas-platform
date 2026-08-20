@@ -25,6 +25,11 @@
     "test:smoke:built": "RIVERTON_APP_AUDIENCE=client node scripts/smoke-next-render.mjs",
     "test:all": "node --test --experimental-strip-types tests/*.test.mjs",
     "test:apps": "npm run build:client && npm run build:operations && npm run build:maintenance",
+    "test:e2e": "node scripts/quality/run-e2e.mjs",
+    "test:e2e:direct": "playwright test",
+    "quality:bundle": "node scripts/quality/check-next-bundle-budget.mjs",
+    "quality:lighthouse": "lhci autorun --config=scripts/quality/lighthouserc.cjs",
+    "quality:release": "node scripts/quality/verify-release-evidence.mjs",
     "lint": "eslint app apps db lib packages scripts tests drizzle.config.ts eslint.config.mjs next.config.ts postcss.config.mjs --ignore-pattern 'dist' --ignore-pattern '.next' --ignore-pattern '.next-*' --no-warn-ignored",
     "db:generate": "drizzle-kit generate",
     "postgres:migrate": "node --experimental-strip-types scripts/apply-postgres-migrations.mjs",
@@ -48,8 +53,11 @@
     "simple-icons": "^16.21.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "9.39.4",
+    "@lhci/cli": "^0.15.1",
     "@next/eslint-plugin-next": "16.2.6",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/pg": "^8.23.1",
