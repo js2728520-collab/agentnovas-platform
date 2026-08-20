@@ -197,6 +197,23 @@ SELECT id, provider, label, enabled, kill_switch_enabled,
        last_verified_at, last_verification_status, created_at, updated_at
 FROM platform_demo_accounts;
 
+CREATE OR REPLACE FUNCTION invalidate_platform_demo_credential_verification()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.api_key_ciphertext IS DISTINCT FROM OLD.api_key_ciphertext
+     OR NEW.secret_ciphertext IS DISTINCT FROM OLD.secret_ciphertext
+     OR NEW.passphrase_ciphertext IS DISTINCT FROM OLD.passphrase_ciphertext THEN
+    NEW.last_verified_at := NULL;
+    NEW.last_verification_status := NULL;
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_platform_demo_credential_verification ON platform_demo_accounts;
+CREATE TRIGGER trg_platform_demo_credential_verification
+BEFORE UPDATE OF api_key_ciphertext, secret_ciphertext, passphrase_ciphertext ON platform_demo_accounts
+FOR EACH ROW EXECUTE FUNCTION invalidate_platform_demo_credential_verification();
+
 CREATE TABLE IF NOT EXISTS platform_demo_card_controls (
   provider text NOT NULL CHECK (provider IN ('okx', 'binance', 'bybit')),
   strategy_code text NOT NULL CHECK (strategy_code IN (

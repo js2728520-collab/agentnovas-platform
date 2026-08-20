@@ -130,6 +130,15 @@ test("demo intents require a recently verified platform account", async () => {
   });
   assert.equal(verified.status, "passed");
   assert.equal((await createPlatformDemoIntent(pool, intentInput())).status, "pending");
+  await pool.query(`
+    UPDATE platform_demo_accounts
+    SET secret_ciphertext = 'rotated-fixture-secret'
+    WHERE provider = 'binance'
+  `);
+  await assert.rejects(
+    createPlatformDemoIntent(pool, intentInput({ decisionRoundId: "rotated-secret-round" })),
+    /近期验证|verified|verification/i,
+  );
 });
 
 test("demo queue leases use fencing and heartbeat renewal", async () => {
