@@ -161,3 +161,20 @@ test("client and operations statement lists select replacement lineage", async (
     assert.match(source, /performanceStatementDto/);
   }
 });
+
+test("commercial decision routes require an explicitly selected payment evidence", async () => {
+  for (const file of [
+    "app/api/operations/membership-orders/[id]/decision/route.ts",
+    "app/api/operations/performance-statements/[id]/payment-decision/route.ts",
+  ]) {
+    const source = await readFile(new URL(file, root), "utf8");
+    assert.match(source, /requiredString\(b,"paymentEvidenceId"/);
+    assert.match(source, /paymentEvidenceId/);
+  }
+  const adapter = await readFile(
+    new URL("lib/commercial-approval-adapter.ts", root),
+    "utf8",
+  );
+  assert.match(adapter, /membership_order[^\n]+paymentEvidenceId:string/);
+  assert.match(adapter, /performance_payment[^\n]+paymentEvidenceId:string/);
+});

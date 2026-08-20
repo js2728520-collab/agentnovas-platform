@@ -59,10 +59,27 @@ test("commercial migration seeds immutable v1 price snapshots and approval primi
   assert.match(sql, /WHERE status <> 'rejected'/i);
   assert.match(
     sql,
-    /CREATE UNIQUE INDEX[^;]+commercial_payment_evidence\s*\(evidence_kind,\s*currency,\s*reference_fingerprint\)/i,
+    /CREATE UNIQUE INDEX[^;]+commercial_payment_evidence\s*\(currency,\s*reference_fingerprint\)/i,
+  );
+  assert.doesNotMatch(
+    sql,
+    /CREATE UNIQUE INDEX[^;]+commercial_payment_evidence\s*\(evidence_kind,/i,
   );
   assert.match(
     sql,
     /commercial_membership_order_decisions[\s\S]+payment_evidence_id text REFERENCES commercial_payment_evidence/i,
   );
+  assert.match(
+    sql,
+    /FOREIGN KEY\s*\(payment_evidence_id,\s*order_id\)[\s\S]+REFERENCES commercial_payment_evidence\s*\(id,\s*membership_order_id\)/i,
+  );
+  assert.match(
+    sql,
+    /FOREIGN KEY\s*\(payment_evidence_id,\s*statement_id\)[\s\S]+REFERENCES commercial_payment_evidence\s*\(id,\s*performance_statement_id\)/i,
+  );
+  assert.match(
+    sql,
+    /commercial_membership_order_decisions[\s\S]+ALTER COLUMN payment_evidence_id SET NOT NULL/i,
+  );
+  assert.match(sql, /stage='payment'[\s\S]+payment_evidence_id IS NOT NULL/i);
 });

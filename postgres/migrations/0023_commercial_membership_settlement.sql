@@ -132,12 +132,13 @@ DO $$ BEGIN
     ALTER TABLE commercial_payment_evidence ADD CONSTRAINT commercial_payment_evidence_status_check CHECK (status IN ('recorded','rejected','accepted'));
   END IF;
 END $$;
--- evidence_kind is the current controlled payment rail; provider_label is display-only.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_global_semantic_key
-  ON commercial_payment_evidence(evidence_kind, currency, reference_fingerprint);
--- This stricter lock also prevents the same rail reference crossing USD membership and USDT fees.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_global_reference
-  ON commercial_payment_evidence(evidence_kind, reference_fingerprint);
+-- evidence_kind and provider_label are caller-supplied descriptions, not trusted payment rails.
+DROP INDEX IF EXISTS idx_commercial_evidence_global_semantic_key;
+DROP INDEX IF EXISTS idx_commercial_evidence_global_reference;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_currency_reference
+  ON commercial_payment_evidence(currency, reference_fingerprint);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_membership_identity
+  ON commercial_payment_evidence(id, membership_order_id);
 
 CREATE TABLE IF NOT EXISTS commercial_membership_order_decisions (
   id text PRIMARY KEY,
@@ -151,6 +152,37 @@ CREATE TABLE IF NOT EXISTS commercial_membership_order_decisions (
   UNIQUE(order_id, reviewer_user_id)
 );
 ALTER TABLE commercial_membership_order_decisions ADD COLUMN IF NOT EXISTS payment_evidence_id text REFERENCES commercial_payment_evidence(id) ON DELETE RESTRICT;
+WITH ranked_membership_evidence AS (
+  SELECT d.id AS decision_id,e.id AS evidence_id,
+         row_number() OVER (PARTITION BY d.id ORDER BY e.created_at DESC,e.id DESC) AS rank
+  FROM commercial_membership_order_decisions d
+  JOIN commercial_membership_orders o ON o.id=d.order_id
+  JOIN commercial_payment_evidence e
+    ON e.membership_order_id=d.order_id
+   AND e.currency=o.price_currency
+   AND e.amount=o.price_amount
+   AND e.recorded_by_user_id<>d.reviewer_user_id
+   AND e.created_at<=d.created_at
+  WHERE d.payment_evidence_id IS NULL
+)
+UPDATE commercial_membership_order_decisions d
+SET payment_evidence_id=ranked.evidence_id
+FROM ranked_membership_evidence ranked
+WHERE d.id=ranked.decision_id AND ranked.rank=1;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM commercial_membership_order_decisions WHERE payment_evidence_id IS NULL) THEN
+    RAISE EXCEPTION 'COMMERCIAL_MEMBERSHIP_DECISION_EVIDENCE_BACKFILL_REQUIRED';
+  END IF;
+END $$;
+ALTER TABLE commercial_membership_order_decisions ALTER COLUMN payment_evidence_id SET NOT NULL;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_membership_decision_evidence_subject' AND conrelid='commercial_membership_order_decisions'::regclass) THEN
+    ALTER TABLE commercial_membership_order_decisions
+      ADD CONSTRAINT fk_membership_decision_evidence_subject
+      FOREIGN KEY(payment_evidence_id,order_id)
+      REFERENCES commercial_payment_evidence(id,membership_order_id) ON DELETE RESTRICT;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS membership_entitlement_events (
   id text PRIMARY KEY,
@@ -278,6 +310,8 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_statement_fingerprint
   ON commercial_payment_evidence(performance_statement_id, reference_fingerprint)
   WHERE performance_statement_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_statement_identity
+  ON commercial_payment_evidence(id, performance_statement_id);
 
 CREATE TABLE IF NOT EXISTS performance_fee_decisions (
   id text PRIMARY KEY,
@@ -303,6 +337,40 @@ CREATE TABLE IF NOT EXISTS performance_fee_receivables (
   created_at timestamptz NOT NULL DEFAULT now(),
   paid_at timestamptz
 );
+WITH ranked_performance_evidence AS (
+  SELECT d.id AS decision_id,e.id AS evidence_id,
+         row_number() OVER (PARTITION BY d.id ORDER BY e.created_at DESC,e.id DESC) AS rank
+  FROM performance_fee_decisions d
+  JOIN performance_fee_receivables r ON r.statement_id=d.statement_id
+  JOIN commercial_payment_evidence e
+    ON e.performance_statement_id=d.statement_id
+   AND e.currency=r.currency
+   AND e.amount=r.amount
+   AND e.recorded_by_user_id<>d.reviewer_user_id
+   AND e.created_at<=d.created_at
+  WHERE d.stage='payment' AND d.payment_evidence_id IS NULL
+)
+UPDATE performance_fee_decisions d
+SET payment_evidence_id=ranked.evidence_id
+FROM ranked_performance_evidence ranked
+WHERE d.id=ranked.decision_id AND ranked.rank=1;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM performance_fee_decisions WHERE stage='payment' AND payment_evidence_id IS NULL) THEN
+    RAISE EXCEPTION 'PERFORMANCE_PAYMENT_DECISION_EVIDENCE_BACKFILL_REQUIRED';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='performance_fee_decisions_evidence_stage_check' AND conrelid='performance_fee_decisions'::regclass) THEN
+    ALTER TABLE performance_fee_decisions
+      ADD CONSTRAINT performance_fee_decisions_evidence_stage_check
+      CHECK ((stage='payment' AND payment_evidence_id IS NOT NULL)
+          OR (stage='assessment' AND payment_evidence_id IS NULL));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_performance_decision_evidence_subject' AND conrelid='performance_fee_decisions'::regclass) THEN
+    ALTER TABLE performance_fee_decisions
+      ADD CONSTRAINT fk_performance_decision_evidence_subject
+      FOREIGN KEY(payment_evidence_id,statement_id)
+      REFERENCES commercial_payment_evidence(id,performance_statement_id) ON DELETE RESTRICT;
+  END IF;
+END $$;
 
 CREATE OR REPLACE VIEW commercial_closed_paper_pnl AS
 SELECT d.owner_user_id AS user_id, d.strategy_id, p.closed_at, p.realized_net_pnl_usdt

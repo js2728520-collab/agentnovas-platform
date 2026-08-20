@@ -317,7 +317,7 @@ export async function recordMembershipPaymentEvidence(
       currency: input.currency,
     });
     if (claim.replayed) return claim.response;
-    if (!["pending_evidence", "pending_review"].includes(row.status))
+    if (row.status !== "pending_evidence")
       throw new ResearchApiError(
         "ORDER_STATE_CONFLICT",
         "当前订单状态不可记录凭证",
@@ -346,8 +346,8 @@ export async function recordMembershipPaymentEvidence(
     const created = Boolean(evidence);
     if (!evidence) {
       const existing = await client.query(
-        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE evidence_kind=$1 AND reference_fingerprint=$2 FOR SHARE`,
-        [input.evidenceKind, fingerprint],
+        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE currency=$1 AND reference_fingerprint=$2 FOR SHARE`,
+        [input.currency, fingerprint],
       );
       evidence = existing.rows[0];
       if (
@@ -463,6 +463,7 @@ export async function decideMembershipOrder(
     reviewerUserId: string;
     decision: "approve" | "reject";
     note: string;
+    paymentEvidenceId: string;
     idempotencyKey: string;
     requestId: string;
   },
@@ -494,7 +495,11 @@ export async function decideMembershipOrder(
       resourceId: row.user_id,
       stage: "decision",
       decision: input.decision,
-      payload: { decision: input.decision, note: input.note },
+      payload: {
+        decision: input.decision,
+        note: input.note,
+        paymentEvidenceId: input.paymentEvidenceId,
+      },
       sourceType: "commercial_membership_order",
       sourceId: row.id,
       currency: row.price_currency,
@@ -519,8 +524,8 @@ export async function decideMembershipOrder(
       id: string;
       recorded_by_user_id: string;
     }>(
-      `SELECT id,recorded_by_user_id FROM commercial_payment_evidence WHERE membership_order_id=$1 AND currency=$2 AND amount=$3::numeric AND status='recorded' ORDER BY created_at DESC,id DESC LIMIT 1 FOR UPDATE`,
-      [row.id, row.price_currency, row.price_amount],
+      `SELECT id,recorded_by_user_id FROM commercial_payment_evidence WHERE id=$1 AND membership_order_id=$2 AND currency=$3 AND amount=$4::numeric AND status='recorded' FOR UPDATE`,
+      [input.paymentEvidenceId, row.id, row.price_currency, row.price_amount],
     );
     const selected = evidence.rows[0];
     if (!selected)

@@ -541,8 +541,8 @@ export async function recordPerformancePaymentEvidence(
     const created = Boolean(evidence);
     if (!evidence) {
       const existing = await client.query(
-        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE evidence_kind=$1 AND reference_fingerprint=$2 FOR SHARE`,
-        [input.evidenceKind, fingerprint],
+        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE currency=$1 AND reference_fingerprint=$2 FOR SHARE`,
+        [input.currency, fingerprint],
       );
       evidence = existing.rows[0];
       if (
@@ -591,6 +591,7 @@ export async function decidePerformancePayment(
     reviewerUserId: string;
     decision: "approve" | "reject";
     note: string;
+    paymentEvidenceId: string;
     idempotencyKey: string;
     requestId: string;
   },
@@ -622,7 +623,11 @@ export async function decidePerformancePayment(
       resourceId: row.user_id,
       stage: "payment",
       decision: input.decision,
-      payload: { decision: input.decision, note: input.note },
+      payload: {
+        decision: input.decision,
+        note: input.note,
+        paymentEvidenceId: input.paymentEvidenceId,
+      },
       sourceType: "performance_fee_statement",
       sourceId: input.statementId,
       currency: "USDT",
@@ -638,8 +643,8 @@ export async function decidePerformancePayment(
       id: string;
       recorded_by_user_id: string;
     }>(
-      `SELECT e.id,e.recorded_by_user_id FROM commercial_payment_evidence e JOIN performance_fee_receivables r ON r.statement_id=e.performance_statement_id WHERE e.performance_statement_id=$1 AND e.currency=r.currency AND e.amount=r.amount AND e.status='recorded' ORDER BY e.created_at DESC,e.id DESC LIMIT 1 FOR UPDATE OF e`,
-      [input.statementId],
+      `SELECT e.id,e.recorded_by_user_id FROM commercial_payment_evidence e JOIN performance_fee_receivables r ON r.statement_id=e.performance_statement_id WHERE e.id=$1 AND e.performance_statement_id=$2 AND e.currency=r.currency AND e.amount=r.amount AND e.status='recorded' FOR UPDATE OF e`,
+      [input.paymentEvidenceId, input.statementId],
     );
     const selected = evidence.rows[0];
     if (!selected)
