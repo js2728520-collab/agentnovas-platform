@@ -58,8 +58,10 @@ test("an invited internal member, explicit assignment, audience token, and encry
   assert.ok(assignment.permissions.includes("ops.team.view"));
   const token = (await pool.query("SELECT token_audience FROM auth_tokens WHERE user_id = 'employee'")).rows[0];
   assert.equal(token.token_audience, "operations");
-  const delivery = (await pool.query("SELECT payload_json FROM notification_deliveries WHERE user_id = 'employee'")).rows[0];
+  const delivery = (await pool.query("SELECT payload_json, secret_kind, secret_expires_at FROM notification_deliveries WHERE user_id = 'employee'")).rows[0];
   assert.doesNotMatch(delivery.payload_json, /activation-hash|one-time-bearer/);
   assert.match(delivery.payload_json, /encryptedToken/);
   assert.equal(JSON.parse(delivery.payload_json).expiresAt, "2026-08-22T00:00:00.000Z");
+  assert.equal(delivery.secret_kind, "internal_account_invite");
+  assert.equal(delivery.secret_expires_at.toISOString(), "2026-08-22T00:00:00.000Z");
 });

@@ -68,8 +68,9 @@ export async function provisionInternalMember(pool: Pool, input: {
     `, [crypto.randomUUID(), input.userId, input.activationTokenHash, activationExpiresAt]);
     await client.query(`
       INSERT INTO notification_deliveries (
-        id, user_id, channel, category, template_key, payload_json, scheduled_at
-      ) VALUES ($1, $2, 'email', 'login_security', 'internal_account_invite', $3, $4)
+        id, user_id, channel, category, template_key, payload_json, scheduled_at,
+        secret_kind, secret_expires_at
+      ) VALUES ($1, $2, 'email', 'login_security', 'internal_account_invite', $3, $4, 'internal_account_invite', $5)
     `, [
       crypto.randomUUID(), input.userId,
       JSON.stringify({
@@ -80,6 +81,7 @@ export async function provisionInternalMember(pool: Pool, input: {
         expiresAt: activationExpiresAt.toISOString(),
       }),
       now.toISOString(),
+      activationExpiresAt,
     ]);
     await client.query(`
       INSERT INTO audit_logs (id, actor_user_id, action, subject_type, subject_id, after_json, created_at)

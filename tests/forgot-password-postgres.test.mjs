@@ -41,10 +41,12 @@ test("known and unknown forgot requests execute the same atomic PG path and only
   assert.deepEqual(known, { queued: true });
   assert.deepEqual(unknown, { queued: false });
   assert.equal((await pool.query("SELECT count(*)::int AS count FROM auth_tokens")).rows[0].count, 1);
-  const deliveries = (await pool.query("SELECT payload_json FROM notification_deliveries")).rows;
+  const deliveries = (await pool.query("SELECT payload_json, secret_kind, secret_expires_at FROM notification_deliveries")).rows;
   assert.equal(deliveries.length, 1);
   const payload = JSON.parse(deliveries[0].payload_json);
   assert.match(payload.encryptedToken, /^v1\./);
   assert.equal(payload.expiresAt, "2026-08-20T01:00:00.000Z");
   assert.equal(Object.hasOwn(payload, "token"), false);
+  assert.equal(deliveries[0].secret_kind, "reset_password");
+  assert.equal(deliveries[0].secret_expires_at.toISOString(), "2026-08-20T01:00:00.000Z");
 });

@@ -62,6 +62,56 @@ SET "status" = 'failed',
 WHERE "template_key" IN ('reset_password', 'internal_account_invite')
   AND "payload_json" ~ '"token"[[:space:]]*:';
 
+-- Bearer-secret retention is metadata-driven. Outbox payloads remain opaque
+-- text and must never be cast to json/jsonb by a cleanup path.
+ALTER TABLE "notification_deliveries"
+  ADD COLUMN IF NOT EXISTS "secret_kind" text,
+  ADD COLUMN IF NOT EXISTS "secret_expires_at" timestamptz;
+
+-- Builds before typed retention metadata encrypted tokens inside payload_json.
+-- Migrations cannot safely infer their expiry without parsing untrusted text,
+-- so fail closed and let the account holder request a fresh link.
+UPDATE "notification_deliveries"
+SET "status" = 'failed',
+    "payload_json" = '{}',
+    "last_error" = 'LEGACY_UNTYPED_SECRET_PURGED',
+    "secret_kind" = NULL,
+    "secret_expires_at" = NULL,
+    "lease_owner" = NULL,
+    "lease_expires_at" = NULL,
+    "updated_at" = now()
+WHERE "template_key" IN ('reset_password', 'internal_account_invite')
+  AND "secret_kind" IS NULL
+  AND "secret_expires_at" IS NULL
+  AND "payload_json" LIKE '%"encryptedToken"%';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'notification_deliveries_secret_metadata_check'
+      AND conrelid = 'notification_deliveries'::regclass
+  ) THEN
+    ALTER TABLE "notification_deliveries"
+      ADD CONSTRAINT notification_deliveries_secret_metadata_check
+      CHECK (
+        ("secret_kind" IS NULL AND "secret_expires_at" IS NULL)
+        OR (
+          "secret_kind" = "template_key"
+          AND "secret_kind" IN ('reset_password', 'internal_account_invite')
+          AND "secret_expires_at" IS NOT NULL
+        )
+      ) NOT VALID;
+  END IF;
+END $$;
+
+ALTER TABLE "notification_deliveries"
+  VALIDATE CONSTRAINT notification_deliveries_secret_metadata_check;
+
+CREATE INDEX IF NOT EXISTS "idx_notification_deliveries_secret_expiry"
+  ON "notification_deliveries" ("secret_expires_at")
+  WHERE "secret_kind" IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS "user_mfa_totp_credentials" (
   "user_id" text PRIMARY KEY REFERENCES "users"("id") ON DELETE CASCADE,
   "encrypted_secret" text NOT NULL,

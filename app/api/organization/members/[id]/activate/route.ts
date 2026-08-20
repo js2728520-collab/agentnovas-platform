@@ -60,6 +60,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         id: crypto.randomUUID(), userId: member.id, channel: "email", category: "login_security",
         templateKey: "internal_account_invite",
         payloadJson: JSON.stringify({ encryptedToken, role: member.role, activation: true, audience: "operations", expiresAt }),
+        secretKind: "internal_account_invite",
+        secretExpiresAt: expiresAt,
         scheduledAt: now,
       }),
       db.insert(auditLogs).values({

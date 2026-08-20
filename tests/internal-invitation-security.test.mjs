@@ -17,4 +17,6 @@ test("internal invitations and activation never return or queue plaintext tempor
   assert.match(files[0], /encryptedToken/);
   assert.doesNotMatch(files[0], /payloadJson:\s*JSON\.stringify\(\{ token:/);
   assert.doesNotMatch(files[1], /passwordHash/);
+  assert.match(files[1], /secretKind:\s*"internal_account_invite"/);
+  assert.match(files[2], /secret_kind, secret_expires_at/);
 });

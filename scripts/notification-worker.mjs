@@ -14,9 +14,7 @@ import { businessDatabaseUrl } from "../lib/postgres.ts";
 
 const connectionString = businessDatabaseUrl();
 if (!connectionString) throw new Error("DATABASE_URL is required");
-if (!notificationSendEnvironmentReady(process.env)) {
-  throw new Error("Notification email sending is disabled or incompletely configured");
-}
+const sendEnabled = notificationSendEnvironmentReady(process.env);
 
 const poolSize = Number(process.env.NOTIFICATION_WORKER_POOL_SIZE || 4);
 const pool = new pg.Pool({
@@ -26,7 +24,7 @@ const pool = new pg.Pool({
 });
 
 const workerId = `${os.hostname().replace(/[^a-z0-9.-]/gi, "-").slice(0, 60)}-${process.pid}`;
-const apiKey = process.env.RESEND_API_KEY.trim();
+const apiKey = process.env.RESEND_API_KEY?.trim() ?? "";
 let stopping = false;
 let nextSecretCleanupAt = 0;
 
@@ -43,8 +41,18 @@ try {
   while (!stopping) {
     const now = new Date();
     if (now.getTime() >= nextSecretCleanupAt) {
-      await purgeExpiredNotificationSecrets(pool, now);
+      try {
+        await purgeExpiredNotificationSecrets(pool, now);
+      } catch (error) {
+        console.error("Notification secret cleanup failed", {
+          code: error instanceof Error ? error.name : "UNKNOWN",
+        });
+      }
       nextSecretCleanupAt = now.getTime() + 5 * 60_000;
+    }
+    if (!sendEnabled) {
+      await delay(5_000);
+      continue;
     }
     const config = await loadResendProviderConfig(pool);
     if (!config || !providerConfigAllowsSend(config)) {

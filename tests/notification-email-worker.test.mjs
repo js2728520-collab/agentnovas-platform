@@ -133,7 +133,7 @@ test("claim uses a fenced SKIP LOCKED lease and sent updates require owner", asy
   const client = {
     query: async (sql, parameters) => {
       queries.push({ sql, parameters });
-      if (/RETURNING/.test(sql)) return { rows: [{ id: "delivery-1", userId: "user-1", templateKey: "reset_password", payloadJson: { token: "x" }, attempts: 1, recipient: "person@example.com" }] };
+      if (/RETURNING/.test(sql)) return { rows: [{ id: "delivery-1", userId: "user-1", templateKey: "reset_password", payloadJson: { token: "x" }, secretKind: "reset_password", secretExpiresAt: "2026-08-20T01:00:00.000Z", attempts: 1, recipient: "person@example.com" }] };
       return { rows: [], rowCount: 1 };
     },
     release() {},
@@ -158,6 +158,8 @@ test("invalid synthetic recipient fails permanently without invoking sender", as
     userId: "user-1",
     templateKey: "reset_password",
     payloadJson: { token: "secret-token" },
+    secretKind: "reset_password",
+    secretExpiresAt: "2026-08-20T01:00:00.000Z",
     attempts: 1,
     recipient: "generated@unverified.agentnovas.local",
   }, {
@@ -180,6 +182,8 @@ test("a fenced delivery update is never reported as sent", async () => {
     userId: "user-1",
     templateKey: "reset_password",
     payloadJson: { encryptedToken, audience: "client", expiresAt: "2026-08-20T01:00:00.000Z" },
+    secretKind: "reset_password",
+    secretExpiresAt: "2026-08-20T01:00:00.000Z",
     attempts: 1,
     recipient: "person@example.com",
   }, {
@@ -201,6 +205,8 @@ test("expired encrypted token payloads are cleared without decrypting or sending
     userId: "user-1",
     templateKey: "reset_password",
     payloadJson: { encryptedToken: "not-even-decrypted", audience: "client", expiresAt: "2026-08-19T23:59:59.000Z" },
+    secretKind: "reset_password",
+    secretExpiresAt: "2026-08-19T23:59:59.000Z",
     attempts: 1,
     recipient: "person@example.com",
   }, {
@@ -216,12 +222,14 @@ test("expired encrypted token payloads are cleared without decrypting or sending
   assert.match(updates[0].sql, /payload_json = CASE/);
 });
 
-test("retention cleanup clears terminal, malformed, and timed-out encrypted token payloads", async () => {
+test("retention cleanup uses typed metadata and never parses payload text", async () => {
   const queries = [];
   const pool = { query: async (sql, parameters) => { queries.push({ sql, parameters }); return { rowCount: 3, rows: [] }; } };
   assert.equal(await purgeExpiredNotificationSecrets(pool, new Date("2026-08-20T00:00:00.000Z")), 3);
   assert.match(queries[0].sql, /payload_json = '\{\}'/);
-  assert.match(queries[0].sql, /payload_json::jsonb ->> 'expiresAt'/);
+  assert.doesNotMatch(queries[0].sql, /payload_json::jsonb|payload_json::json/);
+  assert.match(queries[0].sql, /secret_expires_at <= \$1::timestamptz/);
+  assert.match(queries[0].sql, /secret_kind = NULL/);
   assert.match(queries[0].sql, /status IN \('sent', 'delivered', 'failed'\)/);
   assert.deepEqual(queries[0].parameters, ["2026-08-20T00:00:00.000Z"]);
 });

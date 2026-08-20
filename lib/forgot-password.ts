@@ -27,8 +27,8 @@ export async function queueForgotPasswordRequest(pool: Pick<Pool, "query">, inpu
       RETURNING user_id
     )
     INSERT INTO notification_deliveries
-      (id, user_id, channel, category, template_key, payload_json, scheduled_at)
-    SELECT $5, inserted_token.user_id, 'email', 'login_security', 'reset_password', $6, $7
+      (id, user_id, channel, category, template_key, payload_json, scheduled_at, secret_kind, secret_expires_at)
+    SELECT $5, inserted_token.user_id, 'email', 'login_security', 'reset_password', $6, $7, 'reset_password', $4::timestamptz
     FROM inserted_token
     RETURNING id
   `, [input.email, crypto.randomUUID(), tokenHash, expiresAt, crypto.randomUUID(), payload, now.toISOString()]);
