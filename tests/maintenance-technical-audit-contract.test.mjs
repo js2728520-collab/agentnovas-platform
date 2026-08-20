@@ -3,11 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("Maintenance exposes a permission guarded stable technical audit page", async () => {
-  const route = await readFile(new URL("../app/riverton-route.tsx", import.meta.url), "utf8");
+  const routeContract = await readFile(new URL("../app/riverton-route-contract.ts", import.meta.url), "utf8");
   const app = await readFile(new URL("../apps/maintenance/ui/maintenance-app.tsx", import.meta.url), "utf8");
   const api = await readFile(new URL("../app/api/maintenance/audit/route.ts", import.meta.url), "utf8");
   const query = await readFile(new URL("../lib/maintenance-technical-audit.ts", import.meta.url), "utf8");
-  assert.match(route, /MAINTENANCE_ROUTES[^\n]+"audit"/);
+  assert.match(routeContract, /MAINTENANCE_ROUTES[^\n]+"audit"/);
   assert.match(app, /href: "\/audit"[^\n]+maint\.audit\.view/);
   assert.match(app, /route === "audit" \? <TechnicalAuditWorkspace/);
   assert.match(api, /requireAccessPermission\(request, "maint\.audit\.view"\)/);
