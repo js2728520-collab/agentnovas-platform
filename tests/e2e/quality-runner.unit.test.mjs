@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -31,6 +31,67 @@ test("Playwright quality runner removes prior screenshots and runtime output", a
     assert.ok((await access(outputDirectory)) === undefined);
   } finally {
     await rm(repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test("quality output reset rejects target and ancestor symlinks without deleting an external canary", async () => {
+  for (const symlinkPosition of ["target", "outputs", "nested"]) {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), `agentnovas-quality-symlink-${symlinkPosition}-`));
+    const externalDirectory = await mkdtemp(join(tmpdir(), `agentnovas-quality-canary-${symlinkPosition}-`));
+    try {
+      let outputDirectory;
+      let externalTarget;
+      if (symlinkPosition === "target") {
+        await mkdir(join(repositoryRoot, "outputs"));
+        outputDirectory = join(repositoryRoot, "outputs", "quality-e2e");
+        externalTarget = externalDirectory;
+        await symlink(externalDirectory, outputDirectory, "dir");
+      } else if (symlinkPosition === "outputs") {
+        await symlink(externalDirectory, join(repositoryRoot, "outputs"), "dir");
+        outputDirectory = join(repositoryRoot, "outputs", "quality-e2e");
+        externalTarget = join(externalDirectory, "quality-e2e");
+      } else {
+        await mkdir(join(repositoryRoot, "outputs"));
+        await symlink(externalDirectory, join(repositoryRoot, "outputs", "redirect"), "dir");
+        outputDirectory = join(repositoryRoot, "outputs", "redirect", "quality-e2e");
+        externalTarget = join(externalDirectory, "quality-e2e");
+      }
+      await mkdir(externalTarget, { recursive: true });
+      const canary = join(externalTarget, "must-survive.txt");
+      await writeFile(canary, "outside-repository");
+
+      await assert.rejects(
+        () => resetQualityE2eOutput({ repositoryRoot, outputDirectory }),
+        /symbolic link|outside.*repository/i,
+      );
+      assert.equal(await readFile(canary, "utf8"), "outside-repository");
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+      await rm(externalDirectory, { recursive: true, force: true });
+    }
+  }
+});
+
+test("quality output reset rejects a symlinked repository root and safely creates a missing local target", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "agentnovas-quality-root-link-"));
+  const realRepositoryRoot = join(parent, "real-repository");
+  const linkedRepositoryRoot = join(parent, "linked-repository");
+  await mkdir(realRepositoryRoot);
+  await symlink(realRepositoryRoot, linkedRepositoryRoot, "dir");
+  try {
+    await assert.rejects(
+      () => resetQualityE2eOutput({
+        repositoryRoot: linkedRepositoryRoot,
+        outputDirectory: join(linkedRepositoryRoot, "outputs", "quality-e2e"),
+      }),
+      /symbolic link/i,
+    );
+
+    const outputDirectory = join(realRepositoryRoot, "outputs", "nested", "quality-e2e");
+    await resetQualityE2eOutput({ repositoryRoot: realRepositoryRoot, outputDirectory });
+    assert.ok((await access(outputDirectory)) === undefined);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
   }
 });
 
