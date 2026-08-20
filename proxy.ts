@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isRivertonPagePath } from "@/app/riverton-route-contract";
 import { ApiPolicyError, apiErrorResponse, evaluateApiRequestPolicy, requestIdFor } from "@/lib/api-policy";
 import { contentSecurityPolicy, createCspNonce } from "@/lib/content-security-policy";
 import { resolveAppAudienceStrict } from "@/lib/riverton-apps";
@@ -14,6 +15,19 @@ export function proxy(request: NextRequest) {
     );
     const nonce = createCspNonce();
     const policy = contentSecurityPolicy(nonce, process.env.NODE_ENV !== "production");
+    if (!isRivertonPagePath(audience, request.nextUrl.pathname)) {
+      const destination = request.nextUrl.clone();
+      destination.pathname = "/_not-found";
+      destination.search = "";
+      return NextResponse.rewrite(destination, {
+        status: 404,
+        headers: {
+          "cache-control": "no-store",
+          "content-security-policy": policy,
+          "x-request-id": requestId,
+        },
+      });
+    }
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-request-id", requestId);
     requestHeaders.set("x-riverton-app-audience", audience);
@@ -41,6 +55,6 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/api/:path*",
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json)$).*)",
   ],
 };

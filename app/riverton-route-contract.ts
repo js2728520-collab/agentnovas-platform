@@ -1,0 +1,46 @@
+import type { AppAudience } from "@/lib/riverton-apps";
+
+const CLIENT_ROUTES = new Set(["login", "membership", "credits", "paper", "trading-hall", "wallet", "notifications"]);
+const OPERATIONS_ROUTES = new Set(["login", "customers", "organization", "membership-orders", "performance-statements", "credits", "deposits", "ledger", "finance", "approvals", "access"]);
+const MAINTENANCE_ROUTES = new Set(["login", "models", "integrations", "health", "safety", "settings", "access", "audit"]);
+
+export function isRivertonAppRoute(audience: AppAudience, segments: string[]) {
+  const root = segments[0];
+  if (!root) return segments.length === 0;
+
+  if (audience === "client" && CLIENT_ROUTES.has(root)) {
+    if (root === "wallet") return segments.length === 1 || (segments.length === 2 && segments[1] === "deposits");
+    if (root === "membership") return segments.length === 1 || (segments.length === 2 && segments[1] === "orders");
+    if (root === "paper") return segments.length <= 2;
+    return segments.length === 1;
+  }
+
+  if (audience === "operations" && OPERATIONS_ROUTES.has(root)) {
+    if (["deposits", "membership-orders", "performance-statements"].includes(root)) return segments.length <= 2;
+    if (root === "access") return segments.length === 1 || (segments.length === 2 && segments[1] === "audit");
+    return segments.length === 1;
+  }
+
+  if (audience === "maintenance" && MAINTENANCE_ROUTES.has(root)) {
+    if (root === "integrations") {
+      return segments.length === 1
+        || (segments.length === 2 && ["email", "payments", "demo-exchanges"].includes(segments[1]));
+    }
+    if (root === "access") return segments.length === 1 || (segments.length === 2 && segments[1] === "audit");
+    return segments.length === 1;
+  }
+
+  return false;
+}
+
+export function isRivertonPagePath(audience: AppAudience, pathname: string) {
+  if (!pathname.startsWith("/") || pathname.includes("//")) return false;
+  const segments = pathname === "/" ? [] : pathname.slice(1).split("/");
+  if (segments.some((segment) => !segment)) return false;
+
+  if (segments.length === 1 && segments[0] === "_not-found") return true;
+  if (segments.length === 1 && segments[0] === "reset-password") return true;
+  if (segments.length === 1 && segments[0] === "verify-email") return audience === "client";
+  if (segments.length === 1 && segments[0] === "workspace") return audience === "client";
+  return isRivertonAppRoute(audience, segments);
+}
