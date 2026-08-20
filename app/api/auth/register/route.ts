@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { auditLogs, customerAttributions, invitations, memberships, notificationDeliveries, users } from "@/db/schema";
 import { hashPassword, normalizeEmail, sha256, validEmail } from "@/lib/auth";
+import { currentRequestAudience } from "@/lib/access-control";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
 import { clientIpFromRequest } from "@/lib/riverton-apps";
@@ -25,6 +26,9 @@ function normalizeInvitationCode(input: string) {
 
 export async function POST(request: Request) {
   try {
+    if (currentRequestAudience(request) !== "client") {
+      return Response.json({ error: "当前应用不提供客户注册" }, { status: 404 });
+    }
     const body = await request.json() as { phone?: string; email?: string; password?: string; invitationCode?: string };
     const phone = normalizePhone(body.phone ?? "");
     const email = normalizeEmail(body.email ?? "");

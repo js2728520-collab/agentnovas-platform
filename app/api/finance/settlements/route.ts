@@ -1,1 +1,41 @@
-import{desc,eq}from"drizzle-orm";import{getDb}from"@/db";import{approvalRequests,settlements}from"@/db/schema";import{branchApprovalRoles}from"@/lib/permissions";import{requireUser,responseError}from"@/lib/session";export async function GET(request:Request){try{const a=await requireUser(request,[...branchApprovalRoles]);return Response.json({settlements:await getDb().select().from(settlements).where(eq(settlements.beneficiaryId,a.organizationId!)).orderBy(desc(settlements.createdAt)).limit(200)})}catch(e){return responseError(e)}}export async function POST(request:Request){try{const a=await requireUser(request,[...branchApprovalRoles]);const b=await request.json()as{periodStart?:string,periodEnd?:string,beneficiaryId?:string,amountUsdt?:number,network?:"TRC20"|"ERC20"|"BEP20"};if(!b.periodStart||!b.periodEnd||!b.beneficiaryId||!b.network||!Number.isFinite(b.amountUsdt)||Number(b.amountUsdt)<=0)return Response.json({error:"结算期间、收款方、金额和网络均为必填"},{status:400});const id=crypto.randomUUID(),approvalId=crypto.randomUUID(),db=getDb();await db.batch([db.insert(settlements).values({id,kind:"organization_monthly",periodStart:b.periodStart,periodEnd:b.periodEnd,beneficiaryId:b.beneficiaryId,amountUsdt:Number(b.amountUsdt),network:b.network,status:"review",approvalId}),db.insert(approvalRequests).values({id:approvalId,type:"settlement_payment",branchId:a.organizationId,subjectType:"settlement",subjectId:id,payloadJson:JSON.stringify(b),requestedBy:a.id})]);return Response.json({settlementId:id,approvalId,status:"review"},{status:201})}catch(e){return responseError(e)}}
+import { requireAccessPermission } from "@/lib/access-control";
+import { getPostgresPool } from "@/lib/postgres";
+import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+
+export async function GET(request: Request) {
+  try {
+    const { user, scope } = await requireAccessPermission(request, "ops.ledger.view");
+    const pool = await getPostgresPool();
+    const params: unknown[] = [];
+    const where = scope === "PLATFORM" ? "TRUE" : user.organizationId && ["ORGANIZATION", "ORGANIZATION_SET"].includes(scope)
+      ? `beneficiary_id = $${params.push(user.organizationId)}` : "FALSE";
+    const result = await pool.query(`SELECT id, kind, period_start, period_end, beneficiary_id, amount_usdt, network, status, approval_id, created_at FROM settlements WHERE ${where} ORDER BY created_at DESC LIMIT 200`, params);
+    return Response.json({ settlements: result.rows.map((row) => ({ id: row.id, kind: row.kind, periodStart: row.period_start, periodEnd: row.period_end, beneficiaryId: row.beneficiary_id, amountUsdt: row.amount_usdt, network: row.network, status: row.status, approvalId: row.approval_id, createdAt: row.created_at })) }, { headers: { "cache-control": "no-store" } });
+  } catch (error) { return researchErrorResponse(error); }
+}
+
+export async function POST(request: Request) {
+  try {
+    const { user, scope } = await requireAccessPermission(request, "ops.reconciliation.run");
+    const body = await readResearchJson(request);
+    const periodStart = String(body.periodStart ?? "");
+    const periodEnd = String(body.periodEnd ?? "");
+    const beneficiaryId = String(body.beneficiaryId ?? "");
+    const network = String(body.network ?? "");
+    const amountUsdt = Number(body.amountUsdt);
+    const reason = String(body.reason ?? "").trim().slice(0, 500);
+    if (!periodStart || !periodEnd || !beneficiaryId || !["TRC20", "ERC20", "BEP20"].includes(network) || !Number.isFinite(amountUsdt) || amountUsdt <= 0 || !reason) throw new ResearchApiError("VALIDATION_ERROR", "结算期间、收款方、金额、网络和原因均为必填", 422);
+    if (scope !== "PLATFORM" && beneficiaryId !== user.organizationId) throw new ResearchApiError("FORBIDDEN", "不能为当前数据范围外的组织创建结算", 403);
+    const pool = await getPostgresPool();
+    const client = await pool.connect();
+    const settlementId = crypto.randomUUID();
+    const approvalId = crypto.randomUUID();
+    try {
+      await client.query("BEGIN");
+      await client.query(`INSERT INTO settlements (id, kind, period_start, period_end, beneficiary_id, amount_usdt, network, status, approval_id) VALUES ($1, 'organization_monthly', $2, $3, $4, $5, $6, 'review', $7)`, [settlementId, periodStart, periodEnd, beneficiaryId, amountUsdt, network, approvalId]);
+      await client.query(`INSERT INTO approval_requests (id, type, branch_id, subject_type, subject_id, payload_json, requested_by) VALUES ($1, 'settlement_payment', $2, 'settlement', $3, $4, $5)`, [approvalId, user.organizationId, settlementId, JSON.stringify({ periodStart, periodEnd, beneficiaryId, amountUsdt, network, reason }), user.id]);
+      await client.query("COMMIT");
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+    return Response.json({ settlementId, approvalId, status: "review", paymentExecuted: false }, { status: 201 });
+  } catch (error) { return researchErrorResponse(error); }
+}

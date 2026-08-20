@@ -203,6 +203,7 @@ export async function sendResendEmail(input: {
         subject: input.rendered.subject,
         text: input.rendered.text,
         html: input.rendered.html,
+        tags: [{ name: "notification_delivery_id", value: input.deliveryId }],
       }),
       signal: AbortSignal.timeout(15_000),
     });
@@ -295,9 +296,13 @@ export async function markEmailSent(pool: Pick<Pool, "query">, input: {
 }) {
   return fencedUpdate(pool,
     `UPDATE notification_deliveries
-        SET status = 'sent', provider_message_id = $3, sent_at = $4,
-            last_error = NULL, lease_owner = NULL, lease_expires_at = NULL, updated_at = $4
-      WHERE id = $1 AND lease_owner = $2`,
+        SET status = CASE WHEN status IN ('delivered', 'failed') THEN status ELSE 'sent' END,
+            provider_message_id = $3,
+            sent_at = COALESCE(sent_at, $4),
+            last_error = CASE WHEN status = 'failed' THEN last_error ELSE NULL END,
+            lease_owner = NULL, lease_expires_at = NULL, updated_at = $4
+      WHERE id = $1 AND lease_owner = $2
+        AND (provider_message_id IS NULL OR provider_message_id = $3)`,
     [input.deliveryId, input.workerId, input.providerMessageId, input.now.toISOString()],
   );
 }
@@ -349,10 +354,12 @@ export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: C
     rendered: rendered!,
   });
   if (result.ok) {
-    await markEmailSent(pool, { deliveryId: delivery.id, workerId: input.workerId, providerMessageId: result.providerMessageId, now: input.now?.() ?? new Date() });
+    const updated = await markEmailSent(pool, { deliveryId: delivery.id, workerId: input.workerId, providerMessageId: result.providerMessageId, now: input.now?.() ?? new Date() });
+    if (!updated) return { status: "fenced" as const, providerMessageId: result.providerMessageId };
     return { status: "sent" as const, providerMessageId: result.providerMessageId };
   }
-  await markEmailFailed(pool, { deliveryId: delivery.id, workerId: input.workerId, errorCode: result.errorCode, retryable: result.retryable, attempts: delivery.attempts, now: input.now?.() ?? new Date() });
+  const updated = await markEmailFailed(pool, { deliveryId: delivery.id, workerId: input.workerId, errorCode: result.errorCode, retryable: result.retryable, attempts: delivery.attempts, now: input.now?.() ?? new Date() });
+  if (!updated) return { status: "fenced" as const, errorCode: result.errorCode };
   return { status: result.retryable && delivery.attempts < NOTIFICATION_MAX_ATTEMPTS ? "retrying" as const : "failed" as const, errorCode: result.errorCode };
 }
 

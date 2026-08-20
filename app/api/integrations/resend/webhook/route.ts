@@ -1,6 +1,6 @@
 import { ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { getPostgresPool } from "@/lib/postgres";
-import { verifyResendWebhook } from "@/lib/resend-webhook";
+import { applyResendWebhookEvent, verifyResendWebhook } from "@/lib/resend-webhook";
 
 const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 
@@ -47,17 +47,17 @@ export async function POST(request: Request) {
       throw new ResearchApiError("INVALID_JSON", "Resend Webhook JSON 无效", 400);
     }
 
-    const eventType = typeof payload.type === "string" ? payload.type : null;
     const pool = await getPostgresPool();
-    const result = await pool.query(
-      `INSERT INTO resend_webhook_events (event_id, event_type, payload_json)
-       VALUES ($1, $2, $3::jsonb)
-       ON CONFLICT (event_id) DO NOTHING
-       RETURNING event_id`,
-      [verified.eventId, eventType, JSON.stringify(payload)],
-    );
-    const duplicate = result.rowCount === 0;
-    return Response.json({ received: true, duplicate, queued: false }, { status: 202 });
+    let result: Awaited<ReturnType<typeof applyResendWebhookEvent>>;
+    try {
+      result = await applyResendWebhookEvent(pool, { eventId: verified.eventId, payload });
+    } catch (error) {
+      if (error instanceof Error && error.message === "INVALID_WEBHOOK_PAYLOAD") {
+        throw new ResearchApiError("INVALID_WEBHOOK_PAYLOAD", "Resend Webhook 事件字段无效", 400);
+      }
+      throw error;
+    }
+    return Response.json({ received: true, ...result, queued: false }, { status: 200 });
   } catch (error) {
     return researchErrorResponse(error);
   }

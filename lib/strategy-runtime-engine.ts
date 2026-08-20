@@ -10,8 +10,8 @@ export const runtimeAgentRoles = [
   "strategy_decision",
   "adversarial_review",
   "risk",
+  "decision",
   "execution",
-  "audit",
 ] as const;
 
 type RuntimeAction = "enter_long" | "enter_short" | "exit" | "hold";
@@ -147,11 +147,17 @@ export function evaluateStrategyRuntimeCycle(input: {
   const events = [
     { role: "market_data", conclusion: "完整 K 线与数据质量已确认", evidence: { ...quality, ...marketState, firstOpenTime: input.candles[0].openTime, candleCloseTime: candle.closeTime } },
     { role: "technical_analysis", conclusion: "DSL 指标与条件树已计算", evidence: { longEntry, shortEntry, dslExit, close: candle.close } },
-    { role: "strategy_decision", conclusion: `固定策略版本结论：${action}`, evidence: { action, reason, strategyVersionId: input.strategyVersionId } },
+    { role: "strategy_decision", conclusion: `候选策略方案：${action}`, evidence: { action, reason, strategyVersionId: input.strategyVersionId } },
     { role: "adversarial_review", conclusion: objections.length ? "发现运行异议" : "未发现阻断性运行异议", evidence: { objections } },
     { role: "risk", conclusion: riskApproved ? "确定性风控允许该结论" : "确定性风控拒绝新开仓", evidence: { riskState: input.riskState, rejectionReasons } },
-    { role: "execution", conclusion: orderIntent ? "已生成幂等订单意图" : "本周期不生成订单意图", evidence: { orderIntent } },
-    { role: "audit", conclusion: "周期输入、版本与七角色输出已形成审计记录", evidence: { deploymentId: input.deploymentId, strategyVersionId: input.strategyVersionId, candleCloseTime: candle.closeTime } },
+    {
+      role: "decision",
+      conclusion: riskApproved
+        ? action === "hold" ? "AI 最终决策：等待" : "AI 最终决策：允许进入模拟执行"
+        : "AI 最终决策：拒绝新开仓",
+      evidence: { action, reason, riskApproved, rejectionReasons },
+    },
+    { role: "execution", conclusion: orderIntent ? "已生成影子/模拟订单意图" : "本周期未生成执行意图", evidence: { orderIntent, executionMode: input.mode } },
   ].map((event, sequence) => ({ ...event, sequence: sequence + 1, durationMs: 0, llmUsed: false }));
   return { specification, candle, decision, orderIntent, events };
 }

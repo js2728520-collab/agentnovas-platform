@@ -1,3 +1,96 @@
-import{desc,eq}from"drizzle-orm";import{getDb}from"@/db";import{auditLogs,customerAttributions,customerHandoverNotes,customerProfiles,users}from"@/db/schema";import{canSeeCustomer}from"@/lib/permissions";import{requireUser,responseError}from"@/lib/session";const roles=["hq_admin","hq_support","branch_admin","manager","supervisor","employee","finance","auditor"]as const;
-export async function GET(request:Request){try{const actor=await requireUser(request,[...roles]),db=getDb(),rows=await db.select({customerId:users.id,email:users.email,status:users.status,registeredAt:users.createdAt,branchId:customerAttributions.branchId,managerId:customerAttributions.managerId,supervisorId:customerAttributions.supervisorId,employeeId:customerAttributions.employeeId,effectiveAt:customerAttributions.effectiveAt,displayName:customerProfiles.displayName,contactNote:customerProfiles.contactNote,archivedAt:customerProfiles.archivedAt}).from(customerAttributions).innerJoin(users,eq(users.id,customerAttributions.customerId)).leftJoin(customerProfiles,eq(customerProfiles.customerId,users.id)).orderBy(desc(users.createdAt)).limit(1000),visible=rows.filter(r=>canSeeCustomer(actor.role,actor.id,actor.organizationId,r)),ids=new Set(visible.map(x=>x.customerId)),notes=(await db.select({id:customerHandoverNotes.id,customerId:customerHandoverNotes.customerId,content:customerHandoverNotes.content,authorUserId:customerHandoverNotes.authorUserId,createdAt:customerHandoverNotes.createdAt}).from(customerHandoverNotes).orderBy(desc(customerHandoverNotes.createdAt))).filter(x=>ids.has(x.customerId));return Response.json({customers:visible.map(r=>({...r,email:r.email.replace(/^(.{2}).*(@.*)$/,"$1***$2"),notes:notes.filter(n=>n.customerId===r.customerId).slice(0,10)})),total:visible.length,canManage:actor.role==="branch_admin"})}catch(e){return responseError(e)}}
-export async function PATCH(request:Request){try{const actor=await requireUser(request,["branch_admin"]),b=await request.json()as{customerId?:string,action?:"edit"|"freeze"|"restore"|"archive",displayName?:string,contactNote?:string},db=getDb();if(!b.customerId||!b.action)return Response.json({error:"缺少客户或操作"},{status:400});const attr=(await db.select().from(customerAttributions).where(eq(customerAttributions.customerId,b.customerId)).limit(1))[0];if(!attr||attr.branchId!==actor.organizationId)return Response.json({error:"客户不属于当前分公司"},{status:403});const now=new Date().toISOString(),existing=(await db.select().from(customerProfiles).where(eq(customerProfiles.customerId,b.customerId)).limit(1))[0],profile={displayName:b.displayName?.trim()||existing?.displayName||"",contactNote:b.contactNote?.trim()||existing?.contactNote||"",updatedAt:now};const ops=[];if(existing)ops.push(db.update(customerProfiles).set(b.action==="archive"?{...profile,archivedAt:now,archivedBy:actor.id}:profile).where(eq(customerProfiles.id,existing.id)));else ops.push(db.insert(customerProfiles).values({id:crypto.randomUUID(),customerId:b.customerId,...profile,...(b.action==="archive"?{archivedAt:now,archivedBy:actor.id}:{})}));if(b.action==="freeze")ops.push(db.update(users).set({status:"frozen",updatedAt:now}).where(eq(users.id,b.customerId)));if(b.action==="restore")ops.push(db.update(users).set({status:"active",updatedAt:now}).where(eq(users.id,b.customerId)));if(b.action==="archive")ops.push(db.update(users).set({status:"closed",updatedAt:now}).where(eq(users.id,b.customerId)));ops.push(db.insert(auditLogs).values({id:crypto.randomUUID(),actorUserId:actor.id,action:`customer.${b.action}`,subjectType:"customer",subjectId:b.customerId,afterJson:JSON.stringify(b)}));await db.batch(ops);return Response.json({ok:true,message:b.action==="archive"?"客户已归档，历史记录已保留":"客户资料已更新"})}catch(e){return responseError(e)}}
+import { requireAccessPermission } from "@/lib/access-control";
+import { customerScopePredicate, maskOperationsEmail } from "@/lib/operations-access";
+import { getPostgresPool } from "@/lib/postgres";
+import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+
+export async function GET(request: Request) {
+  try {
+    const { user, access, scope } = await requireAccessPermission(request, "ops.customers.view");
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "ca", "ca.customer_id");
+    const pool = await getPostgresPool();
+    const rows = await pool.query<{
+      customer_id: string; email: string; status: string; registered_at: string; branch_id: string | null;
+      manager_id: string | null; supervisor_id: string | null; employee_id: string | null;
+      display_name: string | null; contact_note: string | null;
+    }>(`
+      SELECT u.id AS customer_id, u.email, u.status, u.created_at AS registered_at,
+             ca.branch_id, ca.manager_id, ca.supervisor_id, ca.employee_id,
+             cp.display_name, cp.contact_note
+      FROM customer_attributions AS ca
+      INNER JOIN users AS u ON u.id = ca.customer_id
+      LEFT JOIN customer_profiles AS cp ON cp.customer_id = u.id
+      WHERE ca.status = 'active' AND ${scoped.clause}
+      ORDER BY u.created_at DESC
+      LIMIT 1000
+    `, scoped.values);
+    return Response.json({
+      customers: rows.rows.map((row) => ({
+        customerId: row.customer_id,
+        email: maskOperationsEmail(row.email),
+        status: row.status,
+        registeredAt: row.registered_at,
+        branchId: row.branch_id,
+        managerId: row.manager_id,
+        supervisorId: row.supervisor_id,
+        employeeId: row.employee_id,
+        displayName: row.display_name,
+        contactNote: row.contact_note,
+      })),
+      total: rows.rowCount ?? rows.rows.length,
+      canManage: Boolean(access.permissions["ops.customers.manage"]),
+    }, { headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    return researchErrorResponse(error);
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const { user, scope } = await requireAccessPermission(request, "ops.customers.manage");
+    const body = await readResearchJson(request);
+    const customerId = String(body.customerId ?? "");
+    const action = String(body.action ?? "");
+    if (!customerId || !["edit", "freeze", "restore", "archive"].includes(action)) {
+      throw new ResearchApiError("VALIDATION_ERROR", "客户或操作无效", 422, { fields: ["customerId", "action"] });
+    }
+    const reason = String(body.reason ?? "").trim().slice(0, 500);
+    if (!reason) throw new ResearchApiError("VALIDATION_ERROR", "必须填写客户操作原因", 422, { fields: ["reason"] });
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "ca", "ca.customer_id", 2);
+    const pool = await getPostgresPool();
+    const visible = await pool.query(`SELECT ca.customer_id FROM customer_attributions AS ca WHERE ca.customer_id = $1 AND ${scoped.clause} LIMIT 1`, [customerId, ...scoped.values]);
+    if (!visible.rows[0]) throw new ResearchApiError("NOT_FOUND", "客户不存在或不在当前数据范围", 404);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const displayName = String(body.displayName ?? "").trim().slice(0, 120);
+      const contactNote = String(body.contactNote ?? "").trim().slice(0, 1000);
+      await client.query(`
+        INSERT INTO customer_profiles (id, customer_id, display_name, contact_note, archived_at, archived_by)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (customer_id) DO UPDATE SET
+          display_name = CASE WHEN $3 <> '' THEN $3 ELSE customer_profiles.display_name END,
+          contact_note = CASE WHEN $4 <> '' THEN $4 ELSE customer_profiles.contact_note END,
+          archived_at = CASE WHEN $7 THEN $5 ELSE customer_profiles.archived_at END,
+          archived_by = CASE WHEN $7 THEN $6 ELSE customer_profiles.archived_by END,
+          updated_at = $5
+      `, [crypto.randomUUID(), customerId, displayName, contactNote, new Date().toISOString(), user.id, action === "archive"]);
+      if (action !== "edit") {
+        const status = action === "freeze" ? "frozen" : action === "restore" ? "active" : "closed";
+        await client.query("UPDATE users SET status = $1, updated_at = $2 WHERE id = $3", [status, new Date().toISOString(), customerId]);
+      }
+      await client.query(`
+        INSERT INTO audit_logs (id, actor_user_id, action, subject_type, subject_id, after_json)
+        VALUES ($1, $2, $3, 'customer', $4, $5)
+      `, [crypto.randomUUID(), user.id, `customer.${action}`, customerId, JSON.stringify({ action, displayName, contactNote, reason })]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    return Response.json({ ok: true, message: action === "archive" ? "客户已归档，历史记录已保留" : "客户资料已更新" });
+  } catch (error) {
+    return researchErrorResponse(error);
+  }
+}

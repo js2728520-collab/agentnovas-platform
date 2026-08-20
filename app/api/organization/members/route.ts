@@ -114,7 +114,7 @@ async function relationshipTree(request: Request) {
       roleLabel: roleLabels[row.role] || row.role,
       status: row.status,
       organizationId: row.organizationId,
-      organizationName: row.organizationId ? organizationNames.get(row.organizationId) || "未命名组织" : row.role === "hq_admin" ? "AgentNovas 总公司" : "总公司职能部门",
+      organizationName: row.organizationId ? organizationNames.get(row.organizationId) || "未命名组织" : row.role === "hq_admin" ? "Riverton Capital 总公司" : "总公司职能部门",
       createdAt: row.createdAt,
       canManuallyActivate: canManuallyActivateMember(actor, row),
     };

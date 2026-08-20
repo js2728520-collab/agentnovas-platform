@@ -1,11 +1,12 @@
-import { ACCESS_ADMIN_PERMISSIONS, limitedText, parseAccessAppId, parseRolePermissions } from "@/lib/access-management";
-import { requireAnyAccessPermission } from "@/lib/access-control";
+import { limitedText, parseAccessAppId, parseRolePermissions } from "@/lib/access-management";
+import { requireCurrentAccessAdmin, requireCurrentAccessViewer } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+import { SENSITIVE_PERMISSION_KEYS } from "@/lib/rbac";
 
 export async function GET(request: Request) {
   try {
-    await requireAnyAccessPermission(request, [...ACCESS_ADMIN_PERMISSIONS]);
+    const { appId } = await requireCurrentAccessViewer(request);
     const pool = await getPostgresPool();
     const result = await pool.query(`
       SELECT r.*, COALESCE(
@@ -15,10 +16,22 @@ export async function GET(request: Request) {
       ) AS permissions
       FROM roles AS r
       LEFT JOIN role_permissions AS rp ON rp.role_id = r.id
+      WHERE r.application_id = $1
       GROUP BY r.id
-      ORDER BY r.application_id ASC, r.code ASC
-    `);
-    return Response.json({ roles: result.rows }, { headers: { "cache-control": "no-store" } });
+      ORDER BY r.code ASC
+    `, [appId]);
+    return Response.json({ roles: result.rows.map((row) => ({
+      id: row.id,
+      applicationId: row.application_id,
+      code: row.code,
+      name: row.name,
+      kind: row.kind,
+      status: row.status,
+      isSystem: Boolean(row.is_system),
+      permissions: row.permissions,
+      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+      updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+    })) }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return researchErrorResponse(error);
   }
@@ -26,14 +39,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { user } = await requireAnyAccessPermission(request, [...ACCESS_ADMIN_PERMISSIONS]);
+    const { user, appId } = await requireCurrentAccessAdmin(request);
     const body = await readResearchJson(request);
     const applicationId = parseAccessAppId(body.applicationId);
+    if (applicationId !== appId) throw new ResearchApiError("FORBIDDEN", "不能管理其他应用的角色", 403);
     const code = limitedText(body.code, "code", 80);
     const name = limitedText(body.name, "name", 120);
     const kind = String(body.kind ?? "custom");
     if (!["custom", "derived"].includes(kind)) throw new ResearchApiError("VALIDATION_ERROR", "角色类型无效", 422, { fields: ["kind"] });
     const permissions = parseRolePermissions(body.permissions, applicationId);
+    if (permissions.some((permission) => SENSITIVE_PERMISSION_KEYS.has(permission.permissionKey))) {
+      throw new ResearchApiError("SENSITIVE_APPROVAL_REQUIRED", "包含敏感权限的角色必须走双人审批", 409);
+    }
     const pool = await getPostgresPool();
     const client = await pool.connect();
     try {
@@ -61,4 +78,3 @@ export async function POST(request: Request) {
     return researchErrorResponse(error);
   }
 }
-

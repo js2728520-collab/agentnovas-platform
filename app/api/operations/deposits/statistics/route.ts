@@ -1,4 +1,5 @@
 import { requireAccessPermission } from "@/lib/access-control";
+import { customerScopePredicate } from "@/lib/operations-access";
 import { getPostgresPool } from "@/lib/postgres";
 import { researchErrorResponse } from "@/lib/research-api";
 
@@ -6,12 +7,9 @@ export async function GET(request: Request) {
   try {
     const { user, scope } = await requireAccessPermission(request, "ops.deposits.view");
     const pool = await getPostgresPool();
-    const params: unknown[] = [];
-    const where = ["1=1"];
-    if (scope !== "PLATFORM") {
-      params.push(user.organizationId);
-      where.push(`branch_id = $${params.length}`);
-    }
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "deposit_orders", "deposit_orders.user_id");
+    const params: unknown[] = [...scoped.values];
+    const where = [scoped.clause];
     const result = await pool.query<{
       total_orders: string;
       credited_orders: string;
@@ -42,13 +40,13 @@ export async function GET(request: Request) {
       ORDER BY channel ASC, currency ASC
     `, params);
     return Response.json({
-      summary: result.rows[0] ?? {
-        total_orders: "0",
-        credited_orders: "0",
-        total_credited: "0",
-        total_fees: "0",
-        review_orders: "0",
-        failed_orders: "0",
+      summary: {
+        totalOrders: result.rows[0]?.total_orders ?? "0",
+        creditedOrders: result.rows[0]?.credited_orders ?? "0",
+        totalCredited: result.rows[0]?.total_credited ?? "0",
+        totalFees: result.rows[0]?.total_fees ?? "0",
+        reviewOrders: result.rows[0]?.review_orders ?? "0",
+        failedOrders: result.rows[0]?.failed_orders ?? "0",
       },
       byChannel: byChannel.rows.map((row) => ({
         channel: row.channel,
@@ -61,4 +59,3 @@ export async function GET(request: Request) {
     return researchErrorResponse(error);
   }
 }
-

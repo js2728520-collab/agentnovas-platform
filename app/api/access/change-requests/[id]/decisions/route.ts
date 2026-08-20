@@ -1,5 +1,4 @@
-import { ACCESS_ADMIN_PERMISSIONS } from "@/lib/access-management";
-import { requireAnyAccessPermission } from "@/lib/access-control";
+import { requireCurrentAccessReviewer } from "@/lib/access-control";
 import { parseAccessChangeRequest, type AccessChange } from "@/lib/access-change-requests";
 import { canApproveAccessChange } from "@/lib/rbac";
 import { getPostgresPool } from "@/lib/postgres";
@@ -12,11 +11,13 @@ function requestedPermissionKeys(change: AccessChange) {
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const { user } = await requireAnyAccessPermission(request, [...ACCESS_ADMIN_PERMISSIONS]);
+    const { user, appId } = await requireCurrentAccessReviewer(request);
     const { id } = await context.params;
     const body = await readResearchJson(request);
     const decision = String(body.decision ?? "");
     if (decision !== "approve" && decision !== "reject") throw new ResearchApiError("VALIDATION_ERROR", "审批决定无效", 422, { fields: ["decision"] });
+    const note = String(body.note ?? "").trim().slice(0, 500);
+    if (!note) throw new ResearchApiError("VALIDATION_ERROR", "必须填写审批意见", 422, { fields: ["note"] });
     const pool = await getPostgresPool();
     const client = await pool.connect();
     let status: "approved" | "rejected";
@@ -26,7 +27,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         application_id: string; target_user_id: string | null; target_role_id: string | null;
         change_type: AccessChange["changeType"]; before_json: Record<string, unknown>; after_json: Record<string, unknown>;
         requested_by_user_id: string; status: string;
-      }>("SELECT * FROM access_change_requests WHERE id = $1 FOR UPDATE", [id]);
+      }>("SELECT * FROM access_change_requests WHERE id = $1 AND application_id = $2 FOR UPDATE", [id, appId]);
       const row = locked.rows[0];
       if (!row) throw new ResearchApiError("NOT_FOUND", "权限变更申请不存在", 404);
       if (row.requested_by_user_id === user.id) throw new ResearchApiError("FORBIDDEN", "申请人不能审批自己的权限变更", 403);
@@ -47,10 +48,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           AND (ura.expires_at IS NULL OR ura.expires_at > now())
       `, [user.id, row.application_id]);
       const permissionKeys = approverAccess.rows.map((permission) => permission.permission_key);
-      const managePermission = row.application_id === "operations" ? "ops.roles.manage"
-        : row.application_id === "maintenance" ? "maint.roles.manage" : null;
-      if (!managePermission || !permissionKeys.includes(managePermission)) {
-        throw new ResearchApiError("FORBIDDEN", "审批人不具备该应用的角色管理权限", 403);
+      const reviewerPermissions = row.application_id === "operations"
+        ? ["ops.roles.approve_sensitive", "ops.roles.manage"]
+        : row.application_id === "maintenance"
+          ? ["maint.roles.approve_sensitive", "maint.roles.manage"]
+          : [];
+      if (!reviewerPermissions.some((permission) => permissionKeys.includes(permission))) {
+        throw new ResearchApiError("FORBIDDEN", "审批人不具备当前应用的授权审批权限", 403);
       }
       const requested = requestedPermissionKeys(change);
       if (change.changeType === "role_assign") {
@@ -70,7 +74,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (request_id, reviewer_user_id) DO NOTHING
         RETURNING id
-      `, [crypto.randomUUID(), id, user.id, decision, String(body.note ?? "").slice(0, 500)]);
+      `, [crypto.randomUUID(), id, user.id, decision, note]);
       if (!decisionInsert.rows[0]) throw new ResearchApiError("CONFLICT", "该审批人已处理此申请", 409);
       status = decision === "approve" ? "approved" : "rejected";
       if (decision === "approve") await applyApprovedChange(client, change, user.id);

@@ -11,6 +11,7 @@ import {
 } from "@/lib/strategy-runtime-repository";
 import { membershipAccess } from "@/lib/membership-rules";
 import { readResearchJson, requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+import { isCustomerTradingEmergencyStopped } from "@/lib/trading-emergency";
 
 function normalizeSymbol(value: unknown) {
   return String(value ?? "").replace(/[^a-z0-9]/gi, "").toUpperCase();
@@ -19,6 +20,9 @@ function normalizeSymbol(value: unknown) {
 export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const user = await requireResearchUser(request, ["customer"]);
+    if (await isCustomerTradingEmergencyStopped(user.id)) {
+      throw new ResearchApiError("TRADING_EMERGENCY_STOPPED", "当前所属范围处于紧急暂停状态，暂不能启动平台策略", 503);
+    }
     const { code } = await params;
     if (!isPlatformStrategyCode(code)) throw new ResearchApiError("PLATFORM_STRATEGY_NOT_FOUND", "平台策略不存在", 404);
     const definition = PLATFORM_AI_STRATEGIES[code];

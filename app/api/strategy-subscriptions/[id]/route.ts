@@ -6,6 +6,7 @@ import {
 } from "@/db/schema";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
+import { isCustomerTradingEmergencyStopped } from "@/lib/trading-emergency";
 
 type LifecycleAction = "pause" | "resume" | "stop";
 
@@ -28,6 +29,9 @@ export async function PATCH(
       eq(strategySubscriptions.customerId, me.id),
     )).limit(1))[0];
     if (!subscription) return Response.json({ error: "跟随关系不存在" }, { status: 404 });
+    if (body.action === "resume" && await isCustomerTradingEmergencyStopped(me.id)) {
+      return Response.json({ error: "当前所属范围处于紧急停止状态，暂不能恢复策略" }, { status: 503 });
+    }
 
     const now = new Date().toISOString();
     let nextStatus: "active" | "paused" | "ended";

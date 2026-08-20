@@ -1,11 +1,12 @@
-import { ACCESS_ADMIN_PERMISSIONS, limitedText, parseAccessAppId, parseRolePermissions } from "@/lib/access-management";
-import { requireAnyAccessPermission } from "@/lib/access-control";
+import { limitedText, parseAccessAppId, parseRolePermissions } from "@/lib/access-management";
+import { requireCurrentAccessAdmin, requireCurrentAccessViewer } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
-import { readResearchJson, researchErrorResponse } from "@/lib/research-api";
+import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+import { SENSITIVE_PERMISSION_KEYS } from "@/lib/rbac";
 
 export async function GET(request: Request) {
   try {
-    await requireAnyAccessPermission(request, [...ACCESS_ADMIN_PERMISSIONS]);
+    const { appId } = await requireCurrentAccessViewer(request);
     const pool = await getPostgresPool();
     const result = await pool.query(`
       SELECT t.*, v.id AS current_version_id, v.version AS current_version
@@ -17,9 +18,18 @@ export async function GET(request: Request) {
         ORDER BY version DESC
         LIMIT 1
       ) AS v ON true
-      ORDER BY t.application_id ASC, t.code ASC
-    `);
-    return Response.json({ roleTemplates: result.rows }, { headers: { "cache-control": "no-store" } });
+      WHERE t.application_id = $1
+      ORDER BY t.code ASC
+    `, [appId]);
+    return Response.json({ roleTemplates: result.rows.map((row) => ({
+      id: row.id,
+      applicationId: row.application_id,
+      code: row.code,
+      name: row.name,
+      status: row.status,
+      currentVersionId: row.current_version_id,
+      currentVersion: row.current_version,
+    })) }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return researchErrorResponse(error);
   }
@@ -27,12 +37,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { user } = await requireAnyAccessPermission(request, [...ACCESS_ADMIN_PERMISSIONS]);
+    const { user, appId } = await requireCurrentAccessAdmin(request);
     const body = await readResearchJson(request);
     const applicationId = parseAccessAppId(body.applicationId);
+    if (applicationId !== appId) throw new ResearchApiError("FORBIDDEN", "不能管理其他应用的角色模板", 403);
     const code = limitedText(body.code, "code", 80);
     const name = limitedText(body.name, "name", 120);
     const permissions = parseRolePermissions(body.permissions, applicationId);
+    if (permissions.some((permission) => SENSITIVE_PERMISSION_KEYS.has(permission.permissionKey))) {
+      throw new ResearchApiError("SENSITIVE_APPROVAL_REQUIRED", "包含敏感权限的模板必须走双人审批", 409);
+    }
     const pool = await getPostgresPool();
     const client = await pool.connect();
     try {
@@ -58,4 +72,3 @@ export async function POST(request: Request) {
     return researchErrorResponse(error);
   }
 }
-

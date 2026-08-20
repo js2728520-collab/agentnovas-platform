@@ -60,6 +60,8 @@ export async function requireAccessPermission(request: Request, permissionKey: s
   if (!user) throw new ResearchApiError("AUTH_REQUIRED", "请先登录", 401);
   const definition = PERMISSION_DEFINITIONS.find((permission) => permission.key === permissionKey);
   if (!definition) throw new ResearchApiError("PERMISSION_UNKNOWN", "权限未注册", 500, { permissionKey });
+  const requestAudience = currentRequestAudience(request);
+  if (requestAudience !== definition.appId) throw new ResearchApiError("NOT_FOUND", "接口在当前应用不可用", 404);
   const pool = await getPostgresPool();
   const access = await effectiveAccessForUser(pool, user, definition.appId);
   const scope = access.permissions[permissionKey];
@@ -85,6 +87,54 @@ export async function requireAnyAccessPermission(request: Request, permissionKey
 
 export function currentRequestAudience(request: Request) {
   return resolveAppAudience({ host: request.headers.get("host") ?? undefined });
+}
+
+export async function requireCurrentAccessAdmin(request: Request) {
+  const appId = currentRequestAudience(request);
+  const permissionKey = appId === "operations" ? "ops.roles.manage"
+    : appId === "maintenance" ? "maint.roles.manage" : null;
+  if (!permissionKey) throw new ResearchApiError("FORBIDDEN", "当前应用不提供角色管理", 403);
+  const result = await requireAccessPermission(request, permissionKey);
+  return { ...result, appId };
+}
+
+export async function requireCurrentAccessViewer(request: Request) {
+  const appId = currentRequestAudience(request);
+  const permissionKeys = appId === "operations"
+    ? ["ops.roles.manage", "ops.roles.assign", "ops.roles.approve_sensitive"]
+    : appId === "maintenance"
+      ? ["maint.roles.manage", "maint.roles.approve_sensitive"]
+      : [];
+  if (!permissionKeys.length) throw new ResearchApiError("FORBIDDEN", "当前应用不提供授权中心", 403);
+  const result = await requireAnyAccessPermission(request, permissionKeys);
+  return { ...result, appId };
+}
+
+export async function requireCurrentAccessAssignmentAdmin(request: Request) {
+  const appId = currentRequestAudience(request);
+  const permissionKeys = appId === "operations" ? ["ops.roles.assign", "ops.roles.manage"]
+    : appId === "maintenance" ? ["maint.roles.manage"] : [];
+  if (!permissionKeys.length) throw new ResearchApiError("FORBIDDEN", "当前应用不提供角色分配", 403);
+  const result = await requireAnyAccessPermission(request, permissionKeys);
+  return { ...result, appId };
+}
+
+export async function requireCurrentAccessReviewer(request: Request) {
+  const appId = currentRequestAudience(request);
+  const permissionKeys = appId === "operations" ? ["ops.roles.approve_sensitive", "ops.roles.manage"]
+    : appId === "maintenance" ? ["maint.roles.approve_sensitive", "maint.roles.manage"] : [];
+  if (!permissionKeys.length) throw new ResearchApiError("FORBIDDEN", "当前应用不提供授权审批", 403);
+  const result = await requireAnyAccessPermission(request, permissionKeys);
+  return { ...result, appId };
+}
+
+export async function requireCurrentAccessAudit(request: Request) {
+  const appId = currentRequestAudience(request);
+  const permissionKeys = appId === "operations" ? ["ops.roles.manage", "ops.roles.approve_sensitive"]
+    : appId === "maintenance" ? ["maint.audit.view", "maint.roles.manage"] : [];
+  if (!permissionKeys.length) throw new ResearchApiError("FORBIDDEN", "当前应用不提供授权审计", 403);
+  const result = await requireAnyAccessPermission(request, permissionKeys);
+  return { ...result, appId };
 }
 
 export function permissionDefinitionsForApp(appId: AppAudience) {

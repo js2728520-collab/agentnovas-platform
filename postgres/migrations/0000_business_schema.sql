@@ -282,6 +282,8 @@ CREATE TABLE IF NOT EXISTS "notification_deliveries" (
   "status" text NOT NULL DEFAULT 'queued',
   "attempts" integer NOT NULL DEFAULT 0,
   "provider_message_id" text,
+  "provider_event_type" text,
+  "provider_event_at" timestamptz,
   "last_error" text,
   "scheduled_at" text NOT NULL,
   "sent_at" text,
@@ -614,9 +616,12 @@ CREATE INDEX IF NOT EXISTS "idx_monthly_targets_assigner_month" ON "monthly_team
 CREATE INDEX IF NOT EXISTS "idx_monthly_targets_branch_month" ON "monthly_team_targets" ("branch_id","month");
 CREATE INDEX IF NOT EXISTS "idx_notification_channel_status" ON "notification_channels" ("status");
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_notification_channel_unique" ON "notification_channels" ("user_id","channel");
+ALTER TABLE "notification_deliveries" ADD COLUMN IF NOT EXISTS "lease_owner" text;
+ALTER TABLE "notification_deliveries" ADD COLUMN IF NOT EXISTS "lease_expires_at" timestamptz;
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_notifications_dedupe_unique" ON "notification_deliveries" ("dedupe_key");
 CREATE INDEX IF NOT EXISTS "idx_notifications_status_schedule" ON "notification_deliveries" ("status","scheduled_at");
 CREATE INDEX IF NOT EXISTS "idx_notifications_email_claim" ON "notification_deliveries" ("status","scheduled_at","lease_expires_at","attempts") WHERE "channel" = 'email';
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_notifications_email_provider_message" ON "notification_deliveries" ("provider_message_id") WHERE "channel" = 'email' AND "provider_message_id" IS NOT NULL;
 CREATE INDEX IF NOT EXISTS "idx_notifications_lease_owner" ON "notification_deliveries" ("lease_owner","lease_expires_at") WHERE "lease_owner" IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_notification_pref_unique" ON "notification_preferences" ("user_id","channel","category");
 CREATE INDEX IF NOT EXISTS "idx_organizations_parent" ON "organizations" ("parent_id");

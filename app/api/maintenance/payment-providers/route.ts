@@ -1,10 +1,10 @@
-import { requireAccessPermission } from "@/lib/access-control";
+import { requireAnyAccessPermission } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
 import { researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request) {
   try {
-    await requireAccessPermission(request, "maint.system_health.view");
+    await requireAnyAccessPermission(request, ["maint.system_health.view", "maint.payment_integrations.manage"]);
     const pool = await getPostgresPool();
     const result = await pool.query<{
       id: string;
@@ -36,4 +36,3 @@ export async function GET(request: Request) {
     return researchErrorResponse(error);
   }
 }
-

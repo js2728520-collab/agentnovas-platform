@@ -100,6 +100,16 @@ type RuntimeBindingRow = QueryResultRow & {
   updated_at: Date;
 };
 
+type CustomerBindingView<Role extends string> = {
+  role: Role; modelName: string; enabled: boolean; configured: boolean;
+};
+
+type AdministratorBindingView<Role extends string> = CustomerBindingView<Role> & {
+  id: string; profileId: string; revisionId: string; revisionNumber: number;
+  profileName: string; providerName: string; baseUrl: string; maskedApiKey: string;
+  profileEnabled: boolean; updatedAt: Date;
+};
+
 function requiredText(value: unknown, label: string, maxLength: number) {
   const text = String(value ?? "").trim();
   if (!text) throw new Error(`请填写${label}`);
@@ -189,6 +199,8 @@ export async function bindRuntimeExplanationRole(database: Queryable, options: {
   };
 }
 
+export async function listRuntimeExplanationBindings(database: Queryable, options: { visibility: "administrator" }): Promise<AdministratorBindingView<RuntimeExplanationRole>[]>;
+export async function listRuntimeExplanationBindings(database: Queryable, options: { visibility: "customer" }): Promise<CustomerBindingView<RuntimeExplanationRole>[]>;
 export async function listRuntimeExplanationBindings(database: Queryable, options: {
   visibility: "administrator" | "customer";
 }) {
@@ -341,6 +353,8 @@ async function bindingRows(database: Queryable) {
   return result.rows;
 }
 
+export async function listAgentRoleBindings(database: Queryable, options: { visibility: "administrator" }): Promise<AdministratorBindingView<AgentRole>[]>;
+export async function listAgentRoleBindings(database: Queryable, options: { visibility: "customer" }): Promise<CustomerBindingView<AgentRole>[]>;
 export async function listAgentRoleBindings(database: Queryable, options: {
   visibility: "administrator" | "customer";
 }) {

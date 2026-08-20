@@ -1,20 +1,30 @@
-import { ACCESS_ADMIN_PERMISSIONS } from "@/lib/access-management";
-import { requireAnyAccessPermission } from "@/lib/access-control";
+import { requireCurrentAccessAssignmentAdmin, requireCurrentAccessViewer } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request) {
   try {
-    await requireAnyAccessPermission(request, [...ACCESS_ADMIN_PERMISSIONS]);
+    const { appId } = await requireCurrentAccessViewer(request);
     const pool = await getPostgresPool();
     const result = await pool.query(`
       SELECT ura.*, r.code AS role_code, r.name AS role_name
       FROM user_role_assignments AS ura
       INNER JOIN roles AS r ON r.id = ura.role_id
+      WHERE ura.application_id = $1
       ORDER BY ura.created_at DESC
       LIMIT 300
-    `);
-    return Response.json({ assignments: result.rows }, { headers: { "cache-control": "no-store" } });
+    `, [appId]);
+    return Response.json({ assignments: result.rows.map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      roleId: row.role_id,
+      applicationId: row.application_id,
+      status: row.status,
+      roleCode: row.role_code,
+      roleName: row.role_name,
+      effectiveAt: row.effective_at instanceof Date ? row.effective_at.toISOString() : row.effective_at,
+      expiresAt: row.expires_at instanceof Date ? row.expires_at.toISOString() : row.expires_at,
+    })) }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return researchErrorResponse(error);
   }
@@ -22,13 +32,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { user } = await requireAnyAccessPermission(request, [...ACCESS_ADMIN_PERMISSIONS]);
+    const { user, appId } = await requireCurrentAccessAssignmentAdmin(request);
     const body = await readResearchJson(request);
     const targetUserId = String(body.userId ?? "");
     const roleId = String(body.roleId ?? "");
     if (!targetUserId || !roleId) throw new ResearchApiError("VALIDATION_ERROR", "用户和角色为必填", 422, { fields: ["userId", "roleId"] });
     const pool = await getPostgresPool();
-    const role = await pool.query<{ application_id: string }>("SELECT application_id FROM roles WHERE id = $1 AND status = 'published' LIMIT 1", [roleId]);
+    const role = await pool.query<{ application_id: string }>("SELECT application_id FROM roles WHERE id = $1 AND application_id = $2 AND status = 'published' LIMIT 1", [roleId, appId]);
     if (!role.rows[0]) throw new ResearchApiError("NOT_FOUND", "角色不存在或未发布", 404);
     const sensitive = await pool.query<{ sensitive_count: string }>(`
       SELECT COUNT(*)::text AS sensitive_count

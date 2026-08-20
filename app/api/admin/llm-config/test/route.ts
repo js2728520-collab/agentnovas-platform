@@ -1,12 +1,13 @@
 import { ensureDatabaseSchema } from "@/lib/database-schema";
+import { requireAccessPermission } from "@/lib/access-control";
 import { testLlmConfig, type LlmConfigInput } from "@/lib/llm-config";
-import { requireUser, responseError } from "@/lib/session";
+import { researchErrorResponse } from "@/lib/research-api";
 
 export async function POST(request: Request) {
   try {
     await ensureDatabaseSchema();
-    await requireUser(request, ["hq_admin"]);
+    await requireAccessPermission(request, "maint.llm_profiles.manage");
     const input = await request.json() as LlmConfigInput;
     return Response.json(await testLlmConfig({ id: "system-default", input }));
-  } catch (error) { return responseError(error); }
+  } catch (error) { return researchErrorResponse(error); }
 }

@@ -35,6 +35,27 @@ export const users = sqliteTable("users", {
   ...timestamps,
 }, (t) => [uniqueIndex("idx_users_email_unique").on(t.email), uniqueIndex("idx_users_phone_unique").on(t.phone), uniqueIndex("idx_users_username_unique").on(t.username), index("idx_users_org_role").on(t.organizationId, t.role)]);
 
+export const platformSettings = sqliteTable("platform_settings", {
+  id: text("id").primaryKey(),
+  section: text("section", { enum: ["system", "features", "billing", "integrations", "security"] }).notNull(),
+  payloadJson: text("payload_json").notNull().default("{}"),
+  updatedByUserId: text("updated_by_user_id").references(() => users.id),
+  ...timestamps,
+}, (t) => [uniqueIndex("idx_platform_settings_section_unique").on(t.section), index("idx_platform_settings_updated").on(t.updatedAt)]);
+
+export const tradingEmergencyStops = sqliteTable("trading_emergency_stops", {
+  id: text("id").primaryKey(),
+  scopeKey: text("scope_key").notNull(),
+  scopeType: text("scope_type", { enum: ["platform", "organization"] }).notNull(),
+  organizationId: text("organization_id").references(() => organizations.id),
+  active: integer("active", { mode: "boolean" }).notNull().default(false),
+  reason: text("reason").notNull().default(""),
+  activatedByUserId: text("activated_by_user_id").references(() => users.id),
+  activatedAt: text("activated_at"),
+  deactivatedAt: text("deactivated_at"),
+  ...timestamps,
+}, (t) => [uniqueIndex("idx_trading_emergency_scope_unique").on(t.scopeKey), index("idx_trading_emergency_active").on(t.active, t.scopeType)]);
+
 export const llmConfigurations = sqliteTable("llm_configurations", {
   id: text("id").primaryKey(),
   scope: text("scope", { enum: ["system", "user"] }).notNull(),
@@ -278,7 +299,7 @@ export const notificationChannels = sqliteTable("notification_channels", { id:te
 export const notificationDeliveries = sqliteTable("notification_deliveries", {
   id: text("id").primaryKey(), userId: text("user_id").notNull().references(() => users.id), channel: text("channel").notNull(), category: text("category").notNull(), templateKey: text("template_key").notNull(),
   dedupeKey: text("dedupe_key"), readAt: text("read_at"),
-  payloadJson: text("payload_json").notNull().default("{}"), status: text("status", { enum: ["queued", "sent", "delivered", "failed"] }).notNull().default("queued"), attempts: integer("attempts").notNull().default(0), providerMessageId: text("provider_message_id"), lastError: text("last_error"), scheduledAt: text("scheduled_at").notNull(), sentAt: text("sent_at"), leaseOwner: text("lease_owner"), leaseExpiresAt: text("lease_expires_at"), ...timestamps,
+  payloadJson: text("payload_json").notNull().default("{}"), status: text("status", { enum: ["queued", "sent", "delivered", "failed"] }).notNull().default("queued"), attempts: integer("attempts").notNull().default(0), providerMessageId: text("provider_message_id"), providerEventType: text("provider_event_type"), providerEventAt: text("provider_event_at"), lastError: text("last_error"), scheduledAt: text("scheduled_at").notNull(), sentAt: text("sent_at"), leaseOwner: text("lease_owner"), leaseExpiresAt: text("lease_expires_at"), ...timestamps,
 }, (t) => [index("idx_notifications_status_schedule").on(t.status, t.scheduledAt), uniqueIndex("idx_notifications_dedupe_unique").on(t.dedupeKey)]);
 
 export const auditLogs = sqliteTable("audit_logs", {

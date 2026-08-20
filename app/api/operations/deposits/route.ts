@@ -1,18 +1,7 @@
 import { requireAccessPermission } from "@/lib/access-control";
+import { customerScopePredicate, maskOperationsEmail, maskOperationsValue } from "@/lib/operations-access";
 import { getPostgresPool } from "@/lib/postgres";
 import { researchErrorResponse } from "@/lib/research-api";
-
-function maskEmail(value: string | null) {
-  if (!value) return null;
-  const [name, domain] = value.split("@");
-  if (!domain) return "***";
-  return `${name.slice(0, 2)}***@${domain}`;
-}
-
-function maskPhone(value: string | null) {
-  if (!value) return null;
-  return value.length <= 4 ? "****" : `${value.slice(0, 3)}****${value.slice(-4)}`;
-}
 
 export async function GET(request: Request) {
   try {
@@ -20,12 +9,9 @@ export async function GET(request: Request) {
     const canRevealPii = Boolean(access.permissions["ops.deposits.pii_reveal"]);
     const pool = await getPostgresPool();
     const url = new URL(request.url);
-    const params: unknown[] = [];
-    const where = ["1=1"];
-    if (scope !== "PLATFORM") {
-      params.push(user.organizationId);
-      where.push(`d.branch_id = $${params.length}`);
-    }
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id");
+    const params: unknown[] = [...scoped.values];
+    const where = [scoped.clause];
     for (const [queryName, column] of [
       ["status", "d.order_status"],
       ["fundsStatus", "d.funds_status"],
@@ -92,8 +78,8 @@ export async function GET(request: Request) {
         platformOrderNo: row.platform_order_no,
         user: {
           id: row.user_id,
-          email: canRevealPii ? row.email : maskEmail(row.email),
-          phone: canRevealPii ? row.phone : maskPhone(row.phone),
+          email: canRevealPii ? row.email : maskOperationsEmail(row.email),
+          phone: canRevealPii ? row.phone : maskOperationsValue(row.phone),
           nickname: row.nickname,
         },
         currency: row.currency,
@@ -104,7 +90,7 @@ export async function GET(request: Request) {
         feeAmount: row.fee_amount,
         creditedAmount: row.credited_amount,
         channel: row.channel,
-        sourceAddress: canRevealPii ? row.source_address : maskPhone(row.source_address),
+        sourceAddress: canRevealPii ? row.source_address : maskOperationsValue(row.source_address),
         providerOrderId: row.provider_order_id,
         txId: row.tx_id,
         confirmations: row.confirmations,
@@ -121,4 +107,3 @@ export async function GET(request: Request) {
     return researchErrorResponse(error);
   }
 }
-
