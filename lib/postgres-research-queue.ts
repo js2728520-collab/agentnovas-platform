@@ -403,34 +403,11 @@ export async function leaseNextResearchRun(database: Queryable, input: {
   if (!Number.isInteger(input.leaseSeconds) || input.leaseSeconds < 5 || input.leaseSeconds > 300) {
     throw new Error("任务租约必须在 5 到 300 秒之间");
   }
-  const leaseExpiresAt = new Date(input.now.getTime() + input.leaseSeconds * 1_000);
-  const result = await database.query<ResearchRunRow>(`
-    WITH picked AS (
-      SELECT id
-      FROM strategy_research_runs
-      WHERE cancel_requested_at IS NULL
-        AND attempts < max_retries
-        AND (
-          status = 'queued'
-          OR (status = 'retry_wait' AND next_attempt_at <= $1)
-          OR (status = 'running' AND lease_expires_at <= $1)
-        )
-      ORDER BY created_at, id
-      FOR UPDATE SKIP LOCKED
-      LIMIT 1
-    )
-    UPDATE strategy_research_runs AS run
-    SET status = 'running',
-        lease_owner = $2,
-        lease_expires_at = $3,
-        attempts = run.attempts + 1,
-        started_at = COALESCE(run.started_at, $1),
-        updated_at = $1
-    FROM picked
-    WHERE run.id = picked.id
-    RETURNING run.*
-  `, [input.now, input.workerId, leaseExpiresAt]);
-  return result.rows[0] ? runFromRow(result.rows[0]) : null;
+  // The invited commercial Beta has no customer-key/perpetual research product.
+  // Returning before SQL means even a stale queued row cannot be claimed.
+  void database;
+  void input.now;
+  return null;
 }
 
 export async function renewResearchRunLease(database: Queryable, input: {

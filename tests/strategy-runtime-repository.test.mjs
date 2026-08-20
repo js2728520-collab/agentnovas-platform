@@ -62,20 +62,6 @@ const dsl = {
   risk: { positionSizePct: 5, maxDrawdownPct: 12, maxDailyLossPct: 3, maxConsecutiveLosses: 4 },
 };
 
-function candleRows(count = 30) {
-  const rows = Array.from({ length: count }, (_, index) => ({
-    openTime: index * 3_600_000,
-    closeTime: (index + 1) * 3_600_000 - 1,
-    open: 100,
-    high: 101,
-    low: 99,
-    close: 100,
-    volume: 100,
-  }));
-  rows[29] = { ...rows[29], open: 100, high: 112, low: 99, close: 111 };
-  return rows;
-}
-
 function officialEntryCandles() {
   for (let seed = 1; seed < 5_000; seed += 1) {
     let randomState = (seed * 97) >>> 0;
@@ -132,6 +118,28 @@ async function seedDeployment(mode = "shadow", key = crypto.randomUUID()) {
   });
 }
 
+async function seedOfficialDeployment(mode = "shadow", key = crypto.randomUUID()) {
+  const portfolios = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const portfolio = portfolios.find((item) => item.strategyCode === "ai_conservative");
+  return createStrategyDeployment(pool, {
+    ownerUserId: "owner-official",
+    strategyId: "strategy-official",
+    strategyVersionId: "version-official",
+    exchangeAccountId: null,
+    mode,
+    validationLabel: "UNVERIFIED",
+    idempotencyKey: key,
+    riskAcknowledged: true,
+    executionProduct: "spot_usdt",
+    platformStrategyCode: "ai_conservative",
+    membershipId: "membership-official",
+    paperPortfolioId: portfolio.id,
+  });
+}
+
 test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
   await adminPool.query(`CREATE SCHEMA "${schema}"`);
@@ -156,7 +164,7 @@ test.after(async () => {
 });
 
 test("leases with fencing tokens and recovers an expired runtime worker", async () => {
-  const deployment = await seedDeployment("shadow");
+  const deployment = await seedOfficialDeployment("shadow");
   const now = new Date(Date.now() + 60_000);
   const first = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now, leaseSeconds: 30 });
   assert.equal(first.id, deployment.id);
@@ -210,7 +218,7 @@ test("deployment idempotency returns the same resource and rejects a changed pay
 });
 
 test("persists exactly seven role events and makes a repeated candle idempotent", async () => {
-  const deployment = await seedDeployment("shadow");
+  const deployment = await seedOfficialDeployment("shadow");
   const now = new Date(Date.now() + 60_000);
   const lease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now, leaseSeconds: 30 });
   const events = [
@@ -254,7 +262,7 @@ test("queues pinned asynchronous explanations without changing deterministic con
       ) VALUES ($1, $2, 'runtime-profile', true, 'admin')
     `, [`binding-${role}`, role]);
   }
-  const deployment = await seedDeployment("shadow");
+  const deployment = await seedOfficialDeployment("shadow");
   const now = new Date(Date.now() + 60_000);
   const lease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now, leaseSeconds: 30 });
   const roles = [
@@ -339,52 +347,13 @@ test("queues pinned asynchronous explanations without changing deterministic con
   assert.equal(cycle.decision_json.riskApproved, false);
 });
 
-test("paper runtime fills a prior signal only at the next complete candle open", async () => {
+test("legacy perpetual paper runtime cannot be leased or reach its adapter", async () => {
   const deployment = await seedDeployment("paper");
-  let rows = candleRows();
-  const adapter = {
-    exchange: "binance",
-    async getInstrument() {
-      return { exchange: "binance", symbol: "BTCUSDT", exchangeSymbol: "BTCUSDT", status: "live", quoteAsset: "USDT", tickSize: 0.1, lotSize: 0.001, fundingIntervalHours: 8 };
-    },
-    async getCandles() {
-      return { items: rows, duplicateCount: 0, incompleteCount: 0, invalidCount: 0, reversedInput: false };
-    },
-    async getFundingRates() {
-      return { items: [{ time: rows.at(-1).openTime, rate: 0.0001 }], duplicateCount: 0, incompleteCount: 0, invalidCount: 0, reversedInput: false };
-    },
-    async getFeeSchedule() {
-      return { makerRate: 0.0005, takerRate: 0.0007, estimated: true, source: "test" };
-    },
-  };
-  const dependencies = {
-    createAdapter: () => adapter,
-    saveSnapshot: async (_database, input) => ({ id: input.sourceId, candleSha256: "a", fundingSha256: "b", datasetSha256: "c" }),
-  };
   const firstNow = new Date(Date.now() + 60_000);
-  const firstLease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now: firstNow, leaseSeconds: 30 });
-  const first = await processLeasedStrategyRuntimeDeployment(pool, firstLease, "runtime-a", { ...dependencies, now: () => firstNow });
-  assert.equal(first.decision.action, "enter_long");
-  assert.equal((await pool.query("SELECT status FROM strategy_paper_order_intents")).rows[0].status, "pending");
-  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_paper_positions")).rows[0].count, 0);
-
-  rows = [...rows, {
-    openTime: 30 * 3_600_000, closeTime: 31 * 3_600_000 - 1,
-    open: 113, high: 114, low: 112, close: 113, volume: 100,
-  }];
-  const secondNow = new Date(firstNow.getTime() + 16_000);
-  const secondLease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-b", now: secondNow, leaseSeconds: 30 });
-  await processLeasedStrategyRuntimeDeployment(pool, secondLease, "runtime-b", { ...dependencies, now: () => secondNow });
-  const position = (await pool.query("SELECT entry_price, status FROM strategy_paper_positions")).rows[0];
-  assert.equal(Number(position.entry_price), 113);
-  assert.equal(position.status, "open");
-  assert.equal((await pool.query("SELECT status FROM strategy_paper_order_intents ORDER BY created_at LIMIT 1")).rows[0].status, "filled");
-  const repeatedFunding = await applyPaperFundingRates(pool, {
-    deploymentId: deployment.id,
-    rates: [{ time: rows.at(-1).openTime, rate: 0.0001 }],
-  });
-  assert.equal(repeatedFunding.applied, 0);
-  assert.ok(Number((await pool.query("SELECT funding_usdt FROM strategy_paper_positions WHERE status = 'open'")).rows[0].funding_usdt) > 0);
+  const lease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now: firstNow, leaseSeconds: 30 });
+  assert.equal(lease, null);
+  assert.equal((await pool.query("SELECT status FROM strategy_deployments WHERE id=$1", [deployment.id])).rows[0].status, "active");
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_paper_positions WHERE deployment_id=$1", [deployment.id])).rows[0].count, 0);
 });
 
 test("positive funding charges longs, credits shorts, and is idempotent by funding timestamp", async () => {

@@ -1,9 +1,10 @@
 import { getPostgresPool } from "@/lib/postgres";
-import { readResearchJson, requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+import { requireAccessPermission } from "@/lib/access-control";
+import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireResearchUser(request, ["customer"]);
+    const { user } = await requireAccessPermission(request, "client.paper.manage");
     const { id } = await params;
     const body = await readResearchJson(request);
     const action = String(body.action ?? "");

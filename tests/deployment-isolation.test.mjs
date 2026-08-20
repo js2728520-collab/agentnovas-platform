@@ -23,6 +23,9 @@ test("production units use per-process environment files and unique web ports", 
   assert.match(units.operations, /Environment=PORT=3001/);
   assert.match(units.maintenance, /Environment=PORT=3002/);
   assert.match(units.demo, /npm run worker:demo/);
+  assert.match(units.research, /^RefuseManualStart=yes$/m);
+  assert.match(units.research, /^Restart=no$/m);
+  assert.doesNotMatch(units.research, /^WantedBy=/m);
 });
 
 test("commercial Beta deploy surface contains no legacy web or payment worker unit", async () => {

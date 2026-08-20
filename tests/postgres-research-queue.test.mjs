@@ -72,6 +72,18 @@ function runInput(overrides = {}) {
   };
 }
 
+async function establishLegacyLeaseForStateTransitionTest(runId, workerId, now, leaseSeconds = 30) {
+  const leaseExpiresAt = new Date(now.getTime() + leaseSeconds * 1_000);
+  const result = await pool.query(`
+    UPDATE strategy_research_runs
+    SET status='running', lease_owner=$2, lease_expires_at=$3,
+        attempts=attempts+1, started_at=COALESCE(started_at,$4), updated_at=$4
+    WHERE id=$1
+    RETURNING *
+  `, [runId, workerId, leaseExpiresAt, now]);
+  return result.rows[0];
+}
+
 test("creates research runs idempotently per tenant", async () => {
   const idempotencyKey = crypto.randomUUID();
   const first = await createResearchRun(pool, runInput({ idempotencyKey }));
@@ -146,7 +158,7 @@ test("reuses a completed step checkpoint without calling the model twice", async
   assert.equal(row.prompt_sha256, "a".repeat(64));
 });
 
-test("leases distinct runs concurrently and recovers an expired worker lease", async () => {
+test("commercial Beta does not lease queued or expired legacy research runs", async () => {
   const first = await createResearchRun(pool, runInput());
   const second = await createResearchRun(pool, runInput());
   const now = new Date("2026-08-18T10:00:00.000Z");
@@ -156,32 +168,28 @@ test("leases distinct runs concurrently and recovers an expired worker lease", a
     leaseNextResearchRun(pool, { workerId: "worker-b", now, leaseSeconds: 30 }),
   ]);
 
-  assert.ok(leaseA);
-  assert.ok(leaseB);
-  assert.notEqual(leaseA.id, leaseB.id);
-  assert.deepEqual(new Set([leaseA.id, leaseB.id]), new Set([first.id, second.id]));
-
-  const unavailable = await leaseNextResearchRun(pool, {
-    workerId: "worker-c",
-    now: new Date("2026-08-18T10:00:10.000Z"),
-    leaseSeconds: 30,
-  });
-  assert.equal(unavailable, null);
-
+  assert.equal(leaseA, null);
+  assert.equal(leaseB, null);
+  await pool.query(`
+    UPDATE strategy_research_runs
+    SET status='running', lease_owner='stale-worker', lease_expires_at=$2
+    WHERE id=$1
+  `, [first.id, new Date("2026-08-18T10:00:30.000Z")]);
   const recovered = await leaseNextResearchRun(pool, {
     workerId: "worker-c",
     now: new Date("2026-08-18T10:00:31.000Z"),
     leaseSeconds: 30,
   });
-  assert.ok(recovered);
-  assert.equal(recovered.attempts, 2);
-  assert.equal(recovered.leaseOwner, "worker-c");
+  assert.equal(recovered, null);
+  const rows = await pool.query(`SELECT id,status,lease_owner FROM strategy_research_runs ORDER BY id`);
+  assert.deepEqual(new Set(rows.rows.map((row) => row.id)), new Set([first.id, second.id]));
+  assert.equal(rows.rows.find((row) => row.id === first.id).lease_owner, "stale-worker");
 });
 
 test("records cancellation without allowing another worker to reclaim the run", async () => {
   const run = await createResearchRun(pool, runInput());
   const now = new Date("2026-08-18T11:00:00.000Z");
-  const leased = await leaseNextResearchRun(pool, { workerId: "worker-cancel", now, leaseSeconds: 30 });
+  const leased = await establishLegacyLeaseForStateTransitionTest(run.id, "worker-cancel", now);
   assert.equal(leased.id, run.id);
 
   const cancelled = await requestResearchRunCancellation(pool, {
@@ -225,7 +233,7 @@ test("requeues every non-cancelled run paused for missing roles", async () => {
 test("does not let a stale worker pause a run owned by another lease", async () => {
   const run = await createResearchRun(pool, runInput());
   const now = new Date("2026-08-18T11:20:00.000Z");
-  await leaseNextResearchRun(pool, { workerId: "worker-current", now, leaseSeconds: 30 });
+  await establishLegacyLeaseForStateTransitionTest(run.id, "worker-current", now);
 
   await assert.rejects(
     pauseResearchRunForMissingRoles(pool, {
@@ -240,7 +248,7 @@ test("does not let a stale worker pause a run owned by another lease", async () 
 test("pauses for bounded customer input and resumes only for the owning tenant", async () => {
   const run = await createResearchRun(pool, runInput());
   const now = new Date("2026-08-18T11:30:00.000Z");
-  await leaseNextResearchRun(pool, { workerId: "worker-input", now, leaseSeconds: 30 });
+  await establishLegacyLeaseForStateTransitionTest(run.id, "worker-input", now);
   const missingFields = [{ key: "maxDrawdownPct", question: "最大回撤限制？", options: [8, 12], defaultValue: 12 }];
   const paused = await pauseResearchRunForUserInput(pool, {
     runId: run.id,
@@ -296,7 +304,7 @@ test("advances one fixed stage only for the active lease owner", async () => {
   const run = await createResearchRun(pool, runInput());
   assert.equal(run.stage, "requirements");
   const now = new Date("2026-08-18T12:00:00.000Z");
-  await leaseNextResearchRun(pool, { workerId: "worker-stage", now, leaseSeconds: 30 });
+  await establishLegacyLeaseForStateTransitionTest(run.id, "worker-stage", now);
 
   await assert.rejects(
     advanceResearchRun(pool, {
@@ -338,7 +346,7 @@ test("reserves model calls atomically and rejects calls beyond the run budget", 
   const run = await createResearchRun(pool, runInput({ mode: "quick" }));
   assert.equal(run.modelCallBudget, 14);
   const now = new Date("2026-08-18T12:30:00.000Z");
-  await leaseNextResearchRun(pool, { workerId: "worker-budget", now, leaseSeconds: 30 });
+  await establishLegacyLeaseForStateTransitionTest(run.id, "worker-budget", now);
 
   const reserved = await reserveResearchModelCalls(pool, {
     runId: run.id,

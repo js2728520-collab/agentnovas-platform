@@ -39,6 +39,7 @@ const BETA_DISABLED_CLIENT_ROUTES = [
   "/api/portfolio",
   "/api/risk/status",
   "/api/simulated-orders",
+  "/api/strategy-deployments",
   "/api/strategy-marketplace",
   "/api/strategy-research/runs",
   "/api/trading/emergency-stop",
@@ -97,7 +98,8 @@ function hasPrefix(route, prefixes) {
 function basePolicy(route, method) {
   const mutation = !["GET", "HEAD", "OPTIONS"].includes(method);
   if (BETA_DISABLED_CLIENT_ROUTES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
-    || route === "/api/strategies/:strategyId/versions/:versionId/deployments") {
+    || route === "/api/strategies/:strategyId/versions/:versionId/deployments"
+    || (route === "/api/strategy-subscriptions/:id" && method === "PATCH")) {
     return { audiences: ["client"], authentication: "disabled", sameOrigin: mutation };
   }
   if (route === "/api/credits/me" || route === "/api/membership" || route.startsWith("/api/membership/")) {
@@ -106,7 +108,7 @@ function basePolicy(route, method) {
   if (route === "/api/trading-hall" || route.startsWith("/api/trading-hall/paper/")) {
     return { audiences: ["client"], authentication: "permission", sameOrigin: mutation };
   }
-  if (route === "/api/platform-strategies/:code/follow") {
+  if (route === "/api/platform-strategies/:code/follow" || route === "/api/platform-strategy-subscriptions/:id") {
     return { audiences: ["client"], authentication: "permission", sameOrigin: true };
   }
   if (route === "/api/auth/login" || route === "/api/auth/logout" || route === "/api/auth/me") {
