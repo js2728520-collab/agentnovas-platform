@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { access, mkdir, rm, writeFile } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { access, lstat, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { spawn } from "node:child_process";
 
 import {
@@ -57,17 +57,84 @@ function cleanupFailureEvidence(error, phase) {
   };
 }
 
-export async function resetQualityOutputDirectory({ repositoryRoot, outputDirectory }) {
-  const allowedRoot = resolve(repositoryRoot, "outputs");
-  const target = resolve(outputDirectory);
-  const targetRelativePath = relative(allowedRoot, target);
-  if (!targetRelativePath
-    || targetRelativePath.startsWith("..")
-    || resolve(allowedRoot, targetRelativePath) !== target) {
-    throw new Error("Quality output directory must be a child of the repository outputs directory");
+function childPath(root, target, label, { allowEqual = false } = {}) {
+  const targetRelativePath = relative(root, target);
+  if ((!allowEqual && !targetRelativePath)
+    || targetRelativePath === ".."
+    || targetRelativePath.startsWith(`..${sep}`)
+    || isAbsolute(targetRelativePath)
+    || resolve(root, targetRelativePath) !== target) {
+    throw new Error(`${label} must remain inside the repository quality output boundary`);
   }
-  await rm(target, { recursive: true, force: true });
-  await mkdir(target, { recursive: true, mode: 0o700 });
+  return targetRelativePath;
+}
+
+async function pathState(path) {
+  try {
+    return await lstat(path);
+  } catch (error) {
+    if (error && typeof error === "object" && error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function assertPathWithoutSymbolicLinks(root, target) {
+  const targetRelativePath = childPath(root, target, "Quality output directory", { allowEqual: true });
+  let current = root;
+  const rootState = await pathState(current);
+  if (!rootState) throw new Error("Quality repository root does not exist");
+  if (rootState.isSymbolicLink()) {
+    throw new Error(`Quality output path may not contain a symbolic link: ${current}`);
+  }
+  for (const segment of targetRelativePath ? targetRelativePath.split(sep) : []) {
+    current = join(current, segment);
+    const state = await pathState(current);
+    if (!state) return;
+    if (state.isSymbolicLink()) {
+      throw new Error(`Quality output path may not contain a symbolic link: ${current}`);
+    }
+  }
+}
+
+async function controlledQualityOutputTarget({ repositoryRoot, outputDirectory }) {
+  const repositoryPath = resolve(repositoryRoot);
+  const allowedRoot = resolve(repositoryPath, "outputs");
+  const requestedTarget = resolve(outputDirectory);
+  childPath(allowedRoot, requestedTarget, "Quality output directory");
+  await assertPathWithoutSymbolicLinks(repositoryPath, requestedTarget);
+
+  const repositoryRealPath = await realpath(repositoryPath);
+  let existingAncestor = requestedTarget;
+  while (!(await pathState(existingAncestor))) {
+    if (existingAncestor === repositoryPath) {
+      throw new Error("Quality output path has no existing repository ancestor");
+    }
+    existingAncestor = dirname(existingAncestor);
+  }
+  const existingAncestorRealPath = await realpath(existingAncestor);
+  childPath(repositoryRealPath, existingAncestorRealPath, "Quality output ancestor", { allowEqual: true });
+  const controlledTarget = resolve(
+    existingAncestorRealPath,
+    relative(existingAncestor, requestedTarget),
+  );
+  childPath(resolve(repositoryRealPath, "outputs"), controlledTarget, "Quality output directory");
+  return { controlledTarget, repositoryPath, repositoryRealPath, requestedTarget };
+}
+
+export async function resetQualityOutputDirectory({ repositoryRoot, outputDirectory }) {
+  const initial = await controlledQualityOutputTarget({ repositoryRoot, outputDirectory });
+  const revalidated = await controlledQualityOutputTarget({ repositoryRoot, outputDirectory });
+  if (revalidated.repositoryRealPath !== initial.repositoryRealPath
+    || revalidated.controlledTarget !== initial.controlledTarget) {
+    throw new Error("Quality output path changed during deletion safety checks");
+  }
+  await rm(revalidated.controlledTarget, { recursive: true, force: true });
+  await mkdir(revalidated.controlledTarget, { recursive: true, mode: 0o700 });
+  await assertPathWithoutSymbolicLinks(initial.repositoryPath, initial.requestedTarget);
+  const createdTargetRealPath = await realpath(revalidated.controlledTarget);
+  if (createdTargetRealPath !== revalidated.controlledTarget) {
+    throw new Error("Quality output directory resolved outside its controlled target after creation");
+  }
 }
 
 export async function resetQualityE2eOutput(options) {
