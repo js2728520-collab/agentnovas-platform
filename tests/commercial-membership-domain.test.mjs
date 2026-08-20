@@ -11,6 +11,7 @@ test("token cost is versioned, integer and rounded up", () => {
   assert.deepEqual(calculateTokenCost({
     modelVersion: "token-cost-v1",
     usageReliable: true,
+    rateReliable: true,
     inputTokens: 1_000_001,
     outputTokens: 500_000,
     inputCreditsPerMillion: 10,
@@ -22,6 +23,7 @@ test("token cost refuses missing or unreliable usage", () => {
   assert.throws(() => calculateTokenCost({
     modelVersion: "token-cost-v1",
     usageReliable: false,
+    rateReliable: true,
     inputTokens: 1,
     outputTokens: 1,
     inputCreditsPerMillion: 1,
@@ -30,11 +32,21 @@ test("token cost refuses missing or unreliable usage", () => {
   assert.throws(() => calculateTokenCost({
     modelVersion: "unknown",
     usageReliable: true,
+    rateReliable: true,
     inputTokens: 1,
     outputTokens: 1,
     inputCreditsPerMillion: 1,
     outputCreditsPerMillion: 1,
   }), /AI_COST_MODEL_UNSUPPORTED/);
+  assert.throws(() => calculateTokenCost({
+    modelVersion: "token-cost-v1",
+    usageReliable: true,
+    rateReliable: false,
+    inputTokens: 1,
+    outputTokens: 1,
+    inputCreditsPerMillion: 1,
+    outputCreditsPerMillion: 1,
+  }), /AI_RATE_NOT_RELIABLE/);
 });
 
 test("weekly fee applies HWM and loss carry using cumulative closed paper pnl", () => {

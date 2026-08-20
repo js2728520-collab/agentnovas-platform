@@ -20,6 +20,7 @@ export const requiredLegalDocumentTypes = ["terms", "privacy", "risk_disclosure"
 export function calculateTokenCost(input: {
   modelVersion: string;
   usageReliable: boolean;
+  rateReliable: boolean;
   inputTokens: number;
   outputTokens: number;
   inputCreditsPerMillion: number;
@@ -27,6 +28,7 @@ export function calculateTokenCost(input: {
 }) {
   if (input.modelVersion !== "token-cost-v1") throw new Error("AI_COST_MODEL_UNSUPPORTED");
   if (!input.usageReliable) throw new Error("AI_USAGE_NOT_RELIABLE");
+  if (!input.rateReliable) throw new Error("AI_RATE_NOT_RELIABLE");
   for (const value of [input.inputTokens, input.outputTokens, input.inputCreditsPerMillion, input.outputCreditsPerMillion]) {
     if (!Number.isSafeInteger(value) || value < 0) throw new Error("AI_USAGE_OR_RATE_INVALID");
   }
