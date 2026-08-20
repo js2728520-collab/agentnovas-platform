@@ -36,6 +36,7 @@
     "worker:notification": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/notification-worker.mjs"
   },
   "dependencies": {
+    "@node-rs/argon2": "2.1.0",
     "@web3icons/core": "^4.0.53",
     "drizzle-orm": "0.45.2",
     "next": "^16.3.1",
