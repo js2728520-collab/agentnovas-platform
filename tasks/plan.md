@@ -1,169 +1,81 @@
-# 多 Agent 策略研发与验证系统 V5 实施计划
+# Implementation Plan: Riverton 受控测试与七智能体对齐
 
-规格：`docs/multi-agent-strategy-research-v5.md`
+## Objective
 
-架构：`docs/adr/0003-postgresql-multi-agent-research-pipeline.md`
+在单一 Next.js、PostgreSQL 和共享组件体系中，完成 Client、Operations、Maintenance 的功能/登录/权限分离；以《七智能体动态策略系统_用户说明书》为 Client 交易大厅产品真源，先完成可验证的影子/模拟闭环，再按迁移矩阵补齐 Operations/Maintenance。
 
-## Phase 1：合同、DSL V2 与确定性回测
+## Source of Truth
 
-1. 记录 V5 规格、API 合同、威胁模型和 ADR。
-2. 先写 V1 兼容、V2 校验、做多/做空/双向和指标边界失败测试。
-3. 实现下一根开盘成交、K 线内止损优先、费用/滑点/资金费率/爆仓的确定性回测。
+1. `docs/product/PRD.md`
+2. `docs/product/SEVEN_AGENT_TRADING_HALL.md`
+3. `docs/specs/SYSTEM_SPEC.md` 与三应用 Spec
+4. `docs/architecture/CAPABILITY_MIGRATION_MATRIX.md`
+5. `docs/quality/ACCEPTANCE_AND_RELEASE_GATES.md`
+6. `docs/roadmap/CONTROLLED_BETA_ROADMAP.md`
 
-## Phase 2：PostgreSQL 与可恢复 Worker
-
-4. 增加 PostgreSQL schema、迁移和行数/哈希核验工具。
-5. 实现租约领取、阶段提交、过期恢复、取消、幂等和事件序号。
-6. 增加 Linux Web/Worker 启停、健康检查和维护窗口切换脚本。
-
-## Phase 3：数据适配与多 Agent 编排
-
-7. 实现 OKX、Binance、Bybit 永续 instrument/K线/资金费率/费率适配与质量报告。
-8. 实现管理员模型 Profile、连通测试、禁用和角色绑定。
-9. 实现需求、市场状态、双提案、反方、风控、报告角色及有限修订。
-10. 实现三种预算、时间隔离参数搜索、走查、压力测试、评分和 Top 3。
-
-## Phase 4：API、权限与 UI
-
-11. 实现创建/详情/SSE/取消/保存接口与统一错误格式。
-12. 接入验证标签、模拟限制、实盘申请资格和策略广场自动门槛。
-13. 改造策略工作室为模式选择、公开时间线、数据质量和三候选比较。
-
-## Phase 5：交付验证
-
-14. 运行定向/全量测试、生产构建、定向 ESLint 和安全审计。
-15. 真实浏览器验证管理员开关、客户研发流程、断线恢复、保存与权限提示。
-16. 以 Codex 身份本地原子提交；不推送、不创建 PR。
-
-## 当前验收状态（2026-08-18）
-
-- 最新 PostgreSQL 切换、需求追问、账户费率与启动安全定向测试 41/41 通过；完整测试 139 项中 138 项通过，唯一失败是本分支开始前已存在的高水位计费合同不一致。
-- 生产构建、V5 定向 ESLint、浏览器管理员/客户空状态与控制台检查通过。
-- 全项目 TypeScript 检查中的 Cloudflare/D1 运行时类型已补齐，仍有 40 个旧页面缺失组件和历史路由类型错误；全量 ESLint 仍有 61 个旧错误和 7 个警告。新增 V5 与 PostgreSQL 兼容层的定向 ESLint、类型构建和生产打包通过。
-- `npm audit --omit=dev` 为 0；完整依赖树仍有 15 个 high、4 个 moderate、1 个 low，均在开发/构建工具链，未自动执行可能破坏 Vinext/Cloudflare 兼容的升级。
-- Node/Worker systemd、Nginx/SSE、环境示例、完整业务 PostgreSQL schema、D1 40 表迁移核验和切换手册已提供。
-- PostgreSQL 模式生产进程的健康检查和登录查询探针已通过；在目标 Linux 完成真实 D1 备份、空库导入、整站冒烟与回滚演练前，`agentnovas.com` 生产切换仍保持阻断，研究功能开关保持关闭。
-
----
-
-# 策略版本自动递增与安全回滚 V4 实施计划
-
-## Overview
-
-同一策略每次成功调整都追加一个不可变版本并自动将版本号加一。历史版本回滚不覆盖旧记录，而是把目标版本复制为新的最新草稿版本，例如当前 V3 回滚 V1 后生成 V4，同时保留 V1、V2、V3。
+旧 handoff、历史计划和已经勾选的任务不能覆盖上述最新真源。
 
 ## Architecture Decisions
 
-- 继续以 `community_strategies.version` 表示当前版本，以 `strategy_versions` 保存不可变快照。
-- 新增 `POST /api/strategy-marketplace/:id/versions`，输入 `sourceVersion`，输出新版本及回滚来源。
-- 回滚仅限策略作者，且只允许可编辑状态；审核中、已发布或运行状态继续走现有变更流程。
-- 版本快照新增可空的 `restored_from_version`，用于界面和审计明确显示回滚来源。
+- AgentNovas 是技术平台；Riverton Capital 是对外产品。
+- 平台服务钱包只支付会员和 AI 服务；交易策略资金留在客户交易所。
+- 三张官方策略卡的目标边界是 BTC/ETH/SOL 的 USDT 现货；用户自建 1x 永续研发/回测是独立模拟产品。
+- 七产品角色为市场分析、技术分析、策略研究、反方审查、风险审批、AI 最终决策和交易执行；audit 是横切能力。
+- 当前只允许 shadow/paper。真实永续订单关闭；真实现货执行也不在本计划中启用。
+- 页面权限改善体验，API audience + RBAC + data scope 才是安全边界。
 
-## Task List
+## Delivery Order
 
-### Phase 1：合同与服务端垂直切片
+### Phase 0：真源与 CI
 
-- [x] T-V4-01：添加版本递增、回滚追加、跨租户拒绝和状态限制的失败测试。
-- [x] T-V4-02：添加回滚来源迁移、Drizzle 字段与作者隔离的版本创建接口。
+1. 建立完整项目文档、PRD、Spec、ADR、API 目录、系统评估和路线图。
+2. 把任务状态从“全完成”改为证据化 CURRENT/PARTIAL/TARGET/BLOCKED。
+3. 修复测试对 ignored/stale `dist` 的依赖，增加 clean-CI 验证。
 
-### Checkpoint A
+### Phase 1：七智能体交易大厅纵向切片
 
-- [x] 定向版本测试通过，现有编辑自动递增行为不变。
+1. 在 `packages/contracts` 定义三卡、七角色、产品边界、决策轮和公开证据合同。
+2. 先写失败测试，证明角色数量/顺序、audit 边界、无静态 fallback 和真实订单关闭。
+3. Trading Hall API 输出 camelCase、安全状态、七角色目录和真实 decision rounds。
+4. Runtime 增加独立 final decision；旧 audit 作为 legacy 审计证据兼容读取。
+5. Hall/Meeting 读取 API，删除硬编码价格、风险、静态会议和无行为紧急停止。
+6. 浏览器验证空数据、部分事件、完整事件、风险拒绝和模拟执行。
 
-### Phase 2：版本记录交互
+### Phase 2：身份与 API 收口
 
-- [x] T-V4-03：版本列表显示当前版本、回滚来源和“回滚到此版本”按钮。
-- [x] T-V4-04：回滚前明确提示将生成的新版本号，完成后刷新规则、版本历史与策略列表。
+1. 建立覆盖 131 routes 的机器可读 API policy。
+2. 迁移 legacy role 接口；legacy fallback 加开关、观测和截止日期。
+3. 密码 KDF、限流、一次性 bootstrap、内部高权强认证和安全响应头。
+4. 公开/内部 health 分层。
 
-### Checkpoint B
+### Phase 3：Operations 业务迁移
 
-- [x] 浏览器验证当前 V1 标识和回滚说明；未为验收而改写用户策略，追加新版本行为由数据库与接口合同测试覆盖。
+按 `CAPABILITY_MIGRATION_MATRIX.md`：先 P0 组织/客户/审批/策略治理/账本，再 P1 团队/财务/政策；每个写入具备原因、事务、幂等、双审和审计。
 
-### Phase 3：交付验证
+### Phase 4：Maintenance 与运行可观测性
 
-- [x] T-V4-05：运行定向测试、生产构建、定向 ESLint 和安全审计。
-- [x] T-V4-06：以 Codex 身份本地提交；不推送、不创建 PR。
+完成模型版本/回滚、三类角色目录、数据集成、Worker heartbeat、技术审计和安全控制验收。
 
-## Risks and Mitigations
+### Phase 5：前端收敛与发布
 
-| 风险 | 影响 | 缓解 |
-| --- | --- | --- |
-| 回滚误覆盖历史 | 无法审计 | 回滚永远创建 `current + 1`，旧快照只读。 |
-| 越权回滚他人策略 | 跨租户篡改 | 策略 ID 与作者 ID 联合查询，历史版本同时绑定策略 ID。 |
-| 已发布策略直接换规则 | 跟随者风险 | 只允许 draft/testing/rejected；其他状态保持既有变更流程。 |
-| 旧快照内容异常 | 恢复不可执行规则 | 服务端重新通过严格 DSL 校验后才写入新版本。 |
+拆分 Client 单体和 CSS、替换 DOM i18n、补关键 E2E/axe/响应式测试，完成一次性数据库环境和发布证据包。
 
----
+## Boundaries
 
-# AI 对话结构化展示与快捷确认 V3 实施计划
+- Always：参数化 SQL、接口输入校验、PII/secret 安全视图、服务端权限复核、真实状态、加载/空/错、审计和幂等。
+- Ask first：生产迁移、真实外部调用、提交、推送、PR、真实订单。
+- Never：跨 audience 数据、密钥回显、虚假地址/成功/实时数据、自动资金执行、把模拟说成真实。
 
-规格：`docs/ai-conversation-structured-ui-v3.md`
+## Verification
 
-## Phase 1：结构化阅读垂直切片
+每个纵向切片执行定向测试，然后执行：
 
-1. 为历史纯文本回复定义解析合同并编写失败测试。
-2. 实现纯解析器与共享结构化消息卡片。
-3. 接入普通 Agent 对话，完成定向测试并创建原子提交。
+```bash
+npm test
+npx tsc --noEmit
+npm run lint
+npm run test:apps
+git diff --check
+```
 
-## Phase 2：快捷确认垂直切片
-
-4. 为问句、候选项、默认推荐和自定义答案编写失败测试。
-5. 实现可访问的选项弹窗，并接入普通 Agent 与策略研究对话。
-6. 补充现有设计系统样式、移动端布局和键盘交互，创建原子提交。
-
-## Phase 3：交付验证
-
-7. 运行定向测试、完整测试、生产构建、定向 ESLint 和安全检查。
-8. 在本地浏览器验证历史结构化消息、候选选择、自定义填写、会话持久化和控制台。
-9. 审查差异并以 Codex 身份本地提交；不推送、不创建 PR。
-
-## 风险与缓解
-
-| 风险 | 影响 | 缓解 |
-| --- | --- | --- |
-| 历史消息格式不统一 | 分区识别错误 | 宽松标题识别、保留未识别正文、永不丢内容。 |
-| AI 没有提供选项 | 交互入口缺失 | 根据问题和会话上下文生成保守默认候选。 |
-| 多问题连续弹窗干扰 | 操作负担高 | 单弹窗逐题确认，可关闭后继续阅读。 |
-| 选择即自动发送 | 误提交答案 | 预选不发送，必须点击明确的“确认并发送”。 |
-
----
-
-# 已完成：专业 AI 研究与回测闭环 V2 实施计划
-
-规格：`docs/ai-research-backtest-v2.md`
-
-架构：`docs/adr/0002-professional-ai-research-and-backtest-workflow.md`
-
-## Phase 1：专业对话垂直切片
-
-1. **T-V2-01 合同与失败测试**：为意图、工作记忆、技术快照和回答规则添加失败测试。
-2. **T-V2-02 研究上下文**：加载真实 1h K 线并计算 EMA、RSI、ATR、支撑和阻力。
-3. **T-V2-03 专业回答**：引入意图路由、会话工作记忆和结论优先的模型/规则回答契约。
-
-### Checkpoint A
-
-- AI 定向测试通过；现有对话 SSE 与租户合同不变；创建原子提交。
-
-## Phase 2：策略详情与可配置回测垂直切片
-
-4. **T-V2-04 回测参数合同**：先写预设、边界和向后兼容失败测试，再扩展引擎选项。
-5. **T-V2-05 策略详情 API**：添加作者隔离的详情/版本/报告读取，回测接口接受受限选项。
-6. **T-V2-06 策略详情 UI**：添加查看策略、回测预设、核心指标、警告和最近交易明细。
-
-### Checkpoint B
-
-- 回测/策略合同测试和构建通过；浏览器完成客户查看和回测流程；创建原子提交。
-
-## Phase 3：交付验证
-
-7. **T-V2-07 验证**：运行定向测试、生产构建、定向 ESLint、安全审计和浏览器控制台检查。
-8. **T-V2-08 审查**：检查差异、密钥、许可边界和 Codex 提交身份；不推送、不创建 PR。
-
-## 风险与缓解
-
-| 风险 | 影响 | 缓解 |
-| --- | --- | --- |
-| 行情 API 失败 | AI 无法引用技术证据 | 超时、格式校验和明确降级。 |
-| 回测选项过度自由 | 资源滥用/结果失真 | 严格上下限和记录实际参数。 |
-| 详情暴露他人策略 | 跨租户泄露 | ID + 作者 ID 双条件查询。 |
-| 大组件继续膨胀 | 难维护 | 提取独立策略详情组件，现有中心只负责导航。 |
+浏览器使用隔离 Profile 和一次性测试 Schema，覆盖 Client、Ops 申请人、Ops 审批人和 Maintenance 管理员。

@@ -1,0 +1,385 @@
+openapi: 3.1.0
+info:
+  title: Riverton Capital Controlled Beta API
+  version: 1.0.0-beta
+  description: >-
+    三应用一库的核心浏览器接口合同。真实支付、真实邮件和真实订单不在本合同中启用。
+servers:
+  - url: https://agentnovas.com
+    description: Client
+  - url: https://zht.agentnovas.com
+    description: Operations
+  - url: https://xm.agentnovas.com
+    description: Maintenance
+tags:
+  - name: Auth
+  - name: Access
+  - name: Trading Hall
+  - name: Wallet
+  - name: Operations
+  - name: Maintenance
+paths:
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录当前 audience
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功并设置当前 audience Cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Viewer'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: 注销当前 audience 会话
+      responses:
+        '200':
+          description: 已注销
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: 当前会话用户
+      responses:
+        '200':
+          description: 当前用户
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Viewer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/access/me/effective:
+    get:
+      tags: [Access]
+      summary: 当前 audience 有效权限
+      responses:
+        '200':
+          description: 权限与数据范围
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffectiveAccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/trading-hall:
+    get:
+      tags: [Trading Hall]
+      summary: 官方三策略卡与最近七阶段决策轮
+      description: 当前只返回 shadow/paper 运行状态，不表示真实现货订单已启用。
+      responses:
+        '200':
+          description: 交易大厅数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TradingHall'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/wallet/balances:
+    get:
+      tags: [Wallet]
+      summary: 查询平台服务余额
+      description: 余额只能用于会员和 AI 服务，不是交易所策略资金。
+      responses:
+        '200':
+          description: 余额列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WalletBalance'
+  /api/wallet/deposit-orders:
+    get:
+      tags: [Wallet]
+      summary: 查询服务充值订单
+      responses:
+        '200':
+          description: 充值订单
+    post:
+      tags: [Wallet]
+      summary: 创建服务充值订单
+      responses:
+        '201':
+          description: 已创建真实服务商订单
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/operations/deposits:
+    get:
+      tags: [Operations]
+      summary: 按当前数据范围查询充值
+      parameters:
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        '200':
+          description: 已按权限脱敏的充值列表
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/operations/deposit-action-requests/{id}/decisions:
+    post:
+      tags: [Operations]
+      summary: 第二人审批充值人工操作
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, reason]
+              properties:
+                decision: { type: string, enum: [approve, reject] }
+                reason: { type: string, minLength: 1, maxLength: 1000 }
+      responses:
+        '200':
+          description: 审批已记录；不表示资金或账本已经执行
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/operations/ledger:
+    get:
+      tags: [Operations]
+      summary: 查询不可变账本
+      responses:
+        '200':
+          description: 当前数据范围内的交易与分录
+  /api/maintenance/email/status:
+    get:
+      tags: [Maintenance]
+      summary: 邮件集成安全状态
+      responses:
+        '200':
+          description: 不含密钥和完整端点的状态
+  /api/maintenance/payment-providers:
+    get:
+      tags: [Maintenance]
+      summary: 支付服务商安全状态
+      responses:
+        '200':
+          description: 不含密钥的 provider 列表
+  /api/maintenance/payment-workers/health:
+    get:
+      tags: [Maintenance]
+      summary: Payment Worker 健康
+      responses:
+        '200':
+          description: configured/enabled/heartbeat/last result 分离的状态
+components:
+  securitySchemes:
+    clientSession:
+      type: apiKey
+      in: cookie
+      name: rc_client_session
+    operationsSession:
+      type: apiKey
+      in: cookie
+      name: rc_ops_session
+    maintenanceSession:
+      type: apiKey
+      in: cookie
+      name: rc_maint_session
+  schemas:
+    LoginRequest:
+      type: object
+      required: [account, password]
+      properties:
+        account: { type: string, minLength: 1, maxLength: 320 }
+        password: { type: string, minLength: 10, maxLength: 1024 }
+    Viewer:
+      type: object
+      required: [id, email, role]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        role: { type: string }
+        organizationId: { type: [string, 'null'] }
+    EffectiveAccess:
+      type: object
+      required: [appId, source, user, permissions]
+      properties:
+        appId: { type: string, enum: [client, operations, maintenance] }
+        source: { type: string, enum: [rbac, legacy_role] }
+        user: { $ref: '#/components/schemas/Viewer' }
+        permissions:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [SELF, DIRECT_REPORTS, TEAM_TREE, ORGANIZATION, ORGANIZATION_SET, PLATFORM]
+    TradingHall:
+      type: object
+      required: [productBoundary, strategies, agents, decisionRounds, generatedAt]
+      properties:
+        productBoundary:
+          type: object
+          required: [targetMarket, symbols, leverageEnabled, shortSellingEnabled, realOrderRoutingEnabled, localExchangeExecutionEnabled, currentExecutionMode, alignmentStatus]
+          properties:
+            targetMarket: { type: string, const: spot_usdt }
+            symbols:
+              type: array
+              items: { type: string, enum: [BTCUSDT, ETHUSDT, SOLUSDT] }
+            leverageEnabled: { type: boolean, const: false }
+            shortSellingEnabled: { type: boolean, const: false }
+            realOrderRoutingEnabled: { type: boolean, const: false }
+            localExchangeExecutionEnabled: { type: boolean, const: false }
+            currentExecutionMode: { type: string, enum: [shadow, paper, mixed_simulation, unavailable] }
+            alignmentStatus: { type: string, const: simulation_only }
+        strategies:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items: { $ref: '#/components/schemas/TradingHallStrategy' }
+        agents:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items: { $ref: '#/components/schemas/TradingAgent' }
+        decisionRounds:
+          type: array
+          items: { $ref: '#/components/schemas/DecisionRound' }
+        generatedAt: { type: string, format: date-time }
+    TradingHallStrategy:
+      type: object
+      required: [code, name, positioning, targetMarket, symbols, regimeTimeframe, decisionTimeframes, executionObservationTimeframe, typicalHoldingPeriod, normalParentOrderTarget, risk, status, executionMode, dataAvailable, openPositions]
+      properties:
+        code: { type: string, enum: [ai_conservative, ai_balanced, ai_aggressive] }
+        name: { type: string }
+        positioning: { type: string }
+        targetMarket: { type: string, const: spot_usdt }
+        symbols:
+          type: array
+          items: { type: string, enum: [BTCUSDT, ETHUSDT, SOLUSDT] }
+        regimeTimeframe: { type: string, enum: [4h, 1h] }
+        decisionTimeframes:
+          type: array
+          items: { type: string, enum: [1h, 15m] }
+        executionObservationTimeframe: { type: string, const: 5m }
+        typicalHoldingPeriod: { type: string }
+        normalParentOrderTarget:
+          type: object
+          required: [minimum, maximum]
+          properties:
+            minimum: { type: integer }
+            maximum: { type: integer }
+        risk:
+          type: object
+          required: [maxAssetAllocationPct, maxTotalAllocationPct, riskPerTradePct, dailyLossHaltPct, maxDrawdownPct, maxNewEntriesPerDay, maxConcurrentAssets]
+          properties:
+            maxAssetAllocationPct: { type: number }
+            maxTotalAllocationPct: { type: number }
+            riskPerTradePct: { type: number }
+            dailyLossHaltPct: { type: number }
+            maxDrawdownPct: { type: number }
+            maxNewEntriesPerDay: { type: integer }
+            maxConcurrentAssets: { type: integer, const: 2 }
+        status: { type: string }
+        version: { type: [string, 'null'] }
+        executionMode: { type: string, enum: [shadow, paper, mixed_simulation, unavailable] }
+        dataAvailable: { type: boolean }
+        openPositions: { type: integer, minimum: 0 }
+        lastUpdatedAt: { type: [string, 'null'], format: date-time }
+        latestDecisionRoundId: { type: [string, 'null'] }
+        latestDecisionStatus: { type: [string, 'null'] }
+    TradingAgent:
+      type: object
+      required: [key, sequence, name, question, outputName]
+      properties:
+        key:
+          type: string
+          enum: [market_analysis, technical_analysis, strategy_proposal, adversarial_review, risk_approval, final_decision, execution_receipt]
+        sequence: { type: integer, minimum: 1, maximum: 7 }
+        name: { type: string }
+        question: { type: string }
+        outputName: { type: string }
+    DecisionRound:
+      type: object
+      required: [decisionRoundId, strategyCode, strategyName, strategyVersion, symbol, status, executionMode, completeness, events]
+      properties:
+        decisionRoundId: { type: string }
+        strategyCode: { type: string }
+        strategyName: { type: string }
+        strategyVersion: { type: string }
+        symbol: { type: string }
+        status: { type: string }
+        executionMode: { type: string, enum: [shadow, paper, mixed_simulation, unavailable] }
+        completeness: { type: string, enum: [complete, partial, legacy] }
+        traceId: { type: [string, 'null'] }
+        updatedAt: { type: [string, 'null'], format: date-time }
+        events:
+          type: array
+          items:
+            type: object
+            required: [sequence, role, conclusion, createdAt]
+            properties:
+              sequence: { type: integer, minimum: 1, maximum: 7 }
+              role: { type: string }
+              conclusion: { type: string }
+              createdAt: { type: string, format: date-time }
+    WalletBalance:
+      type: object
+      required: [currency, availableAmount, frozenAmount, version, updatedAt]
+      properties:
+        currency: { type: string }
+        availableAmount: { type: string }
+        frozenAmount: { type: string }
+        version: { type: string }
+        updatedAt: { type: string, format: date-time }
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+        requestId: { type: string }
+  responses:
+    Unauthorized:
+      description: 会话缺失或已过期
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Forbidden:
+      description: 当前 audience、权限或数据范围不允许
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Conflict:
+      description: 自审、重复决定或状态冲突
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    RateLimited:
+      description: 请求过于频繁
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Unavailable:
+      description: 服务未配置、未启用或测试被关闭
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }

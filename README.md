@@ -68,7 +68,9 @@ PLATFORM_EMERGENCY_STOP=false
 - `npm run build`：生成生产构建并执行 TypeScript 检查。
 - `npm run start`：启动生产构建。
 - `npm run lint`：执行 ESLint。
-- `npm test`：生产构建和页面渲染验收。
+- `npm test`：运行单元、合同和 PostgreSQL 集成测试；不读取历史构建产物。
+- `npm run test:apps`：分别构建 Client、Operations 和 Maintenance。
+- `npm run test:smoke`：构建 Client、启动临时生产服务并验证真实 HTML 响应。
 
 ## Linux 部署
 
