@@ -73,4 +73,3 @@ test("PostgreSQL effective access requires explicit internal assignments and hon
     grants: {},
   });
 });
-

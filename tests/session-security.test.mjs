@@ -44,4 +44,3 @@ test("forwarded client addresses are ignored until a proxy hop count is explicit
   assert.equal(clientIpFromRequest(request, { TRUST_PROXY_HOPS: "2" }), "198.51.100.2");
   assert.equal(clientIpFromRequest(request, { TRUST_PROXY_HOPS: "invalid" }), null);
 });
-

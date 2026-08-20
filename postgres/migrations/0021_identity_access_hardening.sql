@@ -60,7 +60,7 @@ SET "status" = 'failed',
     "lease_expires_at" = NULL,
     "updated_at" = now()
 WHERE "template_key" IN ('reset_password', 'internal_account_invite')
-  AND "payload_json"::jsonb ? 'token';
+  AND "payload_json" ~ '"token"[[:space:]]*:';
 
 CREATE TABLE IF NOT EXISTS "user_mfa_totp_credentials" (
   "user_id" text PRIMARY KEY REFERENCES "users"("id") ON DELETE CASCADE,

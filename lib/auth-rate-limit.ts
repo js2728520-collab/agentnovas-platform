@@ -91,4 +91,3 @@ export async function clearAuthRateLimit(pool: Pool, input: ClearInput) {
       AND bucket_key_hash = ANY($3::text[])
   `, [input.action, input.audience, hashes]);
 }
-

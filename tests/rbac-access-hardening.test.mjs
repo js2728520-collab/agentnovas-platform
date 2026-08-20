@@ -86,4 +86,3 @@ test("approved assignment changes maintain explicit revocation tombstones", asyn
   assert.match(decisions, /DELETE FROM rbac_revocation_tombstones/);
   assert.match(directAssignments, /DELETE FROM rbac_revocation_tombstones/);
 });
-
