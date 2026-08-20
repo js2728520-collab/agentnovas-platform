@@ -32,5 +32,6 @@ test("login route validates application access before issuing an app session", a
   const source = await readFile(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
   assert.match(source, /userCanAccessApp/);
   assert.match(source, /无权登录当前应用/);
-  assert.match(source, /application_id = \$2/);
+  assert.match(source, /effectiveAccessForUser/);
+  assert.doesNotMatch(source, /legacyPermissionsForApp/);
 });

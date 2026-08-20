@@ -22,7 +22,7 @@ function encodeCursor(cursor: LedgerCursor) {
 
 export async function GET(request: Request) {
   try {
-    const { user, scope } = await requireAccessPermission(request, "ops.ledger.view");
+    const { user, scope, organizationIds } = await requireAccessPermission(request, "ops.ledger.view");
     const url = new URL(request.url);
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 50), 1), 100);
     const params: unknown[] = [];
@@ -53,6 +53,7 @@ export async function GET(request: Request) {
       "scope_ca",
       "scope_account.owner_user_id",
       params.length + 1,
+      organizationIds,
     );
     params.push(...scoped.values);
     if (scoped.clause !== "TRUE") {

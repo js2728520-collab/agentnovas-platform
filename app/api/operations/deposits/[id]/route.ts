@@ -5,11 +5,11 @@ import { ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const { user, access, scope } = await requireAccessPermission(request, "ops.deposits.view");
+    const { user, access, scope, organizationIds } = await requireAccessPermission(request, "ops.deposits.view");
     const canRevealPii = Boolean(access.permissions["ops.deposits.pii_reveal"]);
     const { id } = await context.params;
     const pool = await getPostgresPool();
-    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id", 2);
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id", 2, organizationIds);
     const result = await pool.query<{
       id: string;
       platform_order_no: string;

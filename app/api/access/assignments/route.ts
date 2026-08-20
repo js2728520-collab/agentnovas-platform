@@ -50,14 +50,22 @@ export async function POST(request: Request) {
       throw new ResearchApiError("SENSITIVE_APPROVAL_REQUIRED", "包含敏感权限的角色必须先走双人审批", 409, { roleId });
     }
     const result = await pool.query(`
-      INSERT INTO user_role_assignments (
-        id, user_id, role_id, application_id, organization_id,
-        expires_at, granted_by_user_id, reason
+      WITH inserted AS (
+        INSERT INTO user_role_assignments (
+          id, user_id, role_id, application_id, organization_id,
+          scope_organization_ids_json, expires_at, granted_by_user_id, reason
+        )
+        SELECT $1, u.id, $2, $3, u.organization_id,
+               CASE WHEN u.organization_id IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(u.organization_id) END,
+               $4::timestamptz, $5, $6
+        FROM users AS u
+        WHERE u.id = $7
+        RETURNING id, user_id, role_id, application_id, status, effective_at, expires_at
+      ), cleared_tombstone AS (
+        DELETE FROM rbac_revocation_tombstones
+        WHERE user_id = $7 AND application_id = $3
       )
-      SELECT $1, u.id, $2, $3, u.organization_id, $4::timestamptz, $5, $6
-      FROM users AS u
-      WHERE u.id = $7
-      RETURNING id, user_id, role_id, application_id, status, effective_at, expires_at
+      SELECT * FROM inserted
     `, [
       crypto.randomUUID(),
       roleId,

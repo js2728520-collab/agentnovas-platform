@@ -5,11 +5,11 @@ import { researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request) {
   try {
-    const { user, access, scope } = await requireAccessPermission(request, "ops.deposits.view");
+    const { user, access, scope, organizationIds } = await requireAccessPermission(request, "ops.deposits.view");
     const canRevealPii = Boolean(access.permissions["ops.deposits.pii_reveal"]);
     const pool = await getPostgresPool();
     const url = new URL(request.url);
-    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id");
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id", 1, organizationIds);
     const params: unknown[] = [...scoped.values];
     const where = [scoped.clause];
     for (const [queryName, column] of [

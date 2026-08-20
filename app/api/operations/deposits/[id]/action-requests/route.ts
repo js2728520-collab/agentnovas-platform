@@ -15,7 +15,7 @@ const allowedActions = new Set([
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const { user, scope } = await requireAccessPermission(request, "ops.deposits.action_request");
+    const { user, scope, organizationIds } = await requireAccessPermission(request, "ops.deposits.action_request");
     const { id } = await context.params;
     const body = await readResearchJson(request);
     const action = String(body.action ?? "");
@@ -23,7 +23,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const reason = String(body.reason ?? "").trim().slice(0, 500);
     if (!reason) throw new ResearchApiError("VALIDATION_ERROR", "必须填写人工操作原因", 422, { fields: ["reason"] });
     const pool = await getPostgresPool();
-    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id", 2);
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id", 2, organizationIds);
     const existing = await pool.query(`SELECT d.id FROM deposit_orders AS d WHERE d.id = $1 AND ${scoped.clause} LIMIT 1`, [id, ...scoped.values]);
     if (!existing.rows[0]) throw new ResearchApiError("NOT_FOUND", "充值订单不存在", 404);
     const requestId = crypto.randomUUID();

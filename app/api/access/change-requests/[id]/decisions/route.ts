@@ -115,11 +115,25 @@ async function applyApprovedChange(client: { query: (text: string, values?: unkn
       if (!(await client.query("UPDATE roles SET name = $1, updated_at = now() WHERE id = $2 AND application_id = $3 AND is_system = false AND status = 'draft' RETURNING id", [change.after.name, change.targetRoleId, change.applicationId])).rows.length) throw new ResearchApiError("CONFLICT", "角色状态已变化", 409);
       return;
     case "role_assign":
-      if (!(await client.query(`INSERT INTO user_role_assignments (id, user_id, role_id, application_id, organization_id, expires_at, granted_by_user_id, reason) SELECT $1, u.id, r.id, r.application_id, u.organization_id, $2::timestamptz, $3, $4 FROM users u JOIN roles r ON r.id = $5 WHERE u.id = $6 AND r.application_id = $7 AND r.status = 'published' RETURNING id`, [crypto.randomUUID(), change.after.expiresAt, actorId, change.after.reason, change.targetRoleId, change.targetUserId, change.applicationId])).rows.length) throw new ResearchApiError("CONFLICT", "用户或角色状态已变化", 409);
+      if (!(await client.query(`INSERT INTO user_role_assignments (id, user_id, role_id, application_id, organization_id, scope_organization_ids_json, expires_at, granted_by_user_id, reason) SELECT $1, u.id, r.id, r.application_id, u.organization_id, CASE WHEN u.organization_id IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(u.organization_id) END, $2::timestamptz, $3, $4 FROM users u JOIN roles r ON r.id = $5 WHERE u.id = $6 AND r.application_id = $7 AND r.status = 'published' RETURNING id`, [crypto.randomUUID(), change.after.expiresAt, actorId, change.after.reason, change.targetRoleId, change.targetUserId, change.applicationId])).rows.length) throw new ResearchApiError("CONFLICT", "用户或角色状态已变化", 409);
+      await client.query("DELETE FROM rbac_revocation_tombstones WHERE user_id = $1 AND application_id = $2", [change.targetUserId, change.applicationId]);
       return;
-    case "role_revoke":
-      if (!(await client.query("UPDATE user_role_assignments SET status = 'revoked', revoked_by_user_id = $1, revoked_at = now(), updated_at = now() WHERE id = $2 AND user_id = $3 AND role_id = $4 AND application_id = $5 AND status = 'active' RETURNING id", [actorId, change.after.assignmentId, change.targetUserId, change.targetRoleId, change.applicationId])).rows.length) throw new ResearchApiError("CONFLICT", "角色分配状态已变化", 409);
+    case "role_revoke": {
+      const revoked = await client.query("UPDATE user_role_assignments SET status = 'revoked', revoked_by_user_id = $1, revoked_at = now(), updated_at = now() WHERE id = $2 AND user_id = $3 AND role_id = $4 AND application_id = $5 AND status = 'active' RETURNING id", [actorId, change.after.assignmentId, change.targetUserId, change.targetRoleId, change.applicationId]);
+      if (!revoked.rows.length) throw new ResearchApiError("CONFLICT", "角色分配状态已变化", 409);
+      await client.query(`
+        INSERT INTO rbac_revocation_tombstones
+          (id, user_id, application_id, revoked_assignment_id, revoked_role_id, revoked_by_user_id, reason)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (user_id, application_id) DO UPDATE SET
+          revoked_assignment_id = EXCLUDED.revoked_assignment_id,
+          revoked_role_id = EXCLUDED.revoked_role_id,
+          revoked_by_user_id = EXCLUDED.revoked_by_user_id,
+          reason = EXCLUDED.reason,
+          revoked_at = now()
+      `, [crypto.randomUUID(), change.targetUserId, change.applicationId, change.after.assignmentId, change.targetRoleId, actorId, change.after.reason]);
       return;
+    }
     case "template_publish": {
       const templateId = crypto.randomUUID();
       await client.query("INSERT INTO role_templates (id, application_id, code, name, status, created_by_user_id) VALUES ($1, $2, $3, $4, 'published', $5)", [templateId, change.applicationId, change.after.code, change.after.name, actorId]);

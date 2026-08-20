@@ -5,8 +5,8 @@ import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib
 
 export async function GET(request: Request) {
   try {
-    const { user, access, scope } = await requireAccessPermission(request, "ops.customers.view");
-    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "ca", "ca.customer_id");
+    const { user, access, scope, organizationIds } = await requireAccessPermission(request, "ops.customers.view");
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "ca", "ca.customer_id", 1, organizationIds);
     const pool = await getPostgresPool();
     const rows = await pool.query<{
       customer_id: string; email: string; status: string; registered_at: string; branch_id: string | null;
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const { user, scope } = await requireAccessPermission(request, "ops.customers.manage");
+    const { user, scope, organizationIds } = await requireAccessPermission(request, "ops.customers.manage");
     const body = await readResearchJson(request);
     const customerId = String(body.customerId ?? "");
     const action = String(body.action ?? "");
@@ -55,7 +55,7 @@ export async function PATCH(request: Request) {
     }
     const reason = String(body.reason ?? "").trim().slice(0, 500);
     if (!reason) throw new ResearchApiError("VALIDATION_ERROR", "必须填写客户操作原因", 422, { fields: ["reason"] });
-    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "ca", "ca.customer_id", 2);
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "ca", "ca.customer_id", 2, organizationIds);
     const pool = await getPostgresPool();
     const visible = await pool.query(`SELECT ca.customer_id FROM customer_attributions AS ca WHERE ca.customer_id = $1 AND ${scoped.clause} LIMIT 1`, [customerId, ...scoped.values]);
     if (!visible.rows[0]) throw new ResearchApiError("NOT_FOUND", "客户不存在或不在当前数据范围", 404);

@@ -1,34 +1,17 @@
 import { eq, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { auditLogs, sessions, users } from "@/db/schema";
+import { effectiveAccessForUser } from "@/lib/access-control";
 import { normalizeEmail, randomToken, sha256, verifyPassword } from "@/lib/auth";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
 import { getPostgresPool } from "@/lib/postgres";
-import { legacyPermissionsForApp } from "@/lib/rbac";
 import { clientIpFromRequest, sessionCookieHeaders } from "@/lib/riverton-apps";
 import { responseError } from "@/lib/session";
 
-async function userCanAccessApp(userId: string, role: string, appAudience: "client" | "operations" | "maintenance") {
-  if (legacyPermissionsForApp(role, appAudience).length > 0) return true;
-  try {
-    const pool = await getPostgresPool();
-    const result = await pool.query(`
-      SELECT 1
-      FROM user_role_assignments
-      WHERE user_id = $1
-        AND application_id = $2
-        AND status = 'active'
-        AND effective_at <= now()
-        AND (expires_at IS NULL OR expires_at > now())
-      LIMIT 1
-    `, [userId, appAudience]);
-    return Boolean(result.rows[0]);
-  } catch (error) {
-    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
-    if (code === "42P01" || code === "42703") return false;
-    throw error;
-  }
+async function userCanAccessApp(user: typeof users.$inferSelect, appAudience: "client" | "operations" | "maintenance") {
+  const access = await effectiveAccessForUser(await getPostgresPool(), user, appAudience);
+  return Object.keys(access.permissions).length > 0;
 }
 
 export async function POST(request: Request) {
@@ -49,7 +32,7 @@ export async function POST(request: Request) {
     const token = randomToken();
     const expiresAt = new Date(Date.now() + 7 * 86400_000).toISOString();
     const sessionCookie = sessionCookieHeaders({ request, token, maxAgeSeconds: 604800 });
-    if (!await userCanAccessApp(user.id, user.role, sessionCookie.audience)) {
+    if (!await userCanAccessApp(user, sessionCookie.audience)) {
       return Response.json({ error: "无权登录当前应用" }, { status: 403 });
     }
     await db.batch([

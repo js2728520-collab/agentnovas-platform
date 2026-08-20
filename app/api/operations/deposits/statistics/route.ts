@@ -5,9 +5,9 @@ import { researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request) {
   try {
-    const { user, scope } = await requireAccessPermission(request, "ops.deposits.view");
+    const { user, scope, organizationIds } = await requireAccessPermission(request, "ops.deposits.view");
     const pool = await getPostgresPool();
-    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "deposit_orders", "deposit_orders.user_id");
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "deposit_orders", "deposit_orders.user_id", 1, organizationIds);
     const params: unknown[] = [...scoped.values];
     const where = [scoped.clause];
     const result = await pool.query<{
