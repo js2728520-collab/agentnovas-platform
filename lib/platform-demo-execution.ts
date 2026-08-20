@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 
 import { decryptIntegrationSecret } from "./integration-credentials.ts";
+import { startLeaseHeartbeat } from "./lease-heartbeat.ts";
 import {
   createPlatformDemoAdapter,
   createPlatformDemoFetchTransport,
@@ -465,41 +466,8 @@ export type PlatformDemoExecutionDependencies = {
     apiKey: string; secret: string; passphrase?: string;
   }) => WorkerAdapter;
   heartbeatIntervalMs?: number;
+  onHeartbeatError?: (error: unknown) => void | Promise<void>;
 };
-
-function startDemoLeaseHeartbeat(database: Pool, input: {
-  intentId: string;
-  workerId: string;
-  fencingToken: number;
-  leaseSeconds: number;
-  intervalMs?: number;
-}) {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let stopped = false;
-  let inFlight: Promise<void> | null = null;
-  const intervalMs = input.intervalMs === undefined
-    ? Math.max(1_000, Math.floor(input.leaseSeconds * 1_000 / 3))
-    : Math.min(Math.max(input.intervalMs, 10), Math.floor(input.leaseSeconds * 1_000 / 2));
-  const tick = () => {
-    if (stopped) return;
-    inFlight = renewPlatformDemoLease(database, {
-      intentId: input.intentId,
-      workerId: input.workerId,
-      fencingToken: input.fencingToken,
-      now: new Date(),
-      leaseSeconds: input.leaseSeconds,
-    }).then(() => undefined).catch(() => undefined).finally(() => {
-      inFlight = null;
-      if (!stopped) timer = setTimeout(tick, intervalMs);
-    });
-  };
-  timer = setTimeout(tick, intervalMs);
-  return async () => {
-    stopped = true;
-    if (timer) clearTimeout(timer);
-    if (inFlight) await inFlight;
-  };
-}
 
 export async function processNextPlatformDemoExecution(
   database: Pool,
@@ -513,12 +481,17 @@ export async function processNextPlatformDemoExecution(
   const leaseSeconds = input.leaseSeconds ?? 60;
   const lease = await leaseNextPlatformDemoIntent(database, { workerId: input.workerId, now, leaseSeconds });
   if (!lease) return null;
-  const stopHeartbeat = startDemoLeaseHeartbeat(database, {
-    intentId: lease.id,
-    workerId: input.workerId,
-    fencingToken: lease.fencingToken,
+  const stopHeartbeat = startLeaseHeartbeat({
     leaseSeconds,
     intervalMs: dependencies.heartbeatIntervalMs,
+    onRenewalError: dependencies.onHeartbeatError,
+    renew: () => renewPlatformDemoLease(database, {
+      intentId: lease.id,
+      workerId: input.workerId,
+      fencingToken: lease.fencingToken,
+      now: new Date(),
+      leaseSeconds,
+    }),
   });
   try {
     const decrypt = dependencies.decryptSecret ?? decryptIntegrationSecret;

@@ -9,6 +9,7 @@ import {
 import { saveMarketDataSnapshot } from "./market-data-snapshots.ts";
 import { getSpotCandles } from "./market-data.ts";
 import { membershipAccess } from "./membership-rules.ts";
+import { startLeaseHeartbeat } from "./lease-heartbeat.ts";
 import {
   loadOfficialPaperOpenPosition,
   markOfficialPaperPosition,
@@ -58,6 +59,7 @@ export type StrategyRuntimeWorkerDependencies = {
   createSpotAdapter?: () => RuntimeSpotMarketAdapter;
   saveSnapshot?: typeof saveMarketDataSnapshot;
   heartbeatIntervalMs?: number;
+  onHeartbeatError?: (error: unknown) => void | Promise<void>;
 };
 
 export type RuntimeExplanationWorkerDependencies = {
@@ -278,40 +280,6 @@ async function processOfficialSpotRuntimeDeployment(
   };
 }
 
-function startRuntimeLeaseHeartbeat(database: Pool, input: {
-  deploymentId: string;
-  workerId: string;
-  fencingToken: number;
-  leaseSeconds: number;
-  intervalMs?: number;
-}) {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let stopped = false;
-  let inFlight: Promise<void> | null = null;
-  const intervalMs = input.intervalMs === undefined
-    ? Math.max(1_000, Math.floor(input.leaseSeconds * 1_000 / 3))
-    : Math.min(Math.max(input.intervalMs, 10), Math.floor(input.leaseSeconds * 1_000 / 2));
-  const tick = () => {
-    if (stopped) return;
-    inFlight = renewStrategyRuntimeLease(database, {
-      deploymentId: input.deploymentId,
-      workerId: input.workerId,
-      fencingToken: input.fencingToken,
-      now: new Date(),
-      leaseSeconds: input.leaseSeconds,
-    }).then(() => undefined).catch(() => undefined).finally(() => {
-      inFlight = null;
-      if (!stopped) timer = setTimeout(tick, intervalMs);
-    });
-  };
-  timer = setTimeout(tick, intervalMs);
-  return async () => {
-    stopped = true;
-    if (timer) clearTimeout(timer);
-    if (inFlight) await inFlight;
-  };
-}
-
 export async function processLeasedStrategyRuntimeDeployment(
   database: Pool,
   lease: StrategyRuntimeLease,
@@ -488,12 +456,17 @@ export async function processNextStrategyRuntimeDeployment(
     leaseSeconds,
   });
   if (!lease) return null;
-  const stopHeartbeat = startRuntimeLeaseHeartbeat(database, {
-    deploymentId: lease.id,
-    workerId: input.workerId,
-    fencingToken: lease.fencingToken,
+  const stopHeartbeat = startLeaseHeartbeat({
     leaseSeconds,
     intervalMs: dependencies.heartbeatIntervalMs,
+    onRenewalError: dependencies.onHeartbeatError,
+    renew: () => renewStrategyRuntimeLease(database, {
+      deploymentId: lease.id,
+      workerId: input.workerId,
+      fencingToken: lease.fencingToken,
+      now: new Date(),
+      leaseSeconds,
+    }),
   });
   try {
     return await processLeasedStrategyRuntimeDeployment(database, lease, input.workerId, dependencies);
