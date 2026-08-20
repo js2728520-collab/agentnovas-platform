@@ -20,6 +20,10 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "client.strategies.publish", appId: "client", label: "提交策略广场" },
   { key: "client.wallet.view", appId: "client", label: "查看钱包" },
   { key: "client.deposit.create", appId: "client", label: "创建充值订单" },
+  { key: "client.membership.view", appId: "client", label: "查看会员权益" },
+  { key: "client.membership.order", appId: "client", label: "提交会员订单", sensitive: true },
+  { key: "client.credits.view", appId: "client", label: "查看积分余额" },
+  { key: "client.paper.view", appId: "client", label: "查看模拟交易" },
   { key: "ops.customers.view", appId: "operations", label: "查看客户" },
   { key: "ops.customers.manage", appId: "operations", label: "管理客户", sensitive: true },
   { key: "ops.deposits.view", appId: "operations", label: "查看充值订单" },
@@ -29,6 +33,17 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "ops.deposits.action_approve", appId: "operations", label: "审批充值人工操作", sensitive: true },
   { key: "ops.ledger.view", appId: "operations", label: "查看账务" },
   { key: "ops.reconciliation.run", appId: "operations", label: "执行对账", sensitive: true },
+  { key: "ops.membership_orders.view", appId: "operations", label: "查看会员订单" },
+  { key: "ops.membership_orders.evidence", appId: "operations", label: "录入会员付款凭证", sensitive: true },
+  { key: "ops.membership_orders.approve", appId: "operations", label: "审批会员订单", sensitive: true },
+  { key: "ops.credits.view", appId: "operations", label: "查看客户积分" },
+  { key: "ops.credits.adjust", appId: "operations", label: "发起积分调整", sensitive: true },
+  { key: "ops.credits.approve", appId: "operations", label: "审批积分调整", sensitive: true },
+  { key: "ops.performance_fees.view", appId: "operations", label: "查看绩效费账单" },
+  { key: "ops.performance_fees.generate", appId: "operations", label: "生成绩效费账单", sensitive: true },
+  { key: "ops.performance_fees.approve", appId: "operations", label: "审批绩效费账单", sensitive: true },
+  { key: "ops.performance_fees.payment_evidence", appId: "operations", label: "录入绩效费付款凭证", sensitive: true },
+  { key: "ops.performance_fees.payment_approve", appId: "operations", label: "审批绩效费付款", sensitive: true },
   { key: "ops.support.manage", appId: "operations", label: "处理客服工单" },
   { key: "ops.roles.manage", appId: "operations", label: "管理运营角色", sensitive: true },
   { key: "ops.roles.assign", appId: "operations", label: "分配运营角色", sensitive: true },
@@ -43,6 +58,10 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "maint.audit.view", appId: "maintenance", label: "查看审计" },
   { key: "maint.roles.manage", appId: "maintenance", label: "管理运维角色", sensitive: true },
   { key: "maint.roles.approve_sensitive", appId: "maintenance", label: "审批运维敏感权限", sensitive: true },
+  { key: "maint.demo_exchanges.view", appId: "maintenance", label: "查看模拟交易所" },
+  { key: "maint.demo_exchanges.manage", appId: "maintenance", label: "管理模拟交易所", sensitive: true },
+  { key: "maint.demo_exchanges.verify", appId: "maintenance", label: "验证模拟交易所", sensitive: true },
+  { key: "maint.demo_exchanges.kill", appId: "maintenance", label: "紧急停止模拟交易所", sensitive: true },
 ];
 
 export const SENSITIVE_PERMISSION_KEYS = new Set(
@@ -155,6 +174,10 @@ function clientCustomerPermissions(): RolePermission[] {
     { permissionKey: "client.strategies.publish", scope: "SELF" },
     { permissionKey: "client.wallet.view", scope: "SELF" },
     { permissionKey: "client.deposit.create", scope: "SELF" },
+    { permissionKey: "client.membership.view", scope: "SELF" },
+    { permissionKey: "client.membership.order", scope: "SELF" },
+    { permissionKey: "client.credits.view", scope: "SELF" },
+    { permissionKey: "client.paper.view", scope: "SELF" },
   ];
 }
 
@@ -169,4 +192,3 @@ function maintenancePlatformPermissions(): RolePermission[] {
     .filter((permission) => permission.appId === "maintenance")
     .map((permission) => ({ permissionKey: permission.key, scope: "PLATFORM" as const }));
 }
-

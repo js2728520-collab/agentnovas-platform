@@ -101,6 +101,9 @@ export function findApiRouteInventory(method: string, pathname: string): ApiRout
 
 export function apiPolicyForRoute(route: string, method: string): ApiRoutePolicy {
   const isMutation = !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase());
+  if (route === "/api/credits/me" || route === "/api/membership" || route.startsWith("/api/membership/")) {
+    return { audiences: ["client"], authentication: "session", requiresSameOrigin: isMutation, sensitive: isMutation };
+  }
   if (route === "/api/auth/login" || route === "/api/auth/logout" || route === "/api/auth/me") {
     return {
       audiences: ALL_AUDIENCES,
@@ -108,6 +111,9 @@ export function apiPolicyForRoute(route: string, method: string): ApiRoutePolicy
       requiresSameOrigin: isMutation,
       sensitive: true,
     };
+  }
+  if (route === "/api/auth/mfa/verify") {
+    return { audiences: INTERNAL_AUDIENCES, authentication: "session", requiresSameOrigin: true, sensitive: true };
   }
   if (route.startsWith("/api/auth/")) {
     return { audiences: ["client"], authentication: "anonymous", requiresSameOrigin: isMutation, sensitive: true };
@@ -145,6 +151,43 @@ export function requestIdFor(request: Request) {
   return normalizeRequestId(request.headers.get("x-request-id")) ?? crypto.randomUUID();
 }
 
+function trustedForwardedHeader(request: Request, name: string) {
+  const trustedHops = Number(process.env.TRUST_PROXY_HOPS);
+  if (!Number.isInteger(trustedHops) || trustedHops < 1 || trustedHops > 8) return null;
+  const values = (request.headers.get(name) ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  return values.at(Math.max(0, values.length - trustedHops)) ?? null;
+}
+
+function expectedRequestOrigin(request: Request) {
+  const url = new URL(request.url);
+  const forwardedProtocol = trustedForwardedHeader(request, "x-forwarded-proto");
+  const forwardedHost = trustedForwardedHeader(request, "x-forwarded-host");
+  const protocol = forwardedProtocol === "https" || forwardedProtocol === "http"
+    ? `${forwardedProtocol}:`
+    : url.protocol;
+  const directHost = request.headers.get("host")?.trim() || url.host;
+  const host = forwardedHost && /^[A-Za-z0-9.[\]:-]+$/.test(forwardedHost) ? forwardedHost : directHost;
+  return new URL(`${protocol}//${host}`).origin;
+}
+
+export function assertSameOrigin(request: Request) {
+  const supplied = request.headers.get("origin")?.trim();
+  if (!supplied || supplied === "null") {
+    throw new ApiPolicyError("CSRF_ORIGIN_REQUIRED", "缺少同源请求证明", 403);
+  }
+  let normalized: string;
+  try {
+    const origin = new URL(supplied);
+    if (origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("invalid origin");
+    normalized = origin.origin;
+  } catch {
+    throw new ApiPolicyError("CSRF_ORIGIN_INVALID", "同源请求证明无效", 403);
+  }
+  if (normalized !== expectedRequestOrigin(request)) {
+    throw new ApiPolicyError("CSRF_ORIGIN_MISMATCH", "拒绝跨站请求", 403);
+  }
+}
+
 export function evaluateApiRequestPolicy(request: Request): ApiRequestContext {
   const url = new URL(request.url);
   const requestId = requestIdFor(request);
@@ -156,6 +199,7 @@ export function evaluateApiRequestPolicy(request: Request): ApiRequestContext {
   if (!policy.audiences.includes(audience)) {
     throw new ApiPolicyError("ROUTE_NOT_AVAILABLE", "接口在当前应用不可用", 404);
   }
+  if (policy.requiresSameOrigin) assertSameOrigin(request);
   return { requestId, audience, method: inventory.method, pathname: url.pathname, inventory, policy };
 }
 

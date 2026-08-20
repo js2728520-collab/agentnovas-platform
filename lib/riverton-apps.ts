@@ -112,9 +112,12 @@ export function sessionCookieHeaders(input: {
   return { audience, headers };
 }
 
-export function clearSessionCookieHeaders(request: Request) {
+export function clearSessionCookieHeaders(
+  request: Request,
+  environment: Record<string, string | undefined> = process.env,
+) {
   const audience = resolveAppAudience({ host: request.headers.get("host") ?? undefined });
-  const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
+  const secure = environment.NODE_ENV === "production" || new URL(request.url).protocol === "https:" ? "; Secure" : "";
   const names = audience === "client" ? [cookieNameForAudience(audience), "an_session"] : [cookieNameForAudience(audience)];
   return names.map((name) => `${name}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`);
 }

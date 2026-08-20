@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 
-import { currentUser, type CurrentUser } from "@/lib/session";
+import { currentSession, type CurrentUser } from "@/lib/session";
 import { ResearchApiError } from "@/lib/research-errors";
 import { getPostgresPool } from "@/lib/postgres";
 import { loadEffectiveAccess, type EffectivePermissionGrant } from "@/lib/effective-access";
@@ -25,12 +25,16 @@ export async function effectiveAccessForUser(pool: Pool, user: CurrentUser, appI
 }
 
 export async function requireAccessPermission(request: Request, permissionKey: string) {
-  const user = await currentUser(request);
-  if (!user) throw new ResearchApiError("AUTH_REQUIRED", "请先登录", 401);
+  const current = await currentSession(request);
+  if (!current) throw new ResearchApiError("AUTH_REQUIRED", "请先登录", 401);
+  const user = current.user;
   const definition = PERMISSION_DEFINITIONS.find((permission) => permission.key === permissionKey);
   if (!definition) throw new ResearchApiError("PERMISSION_UNKNOWN", "权限未注册", 500, { permissionKey });
   const requestAudience = currentRequestAudience(request);
   if (requestAudience !== definition.appId) throw new ResearchApiError("NOT_FOUND", "接口在当前应用不可用", 404);
+  if (definition.sensitive && definition.appId !== "client" && !current.recentMfa) {
+    throw new ResearchApiError("RECENT_MFA_REQUIRED", "请在 15 分钟内重新完成双重验证", 403, { maxAgeSeconds: 900 });
+  }
   const pool = await getPostgresPool();
   const access = await effectiveAccessForUser(pool, user, definition.appId);
   const grant = access.grants[permissionKey];

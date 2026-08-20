@@ -253,6 +253,11 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "POST",
+    "route": "/api/auth/mfa/verify",
+    "source": "app/api/auth/mfa/verify/route.ts"
+  },
+  {
+    "method": "POST",
     "route": "/api/auth/register",
     "source": "app/api/auth/register/route.ts"
   },

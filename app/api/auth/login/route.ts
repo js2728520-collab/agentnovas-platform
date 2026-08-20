@@ -62,6 +62,20 @@ export async function POST(request: Request) {
     if (!await userCanAccessApp(user, sessionCookie.audience)) {
       return Response.json({ error: "无权登录当前应用" }, { status: 403 });
     }
+    const mfaRequired = sessionCookie.audience !== "client";
+    if (mfaRequired) {
+      const enrollment = await pool.query(`
+        SELECT 1 FROM user_mfa_totp_credentials
+        WHERE user_id = $1 AND status = 'active'
+      `, [user.id]);
+      if (!enrollment.rowCount) {
+        return Response.json({
+          error: "内部账号尚未完成双重验证配置",
+          code: "MFA_ENROLLMENT_REQUIRED",
+        }, { status: 403 });
+      }
+      deadlines.idleExpiresAt = new Date(now.getTime() + 10 * 60_000).toISOString();
+    }
     if (passwordState.needsRehash) {
       await db.update(users).set({ passwordHash: await hashPassword(body.password ?? ""), updatedAt: now.toISOString() })
         .where(and(eq(users.id, user.id), eq(users.passwordHash, user.passwordHash)));
@@ -73,11 +87,11 @@ export async function POST(request: Request) {
         expiresAt: deadlines.absoluteExpiresAt, mfaLevel: "primary", ...deadlines,
         ipAddress, userAgent: request.headers.get("user-agent"),
       }),
-      db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: "auth.login", subjectType: "user", subjectId: user.id, afterJson: JSON.stringify({ appAudience: sessionCookie.audience }), ipAddress, userAgent: request.headers.get("user-agent") }),
+      db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: mfaRequired ? "auth.primary_authenticated" : "auth.login", subjectType: "user", subjectId: user.id, afterJson: JSON.stringify({ appAudience: sessionCookie.audience, mfaRequired }), ipAddress, userAgent: request.headers.get("user-agent") }),
     ]);
     const headers = new Headers({ "content-type": "application/json" });
     for (const cookie of sessionCookie.headers) headers.append("set-cookie", cookie);
-    return new Response(JSON.stringify({ ok: true, appAudience: sessionCookie.audience, user: { id: user.id, email: user.email, phone: user.phone, username: user.username, role: user.role } }), { headers });
+    return new Response(JSON.stringify({ ok: true, mfaRequired, appAudience: sessionCookie.audience, user: { id: user.id, email: user.email, phone: user.phone, username: user.username, role: user.role } }), { headers });
   } catch (error) {
     return responseError(error);
   }

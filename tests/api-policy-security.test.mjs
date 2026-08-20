@@ -41,7 +41,7 @@ test("the versioned inventory covers every exported API method and route", async
       discovered.push(`${match[1]} ${routePattern(file.pathname)}`);
     }
   }
-  assert.equal(discovered.length, 174);
+  assert.equal(discovered.length, 175);
   assert.deepEqual(
     API_ROUTE_INVENTORY.map((entry) => `${entry.method} ${entry.route}`).sort(),
     discovered.sort(),
@@ -65,6 +65,12 @@ test("unknown hosts and cross-audience sensitive routes fail closed", () => {
 
   assert.equal(evaluateApiRequestPolicy(new Request("https://zht.agentnovas.com/api/access/roles")).audience, "operations");
   assert.equal(evaluateApiRequestPolicy(new Request("https://xm.agentnovas.com/api/access/roles")).audience, "maintenance");
+  assert.equal(evaluateApiRequestPolicy(new Request("https://zht.agentnovas.com/api/auth/mfa/verify", {
+    method: "POST",
+    headers: { origin: "https://zht.agentnovas.com" },
+  })).audience, "operations");
+  assert.throws(() => evaluateApiRequestPolicy(new Request("https://agentnovas.com/api/auth/mfa/verify", { method: "POST" })),
+    (error) => error instanceof ApiPolicyError && error.code === "ROUTE_NOT_AVAILABLE" && error.status === 404);
 });
 
 test("legacy sensitive surfaces are assigned to their owning application", () => {
@@ -80,6 +86,10 @@ test("legacy sensitive surfaces are assigned to their owning application", () =>
       (error) => error instanceof ApiPolicyError && error.status === 404);
   }
   assert.equal(evaluateApiRequestPolicy(new Request("https://xm.agentnovas.com/api/admin/llm-profiles")).audience, "maintenance");
+  assert.deepEqual(apiPolicyForRoute("/api/membership/orders", "POST").audiences, ["client"]);
+  assert.deepEqual(apiPolicyForRoute("/api/credits/me", "GET").audiences, ["client"]);
+  assert.deepEqual(apiPolicyForRoute("/api/operations/performance-statements/:id", "GET").audiences, ["operations"]);
+  assert.deepEqual(apiPolicyForRoute("/api/maintenance/demo-exchanges/:id/kill", "POST").audiences, ["maintenance"]);
 });
 
 test("request ids are bounded and internal errors are not exposed", async () => {
@@ -94,6 +104,28 @@ test("request ids are bounded and internal errors are not exposed", async () => 
     error: { code: "INTERNAL_ERROR", message: "服务器处理失败" },
     requestId: "request_12345678",
   });
+});
+
+test("browser mutations require an exact same-origin header", () => {
+  const sameOrigin = new Request("https://zht.agentnovas.com/api/auth/login", {
+    method: "POST",
+    headers: { origin: "https://zht.agentnovas.com" },
+  });
+  assert.equal(evaluateApiRequestPolicy(sameOrigin).audience, "operations");
+  for (const request of [
+    new Request("https://zht.agentnovas.com/api/auth/login", { method: "POST" }),
+    new Request("https://zht.agentnovas.com/api/auth/login", {
+      method: "POST",
+      headers: { origin: "https://attacker.example" },
+    }),
+    new Request("https://zht.agentnovas.com/api/auth/login", {
+      method: "POST",
+      headers: { origin: "http://zht.agentnovas.com" },
+    }),
+  ]) {
+    assert.throws(() => evaluateApiRequestPolicy(request),
+      (error) => error instanceof ApiPolicyError && error.code.startsWith("CSRF_") && error.status === 403);
+  }
 });
 
 test("Next 16 Proxy applies the central policy before API Route Handlers", async () => {

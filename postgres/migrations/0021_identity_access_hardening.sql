@@ -146,3 +146,34 @@ CREATE TABLE IF NOT EXISTS "rbac_revocation_tombstones" (
 
 CREATE INDEX IF NOT EXISTS "idx_rbac_revocation_tombstones_application"
   ON "rbac_revocation_tombstones" ("application_id", "revoked_at" DESC);
+
+-- Commercial beta permissions are deliberately split by maker/checker action.
+-- In particular, evidence capture, approval, and emergency actions must not
+-- inherit the broad reconciliation permission.
+INSERT INTO "permission_definitions" ("key", "application_id", "label", "sensitive", "status")
+VALUES
+  ('client.membership.view', 'client', '查看会员权益', false, 'active'),
+  ('client.membership.order', 'client', '提交会员订单', true, 'active'),
+  ('client.credits.view', 'client', '查看积分余额', false, 'active'),
+  ('client.paper.view', 'client', '查看模拟交易', false, 'active'),
+  ('ops.membership_orders.view', 'operations', '查看会员订单', false, 'active'),
+  ('ops.membership_orders.evidence', 'operations', '录入会员付款凭证', true, 'active'),
+  ('ops.membership_orders.approve', 'operations', '审批会员订单', true, 'active'),
+  ('ops.credits.view', 'operations', '查看客户积分', false, 'active'),
+  ('ops.credits.adjust', 'operations', '发起积分调整', true, 'active'),
+  ('ops.credits.approve', 'operations', '审批积分调整', true, 'active'),
+  ('ops.performance_fees.view', 'operations', '查看绩效费账单', false, 'active'),
+  ('ops.performance_fees.generate', 'operations', '生成绩效费账单', true, 'active'),
+  ('ops.performance_fees.approve', 'operations', '审批绩效费账单', true, 'active'),
+  ('ops.performance_fees.payment_evidence', 'operations', '录入绩效费付款凭证', true, 'active'),
+  ('ops.performance_fees.payment_approve', 'operations', '审批绩效费付款', true, 'active'),
+  ('maint.demo_exchanges.view', 'maintenance', '查看模拟交易所', false, 'active'),
+  ('maint.demo_exchanges.manage', 'maintenance', '管理模拟交易所', true, 'active'),
+  ('maint.demo_exchanges.verify', 'maintenance', '验证模拟交易所', true, 'active'),
+  ('maint.demo_exchanges.kill', 'maintenance', '紧急停止模拟交易所', true, 'active')
+ON CONFLICT ("key") DO UPDATE SET
+  "application_id" = EXCLUDED."application_id",
+  "label" = EXCLUDED."label",
+  "sensitive" = EXCLUDED."sensitive",
+  "status" = EXCLUDED."status",
+  "updated_at" = now();

@@ -66,3 +66,21 @@ test("0021 adds session assurance and assignment-bound scope columns", async () 
   assert.equal(columns.length, 8);
 });
 
+test("0021 seeds commercial maker/checker permissions without reconciliation fallback", async () => {
+  const expected = [
+    "client.membership.view", "client.membership.order", "client.credits.view", "client.paper.view",
+    "ops.membership_orders.view", "ops.membership_orders.evidence", "ops.membership_orders.approve",
+    "ops.credits.view", "ops.credits.adjust", "ops.credits.approve",
+    "ops.performance_fees.view", "ops.performance_fees.generate", "ops.performance_fees.approve",
+    "ops.performance_fees.payment_evidence", "ops.performance_fees.payment_approve",
+    "maint.demo_exchanges.view", "maint.demo_exchanges.manage", "maint.demo_exchanges.verify", "maint.demo_exchanges.kill",
+  ];
+  const rows = await pool.query(`
+    SELECT key, application_id, sensitive
+    FROM permission_definitions
+    WHERE key = ANY($1::text[])
+    ORDER BY key
+  `, [expected]);
+  assert.deepEqual(rows.rows.map((row) => row.key), [...expected].sort());
+  assert.ok(rows.rows.filter((row) => /\.(approve|adjust|evidence|generate|manage|verify|kill)$/.test(row.key)).every((row) => row.sensitive));
+});
