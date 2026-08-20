@@ -1,13 +1,38 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
 import {
   createQualityRunEnvironment,
+  finalizeQualityFixtureCleanup,
+  resetQualityE2eOutput,
   resolveLocalPlaywrightBinary,
 } from "../../scripts/quality/quality-e2e-runner.mjs";
+
+test("Playwright quality configuration binds loopback and disables binary screenshots", async () => {
+  const configuration = await readFile(new URL("../../playwright.config.ts", import.meta.url), "utf8");
+  assert.match(configuration, /next \$\{development \? "dev" : "start"\} -H 127\.0\.0\.1 -p/);
+  assert.match(configuration, /screenshot:\s*"off"/);
+  assert.doesNotMatch(configuration, /screenshot:\s*"only-on-failure"/);
+});
+
+test("Playwright quality runner removes prior screenshots and runtime output", async () => {
+  const repositoryRoot = await mkdtemp(join(tmpdir(), "agentnovas-quality-output-reset-"));
+  const outputDirectory = join(repositoryRoot, "outputs", "quality-e2e");
+  try {
+    await mkdir(join(outputDirectory, ".runtime"), { recursive: true });
+    await writeFile(join(outputDirectory, "mfa-failure.png"), "binary-secret-risk");
+    await writeFile(join(outputDirectory, ".runtime", "runtime.json"), "secret");
+    await resetQualityE2eOutput({ repositoryRoot, outputDirectory });
+    await assert.rejects(() => access(join(outputDirectory, "mfa-failure.png")), /ENOENT/);
+    await assert.rejects(() => access(join(outputDirectory, ".runtime")), /ENOENT/);
+    assert.ok((await access(outputDirectory)) === undefined);
+  } finally {
+    await rm(repositoryRoot, { recursive: true, force: true });
+  }
+});
 
 test("quality runner derives a fail-closed child environment", () => {
   const environment = createQualityRunEnvironment({
@@ -28,8 +53,10 @@ test("quality runner derives a fail-closed child environment", () => {
   assert.equal(environment.DATABASE_URL, environment.TEST_DATABASE_URL);
   assert.equal(environment.RESEARCH_DATABASE_URL, environment.DATABASE_URL);
   assert.equal(environment.PAYMENT_WORKER_ENABLED, "false");
+  assert.equal(environment.PAYMENT_PROVIDER_TESTS_ENABLED, "false");
   assert.equal(environment.NOTIFICATION_EMAIL_SEND_ENABLED, "false");
   assert.equal(environment.PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED, "false");
+  assert.equal(environment.PLATFORM_DEMO_VERIFICATION_ENABLED, "false");
   assert.equal(environment.RESEND_API_KEY, "");
   assert.equal(environment.RESEND_WEBHOOK_SECRET, "");
   assert.equal(environment.AI_API_KEY, "");
@@ -46,6 +73,33 @@ test("quality runner derives a fail-closed child environment", () => {
     "LLM_PROFILE_ENCRYPTION_KEY",
     "EXCHANGE_CREDENTIAL_ENCRYPTION_KEY",
   ]) assert.ok(environment[key].length >= 32, key);
+});
+
+test("quality cleanup removes runtime secrets and records a failed schema drop before rejecting", async () => {
+  const outputDirectory = await mkdtemp(join(tmpdir(), "agentnovas-quality-cleanup-"));
+  const runtimeDirectory = join(outputDirectory, ".runtime");
+  await mkdir(runtimeDirectory);
+  await writeFile(join(runtimeDirectory, "runtime.json"), JSON.stringify({ password: "plaintext-must-disappear" }));
+  try {
+    await assert.rejects(() => finalizeQualityFixtureCleanup({
+      outputDirectory,
+      runtimeDirectory,
+      schema: "quality_e2e_cleanup_failure",
+      startedAt: new Date("2026-08-21T00:00:00.000Z"),
+      fixturePrepared: true,
+      gateResult: { passed: false, expectedTests: 8, externalWritesEnabled: false },
+      cleanupSchema: async () => { throw new Error("DROP failed password=plaintext-must-disappear"); },
+    }), /schema cleanup failed/i);
+    await assert.rejects(() => access(runtimeDirectory), /ENOENT/);
+    const cleanup = JSON.parse(await readFile(join(outputDirectory, "fixture-cleanup.json"), "utf8"));
+    assert.equal(cleanup.schemaCleanupComplete, false);
+    assert.equal(cleanup.runtimeSecretsRemoved, true);
+    assert.equal(cleanup.cleanupFailures[0].phase, "schema");
+    assert.match(cleanup.cleanupFailures[0].message, /DROP failed/);
+    assert.doesNotMatch(JSON.stringify(cleanup), /plaintext-must-disappear/);
+  } finally {
+    await rm(outputDirectory, { recursive: true, force: true });
+  }
 });
 
 test("quality runner resolves only an installed local Playwright binary", async () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer, request } from "node:http";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
@@ -8,6 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  resetQualityLighthouseOutput,
   resolveLocalLhciBinary,
   startQualityLighthouseProxy,
   verifyLighthouseRunEvidence,
@@ -75,6 +76,7 @@ test("Lighthouse configuration uses the runner proxy and valid resource size ass
   process.env.QUALITY_E2E_PORT_OFFSET = "100";
   try {
     const configuration = require("../../scripts/quality/lighthouserc.cjs");
+    assert.match(configuration.ci.collect.startServerCommand, /next start -H 127\.0\.0\.1 -p 3100$/);
     assert.deepEqual(configuration.ci.collect.url, ["http://127.0.0.1:3100/login"]);
     assert.match(configuration.ci.collect.settings.chromeFlags, /--proxy-server=http:\/\/127\.0\.0\.1:31337/);
     assert.match(configuration.ci.collect.settings.chromeFlags, /--proxy-bypass-list=<-loopback>/);
@@ -88,6 +90,22 @@ test("Lighthouse configuration uses the runner proxy and valid resource size ass
     else process.env.QUALITY_LIGHTHOUSE_PROXY_PORT = previousProxyPort;
     if (previousPortOffset === undefined) delete process.env.QUALITY_E2E_PORT_OFFSET;
     else process.env.QUALITY_E2E_PORT_OFFSET = previousPortOffset;
+  }
+});
+
+test("Lighthouse runner removes prior-run output before collecting fresh evidence", async () => {
+  const repositoryRoot = await mkdtemp(join(tmpdir(), "agentnovas-quality-lhci-reset-"));
+  const outputDirectory = join(repositoryRoot, "outputs", "quality-lighthouse");
+  try {
+    await mkdir(outputDirectory, { recursive: true });
+    await writeFile(join(outputDirectory, "stale-report.json"), "stale");
+    await writeFile(join(outputDirectory, "manifest.json"), "stale");
+    await resetQualityLighthouseOutput({ repositoryRoot, outputDirectory });
+    await assert.rejects(() => access(join(outputDirectory, "stale-report.json")), /ENOENT/);
+    await assert.rejects(() => access(join(outputDirectory, "manifest.json")), /ENOENT/);
+    assert.ok((await access(outputDirectory)) === undefined);
+  } finally {
+    await rm(repositoryRoot, { recursive: true, force: true });
   }
 });
 
@@ -156,6 +174,17 @@ test("Lighthouse runner independently enforces every measured threshold", async 
     missingMetric.audits["total-blocking-time"].numericValue = null;
     await writeFile(entries[2].jsonPath, JSON.stringify(missingMetric));
     await assert.rejects(() => verifyLighthouseRunEvidence(directory), /TBT is missing/);
+    for (const resourceType of ["script", "stylesheet", "image"]) {
+      const missingResource = report(2_300);
+      missingResource.audits["resource-summary"].details.items = missingResource
+        .audits["resource-summary"].details.items
+        .filter((resource) => resource.resourceType !== resourceType);
+      await writeFile(entries[2].jsonPath, JSON.stringify(missingResource));
+      await assert.rejects(
+        () => verifyLighthouseRunEvidence(directory),
+        new RegExp(`${resourceType} resource evidence is missing`),
+      );
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

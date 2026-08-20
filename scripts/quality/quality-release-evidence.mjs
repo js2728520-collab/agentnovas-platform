@@ -4,9 +4,11 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { isAllowedQualityNetworkUrl } from "./quality-policy.mjs";
+import { verifyLighthouseRunEvidence } from "./quality-lighthouse-runner.mjs";
 
 const SECRET_MATERIAL = /(?:rc_(?:client|ops|maint)_session=|an_session=|qe2e_token_|Qe2e!|\bBearer\s+[A-Za-z0-9._~+/-]+|"(?:password|secret|apiKey)"\s*:)/i;
 const TEXT_EVIDENCE_EXTENSIONS = new Set([".html", ".json", ".log", ".txt", ".xml"]);
+const OPAQUE_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
 
 async function json(path, label) {
   try {
@@ -26,7 +28,10 @@ async function assertEvidenceTreeSafe(root) {
         await visit(path);
         continue;
       }
-      const extension = entry.name.slice(entry.name.lastIndexOf("."));
+      const extension = entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase();
+      if (OPAQUE_IMAGE_EXTENSIONS.has(extension)) {
+        throw new Error(`Binary image evidence cannot be secret-scanned: ${path}`);
+      }
       if (TEXT_EVIDENCE_EXTENSIONS.has(extension)) {
         const text = await readFile(path, "utf8");
         if (SECRET_MATERIAL.test(text)) throw new Error(`Evidence contains secret-like material: ${path}`);
@@ -63,6 +68,8 @@ async function artifact(root, path) {
 function assertCleanup(value, label) {
   if (value?.schemaCleanupComplete !== true
     || value?.runtimeSecretsRemoved !== true
+    || !Array.isArray(value?.cleanupFailures)
+    || value.cleanupFailures.length !== 0
     || value?.externalWritesEnabled !== false) {
     throw new Error(`${label} cleanup evidence is incomplete or unsafe`);
   }
@@ -86,6 +93,7 @@ export async function verifyQualityReleaseEvidence(value) {
   const root = resolve(value);
   await lstat(root);
   await assertEvidenceTreeSafe(root);
+  await verifyLighthouseRunEvidence(join(root, "quality-lighthouse"));
   const paths = {
     e2eCleanup: join(root, "quality-e2e", "fixture-cleanup.json"),
     e2eGate: join(root, "quality-e2e", "gate-result.json"),

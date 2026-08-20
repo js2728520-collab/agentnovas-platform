@@ -14,7 +14,7 @@ if (!Number.isInteger(proxyPort) || proxyPort < 1 || proxyPort > 65535) {
 module.exports = {
   ci: {
     collect: {
-      startServerCommand: `RIVERTON_APP_AUDIENCE=client NODE_USE_ENV_PROXY=1 ./node_modules/.bin/next start -p ${clientPort}`,
+      startServerCommand: `RIVERTON_APP_AUDIENCE=client NODE_USE_ENV_PROXY=1 ./node_modules/.bin/next start -H 127.0.0.1 -p ${clientPort}`,
       startServerReadyPattern: "Ready in|started server|Local:",
       startServerReadyTimeout: 120000,
       // Chromium treats loopback as a secure context, so the local audit does not

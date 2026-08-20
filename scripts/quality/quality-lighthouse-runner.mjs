@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm } from "node:fs/promises";
 import { createServer, request as httpRequest } from "node:http";
 import { join, relative, resolve } from "node:path";
 
@@ -8,7 +8,11 @@ import {
   cleanupQualityDatabaseFixture,
   prepareQualityDatabaseFixture,
 } from "./quality-database-fixture.mjs";
-import { createQualityRunEnvironment } from "./quality-e2e-runner.mjs";
+import {
+  createQualityRunEnvironment,
+  finalizeQualityFixtureCleanup,
+  resetQualityOutputDirectory,
+} from "./quality-e2e-runner.mjs";
 import {
   assertQualitySideEffectsDisabled,
   qualityApplicationPorts,
@@ -23,6 +27,10 @@ export async function resolveLocalLhciBinary(repositoryRoot) {
     throw new Error("@lhci/cli is not installed locally; add the approved dev dependency and run npm ci");
   }
   return binary;
+}
+
+export async function resetQualityLighthouseOutput(options) {
+  await resetQualityOutputDirectory(options);
 }
 
 async function assertLhciDirectoryAbsent(path) {
@@ -147,8 +155,10 @@ export async function verifyLighthouseRunEvidence(outputDirectory) {
     || manifest.filter((entry) => entry?.isRepresentativeRun === true).length !== 1) {
     throw new Error("Lighthouse evidence must contain exactly three runs and one representative run");
   }
+  const reportPaths = [];
   for (const entry of manifest) {
     const reportPath = resolve(String(entry?.jsonPath ?? ""));
+    reportPaths.push(reportPath);
     const reportRelativePath = relative(root, reportPath);
     if (!reportRelativePath || reportRelativePath.startsWith("..") || resolve(root, reportRelativePath) !== reportPath) {
       throw new Error("Lighthouse report path escaped the evidence directory");
@@ -170,14 +180,22 @@ export async function verifyLighthouseRunEvidence(outputDirectory) {
     }
     const resources = report?.audits?.["resource-summary"]?.details?.items;
     if (!Array.isArray(resources)) throw new Error("Lighthouse resource summary is missing");
-    const size = (type) => resources
-      .filter((resource) => resource?.resourceType === type)
-      .reduce((total, resource) => total + finiteMetric(resource?.transferSize, `${type} transfer size`), 0);
+    const size = (type) => {
+      const matching = resources.filter((resource) => resource?.resourceType === type);
+      if (matching.length === 0) throw new Error(`Lighthouse ${type} resource evidence is missing`);
+      return matching.reduce(
+        (total, resource) => total + finiteMetric(resource?.transferSize, `${type} transfer size`),
+        0,
+      );
+    };
     if (size("script") > 200 * 1_024
       || size("stylesheet") > 50 * 1_024
       || size("image") > 200 * 1_024) {
       throw new Error("Lighthouse resource threshold was not met in every run");
     }
+  }
+  if (new Set(reportPaths).size !== 3) {
+    throw new Error("Lighthouse evidence must contain three distinct JSON reports");
   }
 }
 
@@ -193,6 +211,7 @@ export async function runQualityLighthouse({
   );
   const lhciWorkingDirectory = resolve(repositoryRoot, ".lighthouseci");
   await assertLhciDirectoryAbsent(lhciWorkingDirectory);
+  await resetQualityLighthouseOutput({ repositoryRoot, outputDirectory });
   const runtimeDirectory = join(outputDirectory, ".runtime");
   const runId = environment.QUALITY_LIGHTHOUSE_RUN_ID
     ?? `${Date.now()}_${process.pid}_${randomBytes(4).toString("hex")}`;
@@ -235,8 +254,6 @@ export async function runQualityLighthouse({
     lighthousePassed = true;
     return result;
   } finally {
-    let schemaCleanupComplete = false;
-    let runtimeSecretsRemoved = false;
     let lhciWorkingFilesRemoved = false;
     try {
       if (proxy) await proxy.close();
@@ -245,29 +262,22 @@ export async function runQualityLighthouse({
         await rm(lhciWorkingDirectory, { recursive: true, force: true });
         lhciWorkingFilesRemoved = true;
       } finally {
-        try {
-          await cleanupQualityDatabaseFixture({ adminDatabaseUrl, schema });
-          schemaCleanupComplete = true;
-        } finally {
-          await rm(runtimeDirectory, { recursive: true, force: true });
-          runtimeSecretsRemoved = true;
-          await mkdir(outputDirectory, { recursive: true });
-          await writeFile(join(outputDirectory, "gate-result.json"), JSON.stringify({
+        await finalizeQualityFixtureCleanup({
+          outputDirectory,
+          runtimeDirectory,
+          schema,
+          startedAt,
+          fixturePrepared: Boolean(fixture),
+          gateResult: {
             passed: lighthousePassed,
             numberOfRuns: 3,
             externalWritesEnabled: false,
-          }, null, 2));
-          await writeFile(join(outputDirectory, "fixture-cleanup.json"), JSON.stringify({
-            schema,
-            startedAt: startedAt.toISOString(),
-            completedAt: new Date().toISOString(),
-            fixturePrepared: Boolean(fixture),
-            schemaCleanupComplete,
-            runtimeSecretsRemoved,
+          },
+          cleanupSchema: () => cleanupQualityDatabaseFixture({ adminDatabaseUrl, schema }),
+          cleanupEvidence: {
             lhciWorkingFilesRemoved,
-            externalWritesEnabled: false,
-          }, null, 2));
-        }
+          },
+        });
       }
     }
   }

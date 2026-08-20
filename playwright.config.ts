@@ -23,7 +23,7 @@ const browserOrigins = {
   maintenance: qualityBrowserOrigin("maintenance", ports),
 };
 const serverCommand = (audience: "client" | "operations" | "maintenance") =>
-  `RIVERTON_APP_AUDIENCE=${audience} NODE_USE_ENV_PROXY=1 ./node_modules/.bin/next ${development ? "dev" : "start"} -p ${ports[audience]}`;
+  `RIVERTON_APP_AUDIENCE=${audience} NODE_USE_ENV_PROXY=1 ./node_modules/.bin/next ${development ? "dev" : "start"} -H 127.0.0.1 -p ${ports[audience]}`;
 
 // Official Playwright guidance used here:
 // https://playwright.dev/docs/test-webserver
@@ -58,10 +58,10 @@ export default defineConfig({
         "--host-resolver-rules=MAP agentnovas.com 127.0.0.1,MAP zht.agentnovas.com 127.0.0.1,MAP xm.agentnovas.com 127.0.0.1",
       ],
     },
-    // Traces and videos can retain session cookies. Canonical CI evidence is the
-    // redacted network/console summary plus failure screenshots.
+    // Traces, videos, and screenshots can retain session cookies, MFA setup keys,
+    // or recovery codes. Canonical CI evidence is textual and secret-scanned.
     trace: "off",
-    screenshot: "only-on-failure",
+    screenshot: "off",
     video: "off",
   },
   webServer: process.env.QUALITY_E2E_SKIP_WEBSERVER === "true"
