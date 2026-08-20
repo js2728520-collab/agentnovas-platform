@@ -20,7 +20,7 @@
 - [x] TOTP/recovery/recent MFA 与内部 session TTL。
 - [x] CLI-only bootstrap、一次性 set-password；后端不再返回或保存明文临时密码。
 - [x] 显式 assignment、revoke tombstone、organization-set/team/direct-report scope。
-- [x] 197 个 route method inventory 零遗漏；核心 audience/scope PostgreSQL 反证通过。
+- [x] 203 个 route method inventory 零遗漏；核心 audience/scope PostgreSQL 反证通过。
 
 ## C. Commercial（Wave 1）
 
@@ -43,24 +43,24 @@
 
 ## E. Client（Wave 2）
 
-- [ ] 稳定 App Router 页面、audience chunk/CSS 分包和共享请求错误合同。
-- [ ] 法务同意、四计划 API、会员订单、credits。
-- [ ] 三 paper 组合、真实订单历史、七阶段与独立 Demo 证据。
-- [ ] 钱包只读；充值页关闭创建；移除假地址/二维码/倒计时/监听。
-- [ ] Telegram/WhatsApp `not_integrated`；无演示验证码。
-- [ ] 320/768/1024/1440、键盘/焦点、loading/error/not-found。
+- [-] `/login`、钱包、充值说明和通知为稳定路由；会员、paper、交易大厅稳定 URL 仍待完成。audience build 已分入口，但最终 JS/CSS budget 待重测。
+- [x] 四计划、会员订单、credits 安全视图与可读七正文 Gate；真实法务正文仍为外部 Gate。
+- [x] 三 paper 组合、服务端交易历史和七阶段已接；Client 暂不伪造平台 Demo 回执，公开回执 API 仍待产品决定。
+- [x] 钱包只读；充值 Route 在 Proxy 禁用且页面无创建；假地址/二维码/倒计时/监听已移除。
+- [x] Telegram/WhatsApp `not_integrated`；channels Route 在 Proxy 禁用，无演示验证码。
+- [-] 320/768/1024/1440 已做一次浏览器验证并修复通知表格语义；最终合并树 axe/焦点/溢出证据待质量 Gate。
 
 ## F. Operations / Maintenance（Wave 2）
 
-- [ ] Ops 客户/邀请一次性设置密码、会员订单、凭证、双审、credits、周分成。
-- [ ] Ops 列表服务端 pagination/URL/data scope，审批后准确刷新。
-- [ ] Maintenance Demo 账户安全视图、worker/queue、模型/Email/支付/RBAC/技术审计。
-- [ ] UI 区分 configured/enabled/alive/healthy/stale；支付始终 disabled。
-- [ ] 未达生产合同的旧策略市场/自动结算/团队分析菜单隐藏。
+- [x] Ops 邀请一次性设置密码、会员订单、脱敏凭证、四阶段人员分离、credits 只读和周分成工作台。
+- [x] 商业列表服务端 pagination/URL/data scope；所有 mutation 在业务事务内再次授权。
+- [x] Maintenance Demo 安全视图、Worker 健康、模型/Email/支付/RBAC；`/audit` 已覆盖 Demo 控制/验证安全投影。
+- [x] UI 区分 configured/enabled/alive/healthy/stale；支付有效状态始终 disabled。
+- [x] Client 社区策略/永续研究/客户密钥/旧模拟订单已通过中央 Beta policy 禁用；完整技术审计聚合与其他旧分析进入 GA backlog。
 
 ## G. 质量、部署与 Gate
 
-- [x] Wave 1 独立反证审查通过：471/471 测试、197 个 API method inventory、TypeScript、Lint（0 error）、三端 production build 和 `git diff --check` 全绿。
+- [x] Wave 1 独立反证审查通过；当前主线单测已超过 500 项、203 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
 - [ ] Playwright 四身份 + 一次性 PG schema + axe + 四断点 + console zero。
 - [ ] Client/Ops/Maint bundle 隔离；JS ≤200KB gzip、CSS ≤50KB、首屏图 ≤200KB。
 - [ ] CSP nonce、security headers、secret scan、依赖 high/critical=0。

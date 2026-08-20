@@ -6,6 +6,8 @@
 
 责任人采用角色而非个人信息：产品负责人维护 PRD 与法务 Gate，架构负责人维护 System Spec/ADR/API Policy，三端负责人维护对应 App Spec，QA/Release 负责人维护 Gate 与证据，Ops/Maint 值班角色维护 Runbook。代码与测试证据优先于无证据状态标记。
 
+实施快照（2026-08-21）：Wave 1 后端和 Wave 2 Client/Internal 切片已进入集成分支；当前机器可读 inventory 覆盖 203 个 method handler。旧客户密钥、充值、外部渠道验证码、社区市场与永续研究路径已由 Proxy 固定禁用。法务正文、性能预算、完整 Playwright 发布证据以及 Email/Demo/DNS/TLS 等外部 Gate 尚未全部完成，因此项目仍不可开放付费 Beta。
+
 ## 阅读路径
 
 | 角色 | 建议顺序 |

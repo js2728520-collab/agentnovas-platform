@@ -1,7 +1,7 @@
 # API 目录与迁移状态
 
-日期：2026-08-20
-范围：基线包含约 131 个 route 文件、174 个 HTTP handler；新增商业接口进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明。
+日期：2026-08-21
+范围：当前包含 159 个 route 文件、203 个 HTTP method handler，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明。
 
 ## 1. 使用说明
 
@@ -11,6 +11,7 @@
 - `MIGRATE`：业务保留，但必须迁入目标应用 RBAC/data scope。
 - `MERGE`：合并到新接口，旧接口进入弃用。
 - `REVIEW`：安全/产品语义未完成，不得视为生产合同。
+- `DISABLED/BETA`：Route Handler 仍为历史兼容代码，但 Proxy 在进入 Handler 前固定返回 503；不属于 Beta 可达合同。
 - `MACHINE`：供应商或 Worker 调用，使用签名/内部凭证而不是浏览器权限。
 
 所有接口在受控测试前都必须进入可执行的 route policy 清单：method/path、audience、认证/MFA、permission、assignment-bound data scope、PII policy、mutation sensitivity、idempotency、rate limit、body limit 和审计类型。未登记 handler 发布失败。
@@ -64,15 +65,10 @@
 | `/api/ai/conversations/[id]` | GET, PATCH | C | KEEP；所有权 |
 | `/api/ai/conversations` | GET, POST | C | KEEP；所有权 |
 | `/api/strategy-research/roles` | GET | C | KEEP；安全视图 |
-| `/api/strategy-research/runs/[id]/answer` | POST | C | KEEP；当前缺失字段白名单 |
-| `/api/strategy-research/runs/[id]/cancel` | POST | C | KEEP；幂等 |
-| `/api/strategy-research/runs/[id]/candidates/[candidateId]/save` | POST | C | KEEP；所有权+幂等 |
-| `/api/strategy-research/runs/[id]/events` | GET | C | KEEP；SSE 所有权 |
-| `/api/strategy-research/runs/[id]` | GET | C | KEEP；所有权 |
-| `/api/strategy-research/runs` | GET, POST | C | KEEP；幂等键、预算 |
+| `/api/strategy-research/runs/**` | GET, POST | C | DISABLED/BETA；旧合同依赖客户永续账户，完成公共现货迁移前不可达 |
 | `/api/strategy-studio/chat` | POST | C | MERGE；旧流程退役计划 |
 | `/api/strategy-studio/generate` | POST | C | MERGE；旧流程退役计划 |
-| `/api/strategies/[strategyId]/versions/[versionId]/deployments` | POST | C | KEEP；仅 shadow/paper |
+| `/api/strategies/[strategyId]/versions/[versionId]/deployments` | POST | C | DISABLED/BETA；旧部署依赖客户永续账户 |
 | `/api/strategy-deployments/[id]/cycles` | GET | C | KEEP；所有权 |
 | `/api/strategy-deployments/[id]/pause` | POST | C | KEEP；所有权/幂等 |
 | `/api/strategy-deployments/[id]/resume` | POST | C | KEEP；停控状态 |
@@ -80,7 +76,7 @@
 | `/api/automation/demo-cycle` | POST | M | REVIEW；内部凭证、非浏览器 |
 | `/api/automation/platform-ai-cycle` | POST | M | REVIEW；内部凭证、非浏览器 |
 | `/api/trading-hall` | GET | C | REVIEW；七角色/现货边界/安全合同对齐 |
-| `/api/trading/emergency-stop` | POST | O/M | MERGE；移除 Client 假控制，统一作用域安全控制 |
+| `/api/trading/emergency-stop` | POST | C | DISABLED/BETA；旧路径会触达客户 Demo 账户，官方 paper 使用受控生命周期 |
 
 ## 4. 策略市场、订阅与模拟订单（19）
 
@@ -88,30 +84,20 @@
 | --- | --- | --- | --- |
 | `/api/platform-strategies/[code]/follow` | POST | C | REVIEW；当前只允许模拟/准备状态 |
 | `/api/platform-strategy-subscriptions/[id]` | PATCH | C | REVIEW；客户控制语义 |
-| `/api/strategy-marketplace/[id]/backtest` | POST | C | KEEP；进度流与真实历史数据 |
-| `/api/strategy-marketplace/[id]/change-request` | POST, GET, PATCH | C/O | MIGRATE；客户申请、Operations 审核 |
-| `/api/strategy-marketplace/[id]/follow` | POST | C | KEEP；资格/执行环境约束 |
-| `/api/strategy-marketplace/[id]` | GET, PATCH | C/O | MIGRATE；写操作进入策略治理 |
-| `/api/strategy-marketplace/[id]/submit` | POST | C | KEEP；验证资格 |
-| `/api/strategy-marketplace/[id]/versions` | POST | C | KEEP；版本不可变 |
-| `/api/strategy-marketplace/refresh-inactive` | POST | O/M | REVIEW；内部任务化、审计 |
-| `/api/strategy-marketplace` | GET, POST | C | KEEP；所有权/公开视图分离 |
+| `/api/strategy-marketplace/**` | GET, POST, PATCH | C | DISABLED/BETA；社区市场、作者分润和治理进入 GA backlog |
 | `/api/strategy-subscriptions/[id]` | PATCH | C | MERGE；与 platform subscription 收敛 |
-| `/api/portfolio` | GET | C | KEEP；所有权、执行口径 |
-| `/api/portfolio/strategies` | GET, POST, DELETE | C | REVIEW；资金隔离和重复分配 |
+| `/api/portfolio`、`/api/portfolio/strategies` | GET, POST, DELETE | C | DISABLED/BETA；改用官方 paper portfolio API |
 | `/api/public-pool` | GET | C | REVIEW；公开/客户数据边界 |
-| `/api/risk/status` | GET | C | KEEP |
-| `/api/simulated-orders/[id]` | PATCH | C | KEEP；模拟环境 |
-| `/api/simulated-orders` | GET, POST | C | KEEP；不得接真实路由 |
-| `/api/exchange-accounts/[id]/routing` | GET | C | REVIEW；只读路由资格 |
-| `/api/exchange-accounts/[id]/perpetual-instruments` | GET | C | KEEP；仅自建策略研究，不属于官方现货三卡 |
+| `/api/risk/status` | GET | C | DISABLED/BETA；旧状态依赖 customer exchange account |
+| `/api/simulated-orders/**` | GET, POST, PATCH | C | DISABLED/BETA；改用服务端 official paper fills |
+| `/api/exchange-accounts/**` | GET | C | DISABLED/BETA；客户不上传或读取交易所账户 |
 
 ## 5. 交易所、行情与平台公开信息（14）
 
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
-| `/api/exchange-accounts/[id]` | PATCH | C | KEEP；所有权、密钥不回显 |
-| `/api/exchange-accounts` | GET, POST | C | KEEP；无提现权限验证 |
+| `/api/exchange-accounts/[id]` | PATCH | C | DISABLED/BETA；客户密钥与连接状态不可达 |
+| `/api/exchange-accounts` | GET, POST | C | DISABLED/BETA；客户密钥与连接状态不可达 |
 | `/api/integrations/catalog` | GET | C/M | REVIEW；客户安全视图与运维详情拆分 |
 | `/api/market/candles` | GET | C | KEEP；缓存、数据质量 |
 | `/api/market/instruments` | GET | C | KEEP；现货/永续产品类型明确 |
@@ -119,7 +105,7 @@
 | `/api/market/quote` | GET | C | KEEP |
 | `/api/market/ticker` | GET | C | KEEP |
 | `/api/market/watchlist` | GET, POST, DELETE | C | KEEP；所有权 |
-| `/api/platform/network` | GET | C | KEEP；未配置 IP 不伪造 |
+| `/api/platform/network` | GET | C | DISABLED/BETA；不向 Client 提供密钥连接网络信息 |
 | `/api/platform/settings` | GET | C | KEEP；只返回公开白名单字段 |
 | `/api/health` | GET | S | KEEP；公开粗粒度模式/时间，不含内部检查 |
 | `/api/health/live` | GET | S | KEEP；进程存活，公开粗粒度 |
@@ -132,10 +118,9 @@
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
 | `/api/wallet/balances` | GET | C | KEEP；服务余额 |
-| `/api/wallet/deposit-orders` | GET | C | KEEP；只读历史 |
-| `/api/wallet/deposit-orders` | POST | C | RETIRED/BETA；统一返回未开放，不生成地址/二维码 |
+| `/api/wallet/deposit-orders` | GET, POST | C | DISABLED/BETA；历史地址也不返回，页面固定说明未开放 |
 | `/api/wallet/ledger` | GET | C | KEEP；不可变流水 |
-| `/api/notifications/channels` | GET, POST, PATCH | C | REVIEW；Beta 仅 email/in-app，Telegram/WhatsApp 不可验证且不返回验证码 |
+| `/api/notifications/channels` | GET, POST, PATCH | C | DISABLED/BETA；Telegram/WhatsApp 不接入，偏好仅走 email/in-app |
 | `/api/notifications/inbox` | GET, PATCH | C | KEEP |
 | `/api/notifications/preferences` | GET, PUT | C | KEEP；失败保留原值 |
 | `/api/operations/deposit-action-requests/[id]/decisions` | POST | O | KEEP；第二人审批 |
@@ -171,7 +156,7 @@
 | `/api/team/monthly-targets` | GET, POST | O | MIGRATE |
 | `/api/reports/monthly` | GET | O/C | REVIEW；拆分客户/运营口径 |
 
-## 8. Maintenance（8）
+## 8. Maintenance
 
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
@@ -183,21 +168,22 @@
 | `/api/maintenance/payment-workers/health` | GET | M | KEEP；真实 heartbeat，configured/enabled/liveness/health/last result 分离 |
 | `/api/maintenance/platform-settings` | GET, PUT | M | KEEP；私有/公开字段分离 |
 | `/api/maintenance/trading/emergency-stop` | GET, POST | M | KEEP；scope、原因、审计、Demo-only 自动平仓 |
+| `/api/maintenance/demo-exchanges` | GET | M | KEEP；账户安全视图，不回显密钥 |
+| `/api/maintenance/demo-exchanges/[id]/control` | POST | M | KEEP；reason/recent MFA/幂等/kill 安全语义 |
+| `/api/maintenance/demo-exchanges/[id]/verify` | POST | M | KEEP；固定测试域名、原因、幂等审计 |
+| `/api/maintenance/audit` | GET | M | KEEP；Demo 控制/验证安全投影、cursor/filter |
 
 ## 9. 商业会员、Credits、Paper 与 Demo（Beta 新合同）
 
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
-| `/api/legal/documents/current` | GET | C | TARGET；当前法务版本安全视图 |
-| `/api/legal/consents` | POST | C | TARGET；版本/hash/幂等同意记录 |
-| `/api/membership/plans` | GET | C | TARGET；四档 v1 服务端 snapshot |
-| `/api/membership/me` | GET | C | TARGET；trial/entitlement/到期状态 |
-| `/api/membership/orders` | GET, POST | C | TARGET；人工付款指引，无地址/二维码 |
-| `/api/membership/performance-statements` | GET | C | TARGET；paper 模拟分成安全视图 |
-| `/api/credits/me` | GET | C | TARGET；余额/预留/不可变流水 |
-| `/api/paper/portfolios` | GET | C | TARGET；每卡 10,000 USDT 独立组合 |
-| `/api/paper/portfolios/[id]` | GET | C | TARGET；持仓、现金、风险与收益 |
-| `/api/paper/portfolios/[id]/trades` | GET | C | TARGET；真实服务端 paper history/cursor |
+| `/api/membership/plans` | GET | C | KEEP；四档 v1 与七份可读正文；正文缺失/哈希不符时禁止创建订单 |
+| `/api/membership/me` | GET | C | KEEP；trial/entitlement/到期状态 |
+| `/api/membership/orders` | GET, POST | C | KEEP；人工付款，无地址/二维码，稳定幂等 |
+| `/api/membership/performance-statements` | GET | C | KEEP；paper 模拟分成安全视图 |
+| `/api/credits/me` | GET | C | KEEP；余额与累计不可变分录摘要 |
+| `/api/trading-hall/paper/portfolio` | GET | C | KEEP；每卡 10,000 USDT 独立组合 |
+| `/api/trading-hall/paper/trades` | GET | C | KEEP；服务端 paper history/cursor |
 | `/api/operations/membership-orders` | GET | O | TARGET；scope/pagination/filter |
 | `/api/operations/membership-orders/[id]` | GET | O | TARGET；凭证脱敏/审批历史 |
 | `/api/operations/membership-orders/[id]/evidence` | POST | O | TARGET；maker/幂等/recent MFA |
@@ -209,11 +195,9 @@
 | `/api/operations/performance-statements/[id]/decision` | POST | O | TARGET；业务批准只形成应收 |
 | `/api/operations/performance-statements/[id]/payment-evidence` | POST | O | TARGET；外部付款凭证 |
 | `/api/operations/performance-statements/[id]/payment-decision` | POST | O | TARGET；复核后提交高水位 |
-| `/api/maintenance/demo-exchanges` | GET, POST | M | TARGET；安全账户视图/创建配置 |
-| `/api/maintenance/demo-exchanges/[id]` | PATCH | M | TARGET；不回显 secret |
-| `/api/maintenance/demo-exchanges/[id]/verify` | POST | M | TARGET；固定测试域名/权限检查 |
-| `/api/maintenance/demo-exchanges/[id]/kill-switch` | POST | M | TARGET；reason/recent MFA/audit |
-| `/api/maintenance/demo-executions` | GET | M | TARGET；intent/receipt/limit/trace |
+| `/api/maintenance/demo-exchanges/[id]/verify` | POST | M | KEEP；固定测试域名/权限检查 |
+| `/api/maintenance/demo-exchanges/[id]/control` | POST | M | KEEP；enable/disable/kill/resume 与 card kill，reason/recent MFA/audit |
+| `/api/maintenance/audit` | GET | M | KEEP；当前 Beta 的 Demo 技术动作证据；全域技术事件聚合进入 GA |
 
 ## 10. 下一步
 

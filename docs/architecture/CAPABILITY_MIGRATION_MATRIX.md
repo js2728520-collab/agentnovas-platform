@@ -44,7 +44,7 @@
 | Worker 健康 | 当前主要读取开关 | Maintenance `/health/workers` | `REBUILD` | 心跳、lease、队列、最近成功失败 | P0 |
 | 全局紧急停止 | 旧 Client/Admin 存在假按钮；新 Maint 有作用域暂停 | Maintenance `/safety` | `RETIRED/MERGE` | 删除无行为按钮；只保留有权限、有原因、有审计的控制 | P0 |
 | 业务授权审计 | 新 Access Center 有基础 | Operations `/access/audit` | `MERGE` | 当前 audience、筛选、事件详情 | P0 |
-| 技术系统审计 | 分散 | Maintenance `/audit` | `REBUILD` | 认证、配置、集成、Worker、安全事件聚合 | P1 |
+| 技术系统审计 | Demo 控制/验证安全投影已完成；其他域分散 | Maintenance `/audit` | `REBUILD` | Beta 先验收 Demo reason/status；认证、配置、集成、Worker 统一事件流进入 GA | P1 |
 
 ## 付费 Beta 新能力与旧能力处置
 

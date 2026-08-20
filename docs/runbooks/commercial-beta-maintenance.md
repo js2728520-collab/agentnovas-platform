@@ -17,6 +17,8 @@
 4. 检查 allowlist、权限、时钟、签名、限额和 query-after-timeout；轮换测试密钥时不在聊天/日志传值。
 5. 使用 fixture 回归后再在 staging 做显式授权小额 smoke；解除后不自动重放未知结果 intent。
 
+所有控制与验证操作完成后，在 Maintenance `/audit` 以 operation/status/cursor 复核命令状态、actor、reason、provider/card 与时间。Beta 投影不提供 response payload、幂等键、订单 ID 或密文；需要底层取证时使用受控数据库/日志流程，不扩展浏览器响应。登录、MFA、模型、Email 与 Worker 的统一技术审计仍属于 GA backlog，授权变更继续在 `/access/audit` 查询。
+
 ## 3. Email suppression 与恢复
 
 - bounce/complaint 进入 suppression；complaint 不得记 delivered。
@@ -43,4 +45,3 @@
 - SEV2：单客户可恢复错误、非核心页面/指标异常。
 
 恢复顺序：阻断副作用 → 保全证据 → 明确客户影响 → 修复/回归 → 经授权恢复 → 事后报告。禁止删除账本/审计或直接生产 SQL 掩盖问题。
-

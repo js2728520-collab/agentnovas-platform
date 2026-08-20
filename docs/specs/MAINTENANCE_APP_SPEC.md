@@ -38,6 +38,8 @@ Database、Research、Paper Runtime、Demo Execution、Notification 和 Payment 
 - Operations/Maintenance 显式 assignment，不回退 legacy；Access Center 只读取 Maintenance 数据。
 - 紧急暂停按 scope/provider/card 生效，要求原因；解除不自动恢复策略。
 - 系统审计包含登录/MFA、配置版本、Worker、provider 测试、kill switch、模型和授权事件；日志不含 secret/完整 PII/token。
+- 当前 Beta `/audit` 已实现 Demo provider 控制与验证命令的安全投影、服务端筛选和游标；只返回 actor/account/action/reason/status/error/time，不读取 response payload、幂等键、hash、订单 ID 或密文。
+- 登录/MFA、模型、Email、Worker 和通用配置的统一技术事件流仍为 GA backlog；授权事件继续位于 `/access/audit`。在统一事件流完成前，不得宣称 `/audit` 已覆盖所有技术域。
 - 真实订单、支付、退款和生产基础设施没有 UI 或 API 可达路径。
 
 ## 7. 验收

@@ -95,21 +95,25 @@ paths:
   /api/membership/plans:
     get:
       tags: [Membership]
-      summary: 查询版本化会员计划
+      summary: 查询版本化会员计划与可读法务正文
       responses:
         '200':
-          description: 四档 v1 计划快照
+          description: 四档 v1 计划快照；七份正文完整且哈希一致时才允许创建订单
           content:
             application/json:
               schema:
                 type: object
-                required: [plans]
+                required: [plans, requiredLegalDocuments, orderCreationAvailable]
                 properties:
                   plans:
                     type: array
                     minItems: 4
                     maxItems: 4
                     items: { $ref: '#/components/schemas/CommercialPlan' }
+                  requiredLegalDocuments:
+                    type: array
+                    items: { $ref: '#/components/schemas/CommercialLegalDocument' }
+                  orderCreationAvailable: { type: boolean }
   /api/membership/me:
     get:
       tags: [Membership]
@@ -155,27 +159,26 @@ paths:
       summary: 查询 AI credits 余额与不可变流水
       responses:
         '200': { description: 可用、预留和分录 }
-  /api/paper/portfolios:
+  /api/trading-hall/paper/portfolio:
     get:
       tags: [Paper]
       summary: 查询三张官方策略独立 paper 组合
       responses:
         '200':
           description: 每张卡初始 10,000 USDT，不代表真实资产
-  /api/paper/portfolios/{id}/trades:
+  /api/trading-hall/paper/trades:
     get:
       tags: [Paper]
       summary: 查询服务端 paper 成交历史
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
         - in: query
           name: cursor
           schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100 }
       responses:
-        '200': { description: 当前客户所属组合的 cursor 分页成交 }
+        '200': { description: 当前客户三张官方组合的 cursor 分页成交 }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/wallet/balances:
     get:
@@ -191,13 +194,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/WalletBalance'
-  /api/wallet/deposit-orders:
-    get:
-      tags: [Wallet]
-      summary: 查询服务充值订单
-      responses:
-        '200':
-          description: 充值订单
   /api/operations/membership-orders:
     get:
       tags: [Operations]
@@ -341,6 +337,29 @@ paths:
         '200': { description: provider-specific 真实测试结果或明确 fixture 状态 }
         '403': { $ref: '#/components/responses/Forbidden' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /api/maintenance/audit:
+    get:
+      tags: [Maintenance]
+      summary: 查询 Demo 管理命令技术审计
+      description: >-
+        Beta 只投影 Demo 控制与验证命令；不返回 response payload、幂等键、payload hash、
+        provider/client order ID、密文或完整凭证。其他技术域统一聚合属于 GA backlog。
+      parameters:
+        - in: query
+          name: operation
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        '200': { description: allowlist 技术审计事件与下一游标 }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/health/live:
     get:
       tags: [Health]
@@ -386,6 +405,20 @@ components:
         durationDays: { type: [integer, 'null'] }
         credits: { type: integer, minimum: 0 }
         performanceFeeBps: { type: integer, enum: [1600, 2000] }
+    CommercialLegalDocument:
+      type: object
+      additionalProperties: false
+      required: [id, type, version, contentSha256, locale, contentMarkdown, effectiveAt]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [service_entity, service_region, privacy, terms, risk_disclosure, simulated_performance_fee_opinion, refund_policy]
+        version: { type: string }
+        contentSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        locale: { type: [string, 'null'] }
+        contentMarkdown: { type: [string, 'null'] }
+        effectiveAt: { type: string, format: date-time }
     DecisionRequest:
       type: object
       additionalProperties: false
@@ -581,12 +614,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ApiError' }
     Unavailable:
-      description: 服务未配置、未启用或不健康
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ApiError' }
-    Unavailable:
-      description: 服务未配置、未启用或测试被关闭
+      description: 服务未配置、未启用、不健康或测试被关闭
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ApiError' }

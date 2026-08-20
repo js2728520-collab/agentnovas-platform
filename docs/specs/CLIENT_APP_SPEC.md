@@ -6,11 +6,14 @@ Client 为受邀用户提供登录/设置密码、法务同意、试用与会员
 
 稳定路由：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/wallet`、`/wallet/deposits`、`/notifications`。普通客户不得看到旧 Admin/Ops/Maint 导航或代码文案。
 
+实现状态（2026-08-21）：`/`、`/login`、`/wallet`、`/wallet/deposits`、`/notifications` 已稳定；会员与交易大厅仍在根工作区内切换，剩余稳定路由属于发布前 P1，不得把本段目标路由误报为全部完成。
+
 ## 2. 身份与法务
 
 - 仅邀请注册；邀请和找回链接单次使用、过期失效，不回显 token。
 - 登录失败和找回结果不泄露邮箱是否存在。
-- 首次使用和法务版本升级时必须同意服务条款、隐私与风险披露；保存 document ID/version/hash/time/IP 摘要。
+- 首次使用和法务版本升级时必须先阅读服务主体、地区、隐私、条款、风险披露、模拟收益分成意见和退款规则七份正文，再保存 document ID/version/hash/time/IP 摘要。
+- `0028_commercial_legal_content.sql` 提供版本化 locale/正文存储；七份正文任一缺失、长度异常或 SHA-256 不匹配时，计划 API 与订单服务同时失败关闭。仓库不提供占位法务文本，正式正文仍由法务团队交付。
 - 法务未完成时只允许身份、法务和退出页面，不启动策略或创建会员订单。
 
 ## 3. 会员与 credits
@@ -54,6 +57,7 @@ Client 为受邀用户提供登录/设置密码、法务同意、试用与会员
 - `/wallet/deposits` 显示“本 Beta 未开放充值”，无创建、地址、二维码或确认数。
 - Beta 通知为 in-app 与 Email。Email 未满足 Gate 时显示 `configured_not_sent`。
 - Telegram/WhatsApp 固定“未接入、不可验证”，接口/UI 不生成演示验证码。
+- Proxy 将历史 `/api/notifications/channels`、`/api/wallet/deposit-orders`、`/api/exchange-accounts/**`、旧永续 research/deployment、社区市场、旧 portfolio/simulated orders 与 Client emergency-stop 标为 `DISABLED/BETA`；隐藏 UI 不是唯一安全边界。
 - 偏好保存失败保留原值，动态结果用 `aria-live`。
 
 ## 7. 错误、可访问性与性能

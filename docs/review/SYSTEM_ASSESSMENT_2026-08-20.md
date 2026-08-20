@@ -4,6 +4,12 @@
 评估基线：`codex/three-app-riverton-split`，起点 `0762fa3`；后续实施状态见 `tasks/todo.md`
 结论：可用于内部演示和工程验证，尚不可对外收费。商业化总体完整度约 30–35%。
 
+## 0. 2026-08-21 实施更新
+
+本文件第 1–5 节保留起点 `0762fa3` 的审计快照，用于解释为何启动收口，不代表当前树仍有相同缺陷。当前集成树已完成：203 个 method handler 的 fail-closed inventory、未知 Host 拒绝、显式内部 RBAC/MFA/Argon2id、迁移 checksum/advisory lock、商业账本/会员/credits/周分成、官方 spot paper、三 provider Demo 安全边界、Worker heartbeat、Operations/Maintenance 商业工作台、Client 旧 Admin 物理移除、legacy 客户交易/充值接口中央禁用、可读法务正文 Gate 和 Demo 技术审计安全投影。
+
+当前仍阻断付费 Beta 的主要事项是：Client 会员/paper 稳定路由、初始 JS/CSS 性能预算、最终 Playwright/axe/Lighthouse/Host smoke/恢复证据、真实法务正文与服务地区、Email/Demo staging/DNS/TLS/支持值班等外部依赖。完整度必须由 `tasks/todo.md` 和最新 Gate 证据判断，不再沿用本文件的 30–35% 起点评分。
+
 ## 1. 已有资产
 
 - Next.js 三 audience、独立 Cookie、稳定内部路由与共享 Shell 已建立。
