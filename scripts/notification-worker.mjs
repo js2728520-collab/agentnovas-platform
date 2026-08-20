@@ -8,15 +8,14 @@ import {
   notificationSendEnvironmentReady,
   processClaimedEmail,
   providerConfigAllowsSend,
+  purgeExpiredNotificationSecrets,
 } from "../lib/notification-email-worker.ts";
 import { businessDatabaseUrl } from "../lib/postgres.ts";
 import { createWorkerHeartbeatReporter } from "../lib/worker-observability.ts";
 
 const connectionString = businessDatabaseUrl();
 if (!connectionString) throw new Error("DATABASE_URL is required");
-if (!notificationSendEnvironmentReady(process.env)) {
-  throw new Error("Notification email sending is disabled or incompletely configured");
-}
+const sendEnabled = notificationSendEnvironmentReady(process.env);
 
 const poolSize = Number(process.env.NOTIFICATION_WORKER_POOL_SIZE || 4);
 const pool = new pg.Pool({
@@ -34,8 +33,9 @@ const heartbeat = createWorkerHeartbeatReporter(pool, {
     code: error instanceof Error ? error.name : "UNKNOWN",
   }),
 });
-const apiKey = process.env.RESEND_API_KEY.trim();
+const apiKey = process.env.RESEND_API_KEY?.trim() ?? "";
 let stopping = false;
+let nextSecretCleanupAt = 0;
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => { stopping = true; });
@@ -49,12 +49,27 @@ try {
   process.stdout.write(`Notification Worker started (${workerId}).\n`);
   await heartbeat.start();
   while (!stopping) {
+    const now = new Date();
+    if (now.getTime() >= nextSecretCleanupAt) {
+      try {
+        await purgeExpiredNotificationSecrets(pool, now);
+      } catch (error) {
+        console.error("Notification secret cleanup failed", {
+          code: error instanceof Error ? error.name : "UNKNOWN",
+        });
+      }
+      nextSecretCleanupAt = now.getTime() + 5 * 60_000;
+    }
+    if (!sendEnabled) {
+      await delay(5_000);
+      continue;
+    }
     const config = await loadResendProviderConfig(pool);
     if (!config || !providerConfigAllowsSend(config)) {
       await delay(5_000);
       continue;
     }
-    const delivery = await claimNextEmailDelivery(pool, { workerId, now: new Date() });
+    const delivery = await claimNextEmailDelivery(pool, { workerId, now });
     if (!delivery) {
       await delay(1_000);
       continue;

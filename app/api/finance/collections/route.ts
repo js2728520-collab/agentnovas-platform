@@ -5,8 +5,8 @@ import { researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request) {
   try {
-    const { user, scope } = await requireAccessPermission(request, "ops.ledger.view");
-    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "ca", "cc.customer_id");
+    const { user, scope, organizationIds } = await requireAccessPermission(request, "ops.ledger.view");
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "ca", "cc.customer_id", 1, organizationIds);
     const pool = await getPostgresPool();
     const result = await pool.query(`
       SELECT DISTINCT cc.id, cc.customer_id, u.email, cc.settlement_id, s.amount_usdt,

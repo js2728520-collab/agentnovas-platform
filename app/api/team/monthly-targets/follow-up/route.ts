@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { auditLogs, targetFollowUps, users } from "@/db/schema";
-import { requireUser, responseError } from "@/lib/session";
+import { requireAccessPermission } from "@/lib/access-control";
+import { responseError } from "@/lib/session";
 
-const roles = ["branch_admin", "manager", "supervisor"] as const;
 function visibleTo(actor: { id: string; role: string; organizationId: string | null }, target: { id: string; organizationId: string | null; reportsToUserId: string | null } | undefined, people: Map<string, { id: string; organizationId: string | null; reportsToUserId: string | null }>) {
   if (!target || target.organizationId !== actor.organizationId) return false;
   if (actor.role === "branch_admin") return true;
@@ -14,7 +14,7 @@ function visibleTo(actor: { id: string; role: string; organizationId: string | n
 
 export async function GET(request: Request) {
   try {
-    const actor = await requireUser(request, [...roles]), url = new URL(request.url), month = url.searchParams.get("month") || new Date().toISOString().slice(0, 7), db = getDb();
+    const { user: actor } = await requireAccessPermission(request, "ops.team.view"), url = new URL(request.url), month = url.searchParams.get("month") || new Date().toISOString().slice(0, 7), db = getDb();
     const people = await db.select({ id: users.id, email: users.email, organizationId: users.organizationId, reportsToUserId: users.reportsToUserId }).from(users), map = new Map(people.map(x => [x.id, x]));
     const rows = await db.select().from(targetFollowUps).where(eq(targetFollowUps.month, month));
     return Response.json({ month, followUps: rows.filter(row => visibleTo(actor, map.get(row.subjectUserId), map)).map(row => ({ ...row, subjectEmail: map.get(row.subjectUserId)?.email.replace(/^(.{2}).*(@.*)$/, "$1***$2"), handledByEmail: map.get(row.handledByUserId)?.email.replace(/^(.{2}).*(@.*)$/, "$1***$2") })) });
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   try {
-    const actor = await requireUser(request, [...roles]), body = await request.json() as { month?: string; subjectUserId?: string; alertType?: "target_missing" | "behind_schedule"; note?: string };
+    const { user: actor } = await requireAccessPermission(request, "ops.team.manage"), body = await request.json() as { month?: string; subjectUserId?: string; alertType?: "target_missing" | "behind_schedule"; note?: string };
     if (!/^\d{4}-\d{2}$/.test(body.month || "") || !body.subjectUserId || !["target_missing", "behind_schedule"].includes(body.alertType || "")) return Response.json({ error: "缺少有效的跟进事项" }, { status: 400 });
     if (!body.note?.trim()) return Response.json({ error: "请填写跟进备注" }, { status: 400 });
     const db = getDb(), people = await db.select({ id: users.id, organizationId: users.organizationId, reportsToUserId: users.reportsToUserId }).from(users), map = new Map(people.map(x => [x.id, x])), target = map.get(body.subjectUserId), now = new Date().toISOString();
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const actor = await requireUser(request, [...roles]), body = await request.json() as { id?: string; note?: string }, db = getDb();
+    const { user: actor } = await requireAccessPermission(request, "ops.team.manage"), body = await request.json() as { id?: string; note?: string }, db = getDb();
     if (!body.id || !body.note?.trim()) return Response.json({ error: "请填写重新打开的原因" }, { status: 400 });
     const row = (await db.select().from(targetFollowUps).where(eq(targetFollowUps.id, body.id)).limit(1))[0];
     if (!row) return Response.json({ error: "跟进记录不存在" }, { status: 404 });

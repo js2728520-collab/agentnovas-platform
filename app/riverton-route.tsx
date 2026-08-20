@@ -5,14 +5,15 @@ import ClientApp from "@/apps/client/ui/client-app";
 import ClientPortal from "@/apps/client/ui/client-portal";
 import MaintenanceApp from "@/apps/maintenance/ui/maintenance-app";
 import OperationsApp from "@/apps/operations/ui/operations-app";
-import { resolveAppAudience } from "@/lib/riverton-apps";
+import { resolveAppAudienceStrict } from "@/lib/riverton-apps";
 
 const CLIENT_ROUTES = new Set(["login", "wallet", "notifications"]);
 const OPERATIONS_ROUTES = new Set(["login", "customers", "organization", "deposits", "ledger", "finance", "approvals", "access"]);
 const MAINTENANCE_ROUTES = new Set(["login", "models", "integrations", "health", "safety", "settings", "access"]);
 
 export async function RivertonRoute({ segments, loginMode }: { segments: string[]; loginMode?: "login" | "register" | "forgot" }) {
-  const audience = resolveAppAudience({ host: (await headers()).get("host") ?? undefined });
+  const audience = resolveAppAudienceStrict({ host: (await headers()).get("host") ?? undefined });
+  if (!audience) notFound();
   const root = segments[0];
   if (!root) {
     if (audience === "operations") return <OperationsApp segments={[]} />;

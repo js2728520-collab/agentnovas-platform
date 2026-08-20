@@ -7,7 +7,7 @@ const statuses = new Set(["pending", "approved", "rejected", "cancelled"]);
 
 export async function GET(request: Request) {
   try {
-    const { user, access, scope } = await requireAccessPermission(request, "ops.deposits.action_approve");
+    const { user, access, scope, organizationIds } = await requireAccessPermission(request, "ops.deposits.action_approve");
     const canRevealPii = Boolean(access.permissions["ops.deposits.pii_reveal"]);
     const url = new URL(request.url);
     const status = url.searchParams.get("status") ?? "pending";
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
       throw new ResearchApiError("VALIDATION_ERROR", "审批状态无效", 422, { fields: ["status"] });
     }
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 50), 1), 200);
-    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id", 2);
+    const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id", 2, organizationIds);
     const params: unknown[] = [status, ...scoped.values, limit];
     const limitIndex = params.length;
     const pool = await getPostgresPool();

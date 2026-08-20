@@ -1,72 +1,48 @@
 import type { Pool } from "pg";
 
-import { currentUser, type CurrentUser } from "@/lib/session";
+import { currentSession, type CurrentUser } from "@/lib/session";
 import { ResearchApiError } from "@/lib/research-errors";
 import { getPostgresPool } from "@/lib/postgres";
-import { resolveAppAudience, type AppAudience } from "@/lib/riverton-apps";
+import { loadEffectiveAccess, type EffectivePermissionGrant } from "@/lib/effective-access";
+import { resolveAppAudienceStrict, type AppAudience } from "@/lib/riverton-apps";
 import {
   PERMISSION_DEFINITIONS,
-  effectivePermissionMap,
-  legacyPermissionsForApp,
   type DataScope,
 } from "@/lib/rbac";
 
 export type EffectiveAccess = {
   appId: AppAudience;
   permissions: Record<string, DataScope>;
+  grants: Record<string, EffectivePermissionGrant>;
   source: "rbac" | "legacy_role";
 };
 
 export async function effectiveAccessForUser(pool: Pool, user: CurrentUser, appId: AppAudience): Promise<EffectiveAccess> {
-  try {
-    const result = await pool.query<{
-      permission_key: string;
-      scope: DataScope;
-    }>(`
-      SELECT rp.permission_key, rp.scope
-      FROM user_role_assignments AS ura
-      INNER JOIN roles AS r ON r.id = ura.role_id
-      INNER JOIN role_permissions AS rp ON rp.role_id = r.id
-      WHERE ura.user_id = $1
-        AND ura.application_id = $2
-        AND ura.status = 'active'
-        AND r.status = 'published'
-        AND ura.effective_at <= now()
-        AND (ura.expires_at IS NULL OR ura.expires_at > now())
-    `, [user.id, appId]);
-    if (result.rows.length > 0) {
-      return {
-        appId,
-        permissions: effectivePermissionMap(result.rows.map((row) => ({
-          permissionKey: row.permission_key,
-          scope: row.scope,
-        }))),
-        source: "rbac",
-      };
-    }
-  } catch (error) {
-    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
-    if (code !== "42P01" && code !== "42703") throw error;
-  }
   return {
     appId,
-    permissions: effectivePermissionMap(legacyPermissionsForApp(user.role, appId)),
-    source: "legacy_role",
+    ...await loadEffectiveAccess(pool, user, appId),
   };
 }
 
 export async function requireAccessPermission(request: Request, permissionKey: string) {
-  const user = await currentUser(request);
-  if (!user) throw new ResearchApiError("AUTH_REQUIRED", "请先登录", 401);
+  const current = await currentSession(request);
+  if (!current) throw new ResearchApiError("AUTH_REQUIRED", "请先登录", 401);
+  const user = current.user;
   const definition = PERMISSION_DEFINITIONS.find((permission) => permission.key === permissionKey);
   if (!definition) throw new ResearchApiError("PERMISSION_UNKNOWN", "权限未注册", 500, { permissionKey });
   const requestAudience = currentRequestAudience(request);
   if (requestAudience !== definition.appId) throw new ResearchApiError("NOT_FOUND", "接口在当前应用不可用", 404);
+  if (definition.sensitive && definition.appId !== "client" && !current.recentMfa) {
+    throw new ResearchApiError("RECENT_MFA_REQUIRED", "请在 15 分钟内重新完成双重验证", 403, { maxAgeSeconds: 900 });
+  }
   const pool = await getPostgresPool();
   const access = await effectiveAccessForUser(pool, user, definition.appId);
-  const scope = access.permissions[permissionKey];
-  if (!scope) throw new ResearchApiError("FORBIDDEN", "无权执行此操作", 403, { permissionKey });
-  return { user, access, scope };
+  const grant = access.grants[permissionKey];
+  if (!grant) throw new ResearchApiError("FORBIDDEN", "无权执行此操作", 403, { permissionKey });
+  if (definition.appId === "maintenance" && grant.scope !== "PLATFORM") {
+    throw new ResearchApiError("FORBIDDEN", "运维权限必须显式授予平台范围", 403, { permissionKey });
+  }
+  return { user, access, scope: grant.scope, organizationIds: grant.organizationIds };
 }
 
 export async function requireAnyAccessPermission(request: Request, permissionKeys: string[]) {
@@ -86,7 +62,9 @@ export async function requireAnyAccessPermission(request: Request, permissionKey
 }
 
 export function currentRequestAudience(request: Request) {
-  return resolveAppAudience({ host: request.headers.get("host") ?? undefined });
+  const audience = resolveAppAudienceStrict({ host: request.headers.get("host") ?? undefined });
+  if (!audience) throw new ResearchApiError("NOT_FOUND", "接口在当前应用不可用", 404);
+  return audience;
 }
 
 export async function requireCurrentAccessAdmin(request: Request) {

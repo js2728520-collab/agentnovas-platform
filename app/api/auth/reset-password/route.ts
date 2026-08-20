@@ -1,5 +1,70 @@
-import { and, eq, isNull } from "drizzle-orm";
-import { getDb } from "@/db";
-import { authTokens, sessions, users } from "@/db/schema";
-import { hashPassword, sha256 } from "@/lib/auth";
-export async function POST(request:Request){try{const {token="",password=""}=await request.json() as {token?:string,password?:string};const db=getDb();const now=new Date().toISOString();const row=(await db.select().from(authTokens).where(and(eq(authTokens.tokenHash,await sha256(token)),eq(authTokens.purpose,"reset_password"),isNull(authTokens.usedAt))).limit(1))[0];if(!row||row.expiresAt<now)return Response.json({error:"重置链接无效或已过期"},{status:400});await db.batch([db.update(users).set({passwordHash:await hashPassword(password),updatedAt:now}).where(eq(users.id,row.userId)),db.update(authTokens).set({usedAt:now}).where(eq(authTokens.id,row.id)),db.update(sessions).set({revokedAt:now}).where(eq(sessions.userId,row.userId))]);return Response.json({ok:true});}catch(error){return Response.json({error:error instanceof Error?error.message:"重置失败"},{status:400});}}
+import { currentRequestAudience } from "@/lib/access-control";
+import { hashPassword, randomToken, sha256 } from "@/lib/auth";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { consumePasswordReset } from "@/lib/password-reset";
+import { getPostgresPool } from "@/lib/postgres";
+import {
+  authConnectionBucketKey,
+  sessionCookieHeaders,
+  sessionDeadlinesForAudience,
+} from "@/lib/riverton-apps";
+import { responseError } from "@/lib/session";
+
+export async function POST(request: Request) {
+  try {
+    const audience = currentRequestAudience(request);
+    const { token = "", password = "" } = await request.json() as { token?: string; password?: string };
+    const pool = await getPostgresPool();
+    const connection = authConnectionBucketKey(request);
+    if (!connection) return Response.json({ error: "请求网络身份不可用" }, { status: 503 });
+    const tokenHash = await sha256(token);
+    const rateLimit = await consumeAuthRateLimit(pool, {
+      action: "reset_password",
+      audience,
+      bucketKeys: [`token:${tokenHash}`, connection.bucketKey],
+      maxAttempts: 5,
+      windowSeconds: 15 * 60,
+      blockSeconds: 30 * 60,
+    });
+    if (!rateLimit.allowed) {
+      return Response.json({ error: "重置尝试过于频繁，请稍后重试" }, {
+        status: 429,
+        headers: { "retry-after": String(rateLimit.retryAfterSeconds) },
+      });
+    }
+
+    const now = new Date();
+    const internal = audience !== "client";
+    const sessionToken = internal ? randomToken() : null;
+    const deadlines = sessionDeadlinesForAudience(audience, now);
+    if (internal) deadlines.idleExpiresAt = new Date(now.getTime() + 10 * 60_000).toISOString();
+    const result = await consumePasswordReset(pool, {
+      tokenHash,
+      passwordHash: await hashPassword(password),
+      audience,
+      now,
+      primarySession: sessionToken ? {
+        id: crypto.randomUUID(),
+        tokenHash: await sha256(sessionToken),
+        expiresAt: deadlines.absoluteExpiresAt,
+        idleExpiresAt: deadlines.idleExpiresAt,
+        absoluteExpiresAt: deadlines.absoluteExpiresAt,
+        ipAddress: connection.ipAddress,
+        userAgent: request.headers.get("user-agent"),
+      } : undefined,
+    });
+    if (!result.ok) return Response.json({ error: "重置链接无效、已过期或账号尚未授权" }, { status: 400 });
+    const headers = new Headers({ "content-type": "application/json", "cache-control": "no-store" });
+    if (sessionToken) {
+      const cookie = sessionCookieHeaders({
+        request,
+        token: sessionToken,
+        maxAgeSeconds: Math.floor((new Date(deadlines.absoluteExpiresAt).getTime() - now.getTime()) / 1000),
+      });
+      for (const value of cookie.headers) headers.append("set-cookie", value);
+    }
+    return new Response(JSON.stringify(result), { headers });
+  } catch (error) {
+    return responseError(error);
+  }
+}

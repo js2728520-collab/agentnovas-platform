@@ -1,10 +1,9 @@
-import { requireUser, responseError } from "@/lib/session";
-
-const roles = ["branch_admin", "manager", "supervisor", "employee"] as const;
+import { requireAccessPermission } from "@/lib/access-control";
+import { responseError } from "@/lib/session";
 
 export async function GET(request: Request) {
   try {
-    await requireUser(request, [...roles]);
+    await requireAccessPermission(request, "ops.team.view");
     const url = new URL(request.url), month = url.searchParams.get("month") || new Date().toISOString().slice(0, 7);
     const internalUrl = new URL("/api/team/monthly-targets", request.url); internalUrl.searchParams.set("month", month);
     const response = await fetch(internalUrl, { headers: { cookie: request.headers.get("cookie") || "" } });

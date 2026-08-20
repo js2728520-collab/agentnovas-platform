@@ -5,7 +5,7 @@ import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const { user, scope } = await requireAccessPermission(request, "ops.deposits.action_approve");
+    const { user, scope, organizationIds } = await requireAccessPermission(request, "ops.deposits.action_approve");
     const { id } = await context.params;
     const body = await readResearchJson(request);
     const decision = String(body.decision ?? "");
@@ -16,7 +16,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id", 2);
+      const scoped = customerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "d", "d.user_id", 2, organizationIds);
       const action = await client.query<{ requested_by_user_id: string; status: string }>(`
         SELECT ar.requested_by_user_id, ar.status
         FROM deposit_action_requests AS ar

@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 
 import { RESEND_SENDER_ADDRESS, RESEND_SENDER_DOMAIN } from "./notifications.ts";
+import { decryptNotificationToken } from "./notification-secrets.ts";
 
 export const NOTIFICATION_MAX_ATTEMPTS = 5;
 export const NOTIFICATION_LEASE_SECONDS = 60;
@@ -24,6 +25,8 @@ export type ClaimedEmailDelivery = {
   userId: string;
   templateKey: string;
   payloadJson: unknown;
+  secretKind: string | null;
+  secretExpiresAt: Date | string | null;
   attempts: number;
   recipient: string;
 };
@@ -47,6 +50,31 @@ function parsePayload(value: unknown): JsonRecord {
     }
   }
   return record(value);
+}
+
+async function materializeNotificationPayload(
+  templateKey: string,
+  value: unknown,
+  secretKind: string | null,
+  secretExpiresAt: Date | string | null,
+  environment: Record<string, string | undefined>,
+  now: Date,
+) {
+  const payload = parsePayload(value);
+  if (templateKey !== "reset_password" && templateKey !== "internal_account_invite") return payload;
+  const expiresAt = secretExpiresAt instanceof Date
+    ? secretExpiresAt.getTime()
+    : typeof secretExpiresAt === "string"
+      ? Date.parse(secretExpiresAt)
+      : Number.NaN;
+  if (secretKind !== templateKey || Number.isNaN(expiresAt)) {
+    throw new Error("INVALID_PAYLOAD");
+  }
+  if (expiresAt <= now.getTime()) throw new Error("TOKEN_EXPIRED");
+  const encryptedToken = boundedString(payload, "encryptedToken", MAX_TOKEN_LENGTH * 2);
+  const { encryptedToken: _encryptedToken, ...metadata } = payload;
+  void _encryptedToken;
+  return { ...metadata, token: await decryptNotificationToken(encryptedToken, environment) };
 }
 
 function boundedString(payload: JsonRecord, key: string, maximum = MAX_FIELD_LENGTH) {
@@ -95,15 +123,16 @@ export function renderNotificationEmail(templateKey: string, payloadJson: unknow
   switch (templateKey) {
     case "reset_password": {
       const token = boundedString(payload, "token", MAX_TOKEN_LENGTH);
+      if (payload.audience !== "client") throw new Error("INVALID_PAYLOAD");
       const link = `https://agentnovas.com/reset-password?token=${encodeURIComponent(token)}`;
       return email("重置 AgentNovas 密码", ["我们收到了密码重置请求。", `请在一小时内打开以下链接：${link}`, "如果这不是你的操作，请忽略此邮件。"]);
     }
     case "internal_account_invite": {
-      const verifyToken = boundedString(payload, "verifyToken", MAX_TOKEN_LENGTH);
-      const temporaryPassword = boundedString(payload, "temporaryPassword", 256);
+      const token = boundedString(payload, "token", MAX_TOKEN_LENGTH);
       const role = boundedString(payload, "role", 80);
-      const link = `https://zht.agentnovas.com/verify-email?token=${encodeURIComponent(verifyToken)}`;
-      return email("AgentNovas 内部账号邀请", ["你的内部账号已创建。", `角色：${role}`, `临时密码：${temporaryPassword}`, `请在 48 小时内验证账号：${link}`, "首次登录后请立即修改密码。"]);
+      if (payload.activation !== true || payload.audience !== "operations") throw new Error("INVALID_PAYLOAD");
+      const link = `https://zht.agentnovas.com/reset-password?token=${encodeURIComponent(token)}`;
+      return email("AgentNovas 内部账号邀请", ["你的内部账号已创建。", `角色：${role}`, `请在 48 小时内设置密码：${link}`, "密码设置完成前账户不会激活。"]);
     }
     case "team_daily_brief": {
       const date = isoDate(payload, "date");
@@ -269,6 +298,8 @@ export async function claimNextEmailDelivery(pool: Pick<Pool, "connect">, input:
                  delivery.user_id AS "userId",
                  delivery.template_key AS "templateKey",
                  delivery.payload_json AS "payloadJson",
+                 delivery.secret_kind AS "secretKind",
+                 delivery.secret_expires_at AS "secretExpiresAt",
                  delivery.attempts,
                  users.email AS recipient`,
       [input.workerId, input.now.toISOString(), NOTIFICATION_MAX_ATTEMPTS, input.leaseSeconds ?? NOTIFICATION_LEASE_SECONDS],
@@ -299,6 +330,9 @@ export async function markEmailSent(pool: Pick<Pool, "query">, input: {
         SET status = CASE WHEN status IN ('delivered', 'failed') THEN status ELSE 'sent' END,
             provider_message_id = $3,
             sent_at = COALESCE(sent_at, $4),
+            payload_json = CASE WHEN template_key IN ('reset_password', 'internal_account_invite') THEN '{}' ELSE payload_json END,
+            secret_kind = CASE WHEN template_key IN ('reset_password', 'internal_account_invite') THEN NULL ELSE secret_kind END,
+            secret_expires_at = CASE WHEN template_key IN ('reset_password', 'internal_account_invite') THEN NULL ELSE secret_expires_at END,
             last_error = CASE WHEN status = 'failed' THEN last_error ELSE NULL END,
             lease_owner = NULL, lease_expires_at = NULL, updated_at = $4
       WHERE id = $1 AND lease_owner = $2
@@ -320,10 +354,34 @@ export async function markEmailFailed(pool: Pick<Pool, "query">, input: {
   return fencedUpdate(pool,
     `UPDATE notification_deliveries
         SET status = $3, last_error = $4, scheduled_at = CASE WHEN $3 = 'queued' THEN $5 ELSE scheduled_at END,
+            payload_json = CASE WHEN $3 = 'failed' AND template_key IN ('reset_password', 'internal_account_invite') THEN '{}' ELSE payload_json END,
+            secret_kind = CASE WHEN $3 = 'failed' AND template_key IN ('reset_password', 'internal_account_invite') THEN NULL ELSE secret_kind END,
+            secret_expires_at = CASE WHEN $3 = 'failed' AND template_key IN ('reset_password', 'internal_account_invite') THEN NULL ELSE secret_expires_at END,
             lease_owner = NULL, lease_expires_at = NULL, updated_at = $6
       WHERE id = $1 AND lease_owner = $2`,
     [input.deliveryId, input.workerId, retry ? "queued" : "failed", input.errorCode.slice(0, 200), scheduledAt, input.now.toISOString()],
   );
+}
+
+export async function purgeExpiredNotificationSecrets(pool: Pick<Pool, "query">, now = new Date()) {
+  const result = await pool.query(
+    `UPDATE notification_deliveries
+        SET payload_json = '{}',
+            secret_kind = NULL,
+            secret_expires_at = NULL,
+            status = CASE WHEN status = 'queued' THEN 'failed' ELSE status END,
+            last_error = CASE WHEN status = 'queued' THEN 'TOKEN_EXPIRED' ELSE last_error END,
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            updated_at = $1
+      WHERE secret_kind IN ('reset_password', 'internal_account_invite')
+        AND (
+          status IN ('sent', 'delivered', 'failed')
+          OR secret_expires_at <= $1::timestamptz
+        )`,
+    [now.toISOString()],
+  );
+  return result.rowCount ?? 0;
 }
 
 export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: ClaimedEmailDelivery, input: {
@@ -331,16 +389,28 @@ export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: C
   apiKey: string;
   now?: () => Date;
   send?: typeof sendResendEmail;
+  environment?: Record<string, string | undefined>;
 }) {
   let rendered: NotificationEmail;
   let errorCode: string | null = null;
+  const processingStartedAt = input.now?.() ?? new Date();
   if (!validateEmailRecipient(delivery.recipient)) {
     errorCode = "INVALID_RECIPIENT";
   } else {
     try {
-      rendered = renderNotificationEmail(delivery.templateKey, delivery.payloadJson);
+      const payload = await materializeNotificationPayload(
+        delivery.templateKey,
+        delivery.payloadJson,
+        delivery.secretKind,
+        delivery.secretExpiresAt,
+        input.environment ?? process.env,
+        processingStartedAt,
+      );
+      rendered = renderNotificationEmail(delivery.templateKey, payload);
     } catch (error) {
-      errorCode = error instanceof Error && error.message === "UNKNOWN_TEMPLATE" ? "UNKNOWN_TEMPLATE" : "INVALID_PAYLOAD";
+      errorCode = error instanceof Error && ["UNKNOWN_TEMPLATE", "TOKEN_EXPIRED"].includes(error.message)
+        ? error.message
+        : "INVALID_PAYLOAD";
     }
   }
   if (errorCode) {

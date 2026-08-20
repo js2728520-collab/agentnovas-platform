@@ -6,6 +6,7 @@ import {
   claimNextEmailDelivery,
   markEmailSent,
   notificationSendEnvironmentReady,
+  purgeExpiredNotificationSecrets,
   processClaimedEmail,
   providerConfigAllowsSend,
   renderNotificationEmail,
@@ -13,19 +14,24 @@ import {
   sendResendEmail,
   validateEmailRecipient,
 } from "../lib/notification-email-worker.ts";
+import { encryptNotificationToken } from "../lib/notification-secrets.ts";
+
+const tokenEnvironment = { NOTIFICATION_TOKEN_ENCRYPTION_KEY: "test-notification-token-key-longer-than-thirty-two-characters" };
 
 test("known notification templates render bounded escaped email", () => {
-  const reset = renderNotificationEmail("reset_password", { token: "a&b" });
+  const reset = renderNotificationEmail("reset_password", { token: "a&b", audience: "client" });
   assert.match(reset.text, /https:\/\/agentnovas\.com\/reset-password\?token=a%26b/);
   assert.doesNotMatch(reset.html, /a&b/);
 
   const invite = renderNotificationEmail("internal_account_invite", {
-    verifyToken: "verify-token",
-    temporaryPassword: "temporary-password",
+    token: "activation-token",
     role: "manager",
+    activation: true,
+    audience: "operations",
   });
   assert.match(invite.subject, /内部账号邀请/);
-  assert.match(invite.text, /https:\/\/zht\.agentnovas\.com\/verify-email\?token=verify-token/);
+  assert.match(invite.text, /https:\/\/zht\.agentnovas\.com\/reset-password\?token=activation-token/);
+  assert.doesNotMatch(invite.text, /临时密码/);
 
   const brief = renderNotificationEmail("team_daily_brief", {
     date: "2026-08-20",
@@ -54,7 +60,7 @@ test("known notification templates render bounded escaped email", () => {
 
 test("unknown templates and malformed payloads are rejected", () => {
   assert.throws(() => renderNotificationEmail("unrecognized", {}), /UNKNOWN_TEMPLATE/);
-  assert.throws(() => renderNotificationEmail("reset_password", { token: "" }), /INVALID_PAYLOAD/);
+  assert.throws(() => renderNotificationEmail("reset_password", { token: "", audience: "client" }), /INVALID_PAYLOAD/);
   assert.throws(() => renderNotificationEmail("strategy_delist_notice", {
     strategyId: "strategy-1",
     strategyName: "name",
@@ -127,7 +133,7 @@ test("claim uses a fenced SKIP LOCKED lease and sent updates require owner", asy
   const client = {
     query: async (sql, parameters) => {
       queries.push({ sql, parameters });
-      if (/RETURNING/.test(sql)) return { rows: [{ id: "delivery-1", userId: "user-1", templateKey: "reset_password", payloadJson: { token: "x" }, attempts: 1, recipient: "person@example.com" }] };
+      if (/RETURNING/.test(sql)) return { rows: [{ id: "delivery-1", userId: "user-1", templateKey: "reset_password", payloadJson: { token: "x" }, secretKind: "reset_password", secretExpiresAt: "2026-08-20T01:00:00.000Z", attempts: 1, recipient: "person@example.com" }] };
       return { rows: [], rowCount: 1 };
     },
     release() {},
@@ -140,6 +146,7 @@ test("claim uses a fenced SKIP LOCKED lease and sent updates require owner", asy
   await markEmailSent(pool, { deliveryId: "delivery-1", workerId: "worker-1", providerMessageId: "provider-1", now: new Date("2026-08-20T00:00:01.000Z") });
   assert.match(queries.at(-1).sql, /lease_owner = \$2/);
   assert.match(queries.at(-1).sql, /status IN \('delivered', 'failed'\)/);
+  assert.match(queries.at(-1).sql, /payload_json = CASE/);
 });
 
 test("invalid synthetic recipient fails permanently without invoking sender", async () => {
@@ -151,6 +158,8 @@ test("invalid synthetic recipient fails permanently without invoking sender", as
     userId: "user-1",
     templateKey: "reset_password",
     payloadJson: { token: "secret-token" },
+    secretKind: "reset_password",
+    secretExpiresAt: "2026-08-20T01:00:00.000Z",
     attempts: 1,
     recipient: "generated@unverified.agentnovas.local",
   }, {
@@ -167,17 +176,60 @@ test("invalid synthetic recipient fails permanently without invoking sender", as
 
 test("a fenced delivery update is never reported as sent", async () => {
   const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
+  const encryptedToken = await encryptNotificationToken("secret-token", tokenEnvironment);
   const result = await processClaimedEmail(pool, {
     id: "delivery-1",
     userId: "user-1",
     templateKey: "reset_password",
-    payloadJson: { token: "secret-token" },
+    payloadJson: { encryptedToken, audience: "client", expiresAt: "2026-08-20T01:00:00.000Z" },
+    secretKind: "reset_password",
+    secretExpiresAt: "2026-08-20T01:00:00.000Z",
     attempts: 1,
     recipient: "person@example.com",
   }, {
     workerId: "stale-worker",
     apiKey: "test-key",
+    now: () => new Date("2026-08-20T00:00:00.000Z"),
+    environment: tokenEnvironment,
     send: async () => ({ ok: true, providerMessageId: "provider-1" }),
   });
   assert.deepEqual(result, { status: "fenced", providerMessageId: "provider-1" });
+});
+
+test("expired encrypted token payloads are cleared without decrypting or sending", async () => {
+  const updates = [];
+  const pool = { query: async (sql, parameters) => { updates.push({ sql, parameters }); return { rowCount: 1, rows: [] }; } };
+  let sent = false;
+  const result = await processClaimedEmail(pool, {
+    id: "delivery-expired",
+    userId: "user-1",
+    templateKey: "reset_password",
+    payloadJson: { encryptedToken: "not-even-decrypted", audience: "client", expiresAt: "2026-08-19T23:59:59.000Z" },
+    secretKind: "reset_password",
+    secretExpiresAt: "2026-08-19T23:59:59.000Z",
+    attempts: 1,
+    recipient: "person@example.com",
+  }, {
+    workerId: "worker-1",
+    apiKey: "unused",
+    now: () => new Date("2026-08-20T00:00:00.000Z"),
+    environment: {},
+    send: async () => { sent = true; return { ok: true, providerMessageId: "never" }; },
+  });
+  assert.equal(sent, false);
+  assert.deepEqual(result, { status: "failed", errorCode: "TOKEN_EXPIRED" });
+  assert.equal(updates[0].parameters[2], "failed");
+  assert.match(updates[0].sql, /payload_json = CASE/);
+});
+
+test("retention cleanup uses typed metadata and never parses payload text", async () => {
+  const queries = [];
+  const pool = { query: async (sql, parameters) => { queries.push({ sql, parameters }); return { rowCount: 3, rows: [] }; } };
+  assert.equal(await purgeExpiredNotificationSecrets(pool, new Date("2026-08-20T00:00:00.000Z")), 3);
+  assert.match(queries[0].sql, /payload_json = '\{\}'/);
+  assert.doesNotMatch(queries[0].sql, /payload_json::jsonb|payload_json::json/);
+  assert.match(queries[0].sql, /secret_expires_at <= \$1::timestamptz/);
+  assert.match(queries[0].sql, /secret_kind = NULL/);
+  assert.match(queries[0].sql, /status IN \('sent', 'delivered', 'failed'\)/);
+  assert.deepEqual(queries[0].parameters, ["2026-08-20T00:00:00.000Z"]);
 });

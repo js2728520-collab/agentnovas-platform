@@ -12,12 +12,13 @@ import {
   settlements,
   users,
 } from "@/db/schema";
-import { branchApprovalRoles } from "@/lib/permissions";
-import { requireUser, responseError } from "@/lib/session";
+import { requireAccessPermission } from "@/lib/access-control";
+import { canAccessOrganization } from "@/lib/operations-access";
+import { responseError } from "@/lib/session";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireUser(request);
+    const { user, scope, organizationIds } = await requireAccessPermission(request, "ops.approvals.decide");
     const { id } = await params;
     const body = await request.json() as { decision?: "approve" | "reject"; note?: string };
     if (!body.decision) return Response.json({ error: "缺少审批决定" }, { status: 400 });
@@ -27,11 +28,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (approval.requestedBy === user.id) return Response.json({ error: "申请人不能审批自己的申请" }, { status: 403 });
 
     const isStrategyReview = approval.type === "strategy_listing";
-    if (isStrategyReview) {
-      if (!["hq_admin", "auditor"].includes(user.role)) return Response.json({ error: "仅总公司管理员或审核员可以审核策略上架" }, { status: 403 });
-    } else {
-      if (!(branchApprovalRoles as readonly string[]).includes(user.role)) return Response.json({ error: "无权审批此申请" }, { status: 403 });
-      if (user.organizationId !== approval.branchId) return Response.json({ error: "不能审批其他分公司的申请" }, { status: 403 });
+    if (!approval.branchId && scope !== "PLATFORM") return Response.json({ error: "无权审批平台级申请" }, { status: 403 });
+    if (approval.branchId && !canAccessOrganization(scope, { userId: user.id, organizationId: user.organizationId }, approval.branchId, organizationIds)) {
+      return Response.json({ error: "不能审批授权范围外的申请" }, { status: 403 });
     }
 
     try {

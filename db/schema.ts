@@ -116,6 +116,7 @@ export const authTokens = sqliteTable("auth_tokens", {
   userId: text("user_id").notNull().references(() => users.id),
   tokenHash: text("token_hash").notNull(),
   purpose: text("purpose", { enum: ["verify_email", "reset_password"] }).notNull(),
+  tokenAudience: text("token_audience", { enum: ["client", "operations", "maintenance"] }).notNull().default("client"),
   expiresAt: text("expires_at").notNull(),
   usedAt: text("used_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -127,6 +128,12 @@ export const sessions = sqliteTable("sessions", {
   tokenHash: text("token_hash").notNull(),
   appAudience: text("app_audience", { enum: ["client", "operations", "maintenance"] }).notNull().default("client"),
   expiresAt: text("expires_at").notNull(),
+  mfaLevel: text("mfa_level", { enum: ["none", "primary", "totp", "recovery"] }).notNull().default("none"),
+  mfaVerifiedAt: text("mfa_verified_at"),
+  lastSeenAt: text("last_seen_at"),
+  idleExpiresAt: text("idle_expires_at"),
+  absoluteExpiresAt: text("absolute_expires_at"),
+  sessionVersion: integer("session_version").notNull().default(1),
   revokedAt: text("revoked_at"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
@@ -299,7 +306,7 @@ export const notificationChannels = sqliteTable("notification_channels", { id:te
 export const notificationDeliveries = sqliteTable("notification_deliveries", {
   id: text("id").primaryKey(), userId: text("user_id").notNull().references(() => users.id), channel: text("channel").notNull(), category: text("category").notNull(), templateKey: text("template_key").notNull(),
   dedupeKey: text("dedupe_key"), readAt: text("read_at"),
-  payloadJson: text("payload_json").notNull().default("{}"), status: text("status", { enum: ["queued", "sent", "delivered", "failed"] }).notNull().default("queued"), attempts: integer("attempts").notNull().default(0), providerMessageId: text("provider_message_id"), providerEventType: text("provider_event_type"), providerEventAt: text("provider_event_at"), lastError: text("last_error"), scheduledAt: text("scheduled_at").notNull(), sentAt: text("sent_at"), leaseOwner: text("lease_owner"), leaseExpiresAt: text("lease_expires_at"), ...timestamps,
+  payloadJson: text("payload_json").notNull().default("{}"), secretKind: text("secret_kind", { enum: ["reset_password", "internal_account_invite"] }), secretExpiresAt: text("secret_expires_at"), status: text("status", { enum: ["queued", "sent", "delivered", "failed"] }).notNull().default("queued"), attempts: integer("attempts").notNull().default(0), providerMessageId: text("provider_message_id"), providerEventType: text("provider_event_type"), providerEventAt: text("provider_event_at"), lastError: text("last_error"), scheduledAt: text("scheduled_at").notNull(), sentAt: text("sent_at"), leaseOwner: text("lease_owner"), leaseExpiresAt: text("lease_expires_at"), ...timestamps,
 }, (t) => [index("idx_notifications_status_schedule").on(t.status, t.scheduledAt), uniqueIndex("idx_notifications_dedupe_unique").on(t.dedupeKey)]);
 
 export const auditLogs = sqliteTable("audit_logs", {

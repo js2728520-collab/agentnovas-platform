@@ -25,6 +25,7 @@ test.before(async () => {
     "0016_resend_webhook_sender.sql",
     "0017_notification_outbox_leases.sql",
     "0018_resend_delivery_events.sql",
+    "0021_identity_access_hardening.sql",
   ]) {
     const migration = await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8");
     await pool.query(migration);

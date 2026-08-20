@@ -3,11 +3,19 @@ import { requireCurrentAccessAdmin, requireCurrentAccessViewer } from "@/lib/acc
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { SENSITIVE_PERMISSION_KEYS } from "@/lib/rbac";
+import { accessOrganizationResourcePredicate } from "@/lib/access-center-scope";
 
 export async function GET(request: Request) {
   try {
-    const { appId } = await requireCurrentAccessViewer(request);
+    const { user, appId, scope, organizationIds } = await requireCurrentAccessViewer(request);
     const pool = await getPostgresPool();
+    const resourceScope = accessOrganizationResourcePredicate({
+      scope,
+      actor: user,
+      organizationIds,
+      columns: ["t.owner_organization_id"],
+      startIndex: 2,
+    });
     const result = await pool.query(`
       SELECT t.*, v.id AS current_version_id, v.version AS current_version
       FROM role_templates AS t
@@ -18,15 +26,16 @@ export async function GET(request: Request) {
         ORDER BY version DESC
         LIMIT 1
       ) AS v ON true
-      WHERE t.application_id = $1
+      WHERE t.application_id = $1 AND ${resourceScope.clause}
       ORDER BY t.code ASC
-    `, [appId]);
+    `, [appId, ...resourceScope.values]);
     return Response.json({ roleTemplates: result.rows.map((row) => ({
       id: row.id,
       applicationId: row.application_id,
       code: row.code,
       name: row.name,
       status: row.status,
+      ownerOrganizationId: row.owner_organization_id,
       currentVersionId: row.current_version_id,
       currentVersion: row.current_version,
     })) }, { headers: { "cache-control": "no-store" } });
@@ -37,7 +46,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { user, appId } = await requireCurrentAccessAdmin(request);
+    const { user, appId, scope } = await requireCurrentAccessAdmin(request);
+    if (scope !== "PLATFORM") throw new ResearchApiError("FORBIDDEN", "应用级角色模板变更需要平台范围授权", 403);
     const body = await readResearchJson(request);
     const applicationId = parseAccessAppId(body.applicationId);
     if (applicationId !== appId) throw new ResearchApiError("FORBIDDEN", "不能管理其他应用的角色模板", 403);
