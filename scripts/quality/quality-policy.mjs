@@ -10,7 +10,12 @@ const EXTERNAL_EFFECT_FLAGS = [
 ];
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
-const QUALITY_APP_HOSTS = new Set(["agentnovas.com", "zht.agentnovas.com", "xm.agentnovas.com"]);
+const QUALITY_APP_HOST_BY_AUDIENCE = Object.freeze({
+  client: "agentnovas.com",
+  operations: "zht.agentnovas.com",
+  maintenance: "xm.agentnovas.com",
+});
+const QUALITY_APP_HOSTS = new Set(Object.values(QUALITY_APP_HOST_BY_AUDIENCE));
 
 export function assertQualitySideEffectsDisabled(environment = process.env) {
   for (const key of EXTERNAL_EFFECT_FLAGS) {
@@ -57,6 +62,31 @@ export function qualityApplicationPorts(environment = process.env) {
     throw new Error("QUALITY_E2E_PORT_OFFSET must be an integer port offset from 0 through 62500");
   }
   return { client: 3000 + offset, operations: 3001 + offset, maintenance: 3002 + offset };
+}
+
+export function qualityBrowserOrigin(audience, ports) {
+  const hostname = QUALITY_APP_HOST_BY_AUDIENCE[audience];
+  const port = ports?.[audience];
+  if (!hostname || !Number.isInteger(port)) throw new Error("Unknown quality browser audience");
+  return { baseURL: `https://${hostname}:${port}` };
+}
+
+export function qualityLoopbackForward(value, ports) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  const audience = Object.entries(QUALITY_APP_HOST_BY_AUDIENCE)
+    .find(([, hostname]) => hostname === url.hostname.toLowerCase())?.[0];
+  if (!audience || !["http:", "https:"].includes(url.protocol)) return null;
+  const port = ports?.[audience];
+  if (!Number.isInteger(port) || url.port !== String(port) || url.username || url.password) return null;
+  return {
+    url: `http://127.0.0.1:${port}${url.pathname}${url.search}`,
+    host: url.host,
+  };
 }
 
 export function assertSafeQualitySchema(schema) {

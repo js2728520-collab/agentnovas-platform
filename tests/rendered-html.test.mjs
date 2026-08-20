@@ -3,18 +3,20 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("the server entry dispatches the Riverton shell without relying on generated output", async () => {
-  const [page, dispatcher, clientRoot, client] = await Promise.all([
+  const [page, dispatcher, clientRoot, workspacePage, client] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/riverton-route.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/audience/client-root.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/workspace/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/client-app.tsx", import.meta.url), "utf8"),
   ]);
   assert.doesNotMatch(page, /^"use client";/);
   assert.match(page, /resolveAppAudienceStrict/);
   assert.match(dispatcher, /CurrentApp/);
   assert.doesNotMatch(dispatcher, /ClientApp/);
-  assert.match(clientRoot, /client-workspace-root/);
+  assert.doesNotMatch(clientRoot, /client-workspace-root/);
   assert.match(clientRoot, /client-portal-root/);
+  assert.match(workspacePage, /client-workspace-root/);
   assert.match(client, /交易大厅|Trading Hall/i);
   assert.match(client, /Riverton Capital/);
 });

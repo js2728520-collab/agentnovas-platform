@@ -28,7 +28,7 @@
     "test:e2e": "node scripts/quality/run-e2e.mjs",
     "test:e2e:direct": "playwright test",
     "quality:bundle": "node scripts/quality/check-next-bundle-budget.mjs",
-    "quality:lighthouse": "lhci autorun --config=scripts/quality/lighthouserc.cjs",
+    "quality:lighthouse": "node scripts/quality/run-lighthouse.mjs",
     "quality:release": "node scripts/quality/verify-release-evidence.mjs",
     "lint": "eslint app apps db lib packages scripts tests drizzle.config.ts eslint.config.mjs next.config.ts postcss.config.mjs --ignore-pattern 'dist' --ignore-pattern '.next' --ignore-pattern '.next-*' --no-warn-ignored",
     "db:generate": "drizzle-kit generate",

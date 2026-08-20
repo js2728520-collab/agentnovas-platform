@@ -1,8 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test as base, type Page, type TestInfo } from "@playwright/test";
 
+import { browserResourceBudget } from "../../../scripts/quality/browser-resource-budget.mjs";
 import {
   isAllowedQualityNetworkUrl,
+  qualityApplicationPorts,
+  qualityLoopbackForward,
   redactPotentialSecrets,
 } from "../../../scripts/quality/quality-policy.mjs";
 
@@ -41,7 +44,18 @@ export const test = base.extend<QualityFixtures>({
     // https://playwright.dev/docs/service-workers
     await context.route("**/*", async (route) => {
       const url = route.request().url();
-      if (isAllowedQualityNetworkUrl(url)) await route.continue();
+      const parsed = new URL(url);
+      const forward = parsed.protocol === "https:"
+        ? qualityLoopbackForward(url, qualityApplicationPorts(process.env))
+        : null;
+      if (forward) {
+        const requestHeaders = await route.request().allHeaders();
+        const response = await route.fetch({
+          url: forward.url,
+          headers: { ...requestHeaders, host: forward.host },
+        });
+        await route.fulfill({ response });
+      } else if (isAllowedQualityNetworkUrl(url)) await route.continue();
       else {
         externalRequests.push(safeUrl(url));
         await route.abort("blockedbyclient");
@@ -115,8 +129,16 @@ export async function expectResponsivePage(page: Page) {
   const overflow = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
+    offenders: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { tag: element.tagName, id: element.id, className: element.className, left: rect.left, right: rect.right, width: rect.width };
+      })
+      .filter((item) => item.left < -1 || item.right > document.documentElement.clientWidth + 1)
+      .sort((a, b) => (b.right - document.documentElement.clientWidth) - (a.right - document.documentElement.clientWidth))
+      .slice(0, 12),
   }));
-  expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
+  expect(overflow.scrollWidth, JSON.stringify(overflow.offenders)).toBeLessThanOrEqual(overflow.clientWidth + 1);
 }
 
 export async function expectKeyboardEntry(page: Page) {
@@ -127,16 +149,17 @@ export async function expectKeyboardEntry(page: Page) {
 }
 
 export async function expectInitialResourceBudget(page: Page) {
-  const bytes = await page.evaluate(() => {
-    const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
-    const total = (kind: string) => resources
-      .filter((entry) => entry.initiatorType === kind)
-      .reduce((sum, entry) => sum + (entry.encodedBodySize || entry.transferSize || 0), 0);
-    return { scripts: total("script"), styles: total("link"), images: total("img") };
-  });
+  const resources = await page.evaluate(() => (performance.getEntriesByType("resource") as PerformanceResourceTiming[])
+    .map((entry) => ({
+      name: entry.name,
+      initiatorType: entry.initiatorType,
+      encodedBodySize: entry.encodedBodySize,
+      transferSize: entry.transferSize,
+    })));
+  const bytes = await browserResourceBudget(process.cwd(), resources);
   expect(bytes.scripts, "initial script transfer budget").toBeLessThanOrEqual(200 * 1024);
   expect(bytes.styles, "initial stylesheet transfer budget").toBeLessThanOrEqual(50 * 1024);
-  expect(bytes.images, "initial image transfer budget").toBeLessThanOrEqual(200 * 1024);
+  expect(bytes.largestImage, "single initial image transfer budget").toBeLessThanOrEqual(200 * 1024);
 }
 
 export async function exerciseResponsiveWidths(page: Page, path: string, heading: string | RegExp) {

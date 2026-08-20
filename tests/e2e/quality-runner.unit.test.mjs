@@ -18,6 +18,7 @@ test("quality runner derives a fail-closed child environment", () => {
       RESEND_WEBHOOK_SECRET: "must-not-reach-the-app",
       AI_API_KEY: "must-not-reach-the-app",
       OKX_API_KEY: "must-not-reach-the-app",
+      RESEARCH_DATABASE_URL: "postgresql://127.0.0.1/wrong_database",
     },
     applicationDatabaseUrl: "postgresql://127.0.0.1/postgres?options=-csearch_path%3Dquality_e2e_run_123",
     outputDirectory: "/tmp/quality-output",
@@ -25,6 +26,7 @@ test("quality runner derives a fail-closed child environment", () => {
     schema: "quality_e2e_run_123",
   });
   assert.equal(environment.DATABASE_URL, environment.TEST_DATABASE_URL);
+  assert.equal(environment.RESEARCH_DATABASE_URL, environment.DATABASE_URL);
   assert.equal(environment.PAYMENT_WORKER_ENABLED, "false");
   assert.equal(environment.NOTIFICATION_EMAIL_SEND_ENABLED, "false");
   assert.equal(environment.PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED, "false");

@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
-import { access, mkdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, request as httpRequest } from "node:http";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 import {
   cleanupQualityDatabaseFixture,
@@ -52,9 +52,10 @@ function rejectProxySocket(socket, statusLine) {
 
 export async function startQualityLighthouseProxy(ports) {
   const allowedTargets = new Map([
-    ["agentnovas.com", ports.client],
-    ["zht.agentnovas.com", ports.operations],
-    ["xm.agentnovas.com", ports.maintenance],
+    ["agentnovas.com", { port: ports.client, upstreamHost: "agentnovas.com" }],
+    ["zht.agentnovas.com", { port: ports.operations, upstreamHost: "zht.agentnovas.com" }],
+    ["xm.agentnovas.com", { port: ports.maintenance, upstreamHost: "xm.agentnovas.com" }],
+    ["127.0.0.1", { port: ports.client, upstreamHost: "agentnovas.com" }],
   ]);
   const server = createServer((incoming, response) => {
     if (incoming.method !== "GET" && incoming.method !== "HEAD") {
@@ -70,22 +71,22 @@ export async function startQualityLighthouseProxy(ports) {
       response.end();
       return;
     }
-    const expectedPort = allowedTargets.get(target.hostname.toLowerCase());
+    const allowedTarget = allowedTargets.get(target.hostname.toLowerCase());
     if (target.protocol !== "http:"
-      || !expectedPort
-      || target.port !== String(expectedPort)
+      || !allowedTarget
+      || target.port !== String(allowedTarget.port)
       || target.username
       || target.password) {
       response.writeHead(403, { connection: "close" });
       response.end();
       return;
     }
-    const headers = { ...incoming.headers, host: target.host };
+    const headers = { ...incoming.headers, host: `${allowedTarget.upstreamHost}:${allowedTarget.port}` };
     delete headers["proxy-authorization"];
     delete headers["proxy-connection"];
     const upstream = httpRequest({
       hostname: "127.0.0.1",
-      port: expectedPort,
+      port: allowedTarget.port,
       method: incoming.method,
       path: `${target.pathname}${target.search}`,
       headers,
@@ -129,6 +130,55 @@ function spawnLhci(binary, options) {
     child.once("error", reject);
     child.once("exit", (code, signal) => resolveExit({ code: code ?? 1, signal }));
   });
+}
+
+function finiteMetric(value, label) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`Lighthouse ${label} is missing or invalid`);
+  }
+  return value;
+}
+
+export async function verifyLighthouseRunEvidence(outputDirectory) {
+  const root = resolve(outputDirectory);
+  const manifest = JSON.parse(await readFile(join(root, "manifest.json"), "utf8"));
+  if (!Array.isArray(manifest)
+    || manifest.length !== 3
+    || manifest.filter((entry) => entry?.isRepresentativeRun === true).length !== 1) {
+    throw new Error("Lighthouse evidence must contain exactly three runs and one representative run");
+  }
+  for (const entry of manifest) {
+    const reportPath = resolve(String(entry?.jsonPath ?? ""));
+    const reportRelativePath = relative(root, reportPath);
+    if (!reportRelativePath || reportRelativePath.startsWith("..") || resolve(root, reportRelativePath) !== reportPath) {
+      throw new Error("Lighthouse report path escaped the evidence directory");
+    }
+    const report = JSON.parse(await readFile(reportPath, "utf8"));
+    if (finiteMetric(report?.categories?.performance?.score, "performance score") < 0.9
+      || finiteMetric(report?.categories?.accessibility?.score, "accessibility score") < 1
+      || finiteMetric(report?.categories?.["best-practices"]?.score, "best-practices score") < 0.95) {
+      throw new Error("Lighthouse category score threshold was not met in every run");
+    }
+    if (finiteMetric(report?.audits?.["largest-contentful-paint"]?.numericValue, "LCP") > 2_500) {
+      throw new Error("Lighthouse LCP threshold was not met in every run");
+    }
+    if (finiteMetric(report?.audits?.["cumulative-layout-shift"]?.numericValue, "CLS") > 0.1) {
+      throw new Error("Lighthouse CLS threshold was not met in every run");
+    }
+    if (finiteMetric(report?.audits?.["total-blocking-time"]?.numericValue, "TBT") > 200) {
+      throw new Error("Lighthouse TBT threshold was not met in every run");
+    }
+    const resources = report?.audits?.["resource-summary"]?.details?.items;
+    if (!Array.isArray(resources)) throw new Error("Lighthouse resource summary is missing");
+    const size = (type) => resources
+      .filter((resource) => resource?.resourceType === type)
+      .reduce((total, resource) => total + finiteMetric(resource?.transferSize, `${type} transfer size`), 0);
+    if (size("script") > 200 * 1_024
+      || size("stylesheet") > 50 * 1_024
+      || size("image") > 200 * 1_024) {
+      throw new Error("Lighthouse resource threshold was not met in every run");
+    }
+  }
 }
 
 export async function runQualityLighthouse({
@@ -181,6 +231,7 @@ export async function runQualityLighthouse({
     if (result.code !== 0) {
       throw new Error(`Lighthouse quality run failed with exit code ${result.code}${result.signal ? ` (${result.signal})` : ""}`);
     }
+    await verifyLighthouseRunEvidence(outputDirectory);
     lighthousePassed = true;
     return result;
   } finally {

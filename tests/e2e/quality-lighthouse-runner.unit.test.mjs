@@ -10,6 +10,7 @@ import test from "node:test";
 import {
   resolveLocalLhciBinary,
   startQualityLighthouseProxy,
+  verifyLighthouseRunEvidence,
 } from "../../scripts/quality/quality-lighthouse-runner.mjs";
 
 const require = createRequire(import.meta.url);
@@ -74,8 +75,9 @@ test("Lighthouse configuration uses the runner proxy and valid resource size ass
   process.env.QUALITY_E2E_PORT_OFFSET = "100";
   try {
     const configuration = require("../../scripts/quality/lighthouserc.cjs");
+    assert.deepEqual(configuration.ci.collect.url, ["http://127.0.0.1:3100/login"]);
     assert.match(configuration.ci.collect.settings.chromeFlags, /--proxy-server=http:\/\/127\.0\.0\.1:31337/);
-    assert.equal(configuration.ci.collect.settings.chromeFlags.includes("proxy-bypass"), false);
+    assert.match(configuration.ci.collect.settings.chromeFlags, /--proxy-bypass-list=<-loopback>/);
     assert.equal(configuration.ci.collect.settings.chromeFlags.includes("host-resolver"), false);
     assert.equal(configuration.ci.collect.numberOfRuns, 3);
     assert.deepEqual(configuration.ci.assert.assertions["resource-summary:script:size"], ["error", { maxNumericValue: 200 * 1024 }]);
@@ -89,7 +91,7 @@ test("Lighthouse configuration uses the runner proxy and valid resource size ass
   }
 });
 
-test("Lighthouse proxy forwards only read-only official-host traffic to loopback", async () => {
+test("Lighthouse proxy forwards only read-only quality traffic to loopback", async () => {
   const upstream = createServer((incoming, response) => {
     response.writeHead(200, { "content-type": "text/plain" });
     response.end(`${incoming.method} ${incoming.headers.host} ${incoming.url}`);
@@ -106,11 +108,55 @@ test("Lighthouse proxy forwards only read-only official-host traffic to loopback
       status: 200,
       body: `GET agentnovas.com:${address.port} /login?quality=1`,
     });
+    const localAudit = await proxyRequest(proxy.port, `http://127.0.0.1:${address.port}/login?quality=1`);
+    assert.deepEqual(localAudit, {
+      status: 200,
+      body: `GET agentnovas.com:${address.port} /login?quality=1`,
+    });
     assert.equal((await proxyRequest(proxy.port, "http://evil.invalid/", "GET")).status, 403);
     assert.equal((await proxyRequest(proxy.port, `http://agentnovas.com:${address.port}/login`, "POST")).status, 405);
     assert.match(await proxyConnect(proxy.port, "evil.invalid:443"), /^HTTP\/1\.1 403 Forbidden/);
   } finally {
     await proxy.close();
     await close(upstream);
+  }
+});
+
+test("Lighthouse runner independently enforces every measured threshold", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "agentnovas-quality-lhci-evidence-"));
+  const report = (lcp) => ({
+    categories: {
+      performance: { score: 0.98 },
+      accessibility: { score: 1 },
+      "best-practices": { score: 1 },
+    },
+    audits: {
+      "largest-contentful-paint": { numericValue: lcp },
+      "cumulative-layout-shift": { numericValue: 0 },
+      "total-blocking-time": { numericValue: 4 },
+      "resource-summary": { details: { items: [
+        { resourceType: "script", transferSize: 180_000 },
+        { resourceType: "stylesheet", transferSize: 40_000 },
+        { resourceType: "image", transferSize: 100_000 },
+      ] } },
+    },
+  });
+  try {
+    const entries = [];
+    for (let index = 0; index < 3; index += 1) {
+      const path = join(directory, `report-${index}.json`);
+      await writeFile(path, JSON.stringify(report(index === 2 ? 2_500 : 2_300)));
+      entries.push({ url: "http://127.0.0.1:3100/login", jsonPath: path, isRepresentativeRun: index === 1 });
+    }
+    await writeFile(join(directory, "manifest.json"), JSON.stringify(entries));
+    await verifyLighthouseRunEvidence(directory);
+    await writeFile(entries[2].jsonPath, JSON.stringify(report(2_501)));
+    await assert.rejects(() => verifyLighthouseRunEvidence(directory), /LCP threshold/);
+    const missingMetric = report(2_300);
+    missingMetric.audits["total-blocking-time"].numericValue = null;
+    await writeFile(entries[2].jsonPath, JSON.stringify(missingMetric));
+    await assert.rejects(() => verifyLighthouseRunEvidence(directory), /TBT is missing/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });

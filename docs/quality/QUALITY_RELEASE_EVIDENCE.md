@@ -44,7 +44,7 @@ npm run quality:release
 
 The browser run uses one disposable `quality_e2e_*` PostgreSQL schema. It migrates the schema from scratch and creates four synthetic identities: Client, Operations maker, Operations checker, and Maintenance admin. The wrapper drops the schema and deletes storage states/passwords/tokens even after a failed test. Cleanup evidence is written only after cleanup completes.
 
-All external-effect switches are forced off. Provider credentials are scrubbed from the child environment, Playwright requests are aborted unless their URL is loopback or one of the three official app hosts, and those official hosts are DNS-pinned to `127.0.0.1` in the browser. Lighthouse sends all browser traffic through a runner-owned loopback proxy that forwards only read-only requests for the three exact official host/port pairs to `127.0.0.1`; it rejects other hosts, methods, and tunnels. Service workers are blocked, and the application server process receives a dead local proxy for all other traffic. No payment, notification, research, runtime, or Demo worker is started.
+All external-effect switches are forced off. Provider credentials are scrubbed from the child environment, and Playwright requests are aborted unless their URL is loopback or one of the three official app hosts. Playwright maps exact official HTTPS hosts to the matching loopback server while preserving the upstream Host and secure audience Cookie. Lighthouse uses a loopback audit URL so local TLS cannot create false failures, but its runner-owned proxy rewrites the upstream Host to the official Client audience and permits only exact read-only loopback traffic; every other host, method, or tunnel is rejected. Service workers are blocked, and the application server process receives a dead local proxy for all other traffic. No payment, notification, research, runtime, or Demo worker is started.
 
 ## Covered evidence
 
@@ -80,10 +80,10 @@ The implementation follows the official Playwright guidance for [web servers](ht
 
 ## Known release blockers outside this change
 
-- The package/lockfile and package scripts are intentionally not changed in this branch. Their owner landed the pinned dependencies and five commands in `8e49aee`; that commit must be merged before this quality commit. The requested CI job remains an integration-owner action.
+- The pinned quality dependencies and five package commands are integrated. The separate CI `quality-release` job and infrastructure-level egress deny remain release-engineering actions.
 - Full invitation, TOTP/recovery enrollment, all seven strategy lifecycle stages, expiry/weekly-fee paths, Demo fixture receipts, Shift+Tab/Escape/focus-return dialog behavior, and rollback/restore drills remain required by the broader Gate 6/7 checklist. This harness does not claim those gates are complete.
 - A real provider, email, payment, or Demo smoke is never part of this runner. Any separately authorized staging smoke needs a different job and approval record.
-- Bundle measurements made on the Wave 1 baseline (`061b5fd`) are diagnostic only. The integrated audience entries and Client CSS split at `e64b720` produced a passing intermediate measurement (Client 203,900/42,761 bytes, Operations 200,863/7,758 bytes, Maintenance 194,749/7,758 bytes for JS/CSS gzip). The same quality command must still be rerun on the final release commit; the intermediate values are not a substitute for a final manifest.
+- Integrated evidence after isolating `/workspace`: Client 184,439/7,909 bytes, Operations 201,232/7,909 bytes, and Maintenance 195,129/7,909 bytes for initial JS/CSS gzip. The eight canonical Playwright scenarios passed with four viewports and zero serious/critical axe findings. Three Lighthouse runs scored performance 0.99/0.98/0.98, accessibility 1.00, best practices 1.00, LCP 1,966/2,469/2,468 ms, CLS 0, and TBT 5/6/5 ms. These are local controlled-Beta artifacts and must be regenerated on the final release commit or any later code change.
 
 ## Temporary development-tool vulnerability exception
 

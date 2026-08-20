@@ -226,14 +226,17 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
     ]);
 
     for (const [index, documentType] of LEGAL_DOCUMENT_TYPES.entries()) {
+      const contentMarkdown = `# Quality fixture: ${documentType}\n\nSynthetic legal content used only by the isolated browser test. It is not legal advice or a production document.`;
       await client.query(`
         INSERT INTO commercial_legal_document_versions (
-          id,document_type,version,content_sha256,status,approved_by_user_id,approved_at,effective_at
-        ) VALUES ($1,$2,1,$3,'active',$4,$5,$5)
+          id,document_type,version,content_sha256,content_locale,content_markdown,
+          status,approved_by_user_id,approved_at,effective_at
+        ) VALUES ($1,$2,1,$3,'en',$4,'active',$5,$6,$6)
       `, [
         `quality-legal-${index + 1}-${schema.slice(-10)}`,
         documentType,
-        sha256(`quality-fixture:${documentType}:v1`),
+        sha256(contentMarkdown),
+        contentMarkdown,
         identities.maintenanceAdmin.userId,
         now.toISOString(),
       ]);
@@ -256,7 +259,7 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
       path: "/",
       expires: Math.floor(expiresAt.getTime() / 1000),
       httpOnly: true,
-      secure: false,
+      secure: true,
       sameSite: "Strict",
     }];
     if (identity.audience === "client") cookies.push({ ...cookies[0], name: "an_session" });

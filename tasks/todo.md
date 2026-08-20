@@ -48,7 +48,7 @@
 - [x] 三 paper 组合、服务端交易历史和七阶段已接；Client 暂不伪造平台 Demo 回执，公开回执 API 仍待产品决定。
 - [x] 钱包只读；充值 Route 在 Proxy 禁用且页面无创建；假地址/二维码/倒计时/监听已移除。
 - [x] Telegram/WhatsApp `not_integrated`；channels Route 在 Proxy 禁用，无演示验证码。
-- [-] 320/768/1024/1440 已做一次浏览器验证并修复通知表格语义；最终合并树 axe/焦点/溢出证据待质量 Gate。
+- [x] 320/768/1024/1440 浏览器验证通过；通知对比度、Maintenance Worker 卡片溢出、键盘入口、axe 与 console/network 均纳入可重复 Gate。
 
 ## F. Operations / Maintenance（Wave 2）
 
@@ -61,10 +61,10 @@
 ## G. 质量、部署与 Gate
 
 - [x] Wave 1/2 独立反证审查通过；当前集成树 516/516 测试、203 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
-- [ ] Playwright 四身份 + 一次性 PG schema + axe + 四断点 + console zero。
-- [x] Client/Ops/Maint bundle 隔离；当前重建证据为 Client 203,900/42,761 bytes、Operations 200,863/7,758 bytes、Maintenance 194,749/7,758 bytes（JS/CSS gzip），首屏图不超过 200KB。最终发布必须在同一 commit 再测。
-- [ ] CSP nonce、security headers、secret scan、依赖 high/critical=0。
-- [ ] 三端 production Host smoke、migration fresh/N-1/rerun/concurrent/restore。
+- [x] Playwright 四身份 + 一次性 PG schema + axe + 320/768/1024/1440 + console/network zero；8/8 场景通过且临时 schema/凭证已清理。
+- [x] Client/Ops/Maint bundle 隔离；当前重建证据为 Client 184,439/7,909 bytes、Operations 201,232/7,909 bytes、Maintenance 195,129/7,909 bytes（JS/CSS gzip），首屏图不超过 200KB。
+- [-] CSP nonce、security headers和生产依赖 high/critical=0 已验证；最终 secret scan 与开发工具链例外退出仍待交付前复核。
+- [-] 三端 production build、Host/audience smoke、migration fresh/N-1/rerun 已通过；并发部署与备份恢复演练仍待 staging。
 - [-] 已完成独立最小 env 示例、Demo Worker unit、旧 Web/Payment unit 与重复 Nginx 配置清理；DB roles 与回滚演练待 staging。
 - [!] 法务七项、Email 外部依赖、Demo staging 凭证、DNS/TLS、支持/值班未提供前不得付费上线。
 - [!] 不执行生产迁移、真实支付、客户充值、真实交易、真实退款或未授权外部变更。

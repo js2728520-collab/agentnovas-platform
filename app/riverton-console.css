@@ -119,6 +119,7 @@
 .rc-notification-list article > div:last-child { display: grid; justify-items: end; gap: 8px; }
 .rc-notification-list button { border: 0; color: #9fc0ff; background: transparent; cursor: pointer; }
 .rc-client .notification-settings { margin-top: 18px; border: 1px solid var(--rc-border); background: var(--rc-surface); }
+.rc-client .notification-settings > .widget-head > span { color: var(--rc-accent-2); font-size: 11px; }
 .rc-inline-error, .rc-live:not(:empty) { margin-top: 14px; padding: 11px 13px; border-left: 2px solid var(--rc-warning); color: #e8cf9a; background: #201b12; }
 .rc-link-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
 .rc-link-grid a { display: grid; gap: 5px; padding: 18px; border: 1px solid var(--rc-border); color: var(--rc-text); background: #0a151f; font: 500 24px var(--font-geist-mono), monospace; text-decoration: none; }
@@ -173,6 +174,9 @@
 .rc-health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
 .rc-health-grid article { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--rc-border); background: #0a151f; }
 .rc-health-grid span { color: #bdcbd3; font-size: 12px; overflow-wrap: anywhere; }
+.rc-health-grid .rc-worker-state { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; min-width: 0; }
+.rc-worker-state .rc-description-list { grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); width: 100%; }
+.rc-worker-state > small { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
 .rc-integration-grid { margin-top: 20px; }
 .rc-integration-grid a { font: inherit; }
 .rc-integration-grid a > b { font: 500 28px var(--font-geist-mono), monospace; }

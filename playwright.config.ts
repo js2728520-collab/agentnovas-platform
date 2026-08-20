@@ -1,7 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 import { join, resolve } from "node:path";
 
-import { qualityApplicationPorts } from "./scripts/quality/quality-policy.mjs";
+import {
+  qualityApplicationPorts,
+  qualityBrowserOrigin,
+} from "./scripts/quality/quality-policy.mjs";
 
 const repositoryRoot = process.cwd();
 const outputRoot = resolve(
@@ -14,11 +17,11 @@ const runtimeRoot = resolve(
 );
 const development = process.env.QUALITY_E2E_SERVER_MODE === "development";
 const ports = qualityApplicationPorts(process.env);
-const browserHosts = {
-  client: "agentnovas.com",
-  operations: "zht.agentnovas.com",
-  maintenance: "xm.agentnovas.com",
-} as const;
+const browserOrigins = {
+  client: qualityBrowserOrigin("client", ports),
+  operations: qualityBrowserOrigin("operations", ports),
+  maintenance: qualityBrowserOrigin("maintenance", ports),
+};
 const serverCommand = (audience: "client" | "operations" | "maintenance") =>
   `RIVERTON_APP_AUDIENCE=${audience} NODE_USE_ENV_PROXY=1 ./node_modules/.bin/next ${development ? "dev" : "start"} -p ${ports[audience]}`;
 
@@ -77,7 +80,7 @@ export default defineConfig({
       name: "client",
       testMatch: "client-ui.spec.ts",
       use: {
-        baseURL: `http://${browserHosts.client}:${ports.client}`,
+        baseURL: browserOrigins.client.baseURL,
         storageState: join(runtimeRoot, "client.storage-state.json"),
       },
     },
@@ -85,7 +88,7 @@ export default defineConfig({
       name: "operations-maker",
       testMatch: "operations-maker-ui.spec.ts",
       use: {
-        baseURL: `http://${browserHosts.operations}:${ports.operations}`,
+        baseURL: browserOrigins.operations.baseURL,
         storageState: join(runtimeRoot, "operationsMaker.storage-state.json"),
       },
     },
@@ -93,7 +96,7 @@ export default defineConfig({
       name: "operations-checker",
       testMatch: "operations-checker-ui.spec.ts",
       use: {
-        baseURL: `http://${browserHosts.operations}:${ports.operations}`,
+        baseURL: browserOrigins.operations.baseURL,
         storageState: join(runtimeRoot, "operationsChecker.storage-state.json"),
       },
     },
@@ -101,7 +104,7 @@ export default defineConfig({
       name: "maintenance-admin",
       testMatch: "maintenance-admin-ui.spec.ts",
       use: {
-        baseURL: `http://${browserHosts.maintenance}:${ports.maintenance}`,
+        baseURL: browserOrigins.maintenance.baseURL,
         storageState: join(runtimeRoot, "maintenanceAdmin.storage-state.json"),
       },
     },

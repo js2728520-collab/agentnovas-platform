@@ -17,7 +17,10 @@ module.exports = {
       startServerCommand: `RIVERTON_APP_AUDIENCE=client NODE_USE_ENV_PROXY=1 ./node_modules/.bin/next start -p ${clientPort}`,
       startServerReadyPattern: "Ready in|started server|Local:",
       startServerReadyTimeout: 120000,
-      url: [`http://agentnovas.com:${clientPort}/login`],
+      // Chromium treats loopback as a secure context, so the local audit does not
+      // invent TLS failures. The runner proxy still rewrites the upstream Host to
+      // the real Client audience and rejects every non-loopback destination.
+      url: [`http://127.0.0.1:${clientPort}/login`],
       numberOfRuns: 3,
       settings: {
         onlyCategories: ["performance", "accessibility", "best-practices"],
@@ -33,6 +36,10 @@ module.exports = {
           "--no-first-run",
           "--safebrowsing-disable-auto-update",
           `--proxy-server=http://127.0.0.1:${proxyPort}`,
+          // Chromium bypasses configured proxies for loopback by default. The
+          // negative bypass entry forces the runner-owned allowlist proxy to
+          // validate and rewrite the audit request's upstream Host.
+          "--proxy-bypass-list=<-loopback>",
         ].join(" "),
       },
     },

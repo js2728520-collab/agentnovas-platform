@@ -77,7 +77,7 @@ function WorkerState({ label, value, externalWritesEnabled, executionEnabled }: 
   externalWritesEnabled?: boolean;
   executionEnabled?: boolean;
 }) {
-  return <article>
+  return <article className="rc-worker-state">
     <span>{label}</span>
     <StatusBadge value={value?.health ?? "unknown"} />
     <dl className="rc-description-list">

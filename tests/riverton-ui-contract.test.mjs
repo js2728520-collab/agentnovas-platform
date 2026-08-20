@@ -37,11 +37,15 @@ test("audience entries own their CSS while the root layout stays minimal", async
   const client = await read("app/audience/client-root.tsx");
   const clientPortal = await read("app/audience/client-portal-root.tsx");
   const clientWorkspace = await read("app/audience/client-workspace-root.tsx");
+  const workspacePage = await read("app/workspace/page.tsx");
   const operations = await read("app/audience/operations-root.tsx");
   const maintenance = await read("app/audience/maintenance-root.tsx");
   assert.doesNotMatch(client, /\.css["']/);
   assert.match(client, /import\("\.\/client-portal-root"\)/);
-  assert.match(client, /import\("\.\/client-workspace-root"\)/);
+  assert.doesNotMatch(client, /client-workspace-root/);
+  assert.match(workspacePage, /ClientWorkspaceRoot/);
+  assert.match(workspacePage, /resolveAppAudienceStrict/);
+  assert.match(workspacePage, /audience !== "client"/);
   assert.match(clientPortal, /riverton-console\.css/);
   assert.match(clientWorkspace, /globals-beta\.css/);
   assert.doesNotMatch(clientWorkspace, /["']\.\.\/globals\.css["']/);

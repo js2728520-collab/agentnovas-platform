@@ -7,6 +7,8 @@ import {
   isAllowedQualityNetworkUrl,
   postgresUrlForSchema,
   qualityApplicationPorts,
+  qualityBrowserOrigin,
+  qualityLoopbackForward,
   qualitySchemaName,
   redactPotentialSecrets,
 } from "../../scripts/quality/quality-policy.mjs";
@@ -73,6 +75,25 @@ test("quality application ports use a bounded optional offset", () => {
   for (const value of ["-1", "1.5", "63000", "invalid"]) {
     assert.throws(() => qualityApplicationPorts({ QUALITY_E2E_PORT_OFFSET: value }), /port offset/i);
   }
+});
+
+test("quality browser uses exact official origins and only forwards them to loopback", () => {
+  const ports = qualityApplicationPorts({ QUALITY_E2E_PORT_OFFSET: "100" });
+  assert.deepEqual(qualityBrowserOrigin("client", ports), {
+    baseURL: "https://agentnovas.com:3100",
+  });
+  assert.deepEqual(qualityBrowserOrigin("operations", ports), {
+    baseURL: "https://zht.agentnovas.com:3101",
+  });
+  assert.deepEqual(qualityBrowserOrigin("maintenance", ports), {
+    baseURL: "https://xm.agentnovas.com:3102",
+  });
+  assert.deepEqual(qualityLoopbackForward("https://agentnovas.com:3100/_next/app.js?q=1", ports), {
+    url: "http://127.0.0.1:3100/_next/app.js?q=1",
+    host: "agentnovas.com:3100",
+  });
+  assert.equal(qualityLoopbackForward("https://agentnovas.com:3101/_next/app.js", ports), null);
+  assert.equal(qualityLoopbackForward("https://api.binance.com:3100/api", ports), null);
 });
 
 test("browser network policy allows only loopback and DNS-pinned official app traffic", () => {

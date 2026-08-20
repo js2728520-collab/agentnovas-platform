@@ -68,6 +68,7 @@ export function createQualityRunEnvironment({
     NODE_ENV: serverMode,
     DATABASE_URL: applicationDatabaseUrl,
     TEST_DATABASE_URL: applicationDatabaseUrl,
+    RESEARCH_DATABASE_URL: applicationDatabaseUrl,
     QUALITY_E2E_OUTPUT_DIR: outputDirectory,
     QUALITY_E2E_RUNTIME_DIR: runtimeDirectory,
     QUALITY_E2E_SCHEMA: schema,
