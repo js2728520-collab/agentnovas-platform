@@ -8,7 +8,7 @@
 
 本文件第 1–5 节保留起点 `0762fa3` 的审计快照，用于解释为何启动收口，不代表当前树仍有相同缺陷。当前集成树已完成：203 个 method handler 的 fail-closed inventory、未知 Host 拒绝、显式内部 RBAC/MFA/Argon2id、迁移 checksum/advisory lock、商业账本/会员/credits/周分成、官方 spot paper、三 provider Demo 安全边界、Worker heartbeat、Operations/Maintenance 商业工作台、Client 旧 Admin 物理移除、legacy 客户交易/充值接口中央禁用、可读法务正文 Gate 和 Demo 技术审计安全投影。
 
-当前仍阻断付费 Beta 的主要事项是：Client 会员/paper 稳定路由、初始 JS/CSS 性能预算、最终 Playwright/axe/Lighthouse/Host smoke/恢复证据、真实法务正文与服务地区、Email/Demo staging/DNS/TLS/支持值班等外部依赖。完整度必须由 `tasks/todo.md` 和最新 Gate 证据判断，不再沿用本文件的 30–35% 起点评分。
+当前 Client 会员/credits/paper/交易大厅稳定路由已完成，三端初始 JS/CSS 已在集成点通过 200/50KB gzip 预算；存量永续部署和研究任务已由 `0029` 终结，新 Runtime/Research 处理器也失败关闭。当前仍阻断付费 Beta 的主要事项是：最终 Playwright/axe/Lighthouse/Host smoke/恢复证据、真实法务正文与服务地区、Email/Demo staging/DNS/TLS/支持值班等外部依赖。完整度必须由 `tasks/todo.md` 和最新 Gate 证据判断，不再沿用本文件的 30–35% 起点评分。
 
 ## 1. 已有资产
 

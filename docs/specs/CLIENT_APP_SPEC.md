@@ -6,7 +6,7 @@ Client 为受邀用户提供登录/设置密码、法务同意、试用与会员
 
 稳定路由：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/wallet`、`/wallet/deposits`、`/notifications`。普通客户不得看到旧 Admin/Ops/Maint 导航或代码文案。
 
-实现状态（2026-08-21）：`/`、`/login`、`/wallet`、`/wallet/deposits`、`/notifications` 已稳定；会员与交易大厅仍在根工作区内切换，剩余稳定路由属于发布前 P1，不得把本段目标路由误报为全部完成。
+实现状态（2026-08-21）：上述商业 Beta 路由已作为独立 App Router 入口落地，均使用 Client audience 会话和精确权限守卫。`/` 是受邀商业首页；`/workspace` 仅按需加载保留的策略、Agent、回测和账户工作区，不再把该大型工作区加入商业首屏初始资产。
 
 ## 2. 身份与法务
 
@@ -57,7 +57,7 @@ Client 为受邀用户提供登录/设置密码、法务同意、试用与会员
 - `/wallet/deposits` 显示“本 Beta 未开放充值”，无创建、地址、二维码或确认数。
 - Beta 通知为 in-app 与 Email。Email 未满足 Gate 时显示 `configured_not_sent`。
 - Telegram/WhatsApp 固定“未接入、不可验证”，接口/UI 不生成演示验证码。
-- Proxy 将历史 `/api/notifications/channels`、`/api/wallet/deposit-orders`、`/api/exchange-accounts/**`、旧永续 research/deployment、社区市场、旧 portfolio/simulated orders 与 Client emergency-stop 标为 `DISABLED/BETA`；隐藏 UI 不是唯一安全边界。
+- Proxy 将历史 `/api/notifications/channels`、`/api/wallet/deposit-orders`、`/api/exchange-accounts/**`、`/api/strategy-deployments/**`、旧永续 research/deployment、社区市场、旧 portfolio/simulated orders 与 Client emergency-stop 标为 `DISABLED/BETA`；运行时租约、Worker 和 `0029` 迁移同时拒绝/终结旧永续任务，隐藏 UI 不是唯一安全边界。
 - 偏好保存失败保留原值，动态结果用 `aria-live`。
 
 ## 7. 错误、可访问性与性能

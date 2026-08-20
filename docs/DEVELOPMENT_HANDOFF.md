@@ -20,8 +20,8 @@
 
 ## 2. 不可改变的架构边界
 
-- 目标部署为自有 Linux、Node.js 22.21+、PostgreSQL 16+、独立 Research Worker、独立 Runtime Worker、Nginx 和 Certbot。
-- 不使用 Cloudflare Runtime，不引入 Redis。Web 与两个 Worker 以 PostgreSQL 为唯一持久化真源。
+- 目标部署为自有 Linux、Node.js 22.21+、PostgreSQL 16+、官方 spot-only Runtime Worker、Notification/Demo Worker、Nginx 和 Certbot。受邀付费 Beta 不启动 legacy Research Worker。
+- 不使用 Cloudflare Runtime，不引入 Redis。Web 与 Beta Workers 以 PostgreSQL 为唯一持久化真源。
 - 本期只提供策略研发、真实历史回测、影子盘和模拟盘；真实永续订单路由必须保持关闭。
 - LLM 负责需求结构化、市场解释、独立提案、反方审查、风险说明和报告。DSL 校验、行情标准化、参数搜索、回测、评分、准入、风控和模拟订单意图由确定性代码控制。
 - 回测是历史证据，不承诺未来收益。未达到门槛的候选必须明确标记 `NOT_QUALIFIED` 或“未通过标准验证”。
@@ -77,15 +77,14 @@ npm run build
 npm run dev
 ```
 
-Web、Research Worker 和 Runtime Worker 分别启动：
+Web 与官方 spot-only Runtime Worker 分别启动：
 
 ```bash
 npm run dev
-npm run worker:research
 npm run worker:runtime
 ```
 
-Worker 不是 Web 进程的子任务。仅启动 Web 可以浏览页面，但后台研究和影子/模拟周期不会被消费。
+Worker 不是 Web 进程的子任务。仅启动 Web 可以浏览页面，但官方 spot paper 周期不会被消费。`npm run worker:research` 在 Beta 为硬关闭路径，不得纳入启动清单。
 
 ### 5.2 配置与密钥
 
@@ -155,8 +154,8 @@ Codex 仍然是同类开发代理，但新任务不会天然拥有旧聊天的�
 - PostgreSQL 恢复后的关键表行数和备份 SHA-256 记录一致，迁移完成。
 - 登录、多租户隔离、模型角色绑定、交易所账户读取正常。
 - `npm run build`、`node --test tests/*.test.mjs` 和 `npm run lint` 结果与交接基线一致。
-- Web、Research Worker、Runtime Worker 分别启动，健康检查和租约正常。
-- 合约选择、标准模式研究、SSE/轮询恢复、候选保存、动态回测、影子盘和模拟盘至少各完成一次验收。
+- Web 与官方 spot-only Runtime Worker 分别启动，健康检查和租约正常；Maintenance 对 legacy Research 显示 disabled。
+- 法务、会员、credits、官方三卡、七阶段、paper 历史、影子盘和模拟盘至少各完成一次验收。旧永续 research 不进行功能验收，只验证不可达与存量取消证据。
 - 客户响应和日志不显示供应商 Key、完整接口地址、数据库口令或隐藏推理。
 
 ## 9. 已知边界与后续工作
@@ -310,6 +309,7 @@ Codex 仍然是同类开发代理，但新任务不会天然拥有旧聊天的�
 - 四档会员使用版本化计划；外部人工付款、站内凭证、不同 Operations checker 复核后才激活权益并发放 credits。
 - UTC 周 paper 盈利分成按三卡已平仓净收益、高水位和亏损结转生成；业务审批只形成应收，付款复核后才提交高水位。
 - Client 充值创建、链上地址/二维码、credits 充值、Telegram/WhatsApp 验证、客户交易所连接、真实订单、自动支付/退款全部关闭。
+- `0029_beta_legacy_runtime_hard_close.sql` 终结存量非 spot deployment、取消非终态 legacy research run 并写审计；发布时必须先手动停止已运行的旧 Research Worker，新 unit 不会代停旧进程。
 - 内部端采用 Argon2id、TOTP/recovery、recent MFA、中央 API Policy、显式 assignment/scope；具体完成度以 `tasks/todo.md` 和 Gate 证据为准。
 
 本轮主 Agent 已先形成独立提交：版本化 PostgreSQL 迁移器、Argon2id 依赖、商业公共合同、Worker heartbeat 与公开/内部 health 分层。Wave 1 使用本地 worktree 并行实现 API Security、Commercial 和 Strategy Demo；所有子分支只在独立审查后通过普通 `merge --no-ff` 合入集成分支。

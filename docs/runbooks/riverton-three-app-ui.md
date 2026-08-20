@@ -28,7 +28,7 @@ npm run dev:maintenance
 
 ## 3. 稳定路由
 
-Client 保留现有策略、Agent、回测、模拟盘、会员和账户工作区，并增加 `/wallet`、`/wallet/deposits`、`/notifications`。根 `/` 仍是现有客户端主工作区，`/login` 是客户端会话入口。
+Client 商业入口为 `/`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/wallet`、`/wallet/deposits` 和 `/notifications`；`/login` 是客户端会话入口。保留的策略、Agent、回测和账户工作区迁入 `/workspace` 并按需加载，不进入根页初始 bundle。
 
 Operations：`/`、`/customers`、`/organization`、`/deposits`、`/deposits/[id]`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
 

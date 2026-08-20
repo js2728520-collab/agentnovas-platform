@@ -83,7 +83,7 @@ The implementation follows the official Playwright guidance for [web servers](ht
 - The package/lockfile and package scripts are intentionally not changed in this branch. Their owner landed the pinned dependencies and five commands in `8e49aee`; that commit must be merged before this quality commit. The requested CI job remains an integration-owner action.
 - Full invitation, TOTP/recovery enrollment, all seven strategy lifecycle stages, expiry/weekly-fee paths, Demo fixture receipts, Shift+Tab/Escape/focus-return dialog behavior, and rollback/restore drills remain required by the broader Gate 6/7 checklist. This harness does not claim those gates are complete.
 - A real provider, email, payment, or Demo smoke is never part of this runner. Any separately authorized staging smoke needs a different job and approval record.
-- Bundle measurements made on the Wave 1 baseline (`061b5fd`) are diagnostic only: that tree imports all audience shells and shared CSS into one entry and exceeds both budgets. They are not the final Gate result. The integration owner must rerun after the audience alias/CSS isolation change (`85c7a65`) and this quality commit are both present.
+- Bundle measurements made on the Wave 1 baseline (`061b5fd`) are diagnostic only. The integrated audience entries and Client CSS split at `e64b720` produced a passing intermediate measurement (Client 203,900/42,761 bytes, Operations 200,863/7,758 bytes, Maintenance 194,749/7,758 bytes for JS/CSS gzip). The same quality command must still be rerun on the final release commit; the intermediate values are not a substitute for a final manifest.
 
 ## Temporary development-tool vulnerability exception
 

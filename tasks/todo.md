@@ -43,7 +43,7 @@
 
 ## E. Client（Wave 2）
 
-- [-] `/login`、钱包、充值说明和通知为稳定路由；会员、paper、交易大厅稳定 URL 仍待完成。audience build 已分入口，但最终 JS/CSS budget 待重测。
+- [x] `/`、`/login`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、钱包、充值说明和通知均为稳定路由；`/workspace` 按需加载保留的策略/Agent/回测工作区。
 - [x] 四计划、会员订单、credits 安全视图与可读七正文 Gate；真实法务正文仍为外部 Gate。
 - [x] 三 paper 组合、服务端交易历史和七阶段已接；Client 暂不伪造平台 Demo 回执，公开回执 API 仍待产品决定。
 - [x] 钱包只读；充值 Route 在 Proxy 禁用且页面无创建；假地址/二维码/倒计时/监听已移除。
@@ -56,13 +56,13 @@
 - [x] 商业列表服务端 pagination/URL/data scope；所有 mutation 在业务事务内再次授权。
 - [x] Maintenance Demo 安全视图、Worker 健康、模型/Email/支付/RBAC；`/audit` 已覆盖 Demo 控制/验证安全投影。
 - [x] UI 区分 configured/enabled/alive/healthy/stale；支付有效状态始终 disabled。
-- [x] Client 社区策略/永续研究/客户密钥/旧模拟订单已通过中央 Beta policy 禁用；完整技术审计聚合与其他旧分析进入 GA backlog。
+- [x] Client 社区策略/永续研究/客户密钥/旧模拟订单已通过中央 Beta policy 禁用；`0029` 与 Runtime/Research Worker 又终结存量永续部署和任务，并从租约/处理器二次拒绝。完整技术审计聚合与其他旧分析进入 GA backlog。
 
 ## G. 质量、部署与 Gate
 
-- [x] Wave 1 独立反证审查通过；当前主线单测已超过 500 项、203 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
+- [x] Wave 1/2 独立反证审查通过；当前集成树 516/516 测试、203 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
 - [ ] Playwright 四身份 + 一次性 PG schema + axe + 四断点 + console zero。
-- [ ] Client/Ops/Maint bundle 隔离；JS ≤200KB gzip、CSS ≤50KB、首屏图 ≤200KB。
+- [x] Client/Ops/Maint bundle 隔离；当前重建证据为 Client 203,900/42,761 bytes、Operations 200,863/7,758 bytes、Maintenance 194,749/7,758 bytes（JS/CSS gzip），首屏图不超过 200KB。最终发布必须在同一 commit 再测。
 - [ ] CSP nonce、security headers、secret scan、依赖 high/critical=0。
 - [ ] 三端 production Host smoke、migration fresh/N-1/rerun/concurrent/restore。
 - [-] 已完成独立最小 env 示例、Demo Worker unit、旧 Web/Payment unit 与重复 Nginx 配置清理；DB roles 与回滚演练待 staging。

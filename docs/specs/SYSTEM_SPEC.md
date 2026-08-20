@@ -9,11 +9,11 @@
 Client Web ───────┐
 Operations Web ──┼── PostgreSQL（共享数据、逻辑隔离）
 Maintenance Web ─┘       ├─ Notification Worker
-                          ├─ Research Worker
                           ├─ Paper Runtime Worker
                           └─ Demo Execution Worker
 
 Payment Worker：Beta 不部署 unit，接口与外部副作用路径 disabled
+Legacy Research Worker：Beta 不启动，HTTP/租约/orchestrator/systemd 均硬关闭
 真实交易/提现/自动支付：代码路径硬关闭
 ```
 
@@ -105,8 +105,12 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 - `0023_commercial_membership_settlement.sql`
 - `0024_platform_demo_execution.sql`
 - `0025_worker_observability.sql`
+- `0026_client_paper_permissions.sql`
+- `0027_platform_demo_admin_commands.sql`
+- `0028_commercial_legal_content.sql`
+- `0029_beta_legacy_runtime_hard_close.sql`
 
-数据库角色至少拆分为 migrator、client_web、ops_web、maint_web、notification_worker、research_worker、runtime_worker、demo_execution_worker；Payment Worker 不获得业务写权限。
+数据库角色至少拆分为 migrator、client_web、ops_web、maint_web、notification_worker、runtime_worker、demo_execution_worker；legacy research 和 Payment Worker 不获得 Beta 业务写权限。
 
 ## 7. 账本、会员和 credits
 

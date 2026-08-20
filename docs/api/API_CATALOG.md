@@ -69,10 +69,7 @@
 | `/api/strategy-studio/chat` | POST | C | MERGE；旧流程退役计划 |
 | `/api/strategy-studio/generate` | POST | C | MERGE；旧流程退役计划 |
 | `/api/strategies/[strategyId]/versions/[versionId]/deployments` | POST | C | DISABLED/BETA；旧部署依赖客户永续账户 |
-| `/api/strategy-deployments/[id]/cycles` | GET | C | KEEP；所有权 |
-| `/api/strategy-deployments/[id]/pause` | POST | C | KEEP；所有权/幂等 |
-| `/api/strategy-deployments/[id]/resume` | POST | C | KEEP；停控状态 |
-| `/api/strategy-deployments/[id]` | GET | C | KEEP；所有权 |
+| `/api/strategy-deployments/**` | GET, POST | C | DISABLED/BETA；legacy 永续部署整族不可达，官方 paper 使用 trading-hall/platform subscription 合同 |
 | `/api/automation/demo-cycle` | POST | M | REVIEW；内部凭证、非浏览器 |
 | `/api/automation/platform-ai-cycle` | POST | M | REVIEW；内部凭证、非浏览器 |
 | `/api/trading-hall` | GET | C | REVIEW；七角色/现货边界/安全合同对齐 |
@@ -83,9 +80,9 @@
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
 | `/api/platform-strategies/[code]/follow` | POST | C | REVIEW；当前只允许模拟/准备状态 |
-| `/api/platform-strategy-subscriptions/[id]` | PATCH | C | REVIEW；客户控制语义 |
+| `/api/platform-strategy-subscriptions/[id]` | PATCH | C | CURRENT；`client.paper.manage`，官方 spot paper pause/stop |
 | `/api/strategy-marketplace/**` | GET, POST, PATCH | C | DISABLED/BETA；社区市场、作者分润和治理进入 GA backlog |
-| `/api/strategy-subscriptions/[id]` | PATCH | C | MERGE；与 platform subscription 收敛 |
+| `/api/strategy-subscriptions/[id]` | PATCH | C | DISABLED/BETA；legacy subscription 不可达 |
 | `/api/portfolio`、`/api/portfolio/strategies` | GET, POST, DELETE | C | DISABLED/BETA；改用官方 paper portfolio API |
 | `/api/public-pool` | GET | C | REVIEW；公开/客户数据边界 |
 | `/api/risk/status` | GET | C | DISABLED/BETA；旧状态依赖 customer exchange account |

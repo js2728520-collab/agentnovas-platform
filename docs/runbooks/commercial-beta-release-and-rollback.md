@@ -12,12 +12,14 @@
 
 ## 2. 部署
 
-1. 迁移只在显式 staging/生产变更授权后执行；本实施阶段不得运行生产 migration。
+1. 在切换制品前先停止任何已运行的 legacy Research Worker，移除旧 enable symlink 并确认进程消失。新 unit 文件不会自动停止已运行的旧进程。
+2. 迁移只在显式 staging/生产变更授权后执行；本实施阶段不得运行生产 migration。
    迁移 registry 中任何已应用文件缺 checksum 或 checksum 不匹配都会失败关闭；不得直接补写 hash。先核对最后部署版本，必要时用新的 forward migration 修复。
-2. 部署新 release 目录并验证 hash，不覆盖 previous。
-3. 原子切换 current；按 Client→Operations→Maintenance→Workers 顺序 readiness。
-4. 运行三 Host 登录/404/Cookie、安全 header 与关键只读 smoke。
-5. 外部副作用开关保持默认 off；Email/Demo 分别经过独立 go-live 记录。
+3. 部署新 release 目录并验证 hash，不覆盖 previous。
+4. 在维护窗口应用 `0029_beta_legacy_runtime_hard_close.sql`：它终结非 `spot_usdt` 部署、取消非终态 legacy research 任务、清理租约并写审计；重放幂等。
+5. 原子切换 current；按 Client→Operations→Maintenance→Notification/Demo→官方 spot Runtime 顺序 readiness。Beta 不重启 Research Worker，即使环境误设为 true 也必须保持硬关闭。
+6. 运行三 Host 登录/404/Cookie、安全 header 与关键只读 smoke；Maintenance 对 Research 的有效状态必须为 `disabled`。
+7. 外部副作用开关保持默认 off；Email/Demo 分别经过独立 go-live 记录。
 
 ## 3. 首小时监控
 
