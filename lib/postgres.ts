@@ -2,6 +2,10 @@ import type { Pool } from "pg";
 
 let poolPromise: Promise<Pool> | undefined;
 
+export function businessDatabaseUrl(environment: Record<string, string | undefined> = process.env) {
+  return environment.DATABASE_URL?.trim() || "";
+}
+
 export function researchDatabaseUrl(environment: Record<string, string | undefined> = process.env) {
   return environment.RESEARCH_DATABASE_URL?.trim() || environment.DATABASE_URL?.trim() || "";
 }

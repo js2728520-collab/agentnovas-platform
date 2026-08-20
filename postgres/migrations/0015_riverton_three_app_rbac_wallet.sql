@@ -440,7 +440,7 @@ ON CONFLICT ("key") DO UPDATE SET
 
 INSERT INTO "notification_provider_configs" ("id", "provider", "channel", "status", "sender_domain")
 VALUES
-  ('resend-email', 'resend', 'email', 'disabled', 'mail.agentnovas.com'),
+  ('resend-email', 'resend', 'email', 'disabled', 'agentnovas.com'),
   ('telegram-bot', 'telegram', 'telegram', 'disabled', NULL),
   ('whatsapp-cloud', 'meta_whatsapp_cloud', 'whatsapp', 'disabled', NULL)
 ON CONFLICT ("provider", "channel") DO NOTHING;

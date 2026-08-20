@@ -1,6 +1,6 @@
-import { ResearchApiError } from "@/lib/research-errors";
-import { DATA_SCOPES, PERMISSION_DEFINITIONS, type DataScope, type RolePermission } from "@/lib/rbac";
-import { isAppAudience, type AppAudience } from "@/lib/riverton-apps";
+import { ResearchApiError } from "./research-errors.ts";
+import { DATA_SCOPES, PERMISSION_DEFINITIONS, type DataScope, type RolePermission } from "./rbac.ts";
+import { isAppAudience, type AppAudience } from "./riverton-apps.ts";
 
 export const ACCESS_ADMIN_PERMISSIONS = ["ops.roles.manage", "maint.roles.manage"] as const;
 

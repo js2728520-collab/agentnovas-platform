@@ -1,13 +1,9 @@
-export const RESEND_SENDER_DOMAIN = "mail.agentnovas.com";
-
-const senderByCategory: Record<string, string> = {
-  account: `account@${RESEND_SENDER_DOMAIN}`,
-  deposit: `notice@${RESEND_SENDER_DOMAIN}`,
-  operations: `operations@${RESEND_SENDER_DOMAIN}`,
-};
+export const RESEND_SENDER_ADDRESS = "noreply@agentnovas.com";
+export const RESEND_SENDER_DOMAIN = "agentnovas.com";
 
 export function resendSenderForCategory(category: "account" | "deposit" | "operations") {
-  return senderByCategory[category];
+  void category;
+  return RESEND_SENDER_ADDRESS;
 }
 
 export function publicEmailIntegrationStatus(input: {
@@ -18,6 +14,7 @@ export function publicEmailIntegrationStatus(input: {
 }) {
   return {
     provider: "resend",
+    senderAddress: RESEND_SENDER_ADDRESS,
     senderDomain: RESEND_SENDER_DOMAIN,
     configured: input.configured,
     senderDomainVerified: input.senderDomainVerified,

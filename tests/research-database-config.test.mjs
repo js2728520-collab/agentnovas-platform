@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { researchDatabaseMaxUses, researchDatabaseUrl } from "../lib/postgres.ts";
+import { businessDatabaseUrl, researchDatabaseMaxUses, researchDatabaseUrl } from "../lib/postgres.ts";
+
+test("business workers use the business database URL", () => {
+  assert.equal(businessDatabaseUrl({
+    DATABASE_URL: " postgresql://business ",
+    RESEARCH_DATABASE_URL: "postgresql://research",
+  }), "postgresql://business");
+  assert.equal(businessDatabaseUrl({ RESEARCH_DATABASE_URL: "postgresql://research" }), "");
+});
 
 test("uses a dedicated research database without switching the business database", () => {
   assert.equal(researchDatabaseUrl({

@@ -2,17 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  RESEND_SENDER_ADDRESS,
   RESEND_SENDER_DOMAIN,
   notificationChannelStatus,
   publicEmailIntegrationStatus,
   resendSenderForCategory,
 } from "../lib/notifications.ts";
 
-test("Resend is scoped to the dedicated sender subdomain and never exposes API keys", () => {
-  assert.equal(RESEND_SENDER_DOMAIN, "mail.agentnovas.com");
-  assert.equal(resendSenderForCategory("account"), "account@mail.agentnovas.com");
-  assert.equal(resendSenderForCategory("deposit"), "notice@mail.agentnovas.com");
-  assert.equal(resendSenderForCategory("operations"), "operations@mail.agentnovas.com");
+test("Resend uses the canonical sender address and never exposes API keys", () => {
+  assert.equal(RESEND_SENDER_ADDRESS, "noreply@agentnovas.com");
+  assert.equal(RESEND_SENDER_DOMAIN, "agentnovas.com");
+  assert.equal(resendSenderForCategory("account"), RESEND_SENDER_ADDRESS);
+  assert.equal(resendSenderForCategory("deposit"), RESEND_SENDER_ADDRESS);
+  assert.equal(resendSenderForCategory("operations"), RESEND_SENDER_ADDRESS);
   const status = publicEmailIntegrationStatus({
     configured: true,
     senderDomainVerified: true,
@@ -21,7 +23,8 @@ test("Resend is scoped to the dedicated sender subdomain and never exposes API k
   });
   assert.deepEqual(status, {
     provider: "resend",
-    senderDomain: "mail.agentnovas.com",
+    senderAddress: "noreply@agentnovas.com",
+    senderDomain: "agentnovas.com",
     configured: true,
     senderDomainVerified: true,
     apiKeyPresent: true,

@@ -2,19 +2,30 @@ import os from "node:os";
 
 import pg from "pg";
 
-import { researchDatabaseUrl } from "../lib/postgres.ts";
+import {
+  claimNextEmailDelivery,
+  loadResendProviderConfig,
+  notificationSendEnvironmentReady,
+  processClaimedEmail,
+  providerConfigAllowsSend,
+} from "../lib/notification-email-worker.ts";
+import { businessDatabaseUrl } from "../lib/postgres.ts";
 
-const connectionString = researchDatabaseUrl();
+const connectionString = businessDatabaseUrl();
 if (!connectionString) throw new Error("DATABASE_URL is required");
-if (process.env.NOTIFICATION_WORKER_ENABLED !== "true") throw new Error("NOTIFICATION_WORKER_ENABLED must be true");
+if (!notificationSendEnvironmentReady(process.env)) {
+  throw new Error("Notification email sending is disabled or incompletely configured");
+}
 
+const poolSize = Number(process.env.NOTIFICATION_WORKER_POOL_SIZE || 4);
 const pool = new pg.Pool({
   connectionString,
-  max: Number(process.env.NOTIFICATION_WORKER_POOL_SIZE || 4),
+  max: Number.isInteger(poolSize) && poolSize > 0 && poolSize <= 20 ? poolSize : 4,
   application_name: "riverton-notification-worker",
 });
 
 const workerId = `${os.hostname().replace(/[^a-z0-9.-]/gi, "-").slice(0, 60)}-${process.pid}`;
+const apiKey = process.env.RESEND_API_KEY.trim();
 let stopping = false;
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -22,16 +33,32 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 
 function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 try {
-  process.stdout.write(`Notification Worker started (${workerId}). Channels send only after provider configs are active.\n`);
+  process.stdout.write(`Notification Worker started (${workerId}).\n`);
   while (!stopping) {
-    await pool.query("SELECT 1");
-    await delay(5_000);
+    const config = await loadResendProviderConfig(pool);
+    if (!config || !providerConfigAllowsSend(config)) {
+      await delay(5_000);
+      continue;
+    }
+    const delivery = await claimNextEmailDelivery(pool, { workerId, now: new Date() });
+    if (!delivery) {
+      await delay(1_000);
+      continue;
+    }
+    try {
+      const result = await processClaimedEmail(pool, delivery, { workerId, apiKey });
+      process.stdout.write(`Notification ${delivery.id} ${result.status}.\n`);
+    } catch (error) {
+      console.error("Notification processing failed", {
+        deliveryId: delivery.id,
+        code: error instanceof Error ? error.name : "UNKNOWN",
+      });
+    }
   }
 } finally {
   await pool.end();
 }
-

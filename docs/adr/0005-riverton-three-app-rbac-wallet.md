@@ -24,7 +24,7 @@ AgentNovas 需要从单一客户应用扩展为 Riverton Capital 的三应用部
 6. 敏感权限、资金人工操作、策略审核和跨组织权限继续强制双人审批，申请人不能自审；这些是系统硬规则，不能被 RBAC 覆盖。
 7. 充值形成平台预付 USDT 余额，只能用于会员和 AI 积分，不支持提现、用户间转账或真实交易。
 8. 账本使用 PostgreSQL `numeric(36,18)` 和双式分录，`ledger_postings` 是不可变真源；修正只能通过反向分录。
-9. Resend 使用 `mail.agentnovas.com`，密钥只允许出现在 Worker 环境文件，运维端只展示状态，不展示 Key、完整端点或供应商 payload。
+9. Resend 统一使用 `noreply@agentnovas.com` 作为所有用户邮件的发件地址，密钥只允许出现在 Worker 环境文件，运维端只展示安全状态，不展示 Key、完整端点或供应商 payload。
 10. Payment Worker 和 Notification Worker 默认关闭。未配置真实服务商时，API 必须明确返回未配置，不能生成虚假充值地址或伪装通知发送成功。
 
 ## 后果

@@ -32,28 +32,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run postgres:migrate
-      - run: >-
-          node --test --experimental-strip-types
-          tests/legacy-sqlite-postgres-migration.test.mjs
-          tests/postgres-research-queue.test.mjs
-          tests/agent-model-profiles.test.mjs
-          tests/strategy-dsl-v2.test.mjs
-          tests/perpetual-backtest.test.mjs
-          tests/perpetual-market-adapters.test.mjs
-          tests/research-agent.test.mjs
-          tests/research-validation.test.mjs
-      - run: >-
-          npx eslint
-          lib/legacy-sqlite-postgres-migration.ts
-          lib/postgres-research-queue.ts
-          lib/agent-model-profiles.ts
-          lib/strategy-dsl.ts
-          lib/backtest-engine.ts
-          lib/perpetual-market-adapters.ts
-          lib/research-agent.ts
-          lib/research-validation.ts
-          lib/strategy-research-orchestrator.ts
-          app/multi-agent-research.tsx
-          app/agent-role-admin.tsx
-      - run: npm run build
+      - run: npm test
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run test:apps
       - run: npm audit --omit=dev --audit-level=critical

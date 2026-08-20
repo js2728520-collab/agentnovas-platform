@@ -2,9 +2,9 @@ import os from "node:os";
 
 import pg from "pg";
 
-import { researchDatabaseUrl } from "../lib/postgres.ts";
+import { businessDatabaseUrl } from "../lib/postgres.ts";
 
-const connectionString = researchDatabaseUrl();
+const connectionString = businessDatabaseUrl();
 if (!connectionString) throw new Error("DATABASE_URL is required");
 if (process.env.PAYMENT_WORKER_ENABLED !== "true") throw new Error("PAYMENT_WORKER_ENABLED must be true");
 

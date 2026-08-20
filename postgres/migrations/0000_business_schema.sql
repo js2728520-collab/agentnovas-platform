@@ -288,7 +288,9 @@ CREATE TABLE IF NOT EXISTS "notification_deliveries" (
   "created_at" text NOT NULL DEFAULT to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
   "updated_at" text NOT NULL DEFAULT to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
   "dedupe_key" text,
-  "read_at" text
+  "read_at" text,
+  "lease_owner" text,
+  "lease_expires_at" timestamptz
 );
 
 CREATE TABLE IF NOT EXISTS "notification_preferences" (
@@ -614,6 +616,8 @@ CREATE INDEX IF NOT EXISTS "idx_notification_channel_status" ON "notification_ch
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_notification_channel_unique" ON "notification_channels" ("user_id","channel");
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_notifications_dedupe_unique" ON "notification_deliveries" ("dedupe_key");
 CREATE INDEX IF NOT EXISTS "idx_notifications_status_schedule" ON "notification_deliveries" ("status","scheduled_at");
+CREATE INDEX IF NOT EXISTS "idx_notifications_email_claim" ON "notification_deliveries" ("status","scheduled_at","lease_expires_at","attempts") WHERE "channel" = 'email';
+CREATE INDEX IF NOT EXISTS "idx_notifications_lease_owner" ON "notification_deliveries" ("lease_owner","lease_expires_at") WHERE "lease_owner" IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_notification_pref_unique" ON "notification_preferences" ("user_id","channel","category");
 CREATE INDEX IF NOT EXISTS "idx_organizations_parent" ON "organizations" ("parent_id");
 CREATE INDEX IF NOT EXISTS "idx_payout_profile_owner" ON "payout_profiles" ("owner_user_id","owner_organization_id","status");

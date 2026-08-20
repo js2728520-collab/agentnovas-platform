@@ -175,28 +175,31 @@ Codex 仍然是同类开发代理，但新任务不会天然拥有旧聊天的�
 - 三套独立本地脚本：`npm run dev:client`、`npm run dev:operations`、`npm run dev:maintenance`；生产启动脚本也按 audience 分开。
 - 登录 session 增加 `app_audience`，三个应用使用独立 Cookie；客户端保留旧 `an_session` 兼容。
 - 新增 RBAC 权限目录、固定数据范围、旧角色兼容映射、派生角色降权校验、敏感权限双审规则和有效权限 API。
-- 新增 RBAC 管理 API 骨架：权限目录、有效权限、角色模板、角色、分配、变更申请、审批和审计查询。
+- 新增 RBAC 管理 API：权限目录、有效权限、角色模板、角色、分配、变更申请、审批和审计查询；变更申请使用严格区分联合类型校验并绑定应用。
 - 新增 PostgreSQL 迁移 `0015_riverton_three_app_rbac_wallet.sql`，覆盖 RBAC、充值订单、双式账本、钱包余额、风险、人工操作、对账、导出和通知服务商配置。
 - 新增充值/钱包 API 骨架：余额、流水、充值订单创建和查询；未配置服务商时明确拒绝生成虚假充值地址。
 - 新增运营端充值 API 骨架：列表、详情、统计、人工操作申请和审批；默认脱敏 PII。
-- 新增运维端邮件/支付状态 API 和 webhook 安全占位；未配置签名密钥时不处理回调。
-- 新增 Payment Worker 与 Notification Worker 启动骨架，默认通过环境变量关闭。
+- 新增运维端邮件/支付状态 API；Resend Webhook 现在读取原始 body、校验 Svix 签名、限制 body 大小并幂等保存已验证事件。
+- 新增 Notification Worker 最小 PostgreSQL outbox 消费路径：只连接 `DATABASE_URL` 业务库，使用 `SKIP LOCKED`、租约、owner fencing、有限重试和 Resend 幂等键。
+- 所有用户邮件统一使用 `noreply@agentnovas.com`；已配置的邮件模板和密码重置/内部账号验证链接均指向实际存在的页面。
+- 新增 Payment Worker 与 Notification Worker 启动脚本，默认通过环境变量关闭；未满足完整配置时不发送邮件。
 - 新增 Riverton systemd 与 Nginx 模板，仍为 Linux/Nginx/Certbot 直连，不使用 Cloudflare Runtime 或 Redis。
 - 新增 ADR：`docs/adr/0005-riverton-three-app-rbac-wallet.md`。
 
-仍未完成：
+仍未完成或明确受限：
 
 - 尚未把根 `app/` 真实搬迁为三个完全独立的 Next 应用；当前是同一代码基线通过 audience、端口、Cookie 和构建目录隔离。
-- RBAC 管理 UI 尚未实现；API 已有最小持久化骨架。
-- 敏感权限审批目前只记录审批结果，尚未自动应用 `after_json` 中的角色变更；直接分配敏感角色已被阻止。
+- RBAC 管理 UI 尚未实现；API 已有最小持久化骨架。审批 API 已在同一 PostgreSQL 事务中重新校验申请、应用已批准变更、写入决定和授权审计；拒绝不会改变权限。
 - 真实 USDT 托管/支付服务商尚未选型，链上自动扫描、确认、入账和对账 Worker 仍是后续实现。
-- Resend 真实发送、Webhook 签名验签和模板渲染仍待接入；当前只暴露安全状态和占位入口。
+- Webhook 已完成签名验签和事件持久化，但尚未把 provider event 自动映射回 `notification_deliveries`；路由响应保持 `queued: false`，不伪称下游处理已完成。
+- 未执行真实 Resend 外发；Worker 只有在生产环境开关、API key、业务数据库和 active/verified provider 配置同时满足时才会发送。
 
 本次验证：
 
-- `node --test tests/*.test.mjs`：211 项通过。
+- `npm test`：225 项通过。
 - `npx tsc --noEmit`：通过。
-- `npm run lint`：0 error，保留 7 个既有 warning。
-- `npm run build`：通过。
-- `npm run build:operations`：通过。
-- `npm run build:maintenance`：通过。
+- `npm run lint`：0 error，保留 7 个既有 warning（`<img>` 和一个既有 effect 依赖提示）。
+- `npm run build`：通过，包含 `/reset-password` 和 `/verify-email` 页面。
+- `npm run test:apps`：客户端、运营端、运维端构建通过。
+- `git diff --check`：通过。
+- 未在本次验证中发送真实邮件、调用真实 Resend、执行生产数据库迁移或执行支付操作；尚未完成并发 PostgreSQL 审批/Worker 集成验收。

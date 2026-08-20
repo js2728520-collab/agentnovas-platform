@@ -39,7 +39,9 @@
     ".next-operations/types/**/*.ts",
     ".next-operations/dev/types/**/*.ts",
     ".next-maintenance/types/**/*.ts",
-    ".next-maintenance/dev/types/**/*.ts"
+    ".next-maintenance/dev/types/**/*.ts",
+    ".next-client/types/**/*.ts",
+    ".next-client/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
