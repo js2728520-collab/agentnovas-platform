@@ -709,6 +709,65 @@ test("official deployment strategy code is bound to the portfolio strategy code 
   `, [conservative.membershipId, conservative.id]), /foreign key|violates/i);
 });
 
+test("deployment binding columns are all-or-none across official and legacy products", async () => {
+  const portfolios = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const conservative = portfolios.find((portfolio) => portfolio.strategyCode === "ai_conservative");
+  assert.ok(conservative);
+
+  const insertDeployment = async ({ id, executionProduct, bindingMask, missingPortfolio = false }) => pool.query(`
+    INSERT INTO strategy_deployments (
+      id, owner_user_id, strategy_id, strategy_version_id, exchange_account_id,
+      mode, validation_label, idempotency_key, execution_product,
+      platform_strategy_code, membership_id, paper_portfolio_id
+    ) VALUES (
+      $1, 'owner-official', 'strategy-official', 'version-official', $2,
+      'paper', 'UNVERIFIED', $1, $3,
+      $4, $5, $6
+    )
+  `, [
+    id,
+    executionProduct === "spot_usdt" ? null : "account-a",
+    executionProduct,
+    bindingMask & 0b001 ? conservative.strategyCode : null,
+    bindingMask & 0b010 ? conservative.membershipId : null,
+    bindingMask & 0b100 ? (missingPortfolio ? "portfolio-does-not-exist" : conservative.id) : null,
+  ]);
+
+  for (let bindingMask = 0; bindingMask < 0b111; bindingMask += 1) {
+    await assert.rejects(
+      insertDeployment({
+        id: `official-partial-binding-${bindingMask}`,
+        executionProduct: "spot_usdt",
+        bindingMask,
+      }),
+      /check constraint|violates/i,
+      `spot_usdt binding mask ${bindingMask.toString(2).padStart(3, "0")} must fail closed`,
+    );
+  }
+
+  await insertDeployment({
+    id: "legacy-binding-all-null",
+    executionProduct: "usdt_perpetual",
+    bindingMask: 0,
+  });
+
+  for (let bindingMask = 1; bindingMask <= 0b111; bindingMask += 1) {
+    await assert.rejects(
+      insertDeployment({
+        id: `legacy-partial-binding-${bindingMask}`,
+        executionProduct: "usdt_perpetual",
+        bindingMask,
+        missingPortfolio: bindingMask === 0b100,
+      }),
+      /check constraint|violates/i,
+      `usdt_perpetual binding mask ${bindingMask.toString(2).padStart(3, "0")} must fail closed`,
+    );
+  }
+});
+
 test("pending official paper settlement locks current membership access and expired access permits only sells", async () => {
   const membershipId = "membership-settlement-access";
   const customerId = "owner-settlement-access";

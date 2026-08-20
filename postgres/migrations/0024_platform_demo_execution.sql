@@ -81,19 +81,26 @@ BEGIN
       FOREIGN KEY (paper_portfolio_id, membership_id, owner_user_id)
       REFERENCES official_paper_portfolios(id, membership_id, customer_id);
   END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'strategy_deployments_official_binding_check'
-      AND conrelid = 'strategy_deployments'::regclass
-  ) THEN
-    ALTER TABLE strategy_deployments
-      ADD CONSTRAINT strategy_deployments_official_binding_check
-      CHECK (
+  ALTER TABLE strategy_deployments
+    DROP CONSTRAINT IF EXISTS strategy_deployments_official_binding_check;
+  ALTER TABLE strategy_deployments
+    ADD CONSTRAINT strategy_deployments_official_binding_check
+    CHECK (
+      (
+        execution_product = 'spot_usdt'
+        AND paper_portfolio_id IS NOT NULL
+        AND membership_id IS NOT NULL
+        AND platform_strategy_code IS NOT NULL
+        AND exchange_account_id IS NULL
+      )
+      OR
+      (
         execution_product <> 'spot_usdt'
-        OR (paper_portfolio_id IS NOT NULL AND membership_id IS NOT NULL
-            AND platform_strategy_code IS NOT NULL AND exchange_account_id IS NULL)
-      );
-  END IF;
+        AND paper_portfolio_id IS NULL
+        AND membership_id IS NULL
+        AND platform_strategy_code IS NULL
+      )
+    );
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'strategy_deployments_official_portfolio_strategy_fk'
