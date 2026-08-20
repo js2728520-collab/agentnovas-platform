@@ -52,3 +52,11 @@ test("trading experience reads official paper evidence and never presents client
   assert.doesNotMatch(source, /\/api\/exchange-accounts|\/api\/portfolio|\/api\/trading\/emergency-stop/);
   assert.doesNotMatch(source, /连接交易所|API Key/);
 });
+
+test("the client application no longer exposes the legacy operations page", async () => {
+  const source = await read("app/client-app.tsx");
+  assert.doesNotMatch(source, /case\s+["']admin["']/);
+  assert.doesNotMatch(source, /\|\s*["']admin["']/);
+  assert.doesNotMatch(source, /AdminWithPolicy/);
+  assert.match(source, /ClientNotificationSettings/);
+});
