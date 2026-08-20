@@ -4,11 +4,14 @@ import { useEffect } from "react";
 
 import { ApprovalsWorkspace } from "./approvals-workspace";
 import { CustomersWorkspace } from "./customers-workspace";
+import { CreditsWorkspace } from "./credits-workspace";
 import { DepositsWorkspace } from "./deposits-workspace";
 import { FinanceWorkspace } from "./finance-workspace";
 import { LedgerWorkspace } from "./ledger-workspace";
+import { MembershipOrdersWorkspace } from "./membership-orders-workspace";
 import { OperationsOverview } from "./operations-overview";
 import { OrganizationWorkspace } from "./organization-workspace";
+import { PerformanceStatementsWorkspace } from "./performance-statements-workspace";
 import { AppLogin } from "@/packages/ui/src/app-login";
 import { AccessCenter } from "@/packages/ui/src/access-center";
 import { ConsoleShell } from "@/packages/ui/src/console-shell";
@@ -20,6 +23,9 @@ const navigation: ConsoleNavigationItem[] = [
   { href: "/", label: "运营概览", icon: "⌂" },
   { href: "/customers", label: "客户管理", icon: "客", requiredPermissions: ["ops.customers.view"] },
   { href: "/organization", label: "组织架构", icon: "组", requiredPermissions: ["ops.customers.view", "ops.roles.manage"] },
+  { href: "/membership-orders", label: "会员订单", icon: "会", requiredPermissions: ["ops.membership_orders.view"] },
+  { href: "/performance-statements", label: "周分成", icon: "周", requiredPermissions: ["ops.performance_fees.view"] },
+  { href: "/credits", label: "Credits", icon: "点", requiredPermissions: ["ops.credits.view"] },
   { href: "/deposits", label: "充值订单", icon: "充", requiredPermissions: ["ops.deposits.view"] },
   { href: "/ledger", label: "账本查询", icon: "账", requiredPermissions: ["ops.ledger.view"] },
   { href: "/finance", label: "财务结算", icon: "财", requiredPermissions: ["ops.ledger.view"] },
@@ -30,6 +36,9 @@ const navigation: ConsoleNavigationItem[] = [
 
 const routePermissions: Record<string, string[] | undefined> = {
   customers: ["ops.customers.view"], organization: ["ops.customers.view", "ops.roles.manage"],
+  "membership-orders": ["ops.membership_orders.view"],
+  "performance-statements": ["ops.performance_fees.view"],
+  credits: ["ops.credits.view"],
   deposits: ["ops.deposits.view"], ledger: ["ops.ledger.view"], finance: ["ops.ledger.view"],
   approvals: ["ops.deposits.action_approve", "ops.roles.approve_sensitive"],
   access: ["ops.roles.manage", "ops.roles.assign", "ops.roles.approve_sensitive"],
@@ -55,6 +64,20 @@ export default function OperationsApp({ segments }: { segments: string[] }) {
   const content = route === "overview" ? overview
     : route === "customers" ? <CustomersWorkspace />
     : route === "organization" ? <OrganizationWorkspace />
+    : route === "membership-orders" ? <MembershipOrdersWorkspace
+      orderId={segments[1]}
+      viewerUserId={session.viewer.id}
+      canRecordEvidence={Boolean(permissions["ops.membership_orders.evidence"])}
+      canApprove={Boolean(permissions["ops.membership_orders.approve"])}
+    />
+    : route === "performance-statements" ? <PerformanceStatementsWorkspace
+      statementId={segments[1]}
+      canGenerate={Boolean(permissions["ops.performance_fees.generate"])}
+      canApprove={Boolean(permissions["ops.performance_fees.approve"])}
+      canRecordPaymentEvidence={Boolean(permissions["ops.performance_fees.payment_evidence"])}
+      canApprovePayment={Boolean(permissions["ops.performance_fees.payment_approve"])}
+    />
+    : route === "credits" ? <CreditsWorkspace />
     : route === "deposits" ? <DepositsWorkspace depositId={segments[1]} canRequestAction={Boolean(permissions["ops.deposits.action_request"])} />
     : route === "ledger" ? <LedgerWorkspace />
     : route === "finance" ? <FinanceWorkspace canRequestAdjustment={Boolean(permissions["ops.reconciliation.run"])} />

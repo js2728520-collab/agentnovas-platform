@@ -29,7 +29,13 @@ export async function GET(
     values.push(...scoped.values);
     const pool = await getPostgresPool(),
       result = await pool.query(
-        `SELECT o.*,p.plan_code,p.version FROM commercial_membership_orders o JOIN commercial_plan_versions p ON p.id=o.plan_version_id WHERE o.id=$1 AND ${scoped.clause}`,
+        `SELECT o.id,o.order_no,o.user_id,o.price_amount::text,o.duration_days,
+                o.ai_credit_grant::text,o.performance_fee_bps,o.legal_snapshot_json,
+                o.status,o.submitted_by_user_id,o.submitted_at,o.activated_at,
+                o.created_at,o.updated_at,p.plan_code,p.version
+         FROM commercial_membership_orders o
+         JOIN commercial_plan_versions p ON p.id=o.plan_version_id
+         WHERE o.id=$1 AND ${scoped.clause}`,
         values,
       ),
       order = result.rows[0];
@@ -45,10 +51,18 @@ export async function GET(
         [id],
       ),
     ]);
+    const evidenceViews = evidence.rows.map((row) => ({
+      ...paymentEvidenceDto(row),
+      canReview:
+        order.status === "pending_review" &&
+        order.submitted_by_user_id !== user.id &&
+        row.recorded_by_user_id !== user.id &&
+        row.status === "recorded",
+    }));
     return Response.json(
       {
         order: membershipOrderDto(order),
-        evidence: evidence.rows.map(paymentEvidenceDto),
+        evidence: evidenceViews,
         decisions: decisions.rows.map((row) => ({
           id: row.id,
           reviewerUserId: row.reviewer_user_id,
@@ -56,6 +70,12 @@ export async function GET(
           paymentEvidenceId: row.payment_evidence_id,
           createdAt: new Date(row.created_at).toISOString(),
         })),
+        actions: {
+          canRecordEvidence: order.status === "pending_evidence",
+          canSubmit:
+            order.status === "pending_evidence" && evidenceViews.length > 0,
+          canReview: evidenceViews.some((item) => item.canReview),
+        },
       },
       { headers: { "cache-control": "no-store" } },
     );
