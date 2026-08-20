@@ -161,7 +161,8 @@ CREATE TABLE IF NOT EXISTS platform_demo_accounts (
   last_verified_at timestamptz,
   last_verification_status text CHECK (last_verification_status IS NULL OR last_verification_status IN ('passed', 'failed')),
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (id, provider)
 );
 
 CREATE OR REPLACE VIEW platform_demo_accounts_safe AS
@@ -184,7 +185,7 @@ CREATE TABLE IF NOT EXISTS platform_demo_card_controls (
 
 CREATE TABLE IF NOT EXISTS platform_demo_order_intents (
   id text PRIMARY KEY,
-  account_id text NOT NULL REFERENCES platform_demo_accounts(id),
+  account_id text NOT NULL,
   provider text NOT NULL CHECK (provider IN ('okx', 'binance', 'bybit')),
   strategy_code text NOT NULL CHECK (strategy_code IN (
     'ai_conservative', 'ai_balanced', 'ai_aggressive'
@@ -196,6 +197,7 @@ CREATE TABLE IF NOT EXISTS platform_demo_order_intents (
   symbol text NOT NULL CHECK (symbol IN ('BTCUSDT', 'ETHUSDT', 'SOLUSDT')),
   side text NOT NULL CHECK (side IN ('buy', 'sell')),
   quote_amount_usdt numeric(30, 12) NOT NULL CHECK (quote_amount_usdt = 10),
+  reference_price numeric(30, 12) NOT NULL CHECK (reference_price > 0),
   status text NOT NULL DEFAULT 'pending' CHECK (status IN (
     'pending', 'running', 'accepted', 'unknown', 'retry_wait', 'cancelled', 'failed'
   )),
@@ -209,7 +211,8 @@ CREATE TABLE IF NOT EXISTS platform_demo_order_intents (
   last_error_message text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (provider, strategy_code, decision_round_id)
+  UNIQUE (provider, strategy_code, decision_round_id),
+  FOREIGN KEY (account_id, provider) REFERENCES platform_demo_accounts(id, provider)
 );
 
 CREATE INDEX IF NOT EXISTS idx_platform_demo_intents_queue
@@ -226,12 +229,19 @@ BEGIN
     'platform-demo-cap:' || NEW.provider || ':' || (NEW.created_at AT TIME ZONE 'UTC')::date::text,
     0
   ));
+  IF EXISTS (
+    SELECT 1 FROM platform_demo_order_intents
+    WHERE provider = NEW.provider
+      AND strategy_code = NEW.strategy_code
+      AND decision_round_id = NEW.decision_round_id
+  ) THEN
+    RETURN NEW;
+  END IF;
   SELECT COALESCE(sum(quote_amount_usdt), 0) INTO used_usdt
   FROM platform_demo_order_intents
   WHERE provider = NEW.provider
     AND created_at >= date_trunc('day', NEW.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
-    AND created_at < (date_trunc('day', NEW.created_at AT TIME ZONE 'UTC') + interval '1 day') AT TIME ZONE 'UTC'
-    AND status NOT IN ('cancelled', 'failed');
+    AND created_at < (date_trunc('day', NEW.created_at AT TIME ZONE 'UTC') + interval '1 day') AT TIME ZONE 'UTC';
   IF used_usdt + NEW.quote_amount_usdt > 100 THEN
     RAISE EXCEPTION 'platform demo provider daily cap exceeded';
   END IF;
@@ -259,3 +269,14 @@ CREATE TABLE IF NOT EXISTS platform_demo_execution_receipts (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (intent_id, provider_order_id, status, observed_at)
 );
+
+CREATE OR REPLACE FUNCTION reject_platform_demo_receipt_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'platform demo execution receipts are append-only';
+END $$;
+
+DROP TRIGGER IF EXISTS trg_platform_demo_receipts_immutable ON platform_demo_execution_receipts;
+CREATE TRIGGER trg_platform_demo_receipts_immutable
+BEFORE UPDATE OR DELETE ON platform_demo_execution_receipts
+FOR EACH ROW EXECUTE FUNCTION reject_platform_demo_receipt_mutation();

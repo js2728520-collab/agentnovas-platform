@@ -17,6 +17,7 @@ import {
   syncOfficialPaperPortfolioAccess,
 } from "./official-paper-repository.ts";
 import { normalizeOfficialSpotStrategySpecification } from "./platform-strategy-v3.ts";
+import { enqueuePlatformDemoIntentsForRound } from "./platform-demo-execution.ts";
 import {
   applyPaperFundingRates,
   completeRuntimeExplanationJob,
@@ -232,6 +233,23 @@ async function processOfficialSpotRuntimeDeployment(
     symbol: specification.symbol,
     takerFeeRate: feeSchedule.takerRate,
   });
+  let demoIntentResults: Awaited<ReturnType<typeof enqueuePlatformDemoIntentsForRound>> = [];
+  let demoIntentError: string | null = null;
+  if (!completion.duplicate && evaluated.orderIntent) {
+    try {
+      demoIntentResults = await enqueuePlatformDemoIntentsForRound(database, {
+        strategyCode: specification.strategyCode,
+        decisionRoundId: cycleId,
+        runtimeCycleId: cycleId,
+        traceId,
+        symbol: specification.symbol,
+        side: evaluated.orderIntent.action === "exit" ? "sell" : "buy",
+        referencePrice: selected.close,
+      });
+    } catch (error) {
+      demoIntentError = error instanceof Error ? error.message.slice(0, 160) : "Demo intent enqueue failed";
+    }
+  }
   if (lease.mode === "paper" && evaluated.orderIntent?.executionTiming === "intrabar_threshold") {
     await settlePendingOfficialPaperOrder(database, {
       deploymentId: lease.id,
@@ -246,6 +264,8 @@ async function processOfficialSpotRuntimeDeployment(
     sequence: completion.sequence,
     duplicate: completion.duplicate,
     decision: evaluated.decision,
+    demoIntentResults,
+    demoIntentError,
   };
 }
 
