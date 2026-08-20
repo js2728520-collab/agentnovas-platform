@@ -119,7 +119,7 @@ export function apiPolicyForRoute(route: string, method: string): ApiRoutePolicy
     return { audiences: ["client"], authentication: "anonymous", requiresSameOrigin: isMutation, sensitive: true };
   }
   if (route === "/api/system/bootstrap") {
-    return { audiences: ["maintenance"], authentication: "bootstrap", requiresSameOrigin: true, sensitive: true };
+    return { audiences: ["maintenance"], authentication: "bootstrap", requiresSameOrigin: false, sensitive: true };
   }
   if (route.startsWith("/api/integrations/resend/webhook") || route.startsWith("/api/integrations/payments/")) {
     return { audiences: ["maintenance"], authentication: "webhook", requiresSameOrigin: false, sensitive: true };
