@@ -1,7 +1,7 @@
 import { API_ROUTE_INVENTORY, type ApiRouteInventoryEntry } from "./api-route-inventory.ts";
 import { resolveAppAudienceStrict, type AppAudience } from "./riverton-apps.ts";
 
-export type ApiAuthentication = "anonymous" | "session" | "permission" | "webhook" | "bootstrap";
+export type ApiAuthentication = "anonymous" | "session" | "permission" | "webhook" | "bootstrap" | "disabled";
 
 export type ApiRoutePolicy = {
   audiences: readonly AppAudience[];
@@ -137,6 +137,9 @@ export function evaluateApiRequestPolicy(request: Request): ApiRequestContext {
   const policy = apiPolicyForRoute(inventory.route, inventory.method);
   if (!policy.audiences.includes(audience)) {
     throw new ApiPolicyError("ROUTE_NOT_AVAILABLE", "接口在当前应用不可用", 404);
+  }
+  if (policy.authentication === "disabled") {
+    throw new ApiPolicyError("ROUTE_DISABLED", "接口尚未启用", 503);
   }
   if (policy.requiresSameOrigin) assertSameOrigin(request);
   return { requestId, audience, method: inventory.method, pathname: url.pathname, inventory, policy };

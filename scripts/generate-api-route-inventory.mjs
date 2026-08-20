@@ -19,6 +19,26 @@ const CLIENT_PREFIXES = [
   "/api/market", "/api/notifications", "/api/platform", "/api/portfolio", "/api/risk", "/api/simulated-orders",
   "/api/strategies", "/api/strategy-", "/api/trading", "/api/wallet",
 ];
+const PUBLIC_CLIENT_METHODS = new Set([
+  "POST /api/automation/demo-cycle",
+  "POST /api/automation/platform-ai-cycle",
+  "GET /api/integrations/catalog",
+  "GET /api/market/candles",
+  "GET /api/market/instruments",
+  "GET /api/market/news",
+  "GET /api/market/quote",
+  "GET /api/market/ticker",
+  "GET /api/platform/settings",
+  "GET /api/strategy-marketplace",
+  "POST /api/strategy-studio/chat",
+]);
+const SESSION_AUTH_HELPERS = new Set([
+  "requireAccessPermission",
+  "requireAiCustomer",
+  "requirePrimarySession",
+  "requireResearchUser",
+  "requireUser",
+]);
 const CURRENT_ACCESS_PERMISSIONS = {
   requireCurrentAccessAdmin: {
     operations: ["ops.roles.manage"],
@@ -68,7 +88,7 @@ function basePolicy(route, method) {
     return { audiences: ["client"], authentication: "session", sameOrigin: mutation };
   }
   if (route === "/api/auth/login" || route === "/api/auth/logout" || route === "/api/auth/me") {
-    return { audiences: ALL_AUDIENCES, authentication: route === "/api/auth/login" ? "anonymous" : "session", sameOrigin: mutation };
+    return { audiences: ALL_AUDIENCES, authentication: "anonymous", sameOrigin: mutation };
   }
   if (route === "/api/auth/mfa/verify") {
     return { audiences: INTERNAL_AUDIENCES, authentication: "session", sameOrigin: true };
@@ -81,8 +101,14 @@ function basePolicy(route, method) {
   }
   if (route.startsWith("/api/auth/")) return { audiences: ["client"], authentication: "anonymous", sameOrigin: mutation };
   if (route === "/api/system/bootstrap") return { audiences: ["maintenance"], authentication: "bootstrap", sameOrigin: false };
-  if (route.startsWith("/api/integrations/resend/webhook") || route.startsWith("/api/integrations/payments/")) {
+  if (route.startsWith("/api/integrations/resend/webhook")) {
     return { audiences: ["maintenance"], authentication: "webhook", sameOrigin: false };
+  }
+  if (route.startsWith("/api/integrations/payments/") && route.endsWith("/webhook")) {
+    return { audiences: ["maintenance"], authentication: "disabled", sameOrigin: false };
+  }
+  if (PUBLIC_CLIENT_METHODS.has(`${method} ${route}`)) {
+    return { audiences: ["client"], authentication: "anonymous", sameOrigin: mutation };
   }
   if (route === "/api/access/me/effective") return { audiences: INTERNAL_AUDIENCES, authentication: "session", sameOrigin: false };
   if (route.startsWith("/api/access/")) return { audiences: INTERNAL_AUDIENCES, authentication: "permission", sameOrigin: mutation };
@@ -145,6 +171,25 @@ function permissionKeysFor(methodNode, audiences, constants, functions) {
   return [...keys].sort();
 }
 
+function sessionAuthHelpersFor(methodNode, functions) {
+  const helpers = new Set();
+  const visitedFunctions = new Set();
+  function visit(node) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      const helper = node.expression.text;
+      if (SESSION_AUTH_HELPERS.has(helper)) helpers.add(helper);
+      const localFunction = functions.get(helper);
+      if (localFunction && !visitedFunctions.has(helper)) {
+        visitedFunctions.add(helper);
+        visit(localFunction);
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(methodNode);
+  return [...helpers].sort();
+}
+
 function sensitivePermissionKeys(source) {
   const file = ts.createSourceFile(rbacPath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const keys = new Set();
@@ -181,8 +226,12 @@ for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/r
     const method = methodNode.name.text;
     const policy = basePolicy(route, method);
     const permissionKeys = policy.authentication === "permission" ? permissionKeysFor(methodNode, policy.audiences, constants, parsed.functions) : [];
+    const sessionAuthHelpers = policy.authentication === "session" ? sessionAuthHelpersFor(methodNode, parsed.functions) : [];
     if (policy.authentication === "permission" && permissionKeys.length === 0) {
       throw new Error(`${method} ${route} is permission-classified but does not call an exact DB authorization helper`);
+    }
+    if (policy.authentication === "session" && sessionAuthHelpers.length === 0) {
+      throw new Error(`${method} ${route} is session-classified but does not call an enforcing session helper`);
     }
     const sensitive = permissionKeys.some((key) => sensitiveKeys.has(key));
     entries.push({
@@ -191,12 +240,13 @@ for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/r
       source: relative(repositoryRoot, filename).split(sep).join("/"),
       audiences: policy.audiences,
       authentication: policy.authentication,
+      sessionAuthHelpers,
       permissionKeys,
       scope: policy.authentication === "permission" && policy.audiences.length === 1 && policy.audiences[0] === "maintenance" ? "platform"
         : policy.authentication === "permission" ? "grant" : "none",
       mfa: sensitive && !policy.audiences.includes("client") ? "recent" : "none",
       pii: piiForRoute(route),
-      sensitivity: sensitive || policy.authentication === "webhook" || policy.authentication === "bootstrap" ? "sensitive" : "normal",
+      sensitivity: sensitive || policy.authentication === "webhook" || policy.authentication === "bootstrap" || policy.authentication === "disabled" ? "sensitive" : "normal",
       requiresSameOrigin: policy.sameOrigin,
     });
   }
@@ -210,7 +260,8 @@ const contents = `// Generated by scripts/generate-api-route-inventory.mjs. Do n
   `  route: string;\n` +
   `  source: string;\n` +
   `  audiences: readonly AppAudience[];\n` +
-  `  authentication: "anonymous" | "session" | "permission" | "webhook" | "bootstrap";\n` +
+  `  authentication: "anonymous" | "session" | "permission" | "webhook" | "bootstrap" | "disabled";\n` +
+  `  sessionAuthHelpers: readonly string[];\n` +
   `  permissionKeys: readonly string[];\n` +
   `  scope: "none" | "grant" | "platform";\n` +
   `  mfa: "none" | "recent";\n` +

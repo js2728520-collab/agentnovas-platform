@@ -6,7 +6,8 @@ export type ApiRouteInventoryEntry = {
   route: string;
   source: string;
   audiences: readonly AppAudience[];
-  authentication: "anonymous" | "session" | "permission" | "webhook" | "bootstrap";
+  authentication: "anonymous" | "session" | "permission" | "webhook" | "bootstrap" | "disabled";
+  sessionAuthHelpers: readonly string[];
   permissionKeys: readonly string[];
   scope: "none" | "grant" | "platform";
   mfa: "none" | "recent";
@@ -25,6 +26,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.approve_sensitive",
       "maint.roles.manage",
@@ -47,6 +49,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.manage",
       "ops.roles.assign",
@@ -67,6 +70,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.manage",
       "ops.roles.assign",
@@ -87,6 +91,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.audit.view",
       "maint.roles.manage",
@@ -108,6 +113,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.approve_sensitive",
       "maint.roles.manage",
@@ -130,6 +136,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.approve_sensitive",
       "maint.roles.manage",
@@ -152,6 +159,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.approve_sensitive",
       "maint.roles.manage",
@@ -173,6 +181,9 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -189,6 +200,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.approve_sensitive",
       "maint.roles.manage",
@@ -211,6 +223,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.approve_sensitive",
       "maint.roles.manage",
@@ -233,6 +246,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.manage",
       "ops.roles.manage"
@@ -252,6 +266,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.approve_sensitive",
       "maint.roles.manage",
@@ -274,6 +289,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.manage",
       "ops.roles.manage"
@@ -293,6 +309,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.manage",
       "ops.roles.manage"
@@ -312,6 +329,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.roles.manage",
       "ops.roles.manage"
@@ -330,6 +348,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -345,6 +366,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -360,6 +384,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -375,6 +402,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -390,6 +420,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -405,6 +438,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -420,6 +456,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.agent_bindings.manage",
       "maint.system_health.view"
@@ -438,6 +475,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.agent_bindings.manage"
     ],
@@ -455,6 +493,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.agent_bindings.manage"
     ],
@@ -472,6 +511,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.follow_policy.view"
     ],
@@ -489,6 +529,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.follow_policy.manage"
     ],
@@ -506,6 +547,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.system_health.view"
     ],
@@ -523,6 +565,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.llm_profiles.manage"
     ],
@@ -540,6 +583,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.llm_profiles.manage"
     ],
@@ -557,6 +601,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.llm_profiles.manage",
       "maint.system_health.view"
@@ -575,6 +620,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.llm_profiles.manage"
     ],
@@ -592,6 +638,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.llm_profiles.manage"
     ],
@@ -609,6 +656,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.agent_bindings.manage",
       "maint.system_health.view"
@@ -627,6 +675,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.agent_bindings.manage"
     ],
@@ -644,6 +693,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.agent_bindings.manage"
     ],
@@ -661,6 +711,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAiCustomer"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -676,6 +729,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAiCustomer"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -691,6 +747,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAiCustomer"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -706,6 +765,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAiCustomer"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -721,6 +783,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAiCustomer"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -736,6 +801,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAiCustomer"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -751,6 +819,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.approvals.view"
     ],
@@ -768,6 +837,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.approvals.decide"
     ],
@@ -785,6 +855,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.attributions.manage"
     ],
@@ -802,6 +873,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.attributions.manage"
     ],
@@ -819,6 +891,7 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -836,6 +909,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -852,7 +926,8 @@ export const API_ROUTE_INVENTORY = [
       "operations",
       "maintenance"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -869,7 +944,8 @@ export const API_ROUTE_INVENTORY = [
       "operations",
       "maintenance"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -886,6 +962,9 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requirePrimarySession"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -902,6 +981,9 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requirePrimarySession"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -918,6 +1000,9 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requirePrimarySession"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -933,6 +1018,7 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -950,6 +1036,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -965,6 +1052,7 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -979,7 +1067,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -994,7 +1083,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1010,6 +1100,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.customers.view"
     ],
@@ -1027,6 +1118,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.team.view"
     ],
@@ -1044,6 +1136,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1059,6 +1154,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1074,6 +1172,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1089,6 +1190,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1104,6 +1208,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1119,6 +1226,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.reconciliation.run"
     ],
@@ -1136,6 +1244,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.ledger.view"
     ],
@@ -1153,6 +1262,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.finance.manage"
     ],
@@ -1170,6 +1280,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.finance.manage"
     ],
@@ -1187,6 +1298,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.ledger.view"
     ],
@@ -1204,6 +1316,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.reconciliation.run"
     ],
@@ -1221,6 +1334,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.ledger.view"
     ],
@@ -1238,6 +1352,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.reconciliation.run"
     ],
@@ -1255,6 +1370,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.finance.manage"
     ],
@@ -1274,6 +1390,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1288,7 +1405,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1303,7 +1421,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "maintenance"
     ],
-    "authentication": "webhook",
+    "authentication": "disabled",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1319,6 +1438,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "webhook",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1334,6 +1454,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.invitations.view"
     ],
@@ -1351,6 +1472,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.invitations.manage"
     ],
@@ -1368,6 +1490,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.email_integrations.manage",
       "maint.system_health.view"
@@ -1386,6 +1509,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.email_integrations.manage"
     ],
@@ -1403,6 +1527,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.payment_integrations.manage",
       "maint.system_health.view"
@@ -1421,6 +1546,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.payment_integrations.manage"
     ],
@@ -1438,6 +1564,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.payment_integrations.manage"
     ],
@@ -1455,6 +1582,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.system_health.view"
     ],
@@ -1472,6 +1600,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.feature_flags.manage"
     ],
@@ -1489,6 +1618,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.feature_flags.manage"
     ],
@@ -1506,6 +1636,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.emergency_pause.execute"
     ],
@@ -1523,6 +1654,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "maint.emergency_pause.execute"
     ],
@@ -1539,7 +1671,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1554,7 +1687,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1569,7 +1703,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1584,7 +1719,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1599,7 +1735,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1615,6 +1752,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1630,6 +1770,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1645,6 +1788,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1660,6 +1806,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1675,6 +1824,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1690,6 +1842,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1705,6 +1860,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1720,6 +1878,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1735,6 +1896,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1750,6 +1914,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -1765,6 +1932,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.deposits.action_approve"
     ],
@@ -1782,6 +1950,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.deposits.action_approve"
     ],
@@ -1799,6 +1968,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.deposits.view"
     ],
@@ -1816,6 +1986,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.deposits.view"
     ],
@@ -1833,6 +2004,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.deposits.action_request"
     ],
@@ -1850,6 +2022,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.deposits.view"
     ],
@@ -1867,6 +2040,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.ledger.view"
     ],
@@ -1884,6 +2058,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.customers.view"
     ],
@@ -1901,6 +2076,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.customers.manage"
     ],
@@ -1918,6 +2094,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.customers.manage"
     ],
@@ -1935,6 +2112,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.organization.manage"
     ],
@@ -1952,6 +2130,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.organization.view"
     ],
@@ -1969,6 +2148,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.organization.manage"
     ],
@@ -1986,6 +2166,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.organization.manage"
     ],
@@ -2003,6 +2184,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.organization.manage"
     ],
@@ -2020,6 +2202,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2035,6 +2220,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2050,6 +2238,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2064,7 +2255,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2080,6 +2272,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2095,6 +2290,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2110,6 +2308,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2125,6 +2326,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2140,6 +2344,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.customers.view"
     ],
@@ -2157,6 +2362,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.ledger.view"
     ],
@@ -2174,6 +2380,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2189,6 +2398,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2204,6 +2416,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2219,6 +2434,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2234,6 +2452,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2249,6 +2470,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2264,6 +2488,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2279,6 +2506,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2294,6 +2524,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2308,7 +2541,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2324,6 +2558,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2339,6 +2576,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2354,6 +2594,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2369,6 +2612,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2384,6 +2630,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2399,6 +2648,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2414,6 +2666,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2429,6 +2684,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2444,6 +2702,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2459,6 +2720,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2474,6 +2738,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2489,6 +2756,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2504,6 +2774,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2519,6 +2792,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2534,6 +2810,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2549,6 +2828,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2564,6 +2846,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2579,6 +2864,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2594,6 +2882,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireResearchUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2608,7 +2899,8 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2624,6 +2916,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAiCustomer"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2639,6 +2934,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2654,6 +2952,7 @@ export const API_ROUTE_INVENTORY = [
       "maintenance"
     ],
     "authentication": "bootstrap",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2669,6 +2968,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.team.view"
     ],
@@ -2686,6 +2986,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.team.manage"
     ],
@@ -2703,6 +3004,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.team.view"
     ],
@@ -2720,6 +3022,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.team.view"
     ],
@@ -2737,6 +3040,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.team.manage"
     ],
@@ -2754,6 +3058,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.team.view"
     ],
@@ -2771,6 +3076,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.team.view"
     ],
@@ -2788,6 +3094,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.team.manage"
     ],
@@ -2805,6 +3112,7 @@ export const API_ROUTE_INVENTORY = [
       "operations"
     ],
     "authentication": "permission",
+    "sessionAuthHelpers": [],
     "permissionKeys": [
       "ops.team.manage"
     ],
@@ -2822,6 +3130,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2837,6 +3148,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2852,6 +3166,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAccessPermission"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2867,6 +3184,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAccessPermission"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2882,6 +3202,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAccessPermission"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",
@@ -2897,6 +3220,9 @@ export const API_ROUTE_INVENTORY = [
       "client"
     ],
     "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireAccessPermission"
+    ],
     "permissionKeys": [],
     "scope": "none",
     "mfa": "none",

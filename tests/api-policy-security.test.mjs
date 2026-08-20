@@ -88,6 +88,45 @@ test("permission inventory declares exact grants and matches each handler's DB a
   }
 });
 
+test("session metadata names a method-level enforcing helper and public routes stay anonymous", () => {
+  for (const entry of API_ROUTE_INVENTORY.filter((candidate) => candidate.authentication === "session")) {
+    assert.ok(entry.sessionAuthHelpers?.length > 0, `${entry.method} ${entry.route} has descriptive-only session metadata`);
+  }
+  for (const [method, route] of [
+    ["GET", "/api/auth/me"],
+    ["POST", "/api/auth/logout"],
+    ["POST", "/api/automation/demo-cycle"],
+    ["POST", "/api/automation/platform-ai-cycle"],
+    ["GET", "/api/integrations/catalog"],
+    ["GET", "/api/market/candles"],
+    ["GET", "/api/market/instruments"],
+    ["GET", "/api/market/news"],
+    ["GET", "/api/market/quote"],
+    ["GET", "/api/market/ticker"],
+    ["GET", "/api/platform/settings"],
+    ["GET", "/api/strategy-marketplace"],
+    ["POST", "/api/strategy-studio/chat"],
+  ]) {
+    assert.equal(apiPolicyForRoute(route, method).authentication, "anonymous", `${method} ${route}`);
+  }
+  assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "POST").authentication, "session");
+});
+
+test("payment webhook stays disabled until a provider verifier is implemented", () => {
+  assert.equal(apiPolicyForRoute("/api/integrations/payments/:provider/webhook", "POST").authentication, "disabled");
+  assert.throws(() => evaluateApiRequestPolicy(new Request(
+    "https://xm.agentnovas.com/api/integrations/payments/mock/webhook",
+    {
+      method: "POST",
+      headers: {
+        host: "xm.agentnovas.com",
+        "x-webhook-signature": "attacker-controlled-presence-only",
+      },
+    },
+  )), (error) => error instanceof ApiPolicyError && error.code === "ROUTE_DISABLED" && error.status === 503);
+  assert.equal(apiPolicyForRoute("/api/integrations/resend/webhook", "POST").authentication, "webhook");
+});
+
 test("unknown hosts and cross-audience sensitive routes fail closed", () => {
   assert.equal(resolveAppAudienceStrict({ host: "untrusted.example" }), null);
   assert.equal(resolveAppAudienceStrict({

@@ -1,16 +1,13 @@
 import { effectiveAccessForUser } from "@/lib/access-control";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
-import { ResearchApiError, researchErrorResponse } from "@/lib/research-api";
-import { currentSession } from "@/lib/session";
+import { requireUser, responseError } from "@/lib/session";
 import { resolveAppAudience } from "@/lib/riverton-apps";
 
 export async function GET(request: Request) {
   try {
     await ensureDatabaseSchema();
-    const current = await currentSession(request);
-    if (!current) throw new ResearchApiError("AUTH_REQUIRED", "请先登录", 401);
-    const { user } = current;
+    const user = await requireUser(request);
     const appId = resolveAppAudience({ host: request.headers.get("host") ?? undefined });
     const pool = await getPostgresPool();
     const access = await effectiveAccessForUser(pool, user, appId);
@@ -27,6 +24,6 @@ export async function GET(request: Request) {
       headers: { "cache-control": "no-store" },
     });
   } catch (error) {
-    return researchErrorResponse(error);
+    return responseError(error);
   }
 }
