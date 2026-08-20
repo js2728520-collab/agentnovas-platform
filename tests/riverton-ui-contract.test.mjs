@@ -97,7 +97,7 @@ test("payment connectivity tests require an explicit true feature switch", async
   assert.match(source, /maintenanceReason/);
 });
 
-test("maintenance connectivity tests require reasons and use confirmation dialogs", async () => {
+test("maintenance connectivity tests require reasons while Payment stays read-only in Beta", async () => {
   for (const path of [
     "app/api/admin/agent-role-bindings/test/route.ts",
     "app/api/admin/runtime-explanation-bindings/test/route.ts",
@@ -107,7 +107,9 @@ test("maintenance connectivity tests require reasons and use confirmation dialog
   }
   assert.match(await read("apps/maintenance/ui/models-workspace.tsx"), /kind: "test"/);
   assert.match(await read("apps/maintenance/ui/email-integration-workspace.tsx"), /ConfirmActionDialog/);
-  assert.match(await read("apps/maintenance/ui/payment-integration-workspace.tsx"), /kind: "test"/);
+  const payment = await read("apps/maintenance/ui/payment-integration-workspace.tsx");
+  assert.match(payment, /BETA POLICY: DISABLED/);
+  assert.doesNotMatch(payment, /kind: "test"|kind: "status"|ConfirmActionDialog/);
 });
 
 test("maintenance model workspaces separate read access from write controls", async () => {
