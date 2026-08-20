@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { decodeCommercialCursor, encodeCommercialCursor, maskPaymentReference, previousCompleteUtcWeek } from "../lib/commercial-api-support.ts";
+import { idempotencyKey,paymentEvidenceInput } from "../lib/commercial-request-validation.ts";
 
 test("commercial cursors round trip and reject untrusted input", () => {
   const cursor = { createdAt: "2026-08-20T00:00:00.000Z", id: "order-1" };
@@ -19,4 +20,16 @@ test("previous complete UTC week is Monday-exclusive Monday", () => {
     weekStart: "2026-08-10T00:00:00.000Z",
     weekEnd: "2026-08-17T00:00:00.000Z",
   });
+});
+
+test("write boundaries require header idempotency and reject malformed evidence as 4xx",()=>{
+  assert.throws(()=>idempotencyKey(new Request("https://example.test")),error=>error.status===422&&error.code==="IDEMPOTENCY_KEY_REQUIRED");
+  assert.equal(idempotencyKey(new Request("https://example.test",{headers:{"Idempotency-Key":"actor-resource-1"}})),"actor-resource-1");
+  for(const body of [
+    {evidenceKind:"raw_payload",reference:"ref",amount:"1",currency:"USD",occurredAt:"2026-08-20"},
+    {evidenceKind:"bank_transfer",reference:"ref",amount:"0",currency:"USD",occurredAt:"2026-08-20"},
+    {evidenceKind:"bank_transfer",reference:"ref",amount:"1",currency:"USDT",occurredAt:"2026-08-20"},
+    {evidenceKind:"bank_transfer",reference:"ref",amount:"1",currency:"USD",occurredAt:"2999-01-01"},
+    {evidenceKind:"bank_transfer",reference:"ref",amount:"1",currency:"USD",occurredAt:"2026-08-20",note:"x".repeat(501)},
+  ])assert.throws(()=>paymentEvidenceInput(body,"USD"),error=>error.status===422&&error.code==="VALIDATION_ERROR");
 });

@@ -19,6 +19,7 @@ test("commercial routes use dedicated frozen permissions and header idempotency"
   const files=[
     "app/api/membership/orders/route.ts","app/api/operations/membership-orders/route.ts",
     "app/api/operations/performance-statements/route.ts","lib/commercial-api.ts",
+    "lib/commercial-request-validation.ts",
   ];
   const source=(await Promise.all(files.map(file=>readFile(new URL(file,root),"utf8")))).join("\n");
   for(const key of ["client.membership.order","ops.membership_orders.view","ops.performance_fees.view"])
