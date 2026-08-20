@@ -2,4 +2,3 @@ import { requireAccessPermission } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
 import { researchErrorResponse } from "@/lib/research-api";
 export async function GET(request:Request){try{const {user}=await requireAccessPermission(request,"client.wallet.view");const pool=await getPostgresPool();const result=await pool.query(`SELECT available_credits::text,reserved_credits::text,version,updated_at FROM ai_credit_accounts WHERE user_id=$1`,[user.id]);const row=result.rows[0];return Response.json({credits:row?{available:row.available_credits,reserved:row.reserved_credits,version:Number(row.version),updatedAt:new Date(row.updated_at).toISOString()}:{available:"0",reserved:"0",version:0,updatedAt:null}},{headers:{"cache-control":"no-store"}});}catch(error){return researchErrorResponse(error);}}
-

@@ -15,4 +15,3 @@ export async function GET(request: Request) {
     return Response.json({plans:plans.rows.map(row=>({id:row.id,planCode:row.plan_code,version:row.version,price:{amount:row.price_amount,currency:row.price_currency},durationDays:row.duration_days,aiCreditGrant:row.ai_credit_grant,performanceFeeBps:row.performance_fee_bps,effectiveAt:new Date(row.effective_at).toISOString()})),requiredLegalDocuments:legal.rows.map(row=>({id:row.id,type:row.document_type,version:row.version,contentSha256:row.content_sha256,effectiveAt:new Date(row.effective_at).toISOString()})),orderCreationAvailable:legal.rows.length===3},{headers:{"cache-control":"no-store"}});
   } catch(error){return researchErrorResponse(error);}
 }
-

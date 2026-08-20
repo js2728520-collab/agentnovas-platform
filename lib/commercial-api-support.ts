@@ -35,4 +35,3 @@ export function previousCompleteUtcWeek(now = new Date()) {
   weekStart.setUTCDate(weekStart.getUTCDate() - 7);
   return { weekStart: weekStart.toISOString(), weekEnd: weekEnd.toISOString() };
 }
-
