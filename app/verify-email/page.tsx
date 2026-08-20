@@ -17,7 +17,7 @@ export default function VerifyEmailPage() {
     }).catch(() => setMessage("账号验证失败，请稍后重试。"));
   }, [token]);
   return <main style={{ maxWidth: 460, margin: "80px auto", padding: 24 }}>
-    <h1>验证 AgentNovas 账号</h1>
+    <h1>验证 Riverton Capital 账号</h1>
     <p role="status">{message}</p>
   </main>;
 }

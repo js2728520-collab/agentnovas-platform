@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./market-terminal.css";
 import "./membership-center.css";
+import "./riverton-console.css";
 import LocaleGuard from "./locale-guard";
 
 const geistSans = Geist({
@@ -16,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AgentNovas — AI Quant Trading Platform",
-  description: "A non-custodial AI quant trading platform prototype with collaborative agents, risk controls and execution audit.",
+  title: "Riverton Capital — AI Quant Trading Platform",
+  description: "Riverton Capital non-custodial AI quant trading platform with collaborative agents, risk controls and execution audit.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
