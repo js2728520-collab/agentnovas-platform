@@ -123,6 +123,13 @@ export class PlatformDemoResponseError extends Error {
   }
 }
 
+export class PlatformDemoSellSafetyError extends Error {
+  constructor() {
+    super("平台 Demo 现货卖出无法同时证明不超过 10 USDT 且满足 provider filters，已 fail-closed");
+    this.name = "PlatformDemoSellSafetyError";
+  }
+}
+
 export function createPlatformDemoFetchTransport(timeoutMs = 8_000): PlatformDemoTransport {
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 30_000) throw new Error("平台 Demo HTTP 超时时间无效");
   const allowedOrigins = new Set<string>(Object.values(PLATFORM_DEMO_ENDPOINTS));
@@ -219,13 +226,15 @@ async function sendTransportRequest(
   }
 }
 
-function feeInUsdt(amount: unknown, currency: unknown, label: string, signed = false) {
+function originalFee(amount: unknown, currency: unknown, label: string, signed = false) {
   const value = signed ? absoluteDecimal(amount, `${label} fee`) : decimal(amount, `${label} fee`);
-  const feeCurrency = requiredString(currency, `${label} fee currency`);
-  if (value > 0 && feeCurrency !== "USDT") {
-    throw new PlatformDemoResponseError(`${label} 手续费币种不是 USDT，无法安全计入 Demo 回执`);
-  }
-  return value;
+  const feeCurrency = requiredString(currency, `${label} fee currency`, 16).toUpperCase();
+  if (!/^[A-Z0-9]{2,16}$/.test(feeCurrency)) throw new PlatformDemoResponseError(`${label}手续费币种无效`);
+  return {
+    feeAmount: value,
+    feeCurrency,
+    feeUsdt: feeCurrency === "USDT" ? value : null,
+  };
 }
 
 function normalizeSymbol(value: string): SpotSymbol {
@@ -323,6 +332,7 @@ function okxAdapter(credentials: Credentials, options: Required<AdapterOptions>)
     async placeOrder(raw: Parameters<typeof validatePlace>[0]) {
       if (!options.externalWritesEnabled) throw new PlatformDemoWritesDisabledError();
       const input = validatePlace(raw);
+      if (input.side === "sell") throw new PlatformDemoSellSafetyError();
       const data = await request("POST", "/api/v5/trade/order", {
         instId: instId(input.symbol), tdMode: "cash", side: input.side, ordType: "market",
         sz: String(input.side === "buy" ? input.quoteAmountUsdt : input.baseQuantity),
@@ -352,7 +362,7 @@ function okxAdapter(credentials: Credentials, options: Required<AdapterOptions>)
         providerOrderId: matchingString(item.ordId, input.providerOrderId, "OKX provider order"),
         baseQuantity: decimal(item.fillSz, "OKX fill quantity"),
         price: decimal(item.fillPx, "OKX fill price"),
-        feeUsdt: feeInUsdt(item.fee, item.feeCcy, "OKX fill", true),
+        ...originalFee(item.fee, item.feeCcy, "OKX fill", true),
         observedAt: new Date(decimal(item.ts, "OKX fill time")).toISOString(),
       }));
     },
@@ -392,6 +402,7 @@ function binanceAdapter(credentials: Credentials, options: Required<AdapterOptio
     async placeOrder(raw: Parameters<typeof validatePlace>[0]) {
       if (!options.externalWritesEnabled) throw new PlatformDemoWritesDisabledError();
       const input = validatePlace(raw);
+      if (input.side === "sell") throw new PlatformDemoSellSafetyError();
       const params = new URLSearchParams({ symbol: input.symbol, side: input.side.toUpperCase(), type: "MARKET", newClientOrderId: input.clientOrderId });
       params.set(input.side === "buy" ? "quoteOrderQty" : "quantity", String(input.side === "buy" ? input.quoteAmountUsdt : input.baseQuantity));
       const result = parsedOrder(await request("POST", "/api/v3/order", params, true), input.clientOrderId);
@@ -412,7 +423,7 @@ function binanceAdapter(credentials: Credentials, options: Required<AdapterOptio
         providerOrderId: matchingString(item.orderId, input.providerOrderId, "Binance provider order"),
         baseQuantity: decimal(item.qty, "Binance fill quantity"),
         price: decimal(item.quoteQty, "Binance fill quote") / Math.max(decimal(item.qty, "Binance fill quantity"), Number.EPSILON),
-        feeUsdt: feeInUsdt(item.commission, item.commissionAsset, "Binance fill"),
+        ...originalFee(item.commission, item.commissionAsset, "Binance fill"),
         observedAt: new Date(decimal(item.time, "Binance fill time")).toISOString(),
       }));
     },
@@ -458,6 +469,7 @@ function bybitAdapter(credentials: Credentials, options: Required<AdapterOptions
     async placeOrder(raw: Parameters<typeof validatePlace>[0]) {
       if (!options.externalWritesEnabled) throw new PlatformDemoWritesDisabledError();
       const input = validatePlace(raw);
+      if (input.side === "sell") throw new PlatformDemoSellSafetyError();
       const result = await request("POST", "/v5/order/create", {
         category: "spot", symbol: input.symbol, side: input.side === "buy" ? "Buy" : "Sell",
         orderType: "Market", qty: String(input.side === "buy" ? input.quoteAmountUsdt : input.baseQuantity),
@@ -488,7 +500,7 @@ function bybitAdapter(credentials: Credentials, options: Required<AdapterOptions
         providerOrderId: matchingString(item.orderId, input.providerOrderId, "Bybit provider order"),
         baseQuantity: decimal(item.execQty, "Bybit fill quantity"),
         price: decimal(item.execPrice, "Bybit fill price"),
-        feeUsdt: feeInUsdt(item.execFee, item.feeCurrency, "Bybit fill"),
+        ...originalFee(item.execFee, item.feeCurrency, "Bybit fill"),
         observedAt: new Date(decimal(item.execTime, "Bybit fill time")).toISOString(),
       }));
     },

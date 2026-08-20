@@ -190,10 +190,11 @@ test("malformed provider responses are rejected instead of treated as success", 
   const binance = createPlatformDemoAdapter("binance", {
     apiKey: "fixture-key", secret: "fixture-secret",
   }, { transport: unsupportedFeeTransport, now, externalWritesEnabled: true });
-  await assert.rejects(
-    binance.listFills({ symbol: "BTCUSDT", providerOrderId: "42" }),
-    /fee currency|手续费币种/i,
-  );
+  assert.deepEqual((await binance.listFills({ symbol: "BTCUSDT", providerOrderId: "42" }))[0], {
+    fillId: "7", providerOrderId: "42", baseQuantity: 0.001, price: 10_000,
+    feeAmount: 0.00001, feeCurrency: "BNB", feeUsdt: null,
+    observedAt: "2026-08-20T00:00:00.000Z",
+  });
 
   const mismatchedFillTransport = fixtureTransport([{
     status: 200,
@@ -209,6 +210,24 @@ test("malformed provider responses are rejected instead of treated as success", 
     mismatchedFillAdapter.listFills({ symbol: "BTCUSDT", providerOrderId: "42" }),
     /provider order|不匹配/i,
   );
+});
+
+test("demo market sells fail closed before transport without a provable 10 USDT cap and filters", async () => {
+  for (const [provider, credentials] of [
+    ["okx", { apiKey: "fixture-key", secret: "fixture-secret", passphrase: "fixture-passphrase" }],
+    ["binance", { apiKey: "fixture-key", secret: "fixture-secret" }],
+    ["bybit", { apiKey: "fixture-key", secret: "fixture-secret" }],
+  ]) {
+    const transport = fixtureTransport([]);
+    const adapter = createPlatformDemoAdapter(provider, credentials, {
+      transport, now, externalWritesEnabled: true,
+    });
+    await assert.rejects(adapter.placeOrder({
+      symbol: "BTCUSDT", side: "sell", quoteAmountUsdt: 10,
+      baseQuantity: 0.001, clientOrderId: "rv12345678",
+    }), /sell|卖出|10 USDT|filter/i);
+    assert.equal(transport.requests.length, 0);
+  }
 });
 
 test("a transport failure after an order write is classified as execution-unknown", async () => {

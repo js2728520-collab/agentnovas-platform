@@ -177,6 +177,7 @@ CREATE TABLE IF NOT EXISTS platform_demo_accounts (
   passphrase_ciphertext text,
   enabled boolean NOT NULL DEFAULT false,
   kill_switch_enabled boolean NOT NULL DEFAULT false,
+  updated_by text NOT NULL DEFAULT 'system',
   last_verified_at timestamptz,
   last_verification_status text CHECK (last_verification_status IS NULL OR last_verification_status IN ('passed', 'failed')),
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -198,9 +199,67 @@ CREATE TABLE IF NOT EXISTS platform_demo_card_controls (
     'ai_conservative', 'ai_balanced', 'ai_aggressive'
   )),
   kill_switch_enabled boolean NOT NULL DEFAULT false,
+  updated_by text NOT NULL DEFAULT 'system',
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (provider, strategy_code)
 );
+
+CREATE TABLE IF NOT EXISTS platform_demo_control_audit (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  scope text NOT NULL CHECK (scope IN ('provider', 'card')),
+  provider text NOT NULL CHECK (provider IN ('okx', 'binance', 'bybit')),
+  strategy_code text CHECK (strategy_code IS NULL OR strategy_code IN (
+    'ai_conservative', 'ai_balanced', 'ai_aggressive'
+  )),
+  action text NOT NULL CHECK (action IN ('insert', 'update', 'delete')),
+  actor_id text NOT NULL,
+  before_json jsonb,
+  after_json jsonb,
+  occurred_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE OR REPLACE FUNCTION audit_platform_demo_controls()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  old_safe jsonb;
+  new_safe jsonb;
+BEGIN
+  IF TG_TABLE_NAME = 'platform_demo_accounts' THEN
+    IF OLD.enabled IS NOT DISTINCT FROM NEW.enabled
+       AND OLD.kill_switch_enabled IS NOT DISTINCT FROM NEW.kill_switch_enabled THEN
+      RETURN NEW;
+    END IF;
+    old_safe := jsonb_build_object('enabled', OLD.enabled, 'killSwitchEnabled', OLD.kill_switch_enabled);
+    new_safe := jsonb_build_object('enabled', NEW.enabled, 'killSwitchEnabled', NEW.kill_switch_enabled);
+    INSERT INTO platform_demo_control_audit (
+      scope, provider, strategy_code, action, actor_id, before_json, after_json
+    ) VALUES ('provider', NEW.provider, NULL, 'update', NEW.updated_by, old_safe, new_safe);
+    RETURN NEW;
+  END IF;
+  IF TG_OP <> 'INSERT' THEN
+    old_safe := jsonb_build_object('killSwitchEnabled', OLD.kill_switch_enabled);
+  END IF;
+  IF TG_OP <> 'DELETE' THEN
+    new_safe := jsonb_build_object('killSwitchEnabled', NEW.kill_switch_enabled);
+  END IF;
+  INSERT INTO platform_demo_control_audit (
+    scope, provider, strategy_code, action, actor_id, before_json, after_json
+  ) VALUES (
+    'card', COALESCE(NEW.provider, OLD.provider), COALESCE(NEW.strategy_code, OLD.strategy_code),
+    lower(TG_OP), COALESCE(NEW.updated_by, OLD.updated_by), old_safe, new_safe
+  );
+  RETURN COALESCE(NEW, OLD);
+END $$;
+
+DROP TRIGGER IF EXISTS trg_platform_demo_account_control_audit ON platform_demo_accounts;
+CREATE TRIGGER trg_platform_demo_account_control_audit
+AFTER UPDATE OF enabled, kill_switch_enabled ON platform_demo_accounts
+FOR EACH ROW EXECUTE FUNCTION audit_platform_demo_controls();
+
+DROP TRIGGER IF EXISTS trg_platform_demo_card_control_audit ON platform_demo_card_controls;
+CREATE TRIGGER trg_platform_demo_card_control_audit
+AFTER INSERT OR UPDATE OR DELETE ON platform_demo_card_controls
+FOR EACH ROW EXECUTE FUNCTION audit_platform_demo_controls();
 
 CREATE TABLE IF NOT EXISTS platform_demo_order_intents (
   id text PRIMARY KEY,
@@ -218,10 +277,14 @@ CREATE TABLE IF NOT EXISTS platform_demo_order_intents (
   quote_amount_usdt numeric(30, 12) NOT NULL CHECK (quote_amount_usdt = 10),
   reference_price numeric(30, 12) NOT NULL CHECK (reference_price > 0),
   status text NOT NULL DEFAULT 'pending' CHECK (status IN (
-    'pending', 'running', 'accepted', 'unknown', 'retry_wait', 'cancelled', 'failed'
+    'pending', 'running', 'unknown', 'retry_wait', 'reconcile_wait',
+    'filled', 'cancelled', 'failed', 'quarantined'
   )),
   provider_order_id text,
-  attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0 AND attempt_count <= 20),
+  attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  consecutive_error_count integer NOT NULL DEFAULT 0 CHECK (consecutive_error_count >= 0),
+  unknown_count integer NOT NULL DEFAULT 0 CHECK (unknown_count >= 0),
+  reconciliation_count integer NOT NULL DEFAULT 0 CHECK (reconciliation_count >= 0),
   next_attempt_at timestamptz NOT NULL DEFAULT now(),
   lease_owner text,
   lease_expires_at timestamptz,
@@ -281,12 +344,29 @@ CREATE TABLE IF NOT EXISTS platform_demo_execution_receipts (
   status text NOT NULL CHECK (status IN ('accepted', 'partially_filled', 'filled', 'cancelled', 'rejected')),
   filled_base_quantity numeric(30, 12) NOT NULL DEFAULT 0 CHECK (filled_base_quantity >= 0),
   filled_quote_usdt numeric(30, 12) NOT NULL DEFAULT 0 CHECK (filled_quote_usdt >= 0),
-  fee_usdt numeric(30, 12) NOT NULL DEFAULT 0 CHECK (fee_usdt >= 0),
+  fee_usdt numeric(30, 12) CHECK (fee_usdt IS NULL OR fee_usdt >= 0),
   observed_at timestamptz NOT NULL,
   trace_id text NOT NULL CHECK (length(trace_id) BETWEEN 1 AND 128),
   safe_summary_json jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (intent_id, provider_order_id, status, observed_at)
+);
+
+CREATE TABLE IF NOT EXISTS platform_demo_fill_receipts (
+  id text PRIMARY KEY,
+  intent_id text NOT NULL REFERENCES platform_demo_order_intents(id),
+  provider text NOT NULL CHECK (provider IN ('okx', 'binance', 'bybit')),
+  provider_fill_id text NOT NULL,
+  provider_order_id text NOT NULL,
+  base_quantity numeric(30, 12) NOT NULL CHECK (base_quantity > 0),
+  price numeric(30, 12) NOT NULL CHECK (price > 0),
+  fee_amount numeric(30, 12) NOT NULL CHECK (fee_amount >= 0),
+  fee_currency text NOT NULL CHECK (length(fee_currency) BETWEEN 2 AND 16),
+  fee_usdt numeric(30, 12) CHECK (fee_usdt IS NULL OR fee_usdt >= 0),
+  observed_at timestamptz NOT NULL,
+  trace_id text NOT NULL CHECK (length(trace_id) BETWEEN 1 AND 128),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (provider, provider_fill_id)
 );
 
 CREATE OR REPLACE FUNCTION reject_platform_demo_receipt_mutation()
@@ -298,4 +378,9 @@ END $$;
 DROP TRIGGER IF EXISTS trg_platform_demo_receipts_immutable ON platform_demo_execution_receipts;
 CREATE TRIGGER trg_platform_demo_receipts_immutable
 BEFORE UPDATE OR DELETE ON platform_demo_execution_receipts
+FOR EACH ROW EXECUTE FUNCTION reject_platform_demo_receipt_mutation();
+
+DROP TRIGGER IF EXISTS trg_platform_demo_fill_receipts_immutable ON platform_demo_fill_receipts;
+CREATE TRIGGER trg_platform_demo_fill_receipts_immutable
+BEFORE UPDATE OR DELETE ON platform_demo_fill_receipts
 FOR EACH ROW EXECUTE FUNCTION reject_platform_demo_receipt_mutation();

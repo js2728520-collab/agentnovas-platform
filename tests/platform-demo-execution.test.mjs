@@ -10,6 +10,7 @@ import {
   leaseNextPlatformDemoIntent,
   processNextPlatformDemoExecution,
   renewPlatformDemoLease,
+  verifyPlatformDemoAccount,
 } from "../lib/platform-demo-execution.ts";
 
 const { Pool } = pg;
@@ -58,8 +59,8 @@ test.beforeEach(async () => {
     await pool.query(`
       INSERT INTO platform_demo_accounts (
         id, provider, label, api_key_ciphertext, secret_ciphertext,
-        passphrase_ciphertext, enabled
-      ) VALUES ($1, $2, $3, 'fixture-key', 'fixture-secret', $4, true)
+        passphrase_ciphertext, enabled, last_verified_at, last_verification_status
+      ) VALUES ($1, $2, $3, 'fixture-key', 'fixture-secret', $4, true, now(), 'passed')
     `, [`account-${provider}`, provider, `${provider} fixture`, provider === "okx" ? "fixture-passphrase" : null]);
   }
 });
@@ -89,6 +90,10 @@ test("provider and card kill switches plus the 100 USDT provider daily cap are e
   await pool.query("INSERT INTO platform_demo_card_controls (provider, strategy_code, kill_switch_enabled) VALUES ('binance', 'ai_balanced', true)");
   await assert.rejects(createPlatformDemoIntent(pool, intentInput()), /kill switch|停控/i);
   await pool.query("DELETE FROM platform_demo_card_controls");
+  assert.ok((await pool.query(`
+    SELECT count(*)::int AS count FROM platform_demo_control_audit
+    WHERE provider = 'binance'
+  `)).rows[0].count >= 3);
 
   for (let index = 0; index < 10; index += 1) {
     await createPlatformDemoIntent(pool, intentInput({ decisionRoundId: `cap-round-${index}`, runtimeCycleId: `cap-cycle-${index}` }));
@@ -102,6 +107,29 @@ test("provider and card kill switches plus the 100 USDT provider daily cap are e
     createPlatformDemoIntent(pool, intentInput({ decisionRoundId: "cap-round-11", runtimeCycleId: "cap-cycle-11" })),
     /daily cap|100 USDT/i,
   );
+});
+
+test("demo intents require a recently verified platform account", async () => {
+  await pool.query(`
+    UPDATE platform_demo_accounts
+    SET last_verified_at = now() - interval '16 minutes'
+    WHERE provider = 'binance'
+  `);
+  await assert.rejects(createPlatformDemoIntent(pool, intentInput()), /近期验证|verified|verification/i);
+  const verified = await verifyPlatformDemoAccount(pool, {
+    accountId: "account-binance",
+    actorId: "maintenance-reviewer",
+  }, {
+    decryptSecret: async (value) => value,
+    createAdapter: () => ({
+      async verify() {
+        return { provider: "binance", status: "verified", observedAt: "2026-08-20T00:00:00.000Z" };
+      },
+    }),
+    now: () => new Date(),
+  });
+  assert.equal(verified.status, "passed");
+  assert.equal((await createPlatformDemoIntent(pool, intentInput())).status, "pending");
 });
 
 test("demo queue leases use fencing and heartbeat renewal", async () => {
@@ -140,9 +168,25 @@ test("timeout lookup avoids duplicate placement and provider failure cannot roll
     async getOrder(input) {
       lookupCalls += 1;
       if (lookupCalls === 1) throw new Error("fixture lookup temporarily unavailable");
-      return { provider: "binance", providerOrderId: "provider-order-a", clientOrderId: input.clientOrderId, status: "open", filledBaseQuantity: 0 };
+      return {
+        provider: "binance", providerOrderId: "provider-order-a", clientOrderId: input.clientOrderId,
+        status: lookupCalls === 3 ? "open" : lookupCalls >= 4 ? "filled" : "open",
+        filledBaseQuantity: lookupCalls >= 4 ? 0.001 : lookupCalls === 3 ? 0.0005 : 0,
+      };
     },
-    async listFills() { return []; },
+    async listFills() {
+      if (lookupCalls < 3) return [];
+      const fills = [{
+        fillId: "fill-a", providerOrderId: "provider-order-a", baseQuantity: 0.0005,
+        price: 10_000, feeAmount: 0.00001, feeCurrency: "BNB", feeUsdt: null,
+        observedAt: "2026-08-20T00:00:00.000Z",
+      }];
+      return lookupCalls >= 4 ? [...fills, {
+        fillId: "fill-b", providerOrderId: "provider-order-a", baseQuantity: 0.0005,
+        price: 10_000, feeAmount: 0.005, feeCurrency: "USDT", feeUsdt: 0.005,
+        observedAt: "2026-08-20T00:01:00.000Z",
+      }] : fills;
+    },
   };
   const firstNow = new Date(Date.now() + 1_000);
   const uncertain = await processNextPlatformDemoExecution(pool, { workerId: "demo-worker" }, {
@@ -157,14 +201,50 @@ test("timeout lookup avoids duplicate placement and provider failure cannot roll
     externalWritesEnabled: true, createAdapter: () => adapter, decryptSecret: async (value) => value,
     now: () => new Date(firstNow.getTime() + 20_000),
   });
-  assert.equal(result.status, "recorded");
+  assert.equal(result.status, "recorded", JSON.stringify((await pool.query(`
+    SELECT status, last_error_code, last_error_message FROM platform_demo_order_intents
+  `)).rows));
   assert.equal(result.executionStatus, "accepted");
   assert.equal(placeCalls, 1);
   assert.equal(lookupCalls, 2);
+  assert.equal((await pool.query("SELECT status FROM platform_demo_order_intents")).rows[0].status, "reconcile_wait");
+  const partial = await processNextPlatformDemoExecution(pool, { workerId: "demo-worker" }, {
+    externalWritesEnabled: true, createAdapter: () => adapter, decryptSecret: async (value) => value,
+    now: () => new Date(firstNow.getTime() + 40_000),
+  });
+  assert.equal(partial.status, "recorded");
+  assert.equal(partial.executionStatus, "partially_filled");
+  const filled = await processNextPlatformDemoExecution(pool, { workerId: "demo-worker" }, {
+    externalWritesEnabled: true, createAdapter: () => adapter, decryptSecret: async (value) => value,
+    now: () => new Date(firstNow.getTime() + 60_000),
+  });
+  assert.equal(filled.status, "recorded", JSON.stringify((await pool.query(`
+    SELECT status, last_error_code, last_error_message FROM platform_demo_order_intents
+  `)).rows));
+  assert.equal(filled.executionStatus, "filled");
+  assert.equal(placeCalls, 1);
+  assert.equal(lookupCalls, 4);
+  assert.equal(await processNextPlatformDemoExecution(pool, { workerId: "demo-worker" }, {
+    externalWritesEnabled: true, createAdapter: () => adapter, decryptSecret: async (value) => value,
+    now: () => new Date(firstNow.getTime() + 80_000),
+  }), null);
   const portfolio = (await pool.query("SELECT principal_usdt, cash_usdt FROM official_paper_portfolios WHERE id = 'paper-a'")).rows[0];
   assert.equal(Number(portfolio.principal_usdt), 10_000);
   assert.equal(Number(portfolio.cash_usdt), 10_000);
-  assert.equal((await pool.query("SELECT count(*)::int AS count FROM platform_demo_execution_receipts")).rows[0].count, 1);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM platform_demo_execution_receipts")).rows[0].count, 3);
+  const savedFills = (await pool.query(`
+    SELECT provider_fill_id, fee_amount, fee_currency, fee_usdt
+    FROM platform_demo_fill_receipts ORDER BY provider_fill_id
+  `)).rows;
+  assert.deepEqual(savedFills.map((row) => ({
+    id: row.provider_fill_id,
+    feeAmount: Number(row.fee_amount),
+    feeCurrency: row.fee_currency,
+    feeUsdt: row.fee_usdt === null ? null : Number(row.fee_usdt),
+  })), [
+    { id: "fill-a", feeAmount: 0.00001, feeCurrency: "BNB", feeUsdt: null },
+    { id: "fill-b", feeAmount: 0.005, feeCurrency: "USDT", feeUsdt: 0.005 },
+  ]);
   await assert.rejects(
     pool.query("UPDATE platform_demo_execution_receipts SET safe_summary_json = '{}'::jsonb"),
     /append-only/i,
@@ -190,6 +270,39 @@ test("timeout lookup avoids duplicate placement and provider failure cannot roll
   const unchanged = (await pool.query("SELECT principal_usdt, cash_usdt FROM official_paper_portfolios WHERE id = 'paper-a'")).rows[0];
   assert.equal(Number(unchanged.principal_usdt), 10_000);
   assert.equal(Number(unchanged.cash_usdt), 10_000);
+});
+
+test("an unresolved unknown order is quarantined for manual reconciliation without re-placement", async () => {
+  await createPlatformDemoIntent(pool, intentInput());
+  let placeCalls = 0;
+  const adapter = {
+    async placeOrder() {
+      placeCalls += 1;
+      throw new PlatformDemoResponseError("fixture timeout", { unknownExecutionState: true });
+    },
+    async getOrder() { throw new Error("fixture lookup unavailable"); },
+    async listFills() { return []; },
+  };
+  const base = Date.now() + 1_000;
+  const statuses = [];
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const result = await processNextPlatformDemoExecution(pool, { workerId: "demo-quarantine" }, {
+      externalWritesEnabled: true,
+      createAdapter: () => adapter,
+      decryptSecret: async (value) => value,
+      now: () => new Date(base + attempt * 3 * 60_000),
+    });
+    statuses.push(result.status);
+  }
+  assert.deepEqual(statuses, ["unknown", "unknown", "unknown", "unknown", "quarantined"]);
+  assert.equal(placeCalls, 1);
+  assert.equal((await pool.query("SELECT status FROM platform_demo_order_intents")).rows[0].status, "quarantined");
+  assert.equal(await processNextPlatformDemoExecution(pool, { workerId: "demo-quarantine" }, {
+    externalWritesEnabled: true,
+    createAdapter: () => adapter,
+    decryptSecret: async (value) => value,
+    now: () => new Date(base + 60 * 60_000),
+  }), null);
 });
 
 test("external write feature flag defaults false without leasing the queue", async () => {
