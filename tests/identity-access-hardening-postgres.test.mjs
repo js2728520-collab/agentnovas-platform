@@ -40,10 +40,11 @@ test("0021 is idempotent and exposes the required identity tables", async () => 
     WHERE table_schema = current_schema()
       AND table_name = ANY($1::text[])
     ORDER BY table_name
-  `, [["auth_rate_limit_buckets", "rbac_revocation_tombstones", "user_mfa_recovery_codes", "user_mfa_totp_credentials"]])).rows;
+  `, [["auth_rate_limit_buckets", "rbac_revocation_tombstones", "system_role_identities", "user_mfa_recovery_codes", "user_mfa_totp_credentials"]])).rows;
   assert.deepEqual(tables.map((row) => row.table_name), [
     "auth_rate_limit_buckets",
     "rbac_revocation_tombstones",
+    "system_role_identities",
     "user_mfa_recovery_codes",
     "user_mfa_totp_credentials",
   ]);

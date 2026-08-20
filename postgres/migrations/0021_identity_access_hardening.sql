@@ -186,6 +186,39 @@ CREATE TABLE IF NOT EXISTS "rbac_revocation_tombstones" (
 CREATE INDEX IF NOT EXISTS "idx_rbac_revocation_tombstones_application"
   ON "rbac_revocation_tombstones" ("application_id", "revoked_at" DESC);
 
+-- System identities use an application-owned namespace that custom roles may
+-- not enter. NOT VALID preserves any pre-hardening custom rows while enforcing
+-- the boundary for every new or updated role.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'roles_reserved_system_namespace_check'
+      AND conrelid = 'roles'::regclass
+  ) THEN
+    ALTER TABLE "roles"
+      ADD CONSTRAINT roles_reserved_system_namespace_check
+      CHECK ("is_system" = true OR "code" !~ '^__system_') NOT VALID;
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_roles_system_identity_reference"
+  ON "roles" ("id", "application_id", "is_system");
+
+CREATE TABLE IF NOT EXISTS "system_role_identities" (
+  "application_id" text NOT NULL REFERENCES "applications"("id") ON DELETE RESTRICT,
+  "system_key" text NOT NULL CHECK (
+    "system_key" ~ '^[a-z][a-z0-9_.-]{2,79}$'
+  ),
+  "role_id" text NOT NULL UNIQUE,
+  "role_is_system" boolean NOT NULL DEFAULT true CHECK ("role_is_system" = true),
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("application_id", "system_key"),
+  FOREIGN KEY ("role_id", "application_id", "role_is_system")
+    REFERENCES "roles"("id", "application_id", "is_system") ON DELETE RESTRICT
+);
+
 -- Commercial beta permissions are deliberately split by maker/checker action.
 -- In particular, evidence capture, approval, and emergency actions must not
 -- inherit the broad reconciliation permission.

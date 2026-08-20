@@ -88,7 +88,7 @@ test("legacy adoption rejects pending, closed, mismatched, and ambiguous adminis
   }
 });
 
-test("legacy adoption fails closed when a custom role owns a reserved bootstrap code", async () => {
+test("legacy adoption preserves a colliding custom role and creates stable collision-proof system identities", async () => {
   await withSchema(async (pool) => {
     await pool.query(`
       INSERT INTO organizations (id, type, name) VALUES ('old-org', 'headquarters', 'Old HQ');
@@ -110,6 +110,8 @@ test("legacy adoption fails closed when a custom role owns a reserved bootstrap 
         'custom-assignment', 'custom-assignee', 'custom-collision', 'operations',
         'old-org', 'active', now()
       );
+      INSERT INTO sessions (id, user_id, token_hash, expires_at, app_audience)
+        VALUES ('collision-session', 'old-admin', 'collision-token', '2099-01-01T00:00:00.000Z', 'maintenance');
     `);
 
     const result = await bootstrapInternalAdmin(pool, {
@@ -118,7 +120,8 @@ test("legacy adoption fails closed when a custom role owns a reserved bootstrap 
       adoptLegacyAdmin: true,
       environment,
     });
-    assert.deepEqual(result, { ok: false, code: "BOOTSTRAP_ROLE_COLLISION" });
+    assert.equal(result.ok, true);
+    assert.equal(result.adopted, true);
     assert.deepEqual((await pool.query(`
       SELECT kind, is_system, name FROM roles WHERE id = 'custom-collision'
     `)).rows[0], {
@@ -134,7 +137,55 @@ test("legacy adoption fails closed when a custom role owns a reserved bootstrap 
       WHERE user_id = 'custom-assignee' AND role_id = 'custom-collision' AND status = 'active'
     `)).rowCount, 1);
     assert.equal((await pool.query(`
-      SELECT 1 FROM user_mfa_totp_credentials WHERE user_id = 'old-admin'
-    `)).rowCount, 0);
+      SELECT 1 FROM user_mfa_totp_credentials WHERE user_id = 'old-admin' AND status = 'active'
+    `)).rowCount, 1);
+    assert.deepEqual((await pool.query(`
+      SELECT identity.application_id, identity.system_key, role.id AS role_id, role.code
+      FROM system_role_identities AS identity
+      INNER JOIN roles AS role ON role.id = identity.role_id
+      ORDER BY identity.application_id
+    `)).rows.map((row) => ({
+      applicationId: row.application_id,
+      systemKey: row.system_key,
+      roleId: row.role_id,
+      reservedCode: /^__system_bootstrap_(operations|maintenance)_[0-9a-f]{32}$/.test(row.code),
+    })), [
+      { applicationId: "maintenance", systemKey: "bootstrap_admin", roleId: result.systemRoles.maintenance.roleId, reservedCode: true },
+      { applicationId: "operations", systemKey: "bootstrap_admin", roleId: result.systemRoles.operations.roleId, reservedCode: true },
+    ]);
+    assert.deepEqual((await pool.query(`
+      SELECT application_id FROM user_role_assignments
+      WHERE user_id = 'old-admin' AND status = 'active'
+      ORDER BY application_id
+    `)).rows.map((row) => row.application_id), ["maintenance", "operations"]);
+    assert.ok((await pool.query("SELECT revoked_at FROM sessions WHERE id = 'collision-session'")).rows[0].revoked_at);
+    const audit = (await pool.query(`
+      SELECT action, after_json
+      FROM audit_logs
+      WHERE actor_user_id = 'old-admin' AND subject_id = 'old-admin'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `)).rows[0];
+    assert.equal(audit.action, "system.cli_bootstrap_legacy_adopted");
+    const auditAfter = JSON.parse(audit.after_json);
+    assert.equal(auditAfter.adopted, true);
+    assert.deepEqual(auditAfter.systemRoles, result.systemRoles);
+    await assert.rejects(pool.query(`
+      INSERT INTO roles (
+        id, application_id, code, name, kind, status, is_system, created_by_user_id
+      ) VALUES (
+        'reserved-custom-role', 'operations', '__system_bootstrap_operations_attacker',
+        'Reserved namespace attacker', 'custom', 'published', false, 'custom-assignee'
+      )
+    `), /check constraint|violates/i);
+
+    const replay = await bootstrapInternalAdmin(pool, {
+      email: "old-admin@example.test",
+      password: "another-secure-password",
+      adoptLegacyAdmin: true,
+      environment,
+    });
+    assert.deepEqual(replay, { ok: false, code: "ALREADY_BOOTSTRAPPED" });
+    assert.equal((await pool.query("SELECT count(*)::int AS count FROM system_role_identities")).rows[0].count, 2);
   });
 });
