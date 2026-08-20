@@ -37,7 +37,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { user, appId } = await requireCurrentAccessAdmin(request);
+    const { user, appId, scope } = await requireCurrentAccessAdmin(request);
+    if (scope !== "PLATFORM") throw new ResearchApiError("FORBIDDEN", "应用级角色模板变更需要平台范围授权", 403);
     const body = await readResearchJson(request);
     const applicationId = parseAccessAppId(body.applicationId);
     if (applicationId !== appId) throw new ResearchApiError("FORBIDDEN", "不能管理其他应用的角色模板", 403);

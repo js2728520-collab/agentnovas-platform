@@ -3,10 +3,11 @@ import { requireCurrentAccessAdmin, requireCurrentAccessViewer } from "@/lib/acc
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { SENSITIVE_PERMISSION_KEYS } from "@/lib/rbac";
+import { scopeCanDelegate } from "@/lib/access-center-scope";
 
 export async function GET(request: Request) {
   try {
-    const { appId } = await requireCurrentAccessViewer(request);
+    const { appId, scope } = await requireCurrentAccessViewer(request);
     const pool = await getPostgresPool();
     const result = await pool.query(`
       SELECT r.*, COALESCE(
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
       GROUP BY r.id
       ORDER BY r.code ASC
     `, [appId]);
-    return Response.json({ roles: result.rows.map((row) => ({
+    return Response.json({ roles: result.rows.filter((row) => (row.permissions as Array<{ scope: Parameters<typeof scopeCanDelegate>[1] }>).every((permission) => scopeCanDelegate(scope, permission.scope))).map((row) => ({
       id: row.id,
       applicationId: row.application_id,
       code: row.code,
@@ -39,7 +40,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { user, appId } = await requireCurrentAccessAdmin(request);
+    const { user, appId, scope } = await requireCurrentAccessAdmin(request);
+    if (scope !== "PLATFORM") throw new ResearchApiError("FORBIDDEN", "应用级角色变更需要平台范围授权", 403);
     const body = await readResearchJson(request);
     const applicationId = parseAccessAppId(body.applicationId);
     if (applicationId !== appId) throw new ResearchApiError("FORBIDDEN", "不能管理其他应用的角色", 403);

@@ -1,4 +1,5 @@
 import { requireCurrentAccessReviewer } from "@/lib/access-control";
+import { accessUserScopePredicate, scopeCanDelegate } from "@/lib/access-center-scope";
 import { parseAccessChangeRequest, type AccessChange } from "@/lib/access-change-requests";
 import { canApproveAccessChange } from "@/lib/rbac";
 import { getPostgresPool } from "@/lib/postgres";
@@ -11,7 +12,7 @@ function requestedPermissionKeys(change: AccessChange) {
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const { user, appId } = await requireCurrentAccessReviewer(request);
+    const { user, appId, scope, organizationIds } = await requireCurrentAccessReviewer(request);
     const { id } = await context.params;
     const body = await readResearchJson(request);
     const decision = String(body.decision ?? "");
@@ -37,6 +38,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         targetUserId: row.target_user_id, targetRoleId: row.target_role_id,
         before: row.before_json, after: row.after_json,
       });
+      if (change.targetUserId) {
+        const scopePredicate = accessUserScopePredicate({
+          scope,
+          actor: { id: user.id, organizationId: user.organizationId },
+          organizationIds,
+          userAlias: "target_user",
+          startIndex: 2,
+        });
+        const target = await client.query(`SELECT target_user.id FROM users AS target_user WHERE target_user.id = $1 AND (${scopePredicate.clause}) LIMIT 1`, [change.targetUserId, ...scopePredicate.values]);
+        if (!target.rows[0]) throw new ResearchApiError("FORBIDDEN", "不能审批授权范围外的用户变更", 403);
+      } else if (scope !== "PLATFORM") {
+        throw new ResearchApiError("FORBIDDEN", "应用级角色变更需要平台范围审批", 403);
+      }
       const approverAccess = await client.query<{ permission_key: string }>(`
         SELECT rp.permission_key FROM user_role_assignments ura
         JOIN roles r ON r.id = ura.role_id AND r.application_id = ura.application_id
@@ -58,14 +72,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       const requested = requestedPermissionKeys(change);
       if (change.changeType === "role_assign") {
-        const rolePermissions = await client.query<{ permission_key: string }>(`
-          SELECT rp.permission_key FROM role_permissions rp
+        const rolePermissions = await client.query<{ permission_key: string; scope: Parameters<typeof scopeCanDelegate>[1] }>(`
+          SELECT rp.permission_key, rp.scope FROM role_permissions rp
           JOIN roles r ON r.id = rp.role_id
           JOIN permission_definitions pd ON pd.key = rp.permission_key
           WHERE rp.role_id = $1 AND r.application_id = $2
             AND pd.application_id = r.application_id AND pd.status = 'active'
         `, [change.targetRoleId, change.applicationId]);
         requested.push(...rolePermissions.rows.map((permission) => permission.permission_key));
+        if (rolePermissions.rows.some((permission) => !scopeCanDelegate(scope, permission.scope))) {
+          throw new ResearchApiError("SCOPE_ESCALATION", "不能审批数据范围大于自身授权的角色", 403);
+        }
       }
       const approval = canApproveAccessChange({ requesterUserId: row.requested_by_user_id, approverUserId: user.id, approverPermissionKeys: permissionKeys, requestedPermissionKeys: requested });
       if (!approval.ok) throw new ResearchApiError("FORBIDDEN", "审批人不满足授权审批规则", 403, { code: approval.code });
@@ -132,6 +149,7 @@ async function applyApprovedChange(client: { query: (text: string, values?: unkn
           reason = EXCLUDED.reason,
           revoked_at = now()
       `, [crypto.randomUUID(), change.targetUserId, change.applicationId, change.after.assignmentId, change.targetRoleId, actorId, change.after.reason]);
+      await client.query("UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND app_audience = $2 AND revoked_at IS NULL", [change.targetUserId, change.applicationId]);
       return;
     }
     case "template_publish": {

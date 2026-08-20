@@ -1,4 +1,5 @@
 import { requireCurrentAccessAdmin, requireCurrentAccessAssignmentAdmin, requireCurrentAccessViewer } from "@/lib/access-control";
+import { accessPageCursor, accessUserScopePredicate, parseAccessPageCursor, scopeCanDelegate } from "@/lib/access-center-scope";
 import { parseAccessChangeRequest } from "@/lib/access-change-requests";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
@@ -7,7 +8,7 @@ const requestStatuses = new Set(["pending", "approved", "rejected", "cancelled"]
 
 export async function GET(request: Request) {
   try {
-    const { appId, user, access } = await requireCurrentAccessViewer(request);
+    const { appId, user, access, scope, organizationIds } = await requireCurrentAccessViewer(request);
     const canApprove = appId === "operations"
       ? Boolean(access.permissions["ops.roles.manage"] || access.permissions["ops.roles.approve_sensitive"])
       : Boolean(access.permissions["maint.roles.manage"] || access.permissions["maint.roles.approve_sensitive"]);
@@ -16,7 +17,22 @@ export async function GET(request: Request) {
     if (status && !requestStatuses.has(status)) {
       throw new ResearchApiError("VALIDATION_ERROR", "权限申请状态无效", 422, { fields: ["status"] });
     }
-    const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 50), 1), 200);
+    const requestedLimit = Number(url.searchParams.get("limit") || 50);
+    const limit = Number.isInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 50;
+    const cursor = parseAccessPageCursor(url.searchParams.get("cursor"));
+    const values: unknown[] = [appId, status];
+    const scopePredicate = accessUserScopePredicate({
+      scope,
+      actor: { id: user.id, organizationId: user.organizationId },
+      organizationIds,
+      userAlias: "target",
+      startIndex: values.length + 1,
+    });
+    values.push(...scopePredicate.values);
+    const cursorClause = cursor
+      ? `(acr.requested_at, acr.id) < ($${values.push(cursor.createdAt)}::timestamptz, $${values.push(cursor.id)})`
+      : "TRUE";
+    const limitIndex = values.push(limit + 1);
     const pool = await getPostgresPool();
     const result = await pool.query<{
       id: string; application_id: string; target_user_id: string | null; target_role_id: string | null;
@@ -39,12 +55,16 @@ export async function GET(request: Request) {
       LEFT JOIN roles AS role ON role.id = acr.target_role_id
       LEFT JOIN access_change_decisions AS acd ON acd.request_id = acr.id
       WHERE acr.application_id = $1 AND acr.status = $2
+        AND (${scope === "PLATFORM" ? "TRUE" : `(acr.target_user_id IS NOT NULL AND (${scopePredicate.clause}))`})
+        AND ${cursorClause}
       GROUP BY acr.id, target.email, role.name, requester.email
-      ORDER BY acr.requested_at DESC
-      LIMIT $3
-    `, [appId, status, limit]);
+      ORDER BY acr.requested_at DESC, acr.id DESC
+      LIMIT $${limitIndex}
+    `, values);
+    const page = result.rows.slice(0, limit);
+    const next = result.rows.length > limit ? page.at(-1) : null;
     return Response.json({
-      changeRequests: result.rows.map((row) => ({
+      changeRequests: page.map((row) => ({
         id: row.id,
         applicationId: row.application_id,
         targetUserId: row.target_user_id,
@@ -62,6 +82,7 @@ export async function GET(request: Request) {
         decisions: row.decisions,
         canReview: canApprove && row.status === "pending" && row.requested_by_user_id !== user.id,
       })),
+      nextCursor: next ? accessPageCursor({ createdAt: next.requested_at.toISOString(), id: next.id }) : null,
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return researchErrorResponse(error);
@@ -78,18 +99,37 @@ export async function POST(request: Request) {
     const authorization = change.changeType === "role_assign" || change.changeType === "role_revoke"
       ? await requireCurrentAccessAssignmentAdmin(request)
       : await requireCurrentAccessAdmin(request);
-    const { user, appId } = authorization;
+    const { user, appId, scope, organizationIds } = authorization;
     if (viewer.appId !== appId || viewer.user.id !== user.id) throw new ResearchApiError("FORBIDDEN", "授权上下文已变化", 403);
     if (change.applicationId !== appId) throw new ResearchApiError("FORBIDDEN", "不能提交其他应用的权限变更", 403);
     const pool = await getPostgresPool();
+    if (change.targetUserId) {
+      const scopePredicate = accessUserScopePredicate({
+        scope,
+        actor: { id: user.id, organizationId: user.organizationId },
+        organizationIds,
+        userAlias: "target_user",
+        startIndex: 2,
+      });
+      const target = await pool.query(`SELECT target_user.id FROM users AS target_user WHERE target_user.id = $1 AND (${scopePredicate.clause}) LIMIT 1`, [change.targetUserId, ...scopePredicate.values]);
+      if (!target.rows[0]) throw new ResearchApiError("FORBIDDEN", "不能变更授权范围外的用户", 403);
+    } else if (scope !== "PLATFORM") {
+      throw new ResearchApiError("FORBIDDEN", "应用级角色变更需要平台范围授权", 403);
+    }
     // Validate references and application ownership before creating an actionable request.
     if (change.changeType === "role_assign") {
-      const result = await pool.query(`
-        SELECT u.id AS user_id, r.id AS role_id
+      const result = await pool.query<{ user_id: string; role_id: string; scopes: Array<Parameters<typeof scopeCanDelegate>[1]> }>(`
+        SELECT u.id AS user_id, r.id AS role_id,
+               COALESCE(array_agg(rp.scope) FILTER (WHERE rp.id IS NOT NULL), ARRAY[]::text[]) AS scopes
         FROM users u CROSS JOIN roles r
+        LEFT JOIN role_permissions rp ON rp.role_id = r.id
         WHERE u.id = $1 AND r.id = $2 AND r.application_id = $3 AND r.status = 'published'
+        GROUP BY u.id, r.id
       `, [change.targetUserId, change.targetRoleId, change.applicationId]);
       if (!result.rows[0]) throw new Error("ACCESS_REFERENCE_NOT_FOUND");
+      if (result.rows[0].scopes.some((permissionScope) => !scopeCanDelegate(scope, permissionScope))) {
+        throw new ResearchApiError("SCOPE_ESCALATION", "不能申请分配数据范围大于自身授权的角色", 403);
+      }
     } else if (change.changeType === "role_update") {
       const result = await pool.query("SELECT id FROM roles WHERE id = $1 AND application_id = $2 AND is_system = false", [change.targetRoleId, change.applicationId]);
       if (!result.rows[0]) throw new Error("ACCESS_REFERENCE_NOT_FOUND");

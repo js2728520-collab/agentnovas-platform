@@ -5,7 +5,8 @@ import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const { appId } = await requireCurrentAccessAdmin(request);
+    const { appId, scope } = await requireCurrentAccessAdmin(request);
+    if (scope !== "PLATFORM") throw new ResearchApiError("FORBIDDEN", "应用级角色变更需要平台范围授权", 403);
     const { id } = await context.params;
     const body = await readResearchJson(request);
     const name = limitedText(body.name, "name", 120);

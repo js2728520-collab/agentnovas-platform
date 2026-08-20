@@ -4,7 +4,8 @@ import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const { user, appId } = await requireCurrentAccessAdmin(request);
+    const { user, appId, scope } = await requireCurrentAccessAdmin(request);
+    if (scope !== "PLATFORM") throw new ResearchApiError("FORBIDDEN", "应用级角色发布需要平台范围授权", 403);
     const { id } = await context.params;
     const body = await readResearchJson(request);
     const reason = String(body.reason ?? "").trim().slice(0, 500);
