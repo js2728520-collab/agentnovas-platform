@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { marketWatchlist } from "@/db/schema";
-import { marketInstruments, type MarketCategory } from "@/app/api/market/instruments/route";
+import { marketInstruments, type MarketCategory } from "@/lib/market-instruments";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
 
