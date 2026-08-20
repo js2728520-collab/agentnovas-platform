@@ -23,6 +23,16 @@ export class PlatformDemoIntentIdempotencyConflictError extends Error {
   }
 }
 
+class PlatformDemoReconciliationError extends Error {
+  readonly countsTowardQuarantine: boolean;
+
+  constructor(message: string, countsTowardQuarantine = false) {
+    super(message);
+    this.name = "PlatformDemoReconciliationError";
+    this.countsTowardQuarantine = countsTowardQuarantine;
+  }
+}
+
 function validateIntent(input: {
   provider: PlatformDemoProvider;
   strategyCode: StrategyCode;
@@ -338,6 +348,26 @@ export async function renewPlatformDemoLease(database: Queryable, input: {
   return { leaseExpiresAt: expiresAt };
 }
 
+async function rememberPlatformDemoProviderOrder(database: Queryable, input: {
+  intentId: string;
+  workerId: string;
+  fencingToken: number;
+  providerOrderId: string;
+  observedAt: Date;
+}) {
+  if (!input.providerOrderId.trim()) throw new PlatformDemoReconciliationError("Demo provider order id 为空", true);
+  const result = await database.query(`
+    UPDATE platform_demo_order_intents
+    SET provider_order_id = COALESCE(provider_order_id, $4), updated_at = $5
+    WHERE id = $1 AND lease_owner = $2 AND fencing_token = $3 AND status = 'running'
+      AND (provider_order_id IS NULL OR provider_order_id = $4)
+    RETURNING provider_order_id
+  `, [input.intentId, input.workerId, input.fencingToken, input.providerOrderId, input.observedAt]);
+  if (result.rows[0]?.provider_order_id !== input.providerOrderId) {
+    throw new PlatformDemoReconciliationError("Demo provider order id 与已记录订单冲突", true);
+  }
+}
+
 async function completePlatformDemoIntent(database: Pool, input: {
   intentId: string;
   workerId: string;
@@ -436,7 +466,7 @@ async function failPlatformDemoIntent(database: Queryable, input: {
   intentId: string;
   workerId: string;
   fencingToken: number;
-  status: "unknown" | "retry_wait" | "failed" | "quarantined";
+  status: "unknown" | "retry_wait" | "reconcile_wait" | "failed" | "quarantined";
   code: string;
   message: string;
   retryAt: Date;
@@ -448,6 +478,7 @@ async function failPlatformDemoIntent(database: Queryable, input: {
     SET status = $4, last_error_code = $5, last_error_message = $6,
         next_attempt_at = $7, lease_owner = NULL, lease_expires_at = NULL,
         consecutive_error_count = $8, unknown_count = $9,
+        reconciliation_count = reconciliation_count + CASE WHEN $4 = 'reconcile_wait' THEN 1 ELSE 0 END,
         updated_at = now()
     WHERE id = $1 AND lease_owner = $2 AND fencing_token = $3 AND status = 'running'
   `, [input.intentId, input.workerId, input.fencingToken, input.status,
@@ -493,6 +524,9 @@ export async function processNextPlatformDemoExecution(
       leaseSeconds,
     }),
   });
+  let executionMayExist = Boolean(lease.providerOrderId)
+    || lease.leasedFromStatus === "unknown"
+    || lease.leasedFromStatus === "reconcile_wait";
   try {
     const decrypt = dependencies.decryptSecret ?? decryptIntegrationSecret;
     const [apiKey, secret, passphrase] = await Promise.all([
@@ -520,7 +554,7 @@ export async function processNextPlatformDemoExecution(
       }
     };
     let order;
-    if (lease.leasedFromStatus === "unknown" || lease.leasedFromStatus === "reconcile_wait") {
+    if (executionMayExist) {
       order = await recoverUnknownOrder();
     } else {
       try {
@@ -531,12 +565,29 @@ export async function processNextPlatformDemoExecution(
           baseQuantity: lease.side === "sell" ? lease.quoteAmountUsdt / lease.referencePrice : undefined,
           clientOrderId: lease.clientOrderId,
         });
+        executionMayExist = true;
       } catch (error) {
         if (!(error instanceof PlatformDemoResponseError) || !error.unknownExecutionState) throw error;
         order = await recoverUnknownOrder();
+        executionMayExist = true;
       }
     }
-    const fills = await adapter.listFills({ symbol: lease.symbol, providerOrderId: order.providerOrderId });
+    await rememberPlatformDemoProviderOrder(database, {
+      intentId: lease.id,
+      workerId: input.workerId,
+      fencingToken: lease.fencingToken,
+      providerOrderId: order.providerOrderId,
+      observedAt: now,
+    });
+    let fills: Awaited<ReturnType<WorkerAdapter["listFills"]>>;
+    try {
+      fills = await adapter.listFills({ symbol: lease.symbol, providerOrderId: order.providerOrderId });
+    } catch {
+      throw new PlatformDemoReconciliationError("Demo 成交明细暂不可用，保留查单状态且禁止重复下单");
+    }
+    if (order.status === "filled" && fills.length === 0) {
+      throw new PlatformDemoReconciliationError("Demo provider 报告已成交但未返回成交明细，等待人工核账", true);
+    }
     const filledBaseQuantity = fills.reduce((sum, fill) => sum + fill.baseQuantity, 0);
     const filledQuoteUsdt = fills.reduce((sum, fill) => sum + fill.baseQuantity * fill.price, 0);
     const feeUsdt = fills.every((fill) => fill.feeUsdt !== null)
@@ -572,13 +623,18 @@ export async function processNextPlatformDemoExecution(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Demo execution failed";
     const unknown = error instanceof PlatformDemoResponseError && error.unknownExecutionState;
-    const nextUnknownCount = unknown ? lease.unknownCount + 1 : 0;
+    const reconciliation = executionMayExist || error instanceof PlatformDemoReconciliationError;
+    const countsTowardQuarantine = unknown
+      || (error instanceof PlatformDemoReconciliationError && error.countsTowardQuarantine);
+    const nextUnknownCount = countsTowardQuarantine ? lease.unknownCount + 1 : lease.unknownCount;
     const nextErrorCount = lease.consecutiveErrorCount + 1;
-    const quarantined = unknown && nextUnknownCount >= 5;
-    const terminal = error instanceof PlatformDemoSellSafetyError || (!unknown && nextErrorCount >= 5);
+    const quarantined = countsTowardQuarantine && nextUnknownCount >= 5;
+    const terminal = error instanceof PlatformDemoSellSafetyError || (!reconciliation && !unknown && nextErrorCount >= 5);
     const failureStatus = quarantined ? "quarantined" as const
       : terminal ? "failed" as const
-        : unknown ? "unknown" as const : "retry_wait" as const;
+        : error instanceof PlatformDemoReconciliationError ? "reconcile_wait" as const
+          : unknown ? "unknown" as const
+            : reconciliation ? "reconcile_wait" as const : "retry_wait" as const;
     await failPlatformDemoIntent(database, {
       intentId: lease.id,
       workerId: input.workerId,
@@ -586,7 +642,8 @@ export async function processNextPlatformDemoExecution(
       status: failureStatus,
       code: quarantined ? "DEMO_EXECUTION_QUARANTINED"
         : error instanceof PlatformDemoSellSafetyError ? "DEMO_SELL_FAIL_CLOSED"
-          : unknown ? "DEMO_EXECUTION_STATE_UNKNOWN" : "DEMO_EXECUTION_FAILED",
+          : unknown ? "DEMO_EXECUTION_STATE_UNKNOWN"
+            : reconciliation ? "DEMO_RECONCILIATION_PENDING" : "DEMO_EXECUTION_FAILED",
       message,
       retryAt: new Date(now.getTime() + Math.min(5 * 60_000, 15_000 * 2 ** Math.max(lease.attemptCount - 1, 0))),
       consecutiveErrorCount: nextErrorCount,
@@ -598,7 +655,8 @@ export async function processNextPlatformDemoExecution(
       provider: lease.provider,
       errorCode: quarantined ? "DEMO_EXECUTION_QUARANTINED"
         : error instanceof PlatformDemoSellSafetyError ? "DEMO_SELL_FAIL_CLOSED"
-          : unknown ? "DEMO_EXECUTION_STATE_UNKNOWN" : "DEMO_EXECUTION_FAILED",
+          : unknown ? "DEMO_EXECUTION_STATE_UNKNOWN"
+            : reconciliation ? "DEMO_RECONCILIATION_PENDING" : "DEMO_EXECUTION_FAILED",
     };
   } finally {
     await stopHeartbeat();

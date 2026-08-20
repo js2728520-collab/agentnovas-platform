@@ -314,6 +314,75 @@ test("an unresolved unknown order is quarantined for manual reconciliation witho
   }), null);
 });
 
+test("a known provider order and transient fill lookup are reconciled without another placement", async () => {
+  await createPlatformDemoIntent(pool, intentInput());
+  let placeCalls = 0;
+  let lookupCalls = 0;
+  let fillCalls = 0;
+  const adapter = {
+    async placeOrder(input) {
+      placeCalls += 1;
+      return { provider: "binance", providerOrderId: "provider-known", clientOrderId: input.clientOrderId, status: "open", filledBaseQuantity: 0 };
+    },
+    async getOrder(input) {
+      lookupCalls += 1;
+      return { provider: "binance", providerOrderId: "provider-known", clientOrderId: input.clientOrderId, status: "open", filledBaseQuantity: 0 };
+    },
+    async listFills() {
+      fillCalls += 1;
+      if (fillCalls === 1) throw new Error("fixture transient fill lookup");
+      return [];
+    },
+  };
+  const first = await processNextPlatformDemoExecution(pool, { workerId: "demo-known" }, {
+    externalWritesEnabled: true, createAdapter: () => adapter, decryptSecret: async (value) => value,
+    now: () => new Date(Date.now() + 1_000),
+  });
+  assert.equal(first.status, "reconcile_wait");
+  assert.equal((await pool.query("SELECT reconciliation_count FROM platform_demo_order_intents")).rows[0].reconciliation_count, 1);
+  const second = await processNextPlatformDemoExecution(pool, { workerId: "demo-known" }, {
+    externalWritesEnabled: true, createAdapter: () => adapter, decryptSecret: async (value) => value,
+    now: () => new Date(Date.now() + 30_000),
+  });
+  assert.equal(second.status, "recorded");
+  assert.equal(second.executionStatus, "accepted");
+  assert.equal(placeCalls, 1);
+  assert.equal(lookupCalls, 1);
+});
+
+test("provider filled with no fills stays in reconciliation instead of recording zero execution", async () => {
+  await createPlatformDemoIntent(pool, intentInput());
+  let placeCalls = 0;
+  const adapter = {
+    async placeOrder(input) {
+      placeCalls += 1;
+      return { provider: "binance", providerOrderId: "provider-filled-empty", clientOrderId: input.clientOrderId, status: "filled", filledBaseQuantity: 0.001 };
+    },
+    async getOrder(input) {
+      return { provider: "binance", providerOrderId: "provider-filled-empty", clientOrderId: input.clientOrderId, status: "filled", filledBaseQuantity: 0.001 };
+    },
+    async listFills() { return []; },
+  };
+  const result = await processNextPlatformDemoExecution(pool, { workerId: "demo-filled-empty" }, {
+    externalWritesEnabled: true, createAdapter: () => adapter, decryptSecret: async (value) => value,
+    now: () => new Date(Date.now() + 1_000),
+  });
+  assert.equal(result.status, "reconcile_wait");
+  assert.equal(placeCalls, 1);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM platform_demo_execution_receipts")).rows[0].count, 0);
+  assert.equal((await pool.query("SELECT provider_order_id FROM platform_demo_order_intents")).rows[0].provider_order_id, "provider-filled-empty");
+  const statuses = [result.status];
+  for (let attempt = 1; attempt < 5; attempt += 1) {
+    const repeated = await processNextPlatformDemoExecution(pool, { workerId: "demo-filled-empty" }, {
+      externalWritesEnabled: true, createAdapter: () => adapter, decryptSecret: async (value) => value,
+      now: () => new Date(Date.now() + 1_000 + attempt * 3 * 60_000),
+    });
+    statuses.push(repeated.status);
+  }
+  assert.deepEqual(statuses, ["reconcile_wait", "reconcile_wait", "reconcile_wait", "reconcile_wait", "quarantined"]);
+  assert.equal(placeCalls, 1);
+});
+
 test("external write feature flag defaults false without leasing the queue", async () => {
   await createPlatformDemoIntent(pool, intentInput());
   const result = await processNextPlatformDemoExecution(pool, { workerId: "demo-worker" }, {
