@@ -1,12 +1,13 @@
-import { eq, or } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { auditLogs, sessions, users } from "@/db/schema";
 import { effectiveAccessForUser } from "@/lib/access-control";
-import { normalizeEmail, randomToken, sha256, verifyPassword } from "@/lib/auth";
+import { dummyVerifyPassword, hashPassword, normalizeEmail, randomToken, sha256, verifyPasswordState } from "@/lib/auth";
+import { clearAuthRateLimit, consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
 import { getPostgresPool } from "@/lib/postgres";
-import { clientIpFromRequest, sessionCookieHeaders } from "@/lib/riverton-apps";
+import { clientIpFromRequest, sessionCookieHeaders, sessionDeadlinesForAudience } from "@/lib/riverton-apps";
 import { responseError } from "@/lib/session";
 
 async function userCanAccessApp(user: typeof users.$inferSelect, appAudience: "client" | "operations" | "maintenance") {
@@ -22,22 +23,57 @@ export async function POST(request: Request) {
     const rawIdentifier = String(body.identifier ?? body.email ?? "").trim();
     const email = normalizeEmail(rawIdentifier);
     const phone = normalizePhone(rawIdentifier)?.value ?? "__not_a_phone__";
+    const pool = await getPostgresPool();
+    const ipAddress = clientIpFromRequest(request);
+    const provisionalCookie = sessionCookieHeaders({ request, token: "pending", maxAgeSeconds: 1 });
+    const identifierBucket = `identifier:${rawIdentifier.toLowerCase()}`;
+    const rateLimit = await consumeAuthRateLimit(pool, {
+      action: "login",
+      audience: provisionalCookie.audience,
+      bucketKeys: [identifierBucket, ...(ipAddress ? [`ip:${ipAddress}`] : [])],
+      maxAttempts: 5,
+      windowSeconds: 15 * 60,
+      blockSeconds: 15 * 60,
+    });
+    if (!rateLimit.allowed) {
+      return Response.json({ error: "登录尝试过于频繁，请稍后重试" }, {
+        status: 429,
+        headers: { "retry-after": String(rateLimit.retryAfterSeconds) },
+      });
+    }
     const user = (await db.select().from(users).where(or(eq(users.phone, phone), eq(users.email, email), eq(users.username, rawIdentifier))).limit(1))[0];
 
-    if (!user || !(await verifyPassword(body.password ?? "", user.passwordHash))) {
+    if (!user) {
+      await dummyVerifyPassword(body.password ?? "");
       return Response.json({ error: "账号或密码错误" }, { status: 401 });
     }
+    const passwordState = await verifyPasswordState(body.password ?? "", user.passwordHash);
+    if (!passwordState.valid) return Response.json({ error: "账号或密码错误" }, { status: 401 });
     if (user.status !== "active") return Response.json({ error: "账户当前不可登录" }, { status: 403 });
 
     const token = randomToken();
-    const expiresAt = new Date(Date.now() + 7 * 86400_000).toISOString();
-    const sessionCookie = sessionCookieHeaders({ request, token, maxAgeSeconds: 604800 });
+    const now = new Date();
+    const deadlines = sessionDeadlinesForAudience(provisionalCookie.audience, now);
+    const sessionCookie = sessionCookieHeaders({
+      request,
+      token,
+      maxAgeSeconds: Math.floor((new Date(deadlines.absoluteExpiresAt).getTime() - now.getTime()) / 1000),
+    });
     if (!await userCanAccessApp(user, sessionCookie.audience)) {
       return Response.json({ error: "无权登录当前应用" }, { status: 403 });
     }
+    if (passwordState.needsRehash) {
+      await db.update(users).set({ passwordHash: await hashPassword(body.password ?? ""), updatedAt: now.toISOString() })
+        .where(and(eq(users.id, user.id), eq(users.passwordHash, user.passwordHash)));
+    }
+    await clearAuthRateLimit(pool, { action: "login", audience: sessionCookie.audience, bucketKeys: [identifierBucket] });
     await db.batch([
-      db.insert(sessions).values({ id: crypto.randomUUID(), userId: user.id, tokenHash: await sha256(token), appAudience: sessionCookie.audience, expiresAt, ipAddress: clientIpFromRequest(request), userAgent: request.headers.get("user-agent") }),
-      db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: "auth.login", subjectType: "user", subjectId: user.id, afterJson: JSON.stringify({ appAudience: sessionCookie.audience }), ipAddress: clientIpFromRequest(request), userAgent: request.headers.get("user-agent") }),
+      db.insert(sessions).values({
+        id: crypto.randomUUID(), userId: user.id, tokenHash: await sha256(token), appAudience: sessionCookie.audience,
+        expiresAt: deadlines.absoluteExpiresAt, mfaLevel: "primary", ...deadlines,
+        ipAddress, userAgent: request.headers.get("user-agent"),
+      }),
+      db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: "auth.login", subjectType: "user", subjectId: user.id, afterJson: JSON.stringify({ appAudience: sessionCookie.audience }), ipAddress, userAgent: request.headers.get("user-agent") }),
     ]);
     const headers = new Headers({ "content-type": "application/json" });
     for (const cookie of sessionCookie.headers) headers.append("set-cookie", cookie);
