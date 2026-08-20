@@ -38,7 +38,7 @@ test.before(async () => {
   await pool.query(`
     CREATE TABLE strategy_versions (id text PRIMARY KEY, specification_json text NOT NULL);
     CREATE TABLE exchange_accounts (id text PRIMARY KEY, exchange text NOT NULL);
-    CREATE TABLE memberships (id text PRIMARY KEY, status text NOT NULL, expires_at text, grace_ends_at text);
+    CREATE TABLE memberships (id text PRIMARY KEY, customer_id text NOT NULL, status text NOT NULL, expires_at text, grace_ends_at text);
     CREATE TABLE strategy_subscriptions (id text PRIMARY KEY);
     CREATE TABLE platform_decisions (id text PRIMARY KEY);
     CREATE TABLE trades (id text PRIMARY KEY);
@@ -46,6 +46,10 @@ test.before(async () => {
   for (const filename of ["0004_market_data_snapshots.sql", "0007_strategy_runtime.sql", "0024_platform_demo_execution.sql"]) {
     await pool.query(await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8"));
   }
+  await pool.query(`
+    INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at)
+    VALUES ('membership-a', 'customer-a', 'active', NULL, NULL)
+  `);
 });
 
 test.beforeEach(async () => {

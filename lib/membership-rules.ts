@@ -1,1 +1,15 @@
-export function membershipAccess(now:string,input:{status:string;expiresAt:string|null;graceEndsAt:string|null}){if(!input.expiresAt)return{status:input.status,newEntriesAllowed:false,closeOnly:true};if(now<input.expiresAt)return{status:"active"as const,newEntriesAllowed:true,closeOnly:false};if(input.graceEndsAt&&now<input.graceEndsAt)return{status:"grace"as const,newEntriesAllowed:true,closeOnly:false};return{status:"read_only"as const,newEntriesAllowed:false,closeOnly:true}}
+export function membershipAccess(
+  now: string,
+  input: { status: string; expiresAt: string | null; graceEndsAt: string | null },
+) {
+  if (input.status === "active" && !input.expiresAt) {
+    return { status: "active" as const, newEntriesAllowed: true, closeOnly: false };
+  }
+  if (input.expiresAt && now < input.expiresAt) {
+    return { status: "active" as const, newEntriesAllowed: true, closeOnly: false };
+  }
+  if (input.graceEndsAt && now < input.graceEndsAt) {
+    return { status: "grace" as const, newEntriesAllowed: true, closeOnly: false };
+  }
+  return { status: "read_only" as const, newEntriesAllowed: false, closeOnly: true };
+}

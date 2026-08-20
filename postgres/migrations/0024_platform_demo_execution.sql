@@ -25,8 +25,15 @@ BEGIN
   END IF;
 END $$;
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_strategy_deployments_one_active_official_card
+  ON strategy_deployments (owner_user_id, platform_strategy_code)
+  WHERE execution_product = 'spot_usdt' AND status = 'active';
+
 ALTER TABLE market_data_snapshots
   ALTER COLUMN exchange_account_id DROP NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_memberships_id_customer_unique
+  ON memberships (id, customer_id);
 
 CREATE TABLE IF NOT EXISTS official_paper_portfolios (
   id text PRIMARY KEY,
@@ -43,7 +50,8 @@ CREATE TABLE IF NOT EXISTS official_paper_portfolios (
   risk_json jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (membership_id, strategy_code)
+  UNIQUE (membership_id, strategy_code),
+  FOREIGN KEY (membership_id, customer_id) REFERENCES memberships(id, customer_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_official_paper_portfolios_customer

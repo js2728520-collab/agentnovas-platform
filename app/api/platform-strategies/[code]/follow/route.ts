@@ -6,6 +6,8 @@ import { PLATFORM_AI_STRATEGIES, isPlatformStrategyCode } from "@/lib/platform-a
 import { getPostgresPool } from "@/lib/postgres";
 import {
   createStrategyDeployment,
+  endConflictingOfficialStrategyDeployments,
+  OfficialStrategyModeSwitchOpenPositionError,
   StrategyDeploymentIdempotencyConflictError,
 } from "@/lib/strategy-runtime-repository";
 import { membershipAccess } from "@/lib/membership-rules";
@@ -71,6 +73,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
       });
       const portfolio = portfolios.find(item => item.strategyCode === code);
       if (!portfolio) throw new Error("官方策略卡模拟组合初始化失败");
+      const switched = await endConflictingOfficialStrategyDeployments(client, {
+        ownerUserId: user.id,
+        strategyCode: code,
+        strategyId: mapped.strategy_id,
+        strategyVersionId: mapped.strategy_version_id,
+        mode,
+        paperPortfolioId: portfolio.id,
+      });
+      if (switched.endedSubscriptionIds.length) {
+        await client.query(`
+          UPDATE strategy_subscriptions
+          SET status = 'ended', runtime_status = 'ended', ended_at = now(), updated_at = now()
+          WHERE id = ANY($1::text[]) AND customer_id = $2
+        `, [switched.endedSubscriptionIds, user.id]);
+      }
       const activeCount = Number((await client.query<{ count: string }>(`
         SELECT count(*)::text AS count FROM strategy_subscriptions
         WHERE customer_id = $1 AND status = 'active'
@@ -155,6 +172,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
       message: mode === "shadow" ? "平台策略影子运行已启动" : "平台策略模拟盘已启动",
     }, { status: 202 });
   } catch (error) {
+    if (error instanceof OfficialStrategyModeSwitchOpenPositionError) {
+      return researchErrorResponse(new ResearchApiError(
+        "OPEN_POSITION_EXISTS",
+        error.message,
+        409,
+      ));
+    }
     if (error instanceof StrategyDeploymentIdempotencyConflictError) {
       return researchErrorResponse(new ResearchApiError(
         "IDEMPOTENCY_CONFLICT",

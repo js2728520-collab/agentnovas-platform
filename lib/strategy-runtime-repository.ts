@@ -59,6 +59,67 @@ export class StrategyDeploymentIdempotencyConflictError extends Error {
   }
 }
 
+export class OfficialStrategyModeSwitchOpenPositionError extends Error {
+  constructor() {
+    super("官方策略仍有现货模拟持仓，不能切换运行模式或交易对");
+    this.name = "OfficialStrategyModeSwitchOpenPositionError";
+  }
+}
+
+export async function endConflictingOfficialStrategyDeployments(database: Queryable, input: {
+  ownerUserId: string;
+  strategyCode: "ai_conservative" | "ai_balanced" | "ai_aggressive";
+  strategyId: string;
+  strategyVersionId: string;
+  mode: "shadow" | "paper";
+  paperPortfolioId: string;
+}) {
+  const active = await database.query<{
+    id: string; strategy_id: string; strategy_version_id: string; mode: "shadow" | "paper";
+    paper_portfolio_id: string | null; strategy_subscription_id: string | null;
+  }>(`
+    SELECT id, strategy_id, strategy_version_id, mode,
+           paper_portfolio_id, strategy_subscription_id
+    FROM strategy_deployments
+    WHERE owner_user_id = $1 AND platform_strategy_code = $2
+      AND execution_product = 'spot_usdt' AND status = 'active'
+    ORDER BY created_at, id
+    FOR UPDATE
+  `, [input.ownerUserId, input.strategyCode]);
+  const conflicts = active.rows.filter((row) => !(
+    row.strategy_id === input.strategyId
+    && row.strategy_version_id === input.strategyVersionId
+    && row.mode === input.mode
+    && row.paper_portfolio_id === input.paperPortfolioId
+  ));
+  if (!conflicts.length) return { endedDeploymentIds: [], endedSubscriptionIds: [] };
+
+  const portfolioIds = [...new Set([
+    input.paperPortfolioId,
+    ...conflicts.flatMap((row) => row.paper_portfolio_id ? [row.paper_portfolio_id] : []),
+  ])];
+  const position = await database.query<{ present: boolean }>(`
+    SELECT EXISTS (
+      SELECT 1 FROM official_paper_positions
+      WHERE portfolio_id = ANY($1::text[]) AND status = 'open'
+    ) AS present
+  `, [portfolioIds]);
+  if (position.rows[0]?.present === true) throw new OfficialStrategyModeSwitchOpenPositionError();
+
+  const deploymentIds = conflicts.map((row) => row.id);
+  await database.query(`
+    UPDATE strategy_deployments
+    SET status = 'ended', lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
+    WHERE id = ANY($1::text[]) AND owner_user_id = $2 AND status = 'active'
+  `, [deploymentIds, input.ownerUserId]);
+  return {
+    endedDeploymentIds: deploymentIds,
+    endedSubscriptionIds: [...new Set(conflicts.flatMap((row) => (
+      row.strategy_subscription_id ? [row.strategy_subscription_id] : []
+    )))],
+  };
+}
+
 export async function createStrategyDeployment(database: Queryable, input: {
   ownerUserId: string;
   strategyId: string;

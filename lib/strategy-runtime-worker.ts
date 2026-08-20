@@ -183,7 +183,7 @@ async function processOfficialSpotRuntimeDeployment(
     });
   }
   const hasAnyOpenPosition = await officialPaperHasOpenPositions(database, lease.paperPortfolioId);
-  const access = lease.membershipStatus && lease.membershipExpiresAt
+  const access = lease.membershipStatus
     ? membershipAccess(now.toISOString(), {
       status: lease.membershipStatus,
       expiresAt: lease.membershipExpiresAt,

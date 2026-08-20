@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 
+import { membershipAccess } from "./membership-rules.ts";
 import {
   applyOfficialPaperFill,
   officialPaperPortfolioSeeds,
@@ -17,6 +18,13 @@ export async function ensureOfficialPaperPortfolios(database: Queryable, input: 
   membershipId: string;
   customerId: string;
 }) {
+  const membership = await database.query<{ present: boolean }>(`
+    SELECT true AS present
+    FROM memberships
+    WHERE id = $1 AND customer_id = $2
+    FOR KEY SHARE
+  `, [input.membershipId, input.customerId]);
+  if (membership.rows[0]?.present !== true) throw new Error("会员与客户归属不匹配");
   const portfolios = [];
   for (const seed of officialPaperPortfolioSeeds(input)) {
     const result = await database.query<{
@@ -45,14 +53,16 @@ export async function ensureOfficialPaperPortfolios(database: Queryable, input: 
       SELECT id, membership_id, customer_id, strategy_code,
              principal_usdt, cash_usdt, access_status, risk_json
       FROM official_paper_portfolios
-      WHERE membership_id = $2 AND strategy_code = $4
+      WHERE membership_id = $2 AND customer_id = $3 AND strategy_code = $4
       LIMIT 1
     `, [
       seed.id, seed.membershipId, seed.customerId, seed.strategyCode,
       JSON.stringify(seed.risk), crypto.randomUUID(), `paper-provision:${seed.membershipId}:${seed.strategyCode}`,
     ]);
     const row = result.rows[0];
-    if (!row) throw new Error("官方模拟盘组合初始化失败");
+    if (!row || row.customer_id !== input.customerId || row.id !== seed.id) {
+      throw new Error("官方模拟盘组合初始化冲突");
+    }
     portfolios.push({
       id: row.id,
       membershipId: row.membership_id,
@@ -196,10 +206,20 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
     const portfolio = (await client.query<{
       id: string; strategy_code: StrategyCode; access_status: OfficialPaperPortfolioState["access"];
       principal_usdt: string; cash_usdt: string; realized_pnl_usdt: string; fees_usdt: string;
+      membership_status: string; membership_expires_at: string | null; membership_grace_ends_at: string | null;
     }>(`
-      SELECT id, strategy_code, access_status, principal_usdt, cash_usdt,
-             realized_pnl_usdt, fees_usdt
-      FROM official_paper_portfolios WHERE id = $1 FOR UPDATE
+      SELECT portfolio.id, portfolio.strategy_code, portfolio.access_status,
+             portfolio.principal_usdt, portfolio.cash_usdt,
+             portfolio.realized_pnl_usdt, portfolio.fees_usdt,
+             membership.status AS membership_status,
+             membership.expires_at AS membership_expires_at,
+             membership.grace_ends_at AS membership_grace_ends_at
+      FROM official_paper_portfolios AS portfolio
+      JOIN memberships AS membership
+        ON membership.id = portfolio.membership_id
+       AND membership.customer_id = portfolio.customer_id
+      WHERE portfolio.id = $1
+      FOR UPDATE OF portfolio, membership
     `, [intent.portfolio_id])).rows[0];
     if (!portfolio) throw new Error("官方模拟盘组合不存在");
     const positions = await client.query<{
@@ -211,6 +231,21 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
       WHERE portfolio_id = $1 AND status = 'open'
       ORDER BY opened_at, id FOR UPDATE
     `, [portfolio.id]);
+    const currentMembershipAccess = membershipAccess(input.fillTime.toISOString(), {
+      status: portfolio.membership_status,
+      expiresAt: portfolio.membership_expires_at,
+      graceEndsAt: portfolio.membership_grace_ends_at,
+    });
+    const settlementAccess = currentMembershipAccess.newEntriesAllowed
+      ? "active" as const
+      : positions.rows.length > 0 ? "close_only" as const : "read_only" as const;
+    if (settlementAccess !== portfolio.access_status) {
+      await client.query(`
+        UPDATE official_paper_portfolios
+        SET access_status = $2, updated_at = $3
+        WHERE id = $1
+      `, [portfolio.id, settlementAccess, input.fillTime]);
+    }
     const fills = await client.query<{
       action: "buy" | "sell"; symbol: "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
       quantity: string; fill_price: string; notional_usdt: string; fee_usdt: string; filled_at: Date;
@@ -221,7 +256,7 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
     `, [portfolio.id]);
     const state: OfficialPaperPortfolioState = {
       strategyCode: portfolio.strategy_code,
-      access: portfolio.access_status,
+      access: settlementAccess,
       principalUsdt: 10_000,
       cashUsdt: Number(portfolio.cash_usdt),
       equityUsdt: Number(portfolio.cash_usdt) + positions.rows.reduce((sum, row) => sum + Number(row.cost_basis_usdt), 0),
@@ -301,11 +336,15 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
       `, [priorPosition.id, next.realizedPnlUsdt - state.realizedPnlUsdt, input.fillTime]);
     }
 
+    const finalAccess = currentMembershipAccess.newEntriesAllowed
+      ? "active"
+      : next.positions.length > 0 ? "close_only" : "read_only";
     await client.query(`
       UPDATE official_paper_portfolios
-      SET cash_usdt = $2, realized_pnl_usdt = $3, fees_usdt = $4, updated_at = $5
+      SET cash_usdt = $2, realized_pnl_usdt = $3, fees_usdt = $4,
+          access_status = $5, updated_at = $6
       WHERE id = $1
-    `, [portfolio.id, next.cashUsdt, next.realizedPnlUsdt, next.feesUsdt, input.fillTime]);
+    `, [portfolio.id, next.cashUsdt, next.realizedPnlUsdt, next.feesUsdt, finalAccess, input.fillTime]);
     const latestFill = next.fills.at(-1)!;
     const receiptId = crypto.randomUUID();
     await client.query(`
