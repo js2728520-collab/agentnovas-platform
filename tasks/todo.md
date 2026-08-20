@@ -17,7 +17,7 @@
 - [x] Proxy API Policy、requestId、统一错误和 route inventory。
 - [x] 未知 Host 404、Origin/CSRF、body limit、幂等与限流。
 - [x] Argon2id 新 hash、PBKDF2 lazy rehash、dummy verify。
-- [x] TOTP/recovery/recent MFA 与内部 session TTL。
+- [x] TOTP/recovery/recent MFA 与内部 session TTL；首次绑定、8 枚恢复码和登录跳转已进入真实浏览器 Gate。
 - [x] CLI-only bootstrap、一次性 set-password；后端不再返回或保存明文临时密码。
 - [x] 显式 assignment、revoke tombstone、organization-set/team/direct-report scope。
 - [x] 203 个 route method inventory 零遗漏；核心 audience/scope PostgreSQL 反证通过。
@@ -60,9 +60,9 @@
 
 ## G. 质量、部署与 Gate
 
-- [x] Wave 1/2 独立反证审查通过；当前集成树 516/516 测试、203 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
+- [x] Wave 1/2 独立反证审查通过；当前集成树 517/517 测试、203 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
 - [x] Playwright 四身份 + 一次性 PG schema + axe + 320/768/1024/1440 + console/network zero；8/8 场景通过且临时 schema/凭证已清理。
-- [x] Client/Ops/Maint bundle 隔离；当前重建证据为 Client 184,439/7,909 bytes、Operations 201,232/7,909 bytes、Maintenance 195,129/7,909 bytes（JS/CSS gzip），首屏图不超过 200KB。
+- [x] Client/Ops/Maint bundle 隔离；MFA 收口后的重建证据为 Client 185,316/8,012 bytes、Operations 202,095/8,012 bytes、Maintenance 196,000/8,012 bytes，三端均低于 200/50KB JS/CSS gzip 预算，首屏图不超过 200KB。
 - [-] CSP nonce、security headers和生产依赖 high/critical=0 已验证；最终 secret scan 与开发工具链例外退出仍待交付前复核。
 - [-] 三端 production build、Host/audience smoke、migration fresh/N-1/rerun 已通过；并发部署与备份恢复演练仍待 staging。
 - [-] 已完成独立最小 env 示例、Demo Worker unit、旧 Web/Payment unit 与重复 Nginx 配置清理；DB roles 与回滚演练待 staging。
@@ -71,7 +71,7 @@
 
 ## H. 最终提交与推送
 
-- [ ] 所有 Wave 经独立质量/反证审查并 `merge --no-ff`。
+- [x] 所有 Wave 经独立质量/反证审查并 `merge --no-ff`；最终 MFA/本地验收增量正在做末轮复核。
 - [ ] 全量自动 Gate 与真实浏览器验收通过，三端本地启动。
 - [ ] 生成四类一次性验收账号；密码不进入 Git、文档或长期聊天。
 - [ ] 核对 status/branch/remotes/SSH/secret/backup/log/fixture。

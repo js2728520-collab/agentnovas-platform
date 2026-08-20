@@ -26,6 +26,16 @@ npm run dev:maintenance
 
 端口被占用时应先确认占用进程归属；测试服务使用其他明确端口，不能终止未知或用户已有进程。
 
+需要并行保留已有服务时，可在**显式 audience** 下覆盖本机端口；端口必须是 `1–65535` 的十进制整数，Host 与端口任一不匹配都会失败关闭。例如：
+
+```bash
+RIVERTON_APP_AUDIENCE=client RIVERTON_APP_LOCAL_PORT=3010 npm exec -- next start -p 3010
+RIVERTON_APP_AUDIENCE=operations RIVERTON_APP_LOCAL_PORT=3011 npm exec -- next start -p 3011
+RIVERTON_APP_AUDIENCE=maintenance RIVERTON_APP_LOCAL_PORT=3012 npm exec -- next start -p 3012
+```
+
+Operations/Maintenance 首次密码登录会进入 TOTP 绑定：将页面显示的一次性设置密钥录入身份验证器，输入六位动态码，离线保存 8 枚恢复码后才进入应用。后续可使用动态码或一枚未使用的恢复码；设置密钥、恢复码和密码不得写入文档、Git 或长期聊天。
+
 ## 3. 稳定路由
 
 Client 商业入口为 `/`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/wallet`、`/wallet/deposits` 和 `/notifications`；`/login` 是客户端会话入口。保留的策略、Agent、回测和账户工作区迁入 `/workspace` 并按需加载，不进入根页初始 bundle。

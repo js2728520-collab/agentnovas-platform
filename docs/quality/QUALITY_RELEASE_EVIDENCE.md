@@ -49,6 +49,7 @@ All external-effect switches are forced off. Provider credentials are scrubbed f
 ## Covered evidence
 
 - strict Host and audience rejection, audience-specific cookie isolation, and production cookie attributes;
+- Operations 首次密码登录、TOTP 设置密钥、六位码确认、8 枚一次性恢复码和完整会话跳转；
 - the synthetic Client order → maker evidence/submit → maker denial → checker approval/replay path;
 - legal-document acceptance, one membership activation, 1,000 credits, and exactly three isolated 10,000 USDT paper portfolios;
 - Operations PII masking and recursive public-payload checks for raw credential fields;
@@ -81,9 +82,9 @@ The implementation follows the official Playwright guidance for [web servers](ht
 ## Known release blockers outside this change
 
 - The pinned quality dependencies and five package commands are integrated. The separate CI `quality-release` job and infrastructure-level egress deny remain release-engineering actions.
-- Full invitation, TOTP/recovery enrollment, all seven strategy lifecycle stages, expiry/weekly-fee paths, Demo fixture receipts, Shift+Tab/Escape/focus-return dialog behavior, and rollback/restore drills remain required by the broader Gate 6/7 checklist. This harness does not claim those gates are complete.
+- Full invitation delivery, recovery-code consumption/revocation, all seven strategy lifecycle stages, expiry/weekly-fee paths, Demo fixture receipts, Shift+Tab/Escape/focus-return dialog behavior, and rollback/restore drills remain required by the broader Gate 6/7 checklist. This harness does not claim those gates are complete.
 - A real provider, email, payment, or Demo smoke is never part of this runner. Any separately authorized staging smoke needs a different job and approval record.
-- Integrated evidence after isolating `/workspace`: Client 184,439/7,909 bytes, Operations 201,232/7,909 bytes, and Maintenance 195,129/7,909 bytes for initial JS/CSS gzip. The eight canonical Playwright scenarios passed with four viewports and zero serious/critical axe findings. Three Lighthouse runs scored performance 0.99/0.98/0.98, accessibility 1.00, best practices 1.00, LCP 1,966/2,469/2,468 ms, CLS 0, and TBT 5/6/5 ms. These are local controlled-Beta artifacts and must be regenerated on the final release commit or any later code change.
+- Integrated evidence after the MFA acceptance closeout: Client 185,316/8,012 bytes, Operations 202,095/8,012 bytes, and Maintenance 196,000/8,012 bytes for initial JS/CSS gzip. The eight canonical Playwright scenarios passed with four viewports, first-time Operations TOTP enrollment, and zero serious/critical axe findings. Three Lighthouse runs scored performance 0.98/1.00/0.99, accessibility 1.00, best practices 1.00, LCP 2,471/1,828/1,959 ms, CLS 0, and TBT 5/9/6 ms. These are local controlled-Beta artifacts and must be regenerated on the final release commit or any later code change.
 
 ## Temporary development-tool vulnerability exception
 
