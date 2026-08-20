@@ -149,3 +149,15 @@ test("performance generation accepts no caller-selected strategy scope", async (
   assert.match(boundary, /OfficialThreeCardPortfolioScopeResolver/);
   assert.match(boundary, /NOT_CONFIGURED/);
 });
+
+test("client and operations statement lists select replacement lineage", async () => {
+  for (const file of [
+    "app/api/membership/performance-statements/route.ts",
+    "app/api/operations/performance-statements/route.ts",
+  ]) {
+    const source = await readFile(new URL(file, root), "utf8");
+    assert.match(source, /s\.revision/);
+    assert.match(source, /s\.replaces_statement_id/);
+    assert.match(source, /performanceStatementDto/);
+  }
+});

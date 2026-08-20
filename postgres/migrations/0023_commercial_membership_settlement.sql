@@ -132,6 +132,12 @@ DO $$ BEGIN
     ALTER TABLE commercial_payment_evidence ADD CONSTRAINT commercial_payment_evidence_status_check CHECK (status IN ('recorded','rejected','accepted'));
   END IF;
 END $$;
+-- evidence_kind is the current controlled payment rail; provider_label is display-only.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_global_semantic_key
+  ON commercial_payment_evidence(evidence_kind, currency, reference_fingerprint);
+-- This stricter lock also prevents the same rail reference crossing USD membership and USDT fees.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_global_reference
+  ON commercial_payment_evidence(evidence_kind, reference_fingerprint);
 
 CREATE TABLE IF NOT EXISTS commercial_membership_order_decisions (
   id text PRIMARY KEY,
@@ -139,10 +145,12 @@ CREATE TABLE IF NOT EXISTS commercial_membership_order_decisions (
   reviewer_user_id text NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   decision text NOT NULL CHECK (decision IN ('approve','reject')),
   note text NOT NULL DEFAULT '',
+  payment_evidence_id text REFERENCES commercial_payment_evidence(id) ON DELETE RESTRICT,
   idempotency_key text NOT NULL UNIQUE,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(order_id, reviewer_user_id)
 );
+ALTER TABLE commercial_membership_order_decisions ADD COLUMN IF NOT EXISTS payment_evidence_id text REFERENCES commercial_payment_evidence(id) ON DELETE RESTRICT;
 
 CREATE TABLE IF NOT EXISTS membership_entitlement_events (
   id text PRIMARY KEY,

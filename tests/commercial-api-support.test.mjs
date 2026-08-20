@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   decodeCommercialCursor,
   encodeCommercialCursor,
+  fingerprintPaymentReference,
   maskPaymentReference,
+  normalizePaymentReference,
   previousCompleteUtcWeek,
 } from "../lib/commercial-api-support.ts";
 import {
@@ -92,4 +94,14 @@ test("write boundaries require header idempotency and reject malformed evidence 
       () => paymentEvidenceInput(body, "USD"),
       (error) => error.status === 422 && error.code === "VALIDATION_ERROR",
     );
+});
+
+test("payment references use one Unicode, whitespace and case-normalized fingerprint", () => {
+  const canonical = "WIRE REF 001";
+  assert.equal(normalizePaymentReference("  wire   ref  001  "), canonical);
+  assert.equal(normalizePaymentReference("ｗｉｒｅ ref ００１"), canonical);
+  assert.equal(
+    fingerprintPaymentReference("  wire   ref  001  "),
+    fingerprintPaymentReference("ｗｉｒｅ ref ００１"),
+  );
 });

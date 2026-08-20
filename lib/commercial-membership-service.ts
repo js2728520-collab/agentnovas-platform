@@ -327,7 +327,7 @@ export async function recordMembershipPaymentEvidence(
       normalizedOccurredAt = new Date(input.occurredAt).toISOString(),
       normalizedNote = input.note ?? "";
     const result = await client.query(
-      `INSERT INTO commercial_payment_evidence(id,membership_order_id,evidence_kind,provider_label,reference_masked,reference_fingerprint,amount,currency,occurred_at,note,recorded_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(membership_order_id,reference_fingerprint) DO NOTHING RETURNING id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at`,
+      `INSERT INTO commercial_payment_evidence(id,membership_order_id,evidence_kind,provider_label,reference_masked,reference_fingerprint,amount,currency,occurred_at,note,recorded_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING RETURNING id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at`,
       [
         randomUUID(),
         input.orderId,
@@ -346,12 +346,14 @@ export async function recordMembershipPaymentEvidence(
     const created = Boolean(evidence);
     if (!evidence) {
       const existing = await client.query(
-        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE membership_order_id=$1 AND reference_fingerprint=$2 FOR SHARE`,
-        [input.orderId, fingerprint],
+        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE evidence_kind=$1 AND reference_fingerprint=$2 FOR SHARE`,
+        [input.evidenceKind, fingerprint],
       );
       evidence = existing.rows[0];
       if (
         !evidence ||
+        evidence.membership_order_id !== input.orderId ||
+        evidence.performance_statement_id !== null ||
         evidence.evidence_kind !== input.evidenceKind ||
         evidence.provider_label !== normalizedProvider ||
         compareSignedDecimalStrings(evidence.amount, input.amount) !== 0 ||
@@ -513,44 +515,43 @@ export async function decideMembershipOrder(
         "提交人与审批人必须不同",
         403,
       );
-    if (
-      (
-        await client.query(
-          `SELECT 1 FROM commercial_payment_evidence WHERE membership_order_id=$1 AND recorded_by_user_id=$2 LIMIT 1`,
-          [row.id, input.reviewerUserId],
-        )
-      ).rows[0]
-    )
+    const evidence = await client.query<{
+      id: string;
+      recorded_by_user_id: string;
+    }>(
+      `SELECT id,recorded_by_user_id FROM commercial_payment_evidence WHERE membership_order_id=$1 AND currency=$2 AND amount=$3::numeric AND status='recorded' ORDER BY created_at DESC,id DESC LIMIT 1 FOR UPDATE`,
+      [row.id, row.price_currency, row.price_amount],
+    );
+    const selected = evidence.rows[0];
+    if (!selected)
+      throw new ResearchApiError(
+        "PAYMENT_EVIDENCE_MISMATCH",
+        "缺少金额币种匹配的待审付款凭证",
+        422,
+      );
+    if (selected.recorded_by_user_id === input.reviewerUserId)
       throw new ResearchApiError(
         "MAKER_CHECKER_REQUIRED",
         "付款凭证记录人与审批人必须不同",
         403,
       );
-    if (
-      !(
-        await client.query(
-          `SELECT 1 FROM commercial_payment_evidence WHERE membership_order_id=$1 AND currency=$2 AND amount=$3::numeric LIMIT 1`,
-          [row.id, row.price_currency, row.price_amount],
-        )
-      ).rows[0]
-    )
-      throw new ResearchApiError(
-        "PAYMENT_EVIDENCE_MISMATCH",
-        "付款凭证金额或币种与订单快照不一致",
-        422,
-      );
     await client.query(
-      `INSERT INTO commercial_membership_order_decisions(id,order_id,reviewer_user_id,decision,note,idempotency_key) VALUES($1,$2,$3,$4,$5,$6)`,
+      `INSERT INTO commercial_membership_order_decisions(id,order_id,reviewer_user_id,decision,note,payment_evidence_id,idempotency_key) VALUES($1,$2,$3,$4,$5,$6,$7)`,
       [
         randomUUID(),
         row.id,
         input.reviewerUserId,
         input.decision,
         input.note,
+        selected.id,
         input.idempotencyKey,
       ],
     );
     if (input.decision === "reject") {
+      await client.query(
+        `UPDATE commercial_payment_evidence SET status='rejected',reviewed_by_user_id=$2,reviewed_at=now() WHERE id=$1 AND status='recorded'`,
+        [selected.id, input.reviewerUserId],
+      );
       await client.query(
         `UPDATE commercial_membership_orders SET status='rejected',reviewed_by_user_id=$2,reviewed_at=now(),rejection_reason=$3,updated_at=now() WHERE id=$1`,
         [row.id, input.reviewerUserId, input.note],
@@ -562,7 +563,10 @@ export async function decideMembershipOrder(
           input.reviewerUserId,
           row.id,
           JSON.stringify({ status: "pending_review" }),
-          JSON.stringify({ status: "rejected" }),
+          JSON.stringify({
+            status: "rejected",
+            paymentEvidenceId: selected.id,
+          }),
         ],
       );
       await client.query(
@@ -575,7 +579,11 @@ export async function decideMembershipOrder(
           `membership-rejected:${row.id}`,
         ],
       );
-      const response = { status: "rejected", replayed: false };
+      const response = {
+        status: "rejected",
+        paymentEvidenceId: selected.id,
+        replayed: false,
+      };
       await completeCommercialIdempotency(
         client,
         "membership.order.decision",
@@ -658,7 +666,11 @@ export async function decideMembershipOrder(
       idempotencyKey: `membership-ledger:${row.id}`,
       requestId: input.requestId,
       createdByUserId: input.reviewerUserId,
-      metadata: { orderId: row.id, planVersionId: row.plan_version_id },
+      metadata: {
+        orderId: row.id,
+        planVersionId: row.plan_version_id,
+        evidenceId: selected.id,
+      },
       postings: [
         { accountId: clearingId, side: "debit", amount: row.price_amount },
         { accountId: feeId, side: "credit", amount: row.price_amount },
@@ -705,6 +717,10 @@ export async function decideMembershipOrder(
       ],
     );
     await client.query(
+      `UPDATE commercial_payment_evidence SET status='accepted',reviewed_by_user_id=$2,reviewed_at=now() WHERE id=$1 AND status='recorded'`,
+      [selected.id, input.reviewerUserId],
+    );
+    await client.query(
       `UPDATE commercial_membership_orders SET status='activated',approved_membership_id=$2,ledger_transaction_id=$3,reviewed_by_user_id=$4,reviewed_at=now(),activated_at=now(),updated_at=now() WHERE id=$1`,
       [row.id, membershipId, ledger.id, input.reviewerUserId],
     );
@@ -712,6 +728,7 @@ export async function decideMembershipOrder(
       status: "activated",
       membershipId,
       ledgerTransactionId: ledger.id,
+      paymentEvidenceId: selected.id,
       replayed: false,
     };
     await completeCommercialIdempotency(

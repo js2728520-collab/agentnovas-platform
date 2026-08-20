@@ -137,6 +137,7 @@ test("commercial action and evidence DTOs are camelCase allowlists", () => {
       status: "activated",
       membershipId: "m1",
       ledgerTransactionId: "l1",
+      paymentEvidenceId: "e1",
       replayed: false,
       snake_case: "never",
     }),
@@ -144,6 +145,7 @@ test("commercial action and evidence DTOs are camelCase allowlists", () => {
       status: "ACTIVATED",
       membershipId: "m1",
       ledgerTransactionId: "l1",
+      paymentEvidenceId: "e1",
       replayed: false,
     },
   );

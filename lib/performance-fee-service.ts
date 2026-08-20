@@ -541,12 +541,14 @@ export async function recordPerformancePaymentEvidence(
     const created = Boolean(evidence);
     if (!evidence) {
       const existing = await client.query(
-        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE performance_statement_id=$1 AND reference_fingerprint=$2 FOR SHARE`,
-        [input.statementId, fingerprint],
+        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE evidence_kind=$1 AND reference_fingerprint=$2 FOR SHARE`,
+        [input.evidenceKind, fingerprint],
       );
       evidence = existing.rows[0];
       if (
         !evidence ||
+        evidence.performance_statement_id !== input.statementId ||
+        evidence.membership_order_id !== null ||
         evidence.evidence_kind !== input.evidenceKind ||
         evidence.provider_label !== normalizedProvider ||
         compareSignedDecimalStrings(evidence.amount, input.amount) !== 0 ||
@@ -666,8 +668,8 @@ export async function decidePerformancePayment(
     );
     if (input.decision === "reject") {
       await client.query(
-        `UPDATE commercial_payment_evidence SET status='rejected',reviewed_by_user_id=$2,reviewed_at=now() WHERE performance_statement_id=$1 AND status='recorded'`,
-        [input.statementId, input.reviewerUserId],
+        `UPDATE commercial_payment_evidence SET status='rejected',reviewed_by_user_id=$2,reviewed_at=now() WHERE id=$1 AND status='recorded'`,
+        [selected.id, input.reviewerUserId],
       );
       const response = {
         status: "payment_pending",

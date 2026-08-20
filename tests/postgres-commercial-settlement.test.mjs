@@ -186,16 +186,6 @@ test("seven-current-document gate, USD snapshot and bound idempotency activate s
   assert.equal(sameCorrelation.user_id, "customer2");
   await recordMembershipPaymentEvidence(pool, {
     orderId: order.id,
-    actorUserId: "checker",
-    evidenceKind: "bank_transfer",
-    reference: "CHECKER-SECRET-1234",
-    amount: "28",
-    currency: "USD",
-    occurredAt: "2026-08-20T00:00:00Z",
-    idempotencyKey: "order-evidence-checker",
-  });
-  await recordMembershipPaymentEvidence(pool, {
-    orderId: order.id,
     actorUserId: "maker",
     evidenceKind: "bank_transfer",
     reference: "MAKER-SECRET-5678",
@@ -203,6 +193,16 @@ test("seven-current-document gate, USD snapshot and bound idempotency activate s
     currency: "USD",
     occurredAt: "2026-08-20T00:00:00Z",
     idempotencyKey: "order-evidence-maker",
+  });
+  const selectedEvidence = await recordMembershipPaymentEvidence(pool, {
+    orderId: order.id,
+    actorUserId: "checker",
+    evidenceKind: "bank_transfer",
+    reference: "CHECKER-SECRET-1234",
+    amount: "28",
+    currency: "USD",
+    occurredAt: "2026-08-20T00:00:00Z",
+    idempotencyKey: "order-evidence-checker",
   });
   await assert.rejects(
     recordMembershipPaymentEvidence(pool, {
@@ -284,6 +284,20 @@ test("seven-current-document gate, USD snapshot and bound idempotency activate s
     requestId: "order-approved",
   });
   assert.equal(activated.status, "activated");
+  assert.equal(activated.paymentEvidenceId, selectedEvidence.id);
+  const boundMembershipEvidence = (
+    await pool.query(
+      `SELECT d.payment_evidence_id,e.status,e.reviewed_by_user_id,lt.metadata_json FROM commercial_membership_order_decisions d JOIN commercial_payment_evidence e ON e.id=d.payment_evidence_id JOIN commercial_membership_orders o ON o.id=d.order_id JOIN ledger_transactions lt ON lt.id=o.ledger_transaction_id WHERE d.order_id=$1 AND d.idempotency_key='order-approved'`,
+      [order.id],
+    )
+  ).rows[0];
+  assert.equal(boundMembershipEvidence.payment_evidence_id, selectedEvidence.id);
+  assert.equal(boundMembershipEvidence.status, "accepted");
+  assert.equal(boundMembershipEvidence.reviewed_by_user_id, "checker2");
+  assert.equal(
+    boundMembershipEvidence.metadata_json.evidenceId,
+    selectedEvidence.id,
+  );
   assert.equal(
     (
       await pool.query(
@@ -442,6 +456,49 @@ test("membership create, evidence and submit roll back with their audit outbox",
       })
     ).status,
     "pending_review",
+  );
+});
+
+test("payment evidence references cannot be reused across membership orders", async () => {
+  const first = await createMembershipOrder(pool, {
+    userId: "customer",
+    planVersionId: "membership_monthly_v1",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "global-reference-order-a",
+    requestId: "global-reference-order-a",
+  });
+  const second = await createMembershipOrder(pool, {
+    userId: "customer2",
+    planVersionId: "membership_monthly_v1",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "global-reference-order-b",
+    requestId: "global-reference-order-b",
+  });
+  await recordMembershipPaymentEvidence(pool, {
+    orderId: first.id,
+    actorUserId: "maker",
+    evidenceKind: "bank_transfer",
+    providerLabel: "untrusted-bank-label-a",
+    reference: "  cross   business ref ００１  ",
+    amount: "28",
+    currency: "USD",
+    occurredAt: "2026-08-20T02:00:00Z",
+    idempotencyKey: "global-reference-evidence-a",
+  });
+  await assert.rejects(
+    recordMembershipPaymentEvidence(pool, {
+      orderId: second.id,
+      actorUserId: "maker",
+      evidenceKind: "bank_transfer",
+      providerLabel: "different-untrusted-bank-label",
+      reference: "CROSS BUSINESS REF 001",
+      amount: "28",
+      currency: "USD",
+      occurredAt: "2026-08-20T02:00:00Z",
+      idempotencyKey: "global-reference-evidence-b",
+    }),
+    (error) =>
+      error.status === 409 && error.code === "PAYMENT_REFERENCE_COLLISION",
   );
 });
 
@@ -782,6 +839,14 @@ test("different concurrent orders serialize on one membership row and lifetime c
     idempotencyKey: "lifetime-approve",
     requestId: "lifetime-approve",
   });
+  assert.deepEqual(
+    (
+      await pool.query(
+        `SELECT status,expires_at FROM memberships WHERE customer_id='customer'`,
+      )
+    ).rows[0],
+    { status: "active", expires_at: null },
+  );
   const finite = await readyOrder(
     "membership_monthly_v1",
     "finite-after-lifetime",
@@ -838,6 +903,15 @@ test("membership rejection rolls back decision, audit and outbox as one unit", a
   assert.equal(
     (
       await pool.query(
+        `SELECT status FROM commercial_payment_evidence WHERE membership_order_id=$1`,
+        [order.id],
+      )
+    ).rows[0].status,
+    "recorded",
+  );
+  assert.equal(
+    (
+      await pool.query(
           `SELECT count(*)::int count FROM audit_logs WHERE subject_id=$1 AND action='commercial.membership.rejected'`,
           [order.id],
       )
@@ -847,18 +921,27 @@ test("membership rejection rolls back decision, audit and outbox as one unit", a
   await pool.query(
     `DROP TRIGGER fail_membership_reject_outbox ON notification_deliveries; DROP FUNCTION fail_membership_reject_outbox()`,
   );
-  assert.equal(
+  const rejected = await decideMembershipOrder(pool, {
+    orderId: order.id,
+    reviewerUserId: "checker",
+    decision: "reject",
+    note: "reject",
+    idempotencyKey: "reject-atomic-decision",
+    requestId: "reject-atomic",
+  });
+  assert.equal(rejected.status, "rejected");
+  assert.deepEqual(
     (
-      await decideMembershipOrder(pool, {
-        orderId: order.id,
-        reviewerUserId: "checker",
-        decision: "reject",
-        note: "reject",
-        idempotencyKey: "reject-atomic-decision",
-        requestId: "reject-atomic",
-      })
-    ).status,
-    "rejected",
+      await pool.query(
+        `SELECT d.payment_evidence_id,e.status,e.reviewed_by_user_id FROM commercial_membership_order_decisions d JOIN commercial_payment_evidence e ON e.id=d.payment_evidence_id WHERE d.order_id=$1`,
+        [order.id],
+      )
+    ).rows[0],
+    {
+      payment_evidence_id: rejected.paymentEvidenceId,
+      status: "rejected",
+      reviewed_by_user_id: "checker",
+    },
   );
 });
 
@@ -932,6 +1015,50 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     note: "approved",
     idempotencyKey: "statement-approved",
   });
+  await assert.rejects(
+    recordPerformancePaymentEvidence(pool, {
+      statementId: statement.id,
+      actorUserId: "maker",
+      evidenceKind: "bank_transfer",
+      providerLabel: "performance-provider-label",
+      reference: "cross business ref 001",
+      amount: "40",
+      currency: "USDT",
+      occurredAt: "2026-08-20T02:00:00Z",
+      idempotencyKey: "cross-membership-performance-evidence",
+    }),
+    (error) =>
+      error.status === 409 && error.code === "PAYMENT_REFERENCE_COLLISION",
+  );
+  await pool.query(
+    `INSERT INTO memberships(id,customer_id,plan_code,status,starts_at,expires_at) VALUES('cross-statement-membership','customer2','membership_monthly_v1','active','2026-08-01','2026-09-01');
+     INSERT INTO performance_fee_statements(id,user_id,membership_id,plan_version_id,week_start,week_end,strategy_codes_json,week_net_pnl,cumulative_net_pnl,prior_high_water_mark,eligible_profit,loss_carry,fee_bps,fee_amount,currency,status,generated_by_user_id,request_id) VALUES('cross-statement','customer2','cross-statement-membership','membership_monthly_v1','2026-08-03','2026-08-10','["strategy-0"]',200,200,0,200,0,2000,40,'USDT','payment_pending','maker','cross-statement');
+     INSERT INTO performance_fee_receivables(id,statement_id,amount,currency,status) VALUES('cross-statement-receivable','cross-statement',40,'USDT','unpaid')`,
+  );
+  await recordPerformancePaymentEvidence(pool, {
+    statementId: statement.id,
+    actorUserId: "checker",
+    evidenceKind: "provider_reference",
+    reference: "SHARED-STATEMENT-REFERENCE-7777",
+    amount: "40",
+    currency: "USDT",
+    occurredAt: "2026-08-20T02:30:00Z",
+    idempotencyKey: "shared-statement-evidence-a",
+  });
+  await assert.rejects(
+    recordPerformancePaymentEvidence(pool, {
+      statementId: "cross-statement",
+      actorUserId: "maker",
+      evidenceKind: "provider_reference",
+      reference: "shared-statement-reference-7777",
+      amount: "40",
+      currency: "USDT",
+      occurredAt: "2026-08-20T02:30:00Z",
+      idempotencyKey: "shared-statement-evidence-b",
+    }),
+    (error) =>
+      error.status === 409 && error.code === "PAYMENT_REFERENCE_COLLISION",
+  );
   await assert.rejects(
     decidePerformanceAssessment(pool, {
       statementId: statement.id,
@@ -1015,6 +1142,18 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     ).rows[0].payment_evidence_id,
     rejectedPayment.paymentEvidenceId,
   );
+  const remainingRecordedEvidence = (
+    await pool.query(
+      `SELECT id,status FROM commercial_payment_evidence WHERE performance_statement_id=$1 AND status='recorded' ORDER BY created_at,id`,
+      [statement.id],
+    )
+  ).rows;
+  assert.ok(remainingRecordedEvidence.length >= 1);
+  assert.ok(
+    remainingRecordedEvidence.every(
+      (evidence) => evidence.id !== rejectedPayment.paymentEvidenceId,
+    ),
+  );
   await assert.rejects(
     decidePerformancePayment(pool, {
       statementId: statement.id,
@@ -1024,7 +1163,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
       idempotencyKey: "payment-reuse-rejected",
       requestId: "payment-reuse-rejected",
     }),
-    /缺少金额币种匹配的待审付款凭证/,
+    /付款凭证记录人与审批人必须不同/,
   );
   const newEvidence = await recordPerformancePaymentEvidence(pool, {
     statementId: statement.id,

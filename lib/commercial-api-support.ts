@@ -18,12 +18,18 @@ export function decodeCommercialCursor(value: string | null): CommercialCursor |
 }
 
 export function maskPaymentReference(value: string) {
-  const normalized = value.trim();
+  const normalized = normalizePaymentReference(value);
   return normalized.length <= 4 ? "****" : `********${normalized.slice(-4)}`;
 }
 
+export function normalizePaymentReference(value: string) {
+  return value.normalize("NFKC").trim().replace(/\s+/gu, " ").toUpperCase();
+}
+
 export function fingerprintPaymentReference(value: string) {
-  return createHash("sha256").update(value.trim(), "utf8").digest("hex");
+  return createHash("sha256")
+    .update(normalizePaymentReference(value), "utf8")
+    .digest("hex");
 }
 
 export function previousCompleteUtcWeek(now = new Date()) {

@@ -40,7 +40,7 @@ export async function GET(
         [id],
       ),
       pool.query(
-        `SELECT id,reviewer_user_id,decision,created_at FROM commercial_membership_order_decisions WHERE order_id=$1 ORDER BY created_at`,
+        `SELECT id,reviewer_user_id,decision,payment_evidence_id,created_at FROM commercial_membership_order_decisions WHERE order_id=$1 ORDER BY created_at`,
         [id],
       ),
     ]);
@@ -52,6 +52,7 @@ export async function GET(
           id: row.id,
           reviewerUserId: row.reviewer_user_id,
           decision: row.decision,
+          paymentEvidenceId: row.payment_evidence_id,
           createdAt: new Date(row.created_at).toISOString(),
         })),
       },

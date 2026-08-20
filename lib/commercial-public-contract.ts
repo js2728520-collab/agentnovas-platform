@@ -188,6 +188,9 @@ export function membershipActionDto(value: unknown) {
     ...(row.ledgerTransactionId
       ? { ledgerTransactionId: String(row.ledgerTransactionId) }
       : {}),
+    ...(row.paymentEvidenceId
+      ? { paymentEvidenceId: String(row.paymentEvidenceId) }
+      : {}),
     ...(typeof row.replayed === "boolean" ? { replayed: row.replayed } : {}),
   };
 }
