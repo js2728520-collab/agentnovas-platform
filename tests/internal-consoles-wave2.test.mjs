@@ -62,7 +62,8 @@ test("commercial detail APIs expose allowlisted checker actions across sessions"
 
   const performance = await read("app/api/operations/performance-statements/[id]/route.ts");
   assert.match(performance, /ops\.performance_fees\.view/);
-  assert.match(performance, /assertOperationsStatementScope/);
+  assert.match(performance, /commercialCustomerScopePredicate/);
+  assert.match(performance, /s\.id=\$1 AND/);
   assert.match(performance, /generated_by_user_id/);
   assert.match(performance, /paymentEvidenceDto/);
   assert.match(performance, /canReviewAssessment|canReviewPayment/);
@@ -122,6 +123,7 @@ test("Maintenance Demo safe view never selects credential ciphertext", async () 
   assert.match(control, /FOR UPDATE/);
   assert.match(control, /reason/);
   assert.match(control, /IS DISTINCT FROM/);
+  assert.match(control, /requireAnyAccessPermission[\s\S]*controlInput/);
   assert.doesNotMatch(control, /api_key_ciphertext|secret_ciphertext|passphrase_ciphertext/);
 
   const verify = await read("app/api/maintenance/demo-exchanges/[id]/verify/route.ts");

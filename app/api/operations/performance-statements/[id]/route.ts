@@ -1,7 +1,5 @@
 import { requireAccessPermission } from "@/lib/access-control";
-import {
-  assertOperationsStatementScope,
-} from "@/lib/commercial-operations-scope";
+import { commercialCustomerScopePredicate } from "@/lib/commercial-operations-scope";
 import {
   paymentEvidenceDto,
   performanceStatementDto,
@@ -20,13 +18,16 @@ export async function GET(
     );
     const { id } = await params;
     const pool = await getPostgresPool();
-    await assertOperationsStatementScope(
-      pool,
+    const values: unknown[] = [id];
+    const scoped = commercialCustomerScopePredicate(
       scope,
       { userId: user.id, organizationId: user.organizationId },
-      id,
+      "scope_statement_detail",
+      "s.user_id",
+      2,
       organizationIds,
     );
+    values.push(...scoped.values);
     const statementResult = await pool.query(
       `SELECT s.id,s.user_id,s.week_start,s.week_end,
               s.cumulative_net_pnl::text,s.prior_high_water_mark::text,
@@ -40,8 +41,8 @@ export async function GET(
               r.paid_at
        FROM performance_fee_statements s
        LEFT JOIN performance_fee_receivables r ON r.statement_id=s.id
-       WHERE s.id=$1`,
-      [id],
+       WHERE s.id=$1 AND ${scoped.clause}`,
+      values,
     );
     const statement = statementResult.rows[0];
     if (!statement) {

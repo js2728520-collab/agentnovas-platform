@@ -1,4 +1,7 @@
-import { requireAccessPermission } from "@/lib/access-control";
+import {
+  requireAccessPermission,
+  requireAnyAccessPermission,
+} from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
 import {
   readResearchJson,
@@ -43,6 +46,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAnyAccessPermission(request, [
+      "maint.demo_exchanges.manage",
+      "maint.demo_exchanges.kill",
+    ]);
     const input = controlInput(await readResearchJson(request, 4_096));
     const isKill = ["disable", "kill", "card_kill"].includes(input.action);
     const { user } = await requireAccessPermission(
