@@ -22,7 +22,7 @@ test("stable routes use the same audience dispatcher and reject wrong applicatio
   assert.match(source, /segments/);
   assert.match(dispatcher, /resolveAppAudienceStrict/);
   assert.match(dispatcher, /if \(!audience\) notFound\(\)/);
-  assert.match(dispatcher, /root !== "wallet" && segments\.length > 1/);
+  assert.match(dispatcher, /\["wallet", "membership", "paper"\]\.includes\(root\)/);
   assert.match(dispatcher, /"membership-orders", "performance-statements"/);
   assert.match(dispatcher, /"email", "payments", "demo-exchanges"/);
   assert.doesNotMatch(dispatcher, /^import .*@\/apps\//m);
@@ -127,6 +127,23 @@ test("client exposes stable wallet, deposit and notification workspaces", async 
   assert.match(source, /WalletWorkspace/);
   assert.match(source, /DepositWorkspace/);
   assert.match(source, /NotificationWorkspace/);
+});
+
+test("client exposes stable membership, credits, paper, and trading-hall workspaces", async () => {
+  const dispatcher = await read("app/riverton-route.tsx");
+  const portal = await read("apps/client/ui/client-portal.tsx");
+  const navigation = await read("apps/client/ui/client-portal-shell.tsx");
+  for (const route of ["membership", "credits", "paper", "trading-hall"]) {
+    assert.match(dispatcher, new RegExp(`CLIENT_ROUTES[\\s\\S]*["']${route}["']`));
+  }
+  assert.match(portal, /MembershipExperience/);
+  assert.match(portal, /TradingExperience/);
+  assert.match(portal, /client\.membership\.view/);
+  assert.match(portal, /client\.credits\.view/);
+  assert.match(portal, /client\.paper\.view/);
+  assert.match(navigation, /href: "\/membership"/);
+  assert.match(navigation, /href: "\/paper"/);
+  assert.match(navigation, /href: "\/trading-hall"/);
 });
 
 test("client workspaces bind to real wallet and notifications while deposits remain Beta closed", async () => {

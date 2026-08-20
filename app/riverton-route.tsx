@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import CurrentApp from "@/app/audience/current-root";
 import { resolveAppAudienceStrict } from "@/lib/riverton-apps";
 
-const CLIENT_ROUTES = new Set(["login", "wallet", "notifications"]);
+const CLIENT_ROUTES = new Set(["login", "membership", "credits", "paper", "trading-hall", "wallet", "notifications"]);
 const OPERATIONS_ROUTES = new Set(["login", "customers", "organization", "membership-orders", "performance-statements", "credits", "deposits", "ledger", "finance", "approvals", "access"]);
 const MAINTENANCE_ROUTES = new Set(["login", "models", "integrations", "health", "safety", "settings", "access", "audit"]);
 
@@ -17,7 +17,8 @@ export async function RivertonRoute({ segments, loginMode }: { segments: string[
   }
   if (audience === "client" && CLIENT_ROUTES.has(root)) {
     if (root === "wallet" && segments[1] && segments[1] !== "deposits") notFound();
-    if (root !== "wallet" && segments.length > 1) notFound();
+    if (root === "membership" && segments[1] && segments[1] !== "orders") notFound();
+    if (!["wallet", "membership", "paper"].includes(root) && segments.length > 1) notFound();
     if (segments.length > 2) notFound();
     return <CurrentApp audience={audience} segments={segments} loginMode={loginMode} />;
   }
