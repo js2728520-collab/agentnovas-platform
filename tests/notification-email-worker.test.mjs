@@ -6,6 +6,7 @@ import {
   claimNextEmailDelivery,
   markEmailSent,
   notificationSendEnvironmentReady,
+  purgeExpiredNotificationSecrets,
   processClaimedEmail,
   providerConfigAllowsSend,
   renderNotificationEmail,
@@ -178,14 +179,49 @@ test("a fenced delivery update is never reported as sent", async () => {
     id: "delivery-1",
     userId: "user-1",
     templateKey: "reset_password",
-    payloadJson: { encryptedToken, audience: "client" },
+    payloadJson: { encryptedToken, audience: "client", expiresAt: "2026-08-20T01:00:00.000Z" },
     attempts: 1,
     recipient: "person@example.com",
   }, {
     workerId: "stale-worker",
     apiKey: "test-key",
+    now: () => new Date("2026-08-20T00:00:00.000Z"),
     environment: tokenEnvironment,
     send: async () => ({ ok: true, providerMessageId: "provider-1" }),
   });
   assert.deepEqual(result, { status: "fenced", providerMessageId: "provider-1" });
+});
+
+test("expired encrypted token payloads are cleared without decrypting or sending", async () => {
+  const updates = [];
+  const pool = { query: async (sql, parameters) => { updates.push({ sql, parameters }); return { rowCount: 1, rows: [] }; } };
+  let sent = false;
+  const result = await processClaimedEmail(pool, {
+    id: "delivery-expired",
+    userId: "user-1",
+    templateKey: "reset_password",
+    payloadJson: { encryptedToken: "not-even-decrypted", audience: "client", expiresAt: "2026-08-19T23:59:59.000Z" },
+    attempts: 1,
+    recipient: "person@example.com",
+  }, {
+    workerId: "worker-1",
+    apiKey: "unused",
+    now: () => new Date("2026-08-20T00:00:00.000Z"),
+    environment: {},
+    send: async () => { sent = true; return { ok: true, providerMessageId: "never" }; },
+  });
+  assert.equal(sent, false);
+  assert.deepEqual(result, { status: "failed", errorCode: "TOKEN_EXPIRED" });
+  assert.equal(updates[0].parameters[2], "failed");
+  assert.match(updates[0].sql, /payload_json = CASE/);
+});
+
+test("retention cleanup clears terminal, malformed, and timed-out encrypted token payloads", async () => {
+  const queries = [];
+  const pool = { query: async (sql, parameters) => { queries.push({ sql, parameters }); return { rowCount: 3, rows: [] }; } };
+  assert.equal(await purgeExpiredNotificationSecrets(pool, new Date("2026-08-20T00:00:00.000Z")), 3);
+  assert.match(queries[0].sql, /payload_json = '\{\}'/);
+  assert.match(queries[0].sql, /payload_json::jsonb ->> 'expiresAt'/);
+  assert.match(queries[0].sql, /status IN \('sent', 'delivered', 'failed'\)/);
+  assert.deepEqual(queries[0].parameters, ["2026-08-20T00:00:00.000Z"]);
 });

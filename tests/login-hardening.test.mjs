@@ -27,5 +27,7 @@ test("forgot-password is independently database limited without exposing account
   const source = await readFile(new URL("../app/api/auth/forgot-password/route.ts", import.meta.url), "utf8");
   assert.match(source, /consumeAuthRateLimit/);
   assert.match(source, /forgot_password/);
+  assert.match(source, /queueForgotPasswordRequest/);
+  assert.doesNotMatch(source, /if \(user\)/);
   assert.doesNotMatch(source, /不存在|未注册/);
 });

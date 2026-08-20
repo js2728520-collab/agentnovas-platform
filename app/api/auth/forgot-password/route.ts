@@ -1,12 +1,9 @@
-import { eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { authTokens, notificationDeliveries, users } from "@/db/schema";
 import { currentRequestAudience } from "@/lib/access-control";
-import { dummyVerifyPassword, normalizeEmail, randomToken, sha256 } from "@/lib/auth";
+import { normalizeEmail } from "@/lib/auth";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
+import { queueForgotPasswordRequest } from "@/lib/forgot-password";
 import { getPostgresPool } from "@/lib/postgres";
-import { encryptNotificationToken } from "@/lib/notification-secrets";
 import { authConnectionBucketKey } from "@/lib/riverton-apps";
 
 export async function POST(request: Request) {
@@ -18,7 +15,8 @@ export async function POST(request: Request) {
   const normalizedEmail = normalizeEmail(email);
   const connection = authConnectionBucketKey(request);
   if (!connection) return Response.json({ error: "请求网络身份不可用" }, { status: 503 });
-  const rateLimit = await consumeAuthRateLimit(await getPostgresPool(), {
+  const pool = await getPostgresPool();
+  const rateLimit = await consumeAuthRateLimit(pool, {
     action: "forgot_password",
     audience: "client",
     bucketKeys: [`identifier:${normalizedEmail}`, connection.bucketKey],
@@ -32,24 +30,6 @@ export async function POST(request: Request) {
       headers: { "retry-after": String(rateLimit.retryAfterSeconds) },
     });
   }
-  const db = getDb();
-  const user = (await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1))[0];
-  await dummyVerifyPassword(normalizedEmail);
-  if (user) {
-    const token = randomToken();
-    const encryptedToken = await encryptNotificationToken(token);
-    const now = new Date().toISOString();
-    await db.batch([
-      db.insert(authTokens).values({
-        id: crypto.randomUUID(), userId: user.id, tokenHash: await sha256(token), purpose: "reset_password",
-        tokenAudience: "client",
-        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-      }),
-      db.insert(notificationDeliveries).values({
-        id: crypto.randomUUID(), userId: user.id, channel: "email", category: "login_security",
-        templateKey: "reset_password", payloadJson: JSON.stringify({ encryptedToken, audience: "client" }), scheduledAt: now,
-      }),
-    ]);
-  }
+  await queueForgotPasswordRequest(pool, { email: normalizedEmail });
   return Response.json({ ok: true, message: "如果邮箱存在，重置邮件已进入发送队列" });
 }

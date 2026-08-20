@@ -9,8 +9,9 @@ export type ApiRouteInventoryEntry = {
   authentication: "anonymous" | "session" | "permission" | "webhook" | "bootstrap" | "disabled";
   sessionAuthHelpers: readonly string[];
   permissionKeys: readonly string[];
+  permissionMfa: Readonly<Record<string, "none" | "recent">>;
   scope: "none" | "grant" | "platform";
-  mfa: "none" | "recent";
+  mfa: "none" | "recent" | "conditional";
   pii: "none" | "masked" | "full";
   sensitivity: "normal" | "sensitive";
   requiresSameOrigin: boolean;
@@ -34,6 +35,13 @@ export const API_ROUTE_INVENTORY = [
       "ops.roles.assign",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.approve_sensitive": "recent",
+      "maint.roles.manage": "recent",
+      "ops.roles.approve_sensitive": "recent",
+      "ops.roles.assign": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -55,6 +63,11 @@ export const API_ROUTE_INVENTORY = [
       "ops.roles.assign",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.manage": "recent",
+      "ops.roles.assign": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -76,6 +89,11 @@ export const API_ROUTE_INVENTORY = [
       "ops.roles.assign",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.manage": "recent",
+      "ops.roles.assign": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -98,8 +116,14 @@ export const API_ROUTE_INVENTORY = [
       "ops.roles.approve_sensitive",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.audit.view": "none",
+      "maint.roles.manage": "recent",
+      "ops.roles.approve_sensitive": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
-    "mfa": "recent",
+    "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": false
@@ -121,6 +145,13 @@ export const API_ROUTE_INVENTORY = [
       "ops.roles.assign",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.approve_sensitive": "recent",
+      "maint.roles.manage": "recent",
+      "ops.roles.approve_sensitive": "recent",
+      "ops.roles.assign": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -144,6 +175,13 @@ export const API_ROUTE_INVENTORY = [
       "ops.roles.assign",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.approve_sensitive": "recent",
+      "maint.roles.manage": "recent",
+      "ops.roles.approve_sensitive": "recent",
+      "ops.roles.assign": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -166,6 +204,12 @@ export const API_ROUTE_INVENTORY = [
       "ops.roles.approve_sensitive",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.approve_sensitive": "recent",
+      "maint.roles.manage": "recent",
+      "ops.roles.approve_sensitive": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -185,6 +229,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -208,6 +253,13 @@ export const API_ROUTE_INVENTORY = [
       "ops.roles.assign",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.approve_sensitive": "recent",
+      "maint.roles.manage": "recent",
+      "ops.roles.approve_sensitive": "recent",
+      "ops.roles.assign": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -231,6 +283,13 @@ export const API_ROUTE_INVENTORY = [
       "ops.roles.assign",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.approve_sensitive": "recent",
+      "maint.roles.manage": "recent",
+      "ops.roles.approve_sensitive": "recent",
+      "ops.roles.assign": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -251,6 +310,10 @@ export const API_ROUTE_INVENTORY = [
       "maint.roles.manage",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.manage": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -274,6 +337,13 @@ export const API_ROUTE_INVENTORY = [
       "ops.roles.assign",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.approve_sensitive": "recent",
+      "maint.roles.manage": "recent",
+      "ops.roles.approve_sensitive": "recent",
+      "ops.roles.assign": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -294,6 +364,10 @@ export const API_ROUTE_INVENTORY = [
       "maint.roles.manage",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.manage": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -314,6 +388,10 @@ export const API_ROUTE_INVENTORY = [
       "maint.roles.manage",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.manage": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -334,6 +412,10 @@ export const API_ROUTE_INVENTORY = [
       "maint.roles.manage",
       "ops.roles.manage"
     ],
+    "permissionMfa": {
+      "maint.roles.manage": "recent",
+      "ops.roles.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -352,6 +434,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -370,6 +453,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -388,6 +472,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -406,6 +491,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -424,6 +510,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -442,6 +529,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -461,8 +549,12 @@ export const API_ROUTE_INVENTORY = [
       "maint.agent_bindings.manage",
       "maint.system_health.view"
     ],
+    "permissionMfa": {
+      "maint.agent_bindings.manage": "recent",
+      "maint.system_health.view": "none"
+    },
     "scope": "platform",
-    "mfa": "recent",
+    "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": false
@@ -479,6 +571,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.agent_bindings.manage"
     ],
+    "permissionMfa": {
+      "maint.agent_bindings.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -497,6 +592,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.agent_bindings.manage"
     ],
+    "permissionMfa": {
+      "maint.agent_bindings.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -515,6 +613,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.follow_policy.view"
     ],
+    "permissionMfa": {
+      "maint.follow_policy.view": "none"
+    },
     "scope": "platform",
     "mfa": "none",
     "pii": "none",
@@ -533,6 +634,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.follow_policy.manage"
     ],
+    "permissionMfa": {
+      "maint.follow_policy.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -551,6 +655,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.system_health.view"
     ],
+    "permissionMfa": {
+      "maint.system_health.view": "none"
+    },
     "scope": "platform",
     "mfa": "none",
     "pii": "none",
@@ -569,6 +676,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.llm_profiles.manage"
     ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -587,6 +697,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.llm_profiles.manage"
     ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -606,8 +719,12 @@ export const API_ROUTE_INVENTORY = [
       "maint.llm_profiles.manage",
       "maint.system_health.view"
     ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent",
+      "maint.system_health.view": "none"
+    },
     "scope": "platform",
-    "mfa": "recent",
+    "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": false
@@ -624,6 +741,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.llm_profiles.manage"
     ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -642,6 +762,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.llm_profiles.manage"
     ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -661,8 +784,12 @@ export const API_ROUTE_INVENTORY = [
       "maint.agent_bindings.manage",
       "maint.system_health.view"
     ],
+    "permissionMfa": {
+      "maint.agent_bindings.manage": "recent",
+      "maint.system_health.view": "none"
+    },
     "scope": "platform",
-    "mfa": "recent",
+    "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": false
@@ -679,6 +806,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.agent_bindings.manage"
     ],
+    "permissionMfa": {
+      "maint.agent_bindings.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -697,6 +827,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.agent_bindings.manage"
     ],
+    "permissionMfa": {
+      "maint.agent_bindings.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -715,6 +848,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAiCustomer"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -733,6 +867,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAiCustomer"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -751,6 +886,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAiCustomer"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -769,6 +905,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAiCustomer"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -787,6 +924,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAiCustomer"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -805,6 +943,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAiCustomer"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -823,6 +962,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.approvals.view"
     ],
+    "permissionMfa": {
+      "ops.approvals.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "none",
@@ -841,6 +983,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.approvals.decide"
     ],
+    "permissionMfa": {
+      "ops.approvals.decide": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -859,6 +1004,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.attributions.manage"
     ],
+    "permissionMfa": {
+      "ops.attributions.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -877,6 +1025,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.attributions.manage"
     ],
+    "permissionMfa": {
+      "ops.attributions.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -893,6 +1044,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -911,6 +1063,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -929,6 +1082,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -947,6 +1101,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -966,6 +1121,7 @@ export const API_ROUTE_INVENTORY = [
       "requirePrimarySession"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -985,6 +1141,7 @@ export const API_ROUTE_INVENTORY = [
       "requirePrimarySession"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1004,6 +1161,7 @@ export const API_ROUTE_INVENTORY = [
       "requirePrimarySession"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1020,6 +1178,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1038,6 +1197,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1054,6 +1214,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1070,6 +1231,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1086,6 +1248,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1104,6 +1267,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.customers.view"
     ],
+    "permissionMfa": {
+      "ops.customers.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
@@ -1122,6 +1288,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.team.view"
     ],
+    "permissionMfa": {
+      "ops.team.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
@@ -1140,6 +1309,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1158,6 +1328,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1176,6 +1347,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1194,6 +1366,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1212,6 +1385,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1230,6 +1404,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.reconciliation.run"
     ],
+    "permissionMfa": {
+      "ops.reconciliation.run": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -1248,6 +1425,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.ledger.view"
     ],
+    "permissionMfa": {
+      "ops.ledger.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "none",
@@ -1266,6 +1446,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.finance.manage"
     ],
+    "permissionMfa": {
+      "ops.finance.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -1284,6 +1467,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.finance.manage"
     ],
+    "permissionMfa": {
+      "ops.finance.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -1302,6 +1488,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.ledger.view"
     ],
+    "permissionMfa": {
+      "ops.ledger.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
@@ -1320,6 +1509,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.reconciliation.run"
     ],
+    "permissionMfa": {
+      "ops.reconciliation.run": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "full",
@@ -1338,6 +1530,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.ledger.view"
     ],
+    "permissionMfa": {
+      "ops.ledger.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "none",
@@ -1356,6 +1551,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.reconciliation.run"
     ],
+    "permissionMfa": {
+      "ops.reconciliation.run": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -1374,6 +1572,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.finance.manage"
     ],
+    "permissionMfa": {
+      "ops.finance.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -1392,6 +1593,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1408,6 +1610,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1424,6 +1627,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "disabled",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1440,6 +1644,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "webhook",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1458,6 +1663,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.invitations.view"
     ],
+    "permissionMfa": {
+      "ops.invitations.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "none",
@@ -1476,6 +1684,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.invitations.manage"
     ],
+    "permissionMfa": {
+      "ops.invitations.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -1495,8 +1706,12 @@ export const API_ROUTE_INVENTORY = [
       "maint.email_integrations.manage",
       "maint.system_health.view"
     ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent",
+      "maint.system_health.view": "none"
+    },
     "scope": "platform",
-    "mfa": "recent",
+    "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": false
@@ -1513,6 +1728,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.email_integrations.manage"
     ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -1532,8 +1750,12 @@ export const API_ROUTE_INVENTORY = [
       "maint.payment_integrations.manage",
       "maint.system_health.view"
     ],
+    "permissionMfa": {
+      "maint.payment_integrations.manage": "recent",
+      "maint.system_health.view": "none"
+    },
     "scope": "platform",
-    "mfa": "recent",
+    "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": false
@@ -1550,6 +1772,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.payment_integrations.manage"
     ],
+    "permissionMfa": {
+      "maint.payment_integrations.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -1568,6 +1793,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.payment_integrations.manage"
     ],
+    "permissionMfa": {
+      "maint.payment_integrations.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -1586,6 +1814,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.system_health.view"
     ],
+    "permissionMfa": {
+      "maint.system_health.view": "none"
+    },
     "scope": "platform",
     "mfa": "none",
     "pii": "none",
@@ -1604,6 +1835,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.feature_flags.manage"
     ],
+    "permissionMfa": {
+      "maint.feature_flags.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -1622,6 +1856,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.feature_flags.manage"
     ],
+    "permissionMfa": {
+      "maint.feature_flags.manage": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -1640,6 +1877,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.emergency_pause.execute"
     ],
+    "permissionMfa": {
+      "maint.emergency_pause.execute": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -1658,6 +1898,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "maint.emergency_pause.execute"
     ],
+    "permissionMfa": {
+      "maint.emergency_pause.execute": "recent"
+    },
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
@@ -1674,6 +1917,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1690,6 +1934,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1706,6 +1951,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1722,6 +1968,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1738,6 +1985,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1756,6 +2004,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1774,6 +2023,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1792,6 +2042,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1810,6 +2061,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1828,6 +2080,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1846,6 +2099,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1864,6 +2118,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1882,6 +2137,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1900,6 +2156,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1918,6 +2175,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -1936,6 +2194,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.deposits.action_approve"
     ],
+    "permissionMfa": {
+      "ops.deposits.action_approve": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -1954,6 +2215,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.deposits.action_approve"
     ],
+    "permissionMfa": {
+      "ops.deposits.action_approve": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -1972,6 +2236,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.deposits.view"
     ],
+    "permissionMfa": {
+      "ops.deposits.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
@@ -1990,6 +2257,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.deposits.view"
     ],
+    "permissionMfa": {
+      "ops.deposits.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
@@ -2008,6 +2278,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.deposits.action_request"
     ],
+    "permissionMfa": {
+      "ops.deposits.action_request": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "full",
@@ -2026,6 +2299,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.deposits.view"
     ],
+    "permissionMfa": {
+      "ops.deposits.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
@@ -2044,6 +2320,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.ledger.view"
     ],
+    "permissionMfa": {
+      "ops.ledger.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "none",
@@ -2062,6 +2341,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.customers.view"
     ],
+    "permissionMfa": {
+      "ops.customers.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
@@ -2080,6 +2362,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.customers.manage"
     ],
+    "permissionMfa": {
+      "ops.customers.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "masked",
@@ -2098,6 +2383,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.customers.manage"
     ],
+    "permissionMfa": {
+      "ops.customers.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "masked",
@@ -2116,6 +2404,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.organization.manage"
     ],
+    "permissionMfa": {
+      "ops.organization.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "full",
@@ -2134,6 +2425,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.organization.view"
     ],
+    "permissionMfa": {
+      "ops.organization.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
@@ -2152,6 +2446,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.organization.manage"
     ],
+    "permissionMfa": {
+      "ops.organization.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "full",
@@ -2170,6 +2467,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.organization.manage"
     ],
+    "permissionMfa": {
+      "ops.organization.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "full",
@@ -2188,6 +2488,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.organization.manage"
     ],
+    "permissionMfa": {
+      "ops.organization.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "none",
@@ -2206,6 +2509,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2224,6 +2528,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2242,6 +2547,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2258,6 +2564,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2276,6 +2583,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2294,6 +2602,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2312,6 +2621,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2330,6 +2640,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2348,6 +2659,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.customers.view"
     ],
+    "permissionMfa": {
+      "ops.customers.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "none",
@@ -2366,6 +2680,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.ledger.view"
     ],
+    "permissionMfa": {
+      "ops.ledger.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "none",
@@ -2384,6 +2701,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2402,6 +2720,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2420,6 +2739,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2438,6 +2758,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2456,6 +2777,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2474,6 +2796,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2492,6 +2815,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2510,6 +2834,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2528,6 +2853,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2544,6 +2870,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2562,6 +2889,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2580,6 +2908,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2598,6 +2927,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2616,6 +2946,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2634,6 +2965,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2652,6 +2984,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2670,6 +3003,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2688,6 +3022,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2706,6 +3041,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2724,6 +3060,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2742,6 +3079,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2760,6 +3098,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2778,6 +3117,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2796,6 +3136,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2814,6 +3155,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2832,6 +3174,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2850,6 +3193,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2868,6 +3212,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2886,6 +3231,7 @@ export const API_ROUTE_INVENTORY = [
       "requireResearchUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2902,6 +3248,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2920,6 +3267,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAiCustomer"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2938,6 +3286,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2954,6 +3303,7 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "bootstrap",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -2972,6 +3322,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.team.view"
     ],
+    "permissionMfa": {
+      "ops.team.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
@@ -2990,6 +3343,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.team.manage"
     ],
+    "permissionMfa": {
+      "ops.team.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "masked",
@@ -3008,6 +3364,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.team.view"
     ],
+    "permissionMfa": {
+      "ops.team.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
@@ -3026,6 +3385,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.team.view"
     ],
+    "permissionMfa": {
+      "ops.team.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
@@ -3044,6 +3406,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.team.manage"
     ],
+    "permissionMfa": {
+      "ops.team.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "masked",
@@ -3062,6 +3427,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.team.view"
     ],
+    "permissionMfa": {
+      "ops.team.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
@@ -3080,6 +3448,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.team.view"
     ],
+    "permissionMfa": {
+      "ops.team.view": "none"
+    },
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
@@ -3098,6 +3469,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.team.manage"
     ],
+    "permissionMfa": {
+      "ops.team.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "masked",
@@ -3116,6 +3490,9 @@ export const API_ROUTE_INVENTORY = [
     "permissionKeys": [
       "ops.team.manage"
     ],
+    "permissionMfa": {
+      "ops.team.manage": "recent"
+    },
     "scope": "grant",
     "mfa": "recent",
     "pii": "masked",
@@ -3134,6 +3511,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -3152,6 +3530,7 @@ export const API_ROUTE_INVENTORY = [
       "requireUser"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -3170,6 +3549,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAccessPermission"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -3188,6 +3568,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAccessPermission"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -3206,6 +3587,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAccessPermission"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
@@ -3224,6 +3606,7 @@ export const API_ROUTE_INVENTORY = [
       "requireAccessPermission"
     ],
     "permissionKeys": [],
+    "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",

@@ -61,4 +61,5 @@ test("an invited internal member, explicit assignment, audience token, and encry
   const delivery = (await pool.query("SELECT payload_json FROM notification_deliveries WHERE user_id = 'employee'")).rows[0];
   assert.doesNotMatch(delivery.payload_json, /activation-hash|one-time-bearer/);
   assert.match(delivery.payload_json, /encryptedToken/);
+  assert.equal(JSON.parse(delivery.payload_json).expiresAt, "2026-08-22T00:00:00.000Z");
 });

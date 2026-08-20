@@ -8,6 +8,7 @@ import {
   notificationSendEnvironmentReady,
   processClaimedEmail,
   providerConfigAllowsSend,
+  purgeExpiredNotificationSecrets,
 } from "../lib/notification-email-worker.ts";
 import { businessDatabaseUrl } from "../lib/postgres.ts";
 
@@ -27,6 +28,7 @@ const pool = new pg.Pool({
 const workerId = `${os.hostname().replace(/[^a-z0-9.-]/gi, "-").slice(0, 60)}-${process.pid}`;
 const apiKey = process.env.RESEND_API_KEY.trim();
 let stopping = false;
+let nextSecretCleanupAt = 0;
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => { stopping = true; });
@@ -39,12 +41,17 @@ function delay(ms) {
 try {
   process.stdout.write(`Notification Worker started (${workerId}).\n`);
   while (!stopping) {
+    const now = new Date();
+    if (now.getTime() >= nextSecretCleanupAt) {
+      await purgeExpiredNotificationSecrets(pool, now);
+      nextSecretCleanupAt = now.getTime() + 5 * 60_000;
+    }
     const config = await loadResendProviderConfig(pool);
     if (!config || !providerConfigAllowsSend(config)) {
       await delay(5_000);
       continue;
     }
-    const delivery = await claimNextEmailDelivery(pool, { workerId, now: new Date() });
+    const delivery = await claimNextEmailDelivery(pool, { workerId, now });
     if (!delivery) {
       await delay(1_000);
       continue;

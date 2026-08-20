@@ -43,6 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!assignment.rowCount) return Response.json({ error: "成员尚未完成显式角色分配" }, { status: 409 });
 
     const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 48 * 3600_000).toISOString();
     const activationToken = randomToken();
     const encryptedToken = await encryptNotificationToken(activationToken);
     await db.batch([
@@ -53,12 +54,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       )),
       db.insert(authTokens).values({
         id: crypto.randomUUID(), userId: member.id, tokenHash: await sha256(activationToken),
-        purpose: "reset_password", tokenAudience: "operations", expiresAt: new Date(Date.now() + 48 * 3600_000).toISOString(),
+        purpose: "reset_password", tokenAudience: "operations", expiresAt,
       }),
       db.insert(notificationDeliveries).values({
         id: crypto.randomUUID(), userId: member.id, channel: "email", category: "login_security",
         templateKey: "internal_account_invite",
-        payloadJson: JSON.stringify({ encryptedToken, role: member.role, activation: true, audience: "operations" }),
+        payloadJson: JSON.stringify({ encryptedToken, role: member.role, activation: true, audience: "operations", expiresAt }),
         scheduledAt: now,
       }),
       db.insert(auditLogs).values({

@@ -7,8 +7,9 @@ export type ApiRoutePolicy = {
   audiences: readonly AppAudience[];
   authentication: ApiAuthentication;
   permissionKeys: readonly string[];
+  permissionMfa: Readonly<Record<string, "none" | "recent">>;
   scope: "none" | "grant" | "platform";
-  mfa: "none" | "recent";
+  mfa: "none" | "recent" | "conditional";
   pii: "none" | "masked" | "full";
   sensitivity: "normal" | "sensitive";
   requiresSameOrigin: boolean;
@@ -74,6 +75,7 @@ export function apiPolicyForRoute(route: string, method: string): ApiRoutePolicy
     audiences: entry.audiences,
     authentication: entry.authentication,
     permissionKeys: entry.permissionKeys,
+    permissionMfa: entry.permissionMfa,
     scope: entry.scope,
     mfa: entry.mfa,
     pii: entry.pii,

@@ -20,6 +20,7 @@ export async function provisionInternalMember(pool: Pool, input: {
   const assignment = legacyRoleAssignments(input.role).find((candidate) => candidate.appId === "operations");
   if (!assignment || !assignment.permissions.length) throw new Error("INTERNAL_ROLE_NOT_PROVISIONABLE");
   const now = input.now ?? new Date();
+  const activationExpiresAt = new Date(now.getTime() + 48 * 3600_000);
   const organizationId = input.organizationId ?? crypto.randomUUID();
   const client = await pool.connect();
   try {
@@ -64,14 +65,20 @@ export async function provisionInternalMember(pool: Pool, input: {
     await client.query(`
       INSERT INTO auth_tokens (id, user_id, token_hash, purpose, token_audience, expires_at)
       VALUES ($1, $2, $3, 'reset_password', 'operations', $4)
-    `, [crypto.randomUUID(), input.userId, input.activationTokenHash, new Date(now.getTime() + 48 * 3600_000)]);
+    `, [crypto.randomUUID(), input.userId, input.activationTokenHash, activationExpiresAt]);
     await client.query(`
       INSERT INTO notification_deliveries (
         id, user_id, channel, category, template_key, payload_json, scheduled_at
       ) VALUES ($1, $2, 'email', 'login_security', 'internal_account_invite', $3, $4)
     `, [
       crypto.randomUUID(), input.userId,
-      JSON.stringify({ encryptedToken: input.encryptedNotificationToken, role: input.role, activation: true, audience: "operations" }),
+      JSON.stringify({
+        encryptedToken: input.encryptedNotificationToken,
+        role: input.role,
+        activation: true,
+        audience: "operations",
+        expiresAt: activationExpiresAt.toISOString(),
+      }),
       now.toISOString(),
     ]);
     await client.query(`

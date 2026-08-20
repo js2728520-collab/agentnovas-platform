@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  authConnectionBucketKey,
   clientIpFromRequest,
   sessionCookieHeaders,
   sessionPolicyForAudience,
@@ -43,4 +44,15 @@ test("forwarded client addresses are ignored until a proxy hop count is explicit
   assert.equal(clientIpFromRequest(request, { TRUST_PROXY_HOPS: "1" }), "10.0.0.5");
   assert.equal(clientIpFromRequest(request, { TRUST_PROXY_HOPS: "2" }), "198.51.100.2");
   assert.equal(clientIpFromRequest(request, { TRUST_PROXY_HOPS: "invalid" }), null);
+  assert.equal(authConnectionBucketKey(request, { NODE_ENV: "production" }), null);
+  assert.deepEqual(authConnectionBucketKey(request, { NODE_ENV: "development" }), {
+    bucketKey: "connection:unattributed-nonproduction",
+    ipAddress: null,
+  });
+});
+
+test("deploy example leaves proxy trust disabled until the operator confirms the network boundary", async () => {
+  const source = await import("node:fs/promises").then(({ readFile }) => readFile(new URL("../deploy/agentnovas.env.example", import.meta.url), "utf8"));
+  assert.match(source, /TRUST_PROXY_HOPS=\s*(?:\n|$)/);
+  assert.match(source, /directly reachable|仅由受控反向代理直连/i);
 });

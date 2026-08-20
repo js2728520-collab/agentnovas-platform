@@ -54,9 +54,15 @@ async function materializeNotificationPayload(
   templateKey: string,
   value: unknown,
   environment: Record<string, string | undefined>,
+  now: Date,
 ) {
   const payload = parsePayload(value);
   if (templateKey !== "reset_password" && templateKey !== "internal_account_invite") return payload;
+  const expiresAt = boundedString(payload, "expiresAt", 64);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(expiresAt) || Number.isNaN(Date.parse(expiresAt))) {
+    throw new Error("INVALID_PAYLOAD");
+  }
+  if (Date.parse(expiresAt) <= now.getTime()) throw new Error("TOKEN_EXPIRED");
   const encryptedToken = boundedString(payload, "encryptedToken", MAX_TOKEN_LENGTH * 2);
   const { encryptedToken: _encryptedToken, ...metadata } = payload;
   void _encryptedToken;
@@ -343,6 +349,30 @@ export async function markEmailFailed(pool: Pick<Pool, "query">, input: {
   );
 }
 
+export async function purgeExpiredNotificationSecrets(pool: Pick<Pool, "query">, now = new Date()) {
+  const result = await pool.query(
+    `UPDATE notification_deliveries
+        SET payload_json = '{}',
+            status = CASE WHEN status = 'queued' THEN 'failed' ELSE status END,
+            last_error = CASE WHEN status = 'queued' THEN 'TOKEN_EXPIRED' ELSE last_error END,
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            updated_at = $1
+      WHERE template_key IN ('reset_password', 'internal_account_invite')
+        AND payload_json LIKE '%"encryptedToken"%'
+        AND (
+          status IN ('sent', 'delivered', 'failed')
+          OR CASE
+            WHEN (payload_json::jsonb ->> 'expiresAt') ~ '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$'
+              THEN (payload_json::jsonb ->> 'expiresAt')::timestamptz <= $1::timestamptz
+            ELSE true
+          END
+        )`,
+    [now.toISOString()],
+  );
+  return result.rowCount ?? 0;
+}
+
 export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: ClaimedEmailDelivery, input: {
   workerId: string;
   apiKey: string;
@@ -352,14 +382,17 @@ export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: C
 }) {
   let rendered: NotificationEmail;
   let errorCode: string | null = null;
+  const processingStartedAt = input.now?.() ?? new Date();
   if (!validateEmailRecipient(delivery.recipient)) {
     errorCode = "INVALID_RECIPIENT";
   } else {
     try {
-      const payload = await materializeNotificationPayload(delivery.templateKey, delivery.payloadJson, input.environment ?? process.env);
+      const payload = await materializeNotificationPayload(delivery.templateKey, delivery.payloadJson, input.environment ?? process.env, processingStartedAt);
       rendered = renderNotificationEmail(delivery.templateKey, payload);
     } catch (error) {
-      errorCode = error instanceof Error && error.message === "UNKNOWN_TEMPLATE" ? "UNKNOWN_TEMPLATE" : "INVALID_PAYLOAD";
+      errorCode = error instanceof Error && ["UNKNOWN_TEMPLATE", "TOKEN_EXPIRED"].includes(error.message)
+        ? error.message
+        : "INVALID_PAYLOAD";
     }
   }
   if (errorCode) {

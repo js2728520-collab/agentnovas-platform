@@ -14,6 +14,7 @@ import {
   normalizeRequestId,
 } from "../lib/api-policy.ts";
 import { resolveAppAudienceStrict } from "../lib/riverton-apps.ts";
+import { SENSITIVE_PERMISSION_KEYS } from "../lib/rbac.ts";
 
 const appApi = new URL("../app/api/", import.meta.url);
 const execFileAsync = promisify(execFile);
@@ -73,7 +74,7 @@ test("permission inventory declares exact grants and matches each handler's DB a
   for (const entry of permissionEntries) {
     assert.ok(entry.permissionKeys.length > 0, `${entry.method} ${entry.route} has no exact permission`);
     assert.ok(["grant", "platform"].includes(entry.scope), `${entry.method} ${entry.route} has no scope contract`);
-    assert.ok(["none", "recent"].includes(entry.mfa), `${entry.method} ${entry.route} has no MFA contract`);
+    assert.ok(["none", "recent", "conditional"].includes(entry.mfa), `${entry.method} ${entry.route} has no MFA contract`);
     assert.ok(["none", "masked", "full"].includes(entry.pii), `${entry.method} ${entry.route} has no PII contract`);
     assert.ok(["normal", "sensitive"].includes(entry.sensitivity), `${entry.method} ${entry.route} has no sensitivity contract`);
 
@@ -84,8 +85,25 @@ test("permission inventory declares exact grants and matches each handler's DB a
       if (source.includes(`${helper}(`)) keys.filter((key) => entry.permissionKeys.includes(key)).forEach((key) => declaredBySource.add(key));
     }
     assert.deepEqual([...declaredBySource].sort(), [...entry.permissionKeys].sort(), `${entry.method} ${entry.route} metadata does not match helper`);
+    assert.deepEqual(Object.keys(entry.permissionMfa ?? {}).sort(), [...entry.permissionKeys].sort(), `${entry.method} ${entry.route} lacks per-permission MFA metadata`);
+    for (const permissionKey of entry.permissionKeys) {
+      const expected = SENSITIVE_PERMISSION_KEYS.has(permissionKey) && !permissionKey.startsWith("client.") ? "recent" : "none";
+      assert.equal(entry.permissionMfa[permissionKey], expected, `${entry.method} ${entry.route} ${permissionKey}`);
+    }
     assert.doesNotMatch(source, /\brequireUser\s*\(|\bcurrentUser\s*\(/, `${entry.method} ${entry.route} still relies on a legacy session/role helper`);
   }
+});
+
+test("mixed permission alternatives declare conditional rather than unconditional recent MFA", () => {
+  for (const [method, route] of [
+    ["GET", "/api/admin/llm-profiles"],
+    ["GET", "/api/admin/agent-role-bindings"],
+    ["GET", "/api/maintenance/email/status"],
+    ["GET", "/api/maintenance/payment-providers"],
+  ]) {
+    assert.equal(apiPolicyForRoute(route, method).mfa, "conditional", `${method} ${route}`);
+  }
+  assert.equal(apiPolicyForRoute("/api/admin/llm-profiles", "POST").mfa, "recent");
 });
 
 test("session metadata names a method-level enforcing helper and public routes stay anonymous", () => {
@@ -238,6 +256,28 @@ test("browser mutations require an exact same-origin header", () => {
   ]) {
     assert.throws(() => evaluateApiRequestPolicy(request),
       (error) => error instanceof ApiPolicyError && error.code.startsWith("CSRF_") && error.status === 403);
+  }
+});
+
+test("forwarded protocol cannot satisfy Origin checks without an explicit trusted boundary", () => {
+  const previous = process.env.TRUST_PROXY_HOPS;
+  delete process.env.TRUST_PROXY_HOPS;
+  try {
+    const request = new Request("http://127.0.0.1:3001/api/auth/login", {
+      method: "POST",
+      headers: {
+        host: "zht.agentnovas.com",
+        origin: "https://zht.agentnovas.com",
+        "x-forwarded-proto": "https",
+      },
+    });
+    assert.throws(() => evaluateApiRequestPolicy(request),
+      (error) => error instanceof ApiPolicyError && error.code === "CSRF_ORIGIN_MISMATCH");
+    process.env.TRUST_PROXY_HOPS = "1";
+    assert.equal(evaluateApiRequestPolicy(request).audience, "operations");
+  } finally {
+    if (previous === undefined) delete process.env.TRUST_PROXY_HOPS;
+    else process.env.TRUST_PROXY_HOPS = previous;
   }
 });
 
