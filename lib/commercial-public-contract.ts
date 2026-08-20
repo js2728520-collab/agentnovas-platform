@@ -1,3 +1,4 @@
+import { PAYMENT_REFERENCE_FINGERPRINT_VERSION } from "./commercial-api-support.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 const membershipStatuses = {
@@ -151,11 +152,16 @@ export function performanceStatementDto(row: Record<string, unknown>) {
 }
 export function paymentEvidenceDto(value: unknown) {
   const row = value as Record<string, unknown>,
+    referenceFingerprintVersion = String(
+      row.reference_fingerprint_version ?? "",
+    ),
     status =
       evidenceStatuses[
         String(row.status ?? "recorded") as keyof typeof evidenceStatuses
       ];
   if (!status) throw new Error("UNKNOWN_PAYMENT_EVIDENCE_STATUS");
+  if (referenceFingerprintVersion !== PAYMENT_REFERENCE_FINGERPRINT_VERSION)
+    throw new Error("UNKNOWN_PAYMENT_REFERENCE_FINGERPRINT_VERSION");
   return {
     id: String(row.id),
     membershipOrderId: row.membership_order_id
@@ -167,6 +173,7 @@ export function paymentEvidenceDto(value: unknown) {
     kind: String(row.evidence_kind),
     providerLabel: row.provider_label ? String(row.provider_label) : null,
     referenceMasked: String(row.reference_masked),
+    referenceFingerprintVersion,
     amount: String(row.amount),
     currency: String(row.currency),
     occurredAt: timestamp(row.occurred_at)!,

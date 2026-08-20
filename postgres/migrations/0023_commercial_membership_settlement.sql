@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS commercial_payment_evidence (
   provider_label text,
   reference_masked text NOT NULL,
   reference_fingerprint text NOT NULL,
+  reference_fingerprint_version text NOT NULL,
   amount numeric(36,18) NOT NULL CHECK (amount > 0),
   currency text NOT NULL,
   occurred_at timestamptz NOT NULL,
@@ -122,6 +123,8 @@ CREATE TABLE IF NOT EXISTS commercial_payment_evidence (
   reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   CHECK ((membership_order_id IS NOT NULL) <> (performance_statement_id IS NOT NULL)),
+  CONSTRAINT commercial_payment_evidence_fingerprint_version_check
+    CHECK (reference_fingerprint_version = 'nfkc-upper-v2'),
   UNIQUE(membership_order_id, reference_fingerprint)
 );
 ALTER TABLE commercial_payment_evidence ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'recorded';
@@ -130,6 +133,37 @@ ALTER TABLE commercial_payment_evidence ADD COLUMN IF NOT EXISTS reviewed_at tim
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='commercial_payment_evidence_status_check' AND conrelid='commercial_payment_evidence'::regclass) THEN
     ALTER TABLE commercial_payment_evidence ADD CONSTRAINT commercial_payment_evidence_status_check CHECK (status IN ('recorded','rejected','accepted'));
+  END IF;
+END $$;
+ALTER TABLE commercial_payment_evidence
+  ADD COLUMN IF NOT EXISTS reference_fingerprint_version text;
+-- CONTROLLED RECONCILIATION CONTRACT: pause all commercial evidence writes and
+-- recover each raw external reference from an independently verified source of
+-- truth. reference_masked is insufficient. Recompute with nfkc-upper-v2, review
+-- collisions plus subject/amount/currency, then set the version in an explicitly
+-- approved transaction. Never infer or bulk-label historical fingerprints.
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM commercial_payment_evidence
+    WHERE reference_fingerprint_version IS NULL
+       OR reference_fingerprint_version <> 'nfkc-upper-v2'
+  ) THEN
+    RAISE EXCEPTION 'COMMERCIAL_PAYMENT_FINGERPRINT_RECONCILIATION_REQUIRED'
+      USING DETAIL='historical payment fingerprints require controlled reconciliation from verified raw references';
+  END IF;
+END $$;
+ALTER TABLE commercial_payment_evidence
+  ALTER COLUMN reference_fingerprint_version SET NOT NULL;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname='commercial_payment_evidence_fingerprint_version_check'
+      AND conrelid='commercial_payment_evidence'::regclass
+  ) THEN
+    ALTER TABLE commercial_payment_evidence
+      ADD CONSTRAINT commercial_payment_evidence_fingerprint_version_check
+      CHECK (reference_fingerprint_version = 'nfkc-upper-v2');
   END IF;
 END $$;
 -- Currency, evidence_kind and provider_label are mutable descriptions. The external

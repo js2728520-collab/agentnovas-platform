@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 export type CommercialCursor = { createdAt: string; id: string };
 
+export const PAYMENT_REFERENCE_FINGERPRINT_VERSION = "nfkc-upper-v2" as const;
+
 export function encodeCommercialCursor(cursor: CommercialCursor) {
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }

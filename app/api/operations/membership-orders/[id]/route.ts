@@ -36,7 +36,7 @@ export async function GET(
       throw new ResearchApiError("ORDER_NOT_FOUND", "会员订单不存在", 404);
     const [evidence, decisions] = await Promise.all([
       pool.query(
-        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE membership_order_id=$1 ORDER BY created_at`,
+        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,reference_fingerprint_version,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE membership_order_id=$1 ORDER BY created_at`,
         [id],
       ),
       pool.query(

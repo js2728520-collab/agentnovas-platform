@@ -68,6 +68,15 @@ test("commercial migration seeds immutable v1 price snapshots and approval primi
   assert.match(sql, /COMMERCIAL_PAYMENT_REFERENCE_CONFLICT/i);
   assert.match(
     sql,
+    /reference_fingerprint_version text NOT NULL[\s\S]+nfkc-upper-v2/i,
+  );
+  assert.match(
+    sql,
+    /COMMERCIAL_PAYMENT_FINGERPRINT_RECONCILIATION_REQUIRED/i,
+  );
+  assert.match(sql, /CONTROLLED RECONCILIATION/i);
+  assert.match(
+    sql,
     /commercial_membership_order_decisions[\s\S]+payment_evidence_id text REFERENCES commercial_payment_evidence/i,
   );
   assert.match(

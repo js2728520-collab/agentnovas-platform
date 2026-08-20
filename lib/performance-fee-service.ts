@@ -4,6 +4,7 @@ import type { Pool, PoolClient } from "pg";
 import {
   fingerprintPaymentReference,
   maskPaymentReference,
+  PAYMENT_REFERENCE_FINGERPRINT_VERSION,
   previousCompleteUtcWeek,
 } from "./commercial-api-support.ts";
 import {
@@ -489,6 +490,19 @@ export async function recordPerformancePaymentEvidence(
         "分成结算单不存在",
         404,
       );
+    const unresolvedFingerprintVersion = await client.query<{ present: boolean }>(
+      `SELECT EXISTS(
+         SELECT 1 FROM commercial_payment_evidence
+         WHERE reference_fingerprint_version IS DISTINCT FROM $1
+       ) AS present`,
+      [PAYMENT_REFERENCE_FINGERPRINT_VERSION],
+    );
+    if (unresolvedFingerprintVersion.rows[0]?.present)
+      throw new ResearchApiError(
+        "COMMERCIAL_PAYMENT_FINGERPRINT_RECONCILIATION_REQUIRED",
+        "付款参考号指纹版本需要先完成受控核对",
+        503,
+      );
     const fingerprint = fingerprintPaymentReference(input.reference);
     const normalizedProvider = input.providerLabel?.slice(0, 80) ?? null;
     const normalizedOccurredAt = new Date(input.occurredAt).toISOString();
@@ -505,13 +519,14 @@ export async function recordPerformancePaymentEvidence(
         evidenceKind: input.evidenceKind,
         providerLabel: normalizedProvider,
         referenceFingerprint: fingerprint,
+        referenceFingerprintVersion: PAYMENT_REFERENCE_FINGERPRINT_VERSION,
         amount: input.amount,
         currency: input.currency,
         occurredAt: normalizedOccurredAt,
         note: normalizedNote,
       },
       sourceType: "payment_evidence",
-      sourceId: fingerprint,
+      sourceId: `${PAYMENT_REFERENCE_FINGERPRINT_VERSION}:${fingerprint}`,
       currency: "USDT",
     });
     if (claim.replayed) return claim.response;
@@ -522,7 +537,7 @@ export async function recordPerformancePaymentEvidence(
         409,
       );
     const inserted = await client.query(
-      `INSERT INTO commercial_payment_evidence(id,performance_statement_id,evidence_kind,provider_label,reference_masked,reference_fingerprint,amount,currency,occurred_at,note,recorded_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING RETURNING id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at`,
+      `INSERT INTO commercial_payment_evidence(id,performance_statement_id,evidence_kind,provider_label,reference_masked,reference_fingerprint,reference_fingerprint_version,amount,currency,occurred_at,note,recorded_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING RETURNING id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,reference_fingerprint_version,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at`,
       [
         randomUUID(),
         input.statementId,
@@ -530,6 +545,7 @@ export async function recordPerformancePaymentEvidence(
         normalizedProvider,
         maskPaymentReference(input.reference),
         fingerprint,
+        PAYMENT_REFERENCE_FINGERPRINT_VERSION,
         input.amount,
         input.currency,
         input.occurredAt,
@@ -541,12 +557,14 @@ export async function recordPerformancePaymentEvidence(
     const created = Boolean(evidence);
     if (!evidence) {
       const existing = await client.query(
-        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE reference_fingerprint=$1 FOR SHARE`,
-        [fingerprint],
+        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,reference_fingerprint_version,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE reference_fingerprint_version=$1 AND reference_fingerprint=$2 FOR SHARE`,
+        [PAYMENT_REFERENCE_FINGERPRINT_VERSION, fingerprint],
       );
       evidence = existing.rows[0];
       if (
         !evidence ||
+        evidence.reference_fingerprint_version !==
+          PAYMENT_REFERENCE_FINGERPRINT_VERSION ||
         evidence.performance_statement_id !== input.statementId ||
         evidence.membership_order_id !== null ||
         evidence.evidence_kind !== input.evidenceKind ||

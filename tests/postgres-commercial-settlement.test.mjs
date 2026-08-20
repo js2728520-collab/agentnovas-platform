@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import pg from "pg";
@@ -15,7 +16,10 @@ import {
   recordMembershipPaymentEvidence,
   submitMembershipOrder,
 } from "../lib/commercial-membership-service.ts";
-import { fingerprintPaymentReference } from "../lib/commercial-api-support.ts";
+import {
+  fingerprintPaymentReference,
+  PAYMENT_REFERENCE_FINGERPRINT_VERSION,
+} from "../lib/commercial-api-support.ts";
 import {
   ensurePlatformLedgerAccount,
   postCommercialLedgerTransaction,
@@ -50,6 +54,7 @@ const officialScope = async () => ({
   scopeVersion: "official-three-card-v1",
   source: "official_three_card_portfolio",
 });
+let cleanFingerprintNMinusOneVerified = false;
 
 test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
@@ -79,6 +84,32 @@ test.before(async () => {
       "utf8",
     ),
   );
+  await pool.query(`
+    ALTER TABLE commercial_payment_evidence
+      DROP CONSTRAINT commercial_payment_evidence_fingerprint_version_check,
+      DROP COLUMN reference_fingerprint_version;
+  `);
+  const commercialMigration = await readFile(
+    new URL(
+      "../postgres/migrations/0023_commercial_membership_settlement.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await pool.query(commercialMigration);
+  await pool.query(commercialMigration);
+  cleanFingerprintNMinusOneVerified = (await pool.query(`
+    SELECT c.is_nullable='NO'
+      AND EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname='commercial_payment_evidence_fingerprint_version_check'
+          AND conrelid='commercial_payment_evidence'::regclass
+      ) AS valid
+    FROM information_schema.columns c
+    WHERE c.table_schema=current_schema()
+      AND c.table_name='commercial_payment_evidence'
+      AND c.column_name='reference_fingerprint_version'
+  `)).rows[0]?.valid === true;
   await pool.query(`INSERT INTO organizations(id,type,name) VALUES('org','headquarters','Org');
     INSERT INTO users(id,email,password_hash,role,organization_id,status) VALUES
       ('customer','customer@example.test','x','customer','org','active'),('customer2','customer2@example.test','x','customer','org','active'),
@@ -91,6 +122,10 @@ test.before(async () => {
       ('risk-v1','risk_disclosure',1,repeat('e',64),'active','checker','2026-01-01','2026-01-01'),
       ('fee-opinion-v1','simulated_performance_fee_opinion',1,repeat('f',64),'active','checker','2026-01-01','2026-01-01'),
       ('refund-v1','refund_policy',1,repeat('0',64),'active','checker','2026-01-01','2026-01-01');`);
+});
+
+test("fresh and empty unversioned N-1 fingerprint schemas migrate and reapply", () => {
+  assert.equal(cleanFingerprintNMinusOneVerified, true);
 });
 test.after(async () => {
   await pool.end();
@@ -1101,8 +1136,11 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   );
   await assert.rejects(
     pool.query(
-      `INSERT INTO commercial_payment_evidence(id,performance_statement_id,evidence_kind,reference_masked,reference_fingerprint,amount,currency,occurred_at,recorded_by_user_id) VALUES('cross-resource-direct','cross-statement','manual_invoice','***001',$1,40,'USDT','2026-08-20T02:00:00Z','maker')`,
-      [fingerprintPaymentReference("cross business ref 001")],
+      `INSERT INTO commercial_payment_evidence(id,performance_statement_id,evidence_kind,reference_masked,reference_fingerprint,reference_fingerprint_version,amount,currency,occurred_at,recorded_by_user_id) VALUES('cross-resource-direct','cross-statement','manual_invoice','***001',$1,$2,40,'USDT','2026-08-20T02:00:00Z','maker')`,
+      [
+        fingerprintPaymentReference("cross business ref 001"),
+        PAYMENT_REFERENCE_FINGERPRINT_VERSION,
+      ],
     ),
     /unique|duplicate/i,
   );
@@ -1476,6 +1514,75 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   assert.equal(following.week_start.toISOString(), "2026-08-17T00:00:00.000Z");
 });
 
+test("commercial evidence writes stop while any fingerprint version needs reconciliation", async () => {
+  const unresolvedEvidenceId = (
+    await pool.query(
+      `SELECT id FROM commercial_payment_evidence ORDER BY created_at,id LIMIT 1`,
+    )
+  ).rows[0].id;
+  await pool.query(`
+    ALTER TABLE commercial_payment_evidence
+      DROP CONSTRAINT commercial_payment_evidence_fingerprint_version_check;
+  `);
+  await pool.query(
+    `UPDATE commercial_payment_evidence
+      SET reference_fingerprint_version='legacy-trim-v1'
+      WHERE id=$1`,
+    [unresolvedEvidenceId],
+  );
+  const order = await createMembershipOrder(pool, {
+    userId: "customer2",
+    planVersionId: "membership_monthly_v1",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "unreconciled-version-order",
+    requestId: "unreconciled-version-order",
+  });
+  for (const write of [
+    () => recordMembershipPaymentEvidence(pool, {
+      orderId: order.id,
+      actorUserId: "maker",
+      evidenceKind: "bank_transfer",
+      reference: "UNRECONCILED-MEMBERSHIP-9005",
+      amount: "28",
+      currency: "USD",
+      occurredAt: "2026-08-20T00:00:00Z",
+      idempotencyKey: "unreconciled-membership-evidence",
+    }),
+    () => recordPerformancePaymentEvidence(pool, {
+      statementId: "cross-statement",
+      actorUserId: "maker",
+      evidenceKind: "bank_transfer",
+      reference: "UNRECONCILED-PERFORMANCE-9005",
+      amount: "40",
+      currency: "USDT",
+      occurredAt: "2026-08-20T00:00:00Z",
+      idempotencyKey: "unreconciled-performance-evidence",
+    }),
+  ]) {
+    await assert.rejects(
+      write(),
+      (error) =>
+        error.status === 503
+        && error.code === "COMMERCIAL_PAYMENT_FINGERPRINT_RECONCILIATION_REQUIRED",
+    );
+  }
+  await pool.query(
+    `UPDATE commercial_payment_evidence
+      SET reference_fingerprint_version=$2
+      WHERE id=$1`,
+    [unresolvedEvidenceId, PAYMENT_REFERENCE_FINGERPRINT_VERSION],
+  );
+  const migration = await readFile(
+    new URL(
+      "../postgres/migrations/0023_commercial_membership_settlement.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await pool.query(migration);
+  await pool.query(migration);
+});
+
 test("commercial migration backfills N-1 decisions and reapplies subject constraints idempotently", async () => {
   await pool.query(`
     INSERT INTO commercial_membership_orders(
@@ -1503,22 +1610,30 @@ test("commercial migration backfills N-1 decisions and reapplies subject constra
   await pool.query(
     `INSERT INTO commercial_payment_evidence(
       id,membership_order_id,evidence_kind,reference_masked,reference_fingerprint,
+      reference_fingerprint_version,
       amount,currency,occurred_at,recorded_by_user_id
     ) VALUES(
       'legacy-order-evidence','legacy-order','bank_transfer','***9001',
-      $1,28,'USD','2026-08-20T00:00:00Z','maker'
+      $1,$2,28,'USD','2026-08-20T00:00:00Z','maker'
     )`,
-    [fingerprintPaymentReference("LEGACY-ORDER-REFERENCE-9001")],
+    [
+      fingerprintPaymentReference("LEGACY-ORDER-REFERENCE-9001"),
+      PAYMENT_REFERENCE_FINGERPRINT_VERSION,
+    ],
   );
   await pool.query(
     `INSERT INTO commercial_payment_evidence(
       id,performance_statement_id,evidence_kind,reference_masked,reference_fingerprint,
+      reference_fingerprint_version,
       amount,currency,occurred_at,recorded_by_user_id
     ) VALUES(
       'legacy-statement-evidence','legacy-statement','manual_invoice','***9002',
-      $1,40,'USDT','2026-08-20T00:00:00Z','maker'
+      $1,$2,40,'USDT','2026-08-20T00:00:00Z','maker'
     )`,
-    [fingerprintPaymentReference("LEGACY-STATEMENT-REFERENCE-9002")],
+    [
+      fingerprintPaymentReference("LEGACY-STATEMENT-REFERENCE-9002"),
+      PAYMENT_REFERENCE_FINGERPRINT_VERSION,
+    ],
   );
   await pool.query(`
     DROP INDEX idx_commercial_evidence_reference_fingerprint;
@@ -1599,22 +1714,24 @@ test("commercial migration fails closed when N-1 contains a cross-currency dupli
   await pool.query(
     `INSERT INTO commercial_payment_evidence(
       id,membership_order_id,evidence_kind,reference_masked,reference_fingerprint,
+      reference_fingerprint_version,
       amount,currency,occurred_at,recorded_by_user_id
     ) VALUES(
-      'legacy-conflict-usd','legacy-order','bank_transfer','***9003',$1,
+      'legacy-conflict-usd','legacy-order','bank_transfer','***9003',$1,$2,
       28,'USD','2026-08-20T00:00:00Z','maker'
     )`,
-    [duplicateFingerprint],
+    [duplicateFingerprint, PAYMENT_REFERENCE_FINGERPRINT_VERSION],
   );
   await pool.query(
     `INSERT INTO commercial_payment_evidence(
       id,performance_statement_id,evidence_kind,reference_masked,reference_fingerprint,
+      reference_fingerprint_version,
       amount,currency,occurred_at,recorded_by_user_id
     ) VALUES(
-      'legacy-conflict-usdt','legacy-statement','manual_invoice','***9003',$1,
+      'legacy-conflict-usdt','legacy-statement','manual_invoice','***9003',$1,$2,
       40,'USDT','2026-08-20T00:00:00Z','maker'
     )`,
-    [duplicateFingerprint],
+    [duplicateFingerprint, PAYMENT_REFERENCE_FINGERPRINT_VERSION],
   );
   const migration = await readFile(
     new URL(
@@ -1660,5 +1777,63 @@ test("commercial migration fails closed when N-1 contains a cross-currency dupli
       `)
     ).rows[0],
     { old_index_present: false, new_index_present: true },
+  );
+});
+
+test("legacy trim-only fingerprints require controlled reconciliation without mutation", async () => {
+  const rawReference = "  legacy   trim ref 9004  ";
+  const legacyTrimFingerprint = createHash("sha256")
+    .update(rawReference.trim(), "utf8")
+    .digest("hex");
+  assert.notEqual(
+    legacyTrimFingerprint,
+    fingerprintPaymentReference(rawReference),
+  );
+  await pool.query(
+    `INSERT INTO commercial_payment_evidence(
+      id,membership_order_id,evidence_kind,reference_masked,reference_fingerprint,
+      reference_fingerprint_version,amount,currency,occurred_at,recorded_by_user_id
+    ) VALUES(
+      'legacy-trim-fingerprint','legacy-order','bank_transfer','***9004',$1,$2,
+      28,'USD','2026-08-20T00:00:00Z','maker'
+    )`,
+    [legacyTrimFingerprint, PAYMENT_REFERENCE_FINGERPRINT_VERSION],
+  );
+  await pool.query(`
+    ALTER TABLE commercial_payment_evidence
+      DROP CONSTRAINT commercial_payment_evidence_fingerprint_version_check,
+      DROP COLUMN reference_fingerprint_version;
+  `);
+  const migration = await readFile(
+    new URL(
+      "../postgres/migrations/0023_commercial_membership_settlement.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await assert.rejects(
+    pool.query(migration),
+    /COMMERCIAL_PAYMENT_FINGERPRINT_RECONCILIATION_REQUIRED/,
+  );
+  assert.deepEqual(
+    (
+      await pool.query(`
+        SELECT
+          (SELECT reference_fingerprint FROM commercial_payment_evidence
+            WHERE id='legacy-trim-fingerprint') AS fingerprint,
+          NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema=current_schema()
+              AND table_name='commercial_payment_evidence'
+              AND column_name='reference_fingerprint_version'
+          ) AS version_column_absent,
+          to_regclass('idx_commercial_evidence_reference_fingerprint') IS NOT NULL AS index_preserved
+      `)
+    ).rows[0],
+    {
+      fingerprint: legacyTrimFingerprint,
+      version_column_absent: true,
+      index_preserved: true,
+    },
   );
 });

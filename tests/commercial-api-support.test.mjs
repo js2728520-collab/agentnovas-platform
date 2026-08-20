@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  PAYMENT_REFERENCE_FINGERPRINT_VERSION,
   decodeCommercialCursor,
   encodeCommercialCursor,
   fingerprintPaymentReference,
@@ -97,6 +98,7 @@ test("write boundaries require header idempotency and reject malformed evidence 
 });
 
 test("payment references use one Unicode, whitespace and case-normalized fingerprint", () => {
+  assert.equal(PAYMENT_REFERENCE_FINGERPRINT_VERSION, "nfkc-upper-v2");
   const canonical = "WIRE REF 001";
   assert.equal(normalizePaymentReference("  wire   ref  001  "), canonical);
   assert.equal(normalizePaymentReference("ｗｉｒｅ ref ００１"), canonical);
