@@ -40,3 +40,15 @@ test("client notification settings expose unintegrated external channels without
   assert.match(settings, /\/api\/notifications\/preferences/);
   assert.doesNotMatch(settings, /verificationCode|演示验证码|\/api\/notifications\/channels/);
 });
+
+test("trading experience reads official paper evidence and never presents client exchange writes", async () => {
+  const entry = await read("app/trading-center.tsx");
+  const experience = await read("apps/client/ui/trading-experience.tsx");
+  const source = `${entry}\n${experience}`;
+  assert.match(source, /\/api\/trading-hall\/paper\/portfolio/);
+  assert.match(source, /\/api\/trading-hall\/paper\/trades/);
+  assert.match(source, /\/api\/trading-hall/);
+  assert.match(source, /未提供平台验证回执/);
+  assert.doesNotMatch(source, /\/api\/exchange-accounts|\/api\/portfolio|\/api\/trading\/emergency-stop/);
+  assert.doesNotMatch(source, /连接交易所|API Key/);
+});
