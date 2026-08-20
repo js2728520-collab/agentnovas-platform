@@ -28,4 +28,3 @@ export async function GET(request: Request) {
     return researchErrorResponse(error, request);
   }
 }
-

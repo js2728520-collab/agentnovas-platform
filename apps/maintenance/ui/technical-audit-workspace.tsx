@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { formatDateTime, type MaintenanceTechnicalAuditEvent } from "@/packages/contracts/src/riverton-ui";
 import {
@@ -18,19 +18,39 @@ type AuditPage = {
 };
 
 export function TechnicalAuditWorkspace() {
+  const [ready, setReady] = useState(false);
   const [operation, setOperation] = useState("");
   const [status, setStatus] = useState("");
   const [cursor, setCursor] = useState("");
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const params = new URLSearchParams(window.location.search);
+      setOperation(params.get("operation") ?? "");
+      setStatus(params.get("status") ?? "");
+      setCursor(params.get("cursor") ?? "");
+      setReady(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
   const url = useMemo(() => {
+    if (!ready) return null;
     const query = new URLSearchParams({ limit: "50" });
     if (operation) query.set("operation", operation);
     if (status) query.set("status", status);
     if (cursor) query.set("cursor", cursor);
     return `/api/maintenance/audit?${query}`;
-  }, [cursor, operation, status]);
+  }, [cursor, operation, ready, status]);
   const resource = useApiData<AuditPage>(url, "技术审计读取失败");
+  useEffect(() => {
+    if (!ready) return;
+    const query = new URLSearchParams();
+    if (operation) query.set("operation", operation);
+    if (status) query.set("status", status);
+    if (cursor) query.set("cursor", cursor);
+    window.history.replaceState(null, "", `/audit${query.size ? `?${query}` : ""}`);
+  }, [cursor, operation, ready, status]);
 
-  if (resource.loading && !resource.data) return <LoadingState label="正在读取技术审计…" />;
+  if (!ready || (resource.loading && !resource.data)) return <LoadingState label="正在读取技术审计…" />;
   if (resource.error && !resource.data) return <ErrorState message={resource.error} retry={resource.refresh} />;
   const events = resource.data?.data ?? [];
   return <>

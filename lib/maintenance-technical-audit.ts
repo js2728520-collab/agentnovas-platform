@@ -22,7 +22,6 @@ function timestamp(value: unknown) {
   if (Number.isNaN(date.getTime())) throw new Error("INVALID_AUDIT_TIMESTAMP");
   return date.toISOString();
 }
-
 export function maintenanceTechnicalAuditDto(
   row: Record<string, unknown>,
 ): MaintenanceTechnicalAuditEvent {
@@ -95,4 +94,3 @@ export async function loadMaintenanceTechnicalAudit(
   );
   return result.rows.map(maintenanceTechnicalAuditDto);
 }
-
