@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     if (cursor) {
       values.push(cursor.createdAt, cursor.id);
       where.push(
-        `(COALESCE(a.updated_at,u.created_at),u.id)<($${values.length - 1}::timestamptz,$${values.length})`,
+        `(COALESCE(a.updated_at,u.created_at::timestamptz),u.id)<($${values.length - 1}::timestamptz,$${values.length})`,
       );
     }
     const scoped = commercialCustomerScopePredicate(
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
               COALESCE(a.available_credits,0)::text AS available,
               COALESCE(a.reserved_credits,0)::text AS reserved,
               COALESCE(a.version,0)::text AS version,
-              COALESCE(a.updated_at,u.created_at) AS sort_time
+              COALESCE(a.updated_at,u.created_at::timestamptz) AS sort_time
        FROM users u
        LEFT JOIN ai_credit_accounts a ON a.user_id=u.id
        WHERE ${where.join(" AND ")}
