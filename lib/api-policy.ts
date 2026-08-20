@@ -1,0 +1,201 @@
+import { API_ROUTE_INVENTORY, type ApiRouteInventoryEntry } from "./api-route-inventory.ts";
+import { resolveAppAudienceStrict, type AppAudience } from "./riverton-apps.ts";
+
+export type ApiAuthentication = "anonymous" | "session" | "permission" | "webhook" | "bootstrap";
+
+export type ApiRoutePolicy = {
+  audiences: readonly AppAudience[];
+  authentication: ApiAuthentication;
+  requiresSameOrigin: boolean;
+  sensitive: boolean;
+};
+
+export type ApiRequestContext = {
+  requestId: string;
+  audience: AppAudience;
+  method: string;
+  pathname: string;
+  inventory: ApiRouteInventoryEntry;
+  policy: ApiRoutePolicy;
+};
+
+const ALL_AUDIENCES = ["client", "operations", "maintenance"] as const;
+const INTERNAL_AUDIENCES = ["operations", "maintenance"] as const;
+const OPERATIONS_PREFIXES = [
+  "/api/approvals",
+  "/api/attributions",
+  "/api/data-center",
+  "/api/employee",
+  "/api/finance",
+  "/api/invitations",
+  "/api/operations",
+  "/api/organization",
+  "/api/public-pool",
+  "/api/reports",
+  "/api/team",
+] as const;
+const CLIENT_PREFIXES = [
+  "/api/account",
+  "/api/ai",
+  "/api/automation",
+  "/api/exchange-accounts",
+  "/api/integrations/catalog",
+  "/api/market",
+  "/api/notifications",
+  "/api/platform",
+  "/api/portfolio",
+  "/api/risk",
+  "/api/simulated-orders",
+  "/api/strategies",
+  "/api/strategy-",
+  "/api/trading",
+  "/api/wallet",
+] as const;
+
+export class ApiPolicyError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly details?: Record<string, unknown>;
+
+  constructor(
+    code: string,
+    message: string,
+    status: number,
+    details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "ApiPolicyError";
+    this.code = code;
+    this.status = status;
+    this.details = details;
+  }
+}
+
+function hasPrefix(route: string, prefixes: readonly string[]) {
+  return prefixes.some((prefix) => route === prefix || route.startsWith(`${prefix}/`) || route.startsWith(prefix));
+}
+
+function routeMatches(pattern: string, pathname: string) {
+  const expected = pattern.split("/").filter(Boolean);
+  const actual = pathname.split("/").filter(Boolean);
+  for (let index = 0; index < expected.length; index += 1) {
+    const part = expected[index];
+    if (part.startsWith(":") && part.endsWith("*")) return actual.length >= index;
+    if (actual[index] === undefined) return false;
+    if (!part.startsWith(":") && part !== actual[index]) return false;
+  }
+  return actual.length === expected.length;
+}
+
+function routeSpecificity(route: string) {
+  return route.split("/").reduce((score, part) => score + (part.startsWith(":") ? 0 : 1), 0);
+}
+
+export function findApiRouteInventory(method: string, pathname: string): ApiRouteInventoryEntry | null {
+  const normalizedMethod = method.toUpperCase();
+  const candidates = API_ROUTE_INVENTORY
+    .filter((entry) => entry.method === normalizedMethod && routeMatches(entry.route, pathname))
+    .sort((left, right) => routeSpecificity(right.route) - routeSpecificity(left.route));
+  return candidates[0] ?? null;
+}
+
+export function apiPolicyForRoute(route: string, method: string): ApiRoutePolicy {
+  const isMutation = !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase());
+  if (route === "/api/auth/login" || route === "/api/auth/logout" || route === "/api/auth/me") {
+    return {
+      audiences: ALL_AUDIENCES,
+      authentication: route === "/api/auth/login" ? "anonymous" : "session",
+      requiresSameOrigin: isMutation,
+      sensitive: true,
+    };
+  }
+  if (route.startsWith("/api/auth/")) {
+    return { audiences: ["client"], authentication: "anonymous", requiresSameOrigin: isMutation, sensitive: true };
+  }
+  if (route === "/api/system/bootstrap") {
+    return { audiences: ["maintenance"], authentication: "bootstrap", requiresSameOrigin: true, sensitive: true };
+  }
+  if (route.startsWith("/api/integrations/resend/webhook") || route.startsWith("/api/integrations/payments/")) {
+    return { audiences: ["maintenance"], authentication: "webhook", requiresSameOrigin: false, sensitive: true };
+  }
+  if (route.startsWith("/api/access/")) {
+    return { audiences: INTERNAL_AUDIENCES, authentication: "permission", requiresSameOrigin: isMutation, sensitive: true };
+  }
+  if (route.startsWith("/api/maintenance/") || route.startsWith("/api/admin/")) {
+    return { audiences: ["maintenance"], authentication: "permission", requiresSameOrigin: isMutation, sensitive: true };
+  }
+  if (hasPrefix(route, OPERATIONS_PREFIXES)) {
+    return { audiences: ["operations"], authentication: "permission", requiresSameOrigin: isMutation, sensitive: true };
+  }
+  if (hasPrefix(route, CLIENT_PREFIXES)) {
+    return { audiences: ["client"], authentication: "session", requiresSameOrigin: isMutation, sensitive: isMutation };
+  }
+  if (route === "/api/health") {
+    return { audiences: ALL_AUDIENCES, authentication: "anonymous", requiresSameOrigin: false, sensitive: false };
+  }
+  throw new ApiPolicyError("POLICY_NOT_REGISTERED", "接口安全策略尚未注册", 404, { route });
+}
+
+export function normalizeRequestId(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
+  return /^[A-Za-z0-9._:-]{8,128}$/.test(normalized) ? normalized : null;
+}
+
+export function requestIdFor(request: Request) {
+  return normalizeRequestId(request.headers.get("x-request-id")) ?? crypto.randomUUID();
+}
+
+export function evaluateApiRequestPolicy(request: Request): ApiRequestContext {
+  const url = new URL(request.url);
+  const requestId = requestIdFor(request);
+  const audience = resolveAppAudienceStrict({ host: request.headers.get("host") ?? url.host });
+  if (!audience) throw new ApiPolicyError("UNKNOWN_AUDIENCE", "接口在当前应用不可用", 404);
+  const inventory = findApiRouteInventory(request.method, url.pathname);
+  if (!inventory) throw new ApiPolicyError("ROUTE_NOT_REGISTERED", "接口在当前应用不可用", 404);
+  const policy = apiPolicyForRoute(inventory.route, inventory.method);
+  if (!policy.audiences.includes(audience)) {
+    throw new ApiPolicyError("ROUTE_NOT_AVAILABLE", "接口在当前应用不可用", 404);
+  }
+  return { requestId, audience, method: inventory.method, pathname: url.pathname, inventory, policy };
+}
+
+export function apiErrorResponse(error: unknown, requestId = crypto.randomUUID()) {
+  const normalizedRequestId = normalizeRequestId(requestId) ?? crypto.randomUUID();
+  const known = error instanceof ApiPolicyError;
+  const body = {
+    error: {
+      code: known ? error.code : "INTERNAL_ERROR",
+      message: known ? error.message : "服务器处理失败",
+      ...(known && error.details ? { details: error.details } : {}),
+    },
+    requestId: normalizedRequestId,
+  };
+  return Response.json(body, {
+    status: known ? error.status : 500,
+    headers: {
+      "cache-control": "no-store",
+      "x-request-id": normalizedRequestId,
+    },
+  });
+}
+
+type PolicyHandler<Args extends unknown[]> = (
+  request: Request,
+  apiContext: ApiRequestContext,
+  ...args: Args
+) => Response | Promise<Response>;
+
+export function withApiPolicy<Args extends unknown[]>(handler: PolicyHandler<Args>) {
+  return async (request: Request, ...args: Args) => {
+    let requestId = requestIdFor(request);
+    try {
+      const context = evaluateApiRequestPolicy(request);
+      requestId = context.requestId;
+      const response = await handler(request, context, ...args);
+      response.headers.set("x-request-id", requestId);
+      return response;
+    } catch (error) {
+      return apiErrorResponse(error, requestId);
+    }
+  };
+}

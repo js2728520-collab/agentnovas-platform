@@ -51,12 +51,13 @@ function normalizeHost(host: string | undefined) {
   return (host ?? "").split(",")[0]?.trim().toLowerCase().replace(/:\d+$/, "") ?? "";
 }
 
-export function resolveAppAudience(input: {
+export function resolveAppAudienceStrict(input: {
   host?: string;
   environment?: Record<string, string | undefined>;
-} = {}): AppAudience {
+} = {}): AppAudience | null {
   const configured = input.environment?.RIVERTON_APP_AUDIENCE ?? process.env.RIVERTON_APP_AUDIENCE;
   if (isAppAudience(configured)) return configured;
+  if (configured) return null;
   const host = normalizeHost(input.host);
   if (appByDomain.has(host)) return appByDomain.get(host)!;
   if (host === "localhost" || host === "127.0.0.1") {
@@ -64,7 +65,14 @@ export function resolveAppAudience(input: {
     const app = APP_DEFINITIONS.find((definition) => String(definition.localPort) === port);
     if (app) return app.id;
   }
-  return "client";
+  return null;
+}
+
+export function resolveAppAudience(input: {
+  host?: string;
+  environment?: Record<string, string | undefined>;
+} = {}): AppAudience {
+  return resolveAppAudienceStrict(input) ?? "client";
 }
 
 export function cookieNamesForRequest(request: Request) {
@@ -99,4 +107,3 @@ export function clientIpFromRequest(request: Request) {
     || request.headers.get("x-real-ip")
     || null;
 }
-
