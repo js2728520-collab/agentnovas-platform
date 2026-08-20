@@ -105,6 +105,13 @@ export type MaintenanceEmailStatus = {
   provider: string; configured: boolean; senderDomainVerified: boolean; apiKeyPresent: boolean;
   lastTestAt: string | null;
 };
+export type MaintenanceTechnicalAuditEvent = {
+  id: string; operation: "control" | "verify"; actorUserId: string;
+  account: { id: string; provider: string; label: string };
+  action: string; strategyCode: string | null; reason: string;
+  status: "pending" | "succeeded" | "failed"; errorCode: string | null;
+  createdAt: string; completedAt: string | null;
+};
 
 export function hasAnyPermission(
   permissions: Record<string, DataScope>,

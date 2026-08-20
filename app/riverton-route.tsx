@@ -6,7 +6,7 @@ import { resolveAppAudienceStrict } from "@/lib/riverton-apps";
 
 const CLIENT_ROUTES = new Set(["login", "wallet", "notifications"]);
 const OPERATIONS_ROUTES = new Set(["login", "customers", "organization", "membership-orders", "performance-statements", "credits", "deposits", "ledger", "finance", "approvals", "access"]);
-const MAINTENANCE_ROUTES = new Set(["login", "models", "integrations", "health", "safety", "settings", "access"]);
+const MAINTENANCE_ROUTES = new Set(["login", "models", "integrations", "health", "safety", "settings", "access", "audit"]);
 
 export async function RivertonRoute({ segments, loginMode }: { segments: string[]; loginMode?: "login" | "register" | "forgot" }) {
   const audience = resolveAppAudienceStrict({ host: (await headers()).get("host") ?? undefined });

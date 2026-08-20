@@ -1745,6 +1745,27 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/maintenance/audit",
+    "source": "app/api/maintenance/audit/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.audit.view"
+    ],
+    "permissionMfa": {
+      "maint.audit.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
     "route": "/api/maintenance/demo-exchanges",
     "source": "app/api/maintenance/demo-exchanges/route.ts",
     "audiences": [

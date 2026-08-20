@@ -10,6 +10,7 @@ import { ModelsWorkspace } from "./models-workspace";
 import { PaymentIntegrationWorkspace } from "./payment-integration-workspace";
 import { PlatformSettingsWorkspace } from "./platform-settings-workspace";
 import { SystemHealthWorkspace } from "./system-health-workspace";
+import { TechnicalAuditWorkspace } from "./technical-audit-workspace";
 import { AccessCenter } from "@/packages/ui/src/access-center";
 import { AppLogin } from "@/packages/ui/src/app-login";
 import { ConsoleShell } from "@/packages/ui/src/console-shell";
@@ -29,6 +30,7 @@ const navigation: ConsoleNavigationItem[] = [
   { href: "/settings", label: "平台与客服", icon: "设", requiredPermissions: ["maint.feature_flags.manage"] },
   { href: "/access", label: "角色权限", icon: "权", requiredPermissions: ["maint.roles.manage", "maint.roles.approve_sensitive"] },
   { href: "/access/audit", label: "授权审计", icon: "迹", requiredPermissions: ["maint.audit.view", "maint.roles.manage"] },
+  { href: "/audit", label: "技术审计", icon: "审", requiredPermissions: ["maint.audit.view"] },
 ];
 
 export default function MaintenanceApp({ segments }: { segments: string[] }) {
@@ -54,6 +56,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "safety" ? ["maint.emergency_pause.execute"]
     : route === "settings" ? ["maint.feature_flags.manage"]
     : route === "access" && subtype === "audit" ? ["maint.audit.view", "maint.roles.manage"]
+    : route === "audit" ? ["maint.audit.view"]
     : route === "access" ? ["maint.roles.manage", "maint.roles.approve_sensitive"] : undefined;
   if (!hasAnyPermission(session.access.permissions, required)) return <AccessDenied />;
   const permissions = session.access.permissions;
@@ -75,6 +78,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "safety" ? <EmergencyControlWorkspace />
     : route === "settings" ? <PlatformSettingsWorkspace />
     : route === "access" ? <AccessCenter appId="maintenance" permissions={permissions} auditOnly={subtype === "audit"} />
+    : route === "audit" ? <TechnicalAuditWorkspace />
     : <SystemHealthWorkspace overview />;
   return <ConsoleShell appName="运维端" appKind="maintenance" navigation={navigation} viewer={session.viewer} access={session.access}>{content}</ConsoleShell>;
 }
