@@ -10,6 +10,26 @@ async function writeJson(path, value) {
   await writeFile(path, `${JSON.stringify(value)}\n`);
 }
 
+function lighthouseReport() {
+  return {
+    categories: {
+      performance: { score: 0.98 },
+      accessibility: { score: 1 },
+      "best-practices": { score: 1 },
+    },
+    audits: {
+      "largest-contentful-paint": { numericValue: 2_300 },
+      "cumulative-layout-shift": { numericValue: 0.01 },
+      "total-blocking-time": { numericValue: 10 },
+      "resource-summary": { details: { items: [
+        { resourceType: "script", transferSize: 100_000 },
+        { resourceType: "stylesheet", transferSize: 20_000 },
+        { resourceType: "image", transferSize: 50_000 },
+      ] } },
+    },
+  };
+}
+
 test("release evidence verifier hashes only complete, secret-safe outputs", async () => {
   const root = await mkdtemp(join(tmpdir(), "agentnovas-release-evidence-"));
   try {
@@ -19,6 +39,7 @@ test("release evidence verifier hashes only complete, secret-safe outputs", asyn
     await writeJson(join(root, "quality-e2e", "fixture-cleanup.json"), {
       schemaCleanupComplete: true,
       runtimeSecretsRemoved: true,
+      cleanupFailures: [],
       externalWritesEnabled: false,
     });
     await writeJson(join(root, "quality-e2e", "gate-result.json"), {
@@ -30,11 +51,17 @@ test("release evidence verifier hashes only complete, secret-safe outputs", asyn
     await writeJson(join(root, "quality-bundle", "report.json"), {
       applications: [{ name: "client", passed: true }, { name: "operations", passed: true }, { name: "maintenance", passed: true }],
     });
-    await writeJson(join(root, "quality-lighthouse", "manifest.json"), [
-      { url: "http://127.0.0.1:3000/login", isRepresentativeRun: false },
-      { url: "http://127.0.0.1:3000/login", isRepresentativeRun: true },
-      { url: "http://127.0.0.1:3000/login", isRepresentativeRun: false },
-    ]);
+    const lighthouseEntries = [];
+    for (let index = 0; index < 3; index += 1) {
+      const jsonPath = join(root, "quality-lighthouse", `report-${index}.json`);
+      await writeJson(jsonPath, lighthouseReport());
+      lighthouseEntries.push({
+        url: "http://127.0.0.1:3000/login",
+        jsonPath,
+        isRepresentativeRun: index === 1,
+      });
+    }
+    await writeJson(join(root, "quality-lighthouse", "manifest.json"), lighthouseEntries);
     await writeJson(join(root, "quality-lighthouse", "gate-result.json"), {
       passed: true,
       numberOfRuns: 3,
@@ -44,6 +71,7 @@ test("release evidence verifier hashes only complete, secret-safe outputs", asyn
       schemaCleanupComplete: true,
       runtimeSecretsRemoved: true,
       lhciWorkingFilesRemoved: true,
+      cleanupFailures: [],
       externalWritesEnabled: false,
     });
 
@@ -51,7 +79,35 @@ test("release evidence verifier hashes only complete, secret-safe outputs", asyn
     assert.equal(manifest.gates.e2e, "passed");
     assert.equal(manifest.gates.bundle, "passed");
     assert.equal(manifest.gates.lighthouse, "passed");
-    assert.equal(manifest.artifacts.length, 7);
+    assert.equal(manifest.artifacts.length, 10);
+
+    await writeFile(join(root, "quality-e2e", "mfa-failure.png"), "opaque screenshot bytes");
+    await assert.rejects(() => verifyQualityReleaseEvidence(root), /binary image evidence/i);
+    await rm(join(root, "quality-e2e", "mfa-failure.png"));
+
+    await rm(lighthouseEntries[2].jsonPath);
+    await assert.rejects(() => verifyQualityReleaseEvidence(root), /Lighthouse.*report|Missing or malformed/i);
+    await writeJson(lighthouseEntries[2].jsonPath, lighthouseReport());
+
+    await writeJson(join(root, "quality-lighthouse", "manifest.json"), [
+      lighthouseEntries[0], lighthouseEntries[1], { ...lighthouseEntries[2], jsonPath: lighthouseEntries[1].jsonPath },
+    ]);
+    await assert.rejects(() => verifyQualityReleaseEvidence(root), /three distinct.*reports/i);
+    await writeJson(join(root, "quality-lighthouse", "manifest.json"), lighthouseEntries);
+
+    await writeJson(join(root, "quality-e2e", "fixture-cleanup.json"), {
+      schemaCleanupComplete: true,
+      runtimeSecretsRemoved: true,
+      cleanupFailures: [{ phase: "schema", message: "DROP failed" }],
+      externalWritesEnabled: false,
+    });
+    await assert.rejects(() => verifyQualityReleaseEvidence(root), /cleanup evidence is incomplete or unsafe/i);
+    await writeJson(join(root, "quality-e2e", "fixture-cleanup.json"), {
+      schemaCleanupComplete: true,
+      runtimeSecretsRemoved: true,
+      cleanupFailures: [],
+      externalWritesEnabled: false,
+    });
 
     await writeFile(join(root, "quality-e2e", "results.xml"), '<testsuites tests="8" failures="0" skipped="8" errors="0"></testsuites>');
     await assert.rejects(() => verifyQualityReleaseEvidence(root), /E2E evidence is not one complete passing run/);
