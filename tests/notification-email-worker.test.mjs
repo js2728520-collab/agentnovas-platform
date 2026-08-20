@@ -119,6 +119,7 @@ test("Resend sender, endpoint and idempotency key are fixed", async () => {
   assert.equal(request.init.headers["Idempotency-Key"], "notification-delivery/delivery-1");
   assert.equal(request.body.from, "noreply@agentnovas.com");
   assert.deepEqual(request.body.to, ["person@example.com"]);
+  assert.deepEqual(request.body.tags, [{ name: "notification_delivery_id", value: "delivery-1" }]);
 });
 
 test("claim uses a fenced SKIP LOCKED lease and sent updates require owner", async () => {
@@ -138,6 +139,7 @@ test("claim uses a fenced SKIP LOCKED lease and sent updates require owner", asy
   assert.equal(queries.find(query => /SKIP LOCKED/.test(query.sql)).parameters[2], 5);
   await markEmailSent(pool, { deliveryId: "delivery-1", workerId: "worker-1", providerMessageId: "provider-1", now: new Date("2026-08-20T00:00:01.000Z") });
   assert.match(queries.at(-1).sql, /lease_owner = \$2/);
+  assert.match(queries.at(-1).sql, /status IN \('delivered', 'failed'\)/);
 });
 
 test("invalid synthetic recipient fails permanently without invoking sender", async () => {
@@ -161,4 +163,21 @@ test("invalid synthetic recipient fails permanently without invoking sender", as
   assert.deepEqual(result, { status: "failed", errorCode: "INVALID_RECIPIENT" });
   assert.equal(updates[0].parameters[2], "failed");
   assert.equal(updates[0].parameters[3], "INVALID_RECIPIENT");
+});
+
+test("a fenced delivery update is never reported as sent", async () => {
+  const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
+  const result = await processClaimedEmail(pool, {
+    id: "delivery-1",
+    userId: "user-1",
+    templateKey: "reset_password",
+    payloadJson: { token: "secret-token" },
+    attempts: 1,
+    recipient: "person@example.com",
+  }, {
+    workerId: "stale-worker",
+    apiKey: "test-key",
+    send: async () => ({ ok: true, providerMessageId: "provider-1" }),
+  });
+  assert.deepEqual(result, { status: "fenced", providerMessageId: "provider-1" });
 });

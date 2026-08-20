@@ -8,7 +8,7 @@ async function source(path) {
 
 test("agent page uses persistent server conversations and streamed messages", async () => {
   const [page, chat] = await Promise.all([
-    source("../app/page.tsx"),
+    source("../app/client-app.tsx"),
     source("../app/agent-chat.tsx"),
   ]);
 

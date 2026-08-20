@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -48,3 +49,27 @@ test("unconfigured channels are explicit and mandatory deposit notices cannot be
   });
 });
 
+test("Resend webhook acknowledges synchronously applied events with HTTP 200", async () => {
+  const route = await readFile(new URL("../app/api/integrations/resend/webhook/route.ts", import.meta.url), "utf8");
+  assert.match(route, /applyResendWebhookEvent/);
+  assert.match(route, /status:\s*200/);
+  assert.doesNotMatch(route, /queued:\s*false\s*},\s*{\s*status:\s*202/);
+});
+
+test("Resend delivery event state is persisted with lookup and audit indexes", async () => {
+  const migration = await readFile(new URL("../postgres/migrations/0018_resend_delivery_events.sql", import.meta.url), "utf8");
+  assert.match(migration, /provider_event_type/);
+  assert.match(migration, /provider_event_at/);
+  assert.match(migration, /mapped_delivery_id/);
+  assert.match(migration, /provider_message_id/);
+  assert.match(migration, /CREATE UNIQUE INDEX IF NOT EXISTS "idx_notifications_email_provider_message"/);
+  assert.match(migration, /CREATE INDEX IF NOT EXISTS "idx_resend_webhook_provider_message"/);
+});
+
+test("business schema upgrades existing notification tables before creating lease indexes", async () => {
+  const migration = await readFile(new URL("../postgres/migrations/0000_business_schema.sql", import.meta.url), "utf8");
+  const alter = migration.indexOf('ALTER TABLE "notification_deliveries" ADD COLUMN IF NOT EXISTS "lease_owner"');
+  const index = migration.indexOf('CREATE INDEX IF NOT EXISTS "idx_notifications_email_claim"');
+  assert.ok(alter >= 0, "existing notification tables must receive lease columns");
+  assert.ok(index > alter, "lease columns must exist before their indexes are created");
+});

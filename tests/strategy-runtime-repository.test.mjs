@@ -83,6 +83,7 @@ test.before(async () => {
     "0001_strategy_research.sql",
     "0007_strategy_runtime.sql",
     "0013_runtime_explanations.sql",
+    "0020_runtime_final_decision.sql",
   ]) {
     const migration = await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8");
     await pool.query(migration);
@@ -161,7 +162,7 @@ test("persists exactly seven role events and makes a repeated candle idempotent"
   const lease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now, leaseSeconds: 30 });
   const events = [
     "market_data", "technical_analysis", "strategy_decision", "adversarial_review",
-    "risk", "execution", "audit",
+    "risk", "decision", "execution",
   ].map((role, index) => ({ sequence: index + 1, role, conclusion: role, evidence: {}, durationMs: 0, llmUsed: false }));
   const input = {
     cycleId: "cycle-a", deploymentId: deployment.id, workerId: "runtime-a", fencingToken: lease.fencingToken,
@@ -205,7 +206,7 @@ test("queues pinned asynchronous explanations without changing deterministic con
   const lease = await leaseNextStrategyDeployment(pool, { workerId: "runtime-a", now, leaseSeconds: 30 });
   const roles = [
     "market_data", "technical_analysis", "strategy_decision", "adversarial_review",
-    "risk", "execution", "audit",
+    "risk", "decision", "execution",
   ];
   const events = roles.map((role, index) => ({
     sequence: index + 1,

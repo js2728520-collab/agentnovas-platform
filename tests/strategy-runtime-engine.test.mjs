@@ -48,7 +48,7 @@ test("emits seven independent deterministic runtime agent events and a next-open
 
   assert.deepEqual(result.events.map(event => event.role), [
     "market_data", "technical_analysis", "strategy_decision", "adversarial_review",
-    "risk", "execution", "audit",
+    "risk", "decision", "execution",
   ]);
   assert.equal(result.decision.action, "enter_long");
   assert.equal(result.decision.riskApproved, true);

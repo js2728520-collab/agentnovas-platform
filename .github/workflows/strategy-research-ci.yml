@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17
+        image: postgres:16
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -36,4 +36,5 @@ jobs:
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm run test:apps
+      - run: npm run test:smoke:built
       - run: npm audit --omit=dev --audit-level=critical
