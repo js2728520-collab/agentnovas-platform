@@ -173,7 +173,6 @@ export function paymentEvidenceDto(value: unknown) {
     kind: String(row.evidence_kind),
     providerLabel: row.provider_label ? String(row.provider_label) : null,
     referenceMasked: String(row.reference_masked),
-    referenceFingerprintVersion,
     amount: String(row.amount),
     currency: String(row.currency),
     occurredAt: timestamp(row.occurred_at)!,

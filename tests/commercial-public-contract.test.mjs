@@ -104,6 +104,7 @@ test("commercial action and evidence DTOs are camelCase allowlists", () => {
     evidence_kind: "bank_transfer",
     provider_label: "bank",
     reference_masked: "****1234",
+    reference_fingerprint: "never",
     reference_fingerprint_version: "nfkc-upper-v2",
     amount: "28.000000000000000000",
     currency: "USD",
@@ -123,7 +124,6 @@ test("commercial action and evidence DTOs are camelCase allowlists", () => {
     kind: "bank_transfer",
     providerLabel: "bank",
     referenceMasked: "****1234",
-    referenceFingerprintVersion: "nfkc-upper-v2",
     amount: "28.000000000000000000",
     currency: "USD",
     occurredAt: "2026-08-20T00:00:00.000Z",
@@ -134,6 +134,8 @@ test("commercial action and evidence DTOs are camelCase allowlists", () => {
     reviewedAt: null,
     createdAt: "2026-08-20T00:00:01.000Z",
   });
+  assert.equal("referenceFingerprint" in evidence, false);
+  assert.equal("referenceFingerprintVersion" in evidence, false);
   assert.deepEqual(
     membershipActionDto({
       status: "activated",
