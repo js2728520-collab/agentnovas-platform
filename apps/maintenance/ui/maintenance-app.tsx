@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { EmailIntegrationWorkspace } from "./email-integration-workspace";
+import { DemoExchangesWorkspace } from "./demo-exchanges-workspace";
 import { EmergencyControlWorkspace } from "./emergency-control-workspace";
 import { IntegrationsOverview } from "./integrations-overview";
 import { ModelsWorkspace } from "./models-workspace";
@@ -22,6 +23,7 @@ const navigation: ConsoleNavigationItem[] = [
   { href: "/integrations", label: "服务集成", icon: "接", requiredPermissions: ["maint.system_health.view"] },
   { href: "/integrations/email", label: "邮件服务", icon: "邮", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage"] },
   { href: "/integrations/payments", label: "支付服务", icon: "付", requiredPermissions: ["maint.system_health.view", "maint.payment_integrations.manage"] },
+  { href: "/integrations/demo-exchanges", label: "Demo 交易所", icon: "测", requiredPermissions: ["maint.demo_exchanges.view"] },
   { href: "/health", label: "系统健康", icon: "康", requiredPermissions: ["maint.system_health.view"] },
   { href: "/safety", label: "紧急暂停", icon: "停", requiredPermissions: ["maint.emergency_pause.execute"] },
   { href: "/settings", label: "平台与客服", icon: "设", requiredPermissions: ["maint.feature_flags.manage"] },
@@ -47,7 +49,8 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "models" ? ["maint.system_health.view", "maint.llm_profiles.manage", "maint.agent_bindings.manage"]
     : route === "integrations" && subtype === "email" ? ["maint.system_health.view", "maint.email_integrations.manage"]
     : route === "integrations" && subtype === "payments" ? ["maint.system_health.view", "maint.payment_integrations.manage"]
-    : route === "integrations" ? ["maint.system_health.view", "maint.email_integrations.manage", "maint.payment_integrations.manage"]
+    : route === "integrations" && subtype === "demo-exchanges" ? ["maint.demo_exchanges.view"]
+    : route === "integrations" ? ["maint.system_health.view", "maint.email_integrations.manage", "maint.payment_integrations.manage", "maint.demo_exchanges.view"]
     : route === "safety" ? ["maint.emergency_pause.execute"]
     : route === "settings" ? ["maint.feature_flags.manage"]
     : route === "access" && subtype === "audit" ? ["maint.audit.view", "maint.roles.manage"]
@@ -59,7 +62,12 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "models" ? <ModelsWorkspace canManageProfiles={Boolean(permissions["maint.llm_profiles.manage"])} canManageBindings={Boolean(permissions["maint.agent_bindings.manage"])} />
     : route === "integrations" && subtype === "email" ? <EmailIntegrationWorkspace canManage={Boolean(permissions["maint.email_integrations.manage"])} />
     : route === "integrations" && subtype === "payments" ? <PaymentIntegrationWorkspace canManage={Boolean(permissions["maint.payment_integrations.manage"])} />
-    : route === "integrations" ? <IntegrationsOverview />
+    : route === "integrations" && subtype === "demo-exchanges" ? <DemoExchangesWorkspace
+      canVerify={Boolean(permissions["maint.demo_exchanges.verify"])}
+      canManage={Boolean(permissions["maint.demo_exchanges.manage"])}
+      canKill={Boolean(permissions["maint.demo_exchanges.kill"])}
+    />
+    : route === "integrations" ? <IntegrationsOverview canViewDemo={Boolean(permissions["maint.demo_exchanges.view"])} />
     : route === "safety" ? <EmergencyControlWorkspace />
     : route === "settings" ? <PlatformSettingsWorkspace />
     : route === "access" ? <AccessCenter appId="maintenance" permissions={permissions} auditOnly={subtype === "audit"} />

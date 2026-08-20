@@ -21,11 +21,11 @@ type RelationshipNode = {
   canManuallyActivate?: boolean;
 };
 
-type ActivationCredentials = {
+type ActivationDelivery = {
+  ok: true;
   memberId: string;
-  email: string;
-  temporaryPassword: string;
-  loginUrl: string;
+  deliveryStatus: "queued";
+  message: string;
 };
 
 type RelationshipPayload = {
@@ -57,8 +57,7 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [activatingId, setActivatingId] = useState("");
   const [activationError, setActivationError] = useState("");
-  const [activationCredentials, setActivationCredentials] = useState<ActivationCredentials | null>(null);
-  const [credentialsCopied, setCredentialsCopied] = useState(false);
+  const [activationDelivery, setActivationDelivery] = useState<ActivationDelivery | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -171,35 +170,21 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
   }
 
   async function activateMember(node: RelationshipNode) {
-    if (!window.confirm(`确定手动激活 ${node.email}？\n\n系统会生成新的临时密码，原邀请链接和旧临时密码将立即失效。`)) return;
+    if (!window.confirm(`确定为 ${node.email} 重新发送设置密码邀请？\n\n旧邀请会失效；在成员完成设置密码前，账户仍保持待激活。`)) return;
     setActivatingId(node.id);
     setActivationError("");
-    setCredentialsCopied(false);
     try {
       const response = await fetch(`/api/organization/members/${encodeURIComponent(node.subjectId)}/activate`, { method: "POST" });
-      const data = await response.json() as ActivationCredentials & { error?: string };
-      if (!response.ok) throw new Error(data.error || "手动激活失败");
-      setActivationCredentials(data);
-      setPayload(current => current ? {
-        ...current,
-        nodes: current.nodes.map(item => item.id === node.id ? { ...item, status: "active", canManuallyActivate: false } : item),
-        summary: { ...current.summary, active: current.summary.active + 1 },
-      } : current);
+      const data = await response.json() as Partial<ActivationDelivery> & { error?: string };
+      if (!response.ok) throw new Error(data.error || "设置密码邀请发送失败");
+      if (data.ok !== true || data.deliveryStatus !== "queued" || !data.memberId || !data.message) {
+        throw new Error("设置密码邀请回执无效");
+      }
+      setActivationDelivery(data as ActivationDelivery);
     } catch (reason) {
-      setActivationError(reason instanceof Error ? reason.message : "手动激活失败");
+      setActivationError(reason instanceof Error ? reason.message : "设置密码邀请发送失败");
     } finally {
       setActivatingId("");
-    }
-  }
-
-  async function copyCredentials(credentials: ActivationCredentials) {
-    const content = `Riverton Capital 登录信息\n登录地址：${credentials.loginUrl}\n账号：${credentials.email}\n临时密码：${credentials.temporaryPassword}\n首次登录后，请点击顶部账号头像并修改密码。`;
-    try {
-      await navigator.clipboard.writeText(content);
-      setCredentialsCopied(true);
-    } catch {
-      setCredentialsCopied(false);
-      setActivationError("浏览器未允许自动复制，请手动选择下方登录信息复制");
     }
   }
 
@@ -268,19 +253,14 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
             {selected.kind === "customer" && <section><h4>用户归属信息</h4><p><span>归属状态</span><b>{attributionLabels[selected.attributionStatus || ""] || selected.attributionStatus || "—"}</b></p><p><span>归属来源</span><b>{sourceLabels[selected.attributionSource || ""] || selected.attributionSource || "—"}</b></p><p><span>生效时间</span><b>{formatDate(selected.effectiveAt)}</b></p></section>}
             {selected.canManuallyActivate && <section className="organization-tree-activation">
               <h4>待激活账户</h4>
-              <p>手动激活后，系统会立即生成一组新的临时登录密码。</p>
-              <button type="button" disabled={Boolean(activatingId)} onClick={() => void activateMember(selected)}>{activatingId === selected.id ? "正在激活…" : "手动激活并生成临时密码"}</button>
+              <p>重新发送一次性设置密码邀请；成员完成设置密码前，账户不会变为正常状态。</p>
+              <button type="button" disabled={Boolean(activatingId)} onClick={() => void activateMember(selected)}>{activatingId === selected.id ? "正在加入邮件队列…" : "重新发送设置密码邀请"}</button>
             </section>}
-            {activationCredentials?.memberId === selected.subjectId && <section className="organization-tree-credentials">
-              <header><div><small>ACTIVATED</small><h4>激活成功</h4></div><span>仅显示本次</span></header>
-              <p className="organization-tree-credential-note">请先复制并安全发给对方。关闭或刷新页面后，临时密码不会再次显示。</p>
-              <dl>
-                <div><dt>登录地址</dt><dd><a href={activationCredentials.loginUrl} target="_blank" rel="noreferrer">{activationCredentials.loginUrl}</a></dd></div>
-                <div><dt>登录账号</dt><dd>{activationCredentials.email}</dd></div>
-                <div><dt>临时密码</dt><dd><code>{activationCredentials.temporaryPassword}</code></dd></div>
-              </dl>
-              <ol><li>打开上面的登录地址</li><li>账号填写邮箱，密码填写临时密码</li><li>登录后点击顶部账号头像 → 修改密码</li></ol>
-              <div className="organization-tree-credential-actions"><button type="button" onClick={() => void copyCredentials(activationCredentials)}>{credentialsCopied ? "已复制登录信息" : "复制全部登录信息"}</button><button type="button" onClick={() => setActivationCredentials(null)}>我已保存</button></div>
+            {activationDelivery?.memberId === selected.subjectId && <section className="organization-tree-credentials" aria-live="polite">
+              <header><div><small>DELIVERY QUEUED</small><h4>设置密码邀请已进入邮件队列</h4></div><span>待发送</span></header>
+              <p className="organization-tree-credential-note">{activationDelivery.message}</p>
+              <p>此处不会显示或复制密码、Token 或登录链接。邮件投递成功也不等于成员已激活。</p>
+              <div className="organization-tree-credential-actions"><button type="button" onClick={() => setActivationDelivery(null)}>关闭回执</button></div>
             </section>}
             {activationError && <div className="organization-tree-activation-error">{activationError}</div>}
             <footer>人员编号 <code>{selected.subjectId}</code></footer>
