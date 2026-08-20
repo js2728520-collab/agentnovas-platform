@@ -1,4 +1,5 @@
 import { listOfficialPaperTrades } from "@/lib/official-paper-repository";
+import { parseOfficialPaperTradeLimit } from "@/lib/official-paper-pagination";
 import { getPostgresPool } from "@/lib/postgres";
 import { requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
   try {
     const user = await requireResearchUser(request, ["customer"]);
     const url = new URL(request.url);
-    const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 50), 1), 100);
+    const limit = parseOfficialPaperTradeLimit(url.searchParams.get("limit"));
     const result = await listOfficialPaperTrades(await getPostgresPool(), {
       customerId: user.id,
       cursor: decodeCursor(url.searchParams.get("cursor")),
