@@ -1,5 +1,6 @@
 import { requireCurrentAccessAdmin, requireCurrentAccessAssignmentAdmin, requireCurrentAccessViewer } from "@/lib/access-control";
 import { accessPageCursor, accessUserScopePredicate, parseAccessPageCursor, scopeCanDelegate } from "@/lib/access-center-scope";
+import { lockScopedRoleForTarget } from "@/lib/access-role-authorization";
 import { parseAccessChangeRequest } from "@/lib/access-change-requests";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
@@ -103,54 +104,75 @@ export async function POST(request: Request) {
     if (viewer.appId !== appId || viewer.user.id !== user.id) throw new ResearchApiError("FORBIDDEN", "授权上下文已变化", 403);
     if (change.applicationId !== appId) throw new ResearchApiError("FORBIDDEN", "不能提交其他应用的权限变更", 403);
     const pool = await getPostgresPool();
-    if (change.targetUserId) {
-      const scopePredicate = accessUserScopePredicate({
-        scope,
-        actor: { id: user.id, organizationId: user.organizationId },
-        organizationIds,
-        userAlias: "target_user",
-        startIndex: 2,
-      });
-      const target = await pool.query(`SELECT target_user.id FROM users AS target_user WHERE target_user.id = $1 AND (${scopePredicate.clause}) LIMIT 1`, [change.targetUserId, ...scopePredicate.values]);
-      if (!target.rows[0]) throw new ResearchApiError("FORBIDDEN", "不能变更授权范围外的用户", 403);
-    } else if (scope !== "PLATFORM") {
-      throw new ResearchApiError("FORBIDDEN", "应用级角色变更需要平台范围授权", 403);
-    }
-    // Validate references and application ownership before creating an actionable request.
-    if (change.changeType === "role_assign") {
-      const result = await pool.query<{ user_id: string; role_id: string; scopes: Array<Parameters<typeof scopeCanDelegate>[1]> }>(`
-        SELECT u.id AS user_id, r.id AS role_id,
-               COALESCE(array_agg(rp.scope) FILTER (WHERE rp.id IS NOT NULL), ARRAY[]::text[]) AS scopes
-        FROM users u CROSS JOIN roles r
-        LEFT JOIN role_permissions rp ON rp.role_id = r.id
-        WHERE u.id = $1 AND r.id = $2 AND r.application_id = $3 AND r.status = 'published'
-        GROUP BY u.id, r.id
-      `, [change.targetUserId, change.targetRoleId, change.applicationId]);
-      if (!result.rows[0]) throw new Error("ACCESS_REFERENCE_NOT_FOUND");
-      if (result.rows[0].scopes.some((permissionScope) => !scopeCanDelegate(scope, permissionScope))) {
-        throw new ResearchApiError("SCOPE_ESCALATION", "不能申请分配数据范围大于自身授权的角色", 403);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      let targetOrganizationId: string | null | undefined;
+      if (change.targetUserId) {
+        const scopePredicate = accessUserScopePredicate({
+          scope,
+          actor: { id: user.id, organizationId: user.organizationId },
+          organizationIds,
+          userAlias: "target_user",
+          startIndex: 2,
+        });
+        const target = await client.query<{ id: string; organization_id: string | null }>(`
+          SELECT target_user.id, target_user.organization_id
+          FROM users AS target_user
+          WHERE target_user.id = $1 AND (${scopePredicate.clause})
+          FOR UPDATE OF target_user
+        `, [change.targetUserId, ...scopePredicate.values]);
+        if (!target.rows[0]) throw new ResearchApiError("FORBIDDEN", "不能变更授权范围外的用户", 403);
+        targetOrganizationId = target.rows[0].organization_id;
+      } else if (scope !== "PLATFORM") {
+        throw new ResearchApiError("FORBIDDEN", "应用级角色变更需要平台范围授权", 403);
       }
-    } else if (change.changeType === "role_update") {
-      const result = await pool.query("SELECT id FROM roles WHERE id = $1 AND application_id = $2 AND is_system = false", [change.targetRoleId, change.applicationId]);
-      if (!result.rows[0]) throw new Error("ACCESS_REFERENCE_NOT_FOUND");
-    } else if (change.changeType === "role_revoke") {
-      const result = await pool.query(`
-        SELECT ura.id FROM user_role_assignments ura
-        JOIN roles r ON r.id = ura.role_id
-        WHERE ura.id = $1 AND ura.user_id = $2 AND r.id = $3
-          AND ura.application_id = $4 AND ura.status = 'active'
-      `, [change.after.assignmentId, change.targetUserId, change.targetRoleId, change.applicationId]);
-      if (!result.rows[0]) throw new Error("ACCESS_REFERENCE_NOT_FOUND");
+      // Validate and lock every reference before creating an actionable request.
+      if (change.changeType === "role_assign") {
+        const role = await lockScopedRoleForTarget(client, {
+          roleId: change.targetRoleId,
+          appId: change.applicationId,
+          targetOrganizationId: targetOrganizationId ?? null,
+          scope,
+          actor: { id: user.id, organizationId: user.organizationId },
+          organizationIds,
+        });
+        if (!role) throw new ResearchApiError("FORBIDDEN", "不能申请授权范围外或不适用于目标组织的角色", 403);
+        const roleScopes = await client.query<{ scope: Parameters<typeof scopeCanDelegate>[1] }>(`
+          SELECT scope FROM role_permissions WHERE role_id = $1
+        `, [change.targetRoleId]);
+        if (roleScopes.rows.some((permission) => !scopeCanDelegate(scope, permission.scope))) {
+          throw new ResearchApiError("SCOPE_ESCALATION", "不能申请分配数据范围大于自身授权的角色", 403);
+        }
+      } else if (change.changeType === "role_update") {
+        const result = await client.query("SELECT id FROM roles WHERE id = $1 AND application_id = $2 AND is_system = false FOR UPDATE", [change.targetRoleId, change.applicationId]);
+        if (!result.rows[0]) throw new Error("ACCESS_REFERENCE_NOT_FOUND");
+      } else if (change.changeType === "role_revoke") {
+        const result = await client.query(`
+          SELECT ura.id FROM user_role_assignments ura
+          JOIN roles r ON r.id = ura.role_id
+          WHERE ura.id = $1 AND ura.user_id = $2 AND r.id = $3
+            AND ura.application_id = $4 AND ura.status = 'active'
+          FOR UPDATE OF ura, r
+        `, [change.after.assignmentId, change.targetUserId, change.targetRoleId, change.applicationId]);
+        if (!result.rows[0]) throw new Error("ACCESS_REFERENCE_NOT_FOUND");
+      }
+      const result = await client.query(`
+        INSERT INTO access_change_requests
+          (id, application_id, target_user_id, target_role_id, change_type, before_json, after_json, requested_by_user_id, reason)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9)
+        RETURNING id, application_id, change_type, status, requested_at
+      `, [crypto.randomUUID(), change.applicationId, change.targetUserId, change.targetRoleId,
+        change.changeType, JSON.stringify(change.before), JSON.stringify(change.after), user.id,
+        reason]);
+      await client.query("COMMIT");
+      return Response.json({ changeRequest: result.rows[0] }, { status: 201 });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
-    const result = await pool.query(`
-      INSERT INTO access_change_requests
-        (id, application_id, target_user_id, target_role_id, change_type, before_json, after_json, requested_by_user_id, reason)
-      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9)
-      RETURNING id, application_id, change_type, status, requested_at
-    `, [crypto.randomUUID(), change.applicationId, change.targetUserId, change.targetRoleId,
-      change.changeType, JSON.stringify(change.before), JSON.stringify(change.after), user.id,
-      reason]);
-    return Response.json({ changeRequest: result.rows[0] }, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "ACCESS_REFERENCE_NOT_FOUND") {
       return Response.json({ error: { code: "NOT_FOUND", message: "目标不存在、应用不匹配或状态不允许", details: {} } }, { status: 404 });

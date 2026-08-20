@@ -1,5 +1,6 @@
 import { requireCurrentAccessReviewer } from "@/lib/access-control";
 import { accessUserScopePredicate, scopeCanDelegate } from "@/lib/access-center-scope";
+import { lockScopedRoleForTarget } from "@/lib/access-role-authorization";
 import { parseAccessChangeRequest, type AccessChange } from "@/lib/access-change-requests";
 import { canApproveAccessChange } from "@/lib/rbac";
 import { getPostgresPool } from "@/lib/postgres";
@@ -38,6 +39,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         targetUserId: row.target_user_id, targetRoleId: row.target_role_id,
         before: row.before_json, after: row.after_json,
       });
+      let targetOrganizationId: string | null | undefined;
       if (change.targetUserId) {
         const scopePredicate = accessUserScopePredicate({
           scope,
@@ -46,8 +48,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           userAlias: "target_user",
           startIndex: 2,
         });
-        const target = await client.query(`SELECT target_user.id FROM users AS target_user WHERE target_user.id = $1 AND (${scopePredicate.clause}) LIMIT 1`, [change.targetUserId, ...scopePredicate.values]);
+        const target = await client.query<{ id: string; organization_id: string | null }>(`
+          SELECT target_user.id, target_user.organization_id
+          FROM users AS target_user
+          WHERE target_user.id = $1 AND (${scopePredicate.clause})
+          FOR UPDATE OF target_user
+        `, [change.targetUserId, ...scopePredicate.values]);
         if (!target.rows[0]) throw new ResearchApiError("FORBIDDEN", "不能审批授权范围外的用户变更", 403);
+        targetOrganizationId = target.rows[0].organization_id;
       } else if (scope !== "PLATFORM") {
         throw new ResearchApiError("FORBIDDEN", "应用级角色变更需要平台范围审批", 403);
       }
@@ -72,6 +80,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       const requested = requestedPermissionKeys(change);
       if (change.changeType === "role_assign") {
+        const role = await lockScopedRoleForTarget(client, {
+          roleId: change.targetRoleId,
+          appId: change.applicationId,
+          targetOrganizationId: targetOrganizationId ?? null,
+          scope,
+          actor: { id: user.id, organizationId: user.organizationId },
+          organizationIds,
+        });
+        if (!role) throw new ResearchApiError("FORBIDDEN", "不能审批授权范围外或不适用于目标组织的角色", 403);
         const rolePermissions = await client.query<{ permission_key: string; scope: Parameters<typeof scopeCanDelegate>[1] }>(`
           SELECT rp.permission_key, rp.scope FROM role_permissions rp
           JOIN roles r ON r.id = rp.role_id

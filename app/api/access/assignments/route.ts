@@ -1,5 +1,6 @@
 import { requireCurrentAccessAssignmentAdmin, requireCurrentAccessViewer } from "@/lib/access-control";
 import { accessPageCursor, accessUserScopePredicate, parseAccessPageCursor, scopeCanDelegate } from "@/lib/access-center-scope";
+import { lockScopedRoleForTarget } from "@/lib/access-role-authorization";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
@@ -68,63 +69,80 @@ export async function POST(request: Request) {
     const roleId = String(body.roleId ?? "");
     if (!targetUserId || !roleId) throw new ResearchApiError("VALIDATION_ERROR", "用户和角色为必填", 422, { fields: ["userId", "roleId"] });
     const pool = await getPostgresPool();
-    const scopePredicate = accessUserScopePredicate({
-      scope,
-      actor: { id: user.id, organizationId: user.organizationId },
-      organizationIds,
-      userAlias: "target_user",
-      startIndex: 2,
-    });
-    const target = await pool.query(`
-      SELECT target_user.id, target_user.organization_id
-      FROM users AS target_user
-      WHERE target_user.id = $1 AND (${scopePredicate.clause})
-      LIMIT 1
-    `, [targetUserId, ...scopePredicate.values]);
-    if (!target.rows[0]) throw new ResearchApiError("FORBIDDEN", "不能为授权范围外的用户分配角色", 403);
-    const role = await pool.query<{ application_id: string }>("SELECT application_id FROM roles WHERE id = $1 AND application_id = $2 AND status = 'published' LIMIT 1", [roleId, appId]);
-    if (!role.rows[0]) throw new ResearchApiError("NOT_FOUND", "角色不存在或未发布", 404);
-    const roleScopes = await pool.query<{ scope: Parameters<typeof scopeCanDelegate>[1] }>("SELECT scope FROM role_permissions WHERE role_id = $1", [roleId]);
-    if (roleScopes.rows.some((permission) => !scopeCanDelegate(scope, permission.scope))) {
-      throw new ResearchApiError("SCOPE_ESCALATION", "不能分配数据范围大于自身授权的角色", 403);
-    }
-    const sensitive = await pool.query<{ sensitive_count: string }>(`
-      SELECT COUNT(*)::text AS sensitive_count
-      FROM role_permissions AS rp
-      INNER JOIN permission_definitions AS pd ON pd.key = rp.permission_key
-      WHERE rp.role_id = $1 AND pd.sensitive = true
-    `, [roleId]);
-    if (Number(sensitive.rows[0]?.sensitive_count ?? 0) > 0) {
-      throw new ResearchApiError("SENSITIVE_APPROVAL_REQUIRED", "包含敏感权限的角色必须先走双人审批", 409, { roleId });
-    }
-    const result = await pool.query(`
-      WITH inserted AS (
-        INSERT INTO user_role_assignments (
-          id, user_id, role_id, application_id, organization_id,
-          scope_organization_ids_json, expires_at, granted_by_user_id, reason
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const scopePredicate = accessUserScopePredicate({
+        scope,
+        actor: { id: user.id, organizationId: user.organizationId },
+        organizationIds,
+        userAlias: "target_user",
+        startIndex: 2,
+      });
+      const target = await client.query<{ id: string; organization_id: string | null }>(`
+        SELECT target_user.id, target_user.organization_id
+        FROM users AS target_user
+        WHERE target_user.id = $1 AND (${scopePredicate.clause})
+        FOR UPDATE OF target_user
+      `, [targetUserId, ...scopePredicate.values]);
+      if (!target.rows[0]) throw new ResearchApiError("FORBIDDEN", "不能为授权范围外的用户分配角色", 403);
+      const role = await lockScopedRoleForTarget(client, {
+        roleId,
+        appId,
+        targetOrganizationId: target.rows[0].organization_id,
+        scope,
+        actor: { id: user.id, organizationId: user.organizationId },
+        organizationIds,
+      });
+      if (!role) throw new ResearchApiError("FORBIDDEN", "不能分配授权范围外或不适用于目标组织的角色", 403);
+      const roleScopes = await client.query<{ scope: Parameters<typeof scopeCanDelegate>[1] }>("SELECT scope FROM role_permissions WHERE role_id = $1", [roleId]);
+      if (roleScopes.rows.some((permission) => !scopeCanDelegate(scope, permission.scope))) {
+        throw new ResearchApiError("SCOPE_ESCALATION", "不能分配数据范围大于自身授权的角色", 403);
+      }
+      const sensitive = await client.query<{ sensitive_count: string }>(`
+        SELECT COUNT(*)::text AS sensitive_count
+        FROM role_permissions AS rp
+        INNER JOIN permission_definitions AS pd ON pd.key = rp.permission_key
+        WHERE rp.role_id = $1 AND pd.sensitive = true
+      `, [roleId]);
+      if (Number(sensitive.rows[0]?.sensitive_count ?? 0) > 0) {
+        throw new ResearchApiError("SENSITIVE_APPROVAL_REQUIRED", "包含敏感权限的角色必须先走双人审批", 409, { roleId });
+      }
+      const result = await client.query(`
+        WITH inserted AS (
+          INSERT INTO user_role_assignments (
+            id, user_id, role_id, application_id, organization_id,
+            scope_organization_ids_json, expires_at, granted_by_user_id, reason
+          )
+          SELECT $1, u.id, $2, $3, u.organization_id,
+                 CASE WHEN u.organization_id IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(u.organization_id) END,
+                 $4::timestamptz, $5, $6
+          FROM users AS u
+          WHERE u.id = $7
+          RETURNING id, user_id, role_id, application_id, status, effective_at, expires_at
+        ), cleared_tombstone AS (
+          DELETE FROM rbac_revocation_tombstones
+          WHERE user_id = $7 AND application_id = $3
         )
-        SELECT $1, u.id, $2, $3, u.organization_id,
-               CASE WHEN u.organization_id IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(u.organization_id) END,
-               $4::timestamptz, $5, $6
-        FROM users AS u
-        WHERE u.id = $7
-        RETURNING id, user_id, role_id, application_id, status, effective_at, expires_at
-      ), cleared_tombstone AS (
-        DELETE FROM rbac_revocation_tombstones
-        WHERE user_id = $7 AND application_id = $3
-      )
-      SELECT * FROM inserted
-    `, [
-      crypto.randomUUID(),
-      roleId,
-      role.rows[0].application_id,
-      body.expiresAt ? String(body.expiresAt) : null,
-      user.id,
-      String(body.reason ?? "").slice(0, 500),
-      targetUserId,
-    ]);
-    if (!result.rows[0]) throw new ResearchApiError("NOT_FOUND", "用户不存在", 404);
-    return Response.json({ assignment: result.rows[0] }, { status: 201 });
+        SELECT * FROM inserted
+      `, [
+        crypto.randomUUID(),
+        roleId,
+        role.application_id,
+        body.expiresAt ? String(body.expiresAt) : null,
+        user.id,
+        String(body.reason ?? "").slice(0, 500),
+        targetUserId,
+      ]);
+      if (!result.rows[0]) throw new ResearchApiError("CONFLICT", "用户或角色状态已变化", 409);
+      await client.query("COMMIT");
+      return Response.json({ assignment: result.rows[0] }, { status: 201 });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     return researchErrorResponse(error);
   }
