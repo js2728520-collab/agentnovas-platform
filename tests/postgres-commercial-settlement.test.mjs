@@ -1079,9 +1079,8 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     note: "approved",
     idempotencyKey: "statement-approved",
   });
-  const differentCurrencyEvidence = await recordPerformancePaymentEvidence(
-    pool,
-    {
+  await assert.rejects(
+    recordPerformancePaymentEvidence(pool, {
       statementId: statement.id,
       actorUserId: "maker",
       evidenceKind: "bank_transfer",
@@ -1091,9 +1090,10 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
       currency: "USDT",
       occurredAt: "2026-08-20T02:00:00Z",
       idempotencyKey: "cross-membership-performance-evidence",
-    },
+    }),
+    (error) =>
+      error.status === 409 && error.code === "PAYMENT_REFERENCE_COLLISION",
   );
-  assert.equal(differentCurrencyEvidence.currency, "USDT");
   await pool.query(
     `INSERT INTO memberships(id,customer_id,plan_code,status,starts_at,expires_at) VALUES('cross-statement-membership','customer2','membership_monthly_v1','active','2026-08-01','2026-09-01');
      INSERT INTO performance_fee_statements(id,user_id,membership_id,plan_version_id,week_start,week_end,strategy_codes_json,week_net_pnl,cumulative_net_pnl,prior_high_water_mark,eligible_profit,loss_carry,fee_bps,fee_amount,currency,status,generated_by_user_id,request_id) VALUES('cross-statement','customer2','cross-statement-membership','membership_monthly_v1','2026-08-03','2026-08-10','["strategy-0"]',200,200,0,200,0,2000,40,'USDT','payment_pending','maker','cross-statement');
@@ -1101,7 +1101,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   );
   await assert.rejects(
     pool.query(
-      `INSERT INTO commercial_payment_evidence(id,performance_statement_id,evidence_kind,reference_masked,reference_fingerprint,amount,currency,occurred_at,recorded_by_user_id) VALUES('cross-resource-direct','cross-statement','manual_invoice','***001',$1,40,'USD','2026-08-20T02:00:00Z','maker')`,
+      `INSERT INTO commercial_payment_evidence(id,performance_statement_id,evidence_kind,reference_masked,reference_fingerprint,amount,currency,occurred_at,recorded_by_user_id) VALUES('cross-resource-direct','cross-statement','manual_invoice','***001',$1,40,'USDT','2026-08-20T02:00:00Z','maker')`,
       [fingerprintPaymentReference("cross business ref 001")],
     ),
     /unique|duplicate/i,
@@ -1116,6 +1116,28 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     occurredAt: "2026-08-20T02:30:00Z",
     idempotencyKey: "shared-statement-evidence-a",
   });
+  const reverseCurrencyOrder = await createMembershipOrder(pool, {
+    userId: "customer2",
+    planVersionId: "membership_monthly_v1",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "reverse-currency-order",
+    requestId: "reverse-currency-order",
+  });
+  await assert.rejects(
+    recordMembershipPaymentEvidence(pool, {
+      orderId: reverseCurrencyOrder.id,
+      actorUserId: "maker",
+      evidenceKind: "manual_invoice",
+      providerLabel: "different-untrusted-provider",
+      reference: " shared-statement-reference-７７７７ ",
+      amount: "28",
+      currency: "USD",
+      occurredAt: "2026-08-20T02:30:00Z",
+      idempotencyKey: "reverse-currency-evidence",
+    }),
+    (error) =>
+      error.status === 409 && error.code === "PAYMENT_REFERENCE_COLLISION",
+  );
   await assert.rejects(
     recordPerformancePaymentEvidence(pool, {
       statementId: "cross-statement",
@@ -1499,6 +1521,9 @@ test("commercial migration backfills N-1 decisions and reapplies subject constra
     [fingerprintPaymentReference("LEGACY-STATEMENT-REFERENCE-9002")],
   );
   await pool.query(`
+    DROP INDEX idx_commercial_evidence_reference_fingerprint;
+    CREATE UNIQUE INDEX idx_commercial_evidence_currency_reference
+      ON commercial_payment_evidence(currency,reference_fingerprint);
     ALTER TABLE commercial_membership_order_decisions
       DROP CONSTRAINT fk_membership_decision_evidence_subject,
       ALTER COLUMN payment_evidence_id DROP NOT NULL;
@@ -1559,5 +1584,81 @@ test("commercial migration backfills N-1 decisions and reapplies subject constra
       "performance_fee_decisions_evidence_stage_check",
       "fk_performance_decision_evidence_subject",
     ]),
+  );
+});
+
+test("commercial migration fails closed when N-1 contains a cross-currency duplicate reference", async () => {
+  await pool.query(`
+    DROP INDEX idx_commercial_evidence_reference_fingerprint;
+    CREATE UNIQUE INDEX idx_commercial_evidence_currency_reference
+      ON commercial_payment_evidence(currency,reference_fingerprint);
+  `);
+  const duplicateFingerprint = fingerprintPaymentReference(
+    "N-1-CROSS-CURRENCY-CONFLICT-9003",
+  );
+  await pool.query(
+    `INSERT INTO commercial_payment_evidence(
+      id,membership_order_id,evidence_kind,reference_masked,reference_fingerprint,
+      amount,currency,occurred_at,recorded_by_user_id
+    ) VALUES(
+      'legacy-conflict-usd','legacy-order','bank_transfer','***9003',$1,
+      28,'USD','2026-08-20T00:00:00Z','maker'
+    )`,
+    [duplicateFingerprint],
+  );
+  await pool.query(
+    `INSERT INTO commercial_payment_evidence(
+      id,performance_statement_id,evidence_kind,reference_masked,reference_fingerprint,
+      amount,currency,occurred_at,recorded_by_user_id
+    ) VALUES(
+      'legacy-conflict-usdt','legacy-statement','manual_invoice','***9003',$1,
+      40,'USDT','2026-08-20T00:00:00Z','maker'
+    )`,
+    [duplicateFingerprint],
+  );
+  const migration = await readFile(
+    new URL(
+      "../postgres/migrations/0023_commercial_membership_settlement.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await assert.rejects(
+    pool.query(migration),
+    /COMMERCIAL_PAYMENT_REFERENCE_CONFLICT/,
+  );
+  assert.equal(
+    (
+      await pool.query(
+        `SELECT count(*)::int count FROM commercial_payment_evidence WHERE reference_fingerprint=$1`,
+        [duplicateFingerprint],
+      )
+    ).rows[0].count,
+    2,
+  );
+  assert.deepEqual(
+    (
+      await pool.query(`
+        SELECT
+          to_regclass('idx_commercial_evidence_currency_reference') IS NOT NULL AS old_index_preserved,
+          to_regclass('idx_commercial_evidence_reference_fingerprint') IS NOT NULL AS new_index_created
+      `)
+    ).rows[0],
+    { old_index_preserved: true, new_index_created: false },
+  );
+  await pool.query(
+    `DELETE FROM commercial_payment_evidence WHERE id IN ('legacy-conflict-usd','legacy-conflict-usdt')`,
+  );
+  await pool.query(migration);
+  await pool.query(migration);
+  assert.deepEqual(
+    (
+      await pool.query(`
+        SELECT
+          to_regclass('idx_commercial_evidence_currency_reference') IS NOT NULL AS old_index_present,
+          to_regclass('idx_commercial_evidence_reference_fingerprint') IS NOT NULL AS new_index_present
+      `)
+    ).rows[0],
+    { old_index_present: false, new_index_present: true },
   );
 });

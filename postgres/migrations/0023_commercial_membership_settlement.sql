@@ -132,11 +132,25 @@ DO $$ BEGIN
     ALTER TABLE commercial_payment_evidence ADD CONSTRAINT commercial_payment_evidence_status_check CHECK (status IN ('recorded','rejected','accepted'));
   END IF;
 END $$;
--- evidence_kind and provider_label are caller-supplied descriptions, not trusted payment rails.
+-- Currency, evidence_kind and provider_label are mutable descriptions. The external
+-- reference fingerprint is the only global payment-consumption identity.
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM commercial_payment_evidence
+    GROUP BY reference_fingerprint
+    HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'COMMERCIAL_PAYMENT_REFERENCE_CONFLICT'
+      USING ERRCODE='23505',
+            DETAIL='duplicate reference_fingerprint values require manual review before migration';
+  END IF;
+END $$;
 DROP INDEX IF EXISTS idx_commercial_evidence_global_semantic_key;
 DROP INDEX IF EXISTS idx_commercial_evidence_global_reference;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_currency_reference
-  ON commercial_payment_evidence(currency, reference_fingerprint);
+DROP INDEX IF EXISTS idx_commercial_evidence_currency_reference;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_reference_fingerprint
+  ON commercial_payment_evidence(reference_fingerprint);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_membership_identity
   ON commercial_payment_evidence(id, membership_order_id);
 

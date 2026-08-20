@@ -541,8 +541,8 @@ export async function recordPerformancePaymentEvidence(
     const created = Boolean(evidence);
     if (!evidence) {
       const existing = await client.query(
-        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE currency=$1 AND reference_fingerprint=$2 FOR SHARE`,
-        [input.currency, fingerprint],
+        `SELECT id,membership_order_id,performance_statement_id,evidence_kind,provider_label,reference_masked,amount::text,currency,occurred_at,note,recorded_by_user_id,status,reviewed_by_user_id,reviewed_at,created_at FROM commercial_payment_evidence WHERE reference_fingerprint=$1 FOR SHARE`,
+        [fingerprint],
       );
       evidence = existing.rows[0];
       if (

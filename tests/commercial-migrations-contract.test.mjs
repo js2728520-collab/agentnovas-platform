@@ -59,12 +59,13 @@ test("commercial migration seeds immutable v1 price snapshots and approval primi
   assert.match(sql, /WHERE status <> 'rejected'/i);
   assert.match(
     sql,
-    /CREATE UNIQUE INDEX[^;]+commercial_payment_evidence\s*\(currency,\s*reference_fingerprint\)/i,
+    /CREATE UNIQUE INDEX[^;]+commercial_payment_evidence\s*\(reference_fingerprint\)/i,
   );
   assert.doesNotMatch(
     sql,
-    /CREATE UNIQUE INDEX[^;]+commercial_payment_evidence\s*\(evidence_kind,/i,
+    /CREATE UNIQUE INDEX[^;]+commercial_payment_evidence\s*\((?:evidence_kind|currency),/i,
   );
+  assert.match(sql, /COMMERCIAL_PAYMENT_REFERENCE_CONFLICT/i);
   assert.match(
     sql,
     /commercial_membership_order_decisions[\s\S]+payment_evidence_id text REFERENCES commercial_payment_evidence/i,
