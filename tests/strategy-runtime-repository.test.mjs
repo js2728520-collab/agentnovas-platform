@@ -17,7 +17,10 @@ import {
   processLeasedStrategyRuntimeDeployment,
   processNextRuntimeExplanation,
 } from "../lib/strategy-runtime-worker.ts";
-import { ensureOfficialPaperPortfolios } from "../lib/official-paper-repository.ts";
+import {
+  ensureOfficialPaperPortfolios,
+  resolveOfficialThreeCardPortfolioScope,
+} from "../lib/official-paper-repository.ts";
 import { evaluatePlatformStrategy, PLATFORM_AI_STRATEGIES } from "../lib/platform-ai-strategies.ts";
 import { platformStrategyDslV3 } from "../lib/platform-strategy-v3.ts";
 
@@ -458,4 +461,42 @@ test("official contract follows through account-free spot runtime into its isola
   assert.ok(Number(storedPortfolio.cash_usdt) < 10_000);
   assert.equal((await pool.query("SELECT side FROM official_paper_positions WHERE portfolio_id = $1 AND status = 'open'", [portfolio.id])).rows[0].side, "long");
   assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_paper_funding_accruals WHERE deployment_id = $1", [deployment.id])).rows[0].count, 0);
+});
+
+test("performance fee scope is derived server-side from the complete official three-card portfolio set", async () => {
+  const membershipId = "membership-performance-scope";
+  const customerId = "owner-performance-scope";
+  await ensureOfficialPaperPortfolios(pool, { membershipId, customerId });
+
+  const scope = await resolveOfficialThreeCardPortfolioScope(pool, { membershipId, customerId });
+  assert.deepEqual(scope, {
+    customerId,
+    membershipId,
+    scopeKey: `official-three:${membershipId}`,
+    strategies: [
+      { strategyCode: "ai_conservative", portfolioId: `official-paper:${membershipId}:ai_conservative` },
+      { strategyCode: "ai_balanced", portfolioId: `official-paper:${membershipId}:ai_balanced` },
+      { strategyCode: "ai_aggressive", portfolioId: `official-paper:${membershipId}:ai_aggressive` },
+    ],
+    portfolioIds: [
+      `official-paper:${membershipId}:ai_conservative`,
+      `official-paper:${membershipId}:ai_balanced`,
+      `official-paper:${membershipId}:ai_aggressive`,
+    ],
+  });
+
+  const incompleteMembershipId = "membership-performance-scope-incomplete";
+  await pool.query(`
+    INSERT INTO official_paper_portfolios (
+      id, membership_id, customer_id, strategy_code, risk_json
+    ) VALUES ($1, $2, $3, 'ai_conservative', '{}'::jsonb)
+  `, [
+    `official-paper:${incompleteMembershipId}:ai_conservative`,
+    incompleteMembershipId,
+    customerId,
+  ]);
+  await assert.rejects(
+    resolveOfficialThreeCardPortfolioScope(pool, { membershipId: incompleteMembershipId, customerId }),
+    /官方三卡组合不完整/,
+  );
 });

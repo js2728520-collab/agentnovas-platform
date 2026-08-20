@@ -5,7 +5,10 @@ import {
   officialPaperPortfolioSeeds,
   type OfficialPaperPortfolioState,
 } from "./official-paper-portfolio.ts";
-import type { OfficialTradingHallStrategy } from "../packages/contracts/src/trading-hall.ts";
+import {
+  officialTradingHallStrategies,
+  type OfficialTradingHallStrategy,
+} from "../packages/contracts/src/trading-hall.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
 type StrategyCode = OfficialTradingHallStrategy["code"];
@@ -61,6 +64,47 @@ export async function ensureOfficialPaperPortfolios(database: Queryable, input: 
     });
   }
   return portfolios;
+}
+
+/**
+ * Resolves the only paper portfolios eligible for official three-card accounting.
+ * Callers provide trusted customer/membership context, never request-selected strategy IDs.
+ */
+export async function resolveOfficialThreeCardPortfolioScope(database: Queryable, input: {
+  membershipId: string;
+  customerId: string;
+}) {
+  const membershipId = input.membershipId.trim();
+  const customerId = input.customerId.trim();
+  if (!membershipId || !customerId) throw new Error("会员或客户标识缺失");
+
+  const result = await database.query<{ id: string; strategy_code: StrategyCode }>(`
+    SELECT id, strategy_code
+    FROM official_paper_portfolios
+    WHERE membership_id = $1 AND customer_id = $2
+  `, [membershipId, customerId]);
+  const byStrategyCode = new Map(result.rows.map((row) => [row.strategy_code, row.id]));
+  const strategies = officialTradingHallStrategies.map((definition) => ({
+    strategyCode: definition.code,
+    portfolioId: byStrategyCode.get(definition.code),
+  }));
+  const complete = result.rows.length === officialTradingHallStrategies.length
+    && strategies.every(({ strategyCode, portfolioId }) => (
+      portfolioId === `official-paper:${membershipId}:${strategyCode}`
+    ));
+  if (!complete) throw new Error("官方三卡组合不完整，不能进入绩效计费");
+
+  const recognized = strategies.map(({ strategyCode, portfolioId }) => ({
+    strategyCode,
+    portfolioId: portfolioId!,
+  }));
+  return {
+    customerId,
+    membershipId,
+    scopeKey: `official-three:${membershipId}`,
+    strategies: recognized,
+    portfolioIds: recognized.map((item) => item.portfolioId),
+  };
 }
 
 export async function syncOfficialPaperPortfolioAccess(database: Queryable, input: {
