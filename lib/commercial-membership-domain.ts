@@ -15,7 +15,12 @@ function unitsToDecimal(value: bigint) {
   return `${negative ? "-" : ""}${absolute / DECIMAL_UNIT}${fraction ? `.${fraction}` : ""}`;
 }
 
-export const requiredLegalDocumentTypes = ["terms", "privacy", "risk_disclosure"] as const;
+export function compareSignedDecimalStrings(left:string,right:string){const a=decimalToUnits(left),b=decimalToUnits(right);return a===b?0:a>b?1:-1;}
+
+export const requiredLegalDocumentTypes = [
+  "service_entity","jurisdiction","privacy","terms","risk_disclosure",
+  "simulated_performance_fee_opinion","refund_policy",
+] as const;
 
 export function calculateTokenCost(input: {
   modelVersion: string;
@@ -23,17 +28,16 @@ export function calculateTokenCost(input: {
   rateReliable: boolean;
   inputTokens: number;
   outputTokens: number;
-  inputCreditsPerMillion: number;
-  outputCreditsPerMillion: number;
 }) {
   if (input.modelVersion !== "token-cost-v1") throw new Error("AI_COST_MODEL_UNSUPPORTED");
   if (!input.usageReliable) throw new Error("AI_USAGE_NOT_RELIABLE");
   if (!input.rateReliable) throw new Error("AI_RATE_NOT_RELIABLE");
-  for (const value of [input.inputTokens, input.outputTokens, input.inputCreditsPerMillion, input.outputCreditsPerMillion]) {
+  const rates={inputCreditsPerMillion:10,outputCreditsPerMillion:30};
+  for (const value of [input.inputTokens, input.outputTokens]) {
     if (!Number.isSafeInteger(value) || value < 0) throw new Error("AI_USAGE_OR_RATE_INVALID");
   }
-  const numerator = BigInt(input.inputTokens) * BigInt(input.inputCreditsPerMillion)
-    + BigInt(input.outputTokens) * BigInt(input.outputCreditsPerMillion);
+  const numerator = BigInt(input.inputTokens) * BigInt(rates.inputCreditsPerMillion)
+    + BigInt(input.outputTokens) * BigInt(rates.outputCreditsPerMillion);
   const credits = (numerator + BigInt(999_999)) / BigInt(1_000_000);
   return { modelVersion: input.modelVersion, credits: credits.toString() };
 }

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 
 import { assertBalancedPostings, normalizeDecimalString } from "./ledger.ts";
+import { ResearchApiError } from "./research-errors.ts";
 
 export type CommercialLedgerPosting = { accountId: string; side: "debit" | "credit"; amount: string };
 
@@ -29,7 +30,7 @@ export async function ensurePlatformLedgerAccount(client: PoolClient, accountTyp
 }
 
 export async function postCommercialLedgerTransaction(client: PoolClient, input: {
-  transactionType: "membership_purchase" | "correction";
+  transactionType: "membership_purchase" | "performance_fee_payment" | "correction";
   sourceType: string;
   sourceId: string;
   currency: string;
@@ -44,11 +45,16 @@ export async function postCommercialLedgerTransaction(client: PoolClient, input:
   outbox?: {userId:string;category:string;templateKey:string;payload:Record<string,unknown>;dedupeKey:string};
 }) {
   assertBalancedPostings(input.postings);
-  const existing = await client.query<{ id: string }>(
-    `SELECT id FROM ledger_transactions WHERE idempotency_key = $1 OR request_id = $2 FOR SHARE`,
-    [input.idempotencyKey, input.requestId],
+  const existing = await client.query<{ id: string;transaction_type:string;source_type:string;source_id:string;currency:string;created_by_user_id:string|null }>(
+    `SELECT id,transaction_type,source_type,source_id,currency,created_by_user_id FROM ledger_transactions WHERE idempotency_key = $1 FOR SHARE`,
+    [input.idempotencyKey],
   );
-  if (existing.rows[0]) return { id: existing.rows[0].id, created: false };
+  if (existing.rows[0]) {
+    const row=existing.rows[0];
+    if(row.transaction_type!==input.transactionType||row.source_type!==input.sourceType||row.source_id!==input.sourceId||row.currency!==input.currency||row.created_by_user_id!==input.createdByUserId)
+      throw new ResearchApiError("IDEMPOTENCY_KEY_COLLISION","账本幂等键已绑定其他交易",409);
+    return { id: row.id, created: false };
+  }
   const accountIds = [...new Set(input.postings.map(posting => posting.accountId))].sort();
   const accounts = await client.query<{ id: string; currency: string; status: string }>(
     `SELECT id, currency, status FROM ledger_accounts WHERE id = ANY($1::text[]) ORDER BY id FOR UPDATE`,
@@ -60,9 +66,9 @@ export async function postCommercialLedgerTransaction(client: PoolClient, input:
   const transactionId = randomUUID();
   await client.query(`
     INSERT INTO ledger_transactions
-      (id, transaction_type, source_type, source_id, currency, idempotency_key, request_id,
+      (id, transaction_type, source_type, source_id, currency, status, idempotency_key, request_id,
        ledger_version, reversal_of_transaction_id, metadata_json, created_by_user_id)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9::jsonb,$10)
+    VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,1,$8,$9::jsonb,$10)
   `, [transactionId, input.transactionType, input.sourceType, input.sourceId, input.currency,
     input.idempotencyKey, input.requestId, input.reversalOfTransactionId ?? null,
     JSON.stringify(input.metadata ?? {}), input.createdByUserId]);
@@ -95,5 +101,6 @@ export async function postCommercialLedgerTransaction(client: PoolClient, input:
       VALUES($1,$2,'in_app',$3,$4,$5,'queued',$6,$7) ON CONFLICT(dedupe_key) DO NOTHING`,
     [randomUUID(),input.outbox.userId,input.outbox.category,input.outbox.templateKey,JSON.stringify(input.outbox.payload),new Date().toISOString(),input.outbox.dedupeKey]);
   }
+  await client.query(`UPDATE ledger_transactions SET status='posted' WHERE id=$1 AND status='pending'`,[transactionId]);
   return { id: transactionId, created: true };
 }

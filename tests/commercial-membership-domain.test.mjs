@@ -14,8 +14,6 @@ test("token cost is versioned, integer and rounded up", () => {
     rateReliable: true,
     inputTokens: 1_000_001,
     outputTokens: 500_000,
-    inputCreditsPerMillion: 10,
-    outputCreditsPerMillion: 30,
   }), { modelVersion: "token-cost-v1", credits: "26" });
 });
 
@@ -26,8 +24,6 @@ test("token cost refuses missing or unreliable usage", () => {
     rateReliable: true,
     inputTokens: 1,
     outputTokens: 1,
-    inputCreditsPerMillion: 1,
-    outputCreditsPerMillion: 1,
   }), /AI_USAGE_NOT_RELIABLE/);
   assert.throws(() => calculateTokenCost({
     modelVersion: "unknown",
@@ -35,8 +31,6 @@ test("token cost refuses missing or unreliable usage", () => {
     rateReliable: true,
     inputTokens: 1,
     outputTokens: 1,
-    inputCreditsPerMillion: 1,
-    outputCreditsPerMillion: 1,
   }), /AI_COST_MODEL_UNSUPPORTED/);
   assert.throws(() => calculateTokenCost({
     modelVersion: "token-cost-v1",
@@ -44,8 +38,6 @@ test("token cost refuses missing or unreliable usage", () => {
     rateReliable: false,
     inputTokens: 1,
     outputTokens: 1,
-    inputCreditsPerMillion: 1,
-    outputCreditsPerMillion: 1,
   }), /AI_RATE_NOT_RELIABLE/);
 });
 
@@ -72,5 +64,5 @@ test("weekly fee applies HWM and loss carry using cumulative closed paper pnl", 
 });
 
 test("membership order legal gate requires every active legal type", () => {
-  assert.deepEqual(requiredLegalDocumentTypes, ["terms", "privacy", "risk_disclosure"]);
+  assert.deepEqual(requiredLegalDocumentTypes, ["service_entity","jurisdiction","privacy","terms","risk_disclosure","simulated_performance_fee_opinion","refund_policy"]);
 });

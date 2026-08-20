@@ -1,9 +1,9 @@
 CREATE TABLE IF NOT EXISTS commercial_plan_versions (
   id text PRIMARY KEY,
-  plan_code text NOT NULL CHECK (plan_code IN ('monthly','quarterly','annual','lifetime')),
+  plan_code text NOT NULL CHECK (plan_code IN ('monthly_v1','quarterly_v1','annual_v1','lifetime_v1')),
   version integer NOT NULL CHECK (version > 0),
   price_amount numeric(36,18) NOT NULL CHECK (price_amount > 0),
-  price_currency text NOT NULL DEFAULT 'USDT',
+  price_currency text NOT NULL DEFAULT 'USD',
   duration_days integer,
   ai_credit_grant numeric(36,0) NOT NULL CHECK (ai_credit_grant > 0),
   performance_fee_bps integer NOT NULL CHECK (performance_fee_bps BETWEEN 0 AND 10000),
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS commercial_plan_versions (
   effective_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (plan_code, version),
-  CHECK ((plan_code = 'lifetime' AND duration_days IS NULL) OR (plan_code <> 'lifetime' AND duration_days > 0))
+  CHECK ((plan_code = 'lifetime_v1' AND duration_days IS NULL) OR (plan_code <> 'lifetime_v1' AND duration_days > 0))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_plan_one_active
   ON commercial_plan_versions(plan_code) WHERE status = 'active';
@@ -19,21 +19,27 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_plan_one_active
 INSERT INTO commercial_plan_versions
   (id, plan_code, version, price_amount, duration_days, ai_credit_grant, performance_fee_bps, effective_at)
 VALUES
-  ('membership_monthly_v1','monthly',1,28,30,1000,2000,'2026-08-20T00:00:00Z'),
-  ('membership_quarterly_v1','quarterly',1,58,90,3000,2000,'2026-08-20T00:00:00Z'),
-  ('membership_annual_v1','annual',1,198,365,12000,2000,'2026-08-20T00:00:00Z'),
-  ('membership_lifetime_v1','lifetime',1,588,NULL,36000,1600,'2026-08-20T00:00:00Z')
+  ('membership_monthly_v1','monthly_v1',1,28,30,1000,2000,'2026-08-20T00:00:00Z'),
+  ('membership_quarterly_v1','quarterly_v1',1,58,90,3000,2000,'2026-08-20T00:00:00Z'),
+  ('membership_annual_v1','annual_v1',1,198,365,12000,2000,'2026-08-20T00:00:00Z'),
+  ('membership_lifetime_v1','lifetime_v1',1,588,NULL,36000,1600,'2026-08-20T00:00:00Z')
 ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS commercial_legal_document_versions (
   id text PRIMARY KEY,
-  document_type text NOT NULL CHECK (document_type IN ('terms','privacy','risk_disclosure')),
+  document_type text NOT NULL CHECK (document_type IN (
+    'service_entity','jurisdiction','privacy','terms','risk_disclosure',
+    'simulated_performance_fee_opinion','refund_policy'
+  )),
   version integer NOT NULL CHECK (version > 0),
   content_sha256 text NOT NULL CHECK (content_sha256 ~ '^[a-f0-9]{64}$'),
   status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','retired')),
+  approved_by_user_id text REFERENCES users(id) ON DELETE RESTRICT,
+  approved_at timestamptz,
   effective_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(document_type, version)
+  UNIQUE(document_type, version),
+  CHECK (status <> 'active' OR (approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_legal_one_active
   ON commercial_legal_document_versions(document_type) WHERE status = 'active';
@@ -59,7 +65,7 @@ CREATE TABLE IF NOT EXISTS commercial_membership_orders (
   ai_credit_grant numeric(36,0) NOT NULL CHECK (ai_credit_grant > 0),
   performance_fee_bps integer NOT NULL CHECK (performance_fee_bps BETWEEN 0 AND 10000),
   legal_snapshot_json jsonb NOT NULL,
-  status text NOT NULL DEFAULT 'pending_evidence' CHECK (status IN ('pending_evidence','pending_review','approved','rejected','cancelled')),
+  status text NOT NULL DEFAULT 'pending_evidence' CHECK (status IN ('pending_evidence','pending_review','activated','rejected','cancelled')),
   idempotency_key text NOT NULL,
   request_id text NOT NULL UNIQUE,
   approved_membership_id text REFERENCES memberships(id) ON DELETE RESTRICT,
@@ -68,12 +74,33 @@ CREATE TABLE IF NOT EXISTS commercial_membership_orders (
   submitted_at timestamptz,
   reviewed_by_user_id text,
   reviewed_at timestamptz,
+  activated_at timestamptz,
   rejection_reason text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(user_id, idempotency_key)
 );
 CREATE INDEX IF NOT EXISTS idx_commercial_orders_queue ON commercial_membership_orders(status, created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS commercial_idempotency_records (
+  operation text NOT NULL,
+  idempotency_key text NOT NULL,
+  actor_user_id text NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  subject_type text NOT NULL,
+  subject_id text NOT NULL,
+  resource_id text,
+  stage text NOT NULL,
+  decision text,
+  canonical_payload_sha256 text NOT NULL CHECK (canonical_payload_sha256 ~ '^[a-f0-9]{64}$'),
+  source_type text,
+  source_id text,
+  currency text,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','completed')),
+  response_json jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  PRIMARY KEY(operation,idempotency_key)
+);
 
 CREATE TABLE IF NOT EXISTS commercial_payment_evidence (
   id text PRIMARY KEY,
@@ -112,6 +139,8 @@ CREATE TABLE IF NOT EXISTS membership_entitlement_events (
   event_type text NOT NULL CHECK (event_type IN ('activated','renewed','expired','revoked')),
   before_json jsonb NOT NULL DEFAULT '{}'::jsonb,
   after_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  valid_from timestamptz NOT NULL,
+  valid_until timestamptz,
   idempotency_key text NOT NULL UNIQUE,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -194,6 +223,7 @@ CREATE TABLE IF NOT EXISTS performance_fee_statements (
   status text NOT NULL DEFAULT 'pending_review' CHECK (status IN ('pending_review','approved','rejected','no_fee','payment_pending','paid')),
   generated_by_user_id text NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   request_id text NOT NULL UNIQUE,
+  ledger_transaction_id text REFERENCES ledger_transactions(id) ON DELETE RESTRICT,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK (week_end = week_start + interval '7 days'),

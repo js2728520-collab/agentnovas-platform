@@ -4,10 +4,29 @@ ALTER TABLE ledger_transactions
   ADD COLUMN IF NOT EXISTS ledger_version integer NOT NULL DEFAULT 1,
   ADD COLUMN IF NOT EXISTS reversal_of_transaction_id text REFERENCES ledger_transactions(id) ON DELETE RESTRICT;
 
+DO $$ DECLARE constraint_name text; BEGIN
+  SELECT conname INTO constraint_name FROM pg_constraint
+  WHERE conrelid='ledger_transactions'::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%status%';
+  IF constraint_name IS NOT NULL THEN EXECUTE format('ALTER TABLE ledger_transactions DROP CONSTRAINT %I',constraint_name); END IF;
+END $$;
+ALTER TABLE ledger_transactions ADD CONSTRAINT ledger_transactions_status_check
+  CHECK (status IN ('pending','posted','reversed'));
+
+DO $$ DECLARE constraint_name text; BEGIN
+  SELECT conname INTO constraint_name FROM pg_constraint
+  WHERE conrelid='ledger_transactions'::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%transaction_type%';
+  IF constraint_name IS NOT NULL THEN EXECUTE format('ALTER TABLE ledger_transactions DROP CONSTRAINT %I',constraint_name); END IF;
+END $$;
+ALTER TABLE ledger_transactions ADD CONSTRAINT ledger_transactions_type_check CHECK (transaction_type IN (
+  'deposit_credit','membership_purchase','ai_credit_purchase','performance_fee_payment',
+  'freeze','unfreeze','return_reserve','return_confirmed','correction'
+));
+
 UPDATE ledger_transactions SET request_id = id WHERE request_id IS NULL;
 ALTER TABLE ledger_transactions ALTER COLUMN request_id SET NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_transactions_request_id
+DROP INDEX IF EXISTS idx_ledger_transactions_request_id;
+CREATE INDEX IF NOT EXISTS idx_ledger_transactions_request_id
   ON ledger_transactions (request_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_transactions_source_idempotency
   ON ledger_transactions (source_type, source_id, transaction_type, currency);
@@ -24,15 +43,35 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION enforce_ledger_transaction_lifecycle() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'LEDGER_APPEND_ONLY' USING ERRCODE='integrity_constraint_violation'; END IF;
+  IF OLD.status='pending' AND NEW.status='posted'
+     AND (to_jsonb(OLD)-'status'-'updated_at')=(to_jsonb(NEW)-'status'-'updated_at') THEN RETURN NEW; END IF;
+  RAISE EXCEPTION 'LEDGER_APPEND_ONLY' USING ERRCODE='integrity_constraint_violation';
+END;
+$$ LANGUAGE plpgsql;
+
 DROP TRIGGER IF EXISTS ledger_transactions_append_only ON ledger_transactions;
-CREATE TRIGGER ledger_transactions_append_only
-  BEFORE UPDATE OR DELETE ON ledger_transactions
-  FOR EACH ROW EXECUTE FUNCTION enforce_ledger_append_only();
+CREATE TRIGGER ledger_transactions_append_only BEFORE UPDATE OR DELETE ON ledger_transactions
+  FOR EACH ROW EXECUTE FUNCTION enforce_ledger_transaction_lifecycle();
 
 DROP TRIGGER IF EXISTS ledger_postings_append_only ON ledger_postings;
 CREATE TRIGGER ledger_postings_append_only
   BEFORE UPDATE OR DELETE ON ledger_postings
   FOR EACH ROW EXECUTE FUNCTION enforce_ledger_append_only();
+
+CREATE OR REPLACE FUNCTION enforce_ledger_posting_write_window() RETURNS trigger AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM ledger_transactions WHERE id=NEW.transaction_id AND status='pending') THEN
+    RAISE EXCEPTION 'LEDGER_TRANSACTION_COMMITTED' USING ERRCODE='integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS ledger_postings_write_window ON ledger_postings;
+CREATE TRIGGER ledger_postings_write_window BEFORE INSERT ON ledger_postings
+  FOR EACH ROW EXECUTE FUNCTION enforce_ledger_posting_write_window();
 
 CREATE OR REPLACE FUNCTION validate_ledger_transaction_balance() RETURNS trigger AS $$
 DECLARE
