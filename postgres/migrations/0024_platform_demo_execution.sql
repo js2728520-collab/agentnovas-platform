@@ -95,7 +95,8 @@ BEGIN
       )
       OR
       (
-        execution_product <> 'spot_usdt'
+        execution_product = 'usdt_perpetual'
+        AND exchange_account_id IS NOT NULL
         AND paper_portfolio_id IS NULL
         AND membership_id IS NULL
         AND platform_strategy_code IS NULL

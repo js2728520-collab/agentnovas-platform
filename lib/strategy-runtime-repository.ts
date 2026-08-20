@@ -157,6 +157,13 @@ export async function createStrategyDeployment(database: Queryable, input: {
       FOR KEY SHARE
     `, [input.paperPortfolioId, input.membershipId, input.ownerUserId, input.platformStrategyCode]);
     if (portfolio.rows[0]?.present !== true) throw new Error("官方策略模拟组合与会员、客户归属不匹配");
+  } else if (
+    !input.exchangeAccountId?.trim()
+    || input.platformStrategyCode != null
+    || input.membershipId != null
+    || input.paperPortfolioId != null
+  ) {
+    throw new Error("非官方策略部署必须绑定客户交易账户且不得携带官方策略组合绑定");
   }
   const result = await database.query<DeploymentRow>(`
     INSERT INTO strategy_deployments AS existing (

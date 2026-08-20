@@ -36,6 +36,13 @@ const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/pos
 const schema = `strategy_runtime_test_${process.pid}_${Date.now()}`;
 const adminPool = new Pool({ connectionString: databaseUrl, max: 2 });
 const pool = new Pool({ connectionString: databaseUrl, max: 6, options: `-c search_path=${schema}` });
+const pre0024Migrations = [
+  "0001_strategy_research.sql",
+  "0004_market_data_snapshots.sql",
+  "0007_strategy_runtime.sql",
+  "0013_runtime_explanations.sql",
+  "0020_runtime_final_decision.sql",
+];
 
 const dsl = {
   schemaVersion: 3,
@@ -97,6 +104,21 @@ function officialEntryCandles() {
   throw new Error("official entry fixture not found");
 }
 
+async function initializePre0024Schema(database) {
+  await database.query(`
+    CREATE TABLE strategy_versions (id text PRIMARY KEY, specification_json text NOT NULL);
+    CREATE TABLE exchange_accounts (id text PRIMARY KEY, exchange text NOT NULL);
+    CREATE TABLE memberships (id text PRIMARY KEY, customer_id text NOT NULL, status text NOT NULL, expires_at text, grace_ends_at text);
+    CREATE TABLE strategy_subscriptions (id text PRIMARY KEY);
+    CREATE TABLE platform_decisions (id text PRIMARY KEY);
+    CREATE TABLE trades (id text PRIMARY KEY);
+  `);
+  for (const filename of pre0024Migrations) {
+    const migration = await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8");
+    await database.query(migration);
+  }
+}
+
 async function seedDeployment(mode = "shadow", key = crypto.randomUUID()) {
   return createStrategyDeployment(pool, {
     ownerUserId: "owner-a",
@@ -113,26 +135,10 @@ async function seedDeployment(mode = "shadow", key = crypto.randomUUID()) {
 test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
   await adminPool.query(`CREATE SCHEMA "${schema}"`);
-  await pool.query(`
-    CREATE TABLE strategy_versions (id text PRIMARY KEY, specification_json text NOT NULL);
-    CREATE TABLE exchange_accounts (id text PRIMARY KEY, exchange text NOT NULL);
-    CREATE TABLE memberships (id text PRIMARY KEY, customer_id text NOT NULL, status text NOT NULL, expires_at text, grace_ends_at text);
-    CREATE TABLE strategy_subscriptions (id text PRIMARY KEY);
-    CREATE TABLE platform_decisions (id text PRIMARY KEY);
-    CREATE TABLE trades (id text PRIMARY KEY);
-  `);
-  for (const filename of [
-    "0001_strategy_research.sql",
-    "0004_market_data_snapshots.sql",
-    "0007_strategy_runtime.sql",
-    "0013_runtime_explanations.sql",
-    "0020_runtime_final_decision.sql",
-    "0024_platform_demo_execution.sql",
-  ]) {
-    const migration = await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8");
-    await pool.query(migration);
-    if (filename === "0024_platform_demo_execution.sql") await pool.query(migration);
-  }
+  await initializePre0024Schema(pool);
+  const migration0024 = await readFile(new URL("../postgres/migrations/0024_platform_demo_execution.sql", import.meta.url), "utf8");
+  await pool.query(migration0024);
+  await pool.query(migration0024);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-official', $1)`, [JSON.stringify(platformStrategyDslV3("ai_conservative", "BTCUSDT"))]);
   await pool.query(`INSERT INTO exchange_accounts (id, exchange) VALUES ('account-a', 'binance')`);
@@ -709,7 +715,47 @@ test("official deployment strategy code is bound to the portfolio strategy code 
   `, [conservative.membershipId, conservative.id]), /foreign key|violates/i);
 });
 
-test("deployment binding columns are all-or-none across official and legacy products", async () => {
+test("0024 upgrades a historical pre-column deployment and reapplies", async () => {
+  const historicalSchema = `${schema}_historical`;
+  const historicalPool = new Pool({
+    connectionString: databaseUrl,
+    max: 1,
+    options: `-c search_path=${historicalSchema}`,
+  });
+  try {
+    await adminPool.query(`CREATE SCHEMA "${historicalSchema}"`);
+    await initializePre0024Schema(historicalPool);
+    await historicalPool.query(`
+      INSERT INTO strategy_deployments(
+        id,owner_user_id,strategy_id,strategy_version_id,exchange_account_id,
+        mode,validation_label,idempotency_key
+      ) VALUES(
+        'historical-n-minus-one','historical-owner','historical-strategy',
+        'historical-version','historical-account','paper','UNVERIFIED',
+        'historical-n-minus-one'
+      )
+    `);
+    const migration = await readFile(
+      new URL("../postgres/migrations/0024_platform_demo_execution.sql", import.meta.url),
+      "utf8",
+    );
+    await historicalPool.query(migration);
+    await historicalPool.query(migration);
+    assert.equal((await historicalPool.query(`
+      SELECT exchange_account_id IS NOT NULL
+          AND execution_product='usdt_perpetual'
+          AND platform_strategy_code IS NULL
+          AND membership_id IS NULL
+          AND paper_portfolio_id IS NULL AS valid
+      FROM strategy_deployments WHERE id='historical-n-minus-one'
+    `)).rows[0].valid, true);
+  } finally {
+    await historicalPool.end();
+    await adminPool.query(`DROP SCHEMA IF EXISTS "${historicalSchema}" CASCADE`);
+  }
+});
+
+test("deployment binding columns allow only official 0111 and legacy 1000 across all 32 product masks", async () => {
   const portfolios = await ensureOfficialPaperPortfolios(pool, {
     membershipId: "membership-official",
     customerId: "owner-official",
@@ -717,7 +763,7 @@ test("deployment binding columns are all-or-none across official and legacy prod
   const conservative = portfolios.find((portfolio) => portfolio.strategyCode === "ai_conservative");
   assert.ok(conservative);
 
-  const insertDeployment = async ({ id, executionProduct, bindingMask, missingPortfolio = false }) => pool.query(`
+  const insertDeployment = async ({ id, executionProduct, mask, missingPortfolio = false }) => pool.query(`
     INSERT INTO strategy_deployments (
       id, owner_user_id, strategy_id, strategy_version_id, exchange_account_id,
       mode, validation_label, idempotency_key, execution_product,
@@ -729,43 +775,95 @@ test("deployment binding columns are all-or-none across official and legacy prod
     )
   `, [
     id,
-    executionProduct === "spot_usdt" ? null : "account-a",
+    mask & 0b1000 ? "account-a" : null,
     executionProduct,
-    bindingMask & 0b001 ? conservative.strategyCode : null,
-    bindingMask & 0b010 ? conservative.membershipId : null,
-    bindingMask & 0b100 ? (missingPortfolio ? "portfolio-does-not-exist" : conservative.id) : null,
+    mask & 0b0100 ? conservative.strategyCode : null,
+    mask & 0b0010 ? conservative.membershipId : null,
+    mask & 0b0001 ? (missingPortfolio ? "portfolio-does-not-exist" : conservative.id) : null,
   ]);
 
-  for (let bindingMask = 0; bindingMask < 0b111; bindingMask += 1) {
-    await assert.rejects(
-      insertDeployment({
-        id: `official-partial-binding-${bindingMask}`,
-        executionProduct: "spot_usdt",
-        bindingMask,
-      }),
-      /check constraint|violates/i,
-      `spot_usdt binding mask ${bindingMask.toString(2).padStart(3, "0")} must fail closed`,
-    );
+  for (const executionProduct of ["spot_usdt", "usdt_perpetual"]) {
+    for (let mask = 0; mask < 0b1_0000; mask += 1) {
+      const allowed = executionProduct === "spot_usdt" ? 0b0111 : 0b1000;
+      const attempt = insertDeployment({
+        id: `${executionProduct}-binding-${mask}`,
+        executionProduct,
+        mask,
+      });
+      if (mask === allowed) await attempt;
+      else await assert.rejects(
+        attempt,
+        /check constraint|violates/i,
+        `${executionProduct} mask ${mask.toString(2).padStart(4, "0")} must fail closed`,
+      );
+    }
   }
 
-  await insertDeployment({
-    id: "legacy-binding-all-null",
-    executionProduct: "usdt_perpetual",
-    bindingMask: 0,
-  });
+  await assert.rejects(
+    createStrategyDeployment(pool, {
+      ownerUserId: "owner-official",
+      strategyId: "strategy-a",
+      strategyVersionId: "version-a",
+      exchangeAccountId: null,
+      mode: "paper",
+      validationLabel: "UNVERIFIED",
+      idempotencyKey: "legacy-missing-exchange-account",
+      riskAcknowledged: true,
+    }),
+    /交易账户|exchange/i,
+  );
+});
 
-  for (let bindingMask = 1; bindingMask <= 0b111; bindingMask += 1) {
-    await assert.rejects(
-      insertDeployment({
-        id: `legacy-partial-binding-${bindingMask}`,
-        executionProduct: "usdt_perpetual",
-        bindingMask,
-        missingPortfolio: bindingMask === 0b100,
-      }),
-      /check constraint|violates/i,
-      `usdt_perpetual binding mask ${bindingMask.toString(2).padStart(3, "0")} must fail closed`,
+test("official complete binding with an unknown portfolio reaches the foreign key", async () => {
+  await assert.rejects(
+    pool.query(`
+      INSERT INTO strategy_deployments(
+        id,owner_user_id,strategy_id,strategy_version_id,exchange_account_id,
+        mode,validation_label,idempotency_key,execution_product,
+        platform_strategy_code,membership_id,paper_portfolio_id
+      ) VALUES(
+        'official-unknown-portfolio','owner-official','strategy-official',
+        'version-official',NULL,'paper','UNVERIFIED','official-unknown-portfolio',
+        'spot_usdt','ai_conservative','membership-official','unknown-portfolio'
+      )
+    `),
+    (error) => error.code === "23503"
+      && /strategy_deployments_official_portfolio_(owner|strategy)_fk/.test(error.constraint),
+  );
+});
+
+test("0024 upgrades the immediate weaker N-1 binding check and reapplies", async () => {
+  await pool.query(`
+    INSERT INTO strategy_deployments(
+      id,owner_user_id,strategy_id,strategy_version_id,exchange_account_id,
+      mode,validation_label,idempotency_key
+    ) VALUES(
+      'immediate-n-minus-one','legacy-owner','legacy-strategy','legacy-version',
+      'account-a','paper','UNVERIFIED','immediate-n-minus-one'
     );
-  }
+    ALTER TABLE strategy_deployments
+      DROP CONSTRAINT strategy_deployments_official_binding_check;
+    ALTER TABLE strategy_deployments
+      ADD CONSTRAINT strategy_deployments_official_binding_check
+      CHECK (
+        execution_product <> 'spot_usdt'
+        OR (paper_portfolio_id IS NOT NULL AND membership_id IS NOT NULL
+            AND platform_strategy_code IS NOT NULL AND exchange_account_id IS NULL)
+      );
+  `);
+  const migration = await readFile(
+    new URL("../postgres/migrations/0024_platform_demo_execution.sql", import.meta.url),
+    "utf8",
+  );
+  await pool.query(migration);
+  await pool.query(migration);
+  assert.equal((await pool.query(`
+    SELECT exchange_account_id IS NOT NULL
+        AND platform_strategy_code IS NULL
+        AND membership_id IS NULL
+        AND paper_portfolio_id IS NULL AS valid
+    FROM strategy_deployments WHERE id='immediate-n-minus-one'
+  `)).rows[0].valid, true);
 });
 
 test("pending official paper settlement locks current membership access and expired access permits only sells", async () => {
