@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 
+import { assertBetaResearchRuntimeDisabled } from "./beta-legacy-runtime-guard.ts";
 import { agentRoles, resolveAgentRoleConfig, missingAgentRoles, type AgentRole } from "./agent-model-profiles.ts";
 import { runPerpetualBacktestOnCandles, type BacktestResult, type HistoricalFundingRate } from "./backtest-engine.ts";
 import { cachePerpetualMarketData, loadCachedPerpetualMarketData } from "./postgres-market-cache.ts";
@@ -506,6 +507,7 @@ async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: 
 }
 
 export async function processResearchStage(database: Pool, run: ResearchLease, workerId: string) {
+  assertBetaResearchRuntimeDisabled();
   const pinnedMissing = agentRoles.filter(role => !run.agentRoleSnapshot?.[role]?.revisionId);
   const missing = pinnedMissing.length === 0 ? [] : await missingAgentRoles(database);
   if (missing.length) {

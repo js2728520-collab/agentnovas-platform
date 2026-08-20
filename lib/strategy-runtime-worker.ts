@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 
+import { assertBetaSpotRuntimeLease } from "./beta-legacy-runtime-guard.ts";
 import { resolveRuntimeExplanationRoleConfig } from "./agent-model-profiles.ts";
 import {
   assessPerpetualDataQuality,
@@ -287,6 +288,7 @@ export async function processLeasedStrategyRuntimeDeployment(
   dependencies: StrategyRuntimeWorkerDependencies = {},
 ) {
   const now = dependencies.now?.() ?? new Date();
+  assertBetaSpotRuntimeLease(lease.executionProduct);
   if (lease.executionProduct === "spot_usdt") {
     return processOfficialSpotRuntimeDeployment(database, lease, workerId, dependencies);
   }

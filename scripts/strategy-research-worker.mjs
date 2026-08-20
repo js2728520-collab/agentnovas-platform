@@ -2,11 +2,13 @@ import os from "node:os";
 
 import pg from "pg";
 
+import { assertBetaResearchRuntimeDisabled } from "../lib/beta-legacy-runtime-guard.ts";
 import { researchDatabaseUrl } from "../lib/postgres.ts";
 import { leaseNextResearchRun, renewResearchRunLease } from "../lib/postgres-research-queue.ts";
 import { processResearchStage } from "../lib/strategy-research-orchestrator.ts";
 import { createWorkerHeartbeatReporter } from "../lib/worker-observability.ts";
 
+assertBetaResearchRuntimeDisabled();
 const connectionString = researchDatabaseUrl();
 if (!connectionString) throw new Error("RESEARCH_DATABASE_URL or DATABASE_URL is required");
 if (process.env.STRATEGY_RESEARCH_ENABLED !== "true") throw new Error("STRATEGY_RESEARCH_ENABLED must be true");

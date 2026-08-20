@@ -66,7 +66,7 @@ export async function GET(request: Request) {
       },
       researchWorker: workerStatus(diagnostics, "research", {
         configured: databaseConfigured,
-        enabled: process.env.STRATEGY_RESEARCH_ENABLED === "true",
+        enabled: false,
       }),
       runtimeWorker: workerStatus(diagnostics, "runtime", {
         configured: databaseConfigured,

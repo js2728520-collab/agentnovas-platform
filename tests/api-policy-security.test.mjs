@@ -143,6 +143,7 @@ test("commercial and official paper client routes declare exact RBAC permissions
     ["GET /api/trading-hall/paper/portfolio", "client.paper.view"],
     ["GET /api/trading-hall/paper/trades", "client.paper.view"],
     ["POST /api/platform-strategies/:code/follow", "client.paper.manage"],
+    ["PATCH /api/platform-strategy-subscriptions/:id", "client.paper.manage"],
   ]);
   for (const [key, permission] of expected) {
     const [method, route] = key.split(" ");
@@ -176,6 +177,11 @@ test("commercial beta rejects legacy customer credentials, funding, and trading 
     ["GET", "/api/risk/status"],
     ["POST", "/api/strategies/:strategyId/versions/:versionId/deployments"],
     ["POST", "/api/strategy-research/runs"],
+    ["GET", "/api/strategy-deployments/:id"],
+    ["GET", "/api/strategy-deployments/:id/cycles"],
+    ["POST", "/api/strategy-deployments/:id/pause"],
+    ["POST", "/api/strategy-deployments/:id/resume"],
+    ["PATCH", "/api/strategy-subscriptions/:id"],
     ["GET", "/api/strategy-marketplace"],
     ["POST", "/api/simulated-orders"],
     ["GET", "/api/portfolio"],
