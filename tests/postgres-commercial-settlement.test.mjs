@@ -5,6 +5,7 @@ import pg from "pg";
 
 import { mutateAiCredits, releaseAiCreditReservation, reserveAiCredits, settleAiCreditReservation } from "../lib/ai-credit-service.ts";
 import { createMembershipOrder, decideMembershipOrder, recordMembershipPaymentEvidence, submitMembershipOrder } from "../lib/commercial-membership-service.ts";
+import { ensurePlatformLedgerAccount, postCommercialLedgerTransaction } from "../lib/commercial-ledger-service.ts";
 import { decidePerformanceAssessment, decidePerformancePayment, generatePerformanceStatement, recordPerformancePaymentEvidence } from "../lib/performance-fee-service.ts";
 
 const databaseUrl=process.env.TEST_DATABASE_URL||"postgresql://127.0.0.1/postgres";
@@ -54,6 +55,14 @@ test("AI credits never become negative and idempotent entries preserve conservat
   assert.deepEqual(account,{available_credits:"1000",reserved_credits:"0"});
   const client2=await pool.connect();try{await client2.query("BEGIN");const reserved=await reserveAiCredits(client2,{userId:"customer",credits:BigInt(100),sourceType:"inference",sourceId:"call-1",idempotencyKey:"reserve-1",requestId:"reserve-1",expiresAt:"2026-08-21"});await settleAiCreditReservation(client2,{reservationId:reserved.reservationId,actualCredits:BigInt(60),idempotencyKey:"settle-1",requestId:"settle-1",costModelVersion:"token-cost-v1",usage:{inputTokens:1,outputTokens:1}});const released=await reserveAiCredits(client2,{userId:"customer",credits:BigInt(50),sourceType:"inference",sourceId:"call-2",idempotencyKey:"reserve-2",requestId:"reserve-2",expiresAt:"2026-08-21"});await releaseAiCreditReservation(client2,{reservationId:released.reservationId,idempotencyKey:"release-2",requestId:"release-2"});await client2.query("COMMIT");}catch(error){await client2.query("ROLLBACK");throw error;}finally{client2.release();}
   assert.deepEqual((await pool.query(`SELECT available_credits::text,reserved_credits::text FROM ai_credit_accounts WHERE user_id='customer'`)).rows[0],{available_credits:"940",reserved_credits:"0"});
+});
+
+test("the posting service commits wallet version, audit and outbox with the balanced ledger",async()=>{
+  const client=await pool.connect();try{await client.query("BEGIN");const platform=await ensurePlatformLedgerAccount(client,"platform_deposit_clearing","USDT");await client.query(`INSERT INTO ledger_accounts(id,owner_user_id,account_type,currency) VALUES('customer-available','customer','user_available','USDT') ON CONFLICT DO NOTHING`);const posted=await postCommercialLedgerTransaction(client,{transactionType:"correction",sourceType:"test",sourceId:"wallet-credit",currency:"USDT",idempotencyKey:"wallet-credit",requestId:"wallet-credit",createdByUserId:"checker",postings:[{accountId:platform,side:"debit",amount:"5"},{accountId:"customer-available",side:"credit",amount:"5"}],walletMutation:{userId:"customer",availableDelta:"5",frozenDelta:"0"},audit:{action:"test.wallet.credit",subjectType:"user",subjectId:"customer",before:{available:"0"},after:{available:"5"}},outbox:{userId:"customer",category:"wallet",templateKey:"wallet_credited",payload:{amount:"5"},dedupeKey:"wallet-credit"}});assert.equal(posted.created,true);await client.query("COMMIT");}catch(error){await client.query("ROLLBACK");throw error;}finally{client.release();}
+  assert.equal((await pool.query(`SELECT available_amount::text FROM wallet_balances WHERE user_id='customer'`)).rows[0].available_amount,"5.000000000000000000");
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM wallet_balance_versions WHERE ledger_transaction_id=(SELECT id FROM ledger_transactions WHERE source_id='wallet-credit')`)).rows[0].count,1);
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM audit_logs WHERE action='test.wallet.credit'`)).rows[0].count,1);
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM notification_deliveries WHERE dedupe_key='wallet-credit'`)).rows[0].count,1);
 });
 
 test("concurrent membership checkers cannot duplicate activation, credits or ledger",async()=>{

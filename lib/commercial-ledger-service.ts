@@ -5,6 +5,13 @@ import { assertBalancedPostings, normalizeDecimalString } from "./ledger.ts";
 
 export type CommercialLedgerPosting = { accountId: string; side: "debit" | "credit"; amount: string };
 
+function signedDecimal(value:string){
+  const match=/^(-)?(\d+)(?:\.(\d{1,18}))?$/.exec(value.trim());
+  if(!match)throw new Error("INVALID_DECIMAL_AMOUNT");
+  const normalized=normalizeDecimalString(`${match[2]}${match[3]?`.${match[3]}`:""}`);
+  return match[1]&&normalized!=="0"?`-${normalized}`:normalized;
+}
+
 export async function ensurePlatformLedgerAccount(client: PoolClient, accountType: "platform_deposit_clearing" | "platform_fee", currency: string) {
   const id = `ledger-platform-${accountType}-${currency.toLowerCase()}`;
   await client.query(`
@@ -32,6 +39,9 @@ export async function postCommercialLedgerTransaction(client: PoolClient, input:
   postings: CommercialLedgerPosting[];
   metadata?: Record<string, unknown>;
   reversalOfTransactionId?: string;
+  walletMutation?: {userId:string;availableDelta:string;frozenDelta:string};
+  audit?: {action:string;subjectType:string;subjectId:string;before?:Record<string,unknown>;after?:Record<string,unknown>};
+  outbox?: {userId:string;category:string;templateKey:string;payload:Record<string,unknown>;dedupeKey:string};
 }) {
   assertBalancedPostings(input.postings);
   const existing = await client.query<{ id: string }>(
@@ -61,6 +71,29 @@ export async function postCommercialLedgerTransaction(client: PoolClient, input:
       INSERT INTO ledger_postings (id, transaction_id, account_id, side, amount, currency)
       VALUES ($1,$2,$3,$4,$5,$6)
     `, [randomUUID(), transactionId, posting.accountId, posting.side, normalizeDecimalString(posting.amount), input.currency]);
+  }
+  if(input.walletMutation){
+    const availableDelta=signedDecimal(input.walletMutation.availableDelta);
+    const frozenDelta=signedDecimal(input.walletMutation.frozenDelta);
+    await client.query(`INSERT INTO wallet_balances(id,user_id,currency) VALUES($1,$2,$3) ON CONFLICT(user_id,currency) DO NOTHING`,[randomUUID(),input.walletMutation.userId,input.currency]);
+    await client.query(`SELECT id FROM wallet_balances WHERE user_id=$1 AND currency=$2 FOR UPDATE`,[input.walletMutation.userId,input.currency]);
+    const wallet=await client.query<{id:string;available_amount:string;frozen_amount:string;version:string}>(`UPDATE wallet_balances
+      SET available_amount=available_amount+$3::numeric,frozen_amount=frozen_amount+$4::numeric,version=version+1,updated_at=now()
+      WHERE user_id=$1 AND currency=$2 AND available_amount+$3::numeric>=0 AND frozen_amount+$4::numeric>=0
+      RETURNING id,available_amount::text,frozen_amount::text,version::text`,[input.walletMutation.userId,input.currency,availableDelta,frozenDelta]);
+    if(!wallet.rows[0])throw new Error("WALLET_BALANCE_INSUFFICIENT");
+    await client.query(`INSERT INTO wallet_balance_versions(id,wallet_balance_id,ledger_transaction_id,available_amount,frozen_amount,version)
+      VALUES($1,$2,$3,$4,$5,$6)`,[randomUUID(),wallet.rows[0].id,transactionId,wallet.rows[0].available_amount,wallet.rows[0].frozen_amount,wallet.rows[0].version]);
+  }
+  if(input.audit){
+    await client.query(`INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json)
+      VALUES($1,$2,$3,$4,$5,$6,$7)`,[randomUUID(),input.createdByUserId,input.audit.action,input.audit.subjectType,input.audit.subjectId,
+      JSON.stringify(input.audit.before??{}),JSON.stringify(input.audit.after??{})]);
+  }
+  if(input.outbox){
+    await client.query(`INSERT INTO notification_deliveries(id,user_id,channel,category,template_key,payload_json,status,scheduled_at,dedupe_key)
+      VALUES($1,$2,'in_app',$3,$4,$5,'queued',$6,$7) ON CONFLICT(dedupe_key) DO NOTHING`,
+    [randomUUID(),input.outbox.userId,input.outbox.category,input.outbox.templateKey,JSON.stringify(input.outbox.payload),new Date().toISOString(),input.outbox.dedupeKey]);
   }
   return { id: transactionId, created: true };
 }

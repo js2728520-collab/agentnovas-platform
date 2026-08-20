@@ -152,6 +152,9 @@ export async function decideMembershipOrder(pool: Pool, input: {
       currency: row.price_currency, idempotencyKey: `membership-ledger:${row.id}`, requestId: input.requestId,
       createdByUserId: input.reviewerUserId, metadata: { orderId: row.id, planVersionId: row.plan_version_id },
       postings: [{ accountId: clearingId, side: "debit", amount: row.price_amount }, { accountId: feeId, side: "credit", amount: row.price_amount }],
+      audit:{action:"commercial.membership.approved",subjectType:"commercial_membership_order",subjectId:row.id,
+        before:{status:"pending_review"},after:{status:"approved",membershipId}},
+      outbox:{userId:row.user_id,category:"membership",templateKey:"membership_approved",payload:{orderId:row.id},dedupeKey:`membership-approved:${row.id}`},
     });
     await mutateAiCredits(client, { userId: row.user_id, type: "grant", availableDelta: BigInt(row.ai_credit_grant), reservedDelta: BigInt(0),
       sourceType: "commercial_membership_order", sourceId: row.id, idempotencyKey: `membership-credit:${row.id}`,
@@ -163,13 +166,6 @@ export async function decideMembershipOrder(pool: Pool, input: {
       JSON.stringify({ planVersionId: row.plan_version_id, expiresAt }),`membership-entitlement:${row.id}`]);
     await client.query(`UPDATE commercial_membership_orders SET status='approved',approved_membership_id=$2,ledger_transaction_id=$3,
       reviewed_by_user_id=$4,reviewed_at=now(),updated_at=now() WHERE id=$1`, [row.id,membershipId,ledger.id,input.reviewerUserId]);
-    await client.query(`INSERT INTO audit_logs (id,actor_user_id,action,subject_type,subject_id,before_json,after_json)
-      VALUES ($1,$2,'commercial.membership.approved','commercial_membership_order',$3,$4,$5)`,
-    [randomUUID(),input.reviewerUserId,row.id,JSON.stringify({ status: "pending_review" }),JSON.stringify({ status: "approved", membershipId })]);
-    await client.query(`INSERT INTO notification_deliveries
-      (id,user_id,channel,category,template_key,payload_json,status,scheduled_at,dedupe_key)
-      VALUES ($1,$2,'in_app','membership','membership_approved',$3,'queued',$4,$5) ON CONFLICT (dedupe_key) DO NOTHING`,
-    [randomUUID(),row.user_id,JSON.stringify({ orderId: row.id }),now.toISOString(),`membership-approved:${row.id}`]);
     return { status: "approved", membershipId, ledgerTransactionId: ledger.id, replayed: false };
   });
 }
