@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS commercial_membership_orders (
   legal_snapshot_json jsonb NOT NULL,
   status text NOT NULL DEFAULT 'pending_evidence' CHECK (status IN ('pending_evidence','pending_review','activated','rejected','cancelled')),
   idempotency_key text NOT NULL,
-  request_id text NOT NULL UNIQUE,
+  request_id text NOT NULL,
   approved_membership_id text REFERENCES memberships(id) ON DELETE RESTRICT,
   ledger_transaction_id text REFERENCES ledger_transactions(id) ON DELETE RESTRICT,
   submitted_by_user_id text,
@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS commercial_membership_orders (
   UNIQUE(user_id, idempotency_key)
 );
 CREATE INDEX IF NOT EXISTS idx_commercial_orders_queue ON commercial_membership_orders(status, created_at DESC, id DESC);
+ALTER TABLE commercial_membership_orders DROP CONSTRAINT IF EXISTS commercial_membership_orders_request_id_key;
+CREATE INDEX IF NOT EXISTS idx_commercial_orders_request_id ON commercial_membership_orders(request_id);
 
 CREATE TABLE IF NOT EXISTS commercial_idempotency_records (
   operation text NOT NULL,
@@ -115,10 +117,21 @@ CREATE TABLE IF NOT EXISTS commercial_payment_evidence (
   occurred_at timestamptz NOT NULL,
   note text NOT NULL DEFAULT '',
   recorded_by_user_id text NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  status text NOT NULL DEFAULT 'recorded' CHECK (status IN ('recorded','rejected','accepted')),
+  reviewed_by_user_id text REFERENCES users(id) ON DELETE RESTRICT,
+  reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   CHECK ((membership_order_id IS NOT NULL) <> (performance_statement_id IS NOT NULL)),
   UNIQUE(membership_order_id, reference_fingerprint)
 );
+ALTER TABLE commercial_payment_evidence ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'recorded';
+ALTER TABLE commercial_payment_evidence ADD COLUMN IF NOT EXISTS reviewed_by_user_id text REFERENCES users(id) ON DELETE RESTRICT;
+ALTER TABLE commercial_payment_evidence ADD COLUMN IF NOT EXISTS reviewed_at timestamptz;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='commercial_payment_evidence_status_check' AND conrelid='commercial_payment_evidence'::regclass) THEN
+    ALTER TABLE commercial_payment_evidence ADD CONSTRAINT commercial_payment_evidence_status_check CHECK (status IN ('recorded','rejected','accepted'));
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS commercial_membership_order_decisions (
   id text PRIMARY KEY,
@@ -222,14 +235,31 @@ CREATE TABLE IF NOT EXISTS performance_fee_statements (
   currency text NOT NULL DEFAULT 'USDT' CHECK (currency = 'USDT'),
   status text NOT NULL DEFAULT 'pending_review' CHECK (status IN ('pending_review','approved','rejected','no_fee','payment_pending','paid')),
   generated_by_user_id text NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  request_id text NOT NULL UNIQUE,
+  request_id text NOT NULL,
+  revision integer NOT NULL DEFAULT 1 CHECK (revision > 0),
+  replaces_statement_id text CONSTRAINT fk_performance_statement_replacement REFERENCES performance_fee_statements(id) ON DELETE RESTRICT,
   ledger_transaction_id text REFERENCES ledger_transactions(id) ON DELETE RESTRICT,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK (week_end = week_start + interval '7 days'),
-  UNIQUE(user_id, week_start, week_end)
+  UNIQUE(user_id, week_start, week_end, revision)
 );
 CREATE INDEX IF NOT EXISTS idx_performance_statements_user_time ON performance_fee_statements(user_id, week_start DESC, id DESC);
+ALTER TABLE performance_fee_statements ADD COLUMN IF NOT EXISTS revision integer NOT NULL DEFAULT 1;
+ALTER TABLE performance_fee_statements ADD COLUMN IF NOT EXISTS replaces_statement_id text;
+ALTER TABLE performance_fee_statements DROP CONSTRAINT IF EXISTS performance_fee_statements_request_id_key;
+ALTER TABLE performance_fee_statements DROP CONSTRAINT IF EXISTS performance_fee_statements_user_id_week_start_week_end_key;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='performance_fee_statements_revision_check' AND conrelid='performance_fee_statements'::regclass) THEN
+    ALTER TABLE performance_fee_statements ADD CONSTRAINT performance_fee_statements_revision_check CHECK (revision > 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_performance_statement_replacement' AND conrelid='performance_fee_statements'::regclass) THEN
+    ALTER TABLE performance_fee_statements ADD CONSTRAINT fk_performance_statement_replacement FOREIGN KEY(replaces_statement_id) REFERENCES performance_fee_statements(id) ON DELETE RESTRICT;
+  END IF;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_performance_statement_period_revision ON performance_fee_statements(user_id,week_start,week_end,revision);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_performance_statement_current_period ON performance_fee_statements(user_id,week_start,week_end) WHERE status <> 'rejected';
+CREATE INDEX IF NOT EXISTS idx_performance_statement_request_id ON performance_fee_statements(request_id);
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_commercial_evidence_statement' AND conrelid='commercial_payment_evidence'::regclass) THEN
@@ -248,10 +278,12 @@ CREATE TABLE IF NOT EXISTS performance_fee_decisions (
   reviewer_user_id text NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   decision text NOT NULL CHECK (decision IN ('approve','reject')),
   note text NOT NULL DEFAULT '',
+  payment_evidence_id text REFERENCES commercial_payment_evidence(id) ON DELETE RESTRICT,
   idempotency_key text NOT NULL UNIQUE,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(statement_id, stage, reviewer_user_id)
 );
+ALTER TABLE performance_fee_decisions ADD COLUMN IF NOT EXISTS payment_evidence_id text REFERENCES commercial_payment_evidence(id) ON DELETE RESTRICT;
 
 CREATE TABLE IF NOT EXISTS performance_fee_receivables (
   id text PRIMARY KEY,

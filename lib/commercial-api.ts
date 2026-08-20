@@ -26,6 +26,6 @@ export function stringArray(body: Record<string, unknown>, key: string, maximum 
     throw new ResearchApiError("VALIDATION_ERROR",`${key} 无效`,422,{fields:[key]});
   return value.map(item=>(item as string).trim());
 }
-export function requestId(request: Request) { return request.headers.get("x-request-id")?.trim().slice(0,128) || crypto.randomUUID(); }
+export function requestId(request: Request) { void request;return crypto.randomUUID(); }
 
 export { idempotencyKey,paymentEvidenceInput } from "./commercial-request-validation.ts";

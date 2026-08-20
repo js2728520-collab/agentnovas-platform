@@ -1,11 +1,94 @@
 import { requireAccessPermission } from "@/lib/access-control";
-import { commercialJson,commercialListInput,idempotencyKey,requestId,requiredString,stringArray } from "@/lib/commercial-api";
+import {
+  commercialJson,
+  commercialListInput,
+  idempotencyKey,
+  requestId,
+  requiredString,
+  stringArray,
+} from "@/lib/commercial-api";
 import { encodeCommercialCursor } from "@/lib/commercial-api-support";
 import { createMembershipOrder } from "@/lib/commercial-membership-service";
-import { cursorPage,membershipOrderDto } from "@/lib/commercial-public-contract";
+import {
+  cursorPage,
+  membershipOrderDto,
+} from "@/lib/commercial-public-contract";
 import { getPostgresPool } from "@/lib/postgres";
 import { researchErrorResponse } from "@/lib/research-api";
 import { ResearchApiError } from "@/lib/research-errors";
 
-export async function GET(request:Request){try{const {user}=await requireAccessPermission(request,"client.membership.view");const {limit,cursor}=commercialListInput(request);const params:unknown[]=[user.id];let cursorSql="";if(cursor){params.push(cursor.createdAt,cursor.id);cursorSql=`AND (o.created_at,o.id)<($2::timestamptz,$3)`;}params.push(limit+1);const result=await (await getPostgresPool()).query(`SELECT o.id,o.order_no,o.user_id,o.price_amount::text,o.duration_days,o.ai_credit_grant::text,o.performance_fee_bps,o.legal_snapshot_json,o.status,o.submitted_at,o.activated_at,o.created_at,o.updated_at,p.plan_code,p.version FROM commercial_membership_orders o JOIN commercial_plan_versions p ON p.id=o.plan_version_id WHERE o.user_id=$1 ${cursorSql} ORDER BY o.created_at DESC,o.id DESC LIMIT $${params.length}`,params);const rows=result.rows.slice(0,limit),last=rows.at(-1),next=result.rows.length>limit&&last?encodeCommercialCursor({createdAt:new Date(last.created_at).toISOString(),id:last.id}):null;return Response.json(cursorPage(rows.map(membershipOrderDto),limit,next),{headers:{"cache-control":"no-store"}});}catch(error){return researchErrorResponse(error);}}
-export async function POST(request:Request){try{const {user}=await requireAccessPermission(request,"client.membership.order");const body=await commercialJson(request),pool=await getPostgresPool(),planCode=requiredString(body,"planCode",40);const plan=await pool.query<{id:string}>(`SELECT id FROM commercial_plan_versions WHERE plan_code=$1 AND status='active' AND effective_at<=now()`,[planCode]);if(!plan.rows[0])throw new ResearchApiError("PLAN_NOT_AVAILABLE","会员计划当前不可购买",422,{fields:["planCode"]});const row=await createMembershipOrder(pool,{userId:user.id,planVersionId:plan.rows[0].id,acceptedDocumentVersionIds:stringArray(body,"acceptedDocumentVersionIds",7),idempotencyKey:idempotencyKey(request),requestId:requestId(request),ipAddress:request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),userAgent:request.headers.get("user-agent")??undefined});return Response.json({order:membershipOrderDto(row)},{status:201});}catch(error){return researchErrorResponse(error);}}
+export async function GET(request: Request) {
+  try {
+    const { user } = await requireAccessPermission(
+      request,
+      "client.membership.view",
+    );
+    const { limit, cursor } = commercialListInput(request);
+    const params: unknown[] = [user.id];
+    let cursorSql = "";
+    if (cursor) {
+      params.push(cursor.createdAt, cursor.id);
+      cursorSql = `AND (o.created_at,o.id)<($2::timestamptz,$3)`;
+    }
+    params.push(limit + 1);
+    const result = await (
+      await getPostgresPool()
+    ).query(
+      `SELECT o.id,o.order_no,o.user_id,o.price_amount::text,o.duration_days,o.ai_credit_grant::text,o.performance_fee_bps,o.legal_snapshot_json,o.status,o.submitted_at,o.activated_at,o.created_at,o.updated_at,p.plan_code,p.version FROM commercial_membership_orders o JOIN commercial_plan_versions p ON p.id=o.plan_version_id WHERE o.user_id=$1 ${cursorSql} ORDER BY o.created_at DESC,o.id DESC LIMIT $${params.length}`,
+      params,
+    );
+    const rows = result.rows.slice(0, limit),
+      last = rows.at(-1),
+      next =
+        result.rows.length > limit && last
+          ? encodeCommercialCursor({
+              createdAt: new Date(last.created_at).toISOString(),
+              id: last.id,
+            })
+          : null;
+    return Response.json(
+      cursorPage(rows.map(membershipOrderDto), limit, next),
+      { headers: { "cache-control": "no-store" } },
+    );
+  } catch (error) {
+    return researchErrorResponse(error);
+  }
+}
+export async function POST(request: Request) {
+  try {
+    const { user } = await requireAccessPermission(
+      request,
+      "client.membership.order",
+    );
+    const body = await commercialJson(request),
+      pool = await getPostgresPool(),
+      planCode = requiredString(body, "planCode", 40);
+    const plan = await pool.query<{ id: string }>(
+      `SELECT id FROM commercial_plan_versions WHERE plan_code=$1 AND status='active' AND effective_at<=now()`,
+      [planCode],
+    );
+    if (!plan.rows[0])
+      throw new ResearchApiError(
+        "PLAN_NOT_AVAILABLE",
+        "会员计划当前不可购买",
+        422,
+        { fields: ["planCode"] },
+      );
+    const row = await createMembershipOrder(pool, {
+      userId: user.id,
+      planVersionId: plan.rows[0].id,
+      acceptedDocumentVersionIds: stringArray(
+        body,
+        "acceptedDocumentVersionIds",
+        7,
+      ),
+      idempotencyKey: idempotencyKey(request),
+      requestId: requestId(request),
+      trustedIp: null,
+      userAgent: request.headers.get("user-agent") ?? undefined,
+    });
+    return Response.json({ order: membershipOrderDto(row) }, { status: 201 });
+  } catch (error) {
+    return researchErrorResponse(error);
+  }
+}
