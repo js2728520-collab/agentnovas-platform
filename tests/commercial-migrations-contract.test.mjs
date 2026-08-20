@@ -23,4 +23,6 @@ test("commercial migration seeds immutable v1 price snapshots and approval primi
     "ai_credit_accounts", "ai_credit_ledger_entries", "ai_credit_reservations",
     "performance_fee_statements", "performance_fee_high_water_marks", "performance_fee_receivables",
   ]) assert.ok(sql.includes(fragment), `missing ${fragment}`);
+  assert.match(sql,/price_currency text NOT NULL DEFAULT 'USD' CHECK \(price_currency = 'USD'\)/i);
+  assert.match(sql,/currency text NOT NULL DEFAULT 'USDT' CHECK \(currency = 'USDT'\)/i);
 });

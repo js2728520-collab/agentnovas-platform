@@ -38,6 +38,12 @@ test("plan, currencies and seven-part legal contract are release locked",async()
   assert.match(sql,/currency[^\n]+DEFAULT 'USDT'/i);
 });
 
+test("public routes adapt plans, statuses and cursor pages to the root commercial contract",async()=>{
+  const plans=await readFile(new URL("app/api/membership/plans/route.ts",root),"utf8"),orders=await readFile(new URL("app/api/membership/orders/route.ts",root),"utf8"),contract=await readFile(new URL("lib/commercial-public-contract.ts",root),"utf8");
+  assert.match(plans,/commercialPlanDto/);assert.match(orders,/planCode/);assert.doesNotMatch(orders,/requiredString\(body,"planVersionId"/);
+  assert.match(orders,/cursorPage/);assert.match(contract,/AWAITING_EVIDENCE/);assert.match(contract,/INVOICED/);assert.match(contract,/priceUsd/);assert.match(contract,/performanceFeeRate/);
+});
+
 test("ledger closes posting window when transaction is committed",async()=>{
   const sql=await readFile(new URL("postgres/migrations/0022_ledger_approval_invariants.sql",root),"utf8");
   assert.match(sql,/LEDGER_TRANSACTION_COMMITTED/);

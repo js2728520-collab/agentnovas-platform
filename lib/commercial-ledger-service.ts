@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 
 import { assertBalancedPostings, normalizeDecimalString } from "./ledger.ts";
+import { canonicalPayloadHash } from "./commercial-idempotency.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 export type CommercialLedgerPosting = { accountId: string; side: "debit" | "credit"; amount: string };
@@ -45,13 +46,15 @@ export async function postCommercialLedgerTransaction(client: PoolClient, input:
   outbox?: {userId:string;category:string;templateKey:string;payload:Record<string,unknown>;dedupeKey:string};
 }) {
   assertBalancedPostings(input.postings);
-  const existing = await client.query<{ id: string;transaction_type:string;source_type:string;source_id:string;currency:string;created_by_user_id:string|null }>(
-    `SELECT id,transaction_type,source_type,source_id,currency,created_by_user_id FROM ledger_transactions WHERE idempotency_key = $1 FOR SHARE`,
+  const canonicalPostings=input.postings.map(posting=>({accountId:posting.accountId,side:posting.side,amount:normalizeDecimalString(posting.amount)})).sort((a,b)=>`${a.accountId}:${a.side}:${a.amount}`.localeCompare(`${b.accountId}:${b.side}:${b.amount}`));
+  const payloadHash=canonicalPayloadHash({postings:canonicalPostings,reversalOfTransactionId:input.reversalOfTransactionId??null,walletMutation:input.walletMutation?{userId:input.walletMutation.userId,availableDelta:signedDecimal(input.walletMutation.availableDelta),frozenDelta:signedDecimal(input.walletMutation.frozenDelta)}:null,metadata:input.metadata??{},audit:input.audit??null,outbox:input.outbox??null});
+  const existing = await client.query<{ id: string;transaction_type:string;source_type:string;source_id:string;currency:string;created_by_user_id:string|null;metadata_json:Record<string,unknown> }>(
+    `SELECT id,transaction_type,source_type,source_id,currency,created_by_user_id,metadata_json FROM ledger_transactions WHERE idempotency_key = $1 FOR SHARE`,
     [input.idempotencyKey],
   );
   if (existing.rows[0]) {
     const row=existing.rows[0];
-    if(row.transaction_type!==input.transactionType||row.source_type!==input.sourceType||row.source_id!==input.sourceId||row.currency!==input.currency||row.created_by_user_id!==input.createdByUserId)
+    if(row.transaction_type!==input.transactionType||row.source_type!==input.sourceType||row.source_id!==input.sourceId||row.currency!==input.currency||row.created_by_user_id!==input.createdByUserId||row.metadata_json.__commercialPayloadHash!==payloadHash)
       throw new ResearchApiError("IDEMPOTENCY_KEY_COLLISION","账本幂等键已绑定其他交易",409);
     return { id: row.id, created: false };
   }
@@ -71,7 +74,7 @@ export async function postCommercialLedgerTransaction(client: PoolClient, input:
     VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,1,$8,$9::jsonb,$10)
   `, [transactionId, input.transactionType, input.sourceType, input.sourceId, input.currency,
     input.idempotencyKey, input.requestId, input.reversalOfTransactionId ?? null,
-    JSON.stringify(input.metadata ?? {}), input.createdByUserId]);
+    JSON.stringify({...input.metadata,__commercialPayloadHash:payloadHash}), input.createdByUserId]);
   for (const posting of input.postings) {
     await client.query(`
       INSERT INTO ledger_postings (id, transaction_id, account_id, side, amount, currency)
