@@ -111,7 +111,8 @@ export function sessionCookieHeaders(input: {
   maxAgeSeconds: number;
   environment?: Record<string, string | undefined>;
 }) {
-  const audience = resolveAppAudience({ host: input.request.headers.get("host") ?? undefined });
+  const audience = resolveAppAudienceStrict({ host: input.request.headers.get("host") ?? undefined, environment: input.environment });
+  if (!audience) throw new Error("Unknown session audience");
   const environment = input.environment ?? process.env;
   const secure = environment.NODE_ENV === "production" || new URL(input.request.url).protocol === "https:" ? "; Secure" : "";
   const base = `HttpOnly; SameSite=Strict; Path=/; Max-Age=${input.maxAgeSeconds}${secure}`;
@@ -124,7 +125,8 @@ export function clearSessionCookieHeaders(
   request: Request,
   environment: Record<string, string | undefined> = process.env,
 ) {
-  const audience = resolveAppAudience({ host: request.headers.get("host") ?? undefined });
+  const audience = resolveAppAudienceStrict({ host: request.headers.get("host") ?? undefined, environment });
+  if (!audience) return [];
   const secure = environment.NODE_ENV === "production" || new URL(request.url).protocol === "https:" ? "; Secure" : "";
   const names = audience === "client" ? [cookieNameForAudience(audience), "an_session"] : [cookieNameForAudience(audience)];
   return names.map((name) => `${name}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`);
@@ -144,4 +146,14 @@ export function clientIpFromRequest(
     ?? request.headers.get("x-real-ip")?.trim()
     ?? "";
   return value && value.length <= 64 && /^[0-9a-f:.]+$/i.test(value) ? value : null;
+}
+
+export function authConnectionBucketKey(
+  request: Request,
+  environment: Record<string, string | undefined> = process.env,
+) {
+  const ipAddress = clientIpFromRequest(request, environment);
+  if (ipAddress) return { bucketKey: `ip:${ipAddress}`, ipAddress };
+  if (environment.NODE_ENV === "production") return null;
+  return { bucketKey: "connection:unattributed-nonproduction", ipAddress: null };
 }

@@ -152,22 +152,62 @@ export function legacyRoleAssignments(role: string): LegacyAssignment[] {
         { permissionKey: "ops.deposits.view", scope: "PLATFORM" },
       ] }];
     case "branch_admin":
-    case "finance":
-    case "auditor":
-      return [{ appId: "operations", roleCode: `ops_${role}`, permissions: [
+      return [{ appId: "operations", roleCode: "ops_branch_admin", permissions: [
         { permissionKey: "ops.customers.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.customers.manage", scope: "ORGANIZATION" },
         { permissionKey: "ops.deposits.view", scope: "ORGANIZATION" },
         { permissionKey: "ops.ledger.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.approvals.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.approvals.decide", scope: "ORGANIZATION" },
+        { permissionKey: "ops.attributions.manage", scope: "ORGANIZATION" },
+        { permissionKey: "ops.finance.manage", scope: "ORGANIZATION" },
+        { permissionKey: "ops.invitations.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.invitations.manage", scope: "ORGANIZATION" },
+        { permissionKey: "ops.organization.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.organization.manage", scope: "ORGANIZATION" },
+        { permissionKey: "ops.team.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.team.manage", scope: "ORGANIZATION" },
+      ] }];
+    case "finance":
+      return [{ appId: "operations", roleCode: "ops_finance", permissions: [
+        { permissionKey: "ops.customers.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.ledger.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.finance.manage", scope: "ORGANIZATION" },
+        { permissionKey: "ops.approvals.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.approvals.decide", scope: "ORGANIZATION" },
+      ] }];
+    case "auditor":
+      return [{ appId: "operations", roleCode: "ops_auditor", permissions: [
+        { permissionKey: "ops.customers.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.ledger.view", scope: "ORGANIZATION" },
+        { permissionKey: "ops.approvals.view", scope: "ORGANIZATION" },
       ] }];
     case "manager":
       return [{ appId: "operations", roleCode: "ops_manager", permissions: [
         { permissionKey: "ops.customers.view", scope: "TEAM_TREE" },
+        { permissionKey: "ops.customers.manage", scope: "TEAM_TREE" },
         { permissionKey: "ops.deposits.view", scope: "TEAM_TREE" },
+        { permissionKey: "ops.attributions.manage", scope: "TEAM_TREE" },
+        { permissionKey: "ops.invitations.view", scope: "TEAM_TREE" },
+        { permissionKey: "ops.invitations.manage", scope: "TEAM_TREE" },
+        { permissionKey: "ops.organization.view", scope: "TEAM_TREE" },
+        { permissionKey: "ops.organization.manage", scope: "TEAM_TREE" },
+        { permissionKey: "ops.team.view", scope: "TEAM_TREE" },
+        { permissionKey: "ops.team.manage", scope: "TEAM_TREE" },
       ] }];
     case "supervisor":
     case "employee":
       return [{ appId: "operations", roleCode: `ops_${role}`, permissions: [
         { permissionKey: "ops.customers.view", scope: "DIRECT_REPORTS" },
+        { permissionKey: "ops.customers.manage", scope: "DIRECT_REPORTS" },
+        { permissionKey: "ops.organization.view", scope: "DIRECT_REPORTS" },
+        { permissionKey: "ops.team.view", scope: "DIRECT_REPORTS" },
+        ...(role === "supervisor" ? [
+          { permissionKey: "ops.organization.manage", scope: "DIRECT_REPORTS" as const },
+          { permissionKey: "ops.invitations.view", scope: "DIRECT_REPORTS" as const },
+          { permissionKey: "ops.invitations.manage", scope: "DIRECT_REPORTS" as const },
+          { permissionKey: "ops.team.manage", scope: "DIRECT_REPORTS" as const },
+        ] : []),
       ] }];
     case "customer":
       return [{ appId: "client", roleCode: "client_customer", permissions: clientCustomerPermissions() }];

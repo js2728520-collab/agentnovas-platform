@@ -23,6 +23,45 @@ CREATE INDEX IF NOT EXISTS "idx_auth_rate_limit_blocked_until"
   ON "auth_rate_limit_buckets" ("blocked_until")
   WHERE "blocked_until" IS NOT NULL;
 
+ALTER TABLE "auth_tokens"
+  ADD COLUMN IF NOT EXISTS "token_audience" text NOT NULL DEFAULT 'client';
+
+UPDATE "auth_tokens" AS token
+SET "token_audience" = 'operations'
+FROM "users" AS user_account
+WHERE token.user_id = user_account.id
+  AND token.purpose = 'reset_password'
+  AND token.used_at IS NULL
+  AND user_account.role <> 'customer'
+  AND user_account.status = 'pending'
+  AND token.token_audience = 'client';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'auth_tokens_audience_check'
+      AND conrelid = 'auth_tokens'::regclass
+  ) THEN
+    ALTER TABLE "auth_tokens"
+      ADD CONSTRAINT auth_tokens_audience_check
+      CHECK ("token_audience" IN ('client', 'operations', 'maintenance'));
+  END IF;
+END $$;
+
+-- Purge bearer tokens queued by pre-hardening builds. They cannot be safely
+-- transformed in SQL because the application encryption key is intentionally
+-- unavailable to migrations; users can request a fresh link after deploy.
+UPDATE "notification_deliveries"
+SET "status" = 'failed',
+    "payload_json" = '{}',
+    "last_error" = 'LEGACY_PLAINTEXT_TOKEN_PURGED',
+    "lease_owner" = NULL,
+    "lease_expires_at" = NULL,
+    "updated_at" = now()
+WHERE "template_key" IN ('reset_password', 'internal_account_invite')
+  AND "payload_json"::jsonb ? 'token';
+
 CREATE TABLE IF NOT EXISTS "user_mfa_totp_credentials" (
   "user_id" text PRIMARY KEY REFERENCES "users"("id") ON DELETE CASCADE,
   "encrypted_secret" text NOT NULL,

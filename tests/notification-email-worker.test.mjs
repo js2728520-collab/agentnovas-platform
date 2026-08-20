@@ -13,9 +13,12 @@ import {
   sendResendEmail,
   validateEmailRecipient,
 } from "../lib/notification-email-worker.ts";
+import { encryptNotificationToken } from "../lib/notification-secrets.ts";
+
+const tokenEnvironment = { NOTIFICATION_TOKEN_ENCRYPTION_KEY: "test-notification-token-key-longer-than-thirty-two-characters" };
 
 test("known notification templates render bounded escaped email", () => {
-  const reset = renderNotificationEmail("reset_password", { token: "a&b" });
+  const reset = renderNotificationEmail("reset_password", { token: "a&b", audience: "client" });
   assert.match(reset.text, /https:\/\/agentnovas\.com\/reset-password\?token=a%26b/);
   assert.doesNotMatch(reset.html, /a&b/);
 
@@ -23,6 +26,7 @@ test("known notification templates render bounded escaped email", () => {
     token: "activation-token",
     role: "manager",
     activation: true,
+    audience: "operations",
   });
   assert.match(invite.subject, /内部账号邀请/);
   assert.match(invite.text, /https:\/\/zht\.agentnovas\.com\/reset-password\?token=activation-token/);
@@ -55,7 +59,7 @@ test("known notification templates render bounded escaped email", () => {
 
 test("unknown templates and malformed payloads are rejected", () => {
   assert.throws(() => renderNotificationEmail("unrecognized", {}), /UNKNOWN_TEMPLATE/);
-  assert.throws(() => renderNotificationEmail("reset_password", { token: "" }), /INVALID_PAYLOAD/);
+  assert.throws(() => renderNotificationEmail("reset_password", { token: "", audience: "client" }), /INVALID_PAYLOAD/);
   assert.throws(() => renderNotificationEmail("strategy_delist_notice", {
     strategyId: "strategy-1",
     strategyName: "name",
@@ -141,6 +145,7 @@ test("claim uses a fenced SKIP LOCKED lease and sent updates require owner", asy
   await markEmailSent(pool, { deliveryId: "delivery-1", workerId: "worker-1", providerMessageId: "provider-1", now: new Date("2026-08-20T00:00:01.000Z") });
   assert.match(queries.at(-1).sql, /lease_owner = \$2/);
   assert.match(queries.at(-1).sql, /status IN \('delivered', 'failed'\)/);
+  assert.match(queries.at(-1).sql, /payload_json = CASE/);
 });
 
 test("invalid synthetic recipient fails permanently without invoking sender", async () => {
@@ -168,16 +173,18 @@ test("invalid synthetic recipient fails permanently without invoking sender", as
 
 test("a fenced delivery update is never reported as sent", async () => {
   const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
+  const encryptedToken = await encryptNotificationToken("secret-token", tokenEnvironment);
   const result = await processClaimedEmail(pool, {
     id: "delivery-1",
     userId: "user-1",
     templateKey: "reset_password",
-    payloadJson: { token: "secret-token" },
+    payloadJson: { encryptedToken, audience: "client" },
     attempts: 1,
     recipient: "person@example.com",
   }, {
     workerId: "stale-worker",
     apiKey: "test-key",
+    environment: tokenEnvironment,
     send: async () => ({ ok: true, providerMessageId: "provider-1" }),
   });
   assert.deepEqual(result, { status: "fenced", providerMessageId: "provider-1" });

@@ -879,6 +879,38 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "POST",
+    "route": "/api/auth/mfa/enroll/confirm",
+    "source": "app/api/auth/mfa/enroll/confirm/route.ts",
+    "audiences": [
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "permissionKeys": [],
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/auth/mfa/enroll/start",
+    "source": "app/api/auth/mfa/enroll/start/route.ts",
+    "audiences": [
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "permissionKeys": [],
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
     "route": "/api/auth/mfa/verify",
     "source": "app/api/auth/mfa/verify/route.ts",
     "audiences": [
@@ -913,7 +945,9 @@ export const API_ROUTE_INVENTORY = [
     "route": "/api/auth/reset-password",
     "source": "app/api/auth/reset-password/route.ts",
     "audiences": [
-      "client"
+      "client",
+      "operations",
+      "maintenance"
     ],
     "authentication": "anonymous",
     "permissionKeys": [],

@@ -116,6 +116,7 @@ export const authTokens = sqliteTable("auth_tokens", {
   userId: text("user_id").notNull().references(() => users.id),
   tokenHash: text("token_hash").notNull(),
   purpose: text("purpose", { enum: ["verify_email", "reset_password"] }).notNull(),
+  tokenAudience: text("token_audience", { enum: ["client", "operations", "maintenance"] }).notNull().default("client"),
   expiresAt: text("expires_at").notNull(),
   usedAt: text("used_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

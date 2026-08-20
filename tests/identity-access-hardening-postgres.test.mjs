@@ -56,14 +56,15 @@ test("0021 adds session assurance and assignment-bound scope columns", async () 
     WHERE table_schema = current_schema()
       AND (
         (table_name = 'sessions' AND column_name = ANY($1::text[])) OR
-        (table_name = 'user_role_assignments' AND column_name = ANY($2::text[]))
+        (table_name = 'user_role_assignments' AND column_name = ANY($2::text[])) OR
+        (table_name = 'auth_tokens' AND column_name = 'token_audience')
       )
     ORDER BY table_name, column_name
   `, [
     ["absolute_expires_at", "idle_expires_at", "last_seen_at", "mfa_level", "mfa_verified_at", "session_version"],
     ["scope_organization_ids_json", "scope_version"],
   ])).rows;
-  assert.equal(columns.length, 8);
+  assert.equal(columns.length, 9);
 });
 
 test("0021 seeds commercial maker/checker permissions without reconciliation fallback", async () => {

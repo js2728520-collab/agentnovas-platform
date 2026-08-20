@@ -82,7 +82,15 @@ export async function requireUser(request: Request, roles?: CurrentUser["role"][
   return user;
 }
 
-export function responseError(error: unknown) {
-  if (error instanceof Response) return error;
-  return Response.json({ error: error instanceof Error ? error.message : "服务器处理失败" }, { status: 500 });
+export function responseError(error: unknown, suppliedRequestId?: string) {
+  const requestId = suppliedRequestId && /^[A-Za-z0-9._:-]{8,128}$/.test(suppliedRequestId)
+    ? suppliedRequestId
+    : crypto.randomUUID();
+  const status = error instanceof Response && error.status >= 400 && error.status <= 599 ? error.status : 500;
+  const code = status === 401 ? "AUTH_REQUIRED" : status === 403 ? "FORBIDDEN" : status === 404 ? "NOT_FOUND" : "INTERNAL_ERROR";
+  const message = status === 401 ? "请先登录" : status === 403 ? "无权执行此操作" : status === 404 ? "请求的资源不存在" : "服务器处理失败";
+  return Response.json({ error: { code, message }, requestId }, {
+    status,
+    headers: { "cache-control": "no-store", "x-request-id": requestId },
+  });
 }

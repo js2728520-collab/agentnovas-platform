@@ -73,6 +73,12 @@ function basePolicy(route, method) {
   if (route === "/api/auth/mfa/verify") {
     return { audiences: INTERNAL_AUDIENCES, authentication: "session", sameOrigin: true };
   }
+  if (route.startsWith("/api/auth/mfa/enroll/")) {
+    return { audiences: INTERNAL_AUDIENCES, authentication: "session", sameOrigin: true };
+  }
+  if (route === "/api/auth/reset-password") {
+    return { audiences: ALL_AUDIENCES, authentication: "anonymous", sameOrigin: true };
+  }
   if (route.startsWith("/api/auth/")) return { audiences: ["client"], authentication: "anonymous", sameOrigin: mutation };
   if (route === "/api/system/bootstrap") return { audiences: ["maintenance"], authentication: "bootstrap", sameOrigin: false };
   if (route.startsWith("/api/integrations/resend/webhook") || route.startsWith("/api/integrations/payments/")) {

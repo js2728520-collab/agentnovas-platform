@@ -44,7 +44,7 @@ test("the versioned inventory covers every exported API method and route", async
       discovered.push(`${match[1]} ${routePattern(file.pathname)}`);
     }
   }
-  assert.equal(discovered.length, 175);
+  assert.equal(discovered.length, 177);
   assert.deepEqual(
     API_ROUTE_INVENTORY.map((entry) => `${entry.method} ${entry.route}`).sort(),
     discovered.sort(),
@@ -174,6 +174,10 @@ test("request ids are bounded and internal errors are not exposed", async () => 
     error: { code: "INTERNAL_ERROR", message: "服务器处理失败" },
     requestId: "request_12345678",
   });
+  const sessionSource = await readFile(new URL("../lib/session.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(sessionSource, /error instanceof Error \? error\.message/);
+  assert.match(sessionSource, /requestId/);
+  assert.match(sessionSource, /INTERNAL_ERROR/);
 });
 
 test("browser mutations require an exact same-origin header", () => {

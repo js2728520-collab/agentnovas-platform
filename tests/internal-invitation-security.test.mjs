@@ -6,12 +6,15 @@ test("internal invitations and activation never return or queue plaintext tempor
   const files = await Promise.all([
     "../app/api/organization/members/route.ts",
     "../app/api/organization/members/[id]/activate/route.ts",
+    "../lib/internal-member-provisioning.ts",
     "../lib/notification-email-worker.ts",
   ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   for (const source of files) {
     assert.doesNotMatch(source, /temporaryPassword|临时密码/);
   }
-  assert.match(files[0], /purpose:\s*"reset_password"/);
-  assert.match(files[0], /payloadJson:\s*JSON\.stringify\(\{ token: activationToken, role, activation: true \}\)/);
+  assert.match(files.join("\n"), /reset_password/);
+  assert.match(files[0], /encryptNotificationToken\(activationToken\)/);
+  assert.match(files[0], /encryptedToken/);
+  assert.doesNotMatch(files[0], /payloadJson:\s*JSON\.stringify\(\{ token:/);
   assert.doesNotMatch(files[1], /passwordHash/);
 });

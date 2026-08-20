@@ -1,10 +1,13 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { approvalRequests, auditLogs, authTokens, customerAttributions, customerProfiles, notificationDeliveries, organizations, sessions, users } from "@/db/schema";
+import { approvalRequests, auditLogs, authTokens, customerAttributions, customerProfiles, organizations, sessions, users } from "@/db/schema";
 import { requireAccessPermission } from "@/lib/access-control";
 import { hashPassword, normalizeEmail, randomToken, sha256, validEmail } from "@/lib/auth";
 import { canAccessCustomerAttribution, canAccessOrganization } from "@/lib/operations-access";
+import { encryptNotificationToken } from "@/lib/notification-secrets";
+import { provisionInternalMember } from "@/lib/internal-member-provisioning";
 import { canManuallyActivateMember, childRole, roleLabels } from "@/lib/permissions";
+import { getPostgresPool } from "@/lib/postgres";
 import { responseError } from "@/lib/session";
 
 type RelationshipNode = {
@@ -190,6 +193,9 @@ export async function POST(request: Request) {
     if (!validEmail(email)) return Response.json({ error: "请输入有效邮箱" }, { status: 400 });
     const role = childRole[actor.role] as typeof users.$inferInsert.role | undefined;
     if (!role || role === "customer") return Response.json({ error: "该角色不能创建内部成员" }, { status: 403 });
+    if (!["branch_admin", "manager", "supervisor", "employee", "finance", "auditor", "hq_support"].includes(role)) {
+      return Response.json({ error: "目标内部角色不受支持" }, { status: 403 });
+    }
     const db = getDb();
     if ((await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0]) {
       return Response.json({ error: "邮箱已存在" }, { status: 409 });
@@ -199,37 +205,29 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     if (role === "branch_admin") {
       if (scope !== "PLATFORM") return Response.json({ error: "仅平台范围授权可创建分公司管理员" }, { status: 403 });
-      organizationId = crypto.randomUUID();
-      await db.insert(organizations).values({ id: organizationId, type: "branch", name: body.name?.trim() || email.split("@")[0] });
+      organizationId = null;
     }
     if (role !== "branch_admin" && (!organizationId || !canAccessOrganization(scope, { userId: actor.id, organizationId: actor.organizationId }, organizationId, organizationIds))) {
       return Response.json({ error: "无权在该组织创建成员" }, { status: 403 });
     }
     const disabledCredential = randomToken(32);
     const activationToken = randomToken();
-    await db.batch([
-      db.insert(users).values({
-        id: userId, email, passwordHash: await hashPassword(disabledCredential), role,
-        organizationId, reportsToUserId: actor.id, status: "pending",
-      }),
-      db.insert(authTokens).values({
-        id: crypto.randomUUID(), userId, tokenHash: await sha256(activationToken),
-        purpose: "reset_password", expiresAt: new Date(Date.now() + 48 * 3600_000).toISOString(),
-      }),
-      db.insert(notificationDeliveries).values({
-        id: crypto.randomUUID(), userId, channel: "email", category: "login_security",
-        templateKey: "internal_account_invite",
-        payloadJson: JSON.stringify({ token: activationToken, role, activation: true }),
-        scheduledAt: now,
-      }),
-      db.insert(auditLogs).values({
-        id: crypto.randomUUID(), actorUserId: actor.id, action: "organization.member_created",
-        subjectType: "user", subjectId: userId,
-        afterJson: JSON.stringify({ email, role, organizationId, activation: "email_set_password" }),
-      }),
-    ]);
+    const encryptedToken = await encryptNotificationToken(activationToken);
+    const provisioned = await provisionInternalMember(await getPostgresPool(), {
+      actorUserId: actor.id,
+      userId,
+      email,
+      passwordHash: await hashPassword(disabledCredential),
+      role: role as Parameters<typeof provisionInternalMember>[1]["role"],
+      organizationId,
+      organizationName: body.name,
+      reportsToUserId: actor.id,
+      activationTokenHash: await sha256(activationToken),
+      encryptedNotificationToken: encryptedToken,
+      now: new Date(now),
+    });
     return Response.json({
-      member: { id: userId, email, role, status: "pending" },
+      member: { id: userId, email, role, organizationId: provisioned.organizationId, status: "pending" },
       deliveryStatus: "queued",
       message: "成员已创建；邀请邮件进入发送队列，未发送前账户保持待激活",
     }, { status: 201 });

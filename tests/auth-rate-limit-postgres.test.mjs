@@ -58,3 +58,19 @@ test("successful authentication can clear only the intended bucket", async () =>
   assert.equal(count.rows[0].count, 0);
 });
 
+test("a deployment connection bucket cannot be bypassed by rotating identifiers", async () => {
+  const now = new Date("2026-08-20T01:00:00.000Z");
+  const attempts = [];
+  for (const identifier of ["one", "two", "three", "four", "five"]) {
+    attempts.push(await consumeAuthRateLimit(pool, {
+      action: "login",
+      audience: "operations",
+      bucketKeys: [`identifier:${identifier}`, "ip:203.0.113.10"],
+      maxAttempts: 3,
+      windowSeconds: 900,
+      blockSeconds: 900,
+      now,
+    }));
+  }
+  assert.deepEqual(attempts.map((attempt) => attempt.allowed), [true, true, true, false, false]);
+});

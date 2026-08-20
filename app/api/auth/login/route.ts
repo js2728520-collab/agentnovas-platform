@@ -7,7 +7,7 @@ import { clearAuthRateLimit, consumeAuthRateLimit } from "@/lib/auth-rate-limit"
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
 import { getPostgresPool } from "@/lib/postgres";
-import { clientIpFromRequest, sessionCookieHeaders, sessionDeadlinesForAudience } from "@/lib/riverton-apps";
+import { authConnectionBucketKey, sessionCookieHeaders, sessionDeadlinesForAudience } from "@/lib/riverton-apps";
 import { responseError } from "@/lib/session";
 
 async function userCanAccessApp(user: typeof users.$inferSelect, appAudience: "client" | "operations" | "maintenance") {
@@ -24,13 +24,15 @@ export async function POST(request: Request) {
     const email = normalizeEmail(rawIdentifier);
     const phone = normalizePhone(rawIdentifier)?.value ?? "__not_a_phone__";
     const pool = await getPostgresPool();
-    const ipAddress = clientIpFromRequest(request);
+    const connection = authConnectionBucketKey(request);
+    if (!connection) return Response.json({ error: "登录网络身份不可用" }, { status: 503 });
+    const ipAddress = connection.ipAddress;
     const provisionalCookie = sessionCookieHeaders({ request, token: "pending", maxAgeSeconds: 1 });
     const identifierBucket = `identifier:${rawIdentifier.toLowerCase()}`;
     const rateLimit = await consumeAuthRateLimit(pool, {
       action: "login",
       audience: provisionalCookie.audience,
-      bucketKeys: [identifierBucket, ...(ipAddress ? [`ip:${ipAddress}`] : [])],
+      bucketKeys: [identifierBucket, connection.bucketKey],
       maxAttempts: 5,
       windowSeconds: 15 * 60,
       blockSeconds: 15 * 60,
@@ -63,24 +65,20 @@ export async function POST(request: Request) {
       return Response.json({ error: "无权登录当前应用" }, { status: 403 });
     }
     const mfaRequired = sessionCookie.audience !== "client";
+    let mfaEnrollmentRequired = false;
     if (mfaRequired) {
       const enrollment = await pool.query(`
         SELECT 1 FROM user_mfa_totp_credentials
         WHERE user_id = $1 AND status = 'active'
       `, [user.id]);
-      if (!enrollment.rowCount) {
-        return Response.json({
-          error: "内部账号尚未完成双重验证配置",
-          code: "MFA_ENROLLMENT_REQUIRED",
-        }, { status: 403 });
-      }
+      mfaEnrollmentRequired = !enrollment.rowCount;
       deadlines.idleExpiresAt = new Date(now.getTime() + 10 * 60_000).toISOString();
     }
     if (passwordState.needsRehash) {
       await db.update(users).set({ passwordHash: await hashPassword(body.password ?? ""), updatedAt: now.toISOString() })
         .where(and(eq(users.id, user.id), eq(users.passwordHash, user.passwordHash)));
     }
-    await clearAuthRateLimit(pool, { action: "login", audience: sessionCookie.audience, bucketKeys: [identifierBucket] });
+    await clearAuthRateLimit(pool, { action: "login", audience: sessionCookie.audience, bucketKeys: [identifierBucket, connection.bucketKey] });
     await db.batch([
       db.insert(sessions).values({
         id: crypto.randomUUID(), userId: user.id, tokenHash: await sha256(token), appAudience: sessionCookie.audience,
@@ -91,7 +89,7 @@ export async function POST(request: Request) {
     ]);
     const headers = new Headers({ "content-type": "application/json" });
     for (const cookie of sessionCookie.headers) headers.append("set-cookie", cookie);
-    return new Response(JSON.stringify({ ok: true, mfaRequired, appAudience: sessionCookie.audience, user: { id: user.id, email: user.email, phone: user.phone, username: user.username, role: user.role } }), { headers });
+    return new Response(JSON.stringify({ ok: true, mfaRequired, mfaEnrollmentRequired, appAudience: sessionCookie.audience, user: { id: user.id, email: user.email, phone: user.phone, username: user.username, role: user.role } }), { headers });
   } catch (error) {
     return responseError(error);
   }

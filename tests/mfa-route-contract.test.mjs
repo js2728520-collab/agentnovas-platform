@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("internal login creates only a primary session and requires an active enrollment", async () => {
+test("internal login creates a restricted primary session that can enter enrollment", async () => {
   const login = await readFile(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
   assert.match(login, /user_mfa_totp_credentials/);
-  assert.match(login, /MFA_ENROLLMENT_REQUIRED/);
+  assert.match(login, /mfaEnrollmentRequired/);
   assert.match(login, /mfaLevel: "primary"/);
   assert.match(login, /mfaRequired/);
 });

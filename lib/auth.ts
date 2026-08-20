@@ -63,7 +63,10 @@ export async function verifyPasswordState(password: string, encoded: string) {
       return { valid: false, needsRehash: false };
     }
   }
-  const valid = await verifyLegacyPbkdf2(password, encoded);
+  const [valid] = await Promise.all([
+    verifyLegacyPbkdf2(password, encoded),
+    dummyVerifyPassword(password),
+  ]);
   return { valid, needsRehash: valid };
 }
 
