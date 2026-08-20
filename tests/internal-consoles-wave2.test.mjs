@@ -67,7 +67,8 @@ test("commercial detail APIs expose allowlisted checker actions across sessions"
   assert.match(performance, /generated_by_user_id/);
   assert.match(performance, /paymentEvidenceDto/);
   assert.match(performance, /canReviewAssessment|canReviewPayment/);
-  assert.doesNotMatch(performance, /reference_fingerprint\s*,|strategy_codes_json/);
+  assert.doesNotMatch(performance, /reference_fingerprint\s*,/);
+  assert.match(performance, /strategy_codes_json/);
 });
 
 test("Operations credits view is scoped and read-only", async () => {

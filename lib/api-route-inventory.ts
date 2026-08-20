@@ -221,6 +221,7 @@ export const API_ROUTE_INVENTORY = [
     "route": "/api/access/me/effective",
     "source": "app/api/access/me/effective/route.ts",
     "audiences": [
+      "client",
       "operations",
       "maintenance"
     ],

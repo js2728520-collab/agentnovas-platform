@@ -185,7 +185,9 @@ test.before(async () => {
       ('customer','customer@example.test','x','customer','org','active'),('customer2','customer2@example.test','x','customer','org','active'),
       ('official-customer','official-customer@example.test','x','customer','org','active'),
       ('portfolio-failure-customer','portfolio-failure@example.test','x','customer','org','active'),
-      ('maker','maker@example.test','x','finance','org','active'),('checker','checker@example.test','x','admin','org','active'),('checker2','checker2@example.test','x','admin','org','active');
+      ('maker','maker@example.test','x','finance','org','active'),('checker','checker@example.test','x','admin','org','active'),('checker2','checker2@example.test','x','admin','org','active'),
+      ('payment-maker','payment-maker@example.test','x','finance','org','active'),('payment-checker','payment-checker@example.test','x','admin','org','active'),
+      ('payment-reject-checker','payment-reject-checker@example.test','x','admin','org','active');
     INSERT INTO commercial_legal_document_versions(id,document_type,version,content_sha256,status,approved_by_user_id,approved_at,effective_at) VALUES
       ('entity-v1','service_entity',1,repeat('a',64),'active','checker','2026-01-01','2026-01-01'),
       ('jurisdiction-v1','jurisdiction',1,repeat('b',64),'active','checker','2026-01-01','2026-01-01'),
@@ -1438,6 +1440,36 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
       statementId: statement.id,
       actorUserId: "maker",
       evidenceKind: "bank_transfer",
+      reference: "PAYMENT-GENERATOR-MUST-NOT-RECORD",
+      amount: "40",
+      currency: "USDT",
+      occurredAt: "2026-08-20T02:00:00Z",
+      idempotencyKey: "payment-generator-record-blocked",
+    }),
+    /付款复核必须由另一组人员执行/,
+  );
+  for (const [reviewerUserId, idempotencyKeyValue] of [
+    ["maker", "payment-generator-review-blocked"],
+    ["checker", "payment-assessment-review-blocked"],
+  ]) {
+    await assert.rejects(
+      decidePerformancePayment(pool, {
+        statementId: statement.id,
+        reviewerUserId,
+        decision: "approve",
+        note: "must use a separate payment reviewer",
+        paymentEvidenceId: "not-reached",
+        idempotencyKey: idempotencyKeyValue,
+        requestId: idempotencyKeyValue,
+      }),
+      /付款复核必须由另一组人员执行/,
+    );
+  }
+  await assert.rejects(
+    recordPerformancePaymentEvidence(pool, {
+      statementId: statement.id,
+      actorUserId: "payment-maker",
+      evidenceKind: "bank_transfer",
       providerLabel: "performance-provider-label",
       reference: "cross business ref 001",
       amount: "40",
@@ -1451,6 +1483,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   await pool.query(
     `INSERT INTO memberships(id,customer_id,plan_code,status,starts_at,expires_at) VALUES('cross-statement-membership','customer2','membership_monthly_v1','active','2026-08-01','2026-09-01');
      INSERT INTO performance_fee_statements(id,user_id,membership_id,plan_version_id,week_start,week_end,strategy_codes_json,week_net_pnl,cumulative_net_pnl,prior_high_water_mark,eligible_profit,loss_carry,fee_bps,fee_amount,currency,status,generated_by_user_id,request_id) VALUES('cross-statement','customer2','cross-statement-membership','membership_monthly_v1','2026-08-03','2026-08-10','["strategy-0"]',200,200,0,200,0,2000,40,'USDT','payment_pending','maker','cross-statement');
+     INSERT INTO performance_fee_decisions(id,statement_id,stage,reviewer_user_id,decision,note,idempotency_key) VALUES('cross-statement-assessment','cross-statement','assessment','checker','approve','fixture assessment','cross-statement-assessment');
      INSERT INTO performance_fee_receivables(id,statement_id,amount,currency,status) VALUES('cross-statement-receivable','cross-statement',40,'USDT','unpaid')`,
   );
   await assert.rejects(
@@ -1465,7 +1498,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   );
   await recordPerformancePaymentEvidence(pool, {
     statementId: statement.id,
-    actorUserId: "checker",
+    actorUserId: "payment-maker",
     evidenceKind: "provider_reference",
     reference: "SHARED-STATEMENT-REFERENCE-7777",
     amount: "40",
@@ -1498,7 +1531,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   await assert.rejects(
     recordPerformancePaymentEvidence(pool, {
       statementId: "cross-statement",
-      actorUserId: "maker",
+      actorUserId: "payment-maker",
       evidenceKind: "manual_invoice",
       reference: "shared-statement-reference-7777",
       amount: "40",
@@ -1511,7 +1544,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   );
   const otherStatementEvidence = await recordPerformancePaymentEvidence(pool, {
     statementId: "cross-statement",
-    actorUserId: "maker",
+    actorUserId: "payment-maker",
     evidenceKind: "manual_invoice",
     reference: "CROSS-STATEMENT-ONLY-REFERENCE-8888",
     amount: "40",
@@ -1561,9 +1594,22 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     }),
     /前序结算单尚未完成/,
   );
+  await assert.rejects(
+    recordPerformancePaymentEvidence(pool, {
+      statementId: statement.id,
+      actorUserId: "checker",
+      evidenceKind: "bank_transfer",
+      reference: "PAYMENT-ASSESSMENT-CHECKER-1234",
+      amount: "40",
+      currency: "USDT",
+      occurredAt: "2026-08-20T00:00:00Z",
+      idempotencyKey: "payment-evidence-assessment-checker",
+    }),
+    /付款复核必须由另一组人员执行/,
+  );
   const checkerEvidence = await recordPerformancePaymentEvidence(pool, {
     statementId: statement.id,
-    actorUserId: "checker",
+    actorUserId: "payment-maker",
     evidenceKind: "bank_transfer",
     reference: "PAYMENT-CHECKER-1234",
     amount: "40",
@@ -1573,7 +1619,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   });
   const makerEvidence = await recordPerformancePaymentEvidence(pool, {
     statementId: statement.id,
-    actorUserId: "maker",
+    actorUserId: "payment-maker",
     evidenceKind: "bank_transfer",
     reference: "PAYMENT-MAKER-5678",
     amount: "40",
@@ -1584,7 +1630,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   await assert.rejects(
     recordPerformancePaymentEvidence(pool, {
       statementId: statement.id,
-      actorUserId: "maker",
+      actorUserId: "payment-maker",
       evidenceKind: "bank_transfer",
       reference: "PAYMENT-MAKER-5678",
       amount: "39",
@@ -1597,7 +1643,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   );
   const rejectedPayment = await decidePerformancePayment(pool, {
     statementId: statement.id,
-    reviewerUserId: "checker2",
+    reviewerUserId: "payment-reject-checker",
     decision: "reject",
     note: "bad evidence",
     paymentEvidenceId: checkerEvidence.id,
@@ -1644,7 +1690,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   await assert.rejects(
     decidePerformancePayment(pool, {
       statementId: statement.id,
-      reviewerUserId: "checker",
+      reviewerUserId: "payment-checker",
       decision: "approve",
       note: "cannot reuse",
       paymentEvidenceId: checkerEvidence.id,
@@ -1655,7 +1701,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   );
   const newEvidence = await recordPerformancePaymentEvidence(pool, {
     statementId: statement.id,
-    actorUserId: "maker",
+    actorUserId: "payment-maker",
     evidenceKind: "bank_transfer",
     reference: "PAYMENT-REPLACEMENT-9012",
     amount: "40",
@@ -1666,7 +1712,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   await assert.rejects(
     decidePerformancePayment(pool, {
       statementId: statement.id,
-      reviewerUserId: "maker",
+      reviewerUserId: "payment-maker",
       decision: "approve",
       note: "self",
       paymentEvidenceId: newEvidence.id,
@@ -1681,7 +1727,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   await assert.rejects(
     decidePerformancePayment(pool, {
       statementId: statement.id,
-      reviewerUserId: "checker",
+      reviewerUserId: "payment-checker",
       decision: "approve",
       note: "verified",
       paymentEvidenceId: newEvidence.id,
@@ -1713,7 +1759,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
   );
   const paid = await decidePerformancePayment(pool, {
     statementId: statement.id,
-    reviewerUserId: "checker",
+    reviewerUserId: "payment-checker",
     decision: "approve",
     note: "verified",
     paymentEvidenceId: newEvidence.id,
@@ -1733,7 +1779,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
     (
       await recordPerformancePaymentEvidence(pool, {
         statementId: statement.id,
-        actorUserId: "maker",
+        actorUserId: "payment-maker",
         evidenceKind: "bank_transfer",
         reference: "PAYMENT-MAKER-5678",
         amount: "40",
@@ -1872,7 +1918,7 @@ test("commercial evidence writes stop while any fingerprint version needs reconc
     }),
     () => recordPerformancePaymentEvidence(pool, {
       statementId: "cross-statement",
-      actorUserId: "maker",
+      actorUserId: "payment-maker",
       evidenceKind: "bank_transfer",
       reference: "UNRECONCILED-PERFORMANCE-9005",
       amount: "40",

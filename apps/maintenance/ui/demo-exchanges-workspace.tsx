@@ -55,6 +55,7 @@ type DemoSafeView = {
 };
 
 type PendingAction = {
+  idempotencyKey: string;
   account: DemoAccountView;
   action:
     | "verify"
@@ -90,6 +91,10 @@ export function DemoExchangesWorkspace({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
+  function queueAction(action: Omit<PendingAction, "idempotencyKey">) {
+    setPending({ ...action, idempotencyKey: crypto.randomUUID() });
+  }
+
   async function execute(reason: string) {
     if (!pending || busy) return;
     setBusy(true);
@@ -100,7 +105,10 @@ export function DemoExchangesWorkspace({
         `/api/maintenance/demo-exchanges/${encodeURIComponent(pending.account.id)}/${suffix}`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": pending.idempotencyKey,
+          },
           body: JSON.stringify({
             reason,
             ...(pending.action === "verify" ? {} : { action: pending.action }),
@@ -119,8 +127,15 @@ export function DemoExchangesWorkspace({
       if (!response.ok) {
         throw new Error(apiErrorMessage(payload, "Demo 账户操作失败"));
       }
+      const noChange =
+        payload &&
+        typeof payload === "object" &&
+        "result" in payload &&
+        payload.result === "NO_CHANGE";
       setMessage(
-        pending.action === "verify"
+        noChange
+          ? "状态未变化；未新增安全控制变更。"
+          : pending.action === "verify"
           ? "Demo provider 验证已真实执行并返回通过；这不表示 Worker 已启用或外部写入已授权。"
           : "安全控制已记录；页面刷新后展示数据库真状态，不表示发生了任何真实订单。",
       );
@@ -246,7 +261,7 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    onClick={() => setPending({ account, action: "verify" })}
+                    onClick={() => queueAction({ account, action: "verify" })}
                   >
                     验证 Demo 连接
                   </button>
@@ -256,7 +271,7 @@ export function DemoExchangesWorkspace({
                     className="rc-button"
                     type="button"
                     disabled={!account.configured || !account.verificationFresh}
-                    onClick={() => setPending({ account, action: "enable" })}
+                    onClick={() => queueAction({ account, action: "enable" })}
                   >
                     启用账户
                   </button>
@@ -265,7 +280,7 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    onClick={() => setPending({ account, action: "disable" })}
+                    onClick={() => queueAction({ account, action: "disable" })}
                   >
                     停用账户
                   </button>
@@ -274,7 +289,7 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button rc-danger-button"
                     type="button"
-                    onClick={() => setPending({ account, action: "kill" })}
+                    onClick={() => queueAction({ account, action: "kill" })}
                   >
                     紧急 Kill
                   </button>
@@ -283,7 +298,7 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    onClick={() => setPending({ account, action: "resume" })}
+                    onClick={() => queueAction({ account, action: "resume" })}
                   >
                     解除 Kill（保持停用）
                   </button>
@@ -311,7 +326,7 @@ export function DemoExchangesWorkspace({
                           className="rc-button rc-danger-button"
                           type="button"
                           onClick={() =>
-                            setPending({
+                            queueAction({
                               account,
                               action: "card_kill",
                               strategyCode: card.strategyCode,
@@ -326,7 +341,7 @@ export function DemoExchangesWorkspace({
                           className="rc-button"
                           type="button"
                           onClick={() =>
-                            setPending({
+                            queueAction({
                               account,
                               action: "card_resume",
                               strategyCode: card.strategyCode,

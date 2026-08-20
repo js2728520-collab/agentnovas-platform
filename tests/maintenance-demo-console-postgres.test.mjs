@@ -5,6 +5,11 @@ import test from "node:test";
 import pg from "pg";
 
 import { loadMaintenanceDemoSafeView } from "../lib/maintenance-demo-view.ts";
+import {
+  claimPlatformDemoAdminCommand,
+  completePlatformDemoAdminCommand,
+  completedPlatformDemoCommandResponse,
+} from "../lib/platform-demo-admin-commands.ts";
 
 const { Pool } = pg;
 const databaseUrl =
@@ -21,6 +26,8 @@ test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
   await adminPool.query(`CREATE SCHEMA "${schema}"`);
   await pool.query(`
+    CREATE TABLE users (id text PRIMARY KEY);
+    INSERT INTO users VALUES ('fixture-actor'),('reviewer');
     CREATE TABLE strategy_versions (id text PRIMARY KEY, specification_json text NOT NULL);
     CREATE TABLE exchange_accounts (id text PRIMARY KEY, exchange text NOT NULL);
     CREATE TABLE memberships (id text PRIMARY KEY, customer_id text NOT NULL, status text NOT NULL, expires_at text, grace_ends_at text);
@@ -32,6 +39,7 @@ test.before(async () => {
     "0004_market_data_snapshots.sql",
     "0007_strategy_runtime.sql",
     "0024_platform_demo_execution.sql",
+    "0027_platform_demo_admin_commands.sql",
   ]) {
     await pool.query(
       await readFile(
@@ -44,7 +52,7 @@ test.before(async () => {
 
 test.beforeEach(async () => {
   await pool.query(
-    "TRUNCATE platform_demo_accounts,platform_demo_card_controls,platform_demo_control_audit CASCADE",
+    "TRUNCATE platform_demo_accounts,platform_demo_card_controls,platform_demo_control_audit,platform_demo_admin_commands CASCADE",
   );
   await pool.query(`
     INSERT INTO platform_demo_accounts (
@@ -78,6 +86,75 @@ test.beforeEach(async () => {
       'demo-client-00000001','filled',0.0002,10,0.01,now(),'trace-1'
     )
   `);
+});
+
+test("Demo admin commands bind actor, reason and payload to an immutable idempotency key", async () => {
+  const input = {
+    operation: "control",
+    idempotencyKey: "demo-control-key-0001",
+    actorUserId: "reviewer",
+    accountId: "account-binance",
+    action: "kill",
+    strategyCode: null,
+    reason: "incident containment fixture",
+  };
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const claim = await claimPlatformDemoAdminCommand(client, input);
+    assert.equal(claim.isNew, true);
+    await completePlatformDemoAdminCommand(client, {
+      id: claim.id,
+      status: "succeeded",
+      response: { ok: true, result: "CONTROL_RECORDED" },
+    });
+    await client.query("COMMIT");
+  } finally {
+    client.release();
+  }
+  const replayClient = await pool.connect();
+  try {
+    await replayClient.query("BEGIN");
+    const replay = await claimPlatformDemoAdminCommand(replayClient, input);
+    assert.deepEqual(completedPlatformDemoCommandResponse(replay), {
+      ok: true,
+      result: "CONTROL_RECORDED",
+    });
+    await replayClient.query("COMMIT");
+  } finally {
+    replayClient.release();
+  }
+  const row = (
+    await pool.query(
+      "SELECT reason,status FROM platform_demo_admin_commands WHERE operation='control' AND idempotency_key=$1",
+      [input.idempotencyKey],
+    )
+  ).rows[0];
+  assert.deepEqual(row, {
+    reason: "incident containment fixture",
+    status: "succeeded",
+  });
+  const collisionClient = await pool.connect();
+  try {
+    await collisionClient.query("BEGIN");
+    await assert.rejects(
+      claimPlatformDemoAdminCommand(collisionClient, {
+        ...input,
+        reason: "different incident reason",
+      }),
+      (error) => error.code === "IDEMPOTENCY_KEY_COLLISION",
+    );
+    await collisionClient.query("ROLLBACK");
+  } finally {
+    collisionClient.release();
+  }
+  await assert.rejects(
+    pool.query(
+      "UPDATE platform_demo_admin_commands SET reason='tampered reason' WHERE idempotency_key=$1",
+      [input.idempotencyKey],
+    ),
+    /immutable/i,
+  );
 });
 
 test.after(async () => {

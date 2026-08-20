@@ -11,12 +11,10 @@ export type PaymentEvidenceView = {
   membershipOrderId: string | null;
   performanceStatementId: string | null;
   kind: string;
-  providerLabel: string | null;
   referenceMasked: string;
   amount: string;
   currency: string;
   occurredAt: string;
-  note: string;
   recordedByUserId: string;
   status: "RECORDED" | "REJECTED" | "ACCEPTED";
   reviewedByUserId: string | null;

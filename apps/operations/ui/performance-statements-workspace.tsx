@@ -126,7 +126,7 @@ function PerformanceStatementQueue({ canGenerate }: { canGenerate: boolean }) {
             : <div className="rc-table-wrap"><table><thead><tr><th>周期</th><th>客户</th><th>paper 模拟净收益</th><th>应收</th><th>状态</th></tr></thead><tbody>{resource.data.data.map((statement) => <tr key={statement.id}>
               <td><Link className="rc-table-link" href={`/performance-statements/${encodeURIComponent(statement.id)}`}>{formatDateTime(statement.cycleStartedAt)}</Link><small>至 {formatDateTime(statement.cycleEndedAt)} · 修订 {statement.revision}</small></td>
               <td><code>{statement.customerId}</code></td>
-              <td>{formatDecimal(statement.cumulativeNetRealizedPnl)} USDT<small>高水位 {formatDecimal(statement.settledHighWaterMark)}</small></td>
+              <td>{formatDecimal(statement.weeklyNetRealizedPnl)} USDT<small>模拟费 {statement.simulatedFees ? formatDecimal(statement.simulatedFees) : "不可用"} · 亏损结转 {formatDecimal(statement.lossCarry)}</small></td>
               <td><b>{formatDecimal(statement.feeAmount)} USDT</b><small>计费基数 {formatDecimal(statement.billableProfit)} · 费率 {Number(statement.feeRate) * 100}%</small></td>
               <td><StatusBadge value={statement.status} /><small>{statement.replacesStatementId ? `替代 ${statement.replacesStatementId}` : "首版"}</small></td>
             </tr>)}</tbody></table></div>}
@@ -215,8 +215,15 @@ function PerformanceStatementDetailWorkspace({
     <section className="rc-kpi-grid" aria-label="周分成摘要">
       <article><small>状态</small><strong className="rc-kpi-status"><StatusBadge value={statement.status} /></strong><span>修订 {statement.revision}</span></article>
       <article><small>paper 累计净已实现</small><strong>{formatDecimal(statement.cumulativeNetRealizedPnl)} USDT</strong><span>仅官方三卡已平仓口径</span></article>
+      <article><small>本周净已实现</small><strong>{formatDecimal(statement.weeklyNetRealizedPnl)} USDT</strong><span>模拟手续费 {statement.simulatedFees ? `${formatDecimal(statement.simulatedFees)} USDT` : "历史快照不可用"}</span></article>
+      <article><small>高水位</small><strong>{formatDecimal(statement.highWaterMarkBefore)} → {formatDecimal(statement.highWaterMarkAfter)}</strong><span>仅付款复核后提交新高水位</span></article>
+      <article><small>亏损结转</small><strong>{formatDecimal(statement.lossCarry)} USDT</strong><span>未重新超过高水位不计费</span></article>
       <article><small>计费基数</small><strong>{formatDecimal(statement.billableProfit)} USDT</strong><span>已结算高水位 {formatDecimal(statement.settledHighWaterMark)}</span></article>
       <article><small>应收</small><strong>{formatDecimal(statement.feeAmount)} USDT</strong><span>费率 {Number(statement.feeRate) * 100}%</span></article>
+    </section>
+    <section className="rc-panel">
+      <header><div><small>OFFICIAL THREE-CARD SNAPSHOT</small><h2>三卡周度核对</h2></div></header>
+      {!statement.strategyBreakdown.length ? <EmptyState title="历史明细快照不可用" description="该账单仍保留汇总值，但不能伪造缺失的三卡明细。" /> : <div className="rc-card-list">{statement.strategyBreakdown.map((strategy) => <article key={strategy.strategyCode}><header><b>{strategy.strategyCode}</b></header><p>净已实现 {formatDecimal(strategy.weeklyNetRealizedPnl)} USDT</p><small>毛已实现 {formatDecimal(strategy.weeklyGrossRealizedPnl)} · 模拟手续费 {formatDecimal(strategy.simulatedFees)}</small></article>)}</div>}
     </section>
     <section className="rc-panel">
       <header><div><small>{formatDateTime(statement.cycleStartedAt)} — {formatDateTime(statement.cycleEndedAt)}</small><h2>业务审批</h2></div></header>
@@ -228,9 +235,9 @@ function PerformanceStatementDetailWorkspace({
     <section className="rc-panel">
       <header><div><small>{evidence.length} 条凭证</small><h2>外部付款复核</h2></div></header>
       {!evidence.length ? <EmptyState title="尚无付款凭证" description="账单形成应收后，由 maker 记录外部付款凭证。" /> : <div className="rc-card-list">{evidence.map((item) => <article key={item.id}>
-        <header><div><b>{item.referenceMasked}</b><small>{item.kind} · {item.providerLabel || "未标注渠道"}</small></div><StatusBadge value={item.status} /></header>
+        <header><div><b>{item.referenceMasked}</b><small>{item.kind}</small></div><StatusBadge value={item.status} /></header>
         <p>{formatDecimal(item.amount)} {item.currency} · {formatDateTime(item.occurredAt)}</p>
-        <small>记录人 {item.recordedByUserId} · {item.note || "无附注"}</small>
+        <small>记录人 {item.recordedByUserId} · 附注仅保留于受控审计记录</small>
         {canApprovePayment && item.canReview && <div className="rc-action-row rc-card-actions">
           <button className="rc-button" type="button" onClick={() => setPending({ stage: "payment", decision: "approve", evidence: item, idempotencyKey: crypto.randomUUID() })}>复核为已支付</button>
           <button className="rc-button rc-danger-button" type="button" onClick={() => setPending({ stage: "payment", decision: "reject", evidence: item, idempotencyKey: crypto.randomUUID() })}>拒绝该凭证</button>

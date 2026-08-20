@@ -193,9 +193,14 @@ export async function generatePerformanceStatement(
       customerId: scope.customerId,
       membershipId: scope.membershipId,
       period: scope.period,
-      strategies: scope.strategies.map(({ strategyCode, portfolioId }) => ({
-        strategyCode,
-        portfolioId,
+      weeklyGrossRealizedPnl: scope.realizedGrossPnlUsdt,
+      simulatedFees: scope.feesUsdt,
+      strategies: scope.strategies.map((strategy) => ({
+        strategyCode: strategy.strategyCode,
+        portfolioId: strategy.portfolioId,
+        weeklyGrossRealizedPnl: strategy.realizedGrossPnlUsdt,
+        weeklyNetRealizedPnl: strategy.realizedNetPnlUsdt,
+        simulatedFees: strategy.feesUsdt,
       })),
     };
     await client.query(
@@ -276,7 +281,15 @@ async function recomputeStatement(
       customerId?: string;
       membershipId?: string;
       period?: { start?: string; end?: string };
-      strategies?: Array<{ strategyCode?: string; portfolioId?: string }>;
+      weeklyGrossRealizedPnl?: string;
+      simulatedFees?: string;
+      strategies?: Array<{
+        strategyCode?: string;
+        portfolioId?: string;
+        weeklyGrossRealizedPnl?: string;
+        weeklyNetRealizedPnl?: string;
+        simulatedFees?: string;
+      }>;
     };
     week_net_pnl: string;
     cumulative_net_pnl: string;
@@ -304,9 +317,14 @@ async function recomputeStatement(
     customerId: scope.customerId,
     membershipId: scope.membershipId,
     period: scope.period,
-    strategies: scope.strategies.map(({ strategyCode, portfolioId }) => ({
-      strategyCode,
-      portfolioId,
+    weeklyGrossRealizedPnl: scope.realizedGrossPnlUsdt,
+    simulatedFees: scope.feesUsdt,
+    strategies: scope.strategies.map((strategy) => ({
+      strategyCode: strategy.strategyCode,
+      portfolioId: strategy.portfolioId,
+      weeklyGrossRealizedPnl: strategy.realizedGrossPnlUsdt,
+      weeklyNetRealizedPnl: strategy.realizedNetPnlUsdt,
+      simulatedFees: strategy.feesUsdt,
     })),
   };
   const storedStrategies = row.strategy_codes_json.strategies;
@@ -335,6 +353,25 @@ async function recomputeStatement(
       "结算单官方三卡范围快照无效",
       409,
     );
+  if (
+    row.strategy_codes_json.weeklyGrossRealizedPnl !==
+      expectedSnapshot.weeklyGrossRealizedPnl ||
+    row.strategy_codes_json.simulatedFees !== expectedSnapshot.simulatedFees ||
+    expectedSnapshot.strategies.some((expected, index) => {
+      const stored = storedStrategies[index];
+      return (
+        stored?.weeklyGrossRealizedPnl !== expected.weeklyGrossRealizedPnl ||
+        stored.weeklyNetRealizedPnl !== expected.weeklyNetRealizedPnl ||
+        stored.simulatedFees !== expected.simulatedFees
+      );
+    })
+  ) {
+    throw new ResearchApiError(
+      "STATEMENT_STALE",
+      "结算单数据已变化，请重新生成",
+      409,
+    );
+  }
   const fee = calculateWeeklyPerformanceFee({
     weekNetPnl: scope.weekNetPnl,
     cumulativeNetPnl: scope.cumulativeNetPnl,
@@ -535,8 +572,12 @@ export async function recordPerformancePaymentEvidence(
   )
     throw new ResearchApiError("VALIDATION_ERROR", "付款凭证字段无效", 422);
   return transaction(pool, async (client) => {
-    const statement = await client.query<{ status: string; user_id: string }>(
-      `SELECT status,user_id FROM performance_fee_statements WHERE id=$1 FOR UPDATE`,
+    const statement = await client.query<{
+      status: string;
+      user_id: string;
+      generated_by_user_id: string;
+    }>(
+      `SELECT status,user_id,generated_by_user_id FROM performance_fee_statements WHERE id=$1 FOR UPDATE`,
       [input.statementId],
     );
     const row = statement.rows[0];
@@ -547,6 +588,29 @@ export async function recordPerformancePaymentEvidence(
         404,
       );
     await input.authorize?.(client, row.user_id);
+    const assessment = await client.query<{ reviewer_user_id: string }>(
+      `SELECT reviewer_user_id FROM performance_fee_decisions
+       WHERE statement_id=$1 AND stage='assessment' AND decision='approve'
+       ORDER BY created_at DESC,id DESC FOR SHARE`,
+      [input.statementId],
+    );
+    if (assessment.rowCount !== 1) {
+      throw new ResearchApiError(
+        "PAYMENT_STAGE_INTEGRITY_CONFLICT",
+        "分成结算单缺少唯一的 assessment 复核记录",
+        409,
+      );
+    }
+    if (
+      input.actorUserId === row.generated_by_user_id ||
+      input.actorUserId === assessment.rows[0]?.reviewer_user_id
+    ) {
+      throw new ResearchApiError(
+        "PAYMENT_STAGE_SEPARATION_REQUIRED",
+        "付款复核必须由另一组人员执行",
+        403,
+      );
+    }
     const unresolvedFingerprintVersion = await client.query<{ present: boolean }>(
       `SELECT EXISTS(
          SELECT 1 FROM commercial_payment_evidence
@@ -676,11 +740,12 @@ export async function decidePerformancePayment(
     const statement = await client.query<{
       status: string;
       user_id: string;
+      generated_by_user_id: string;
       cumulative_net_pnl: string;
       fee_amount: string;
       currency: string;
     }>(
-      `SELECT status,user_id,cumulative_net_pnl::text,fee_amount::text,currency FROM performance_fee_statements WHERE id=$1 FOR UPDATE`,
+      `SELECT status,user_id,generated_by_user_id,cumulative_net_pnl::text,fee_amount::text,currency FROM performance_fee_statements WHERE id=$1 FOR UPDATE`,
       [input.statementId],
     );
     const row = statement.rows[0];
@@ -716,6 +781,30 @@ export async function decidePerformancePayment(
         "结算单当前不等待付款确认",
         409,
       );
+    const assessment = await client.query<{ reviewer_user_id: string }>(
+      `SELECT reviewer_user_id FROM performance_fee_decisions
+       WHERE statement_id=$1 AND stage='assessment' AND decision='approve'
+       ORDER BY created_at DESC,id DESC FOR SHARE`,
+      [input.statementId],
+    );
+    if (assessment.rowCount !== 1) {
+      throw new ResearchApiError(
+        "PAYMENT_STAGE_INTEGRITY_CONFLICT",
+        "分成结算单缺少唯一的 assessment 复核记录",
+        409,
+      );
+    }
+    const assessmentReviewer = assessment.rows[0]?.reviewer_user_id;
+    if (
+      input.reviewerUserId === row.generated_by_user_id ||
+      input.reviewerUserId === assessmentReviewer
+    ) {
+      throw new ResearchApiError(
+        "PAYMENT_STAGE_SEPARATION_REQUIRED",
+        "付款复核必须由另一组人员执行",
+        403,
+      );
+    }
     const evidence = await client.query<{
       id: string;
       recorded_by_user_id: string;
@@ -730,6 +819,16 @@ export async function decidePerformancePayment(
         "缺少金额币种匹配的待审付款凭证",
         422,
       );
+    if (
+      selected.recorded_by_user_id === row.generated_by_user_id ||
+      selected.recorded_by_user_id === assessmentReviewer
+    ) {
+      throw new ResearchApiError(
+        "PAYMENT_STAGE_SEPARATION_REQUIRED",
+        "付款复核必须由另一组人员执行",
+        403,
+      );
+    }
     if (selected.recorded_by_user_id === input.reviewerUserId)
       throw new ResearchApiError(
         "MAKER_CHECKER_REQUIRED",

@@ -118,11 +118,23 @@ export type PerformanceFeeStatement = {
   cycleStartedAt: string;
   cycleEndedAt: string;
   currency: typeof performanceFeeCurrency;
+  weeklyGrossRealizedPnl: string | null;
+  weeklyNetRealizedPnl: string;
+  simulatedFees: string | null;
   cumulativeNetRealizedPnl: string;
+  lossCarry: string;
+  highWaterMarkBefore: string;
+  highWaterMarkAfter: string;
   settledHighWaterMark: string;
   billableProfit: string;
   feeRate: string;
   feeAmount: string;
+  strategyBreakdown: Array<{
+    strategyCode: OfficialStrategyCode;
+    weeklyGrossRealizedPnl: string;
+    weeklyNetRealizedPnl: string;
+    simulatedFees: string;
+  }>;
   revision: number;
   replacesStatementId: string | null;
   submittedAt: string | null;

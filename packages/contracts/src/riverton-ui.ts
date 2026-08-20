@@ -97,7 +97,8 @@ export type MaintenanceAgentBinding = {
   enabled: boolean; revisionNumber: number; updatedAt: string;
 };
 export type MaintenancePaymentProvider = {
-  id: string; provider: string; channel: string; network: string | null; status: string;
+  id: string; provider: string; channel: string; network: string | null;
+  configuredStatus: string; effectiveStatus: "disabled";
   confirmationThreshold: number | null; hasSecret: boolean; updatedAt: string;
 };
 export type MaintenanceEmailStatus = {

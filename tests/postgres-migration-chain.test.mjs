@@ -40,44 +40,29 @@ async function copyMigrations(maximumVersion) {
   }
 }
 
-test("the real runner upgrades 0025 to 0026 and reapplies without drift", async () => {
-  await copyMigrations(25);
+test("the real runner upgrades 0026 to 0027 and reapplies without drift", async () => {
+  await copyMigrations(26);
   const before = await runPostgresMigrations(pool, {
     directory: new URL(`file://${migrationDirectory}/`),
     commitSha: "n-minus-one",
   });
-  assert.equal(before.applied.at(-1), "0025_worker_observability.sql");
+  assert.equal(before.applied.at(-1), "0026_client_paper_permissions.sql");
 
-  await pool.query(`
-    INSERT INTO roles (
-      id, application_id, code, name, kind, status, is_system
-    ) VALUES (
-      'role-client-customer', 'client', 'client_customer',
-      'Client Customer', 'system', 'published', true
-    )
-  `);
-
-  await copyMigrations(26);
+  await copyMigrations(27);
   const upgraded = await runPostgresMigrations(pool, {
     directory: new URL(`file://${migrationDirectory}/`),
     commitSha: "current",
   });
-  assert.deepEqual(upgraded.applied, ["0026_client_paper_permissions.sql"]);
-  const grant = await pool.query(`
-    SELECT id, permission_key, scope
-    FROM role_permissions
-    WHERE role_id='role-client-customer' AND permission_key='client.paper.manage'
+  assert.deepEqual(upgraded.applied, ["0027_platform_demo_admin_commands.sql"]);
+  const table = await pool.query(`
+    SELECT to_regclass('platform_demo_admin_commands')::text AS name
   `);
-  assert.deepEqual(grant.rows, [{
-    id: "role-client-customer:client.paper.manage",
-    permission_key: "client.paper.manage",
-    scope: "SELF",
-  }]);
+  assert.equal(table.rows[0].name, "platform_demo_admin_commands");
 
   const rerun = await runPostgresMigrations(pool, {
     directory: new URL(`file://${migrationDirectory}/`),
     commitSha: "current",
   });
   assert.equal(rerun.applied.length, 0);
-  assert.equal(rerun.skipped.length, 27);
+  assert.equal(rerun.skipped.length, 28);
 });

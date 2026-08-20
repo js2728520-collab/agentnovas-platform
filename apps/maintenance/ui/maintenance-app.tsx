@@ -20,7 +20,7 @@ import { hasAnyPermission, type ConsoleNavigationItem } from "@/packages/contrac
 const navigation: ConsoleNavigationItem[] = [
   { href: "/", label: "系统概览", icon: "⌂", requiredPermissions: ["maint.system_health.view"] },
   { href: "/models", label: "模型与 Agent", icon: "模", requiredPermissions: ["maint.system_health.view", "maint.llm_profiles.manage", "maint.agent_bindings.manage"] },
-  { href: "/integrations", label: "服务集成", icon: "接", requiredPermissions: ["maint.system_health.view"] },
+  { href: "/integrations", label: "服务集成", icon: "接", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage", "maint.payment_integrations.manage", "maint.demo_exchanges.view"] },
   { href: "/integrations/email", label: "邮件服务", icon: "邮", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage"] },
   { href: "/integrations/payments", label: "支付服务", icon: "付", requiredPermissions: ["maint.system_health.view", "maint.payment_integrations.manage"] },
   { href: "/integrations/demo-exchanges", label: "Demo 交易所", icon: "测", requiredPermissions: ["maint.demo_exchanges.view"] },
@@ -67,7 +67,11 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
       canManage={Boolean(permissions["maint.demo_exchanges.manage"])}
       canKill={Boolean(permissions["maint.demo_exchanges.kill"])}
     />
-    : route === "integrations" ? <IntegrationsOverview canViewDemo={Boolean(permissions["maint.demo_exchanges.view"])} />
+    : route === "integrations" ? <IntegrationsOverview
+      canViewEmail={Boolean(permissions["maint.email_integrations.manage"])}
+      canViewPayments={Boolean(permissions["maint.payment_integrations.manage"])}
+      canViewDemo={Boolean(permissions["maint.demo_exchanges.view"])}
+    />
     : route === "safety" ? <EmergencyControlWorkspace />
     : route === "settings" ? <PlatformSettingsWorkspace />
     : route === "access" ? <AccessCenter appId="maintenance" permissions={permissions} auditOnly={subtype === "audit"} />

@@ -38,7 +38,10 @@ export function maintenanceDemoAccountDto(
     id: row.id,
     provider: row.provider,
     label: row.label,
-    configured: row.has_api_key && row.has_secret,
+    configured:
+      row.has_api_key &&
+      row.has_secret &&
+      (row.provider !== "okx" || row.has_passphrase),
     hasApiKey: row.has_api_key,
     hasSecret: row.has_secret,
     hasPassphrase: row.has_passphrase,

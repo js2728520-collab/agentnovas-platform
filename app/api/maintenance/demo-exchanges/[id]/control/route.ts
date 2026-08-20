@@ -4,6 +4,12 @@ import {
 } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
 import {
+  claimPlatformDemoAdminCommand,
+  completePlatformDemoAdminCommand,
+  completedPlatformDemoCommandResponse,
+} from "@/lib/platform-demo-admin-commands";
+import { idempotencyKey } from "@/lib/commercial-api";
+import {
   readResearchJson,
   ResearchApiError,
   researchErrorResponse,
@@ -57,6 +63,7 @@ export async function POST(
       isKill ? "maint.demo_exchanges.kill" : "maint.demo_exchanges.manage",
     );
     const { id } = await params;
+    const commandKey = idempotencyKey(request);
     const pool = await getPostgresPool();
     const client = await pool.connect();
     try {
@@ -83,7 +90,29 @@ export async function POST(
       if (!account) {
         throw new ResearchApiError("DEMO_ACCOUNT_NOT_FOUND", "Demo 账户不存在", 404);
       }
+      const claim = await claimPlatformDemoAdminCommand(client, {
+        operation: "control",
+        idempotencyKey: commandKey,
+        actorUserId: user.id,
+        accountId: account.id,
+        action: input.action,
+        strategyCode: input.strategyCode,
+        reason: input.reason,
+      });
+      const replay = completedPlatformDemoCommandResponse(claim);
+      if (replay) {
+        await client.query("COMMIT");
+        return Response.json(replay);
+      }
+      let changed = false;
       if (input.action === "enable") {
+        if (account.kill_switch_enabled) {
+          throw new ResearchApiError(
+            "DEMO_KILL_SWITCH_ACTIVE",
+            "Demo kill switch 仍在生效；请先单独恢复停控并重新核对状态",
+            409,
+          );
+        }
         const verificationFresh =
           account.last_verification_status === "passed" &&
           Boolean(account.last_verified_at) &&
@@ -95,36 +124,40 @@ export async function POST(
             409,
           );
         }
-        await client.query(
+        const result = await client.query(
           `UPDATE platform_demo_accounts
-           SET enabled=true,kill_switch_enabled=false,updated_by=$2,updated_at=now()
-           WHERE id=$1 AND (enabled IS DISTINCT FROM true OR kill_switch_enabled IS DISTINCT FROM false)`,
+           SET enabled=true,updated_by=$2,updated_at=now()
+           WHERE id=$1 AND kill_switch_enabled=false AND enabled IS DISTINCT FROM true`,
           [id, user.id],
         );
+        changed = result.rowCount === 1;
       } else if (input.action === "disable") {
-        await client.query(
+        const result = await client.query(
           `UPDATE platform_demo_accounts
            SET enabled=false,updated_by=$2,updated_at=now()
            WHERE id=$1 AND enabled IS DISTINCT FROM false`,
           [id, user.id],
         );
+        changed = result.rowCount === 1;
       } else if (input.action === "kill") {
-        await client.query(
+        const result = await client.query(
           `UPDATE platform_demo_accounts
            SET enabled=false,kill_switch_enabled=true,updated_by=$2,updated_at=now()
            WHERE id=$1 AND (enabled IS DISTINCT FROM false OR kill_switch_enabled IS DISTINCT FROM true)`,
           [id, user.id],
         );
+        changed = result.rowCount === 1;
       } else if (input.action === "resume") {
-        await client.query(
+        const result = await client.query(
           `UPDATE platform_demo_accounts
            SET kill_switch_enabled=false,updated_by=$2,updated_at=now()
            WHERE id=$1 AND kill_switch_enabled IS DISTINCT FROM false`,
           [id, user.id],
         );
+        changed = result.rowCount === 1;
       } else {
         const killSwitchEnabled = input.action === "card_kill";
-        await client.query(
+        const result = await client.query(
           `INSERT INTO platform_demo_card_controls
              (provider,strategy_code,kill_switch_enabled,updated_by,updated_at)
            VALUES($1,$2,$3,$4,now())
@@ -135,16 +168,23 @@ export async function POST(
                  IS DISTINCT FROM EXCLUDED.kill_switch_enabled`,
           [account.provider, input.strategyCode, killSwitchEnabled, user.id],
         );
+        changed = result.rowCount === 1;
       }
-      await client.query("COMMIT");
-      return Response.json({
+      const response = {
         ok: true,
         accountId: account.id,
         provider: account.provider,
         action: input.action,
         strategyCode: input.strategyCode,
-        result: "CONTROL_RECORDED",
+        result: changed ? "CONTROL_RECORDED" : "NO_CHANGE",
+      };
+      await completePlatformDemoAdminCommand(client, {
+        id: claim.id,
+        status: "succeeded",
+        response,
       });
+      await client.query("COMMIT");
+      return Response.json(response);
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

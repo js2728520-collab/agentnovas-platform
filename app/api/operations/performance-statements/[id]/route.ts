@@ -5,6 +5,7 @@ import {
   performanceStatementDto,
 } from "@/lib/commercial-public-contract";
 import { getPostgresPool } from "@/lib/postgres";
+import { performanceStatementActionProjection } from "@/lib/performance-statement-actions";
 import { ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(
@@ -30,8 +31,10 @@ export async function GET(
     values.push(...scoped.values);
     const statementResult = await pool.query(
       `SELECT s.id,s.user_id,s.week_start,s.week_end,
+              s.strategy_codes_json,s.week_net_pnl::text,
               s.cumulative_net_pnl::text,s.prior_high_water_mark::text,
-              s.eligible_profit::text,s.fee_bps,s.fee_amount::text,s.status,
+              s.eligible_profit::text,s.loss_carry::text,
+              s.fee_bps,s.fee_amount::text,s.status,
               s.revision,s.replaces_statement_id,s.generated_by_user_id,
               s.created_at,s.created_at AS submitted_at,
               (SELECT max(d.created_at)
@@ -71,12 +74,27 @@ export async function GET(
         [id],
       ),
     ]);
+    const approvedAssessmentReviewers = decisionResult.rows.filter(
+      (row) => row.stage === "assessment" && row.decision === "approve",
+    );
+    const assessmentReviewer =
+      approvedAssessmentReviewers.length === 1
+        ? String(approvedAssessmentReviewers[0].reviewer_user_id)
+        : null;
+    const paymentActions = performanceStatementActionProjection({
+      status: statement.status,
+      viewerUserId: user.id,
+      generatedByUserId: statement.generated_by_user_id,
+      assessmentReviewerUserId: assessmentReviewer,
+      evidence: evidenceResult.rows.map((row) => ({
+        id: String(row.id),
+        recordedByUserId: String(row.recorded_by_user_id),
+        status: String(row.status),
+      })),
+    });
     const evidence = evidenceResult.rows.map((row) => ({
       ...paymentEvidenceDto(row),
-      canReview:
-        statement.status === "payment_pending" &&
-        row.recorded_by_user_id !== user.id &&
-        row.status === "recorded",
+      canReview: paymentActions.reviewableEvidenceIds.includes(String(row.id)),
     }));
     return Response.json(
       {
@@ -96,8 +114,8 @@ export async function GET(
           canReviewAssessment:
             statement.status === "pending_review" &&
             statement.generated_by_user_id !== user.id,
-          canRecordPaymentEvidence: statement.status === "payment_pending",
-          canReviewPayment: evidence.some((item) => item.canReview),
+          canRecordPaymentEvidence: paymentActions.canRecordPaymentEvidence,
+          canReviewPayment: paymentActions.canReviewPayment,
         },
       },
       { headers: { "cache-control": "no-store" } },

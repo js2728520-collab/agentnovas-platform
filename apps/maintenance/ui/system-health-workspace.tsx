@@ -55,7 +55,7 @@ export function SystemHealthWorkspace({ overview = false }: { overview?: boolean
       <WorkerState label="Payment Worker（Beta 必须 disabled）" value={workers.data?.paymentWorker} />
       <WorkerState label="Demo Execution Worker" value={workers.data?.demoExecutionWorker} externalWritesEnabled={workers.data?.demoExecutionWorker.externalWritesEnabled} executionEnabled={workers.data?.demoExecutionWorker.executionEnabled} />
     </div></section>
-    <section className="rc-panel"><header><div><small>外部服务</small><h2>集成配置概况</h2></div></header><div className="rc-health-grid"><article><span>邮件服务</span><StatusBadge value={email.data?.configured ? "configured" : "unconfigured"} /></article><article><span>已配置支付渠道</span><b>{payments.data?.providers.filter((provider) => provider.status !== "disabled").length ?? "—"}</b></article><article><span>含密钥支付配置</span><b>{payments.data?.providers.filter((provider) => provider.hasSecret).length ?? "—"}</b></article></div></section>
+    <section className="rc-panel"><header><div><small>外部服务</small><h2>集成配置概况</h2></div></header><div className="rc-health-grid"><article><span>邮件服务</span><StatusBadge value={email.data?.configured ? "configured" : "unconfigured"} /></article><article><span>Beta 有效支付渠道</span><b>{payments.data?.providers.filter((provider) => provider.effectiveStatus !== "disabled").length ?? "—"}</b></article><article><span>含密钥支付配置</span><b>{payments.data?.providers.filter((provider) => provider.hasSecret).length ?? "—"}</b></article></div></section>
     {!health.data && !workers.data && error && <ErrorState message={error} retry={() => { void health.refresh(); void workers.refresh(); }} />}
   </>;
 }

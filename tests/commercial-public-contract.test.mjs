@@ -159,12 +159,10 @@ test("commercial action and evidence DTOs are camelCase allowlists", () => {
     membershipOrderId: "o1",
     performanceStatementId: null,
     kind: "bank_transfer",
-    providerLabel: "bank",
     referenceMasked: "****1234",
     amount: "28.000000000000000000",
     currency: "USD",
     occurredAt: "2026-08-20T00:00:00.000Z",
-    note: "ok",
     recordedByUserId: "maker",
     status: "RECORDED",
     reviewedByUserId: null,
@@ -173,6 +171,8 @@ test("commercial action and evidence DTOs are camelCase allowlists", () => {
   });
   assert.equal("referenceFingerprint" in evidence, false);
   assert.equal("referenceFingerprintVersion" in evidence, false);
+  assert.equal("note" in evidence, false);
+  assert.equal("providerLabel" in evidence, false);
   assert.deepEqual(
     membershipActionDto({
       status: "activated",
@@ -211,7 +211,19 @@ test("commercial action and evidence DTOs are camelCase allowlists", () => {
     status: "rejected",
     week_start: "2026-08-03",
     week_end: "2026-08-10",
+    strategy_codes_json: {
+      weeklyGrossRealizedPnl: "1.2",
+      simulatedFees: "0.2",
+      strategies: [{
+        strategyCode: "ai_conservative",
+        weeklyGrossRealizedPnl: "1.2",
+        weeklyNetRealizedPnl: "1",
+        simulatedFees: "0.2",
+      }],
+    },
+    week_net_pnl: "1",
     cumulative_net_pnl: "1",
+    loss_carry: "0",
     prior_high_water_mark: "0",
     eligible_profit: "1",
     fee_bps: 2000,
@@ -222,4 +234,27 @@ test("commercial action and evidence DTOs are camelCase allowlists", () => {
   });
   assert.equal(statement.revision, 2);
   assert.equal(statement.replacesStatementId, "s0");
+  assert.equal(statement.weeklyNetRealizedPnl, "1");
+  assert.equal(statement.simulatedFees, "0.2");
+  assert.equal(statement.strategyBreakdown.length, 1);
+  assert.equal(statement.highWaterMarkAfter, "1");
+  const lossWeek = performanceStatementDto({
+    ...{
+      id: "s2",
+      user_id: "u1",
+      status: "no_fee",
+      week_start: "2026-08-10",
+      week_end: "2026-08-17",
+      strategy_codes_json: {},
+      week_net_pnl: "-20",
+      cumulative_net_pnl: "80",
+      prior_high_water_mark: "100",
+      eligible_profit: "0",
+      loss_carry: "20",
+      fee_bps: 2000,
+      fee_amount: "0",
+      created_at: "2026-08-18",
+    },
+  });
+  assert.equal(lossWeek.highWaterMarkAfter, "100");
 });

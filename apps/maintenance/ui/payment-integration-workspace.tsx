@@ -73,12 +73,16 @@ export function PaymentIntegrationWorkspace({
                       {provider.channel} · {provider.network || "无网络"}
                     </small>
                   </div>
-                  <StatusBadge value={provider.status} />
+                  <StatusBadge value={provider.effectiveStatus} />
                 </header>
                 <dl className="rc-description-list">
                   <div>
                     <dt>存储状态</dt>
-                    <dd>{provider.status}（不代表 Beta 已启用）</dd>
+                    <dd>{provider.configuredStatus}（历史配置，不生效）</dd>
+                  </div>
+                  <div>
+                    <dt>Beta 有效状态</dt>
+                    <dd>{provider.effectiveStatus}</dd>
                   </div>
                   <div>
                     <dt>确认阈值</dt>

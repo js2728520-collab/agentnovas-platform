@@ -239,6 +239,10 @@ test("legacy sensitive surfaces are assigned to their owning application", () =>
   assert.deepEqual(apiPolicyForRoute("/api/wallet/deposit-orders", "POST").audiences, ["client"]);
   assert.deepEqual(apiPolicyForRoute("/api/operations/deposits", "GET").audiences, ["operations"]);
   assert.deepEqual(apiPolicyForRoute("/api/maintenance/payment-providers/:id/status", "PATCH").audiences, ["maintenance"]);
+  assert.deepEqual(
+    apiPolicyForRoute("/api/access/me/effective", "GET").audiences,
+    ["client", "operations", "maintenance"],
+  );
 });
 
 test("request ids are bounded and internal errors are not exposed", async () => {

@@ -220,9 +220,9 @@ function MembershipOrderDetailWorkspace({
       <section className="rc-panel">
         <header><div><small>{evidence.length} 条记录</small><h2>付款凭证与操作</h2></div></header>
         {!evidence.length ? <EmptyState title="尚无付款凭证" description="maker 需要先核对外部付款并记录脱敏凭证。" /> : <div className="rc-card-list">{evidence.map((item) => <article key={item.id}>
-          <header><div><b>{item.referenceMasked}</b><small>{item.kind} · {item.providerLabel || "未标注渠道"}</small></div><StatusBadge value={item.status} /></header>
+          <header><div><b>{item.referenceMasked}</b><small>{item.kind}</small></div><StatusBadge value={item.status} /></header>
           <p>{formatDecimal(item.amount, 2)} {item.currency} · 外部时间 {formatDateTime(item.occurredAt)}</p>
-          <small>记录人 {item.recordedByUserId} · {item.note || "无附注"}</small>
+          <small>记录人 {item.recordedByUserId} · 附注仅保留于受控审计记录</small>
           {canApprove && item.canReview && item.recordedByUserId !== viewerUserId && <div className="rc-action-row rc-card-actions">
             <button className="rc-button" type="button" onClick={() => setReview({ decision: "approve", evidence: item, idempotencyKey: crypto.randomUUID() })}>批准并激活</button>
             <button className="rc-button rc-danger-button" type="button" onClick={() => setReview({ decision: "reject", evidence: item, idempotencyKey: crypto.randomUUID() })}>拒绝</button>

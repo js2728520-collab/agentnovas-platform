@@ -1,4 +1,5 @@
 import { PAYMENT_REFERENCE_FINGERPRINT_VERSION } from "./commercial-api-support.ts";
+import { compareSignedDecimalStrings } from "./commercial-membership-domain.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 const membershipStatuses = {
@@ -133,6 +134,35 @@ export function membershipOrderDto(row: Record<string, unknown>) {
   };
 }
 export function performanceStatementDto(row: Record<string, unknown>) {
+  const cumulativeNetPnl = String(row.cumulative_net_pnl);
+  const priorHighWaterMark = String(row.prior_high_water_mark);
+  const snapshot =
+    row.strategy_codes_json &&
+    typeof row.strategy_codes_json === "object" &&
+    !Array.isArray(row.strategy_codes_json)
+      ? (row.strategy_codes_json as Record<string, unknown>)
+      : {};
+  const strategyBreakdown = Array.isArray(snapshot.strategies)
+    ? snapshot.strategies.flatMap((value) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+        const strategy = value as Record<string, unknown>;
+        const strategyCode = String(strategy.strategyCode ?? "");
+        if (![
+          "ai_conservative",
+          "ai_balanced",
+          "ai_aggressive",
+        ].includes(strategyCode) ||
+        typeof strategy.weeklyGrossRealizedPnl !== "string" ||
+        typeof strategy.weeklyNetRealizedPnl !== "string" ||
+        typeof strategy.simulatedFees !== "string") return [];
+        return [{
+          strategyCode,
+          weeklyGrossRealizedPnl: strategy.weeklyGrossRealizedPnl,
+          weeklyNetRealizedPnl: strategy.weeklyNetRealizedPnl,
+          simulatedFees: strategy.simulatedFees,
+        }];
+      })
+    : [];
   return {
     id: String(row.id),
     customerId: String(row.user_id),
@@ -140,11 +170,27 @@ export function performanceStatementDto(row: Record<string, unknown>) {
     cycleStartedAt: timestamp(row.week_start)!,
     cycleEndedAt: timestamp(row.week_end)!,
     currency: "USDT" as const,
-    cumulativeNetRealizedPnl: String(row.cumulative_net_pnl),
-    settledHighWaterMark: String(row.prior_high_water_mark),
+    weeklyGrossRealizedPnl:
+      typeof snapshot.weeklyGrossRealizedPnl === "string"
+        ? snapshot.weeklyGrossRealizedPnl
+        : null,
+    weeklyNetRealizedPnl: String(row.week_net_pnl),
+    simulatedFees:
+      typeof snapshot.simulatedFees === "string"
+        ? snapshot.simulatedFees
+        : null,
+    cumulativeNetRealizedPnl: cumulativeNetPnl,
+    lossCarry: String(row.loss_carry),
+    highWaterMarkBefore: priorHighWaterMark,
+    highWaterMarkAfter:
+      compareSignedDecimalStrings(cumulativeNetPnl, priorHighWaterMark) > 0
+        ? cumulativeNetPnl
+        : priorHighWaterMark,
+    settledHighWaterMark: priorHighWaterMark,
     billableProfit: String(row.eligible_profit),
     feeRate: rate(row.fee_bps),
     feeAmount: String(row.fee_amount),
+    strategyBreakdown,
     revision: Number(row.revision ?? 1),
     replacesStatementId: row.replaces_statement_id
       ? String(row.replaces_statement_id)
@@ -176,12 +222,10 @@ export function paymentEvidenceDto(value: unknown) {
       ? String(row.performance_statement_id)
       : null,
     kind: String(row.evidence_kind),
-    providerLabel: row.provider_label ? String(row.provider_label) : null,
     referenceMasked: String(row.reference_masked),
     amount: String(row.amount),
     currency: String(row.currency),
     occurredAt: timestamp(row.occurred_at)!,
-    note: String(row.note ?? ""),
     recordedByUserId: String(row.recorded_by_user_id),
     status,
     reviewedByUserId: row.reviewed_by_user_id

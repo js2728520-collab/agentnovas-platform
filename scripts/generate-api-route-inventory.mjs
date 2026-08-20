@@ -116,7 +116,7 @@ function basePolicy(route, method) {
   if (PUBLIC_CLIENT_METHODS.has(`${method} ${route}`)) {
     return { audiences: ["client"], authentication: "anonymous", sameOrigin: mutation };
   }
-  if (route === "/api/access/me/effective") return { audiences: INTERNAL_AUDIENCES, authentication: "session", sameOrigin: false };
+  if (route === "/api/access/me/effective") return { audiences: ALL_AUDIENCES, authentication: "session", sameOrigin: false };
   if (route.startsWith("/api/access/")) return { audiences: INTERNAL_AUDIENCES, authentication: "permission", sameOrigin: mutation };
   if (route.startsWith("/api/maintenance/") || route.startsWith("/api/admin/")) {
     return { audiences: ["maintenance"], authentication: "permission", sameOrigin: mutation };
