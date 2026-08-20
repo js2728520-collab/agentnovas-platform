@@ -99,11 +99,11 @@ export function renderNotificationEmail(templateKey: string, payloadJson: unknow
       return email("重置 AgentNovas 密码", ["我们收到了密码重置请求。", `请在一小时内打开以下链接：${link}`, "如果这不是你的操作，请忽略此邮件。"]);
     }
     case "internal_account_invite": {
-      const verifyToken = boundedString(payload, "verifyToken", MAX_TOKEN_LENGTH);
-      const temporaryPassword = boundedString(payload, "temporaryPassword", 256);
+      const token = boundedString(payload, "token", MAX_TOKEN_LENGTH);
       const role = boundedString(payload, "role", 80);
-      const link = `https://zht.agentnovas.com/verify-email?token=${encodeURIComponent(verifyToken)}`;
-      return email("AgentNovas 内部账号邀请", ["你的内部账号已创建。", `角色：${role}`, `临时密码：${temporaryPassword}`, `请在 48 小时内验证账号：${link}`, "首次登录后请立即修改密码。"]);
+      if (payload.activation !== true) throw new Error("INVALID_PAYLOAD");
+      const link = `https://zht.agentnovas.com/reset-password?token=${encodeURIComponent(token)}`;
+      return email("AgentNovas 内部账号邀请", ["你的内部账号已创建。", `角色：${role}`, `请在 48 小时内设置密码：${link}`, "密码设置完成前账户不会激活。"]);
     }
     case "team_daily_brief": {
       const date = isoDate(payload, "date");

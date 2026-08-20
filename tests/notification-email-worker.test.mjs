@@ -20,12 +20,13 @@ test("known notification templates render bounded escaped email", () => {
   assert.doesNotMatch(reset.html, /a&b/);
 
   const invite = renderNotificationEmail("internal_account_invite", {
-    verifyToken: "verify-token",
-    temporaryPassword: "temporary-password",
+    token: "activation-token",
     role: "manager",
+    activation: true,
   });
   assert.match(invite.subject, /内部账号邀请/);
-  assert.match(invite.text, /https:\/\/zht\.agentnovas\.com\/verify-email\?token=verify-token/);
+  assert.match(invite.text, /https:\/\/zht\.agentnovas\.com\/reset-password\?token=activation-token/);
+  assert.doesNotMatch(invite.text, /临时密码/);
 
   const brief = renderNotificationEmail("team_daily_brief", {
     date: "2026-08-20",
