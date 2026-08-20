@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -17,6 +17,9 @@ test("membership experience uses commercial truth sources and contains no simula
   ]) assert.match(source, new RegExp(endpoint.replaceAll("/", "\\/")));
 
   assert.match(source, /paymentInstructionsStatus/);
+  assert.match(source, /creditError/);
+  assert.match(source, /积分服务暂不可用/);
+  assert.doesNotMatch(source, /<aside className=\{styles\.balance\}/);
   assert.match(source, /acceptedDocumentVersionIds/);
   assert.match(source, /idempotency-key/);
   assert.doesNotMatch(source, /二维码|倒计时|监听中|充值积分|积分充值|TRC20|0x[a-fA-F0-9]{8}/);
@@ -55,8 +58,25 @@ test("trading experience reads official paper evidence and never presents client
 
 test("the client application no longer exposes the legacy operations page", async () => {
   const source = await read("app/client-app.tsx");
+  const css = await read("app/globals.css");
   assert.doesNotMatch(source, /case\s+["']admin["']/);
   assert.doesNotMatch(source, /\|\s*["']admin["']/);
   assert.doesNotMatch(source, /AdminWithPolicy/);
   assert.match(source, /ClientNotificationSettings/);
+  assert.match(source, /client-app-shell/);
+  assert.match(css, /\.client-app-shell \.dash>aside\{[^}]*flex-direction:row!important/);
+});
+
+test("client raster assets stay under the 200 KiB budget and the hall uses an optimized source", async () => {
+  const source = await read("app/client-app.tsx");
+  const css = await read("app/globals.css");
+  assert.match(source, /from "next\/image"/);
+  assert.match(source, /\/trading-hall\.webp/);
+  assert.doesNotMatch(`${source}\n${css}`, /trading-hall-base\.png|trading-hall-operator-sprite\.png|agentnovas-logo\.png|agentnovas-mark\.png|trading-hall\.png/);
+  const publicRoot = new URL("../public/", import.meta.url);
+  const rasterNames = (await readdir(publicRoot)).filter((name) => /\.(?:png|webp|avif|jpe?g)$/i.test(name));
+  for (const name of rasterNames) {
+    const size = (await stat(new URL(name, publicRoot))).size;
+    assert.ok(size <= 200 * 1024, `${name} exceeds 200 KiB: ${size}`);
+  }
 });

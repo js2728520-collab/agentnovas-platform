@@ -5,14 +5,15 @@ import type { AiCreditBalance, CommercialPlan, CursorPage, MembershipEntitlement
 import { clientErrorMessage, clientRequest, newIdempotencyKey } from "./client-api";
 import styles from "./membership-experience.module.css";
 
-type LegalDocument = { id: string; type: string; version: string; contentSha256: string; effectiveAt: string };
+type LegalDocument = { id: string; type: string; version: string | number; contentSha256: string; effectiveAt: string };
 type MembershipData = {
   plans: CommercialPlan[];
   legalDocuments: LegalDocument[];
   orderCreationAvailable: boolean;
   membership: MembershipEntitlement | null;
   orders: MembershipOrder[];
-  credits: AiCreditBalance;
+  credits: AiCreditBalance | null;
+  creditError: string;
 };
 const statusLabels: Record<string, string> = {
   AWAITING_EVIDENCE: "等待提交付款凭证", SUBMITTED: "凭证已提交，等待人工审核", REJECTED: "审核未通过",
@@ -38,16 +39,19 @@ export default function MembershipExperience() {
   const load = useCallback(async () => {
     setState("loading"); setMessage("");
     try {
-      const [planPayload, membershipPayload, orderPayload, creditPayload] = await Promise.all([
+      const [planPayload, membershipPayload, orderPayload] = await Promise.all([
         clientRequest<{ plans: CommercialPlan[]; requiredLegalDocuments: LegalDocument[]; orderCreationAvailable: boolean }>("/api/membership/plans", {}, "会员计划读取失败"),
         clientRequest<{ membership: MembershipEntitlement | null }>("/api/membership/me", {}, "会员状态读取失败"),
         clientRequest<CursorPage<MembershipOrder>>("/api/membership/orders?limit=20", {}, "会员申请读取失败"),
-        clientRequest<{ credits: AiCreditBalance }>("/api/credits/me", {}, "积分余额读取失败"),
       ]);
+      let credits: AiCreditBalance | null = null;
+      let creditError = "";
+      try { credits = (await clientRequest<{ credits: AiCreditBalance }>("/api/credits/me", {}, "积分余额读取失败")).credits; }
+      catch (error) { creditError = clientErrorMessage(error, "积分余额读取失败"); }
       const nextData: MembershipData = {
         plans: planPayload.plans, legalDocuments: planPayload.requiredLegalDocuments,
         orderCreationAvailable: planPayload.orderCreationAvailable, membership: membershipPayload.membership,
-        orders: orderPayload.data, credits: creditPayload.credits,
+        orders: orderPayload.data, credits, creditError,
       };
       setData(nextData); setSelectedCode((current) => current || nextData.plans[0]?.code || ""); setState("ready");
     } catch (error) { setMessage(clientErrorMessage(error, "会员中心读取失败")); setState("error"); }
@@ -78,7 +82,7 @@ export default function MembershipExperience() {
   const selectedPlan = data.plans.find((plan) => plan.code === selectedCode) ?? null;
 
   return <main className={styles.root}>
-    <header className={styles.hero}><div><span className={styles.eyebrow}>CLIENT MEMBERSHIP</span><h1>会员与 AI 积分</h1><p>价格、权益、积分与申请状态均来自当前商业合同；付款和开通由人工审核闭环完成。</p></div><aside className={styles.balance} aria-label="AI 积分余额"><span>可用积分</span><strong>{data.credits.available}</strong><small>冻结 {data.credits.reserved} · 账本版本 {data.credits.version}</small></aside></header>
+    <header className={styles.hero}><div><span className={styles.eyebrow}>CLIENT MEMBERSHIP</span><h1>会员与 AI 积分</h1><p>价格、权益、积分与申请状态均来自当前商业合同；付款和开通由人工审核闭环完成。</p></div><div className={styles.balance} role="group" aria-label="AI 积分余额">{data.credits ? <><span>可用积分</span><strong>{data.credits.available}</strong><small>冻结 {data.credits.reserved} · 账本版本 {data.credits.version}</small></> : <><span>积分服务暂不可用</span><strong>—</strong><small>{data.creditError}</small></>}</div></header>
     {data.membership && <section className={styles.panel} aria-labelledby="membership-status-title"><div className={styles.panelHead}><div><span className={styles.eyebrow}>CURRENT ACCESS</span><h2 id="membership-status-title">当前会员</h2></div><span className={styles.badge}>{statusLabels[data.membership.status] ?? data.membership.status}</span></div><dl className={styles.summaryGrid}><div><dt>计划</dt><dd>{data.membership.planCode}</dd></div><div><dt>开始时间</dt><dd>{formatDate(data.membership.startsAt)}</dd></div><div><dt>到期边界</dt><dd>{formatDate(data.membership.expiresAt)}{data.membership.closeOnly ? " · 仅平仓/只读" : ""}</dd></div></dl></section>}
     <section className={styles.panel} aria-labelledby="membership-plans-title"><div className={styles.panelHead}><div><span className={styles.eyebrow}>SERVER PLANS</span><h2 id="membership-plans-title">选择会员计划</h2></div><span className={styles.badge}>{data.plans.length} 个可用计划</span></div>{data.plans.length === 0 ? <p className={styles.notice}>当前没有可申请的会员计划。</p> : <div className={styles.plans}>{data.plans.map((plan) => <button key={`${plan.code}-${plan.version}`} type="button" className={`${styles.plan} ${selectedCode === plan.code ? styles.selected : ""}`} aria-pressed={selectedCode === plan.code} onClick={() => setSelectedCode(plan.code)}><span className={styles.planName}>{plan.name}</span><strong>{plan.priceUsd} {plan.priceCurrency}</strong><p>{planPeriod(plan)}</p><small>AI 积分 {plan.aiCredits} · 周盈利分成费率 {plan.performanceFeeRate}</small><small>合同版本 v{plan.version}</small></button>)}</div>}</section>
     <section className={styles.panel} id="membership-payment" aria-labelledby="membership-application-title"><div className={styles.panelHead}><div><span className={styles.eyebrow}>APPLICATION</span><h2 id="membership-application-title">提交会员申请</h2></div>{selectedPlan && <span className={styles.badge}>{selectedPlan.name}</span>}</div><p className={styles.muted}>申请只会锁定服务端计划与法务快照，不代表付款成功或会员已开通。付款凭证需由 Operations 人工核验并双人审批。</p><div className={styles.legalList} aria-label="本次申请绑定的法务版本">{data.legalDocuments.map((document) => <article className={styles.legalItem} key={document.id}><div><strong>{document.type}</strong><span>版本 {document.version} · 生效 {formatDate(document.effectiveAt)}</span></div><code title={document.contentSha256}>{document.contentSha256}</code></article>)}</div>{!data.orderCreationAvailable && <p className={styles.error} role="alert">所需法务版本尚未完整批准，当前不能创建申请。</p>}<label className={styles.acknowledgement} htmlFor={acknowledgementId}><input id={acknowledgementId} type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} disabled={!data.orderCreationAvailable} /><span>我确认本次申请将绑定以上服务端法务版本，并理解提交申请不等于付款、激活或资金到账。</span></label><button className={styles.primary} type="button" disabled={busy || !selectedPlan || !acknowledged || !data.orderCreationAvailable} onClick={() => void createOrder()}>{busy ? "正在提交…" : "提交会员申请"}</button>{message && <div ref={resultRef} className={styles.notice} role="status" aria-live="polite" tabIndex={-1}>{message}</div>}</section>

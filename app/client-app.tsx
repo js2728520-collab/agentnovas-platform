@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import AccountSettings, { type AccountViewer } from "./account-settings";
 import CommunityStrategyCenter from "./community-strategy-center";
@@ -1029,7 +1030,7 @@ export default function Home() {
       ? "login"
       : page;
   return (
-    <main className="app-shell" data-app-shell>
+    <main className="app-shell client-app-shell" data-app-shell>
       <header className="topbar">
         <button className="logo" onClick={go("home")}>
           <span>A</span>
@@ -1293,8 +1294,11 @@ function Landing({
       </section>
       <section className="feature-split">
         <div className="scene-preview">
-          <img
-            src="/trading-hall.png"
+          <Image
+            src="/trading-hall.webp"
+            width={1672}
+            height={941}
+            sizes="(max-width: 768px) 100vw, 55vw"
             alt="AI quantitative trading operations center"
           />
           <div>
@@ -1652,8 +1656,11 @@ function Hall({
       <div className="compact-hall">
         <div className="hall-left">
           <div className="scene compact">
-            <img
-              src="/trading-hall-base.png"
+            <Image
+              src="/trading-hall.webp"
+              width={1672}
+              height={941}
+              sizes="(max-width: 768px) 100vw, 860px"
               alt="AI quantitative trading operations center"
             />
             {agents.map((a, index) => (
