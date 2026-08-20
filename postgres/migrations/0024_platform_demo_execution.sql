@@ -8,14 +8,18 @@ ALTER TABLE strategy_deployments
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'strategy_deployments_execution_product_check'
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'strategy_deployments_execution_product_check'
+      AND conrelid = 'strategy_deployments'::regclass
   ) THEN
     ALTER TABLE strategy_deployments
       ADD CONSTRAINT strategy_deployments_execution_product_check
       CHECK (execution_product IN ('usdt_perpetual', 'spot_usdt'));
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'strategy_deployments_platform_strategy_code_check'
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'strategy_deployments_platform_strategy_code_check'
+      AND conrelid = 'strategy_deployments'::regclass
   ) THEN
     ALTER TABLE strategy_deployments
       ADD CONSTRAINT strategy_deployments_platform_strategy_code_check
