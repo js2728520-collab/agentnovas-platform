@@ -36,6 +36,7 @@ test("paper fills keep principal immutable and calculate cash, fees, realized an
   assert.equal(bought.feesUsdt, 1);
   assert.equal(bought.positions[0].side, "long");
   assert.equal(bought.positions[0].quantity, 0.02);
+  assert.equal(bought.positions[0].entryFeesUsdt, 1);
 
   const marked = markOfficialPaperPortfolio(bought, { BTCUSDT: 55_000 });
   assert.equal(marked.unrealizedPnlUsdt, 100);
@@ -51,10 +52,41 @@ test("paper fills keep principal immutable and calculate cash, fees, realized an
   });
   assert.equal(sold.principalUsdt, 10_000);
   assert.equal(sold.cashUsdt, 10_097.9);
-  assert.equal(sold.realizedPnlUsdt, 100);
+  assert.equal(sold.realizedGrossPnlUsdt, 100);
+  assert.equal(sold.realizedNetPnlUsdt, 97.9);
+  assert.equal(sold.realizedPnlUsdt, 97.9);
   assert.equal(sold.feesUsdt, 2.1);
   assert.equal(sold.positions.length, 0);
   assert.equal(sold.equityUsdt, 10_097.9);
+});
+
+test("partial and final sells allocate entry fees exactly once without leakage", () => {
+  const bought = applyOfficialPaperFill(createOfficialPaperPortfolioState("ai_balanced"), {
+    action: "buy", symbol: "BTCUSDT", fillPrice: 50_000, quoteAmountUsdt: 1_000,
+    feeRate: 0.001, filledAt: "2026-08-20T01:00:00.000Z",
+  });
+  const partial = applyOfficialPaperFill(bought, {
+    action: "sell", symbol: "BTCUSDT", fillPrice: 55_000, quantity: 0.01,
+    feeRate: 0.001, filledAt: "2026-08-20T02:00:00.000Z",
+  });
+  assert.equal(partial.positions[0].entryFeesUsdt, 0.5);
+  assert.equal(partial.realizedGrossPnlUsdt, 50);
+  assert.equal(partial.realizedNetPnlUsdt, 48.95);
+  assert.deepEqual(partial.fills.at(-1), {
+    action: "sell", symbol: "BTCUSDT", quantity: 0.01, fillPrice: 55_000,
+    notionalUsdt: 550, feeUsdt: 0.55, allocatedEntryFeeUsdt: 0.5,
+    realizedGrossPnlUsdt: 50, realizedNetPnlUsdt: 48.95,
+    filledAt: "2026-08-20T02:00:00.000Z",
+  });
+
+  const closed = applyOfficialPaperFill(partial, {
+    action: "sell", symbol: "BTCUSDT", fillPrice: 60_000, quantity: 0.01,
+    feeRate: 0.001, filledAt: "2026-08-20T03:00:00.000Z",
+  });
+  assert.equal(closed.positions.length, 0);
+  assert.equal(closed.realizedGrossPnlUsdt, 150);
+  assert.equal(closed.realizedNetPnlUsdt, 147.85);
+  assert.equal(closed.feesUsdt, 2.15);
 });
 
 test("official paper portfolios reject short, derivatives, over-allocation and expired new entries", () => {

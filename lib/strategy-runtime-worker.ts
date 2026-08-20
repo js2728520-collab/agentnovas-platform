@@ -13,6 +13,7 @@ import {
   loadOfficialPaperOpenPosition,
   markOfficialPaperPosition,
   officialPaperHasOpenPositions,
+  refreshOfficialPaperRiskState,
   settlePendingOfficialPaperOrder,
   syncOfficialPaperPortfolioAccess,
 } from "./official-paper-repository.ts";
@@ -203,6 +204,11 @@ async function processOfficialSpotRuntimeDeployment(
       markedAt: new Date(selected.closeTime),
     });
   }
+  const currentRiskState = await refreshOfficialPaperRiskState(database, {
+    deploymentId: lease.id,
+    portfolioId: lease.paperPortfolioId,
+    asOf: new Date(selected.closeTime),
+  });
   const evaluated = evaluateStrategyRuntimeCycle({
     deploymentId: lease.id,
     strategyVersionId: lease.strategyVersionId,
@@ -210,7 +216,10 @@ async function processOfficialSpotRuntimeDeployment(
     candles: evaluationCandles,
     mode: lease.mode,
     position: position ? { side: "long", entryPrice: position.entryPrice, quantity: position.quantity } : null,
-    riskState: { ...safeRiskState(lease.riskState), halted: !access.newEntriesAllowed },
+    riskState: {
+      ...safeRiskState(currentRiskState),
+      halted: currentRiskState.halted === true || !access.newEntriesAllowed,
+    },
     lastDecisionCandleCloseTime: lastClose,
   });
   const hasBacklog = selected.closeTime < market.items.at(-1)!.closeTime;

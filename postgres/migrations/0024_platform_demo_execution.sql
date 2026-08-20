@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS official_paper_portfolios (
   principal_usdt numeric(30, 12) NOT NULL DEFAULT 10000 CHECK (principal_usdt = 10000),
   cash_usdt numeric(30, 12) NOT NULL DEFAULT 10000 CHECK (cash_usdt >= 0),
   realized_pnl_usdt numeric(30, 12) NOT NULL DEFAULT 0,
+  realized_gross_pnl_usdt numeric(30, 12) NOT NULL DEFAULT 0,
+  realized_net_pnl_usdt numeric(30, 12) NOT NULL DEFAULT 0,
   fees_usdt numeric(30, 12) NOT NULL DEFAULT 0 CHECK (fees_usdt >= 0),
   access_status text NOT NULL DEFAULT 'active' CHECK (access_status IN ('active', 'close_only', 'read_only')),
   risk_json jsonb NOT NULL,
@@ -80,9 +82,12 @@ CREATE TABLE IF NOT EXISTS official_paper_positions (
   quantity numeric(30, 12) NOT NULL CHECK (quantity > 0),
   average_entry_price numeric(30, 12) NOT NULL CHECK (average_entry_price > 0),
   cost_basis_usdt numeric(30, 12) NOT NULL CHECK (cost_basis_usdt > 0),
+  entry_fees_usdt numeric(30, 12) NOT NULL DEFAULT 0 CHECK (entry_fees_usdt >= 0),
   last_mark_price numeric(30, 12) NOT NULL CHECK (last_mark_price > 0),
   unrealized_pnl_usdt numeric(30, 12) NOT NULL DEFAULT 0,
   realized_pnl_usdt numeric(30, 12) NOT NULL DEFAULT 0,
+  realized_gross_pnl_usdt numeric(30, 12) NOT NULL DEFAULT 0,
+  realized_net_pnl_usdt numeric(30, 12) NOT NULL DEFAULT 0,
   opened_at timestamptz NOT NULL,
   closed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -123,12 +128,18 @@ CREATE TABLE IF NOT EXISTS official_paper_fill_receipts (
   fill_price numeric(30, 12) NOT NULL CHECK (fill_price > 0),
   notional_usdt numeric(30, 12) NOT NULL CHECK (notional_usdt > 0),
   fee_usdt numeric(30, 12) NOT NULL CHECK (fee_usdt >= 0),
+  allocated_entry_fee_usdt numeric(30, 12) NOT NULL DEFAULT 0 CHECK (allocated_entry_fee_usdt >= 0),
   realized_pnl_usdt numeric(30, 12) NOT NULL DEFAULT 0,
+  realized_gross_pnl_usdt numeric(30, 12) NOT NULL DEFAULT 0,
+  realized_net_pnl_usdt numeric(30, 12) NOT NULL DEFAULT 0,
   trace_id text NOT NULL CHECK (length(trace_id) BETWEEN 1 AND 128),
   filled_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (intent_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_official_paper_receipts_week
+  ON official_paper_fill_receipts (portfolio_id, filled_at, id);
 
 CREATE TABLE IF NOT EXISTS official_paper_ledger_entries (
   id text PRIMARY KEY,

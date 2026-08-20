@@ -20,6 +20,7 @@ import {
   processNextRuntimeExplanation,
 } from "../lib/strategy-runtime-worker.ts";
 import {
+  aggregateOfficialThreeCardPreviousUtcWeek,
   ensureOfficialPaperPortfolios,
   resolveOfficialThreeCardPortfolioScope,
   settlePendingOfficialPaperOrder,
@@ -464,6 +465,9 @@ test("official contract follows through account-free spot runtime into its isola
   assert.ok(Number(storedPortfolio.cash_usdt) < 10_000);
   assert.equal((await pool.query("SELECT side FROM official_paper_positions WHERE portfolio_id = $1 AND status = 'open'", [portfolio.id])).rows[0].side, "long");
   assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_paper_funding_accruals WHERE deployment_id = $1", [deployment.id])).rows[0].count, 0);
+  const riskState = (await pool.query("SELECT risk_state_json FROM strategy_deployments WHERE id = $1", [deployment.id])).rows[0].risk_state_json;
+  assert.ok(riskState.dailyLossPct > 0);
+  assert.ok(riskState.maxDrawdownPct >= riskState.drawdownPct && riskState.maxDrawdownPct > 0);
 });
 
 test("performance fee scope is derived server-side from the complete official three-card portfolio set", async () => {
@@ -607,7 +611,7 @@ test("pending official paper settlement locks current membership access and expi
     membershipId,
     paperPortfolioId: portfolio.id,
   });
-  const insertPending = async (sequence, action) => {
+  const insertPending = async (sequence, action, payload = {}) => {
     const cycleId = `settlement-access-cycle-${sequence}`;
     await pool.query(`
       INSERT INTO strategy_runtime_cycles (
@@ -621,7 +625,7 @@ test("pending official paper settlement locks current membership access and expi
         symbol, action, execution_timing, requested_price, status, payload_json
       ) VALUES ($1, $2, $3, $4, $5, 'BTCUSDT', $6, 'next_candle_open', 50000, 'pending', $7::jsonb)
     `, [crypto.randomUUID(), portfolio.id, deployment.id, cycleId, `settlement-access-${sequence}`, action,
-      JSON.stringify({ quoteAmountUsdt: 100, takerFeeRate: 0.001 })]);
+      JSON.stringify({ quoteAmountUsdt: 100, takerFeeRate: 0.001, ...payload })]);
   };
 
   await insertPending(1, "buy");
@@ -637,7 +641,7 @@ test("pending official paper settlement locks current membership access and expi
     SET status = 'expired', expires_at = '2026-08-21T00:00:00.000Z', grace_ends_at = '2026-08-21T00:00:00.000Z'
     WHERE id = $1
   `, [membershipId]);
-  await insertPending(2, "sell");
+  await insertPending(2, "sell", { quantity: 0.001 });
   assert.equal((await settlePendingOfficialPaperOrder(pool, {
     deploymentId: deployment.id,
     fillPrice: 51_000,
@@ -645,11 +649,25 @@ test("pending official paper settlement locks current membership access and expi
     timing: "next_candle_open",
     traceId: "settle-expired-sell",
   }))?.status, "filled");
-  await insertPending(3, "buy");
+  const partialPosition = (await pool.query(`
+    SELECT quantity, entry_fees_usdt FROM official_paper_positions
+    WHERE portfolio_id = $1 AND status = 'open'
+  `, [portfolio.id])).rows[0];
+  assert.equal(Number(partialPosition.quantity), 0.001);
+  assert.equal(Number(partialPosition.entry_fees_usdt), 0.05);
+  await insertPending(3, "sell");
+  assert.equal((await settlePendingOfficialPaperOrder(pool, {
+    deploymentId: deployment.id,
+    fillPrice: 52_000,
+    fillTime: new Date("2026-08-23T00:00:00.000Z"),
+    timing: "next_candle_open",
+    traceId: "settle-expired-final-sell",
+  }))?.status, "filled");
+  await insertPending(4, "buy");
   const expiredBuy = await settlePendingOfficialPaperOrder(pool, {
     deploymentId: deployment.id,
     fillPrice: 50_000,
-    fillTime: new Date("2026-08-23T00:00:00.000Z"),
+    fillTime: new Date("2026-08-24T00:00:00.000Z"),
     timing: "next_candle_open",
     traceId: "settle-expired-buy",
   });
@@ -657,4 +675,24 @@ test("pending official paper settlement locks current membership access and expi
   assert.match(expiredBuy?.reason || "", /只允许平仓|只读/);
   assert.equal((await pool.query("SELECT access_status FROM official_paper_portfolios WHERE id = $1", [portfolio.id])).rows[0].access_status, "read_only");
   assert.equal((await pool.query("SELECT count(*)::int AS count FROM official_paper_positions WHERE portfolio_id = $1 AND status = 'open'", [portfolio.id])).rows[0].count, 0);
+  const sellReceipts = (await pool.query(`
+    SELECT realized_gross_pnl_usdt, realized_net_pnl_usdt, allocated_entry_fee_usdt
+    FROM official_paper_fill_receipts
+    WHERE portfolio_id = $1 AND action = 'sell'
+    ORDER BY filled_at
+  `, [portfolio.id])).rows;
+  assert.deepEqual(sellReceipts.map((row) => Number(row.realized_gross_pnl_usdt)), [1, 2]);
+  assert.deepEqual(sellReceipts.map((row) => Number(row.realized_net_pnl_usdt)), [0.899, 1.898]);
+  assert.deepEqual(sellReceipts.map((row) => Number(row.allocated_entry_fee_usdt)), [0.05, 0.05]);
+
+  const week = await aggregateOfficialThreeCardPreviousUtcWeek(pool, {
+    membershipId,
+    customerId,
+    asOf: new Date("2026-08-24T12:00:00.000Z"),
+  });
+  assert.equal(week.periodStart, "2026-08-17T00:00:00.000Z");
+  assert.equal(week.periodEnd, "2026-08-24T00:00:00.000Z");
+  assert.equal(week.realizedGrossPnlUsdt, 3);
+  assert.equal(week.realizedNetPnlUsdt, 2.797);
+  assert.equal(week.feesUsdt, 0.203);
 });

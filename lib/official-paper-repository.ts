@@ -117,6 +117,132 @@ export async function resolveOfficialThreeCardPortfolioScope(database: Queryable
   };
 }
 
+function previousCompleteUtcWeek(asOf: Date) {
+  if (!Number.isFinite(asOf.getTime())) throw new Error("绩效周结算时间无效");
+  const currentDayStart = Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate());
+  const daysSinceMonday = (asOf.getUTCDay() + 6) % 7;
+  const periodEnd = new Date(currentDayStart - daysSinceMonday * 86_400_000);
+  const periodStart = new Date(periodEnd.getTime() - 7 * 86_400_000);
+  return { periodStart, periodEnd };
+}
+
+export async function aggregateOfficialThreeCardPreviousUtcWeek(database: Queryable, input: {
+  membershipId: string;
+  customerId: string;
+  asOf?: Date;
+}) {
+  const scope = await resolveOfficialThreeCardPortfolioScope(database, input);
+  const { periodStart, periodEnd } = previousCompleteUtcWeek(input.asOf ?? new Date());
+  const result = await database.query<{
+    portfolio_id: string; strategy_code: StrategyCode; realized_gross_pnl_usdt: string;
+    realized_net_pnl_usdt: string; fees_usdt: string;
+  }>(`
+    SELECT portfolio.id AS portfolio_id, portfolio.strategy_code,
+           COALESCE(sum(receipt.realized_gross_pnl_usdt), 0)::text AS realized_gross_pnl_usdt,
+           COALESCE(sum(receipt.realized_net_pnl_usdt), 0)::text AS realized_net_pnl_usdt,
+           COALESCE(sum(receipt.fee_usdt), 0)::text AS fees_usdt
+    FROM official_paper_portfolios AS portfolio
+    LEFT JOIN official_paper_fill_receipts AS receipt
+      ON receipt.portfolio_id = portfolio.id
+     AND receipt.filled_at >= $2 AND receipt.filled_at < $3
+    WHERE portfolio.id = ANY($1::text[])
+    GROUP BY portfolio.id, portfolio.strategy_code
+  `, [scope.portfolioIds, periodStart, periodEnd]);
+  const byPortfolio = new Map(result.rows.map((row) => [row.portfolio_id, row]));
+  const strategies = scope.strategies.map((strategy) => {
+    const row = byPortfolio.get(strategy.portfolioId);
+    if (!row || row.strategy_code !== strategy.strategyCode) throw new Error("官方三卡周结算范围不完整");
+    return {
+      ...strategy,
+      realizedGrossPnlUsdt: Number(row.realized_gross_pnl_usdt),
+      realizedNetPnlUsdt: Number(row.realized_net_pnl_usdt),
+      feesUsdt: Number(row.fees_usdt),
+    };
+  });
+  const sum = (key: "realizedGrossPnlUsdt" | "realizedNetPnlUsdt" | "feesUsdt") => (
+    Number(strategies.reduce((total, row) => total + row[key], 0).toFixed(8))
+  );
+  return {
+    customerId: scope.customerId,
+    membershipId: scope.membershipId,
+    scopeKey: scope.scopeKey,
+    periodStart: periodStart.toISOString(),
+    periodEnd: periodEnd.toISOString(),
+    realizedGrossPnlUsdt: sum("realizedGrossPnlUsdt"),
+    realizedNetPnlUsdt: sum("realizedNetPnlUsdt"),
+    feesUsdt: sum("feesUsdt"),
+    strategies,
+  };
+}
+
+export async function refreshOfficialPaperRiskState(database: Queryable, input: {
+  deploymentId: string;
+  portfolioId: string;
+  asOf: Date;
+}) {
+  if (!Number.isFinite(input.asOf.getTime())) throw new Error("官方模拟盘风控时间无效");
+  const portfolio = (await database.query<{
+    principal_usdt: string; cash_usdt: string; risk_json: Record<string, unknown>;
+    position_value_usdt: string;
+  }>(`
+    SELECT portfolio.principal_usdt, portfolio.cash_usdt, portfolio.risk_json,
+           COALESCE(sum(position.quantity * position.last_mark_price)
+             FILTER (WHERE position.status = 'open'), 0)::text AS position_value_usdt
+    FROM official_paper_portfolios AS portfolio
+    LEFT JOIN official_paper_positions AS position ON position.portfolio_id = portfolio.id
+    WHERE portfolio.id = $1
+    GROUP BY portfolio.id
+  `, [input.portfolioId])).rows[0];
+  const deployment = (await database.query<{ risk_state_json: Record<string, unknown> }>(`
+    SELECT risk_state_json FROM strategy_deployments
+    WHERE id = $1 AND paper_portfolio_id = $2 AND execution_product = 'spot_usdt'
+    FOR UPDATE
+  `, [input.deploymentId, input.portfolioId])).rows[0];
+  if (!portfolio || !deployment) throw new Error("官方模拟盘风控上下文不存在");
+
+  const principal = Number(portfolio.principal_usdt);
+  const equityUsdt = Number(portfolio.cash_usdt) + Number(portfolio.position_value_usdt);
+  if (!Number.isFinite(principal) || principal <= 0 || !Number.isFinite(equityUsdt)) {
+    throw new Error("官方模拟盘风控权益无效");
+  }
+  const previous = deployment.risk_state_json || {};
+  const riskDayUtc = input.asOf.toISOString().slice(0, 10);
+  const previousEquity = Number(previous.equityUsdt);
+  const dailyBaselineEquityUsdt = previous.riskDayUtc === riskDayUtc
+    ? Number(previous.dailyBaselineEquityUsdt || principal)
+    : Number.isFinite(previousEquity) ? previousEquity : principal;
+  const previousPeak = Number(previous.peakEquityUsdt || principal);
+  const peakEquityUsdt = Math.max(previousPeak, equityUsdt);
+  const drawdownPct = peakEquityUsdt > 0 ? Math.max(0, (peakEquityUsdt - equityUsdt) / peakEquityUsdt * 100) : 100;
+  const previousMaximum = Number(previous.maxDrawdownPct || 0);
+  const maxDrawdownPct = Math.max(previousMaximum, drawdownPct);
+  const dailyLossPct = dailyBaselineEquityUsdt > 0
+    ? Math.max(0, (dailyBaselineEquityUsdt - equityUsdt) / dailyBaselineEquityUsdt * 100)
+    : 100;
+  const dailyLimit = Number(portfolio.risk_json.dailyLossHaltPct);
+  const drawdownLimit = Number(portfolio.risk_json.maxDrawdownPct);
+  const halted = previous.halted === true
+    || (Number.isFinite(dailyLimit) && dailyLossPct >= dailyLimit)
+    || (Number.isFinite(drawdownLimit) && maxDrawdownPct >= drawdownLimit);
+  const next = {
+    ...previous,
+    equityUsdt: Number(equityUsdt.toFixed(8)),
+    peakEquityUsdt: Number(peakEquityUsdt.toFixed(8)),
+    dailyBaselineEquityUsdt: Number(dailyBaselineEquityUsdt.toFixed(8)),
+    riskDayUtc,
+    drawdownPct: Number(drawdownPct.toFixed(8)),
+    maxDrawdownPct: Number(maxDrawdownPct.toFixed(8)),
+    dailyLossPct: Number(dailyLossPct.toFixed(8)),
+    halted,
+    updatedAt: input.asOf.toISOString(),
+  };
+  await database.query(`
+    UPDATE strategy_deployments SET risk_state_json = $2::jsonb, updated_at = now()
+    WHERE id = $1
+  `, [input.deploymentId, JSON.stringify(next)]);
+  return next;
+}
+
 export async function syncOfficialPaperPortfolioAccess(database: Queryable, input: {
   portfolioId: string;
   access: "active" | "close_only" | "read_only";
@@ -205,12 +331,14 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
     }
     const portfolio = (await client.query<{
       id: string; strategy_code: StrategyCode; access_status: OfficialPaperPortfolioState["access"];
-      principal_usdt: string; cash_usdt: string; realized_pnl_usdt: string; fees_usdt: string;
+      principal_usdt: string; cash_usdt: string; realized_pnl_usdt: string;
+      realized_gross_pnl_usdt: string; realized_net_pnl_usdt: string; fees_usdt: string;
       membership_status: string; membership_expires_at: string | null; membership_grace_ends_at: string | null;
     }>(`
       SELECT portfolio.id, portfolio.strategy_code, portfolio.access_status,
              portfolio.principal_usdt, portfolio.cash_usdt,
-             portfolio.realized_pnl_usdt, portfolio.fees_usdt,
+             portfolio.realized_pnl_usdt, portfolio.realized_gross_pnl_usdt,
+             portfolio.realized_net_pnl_usdt, portfolio.fees_usdt,
              membership.status AS membership_status,
              membership.expires_at AS membership_expires_at,
              membership.grace_ends_at AS membership_grace_ends_at
@@ -224,9 +352,11 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
     if (!portfolio) throw new Error("官方模拟盘组合不存在");
     const positions = await client.query<{
       id: string; symbol: "BTCUSDT" | "ETHUSDT" | "SOLUSDT"; quantity: string;
-      average_entry_price: string; cost_basis_usdt: string;
+      average_entry_price: string; cost_basis_usdt: string; entry_fees_usdt: string;
+      realized_gross_pnl_usdt: string; realized_net_pnl_usdt: string;
     }>(`
-      SELECT id, symbol, quantity, average_entry_price, cost_basis_usdt
+      SELECT id, symbol, quantity, average_entry_price, cost_basis_usdt,
+             entry_fees_usdt, realized_gross_pnl_usdt, realized_net_pnl_usdt
       FROM official_paper_positions
       WHERE portfolio_id = $1 AND status = 'open'
       ORDER BY opened_at, id FOR UPDATE
@@ -248,9 +378,13 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
     }
     const fills = await client.query<{
       action: "buy" | "sell"; symbol: "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
-      quantity: string; fill_price: string; notional_usdt: string; fee_usdt: string; filled_at: Date;
+      quantity: string; fill_price: string; notional_usdt: string; fee_usdt: string;
+      allocated_entry_fee_usdt: string; realized_gross_pnl_usdt: string;
+      realized_net_pnl_usdt: string; filled_at: Date;
     }>(`
-      SELECT action, symbol, quantity, fill_price, notional_usdt, fee_usdt, filled_at
+      SELECT action, symbol, quantity, fill_price, notional_usdt, fee_usdt,
+             allocated_entry_fee_usdt, realized_gross_pnl_usdt,
+             realized_net_pnl_usdt, filled_at
       FROM official_paper_fill_receipts
       WHERE portfolio_id = $1 ORDER BY filled_at, id
     `, [portfolio.id]);
@@ -260,7 +394,9 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
       principalUsdt: 10_000,
       cashUsdt: Number(portfolio.cash_usdt),
       equityUsdt: Number(portfolio.cash_usdt) + positions.rows.reduce((sum, row) => sum + Number(row.cost_basis_usdt), 0),
-      realizedPnlUsdt: Number(portfolio.realized_pnl_usdt),
+      realizedGrossPnlUsdt: Number(portfolio.realized_gross_pnl_usdt),
+      realizedNetPnlUsdt: Number(portfolio.realized_net_pnl_usdt),
+      realizedPnlUsdt: Number(portfolio.realized_net_pnl_usdt),
       unrealizedPnlUsdt: 0,
       feesUsdt: Number(portfolio.fees_usdt),
       positions: positions.rows.map((row) => ({
@@ -269,6 +405,7 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
         quantity: Number(row.quantity),
         averageEntryPrice: Number(row.average_entry_price),
         costBasisUsdt: Number(row.cost_basis_usdt),
+        entryFeesUsdt: Number(row.entry_fees_usdt),
         marketPrice: Number(row.average_entry_price),
         marketValueUsdt: Number(row.cost_basis_usdt),
         unrealizedPnlUsdt: 0,
@@ -280,6 +417,9 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
         fillPrice: Number(row.fill_price),
         notionalUsdt: Number(row.notional_usdt),
         feeUsdt: Number(row.fee_usdt),
+        allocatedEntryFeeUsdt: Number(row.allocated_entry_fee_usdt),
+        realizedGrossPnlUsdt: Number(row.realized_gross_pnl_usdt),
+        realizedNetPnlUsdt: Number(row.realized_net_pnl_usdt),
         filledAt: row.filled_at.toISOString(),
       })),
     };
@@ -294,7 +434,9 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
         symbol: intent.symbol,
         fillPrice,
         quoteAmountUsdt,
-        quantity: intent.action === "sell" ? openPosition?.quantity : undefined,
+        quantity: intent.action === "sell"
+          ? Number(intent.payload_json.quantity ?? openPosition?.quantity)
+          : undefined,
         feeRate,
         filledAt: input.fillTime.toISOString(),
       });
@@ -310,30 +452,43 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
 
     const nextPosition = next.positions.find((position) => position.symbol === intent.symbol);
     const priorPosition = positions.rows.find((position) => position.symbol === intent.symbol);
+    const realizedGrossDelta = next.realizedGrossPnlUsdt - state.realizedGrossPnlUsdt;
+    const realizedNetDelta = next.realizedNetPnlUsdt - state.realizedNetPnlUsdt;
     let positionId: string | null = priorPosition?.id ?? null;
     if (nextPosition && priorPosition) {
       await client.query(`
         UPDATE official_paper_positions
         SET quantity = $2, average_entry_price = $3, cost_basis_usdt = $4,
-            last_mark_price = $5, unrealized_pnl_usdt = $6, updated_at = $7
+            entry_fees_usdt = $5, last_mark_price = $6, unrealized_pnl_usdt = $7,
+            realized_pnl_usdt = realized_pnl_usdt + $8,
+            realized_gross_pnl_usdt = realized_gross_pnl_usdt + $9,
+            realized_net_pnl_usdt = realized_net_pnl_usdt + $8,
+            updated_at = $10
         WHERE id = $1
       `, [priorPosition.id, nextPosition.quantity, nextPosition.averageEntryPrice, nextPosition.costBasisUsdt,
-        nextPosition.marketPrice, nextPosition.unrealizedPnlUsdt, input.fillTime]);
+        nextPosition.entryFeesUsdt, nextPosition.marketPrice, nextPosition.unrealizedPnlUsdt,
+        realizedNetDelta, realizedGrossDelta, input.fillTime]);
     } else if (nextPosition) {
       positionId = crypto.randomUUID();
       await client.query(`
         INSERT INTO official_paper_positions (
           id, portfolio_id, symbol, side, status, quantity,
-          average_entry_price, cost_basis_usdt, last_mark_price, unrealized_pnl_usdt, opened_at
-        ) VALUES ($1, $2, $3, 'long', 'open', $4, $5, $6, $7, $8, $9)
+          average_entry_price, cost_basis_usdt, entry_fees_usdt,
+          last_mark_price, unrealized_pnl_usdt, opened_at
+        ) VALUES ($1, $2, $3, 'long', 'open', $4, $5, $6, $7, $8, $9, $10)
       `, [positionId, portfolio.id, nextPosition.symbol, nextPosition.quantity, nextPosition.averageEntryPrice,
-        nextPosition.costBasisUsdt, nextPosition.marketPrice, nextPosition.unrealizedPnlUsdt, input.fillTime]);
+        nextPosition.costBasisUsdt, nextPosition.entryFeesUsdt, nextPosition.marketPrice,
+        nextPosition.unrealizedPnlUsdt, input.fillTime]);
     } else if (priorPosition) {
       await client.query(`
         UPDATE official_paper_positions
-        SET status = 'closed', realized_pnl_usdt = $2, closed_at = $3, updated_at = $3
+        SET status = 'closed', entry_fees_usdt = 0,
+            realized_pnl_usdt = realized_pnl_usdt + $2,
+            realized_gross_pnl_usdt = realized_gross_pnl_usdt + $3,
+            realized_net_pnl_usdt = realized_net_pnl_usdt + $2,
+            closed_at = $4, updated_at = $4
         WHERE id = $1
-      `, [priorPosition.id, next.realizedPnlUsdt - state.realizedPnlUsdt, input.fillTime]);
+      `, [priorPosition.id, realizedNetDelta, realizedGrossDelta, input.fillTime]);
     }
 
     const finalAccess = currentMembershipAccess.newEntriesAllowed
@@ -341,21 +496,26 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
       : next.positions.length > 0 ? "close_only" : "read_only";
     await client.query(`
       UPDATE official_paper_portfolios
-      SET cash_usdt = $2, realized_pnl_usdt = $3, fees_usdt = $4,
-          access_status = $5, updated_at = $6
+      SET cash_usdt = $2, realized_pnl_usdt = $3,
+          realized_gross_pnl_usdt = $4, realized_net_pnl_usdt = $3,
+          fees_usdt = $5, access_status = $6, updated_at = $7
       WHERE id = $1
-    `, [portfolio.id, next.cashUsdt, next.realizedPnlUsdt, next.feesUsdt, finalAccess, input.fillTime]);
+    `, [portfolio.id, next.cashUsdt, next.realizedNetPnlUsdt,
+      next.realizedGrossPnlUsdt, next.feesUsdt, finalAccess, input.fillTime]);
     const latestFill = next.fills.at(-1)!;
     const receiptId = crypto.randomUUID();
     await client.query(`
       INSERT INTO official_paper_fill_receipts (
         id, intent_id, portfolio_id, position_id, symbol, action,
-        quantity, fill_price, notional_usdt, fee_usdt, realized_pnl_usdt,
+        quantity, fill_price, notional_usdt, fee_usdt, allocated_entry_fee_usdt,
+        realized_pnl_usdt, realized_gross_pnl_usdt, realized_net_pnl_usdt,
         trace_id, filled_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
     `, [receiptId, intent.id, portfolio.id, positionId, latestFill.symbol, latestFill.action,
       latestFill.quantity, latestFill.fillPrice, latestFill.notionalUsdt, latestFill.feeUsdt,
-      next.realizedPnlUsdt - state.realizedPnlUsdt, input.traceId, input.fillTime]);
+      latestFill.allocatedEntryFeeUsdt, latestFill.realizedNetPnlUsdt,
+      latestFill.realizedGrossPnlUsdt, latestFill.realizedNetPnlUsdt,
+      input.traceId, input.fillTime]);
     const cashDelta = next.cashUsdt - state.cashUsdt;
     await client.query(`
       INSERT INTO official_paper_ledger_entries (
@@ -367,6 +527,11 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
     await client.query(`
       UPDATE official_paper_order_intents SET status = 'filled', filled_at = $2 WHERE id = $1
     `, [intent.id, input.fillTime]);
+    await refreshOfficialPaperRiskState(client, {
+      deploymentId: input.deploymentId,
+      portfolioId: portfolio.id,
+      asOf: input.fillTime,
+    });
     await client.query("COMMIT");
     return { status: "filled" as const, receiptId, portfolioId: portfolio.id };
   } catch (error) {
@@ -380,11 +545,13 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
 export async function listOfficialPaperPortfolios(database: Queryable, customerId: string) {
   const result = await database.query<{
     id: string; membership_id: string; strategy_code: StrategyCode; principal_usdt: string;
-    cash_usdt: string; realized_pnl_usdt: string; fees_usdt: string; access_status: string;
+    cash_usdt: string; realized_pnl_usdt: string; realized_gross_pnl_usdt: string;
+    realized_net_pnl_usdt: string; fees_usdt: string; access_status: string;
     updated_at: Date; position_count: number; position_value_usdt: string; unrealized_pnl_usdt: string;
   }>(`
     SELECT portfolio.id, portfolio.membership_id, portfolio.strategy_code,
            portfolio.principal_usdt, portfolio.cash_usdt, portfolio.realized_pnl_usdt,
+           portfolio.realized_gross_pnl_usdt, portfolio.realized_net_pnl_usdt,
            portfolio.fees_usdt, portfolio.access_status, portfolio.updated_at,
            count(position.id)::int AS position_count,
            COALESCE(sum(position.quantity * position.last_mark_price), 0)::text AS position_value_usdt,
@@ -398,11 +565,11 @@ export async function listOfficialPaperPortfolios(database: Queryable, customerI
   `, [customerId]);
   const positions = await database.query<{
     id: string; portfolio_id: string; symbol: string; side: "long"; quantity: string;
-    average_entry_price: string; cost_basis_usdt: string; last_mark_price: string;
+    average_entry_price: string; cost_basis_usdt: string; entry_fees_usdt: string; last_mark_price: string;
     unrealized_pnl_usdt: string; opened_at: Date;
   }>(`
     SELECT position.id, position.portfolio_id, position.symbol, position.side,
-           position.quantity, position.average_entry_price, position.cost_basis_usdt,
+           position.quantity, position.average_entry_price, position.cost_basis_usdt, position.entry_fees_usdt,
            position.last_mark_price, position.unrealized_pnl_usdt, position.opened_at
     FROM official_paper_positions AS position
     JOIN official_paper_portfolios AS portfolio ON portfolio.id = position.portfolio_id
@@ -419,7 +586,9 @@ export async function listOfficialPaperPortfolios(database: Queryable, customerI
       principalUsdt: Number(row.principal_usdt),
       cashUsdt: cash,
       equityUsdt: cash + positionValue,
-      realizedPnlUsdt: Number(row.realized_pnl_usdt),
+      realizedPnlUsdt: Number(row.realized_net_pnl_usdt),
+      realizedGrossPnlUsdt: Number(row.realized_gross_pnl_usdt),
+      realizedNetPnlUsdt: Number(row.realized_net_pnl_usdt),
       unrealizedPnlUsdt: Number(row.unrealized_pnl_usdt),
       feesUsdt: Number(row.fees_usdt),
       access: row.access_status,
@@ -431,6 +600,7 @@ export async function listOfficialPaperPortfolios(database: Queryable, customerI
         quantity: Number(position.quantity),
         averageEntryPrice: Number(position.average_entry_price),
         costBasisUsdt: Number(position.cost_basis_usdt),
+        entryFeesUsdt: Number(position.entry_fees_usdt),
         lastMarkPrice: Number(position.last_mark_price),
         unrealizedPnlUsdt: Number(position.unrealized_pnl_usdt),
         openedAt: position.opened_at.toISOString(),
@@ -456,11 +626,15 @@ export async function listOfficialPaperTrades(database: Queryable, input: {
   const result = await database.query<{
     id: string; portfolio_id: string; strategy_code: StrategyCode; symbol: string; action: string;
     quantity: string; fill_price: string; notional_usdt: string; fee_usdt: string;
-    realized_pnl_usdt: string; trace_id: string; filled_at: Date;
+    allocated_entry_fee_usdt: string; realized_pnl_usdt: string;
+    realized_gross_pnl_usdt: string; realized_net_pnl_usdt: string;
+    trace_id: string; filled_at: Date;
   }>(`
     SELECT receipt.id, receipt.portfolio_id, portfolio.strategy_code,
            receipt.symbol, receipt.action, receipt.quantity, receipt.fill_price,
-           receipt.notional_usdt, receipt.fee_usdt, receipt.realized_pnl_usdt,
+           receipt.notional_usdt, receipt.fee_usdt, receipt.allocated_entry_fee_usdt,
+           receipt.realized_pnl_usdt, receipt.realized_gross_pnl_usdt,
+           receipt.realized_net_pnl_usdt,
            receipt.trace_id, receipt.filled_at
     FROM official_paper_fill_receipts AS receipt
     JOIN official_paper_portfolios AS portfolio ON portfolio.id = receipt.portfolio_id
@@ -481,7 +655,10 @@ export async function listOfficialPaperTrades(database: Queryable, input: {
       fillPrice: Number(row.fill_price),
       notionalUsdt: Number(row.notional_usdt),
       feeUsdt: Number(row.fee_usdt),
-      realizedPnlUsdt: Number(row.realized_pnl_usdt),
+      allocatedEntryFeeUsdt: Number(row.allocated_entry_fee_usdt),
+      realizedPnlUsdt: Number(row.realized_net_pnl_usdt),
+      realizedGrossPnlUsdt: Number(row.realized_gross_pnl_usdt),
+      realizedNetPnlUsdt: Number(row.realized_net_pnl_usdt),
       traceId: row.trace_id,
       filledAt: row.filled_at.toISOString(),
     })),

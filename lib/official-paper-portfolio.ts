@@ -15,6 +15,7 @@ export type OfficialPaperPositionState = {
   quantity: number;
   averageEntryPrice: number;
   costBasisUsdt: number;
+  entryFeesUsdt: number;
   marketPrice: number;
   marketValueUsdt: number;
   unrealizedPnlUsdt: number;
@@ -27,6 +28,9 @@ export type OfficialPaperFillState = {
   fillPrice: number;
   notionalUsdt: number;
   feeUsdt: number;
+  allocatedEntryFeeUsdt: number;
+  realizedGrossPnlUsdt: number;
+  realizedNetPnlUsdt: number;
   filledAt: string;
 };
 
@@ -36,6 +40,9 @@ export type OfficialPaperPortfolioState = {
   readonly principalUsdt: 10_000;
   cashUsdt: number;
   equityUsdt: number;
+  realizedGrossPnlUsdt: number;
+  realizedNetPnlUsdt: number;
+  /** @deprecated Use realizedNetPnlUsdt. */
   realizedPnlUsdt: number;
   unrealizedPnlUsdt: number;
   feesUsdt: number;
@@ -81,6 +88,8 @@ export function createOfficialPaperPortfolioState(strategyCode: StrategyCode): O
     principalUsdt: OFFICIAL_PAPER_PRINCIPAL_USDT,
     cashUsdt: OFFICIAL_PAPER_PRINCIPAL_USDT,
     equityUsdt: OFFICIAL_PAPER_PRINCIPAL_USDT,
+    realizedGrossPnlUsdt: 0,
+    realizedNetPnlUsdt: 0,
     realizedPnlUsdt: 0,
     unrealizedPnlUsdt: 0,
     feesUsdt: 0,
@@ -134,6 +143,7 @@ export function applyOfficialPaperFill(
     const quoteAmountUsdt = positive(Number(input.quoteAmountUsdt), "模拟买入金额");
     const existing = state.positions.find((position) => position.symbol === symbol);
     const currentCost = existing?.costBasisUsdt ?? 0;
+    const currentEntryFees = existing?.entryFeesUsdt ?? 0;
     const assetLimit = OFFICIAL_PAPER_PRINCIPAL_USDT * definition.risk.maxAssetAllocationPct / 100;
     if (currentCost + quoteAmountUsdt > assetLimit + 1e-8) throw new Error("模拟买入超过官方合同的单资产配置上限");
     const totalCost = state.positions.reduce((sum, position) => sum + position.costBasisUsdt, 0);
@@ -155,6 +165,7 @@ export function applyOfficialPaperFill(
       quantity: nextQuantity,
       averageEntryPrice: money(nextCost / nextQuantity),
       costBasisUsdt: nextCost,
+      entryFeesUsdt: money(currentEntryFees + feeUsdt),
       marketPrice: fillPrice,
       marketValueUsdt: nextCost,
       unrealizedPnlUsdt: 0,
@@ -163,7 +174,11 @@ export function applyOfficialPaperFill(
       ? state.positions.map((position) => position.symbol === symbol ? nextPosition : position)
       : [...state.positions, nextPosition];
     const cashUsdt = money(state.cashUsdt - quoteAmountUsdt - feeUsdt);
-    const fills = [...state.fills, { action: "buy" as const, symbol, quantity, fillPrice, notionalUsdt: quoteAmountUsdt, feeUsdt, filledAt: input.filledAt }];
+    const fills = [...state.fills, {
+      action: "buy" as const, symbol, quantity, fillPrice, notionalUsdt: quoteAmountUsdt,
+      feeUsdt, allocatedEntryFeeUsdt: 0, realizedGrossPnlUsdt: 0,
+      realizedNetPnlUsdt: 0, filledAt: input.filledAt,
+    }];
     return markOfficialPaperPortfolio({
       ...state,
       principalUsdt: OFFICIAL_PAPER_PRINCIPAL_USDT,
@@ -182,7 +197,9 @@ export function applyOfficialPaperFill(
   const notionalUsdt = money(quantity * fillPrice);
   const feeUsdt = money(notionalUsdt * feeRate);
   const releasedCost = money(existing.costBasisUsdt * quantity / existing.quantity);
-  const realizedPnlUsdt = money(notionalUsdt - releasedCost);
+  const allocatedEntryFeeUsdt = money(existing.entryFeesUsdt * quantity / existing.quantity);
+  const realizedGrossPnlUsdt = money(notionalUsdt - releasedCost);
+  const realizedNetPnlUsdt = money(realizedGrossPnlUsdt - allocatedEntryFeeUsdt - feeUsdt);
   const remainingQuantity = money(existing.quantity - quantity);
   const positions = remainingQuantity <= 1e-12
     ? state.positions.filter((position) => position.symbol !== symbol)
@@ -190,15 +207,24 @@ export function applyOfficialPaperFill(
       ...position,
       quantity: remainingQuantity,
       costBasisUsdt: money(position.costBasisUsdt - releasedCost),
+      entryFeesUsdt: money(position.entryFeesUsdt - allocatedEntryFeeUsdt),
       marketPrice: fillPrice,
       marketValueUsdt: money(remainingQuantity * fillPrice),
     } : position);
-  const fills = [...state.fills, { action: "sell" as const, symbol, quantity, fillPrice, notionalUsdt, feeUsdt, filledAt: input.filledAt }];
+  const fills = [...state.fills, {
+    action: "sell" as const, symbol, quantity, fillPrice, notionalUsdt, feeUsdt,
+    allocatedEntryFeeUsdt, realizedGrossPnlUsdt, realizedNetPnlUsdt,
+    filledAt: input.filledAt,
+  }];
+  const nextRealizedGrossPnlUsdt = money(state.realizedGrossPnlUsdt + realizedGrossPnlUsdt);
+  const nextRealizedNetPnlUsdt = money(state.realizedNetPnlUsdt + realizedNetPnlUsdt);
   return markOfficialPaperPortfolio({
     ...state,
     principalUsdt: OFFICIAL_PAPER_PRINCIPAL_USDT,
     cashUsdt: money(state.cashUsdt + notionalUsdt - feeUsdt),
-    realizedPnlUsdt: money(state.realizedPnlUsdt + realizedPnlUsdt),
+    realizedGrossPnlUsdt: nextRealizedGrossPnlUsdt,
+    realizedNetPnlUsdt: nextRealizedNetPnlUsdt,
+    realizedPnlUsdt: nextRealizedNetPnlUsdt,
     feesUsdt: money(state.feesUsdt + feeUsdt),
     positions,
     fills,
