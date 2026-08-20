@@ -9,7 +9,11 @@ type DeploymentRow = QueryResultRow & {
   owner_user_id: string;
   strategy_id: string;
   strategy_version_id: string;
-  exchange_account_id: string;
+  exchange_account_id: string | null;
+  execution_product: "usdt_perpetual" | "spot_usdt";
+  platform_strategy_code: "ai_conservative" | "ai_balanced" | "ai_aggressive" | null;
+  membership_id: string | null;
+  paper_portfolio_id: string | null;
   mode: "shadow" | "paper";
   status: "active" | "paused" | "ended" | "failed";
   validation_label: string;
@@ -30,6 +34,10 @@ function deploymentFromRow(row: DeploymentRow) {
     strategyId: row.strategy_id,
     strategyVersionId: row.strategy_version_id,
     exchangeAccountId: row.exchange_account_id,
+    executionProduct: row.execution_product,
+    platformStrategyCode: row.platform_strategy_code,
+    membershipId: row.membership_id,
+    paperPortfolioId: row.paper_portfolio_id,
     mode: row.mode,
     status: row.status,
     validationLabel: row.validation_label,
@@ -55,7 +63,7 @@ export async function createStrategyDeployment(database: Queryable, input: {
   ownerUserId: string;
   strategyId: string;
   strategyVersionId: string;
-  exchangeAccountId: string;
+  exchangeAccountId?: string | null;
   mode: "shadow" | "paper";
   validationLabel: "UNVERIFIED" | "EXPLORATION_ONLY" | "STANDARD_FAILED" | "STANDARD_VERIFIED";
   idempotencyKey: string;
@@ -63,30 +71,41 @@ export async function createStrategyDeployment(database: Queryable, input: {
   strategySubscriptionId?: string | null;
   positionSizePct?: number | null;
   stopLossPctOverride?: number | null;
+  executionProduct?: "usdt_perpetual" | "spot_usdt";
+  platformStrategyCode?: "ai_conservative" | "ai_balanced" | "ai_aggressive" | null;
+  membershipId?: string | null;
+  paperPortfolioId?: string | null;
 }) {
   if (input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) throw new Error("部署幂等键长度无效");
   const result = await database.query<DeploymentRow>(`
     INSERT INTO strategy_deployments AS existing (
       id, owner_user_id, strategy_id, strategy_version_id, exchange_account_id,
       mode, validation_label, unverified_warning, idempotency_key, risk_acknowledged_at,
-      strategy_subscription_id, position_size_pct, stop_loss_pct_override
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CASE WHEN $10 THEN now() ELSE NULL END, $11, $12, $13)
+      strategy_subscription_id, position_size_pct, stop_loss_pct_override,
+      execution_product, platform_strategy_code, membership_id, paper_portfolio_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CASE WHEN $10 THEN now() ELSE NULL END, $11, $12, $13, $14, $15, $16, $17)
     ON CONFLICT (owner_user_id, idempotency_key)
     DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
     WHERE existing.strategy_id = EXCLUDED.strategy_id
       AND existing.strategy_version_id = EXCLUDED.strategy_version_id
-      AND existing.exchange_account_id = EXCLUDED.exchange_account_id
+      AND existing.exchange_account_id IS NOT DISTINCT FROM EXCLUDED.exchange_account_id
       AND existing.mode = EXCLUDED.mode
       AND existing.validation_label = EXCLUDED.validation_label
       AND existing.strategy_subscription_id IS NOT DISTINCT FROM EXCLUDED.strategy_subscription_id
       AND existing.position_size_pct IS NOT DISTINCT FROM EXCLUDED.position_size_pct
       AND existing.stop_loss_pct_override IS NOT DISTINCT FROM EXCLUDED.stop_loss_pct_override
+      AND existing.execution_product = EXCLUDED.execution_product
+      AND existing.platform_strategy_code IS NOT DISTINCT FROM EXCLUDED.platform_strategy_code
+      AND existing.membership_id IS NOT DISTINCT FROM EXCLUDED.membership_id
+      AND existing.paper_portfolio_id IS NOT DISTINCT FROM EXCLUDED.paper_portfolio_id
     RETURNING *
   `, [
     crypto.randomUUID(), input.ownerUserId, input.strategyId, input.strategyVersionId,
-    input.exchangeAccountId, input.mode, input.validationLabel,
+    input.exchangeAccountId ?? null, input.mode, input.validationLabel,
     input.validationLabel !== "STANDARD_VERIFIED", input.idempotencyKey, input.riskAcknowledged,
     input.strategySubscriptionId ?? null, input.positionSizePct ?? null, input.stopLossPctOverride ?? null,
+    input.executionProduct ?? "usdt_perpetual", input.platformStrategyCode ?? null,
+    input.membershipId ?? null, input.paperPortfolioId ?? null,
   ]);
   if (!result.rows[0]) throw new StrategyDeploymentIdempotencyConflictError();
   return deploymentFromRow(result.rows[0]);
@@ -200,9 +219,13 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
   const expiresAt = new Date(input.now.getTime() + input.leaseSeconds * 1_000);
   const result = await database.query<{
     id: string; owner_user_id: string; strategy_id: string; strategy_version_id: string;
-    exchange_account_id: string; mode: "shadow" | "paper"; validation_label: string;
+    exchange_account_id: string | null; mode: "shadow" | "paper"; validation_label: string;
     fencing_token: string; last_candle_close_at: Date | null; risk_state_json: Record<string, unknown>;
-    specification_json: string; exchange: string; position_size_pct: number | null; stop_loss_pct_override: number | null;
+    specification_json: string; exchange: string | null; position_size_pct: number | null; stop_loss_pct_override: number | null;
+    execution_product: "usdt_perpetual" | "spot_usdt";
+    platform_strategy_code: "ai_conservative" | "ai_balanced" | "ai_aggressive" | null;
+    membership_id: string | null; paper_portfolio_id: string | null;
+    membership_status: string | null; membership_expires_at: string | null; membership_grace_ends_at: string | null;
   }>(`
     WITH picked AS (
       SELECT id FROM strategy_deployments
@@ -215,16 +238,28 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
     UPDATE strategy_deployments AS deployment
     SET lease_owner = $2, lease_expires_at = $3,
         fencing_token = deployment.fencing_token + 1, updated_at = $1
-    FROM picked, strategy_versions AS version, exchange_accounts AS account
+    FROM picked, strategy_versions AS version
     WHERE deployment.id = picked.id
       AND version.id = deployment.strategy_version_id
-      AND account.id = deployment.exchange_account_id
+      AND (deployment.execution_product = 'spot_usdt' OR EXISTS (
+        SELECT 1 FROM exchange_accounts AS account WHERE account.id = deployment.exchange_account_id
+      ))
     RETURNING deployment.id, deployment.owner_user_id, deployment.strategy_id,
       deployment.strategy_version_id, deployment.exchange_account_id, deployment.mode,
       deployment.validation_label, deployment.fencing_token,
       deployment.last_candle_close_at, deployment.risk_state_json,
       deployment.position_size_pct, deployment.stop_loss_pct_override,
-      version.specification_json, account.exchange
+      deployment.execution_product, deployment.platform_strategy_code,
+      deployment.membership_id, deployment.paper_portfolio_id,
+      version.specification_json,
+      (SELECT account.exchange FROM exchange_accounts AS account
+       WHERE account.id = deployment.exchange_account_id) AS exchange,
+      (SELECT membership.status FROM memberships AS membership
+       WHERE membership.id = deployment.membership_id) AS membership_status,
+      (SELECT membership.expires_at FROM memberships AS membership
+       WHERE membership.id = deployment.membership_id) AS membership_expires_at,
+      (SELECT membership.grace_ends_at FROM memberships AS membership
+       WHERE membership.id = deployment.membership_id) AS membership_grace_ends_at
   `, [input.now, input.workerId, expiresAt]);
   const row = result.rows[0];
   if (!row) return null;
@@ -242,7 +277,14 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
     positionSizePct: row.position_size_pct === null ? null : Number(row.position_size_pct),
     stopLossPctOverride: row.stop_loss_pct_override === null ? null : Number(row.stop_loss_pct_override),
     specification: JSON.parse(row.specification_json) as unknown,
-    exchange: row.exchange.toLowerCase(),
+    executionProduct: row.execution_product,
+    platformStrategyCode: row.platform_strategy_code,
+    membershipId: row.membership_id,
+    paperPortfolioId: row.paper_portfolio_id,
+    membershipStatus: row.membership_status,
+    membershipExpiresAt: row.membership_expires_at,
+    membershipGraceEndsAt: row.membership_grace_ends_at,
+    exchange: row.exchange?.toLowerCase() ?? null,
   };
 }
 
@@ -479,6 +521,8 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
   nextCycleAt: Date;
   positionSizePct: number;
   takerFeeRate?: number;
+  symbol?: "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
+  riskPerTradePct?: number;
 }) {
   if (input.events.length !== 7) throw new Error("每个运行周期必须保存七个 Agent 事件");
   const client = await database.connect();
@@ -497,7 +541,11 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
       await client.query("COMMIT");
       return { id: existing.rows[0].id, sequence: Number(existing.rows[0].sequence), duplicate: true };
     }
-    const deployment = await client.query<{ last_cycle_sequence: string; mode: "shadow" | "paper" }>(`
+    const deployment = await client.query<{
+      last_cycle_sequence: string; mode: "shadow" | "paper";
+      execution_product: "usdt_perpetual" | "spot_usdt";
+      paper_portfolio_id: string | null;
+    }>(`
       UPDATE strategy_deployments
       SET last_cycle_sequence = last_cycle_sequence + 1,
           last_candle_close_at = $4,
@@ -505,7 +553,7 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
           lease_owner = NULL, lease_expires_at = NULL,
           last_error_code = NULL, last_error_message = NULL, updated_at = now()
       WHERE id = $1 AND lease_owner = $2 AND fencing_token = $3 AND status = 'active'
-      RETURNING last_cycle_sequence, mode
+      RETURNING last_cycle_sequence, mode, execution_product, paper_portfolio_id
     `, [input.deploymentId, input.workerId, input.fencingToken, input.candleCloseTime, input.nextCycleAt]);
     if (!deployment.rows[0]) throw new Error("Runtime Worker 租约或 fencing token 已失效");
     const sequence = Number(deployment.rows[0].last_cycle_sequence);
@@ -536,21 +584,46 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
     });
     if (input.orderIntent) {
       const status = deployment.rows[0].mode === "shadow" ? "shadowed" : "pending";
-      await client.query(`
-        INSERT INTO strategy_paper_order_intents (
-          id, deployment_id, cycle_id, idempotency_key, action,
-          execution_timing, requested_price, status, payload_json
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
-        ON CONFLICT (idempotency_key) DO NOTHING
-      `, [crypto.randomUUID(), input.deploymentId, input.cycleId,
-        String(input.orderIntent.idempotencyKey), String(input.orderIntent.action),
-        String(input.orderIntent.executionTiming), input.orderIntent.requestedPrice ?? null,
-        status, JSON.stringify({
-          ...input.orderIntent,
-          positionSizePct: input.positionSizePct,
-          initialEquityUsdt: 10_000,
-          takerFeeRate: input.takerFeeRate ?? 0.0007,
-        })]);
+      if (deployment.rows[0].execution_product === "spot_usdt") {
+        const action = String(input.orderIntent.action);
+        if (action === "enter_short") throw new Error("官方现货策略禁止生成空头意图");
+        if (action !== "enter_long" && action !== "exit") throw new Error("官方现货策略订单动作无效");
+        if (!deployment.rows[0].paper_portfolio_id || !input.symbol) throw new Error("官方模拟盘组合或交易对缺失");
+        if (!Number.isFinite(input.riskPerTradePct) || Number(input.riskPerTradePct) <= 0) throw new Error("官方模拟盘单笔风险合同缺失");
+        await client.query(`
+          INSERT INTO official_paper_order_intents (
+            id, portfolio_id, deployment_id, runtime_cycle_id,
+            idempotency_key, symbol, action, execution_timing,
+            requested_price, status, payload_json
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+          ON CONFLICT (idempotency_key) DO NOTHING
+        `, [crypto.randomUUID(), deployment.rows[0].paper_portfolio_id, input.deploymentId, input.cycleId,
+          String(input.orderIntent.idempotencyKey), input.symbol, action === "enter_long" ? "buy" : "sell",
+          String(input.orderIntent.executionTiming), input.orderIntent.requestedPrice ?? null,
+          status, JSON.stringify({
+            mode: input.orderIntent.mode,
+            quoteAmountUsdt: 10_000 * Number(input.riskPerTradePct) / 100,
+            takerFeeRate: input.takerFeeRate ?? 0.001,
+            traceId: input.traceId,
+            customerExchangeAccountUsed: false,
+          })]);
+      } else {
+        await client.query(`
+          INSERT INTO strategy_paper_order_intents (
+            id, deployment_id, cycle_id, idempotency_key, action,
+            execution_timing, requested_price, status, payload_json
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+          ON CONFLICT (idempotency_key) DO NOTHING
+        `, [crypto.randomUUID(), input.deploymentId, input.cycleId,
+          String(input.orderIntent.idempotencyKey), String(input.orderIntent.action),
+          String(input.orderIntent.executionTiming), input.orderIntent.requestedPrice ?? null,
+          status, JSON.stringify({
+            ...input.orderIntent,
+            positionSizePct: input.positionSizePct,
+            initialEquityUsdt: 10_000,
+            takerFeeRate: input.takerFeeRate ?? 0.0007,
+          })]);
+      }
     }
     await client.query("COMMIT");
     return { id: input.cycleId, sequence, duplicate: false };

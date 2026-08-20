@@ -17,6 +17,9 @@ import {
   processLeasedStrategyRuntimeDeployment,
   processNextRuntimeExplanation,
 } from "../lib/strategy-runtime-worker.ts";
+import { ensureOfficialPaperPortfolios } from "../lib/official-paper-repository.ts";
+import { evaluatePlatformStrategy, PLATFORM_AI_STRATEGIES } from "../lib/platform-ai-strategies.ts";
+import { platformStrategyDslV3 } from "../lib/platform-strategy-v3.ts";
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
@@ -56,6 +59,34 @@ function candleRows(count = 30) {
   return rows;
 }
 
+function officialEntryCandles() {
+  for (let seed = 1; seed < 5_000; seed += 1) {
+    let randomState = (seed * 97) >>> 0;
+    const random = () => {
+      randomState = (randomState * 1664525 + 1013904223) >>> 0;
+      return randomState / 0x1_0000_0000;
+    };
+    let close = 100;
+    const rows = Array.from({ length: 100 }, (_, index) => {
+      const open = close;
+      close = Math.max(5, open * (1 + 0.0008 + Math.sin((index + seed % 13) / 4) * 0.0015 + (random() - 0.5) * 0.009));
+      if (index === 99 && seed % 7 === 0) close *= 1.02;
+      const spread = 0.001 + random() * 0.008;
+      return {
+        openTime: index * 3_600_000,
+        closeTime: (index + 1) * 3_600_000 - 1,
+        open,
+        high: Math.max(open, close) * (1 + spread),
+        low: Math.min(open, close) * (1 - spread),
+        close,
+        volume: (80 + random() * 50) * (index === 99 && seed % 5 === 0 ? 2.5 : 1),
+      };
+    });
+    if (evaluatePlatformStrategy(PLATFORM_AI_STRATEGIES.ai_conservative, "BTCUSDT", rows, false).action === "enter") return rows;
+  }
+  throw new Error("official entry fixture not found");
+}
+
 async function seedDeployment(mode = "shadow", key = crypto.randomUUID()) {
   return createStrategyDeployment(pool, {
     ownerUserId: "owner-a",
@@ -75,21 +106,26 @@ test.before(async () => {
   await pool.query(`
     CREATE TABLE strategy_versions (id text PRIMARY KEY, specification_json text NOT NULL);
     CREATE TABLE exchange_accounts (id text PRIMARY KEY, exchange text NOT NULL);
+    CREATE TABLE memberships (id text PRIMARY KEY, status text NOT NULL, expires_at text, grace_ends_at text);
     CREATE TABLE strategy_subscriptions (id text PRIMARY KEY);
     CREATE TABLE platform_decisions (id text PRIMARY KEY);
     CREATE TABLE trades (id text PRIMARY KEY);
   `);
   for (const filename of [
     "0001_strategy_research.sql",
+    "0004_market_data_snapshots.sql",
     "0007_strategy_runtime.sql",
     "0013_runtime_explanations.sql",
     "0020_runtime_final_decision.sql",
+    "0024_platform_demo_execution.sql",
   ]) {
     const migration = await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8");
     await pool.query(migration);
   }
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
+  await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-official', $1)`, [JSON.stringify(platformStrategyDslV3("ai_conservative", "BTCUSDT"))]);
   await pool.query(`INSERT INTO exchange_accounts (id, exchange) VALUES ('account-a', 'binance')`);
+  await pool.query(`INSERT INTO memberships (id, status, expires_at, grace_ends_at) VALUES ('membership-official', 'active', '2099-01-01T00:00:00.000Z', '2099-01-02T00:00:00.000Z')`);
 });
 
 test.beforeEach(async () => {
@@ -361,4 +397,65 @@ test("positive funding charges longs, credits shorts, and is idempotent by fundi
   assert.equal(first.fundingCostUsdt, -0.2);
   assert.equal(repeated.applied, 0);
   assert.equal(Number((await pool.query("SELECT funding_usdt FROM strategy_paper_positions WHERE id = 'short-position'")).rows[0].funding_usdt), -0.2);
+});
+
+test("official contract follows through account-free spot runtime into its isolated 10k paper portfolio", async () => {
+  const portfolios = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const portfolio = portfolios.find((item) => item.strategyCode === "ai_conservative");
+  const deployment = await createStrategyDeployment(pool, {
+    ownerUserId: "owner-official",
+    strategyId: "strategy-official",
+    strategyVersionId: "version-official",
+    exchangeAccountId: null,
+    mode: "paper",
+    validationLabel: "UNVERIFIED",
+    idempotencyKey: "official-spot-paper",
+    riskAcknowledged: true,
+    executionProduct: "spot_usdt",
+    platformStrategyCode: "ai_conservative",
+    membershipId: "membership-official",
+    paperPortfolioId: portfolio.id,
+  });
+  let rows = officialEntryCandles();
+  const spotAdapter = {
+    async getCandles() { return { items: rows, provider: "fixture" }; },
+    async getFeeSchedule() { return { makerRate: 0.001, takerRate: 0.001, source: "fixture" }; },
+  };
+  const dependencies = {
+    createSpotAdapter: () => spotAdapter,
+    saveSnapshot: async (_database, input) => ({ id: input.sourceId, candleSha256: "a", fundingSha256: "b", datasetSha256: "c" }),
+  };
+  const firstNow = new Date(Date.now() + 60_000);
+  const firstLease = await leaseNextStrategyDeployment(pool, { workerId: "official-runtime-a", now: firstNow, leaseSeconds: 30 });
+  assert.equal(firstLease.id, deployment.id);
+  assert.equal(firstLease.exchangeAccountId, null);
+  assert.equal(firstLease.executionProduct, "spot_usdt");
+  const first = await processLeasedStrategyRuntimeDeployment(pool, firstLease, "official-runtime-a", { ...dependencies, now: () => firstNow });
+  assert.equal(first.decision.action, "enter_long");
+  assert.equal((await pool.query("SELECT status FROM official_paper_order_intents")).rows[0].status, "pending");
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_paper_order_intents")).rows[0].count, 0);
+
+  const last = rows.at(-1);
+  rows = [...rows, {
+    openTime: last.closeTime + 1,
+    closeTime: last.closeTime + 3_600_000,
+    open: last.close,
+    high: last.close * 1.002,
+    low: last.close * 0.998,
+    close: last.close,
+    volume: 100,
+  }];
+  const secondNow = new Date(firstNow.getTime() + 16_000);
+  const secondLease = await leaseNextStrategyDeployment(pool, { workerId: "official-runtime-b", now: secondNow, leaseSeconds: 30 });
+  await processLeasedStrategyRuntimeDeployment(pool, secondLease, "official-runtime-b", { ...dependencies, now: () => secondNow });
+  const storedPortfolio = (await pool.query(`
+    SELECT principal_usdt, cash_usdt FROM official_paper_portfolios WHERE id = $1
+  `, [portfolio.id])).rows[0];
+  assert.equal(Number(storedPortfolio.principal_usdt), 10_000);
+  assert.ok(Number(storedPortfolio.cash_usdt) < 10_000);
+  assert.equal((await pool.query("SELECT side FROM official_paper_positions WHERE portfolio_id = $1 AND status = 'open'", [portfolio.id])).rows[0].side, "long");
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_paper_funding_accruals WHERE deployment_id = $1", [deployment.id])).rows[0].count, 0);
 });

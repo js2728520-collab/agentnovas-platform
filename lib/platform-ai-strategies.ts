@@ -1,19 +1,18 @@
 import type { SpotCandle } from "@/lib/market-data";
+import {
+  officialTradingHallStrategies,
+  type OfficialTradingHallStrategy,
+} from "@/packages/contracts/src/trading-hall";
 
-export type PlatformStrategyCode = "ai_conservative" | "ai_balanced" | "ai_aggressive";
+export type PlatformStrategyCode = OfficialTradingHallStrategy["code"];
 export type PlatformStrategyAction = "enter" | "exit" | "hold";
 
-export type PlatformStrategyDefinition = {
-  code: PlatformStrategyCode;
+export type PlatformStrategyDefinition = OfficialTradingHallStrategy & {
+  product: "spot_usdt";
   publicId: "ai-stable" | "ai-balanced" | "ai-aggressive";
-  name: string;
   version: string;
   riskLevel: "low" | "medium" | "high";
   interval: "5m" | "15m" | "1h";
-  symbols: string[];
-  maxCapitalPct: number;
-  stopLossPct: number;
-  takeProfitPct: number;
   minimumConfidence: number;
 };
 
@@ -40,56 +39,32 @@ export type PlatformStrategySignal = {
   };
   riskReview: {
     approved: boolean;
-    maxCapitalPct: number;
-    stopLossPct: number;
-    takeProfitPct: number;
-    leverage: 1;
+    risk: OfficialTradingHallStrategy["risk"];
+    leverageEnabled: false;
+    shortSellingEnabled: false;
+    fundingEnabled: false;
     objections: string[];
   };
   agentMessages: PlatformAgentMessage[];
 };
 
-export const PLATFORM_AI_STRATEGIES: Record<PlatformStrategyCode, PlatformStrategyDefinition> = {
-  ai_conservative: {
-    code: "ai_conservative",
-    publicId: "ai-stable",
-    name: "AI 稳健型",
-    version: "v3.1.0",
-    riskLevel: "low",
-    interval: "1h",
-    symbols: ["BTCUSDT", "ETHUSDT"],
-    maxCapitalPct: 2,
-    stopLossPct: 1.6,
-    takeProfitPct: 3.2,
-    minimumConfidence: 72,
+const runtimeMetadata = {
+  ai_conservative: { publicId: "ai-stable", version: "v3.2.0", riskLevel: "low", minimumConfidence: 72 },
+  ai_balanced: { publicId: "ai-balanced", version: "v4.2.0", riskLevel: "medium", minimumConfidence: 68 },
+  ai_aggressive: { publicId: "ai-aggressive", version: "v2.2.0", riskLevel: "high", minimumConfidence: 75 },
+} as const;
+
+export const PLATFORM_AI_STRATEGIES = Object.fromEntries(officialTradingHallStrategies.map((official) => [
+  official.code,
+  {
+    ...official,
+    ...runtimeMetadata[official.code],
+    product: official.targetMarket,
+    symbols: [...official.symbols],
+    risk: { ...official.risk },
+    interval: official.decisionTimeframes.at(-1)!,
   },
-  ai_balanced: {
-    code: "ai_balanced",
-    publicId: "ai-balanced",
-    name: "AI 平衡型",
-    version: "v4.1.0",
-    riskLevel: "medium",
-    interval: "15m",
-    symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
-    maxCapitalPct: 3,
-    stopLossPct: 2.2,
-    takeProfitPct: 4.4,
-    minimumConfidence: 68,
-  },
-  ai_aggressive: {
-    code: "ai_aggressive",
-    publicId: "ai-aggressive",
-    name: "AI 激进型",
-    version: "v2.1.0",
-    riskLevel: "high",
-    interval: "5m",
-    symbols: ["BTCUSDT", "SOLUSDT"],
-    maxCapitalPct: 4,
-    stopLossPct: 1.8,
-    takeProfitPct: 3.6,
-    minimumConfidence: 75,
-  },
-};
+])) as unknown as Record<PlatformStrategyCode, PlatformStrategyDefinition>;
 
 export function platformStrategyCodeFromPublicId(value: string): PlatformStrategyCode | null {
   const definition = Object.values(PLATFORM_AI_STRATEGIES).find((item) => item.publicId === value || item.code === value);
@@ -162,7 +137,7 @@ function signalMessages(
     { agent: "技术分析师", message: `EMA9/21/55 为 ${metrics.ema9}/${metrics.ema21}/${metrics.ema55}，RSI14 为 ${metrics.rsi14}。` },
     { agent: "策略研究员", message: `${definition.name} 形成“${direction}”意见，模型置信度 ${confidence}%。` },
     { agent: "反方审查员", message: objections.length ? `反方异议：${riskText}` : `已检查量价背离、追高和波动扩张，暂未提出否决。` },
-    { agent: "首席风控官", message: `仓位上限 ${definition.maxCapitalPct}%，止损 ${definition.stopLossPct}%，杠杆固定 1×。` },
+    { agent: "首席风控官", message: `单资产上限 ${definition.risk.maxAssetAllocationPct}%，组合上限 ${definition.risk.maxTotalAllocationPct}%，不启用杠杆。` },
     { agent: "交易执行员", message: action === "hold" ? "当前没有可执行指令，订单通道保持待命。" : `${direction}指令必须通过账户权限、会员状态和总仓位检查后才能提交。` },
     { agent: "审计 Agent", message: `${reason}；本轮行情时间与指标证据已写入决策记录。` },
   ];
@@ -258,10 +233,10 @@ export function evaluatePlatformStrategy(
     metrics,
     riskReview: {
       approved,
-      maxCapitalPct: definition.maxCapitalPct,
-      stopLossPct: definition.stopLossPct,
-      takeProfitPct: definition.takeProfitPct,
-      leverage: 1,
+      risk: { ...definition.risk },
+      leverageEnabled: false,
+      shortSellingEnabled: false,
+      fundingEnabled: false,
       objections,
     },
     agentMessages: signalMessages(definition, symbol, action, confidence, reason, metrics, objections),

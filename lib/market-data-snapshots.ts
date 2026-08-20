@@ -38,7 +38,7 @@ export async function hashMarketDataSeries(
 export async function saveMarketDataSnapshot(database: Queryable, input: {
   sourceType: "research_run" | "runtime_cycle";
   sourceId: string;
-  exchangeAccountId: string;
+  exchangeAccountId: string | null;
   exchange: PerpetualExchange;
   instrumentId: string;
   symbol: string;

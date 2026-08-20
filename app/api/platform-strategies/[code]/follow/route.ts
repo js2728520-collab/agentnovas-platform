@@ -1,8 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { auditLogs, exchangeAccounts, memberships } from "@/db/schema";
-import { getExchangeCapability } from "@/lib/exchange-capabilities";
+import { auditLogs, memberships } from "@/db/schema";
 import { PLATFORM_AI_STRATEGIES, isPlatformStrategyCode } from "@/lib/platform-ai-strategies";
 import { getPostgresPool } from "@/lib/postgres";
 import {
@@ -10,6 +9,7 @@ import {
   StrategyDeploymentIdempotencyConflictError,
 } from "@/lib/strategy-runtime-repository";
 import { membershipAccess } from "@/lib/membership-rules";
+import { ensureOfficialPaperPortfolios } from "@/lib/official-paper-repository";
 import { readResearchJson, requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { isCustomerTradingEmergencyStopped } from "@/lib/trading-emergency";
 
@@ -30,43 +30,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     if (body.riskConsent !== true) {
       throw new ResearchApiError("RISK_ACKNOWLEDGEMENT_REQUIRED", "请先确认历史表现不代表未来收益", 422, { fields: ["riskConsent"] });
     }
-    const exchangeAccountId = String(body.exchangeAccountId ?? "").trim();
     const symbol = normalizeSymbol(body.symbol);
     const mode = String(body.mode ?? "paper");
-    const capitalPct = Number(body.capitalPct);
-    const stopLossPct = Number(body.stopLossPct);
-    if (!exchangeAccountId) throw new ResearchApiError("VALIDATION_ERROR", "请选择行情数据账户", 422, { fields: ["exchangeAccountId"] });
-    if (!definition.symbols.includes(symbol)) {
-      throw new ResearchApiError("VALIDATION_ERROR", "请选择该平台策略支持的 USDT 永续合约", 422, { fields: ["symbol"] });
+    if (!(definition.symbols as readonly string[]).includes(symbol)) {
+      throw new ResearchApiError("VALIDATION_ERROR", "请选择该平台策略支持的 USDT 现货交易对", 422, { fields: ["symbol"] });
     }
     if (mode !== "shadow" && mode !== "paper") {
       throw new ResearchApiError("VALIDATION_ERROR", "运行模式仅支持 shadow 或 paper", 422, { fields: ["mode"] });
     }
-    if (!Number.isFinite(capitalPct) || capitalPct < 0.1 || capitalPct > definition.maxCapitalPct) {
-      throw new ResearchApiError("VALIDATION_ERROR", `${definition.name} 的资金使用上限为 ${definition.maxCapitalPct}%`, 422, { fields: ["capitalPct"] });
-    }
-    if (!Number.isFinite(stopLossPct) || stopLossPct < 0.1 || stopLossPct > definition.stopLossPct) {
-      throw new ResearchApiError("VALIDATION_ERROR", `${definition.name} 的止损不得高于 ${definition.stopLossPct}%`, 422, { fields: ["stopLossPct"] });
-    }
 
     const db = getDb();
-    const [account, membership] = await Promise.all([
-      db.select().from(exchangeAccounts).where(and(
-        eq(exchangeAccounts.id, exchangeAccountId),
-        eq(exchangeAccounts.customerId, user.id),
-      )).limit(1).then(rows => rows[0]),
-      db.select().from(memberships).where(and(
-        eq(memberships.customerId, user.id),
-        inArray(memberships.status, ["active", "grace"]),
-      )).limit(1).then(rows => rows[0]),
-    ]);
-    if (!account || account.status !== "active" || !account.canRead) {
-      throw new ResearchApiError("INVALID_EXCHANGE_ACCOUNT", "行情数据账户不存在、已禁用或不可读", 422);
-    }
-    const capability = getExchangeCapability(account.exchange);
-    if (!capability?.supportsContracts || !["OKX", "BINANCE", "BYBIT"].includes(account.exchange.toUpperCase())) {
-      throw new ResearchApiError("UNSUPPORTED_PERPETUAL_ACCOUNT", "该账户不支持本期 USDT 永续行情", 422);
-    }
+    const membership = await db.select().from(memberships).where(and(
+      eq(memberships.customerId, user.id),
+      inArray(memberships.status, ["active", "grace"]),
+    )).limit(1).then(rows => rows[0]);
     if (!membership) throw new ResearchApiError("MEMBERSHIP_REQUIRED", "会员权限不可用", 403);
     const access = membershipAccess(new Date().toISOString(), membership);
     if (!access.newEntriesAllowed) throw new ResearchApiError("MEMBERSHIP_ENTRY_BLOCKED", "会员当前不能新增策略", 403);
@@ -88,6 +65,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     try {
       await client.query("BEGIN");
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`platform-follow:${user.id}`]);
+      const portfolios = await ensureOfficialPaperPortfolios(client, {
+        membershipId: membership.id,
+        customerId: user.id,
+      });
+      const portfolio = portfolios.find(item => item.strategyCode === code);
+      if (!portfolio) throw new Error("官方策略卡模拟组合初始化失败");
       const activeCount = Number((await client.query<{ count: string }>(`
         SELECT count(*)::text AS count FROM strategy_subscriptions
         WHERE customer_id = $1 AND status = 'active'
@@ -118,22 +101,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
           risk_check_json = EXCLUDED.risk_check_json, ended_at = NULL,
           updated_at = EXCLUDED.risk_consent_at
       `, [
-        subscriptionId, mapped.strategy_id, user.id, account.id, capitalPct, stopLossPct,
+        subscriptionId, mapped.strategy_id, user.id, null, definition.risk.maxAssetAllocationPct, 0,
         activatedAt, mapped.strategy_version_id, mode,
-        JSON.stringify({ code, symbol, mode, realOrderRoutingEnabled: false }),
+        JSON.stringify({ code, symbol, mode, product: "spot_usdt", risk: definition.risk, customerExchangeAccountUsed: false, realOrderRoutingEnabled: false }),
       ]);
       deployment = await createStrategyDeployment(client, {
         ownerUserId: user.id,
         strategyId: mapped.strategy_id,
         strategyVersionId: mapped.strategy_version_id,
         strategySubscriptionId: subscriptionId,
-        exchangeAccountId: account.id,
+        exchangeAccountId: null,
         mode,
         validationLabel: "UNVERIFIED",
         idempotencyKey: `platform-follow:${code}:${symbol}:${mode}`,
         riskAcknowledged: true,
-        positionSizePct: capitalPct,
-        stopLossPctOverride: stopLossPct,
+        positionSizePct: null,
+        stopLossPctOverride: null,
+        executionProduct: "spot_usdt",
+        platformStrategyCode: code,
+        membershipId: membership.id,
+        paperPortfolioId: portfolio.id,
       });
       const reactivated = await client.query(`
         UPDATE strategy_deployments
@@ -159,7 +146,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
       action: "platform_strategy.runtime.activated",
       subjectType: "strategy_deployment",
       subjectId: deployment.id,
-      afterJson: JSON.stringify({ code, symbol, mode, strategyId: mapped.strategy_id, strategyVersionId: mapped.strategy_version_id, realOrderRoutingEnabled: false }),
+      afterJson: JSON.stringify({ code, symbol, mode, strategyId: mapped.strategy_id, strategyVersionId: mapped.strategy_version_id, product: "spot_usdt", risk: definition.risk, customerExchangeAccountUsed: false, realOrderRoutingEnabled: false }),
     });
     return Response.json({
       subscriptionId,
@@ -171,7 +158,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     if (error instanceof StrategyDeploymentIdempotencyConflictError) {
       return researchErrorResponse(new ResearchApiError(
         "IDEMPOTENCY_CONFLICT",
-        "该平台策略已有不同账户或风险参数的运行记录，请先停止原部署后创建新的运行配置",
+        "该平台策略已有不同卡片、交易对或模式的运行记录，请先停止原部署后创建新的运行配置",
         409,
       ));
     }
