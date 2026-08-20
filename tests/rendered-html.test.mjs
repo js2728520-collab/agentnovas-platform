@@ -30,9 +30,10 @@ test("keeps the Riverton Capital shell and core modules present", async () => {
   assert.match(css, /\.feature-split/);
   assert.match(css, /\.risk-check-grid/);
   assert.match(page, /LiveMarket/);
-  assert.match(page, /ConnectLive/);
-  assert.match(page, /CommunityStrategyCenter/);
-  assert.match(page, /StrategyDetail/);
+  assert.match(page, /TradingCenterV2/);
+  assert.match(page, /MembershipCenter/);
+  assert.doesNotMatch(page, /ConnectLive|CommunityStrategyCenter|StrategyDetail/);
+  assert.doesNotMatch(page, /function Admin\(/);
   assert.match(layout, /generateMetadata/);
   assert.match(layout, /rivertonMetadata/);
   assert.match(metadata, /Riverton Capital 客户端/);
