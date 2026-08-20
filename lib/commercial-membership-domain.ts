@@ -1,5 +1,5 @@
-const DECIMAL_SCALE = 18n;
-const DECIMAL_UNIT = 10n ** DECIMAL_SCALE;
+const DECIMAL_SCALE = BigInt(18);
+const DECIMAL_UNIT = BigInt(10) ** DECIMAL_SCALE;
 
 function decimalToUnits(value: string) {
   const match = /^(-)?(\d+)(?:\.(\d{1,18}))?$/.exec(value.trim());
@@ -9,7 +9,7 @@ function decimalToUnits(value: string) {
 }
 
 function unitsToDecimal(value: bigint) {
-  const negative = value < 0n;
+  const negative = value < BigInt(0);
   const absolute = negative ? -value : value;
   const fraction = (absolute % DECIMAL_UNIT).toString().padStart(18, "0").replace(/0+$/, "");
   return `${negative ? "-" : ""}${absolute / DECIMAL_UNIT}${fraction ? `.${fraction}` : ""}`;
@@ -32,7 +32,7 @@ export function calculateTokenCost(input: {
   }
   const numerator = BigInt(input.inputTokens) * BigInt(input.inputCreditsPerMillion)
     + BigInt(input.outputTokens) * BigInt(input.outputCreditsPerMillion);
-  const credits = (numerator + 999_999n) / 1_000_000n;
+  const credits = (numerator + BigInt(999_999)) / BigInt(1_000_000);
   return { modelVersion: input.modelVersion, credits: credits.toString() };
 }
 
@@ -45,9 +45,9 @@ export function calculateWeeklyPerformanceFee(input: {
   if (!Number.isInteger(input.feeBps) || input.feeBps < 0 || input.feeBps > 10_000) throw new Error("FEE_BPS_INVALID");
   const cumulative = decimalToUnits(input.cumulativeNetPnl);
   const hwm = decimalToUnits(input.committedHighWaterMark);
-  const eligible = cumulative > hwm ? cumulative - hwm : 0n;
-  const lossCarry = cumulative < hwm ? hwm - cumulative : 0n;
-  const fee = eligible * BigInt(input.feeBps) / 10_000n;
+  const eligible = cumulative > hwm ? cumulative - hwm : BigInt(0);
+  const lossCarry = cumulative < hwm ? hwm - cumulative : BigInt(0);
+  const fee = eligible * BigInt(input.feeBps) / BigInt(10_000);
   return {
     weekNetPnl: unitsToDecimal(decimalToUnits(input.weekNetPnl)),
     cumulativeNetPnl: unitsToDecimal(cumulative),

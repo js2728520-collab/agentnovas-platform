@@ -4,13 +4,14 @@ CREATE TABLE IF NOT EXISTS commercial_plan_versions (
   version integer NOT NULL CHECK (version > 0),
   price_amount numeric(36,18) NOT NULL CHECK (price_amount > 0),
   price_currency text NOT NULL DEFAULT 'USDT',
-  duration_days integer NOT NULL CHECK (duration_days > 0),
+  duration_days integer,
   ai_credit_grant numeric(36,0) NOT NULL CHECK (ai_credit_grant > 0),
   performance_fee_bps integer NOT NULL CHECK (performance_fee_bps BETWEEN 0 AND 10000),
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('draft','active','retired')),
   effective_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (plan_code, version)
+  UNIQUE (plan_code, version),
+  CHECK ((plan_code = 'lifetime' AND duration_days IS NULL) OR (plan_code <> 'lifetime' AND duration_days > 0))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_plan_one_active
   ON commercial_plan_versions(plan_code) WHERE status = 'active';
@@ -21,7 +22,7 @@ VALUES
   ('membership_monthly_v1','monthly',1,28,30,1000,2000,'2026-08-20T00:00:00Z'),
   ('membership_quarterly_v1','quarterly',1,58,90,3000,2000,'2026-08-20T00:00:00Z'),
   ('membership_annual_v1','annual',1,198,365,12000,2000,'2026-08-20T00:00:00Z'),
-  ('membership_lifetime_v1','lifetime',1,588,36000,36000,1600,'2026-08-20T00:00:00Z')
+  ('membership_lifetime_v1','lifetime',1,588,NULL,36000,1600,'2026-08-20T00:00:00Z')
 ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS commercial_legal_document_versions (
@@ -54,7 +55,7 @@ CREATE TABLE IF NOT EXISTS commercial_membership_orders (
   plan_version_id text NOT NULL REFERENCES commercial_plan_versions(id) ON DELETE RESTRICT,
   price_amount numeric(36,18) NOT NULL CHECK (price_amount > 0),
   price_currency text NOT NULL,
-  duration_days integer NOT NULL CHECK (duration_days > 0),
+  duration_days integer CHECK (duration_days IS NULL OR duration_days > 0),
   ai_credit_grant numeric(36,0) NOT NULL CHECK (ai_credit_grant > 0),
   performance_fee_bps integer NOT NULL CHECK (performance_fee_bps BETWEEN 0 AND 10000),
   legal_snapshot_json jsonb NOT NULL,
@@ -200,9 +201,15 @@ CREATE TABLE IF NOT EXISTS performance_fee_statements (
 );
 CREATE INDEX IF NOT EXISTS idx_performance_statements_user_time ON performance_fee_statements(user_id, week_start DESC, id DESC);
 
-ALTER TABLE commercial_payment_evidence
-  ADD CONSTRAINT fk_commercial_evidence_statement
-  FOREIGN KEY (performance_statement_id) REFERENCES performance_fee_statements(id) ON DELETE RESTRICT;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_commercial_evidence_statement' AND conrelid='commercial_payment_evidence'::regclass) THEN
+    ALTER TABLE commercial_payment_evidence ADD CONSTRAINT fk_commercial_evidence_statement
+      FOREIGN KEY (performance_statement_id) REFERENCES performance_fee_statements(id) ON DELETE RESTRICT;
+  END IF;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_evidence_statement_fingerprint
+  ON commercial_payment_evidence(performance_statement_id, reference_fingerprint)
+  WHERE performance_statement_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS performance_fee_decisions (
   id text PRIMARY KEY,
@@ -232,4 +239,3 @@ SELECT d.owner_user_id AS user_id, d.strategy_id, p.closed_at, p.realized_net_pn
 FROM strategy_paper_positions p
 JOIN strategy_deployments d ON d.id = p.deployment_id
 WHERE d.mode = 'paper' AND p.status = 'closed' AND p.closed_at IS NOT NULL;
-

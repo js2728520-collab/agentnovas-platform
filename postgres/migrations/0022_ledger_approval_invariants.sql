@@ -36,7 +36,7 @@ CREATE TRIGGER ledger_postings_append_only
 
 CREATE OR REPLACE FUNCTION validate_ledger_transaction_balance() RETURNS trigger AS $$
 DECLARE
-  target_transaction_id text := NEW.transaction_id;
+  target_transaction_id text := COALESCE(to_jsonb(NEW)->>'transaction_id', to_jsonb(NEW)->>'id');
   transaction_currency text;
   posting_count bigint;
   debit_total numeric(36,18);
@@ -66,3 +66,8 @@ CREATE CONSTRAINT TRIGGER ledger_postings_balanced
   DEFERRABLE INITIALLY DEFERRED
   FOR EACH ROW EXECUTE FUNCTION validate_ledger_transaction_balance();
 
+DROP TRIGGER IF EXISTS ledger_transactions_balanced ON ledger_transactions;
+CREATE CONSTRAINT TRIGGER ledger_transactions_balanced
+  AFTER INSERT ON ledger_transactions
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION validate_ledger_transaction_balance();
