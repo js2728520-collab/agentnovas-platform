@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.riverton-system-state {
+  display: grid;
+  width: min(34rem, calc(100% - 2rem));
+  min-height: 100vh;
+  margin: 0 auto;
+  place-content: center;
+  justify-items: start;
+  gap: 0.8rem;
+  color: #e8edf5;
+}
+
+.riverton-system-state h1,
+.riverton-system-state p {
+  margin: 0;
+}
+
+.riverton-system-state p {
+  color: #9ca9bc;
+  line-height: 1.65;
+}
+
+.riverton-system-kicker {
+  color: #75e5c5 !important;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.riverton-system-action {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.5rem;
+  border: 1px solid #3ad0a7;
+  border-radius: 0.65rem;
+  padding: 0.65rem 1rem;
+  background: #153d36;
+  color: #effff9;
+  cursor: pointer;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.riverton-system-action:focus-visible {
+  outline: 3px solid #8af4d7;
+  outline-offset: 3px;
+}
+
+.riverton-system-spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid #344255;
+  border-top-color: #75e5c5;
+  border-radius: 50%;
+  animation: riverton-system-spin 0.9s linear infinite;
+}
+
+@keyframes riverton-system-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .riverton-system-spinner {
+    animation: none;
+  }
+}

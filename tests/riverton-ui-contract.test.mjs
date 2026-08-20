@@ -9,9 +9,9 @@ test("root page dispatches one codebase to the three audience applications", asy
   assert.doesNotMatch(source, /^"use client";/);
   assert.match(source, /resolveAppAudienceStrict/);
   assert.match(source, /if \(!audience\) notFound\(\)/);
-  assert.match(source, /ClientApp/);
-  assert.match(source, /OperationsApp/);
-  assert.match(source, /MaintenanceApp/);
+  assert.match(source, /CurrentApp/);
+  assert.doesNotMatch(source, /^import .*@\/apps\//m);
+  assert.match(source, /@\/app\/audience\/current-root/);
 });
 
 test("stable routes use the same audience dispatcher and reject wrong applications", async () => {
@@ -23,6 +23,42 @@ test("stable routes use the same audience dispatcher and reject wrong applicatio
   assert.match(dispatcher, /resolveAppAudienceStrict/);
   assert.match(dispatcher, /if \(!audience\) notFound\(\)/);
   assert.match(dispatcher, /root !== "wallet" && segments\.length > 1/);
+  assert.doesNotMatch(dispatcher, /^import .*@\/apps\//m);
+  assert.match(dispatcher, /CurrentApp/);
+});
+
+test("audience entries own their CSS while the root layout stays minimal", async () => {
+  const layout = await read("app/layout.tsx");
+  assert.match(layout, /\.\/base\.css/);
+  assert.doesNotMatch(layout, /market-terminal|membership-center|riverton-console|\.\/globals\.css/);
+  assert.doesNotMatch(layout, /LocaleGuard/);
+  const client = await read("app/audience/client-root.tsx");
+  const operations = await read("app/audience/operations-root.tsx");
+  const maintenance = await read("app/audience/maintenance-root.tsx");
+  assert.match(client, /globals\.css/);
+  assert.match(client, /market-terminal\.css/);
+  assert.match(client, /membership-center\.css/);
+  assert.match(client, /LocaleGuard/);
+  assert.match(operations, /riverton-console\.css/);
+  assert.match(maintenance, /riverton-console\.css/);
+  assert.doesNotMatch(operations + maintenance, /globals|market-terminal|membership-center/);
+  const config = await read("next.config.ts");
+  assert.match(config, /resolveAlias/);
+  assert.match(config, /@\/app\/audience\/current-root/);
+});
+
+test("metadata identifies each audience and keeps internal consoles out of search", async () => {
+  const { rivertonMetadata } = await import("../lib/riverton-metadata.ts");
+  const client = rivertonMetadata("client");
+  const operations = rivertonMetadata("operations");
+  const maintenance = rivertonMetadata("maintenance");
+  assert.match(String(client.title), /客户端/);
+  assert.match(String(operations.title), /运营端/);
+  assert.match(String(maintenance.title), /运维端/);
+  assert.equal(operations.robots?.index, false);
+  assert.equal(maintenance.robots?.index, false);
+  assert.equal(client.robots?.index, true);
+  assert.doesNotMatch(String(operations.description), /non-custodial AI quant trading platform/i);
 });
 
 test("internal applications use permission-driven navigation and login without registration", async () => {
@@ -38,6 +74,46 @@ test("internal applications use permission-driven navigation and login without r
     const endpoint = await read(path);
     assert.match(endpoint, /currentRequestAudience\(request\) !== "client"/);
     assert.match(endpoint, /status: 404/);
+  }
+});
+
+test("shared console navigation is hydration-safe and keyboard-contained", async () => {
+  const shell = await read("packages/ui/src/console-shell.tsx");
+  assert.match(shell, /usePathname/);
+  assert.match(shell, /rc-skip-link/);
+  assert.match(shell, /aria-modal/);
+  assert.match(shell, /event\.key === "Escape"/);
+  assert.match(shell, /event\.key === "Tab"/);
+  assert.match(shell, /rc-console-backdrop/);
+  assert.match(shell, /returnButton\?\.focus/);
+  assert.doesNotMatch(shell, /typeof window === "undefined" \? "\/"/);
+});
+
+test("shared request hooks cancel obsolete reads instead of committing stale data", async () => {
+  const dataHook = await read("packages/ui/src/use-api-data.ts");
+  const sessionHook = await read("packages/ui/src/use-app-session.ts");
+  for (const source of [dataHook, sessionHook]) {
+    assert.match(source, /AbortController/);
+    assert.match(source, /signal:/);
+    assert.match(source, /abort\(\)/);
+  }
+  assert.match(dataHook, /requestSequence/);
+});
+
+test("app router owns audience-neutral loading, error and not-found states", async () => {
+  const loading = await read("app/loading.tsx");
+  const error = await read("app/error.tsx");
+  const globalError = await read("app/global-error.tsx");
+  const notFound = await read("app/not-found.tsx");
+  assert.match(loading, /role="status"/);
+  assert.match(loading, /aria-live="polite"/);
+  assert.match(error, /^"use client";/);
+  assert.match(error, /reset\(\)/);
+  assert.match(globalError, /^"use client";/);
+  assert.match(globalError, /<html lang="zh-CN">/);
+  assert.match(notFound, /页面不存在/);
+  for (const source of [loading, error, globalError, notFound]) {
+    assert.doesNotMatch(source, /@\/apps\//);
   }
 });
 

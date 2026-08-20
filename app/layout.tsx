@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import "./market-terminal.css";
-import "./membership-center.css";
-import "./riverton-console.css";
-import LocaleGuard from "./locale-guard";
+import { headers } from "next/headers";
+import "./base.css";
+
+import { resolveAppAudienceStrict } from "@/lib/riverton-apps";
+import { rivertonMetadata } from "@/lib/riverton-metadata";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,14 +16,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Riverton Capital — AI Quant Trading Platform",
-  description: "Riverton Capital non-custodial AI quant trading platform with collaborative agents, risk controls and execution audit.",
-  icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const audience = resolveAppAudienceStrict({ host: (await headers()).get("host") ?? undefined });
+  return rivertonMetadata(audience);
+}
 
 export default function RootLayout({
   children,
@@ -35,7 +31,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <LocaleGuard />
         {children}
       </body>
     </html>

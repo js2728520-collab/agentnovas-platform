@@ -18,6 +18,10 @@
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+.rc-skip-link { position: fixed; top: 8px; left: 8px; z-index: 100; padding: 9px 12px; color: #061019; background: var(--rc-accent); transform: translateY(-160%); transition: transform .15s ease; }
+.rc-skip-link:focus { transform: translateY(0); }
+.rc-console-backdrop { display: none; }
+
 .rc-console { display: grid; grid-template-columns: 264px minmax(0, 1fr); }
 .rc-console > aside { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; padding: 20px 14px; border-right: 1px solid var(--rc-border); background: #09131d; z-index: 20; }
 .rc-console-brand { display: flex; align-items: center; gap: 12px; padding: 8px 10px 20px; color: var(--rc-text); text-decoration: none; }
@@ -198,6 +202,7 @@
   .rc-mobile-bar button { border: 1px solid var(--rc-border); padding: 7px 10px; color: var(--rc-text); background: transparent; }
   .rc-console > aside { position: fixed; inset: 54px auto 0 0; width: min(288px, 88vw); height: auto; transform: translateX(-105%); transition: transform .18s ease; box-shadow: 18px 0 40px rgba(0,0,0,.35); }
   .rc-console > aside.is-open { transform: translateX(0); }
+  .rc-console-backdrop.is-open { position: fixed; inset: 54px 0 0; z-index: 19; display: block; width: 100%; border: 0; background: rgba(0, 5, 10, .72); }
   .rc-console-top { padding: 0 16px; }
   .rc-console-top small { display: none; }
   .rc-console-content { padding: 20px 16px; }

@@ -75,10 +75,12 @@ test("client support entry uses Riverton branding and never fakes a ticket submi
   const client = await read("app/client-app.tsx");
   const support = await read("app/support-floating.tsx");
   const layout = await read("app/layout.tsx");
+  const metadata = await read("lib/riverton-metadata.ts");
   assert.match(client, /\/api\/platform\/settings/);
   assert.match(client, /telegramSupportUrl/);
   assert.match(client, /Riverton Capital/);
-  assert.match(layout, /Riverton Capital/);
+  assert.match(layout, /rivertonMetadata/);
+  assert.match(metadata, /Riverton Capital 客户端/);
   assert.match(support, /supportEmail/);
   assert.match(support, /Telegram 客服链接尚未配置/);
   assert.doesNotMatch(support, /提交工单|Create ticket/);

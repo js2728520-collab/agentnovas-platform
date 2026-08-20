@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const appAudience = process.env.RIVERTON_APP_AUDIENCE;
+const audienceEntry = appAudience
+  ? `@/app/audience/${appAudience}-root`
+  : null;
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
@@ -20,6 +23,7 @@ const nextConfig: NextConfig = {
   ...(appAudience ? { distDir: `.next-${appAudience}` } : {}),
   turbopack: {
     root: process.cwd(),
+    ...(audienceEntry ? { resolveAlias: { "@/app/audience/current-root": audienceEntry } } : {}),
   },
 };
 

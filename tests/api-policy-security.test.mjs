@@ -16,6 +16,7 @@ import {
 } from "../lib/api-policy.ts";
 import { researchErrorResponse } from "../lib/research-error-response.ts";
 import { ResearchApiError } from "../lib/research-errors.ts";
+import { contentSecurityPolicy } from "../lib/content-security-policy.ts";
 import { resolveAppAudienceStrict } from "../lib/riverton-apps.ts";
 import { SENSITIVE_PERMISSION_KEYS } from "../lib/rbac.ts";
 
@@ -351,10 +352,24 @@ test("forwarded protocol cannot satisfy Origin checks without an explicit truste
   }
 });
 
-test("Next 16 Proxy applies the central policy before API Route Handlers", async () => {
+test("strict page CSP uses a per-request nonce without allowing inline scripts", () => {
+  const policy = contentSecurityPolicy("nonce_0123456789abcdef", false);
+  assert.match(policy, /script-src 'self' 'nonce-nonce_0123456789abcdef' 'strict-dynamic'/);
+  assert.doesNotMatch(policy, /script-src[^;]*'unsafe-inline'/);
+  assert.match(policy, /style-src-attr 'unsafe-inline'/);
+  assert.match(policy, /frame-ancestors 'none'/);
+  assert.match(policy, /object-src 'none'/);
+});
+
+test("Next 16 Proxy applies API policy and page nonce policy before rendering", async () => {
   const proxy = await readFile(new URL("../proxy.ts", import.meta.url), "utf8");
   assert.match(proxy, /evaluateApiRequestPolicy/);
-  assert.match(proxy, /matcher:\s*"\/api\/:path\*"/);
+  assert.match(proxy, /resolveAppAudienceStrict/);
+  assert.match(proxy, /contentSecurityPolicy/);
+  assert.match(proxy, /x-nonce/);
+  assert.match(proxy, /content-security-policy/);
+  assert.match(proxy, /"\/api\/:path\*"/);
+  assert.match(proxy, /_next\/static/);
   assert.match(proxy, /x-request-id/);
   assert.doesNotMatch(proxy, /getPostgresPool|getDb|DATABASE_URL/);
 });
