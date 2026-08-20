@@ -104,17 +104,32 @@ test("organization activation UI only reports queued set-password delivery", asy
 
 test("Maintenance Demo safe view never selects credential ciphertext", async () => {
   const route = await read("app/api/maintenance/demo-exchanges/route.ts");
+  const viewSource = await read("lib/maintenance-demo-view.ts");
   assert.match(route, /maint\.demo_exchanges\.view/);
-  assert.match(route, /platform_demo_accounts_safe/);
+  assert.match(viewSource, /platform_demo_accounts_safe/);
   assert.match(route, /cache-control/);
-  assert.doesNotMatch(route, /api_key_ciphertext|secret_ciphertext|passphrase_ciphertext/);
+  assert.doesNotMatch(`${route}\n${viewSource}`, /api_key_ciphertext|secret_ciphertext|passphrase_ciphertext/);
 
   const workspace = await read("apps/maintenance/ui/demo-exchanges-workspace.tsx");
   assert.match(workspace, /\/api\/maintenance\/demo-exchanges/);
   assert.match(workspace, /平台测试账户，不代表客户真实成交/);
   assert.match(workspace, /hasApiKey|hasSecret/);
   assert.match(workspace, /lastVerifiedAt|latestReceipt|dailyNotional/);
-  assert.doesNotMatch(workspace, /apiKey|ciphertext|privateEndpoint|webhookPayload/);
+  assert.doesNotMatch(workspace, /apiKey\s*:|ciphertext|privateEndpoint|webhookPayload/);
+
+  const control = await read("app/api/maintenance/demo-exchanges/[id]/control/route.ts");
+  assert.match(control, /maint\.demo_exchanges\.(manage|kill)/);
+  assert.match(control, /FOR UPDATE/);
+  assert.match(control, /reason/);
+  assert.match(control, /IS DISTINCT FROM/);
+  assert.doesNotMatch(control, /api_key_ciphertext|secret_ciphertext|passphrase_ciphertext/);
+
+  const verify = await read("app/api/maintenance/demo-exchanges/[id]/verify/route.ts");
+  assert.match(verify, /maint\.demo_exchanges\.verify/);
+  assert.match(verify, /PLATFORM_DEMO_VERIFICATION_ENABLED/);
+  assert.match(verify, /verifyPlatformDemoAccount/);
+  assert.match(workspace, /ConfirmActionDialog/);
+  assert.match(workspace, /canVerify|canManage|canKill/);
 });
 
 test("Maintenance distinguishes Worker gates and keeps Payment disabled", async () => {
