@@ -10,6 +10,7 @@ import {
   providerConfigAllowsSend,
 } from "../lib/notification-email-worker.ts";
 import { businessDatabaseUrl } from "../lib/postgres.ts";
+import { createWorkerHeartbeatReporter } from "../lib/worker-observability.ts";
 
 const connectionString = businessDatabaseUrl();
 if (!connectionString) throw new Error("DATABASE_URL is required");
@@ -25,6 +26,14 @@ const pool = new pg.Pool({
 });
 
 const workerId = `${os.hostname().replace(/[^a-z0-9.-]/gi, "-").slice(0, 60)}-${process.pid}`;
+const heartbeat = createWorkerHeartbeatReporter(pool, {
+  workerType: "notification",
+  instanceId: workerId,
+  commitSha: process.env.GIT_COMMIT_SHA,
+  onError: (error) => console.error("Notification Worker heartbeat failed", {
+    code: error instanceof Error ? error.name : "UNKNOWN",
+  }),
+});
 const apiKey = process.env.RESEND_API_KEY.trim();
 let stopping = false;
 
@@ -38,6 +47,7 @@ function delay(ms) {
 
 try {
   process.stdout.write(`Notification Worker started (${workerId}).\n`);
+  await heartbeat.start();
   while (!stopping) {
     const config = await loadResendProviderConfig(pool);
     if (!config || !providerConfigAllowsSend(config)) {
@@ -49,10 +59,13 @@ try {
       await delay(1_000);
       continue;
     }
+    heartbeat.setCurrentJob(delivery.id);
     try {
       const result = await processClaimedEmail(pool, delivery, { workerId, apiKey });
+      await heartbeat.markSuccess();
       process.stdout.write(`Notification ${delivery.id} ${result.status}.\n`);
     } catch (error) {
+      await heartbeat.markFailure(error);
       console.error("Notification processing failed", {
         deliveryId: delivery.id,
         code: error instanceof Error ? error.name : "UNKNOWN",
@@ -60,5 +73,6 @@ try {
     }
   }
 } finally {
+  await heartbeat.stop();
   await pool.end();
 }

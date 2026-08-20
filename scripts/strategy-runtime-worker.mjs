@@ -7,6 +7,7 @@ import {
   processNextRuntimeExplanation,
   processNextStrategyRuntimeDeployment,
 } from "../lib/strategy-runtime-worker.ts";
+import { createWorkerHeartbeatReporter } from "../lib/worker-observability.ts";
 
 const connectionString = researchDatabaseUrl();
 if (!connectionString) throw new Error("RESEARCH_DATABASE_URL or DATABASE_URL is required");
@@ -18,6 +19,14 @@ const pool = new pg.Pool({
   application_name: "agentnovas-runtime-worker",
 });
 const workerId = `${os.hostname().replace(/[^a-z0-9.-]/gi, "-").slice(0, 60)}-${process.pid}`;
+const heartbeat = createWorkerHeartbeatReporter(pool, {
+  workerType: "runtime",
+  instanceId: workerId,
+  commitSha: process.env.GIT_COMMIT_SHA,
+  onError: (error) => console.error("Runtime Worker heartbeat failed", {
+    code: error instanceof Error ? error.name : "UNKNOWN",
+  }),
+});
 let stopping = false;
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -29,6 +38,7 @@ function delay(ms) {
 }
 
 try {
+  await heartbeat.start();
   while (!stopping) {
     try {
       const result = await processNextStrategyRuntimeDeployment(pool, { workerId });
@@ -36,6 +46,7 @@ try {
       if (!result && !explanation) await delay(1_000);
       else if (result?.status === "waiting_for_candle" && !explanation) await delay(250);
       else {
+        heartbeat.setCurrentJob(result?.cycleId || explanation?.jobId || null);
         if (result?.status === "completed") console.info("Runtime cycle completed", {
           cycleId: result.cycleId,
           sequence: result.sequence,
@@ -46,8 +57,10 @@ try {
           cycleId: explanation.cycleId,
           status: explanation.status,
         });
+        await heartbeat.markSuccess();
       }
     } catch (error) {
+      await heartbeat.markFailure(error);
       console.error("Runtime cycle failed", {
         message: error instanceof Error ? error.message.slice(0, 300) : "unknown",
       });
@@ -55,5 +68,6 @@ try {
     }
   }
 } finally {
+  await heartbeat.stop();
   await pool.end();
 }

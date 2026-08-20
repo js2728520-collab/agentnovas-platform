@@ -5,6 +5,7 @@ import pg from "pg";
 import { researchDatabaseUrl } from "../lib/postgres.ts";
 import { leaseNextResearchRun, renewResearchRunLease } from "../lib/postgres-research-queue.ts";
 import { processResearchStage } from "../lib/strategy-research-orchestrator.ts";
+import { createWorkerHeartbeatReporter } from "../lib/worker-observability.ts";
 
 const connectionString = researchDatabaseUrl();
 if (!connectionString) throw new Error("RESEARCH_DATABASE_URL or DATABASE_URL is required");
@@ -16,6 +17,14 @@ const pool = new pg.Pool({
   application_name: "agentnovas-research-worker",
 });
 const workerId = `${os.hostname().replace(/[^a-z0-9.-]/gi, "-").slice(0, 60)}-${process.pid}`;
+const workerHeartbeat = createWorkerHeartbeatReporter(pool, {
+  workerType: "research",
+  instanceId: workerId,
+  commitSha: process.env.GIT_COMMIT_SHA,
+  onError: (error) => console.error("Research Worker heartbeat failed", {
+    code: error instanceof Error ? error.name : "UNKNOWN",
+  }),
+});
 let stopping = false;
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -47,6 +56,7 @@ function leaseHeartbeat(runId) {
 }
 
 try {
+  await workerHeartbeat.start();
   while (!stopping) {
     const run = await leaseNextResearchRun(pool, {
       workerId,
@@ -57,11 +67,14 @@ try {
       await delay(1_000);
       continue;
     }
+    workerHeartbeat.setCurrentJob(run.id);
     const heartbeat = leaseHeartbeat(run.id);
     try {
       await processResearchStage(pool, run, workerId);
       if (heartbeat.failure()) throw heartbeat.failure();
+      await workerHeartbeat.markSuccess();
     } catch (error) {
+      await workerHeartbeat.markFailure(error);
       console.error("Research stage failed", {
         runId: run.id,
         stage: run.stage,
@@ -72,5 +85,6 @@ try {
     }
   }
 } finally {
+  await workerHeartbeat.stop();
   await pool.end();
 }

@@ -1,7 +1,6 @@
 export async function GET() {
   return Response.json({
-    status: "available",
-    mode: "shadow-paper-only",
+    status: "alive",
     timestamp: new Date().toISOString(),
   }, { headers: { "cache-control": "no-store, max-age=0" } });
 }
