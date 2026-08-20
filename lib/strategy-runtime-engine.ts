@@ -2,7 +2,9 @@ import {
   createStrategyLegEvaluator,
   strategyDslToRuntime,
   type StrategyCandle,
+  type StrategyLegV3,
 } from "./strategy-dsl.ts";
+import { normalizeOfficialSpotStrategySpecification } from "./platform-strategy-v3.ts";
 
 export const runtimeAgentRoles = [
   "market_data",
@@ -64,18 +66,27 @@ export function evaluateStrategyRuntimeCycle(input: {
   lastDecisionCandleCloseTime?: number | null;
 }) {
   if (!input.deploymentId || !input.strategyVersionId) throw new Error("运行部署或策略版本标识缺失");
-  const specification = strategyDslToRuntime(input.dsl);
+  const officialSpot = normalizeOfficialSpotStrategySpecification(input.dsl);
+  const perpetualSpecification = officialSpot ? null : strategyDslToRuntime(input.dsl);
+  const specification = officialSpot ?? perpetualSpecification!;
   if (input.candles.length < 2) throw new Error("运行周期至少需要两根完整 K 线");
   const quality = dataQuality(input.candles);
   if (!quality.valid) throw new Error("运行周期 K 线顺序或质量无效");
   const index = input.candles.length - 1;
   const candle = input.candles[index];
   const marketState = classifyMarketState(input.candles);
-  const longEvaluator = specification.legs.long
-    ? createStrategyLegEvaluator(specification.legs.long, input.candles)
+  const longLeg = specification.legs.long;
+  const shortLeg = "short" in specification.legs ? specification.legs.short : undefined;
+  const evaluatorLeg = (leg: { entry: StrategyLegV3["entry"]; exit: StrategyLegV3["exit"] }) => ({
+    ...leg,
+    stopLossPct: "stopLossPct" in leg ? Number(leg.stopLossPct) : 1,
+    takeProfitPct: "takeProfitPct" in leg ? Number(leg.takeProfitPct) : 1,
+  });
+  const longEvaluator = longLeg
+    ? createStrategyLegEvaluator(evaluatorLeg(longLeg), input.candles)
     : null;
-  const shortEvaluator = specification.legs.short
-    ? createStrategyLegEvaluator(specification.legs.short, input.candles)
+  const shortEvaluator = shortLeg
+    ? createStrategyLegEvaluator(evaluatorLeg(shortLeg), input.candles)
     : null;
   const longEntry = Boolean(longEvaluator?.entryAt(index));
   const shortEntry = Boolean(shortEvaluator?.entryAt(index));
@@ -87,16 +98,18 @@ export function evaluateStrategyRuntimeCycle(input: {
   let requestedPrice: number | null = null;
 
   if (input.position) {
-    const leg = input.position.side === "long" ? specification.legs.long : specification.legs.short;
+    const leg = input.position.side === "long" ? longLeg : shortLeg;
     if (!leg) throw new Error("当前仓位方向与策略版本不一致");
-    const stopPrice = input.position.side === "long"
-      ? input.position.entryPrice * (1 - leg.stopLossPct / 100)
-      : input.position.entryPrice * (1 + leg.stopLossPct / 100);
-    const takePrice = input.position.side === "long"
-      ? input.position.entryPrice * (1 + leg.takeProfitPct / 100)
-      : input.position.entryPrice * (1 - leg.takeProfitPct / 100);
-    const stopHit = input.position.side === "long" ? candle.low <= stopPrice : candle.high >= stopPrice;
-    const takeHit = input.position.side === "long" ? candle.high >= takePrice : candle.low <= takePrice;
+    const stopLossPct = "stopLossPct" in leg ? Number(leg.stopLossPct) : null;
+    const takeProfitPct = "takeProfitPct" in leg ? Number(leg.takeProfitPct) : null;
+    const stopPrice = stopLossPct === null ? null : input.position.side === "long"
+      ? input.position.entryPrice * (1 - stopLossPct / 100)
+      : input.position.entryPrice * (1 + stopLossPct / 100);
+    const takePrice = takeProfitPct === null ? null : input.position.side === "long"
+      ? input.position.entryPrice * (1 + takeProfitPct / 100)
+      : input.position.entryPrice * (1 - takeProfitPct / 100);
+    const stopHit = stopPrice !== null && (input.position.side === "long" ? candle.low <= stopPrice : candle.high >= stopPrice);
+    const takeHit = takePrice !== null && (input.position.side === "long" ? candle.high >= takePrice : candle.low <= takePrice);
     if (stopHit) {
       action = "exit";
       reason = "stop_loss";
@@ -129,9 +142,12 @@ export function evaluateStrategyRuntimeCycle(input: {
   const rejectionReasons: string[] = [];
   const isEntry = action === "enter_long" || action === "enter_short";
   if (isEntry && input.riskState.halted) rejectionReasons.push("运行部署已触发熔断");
-  if (isEntry && input.riskState.drawdownPct >= specification.risk.maxDrawdownPct) rejectionReasons.push("最大回撤边界已触发");
-  if (isEntry && input.riskState.dailyLossPct >= specification.risk.maxDailyLossPct) rejectionReasons.push("单日亏损边界已触发");
-  if (isEntry && input.riskState.consecutiveLosses >= specification.risk.maxConsecutiveLosses) rejectionReasons.push("连续亏损边界已触发");
+  const maxDrawdownPct = specification.risk.maxDrawdownPct;
+  const maxDailyLossPct = officialSpot ? officialSpot.risk.dailyLossHaltPct : perpetualSpecification!.risk.maxDailyLossPct;
+  const maxConsecutiveLosses = officialSpot ? null : perpetualSpecification!.risk.maxConsecutiveLosses;
+  if (isEntry && input.riskState.drawdownPct >= maxDrawdownPct) rejectionReasons.push("最大回撤边界已触发");
+  if (isEntry && input.riskState.dailyLossPct >= maxDailyLossPct) rejectionReasons.push("单日亏损边界已触发");
+  if (isEntry && maxConsecutiveLosses !== null && input.riskState.consecutiveLosses >= maxConsecutiveLosses) rejectionReasons.push("连续亏损边界已触发");
   if (isEntry && objections.includes("duplicate_candle_signal")) rejectionReasons.push("该完整 K 线已处理");
   const riskApproved = action === "exit" || action === "hold" || rejectionReasons.length === 0;
   const decision = { action, reason, riskApproved, rejectionReasons };

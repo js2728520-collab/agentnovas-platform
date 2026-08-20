@@ -28,10 +28,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       await client.query("BEGIN");
       if (action === "stop") {
         const open = Number((await client.query<{ count: string }>(`
-          SELECT count(*)::text AS count
-          FROM strategy_paper_positions AS position
-          JOIN strategy_deployments AS deployment ON deployment.id = position.deployment_id
-          WHERE deployment.strategy_subscription_id = $1 AND position.status = 'open'
+          SELECT count(*)::text AS count FROM (
+            SELECT position.id
+            FROM strategy_paper_positions AS position
+            JOIN strategy_deployments AS deployment ON deployment.id = position.deployment_id
+            WHERE deployment.strategy_subscription_id = $1 AND position.status = 'open'
+            UNION ALL
+            SELECT position.id
+            FROM official_paper_positions AS position
+            JOIN strategy_deployments AS deployment ON deployment.paper_portfolio_id = position.portfolio_id
+            WHERE deployment.strategy_subscription_id = $1 AND position.status = 'open'
+          ) AS open_positions
         `, [subscriptionId])).rows[0]?.count || 0);
         if (open > 0) throw new ResearchApiError("OPEN_POSITION_EXISTS", "仍有模拟持仓，必须先由策略退出或执行紧急平仓流程", 409);
       }

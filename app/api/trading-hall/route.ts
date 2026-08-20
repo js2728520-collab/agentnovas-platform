@@ -152,8 +152,13 @@ export async function GET(request: Request) {
         deployment.mode, deployment.status, deployment.strategy_version_id,
         deployment.updated_at, cycle.id AS cycle_id,
         cycle.candle_close_time, cycle.decision_json, cycle.trace_id,
-        (SELECT count(*)::text FROM strategy_paper_positions AS position
-         WHERE position.deployment_id = deployment.id AND position.status = 'open') AS open_positions
+        CASE WHEN deployment.execution_product = 'spot_usdt' THEN
+          (SELECT count(*)::text FROM official_paper_positions AS position
+           WHERE position.portfolio_id = deployment.paper_portfolio_id AND position.status = 'open')
+        ELSE
+          (SELECT count(*)::text FROM strategy_paper_positions AS position
+           WHERE position.deployment_id = deployment.id AND position.status = 'open')
+        END AS open_positions
       FROM strategy_deployments AS deployment
       JOIN platform_strategy_migration_map AS mapping
         ON mapping.strategy_id = deployment.strategy_id

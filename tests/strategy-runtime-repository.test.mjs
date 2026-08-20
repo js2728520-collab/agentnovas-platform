@@ -9,20 +9,40 @@ import {
   completeRuntimeExplanationJob,
   completeStrategyRuntimeCycle,
   createStrategyDeployment,
+  changeStrategyDeploymentStatus,
+  endConflictingOfficialStrategyDeployments,
   leaseNextRuntimeExplanationJob,
   leaseNextStrategyDeployment,
+  OfficialStrategyGenericResumeBlockedError,
+  OfficialStrategyModeSwitchOpenPositionError,
   renewStrategyRuntimeLease,
 } from "../lib/strategy-runtime-repository.ts";
 import {
   processLeasedStrategyRuntimeDeployment,
   processNextRuntimeExplanation,
 } from "../lib/strategy-runtime-worker.ts";
+import {
+  aggregateOfficialThreeCardPreviousUtcWeek,
+  ensureOfficialPaperPortfolios,
+  resolveOfficialThreeCardPortfolioScope,
+  refreshOfficialPaperRiskState,
+  settlePendingOfficialPaperOrder,
+} from "../lib/official-paper-repository.ts";
+import { evaluatePlatformStrategy, PLATFORM_AI_STRATEGIES } from "../lib/platform-ai-strategies.ts";
+import { platformStrategyDslV3 } from "../lib/platform-strategy-v3.ts";
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
 const schema = `strategy_runtime_test_${process.pid}_${Date.now()}`;
 const adminPool = new Pool({ connectionString: databaseUrl, max: 2 });
 const pool = new Pool({ connectionString: databaseUrl, max: 6, options: `-c search_path=${schema}` });
+const pre0024Migrations = [
+  "0001_strategy_research.sql",
+  "0004_market_data_snapshots.sql",
+  "0007_strategy_runtime.sql",
+  "0013_runtime_explanations.sql",
+  "0020_runtime_final_decision.sql",
+];
 
 const dsl = {
   schemaVersion: 3,
@@ -56,6 +76,49 @@ function candleRows(count = 30) {
   return rows;
 }
 
+function officialEntryCandles() {
+  for (let seed = 1; seed < 5_000; seed += 1) {
+    let randomState = (seed * 97) >>> 0;
+    const random = () => {
+      randomState = (randomState * 1664525 + 1013904223) >>> 0;
+      return randomState / 0x1_0000_0000;
+    };
+    let close = 100;
+    const rows = Array.from({ length: 100 }, (_, index) => {
+      const open = close;
+      close = Math.max(5, open * (1 + 0.0008 + Math.sin((index + seed % 13) / 4) * 0.0015 + (random() - 0.5) * 0.009));
+      if (index === 99 && seed % 7 === 0) close *= 1.02;
+      const spread = 0.001 + random() * 0.008;
+      return {
+        openTime: index * 3_600_000,
+        closeTime: (index + 1) * 3_600_000 - 1,
+        open,
+        high: Math.max(open, close) * (1 + spread),
+        low: Math.min(open, close) * (1 - spread),
+        close,
+        volume: (80 + random() * 50) * (index === 99 && seed % 5 === 0 ? 2.5 : 1),
+      };
+    });
+    if (evaluatePlatformStrategy(PLATFORM_AI_STRATEGIES.ai_conservative, "BTCUSDT", rows, false).action === "enter") return rows;
+  }
+  throw new Error("official entry fixture not found");
+}
+
+async function initializePre0024Schema(database) {
+  await database.query(`
+    CREATE TABLE strategy_versions (id text PRIMARY KEY, specification_json text NOT NULL);
+    CREATE TABLE exchange_accounts (id text PRIMARY KEY, exchange text NOT NULL);
+    CREATE TABLE memberships (id text PRIMARY KEY, customer_id text NOT NULL, status text NOT NULL, expires_at text, grace_ends_at text);
+    CREATE TABLE strategy_subscriptions (id text PRIMARY KEY);
+    CREATE TABLE platform_decisions (id text PRIMARY KEY);
+    CREATE TABLE trades (id text PRIMARY KEY);
+  `);
+  for (const filename of pre0024Migrations) {
+    const migration = await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8");
+    await database.query(migration);
+  }
+}
+
 async function seedDeployment(mode = "shadow", key = crypto.randomUUID()) {
   return createStrategyDeployment(pool, {
     ownerUserId: "owner-a",
@@ -72,28 +135,18 @@ async function seedDeployment(mode = "shadow", key = crypto.randomUUID()) {
 test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
   await adminPool.query(`CREATE SCHEMA "${schema}"`);
-  await pool.query(`
-    CREATE TABLE strategy_versions (id text PRIMARY KEY, specification_json text NOT NULL);
-    CREATE TABLE exchange_accounts (id text PRIMARY KEY, exchange text NOT NULL);
-    CREATE TABLE strategy_subscriptions (id text PRIMARY KEY);
-    CREATE TABLE platform_decisions (id text PRIMARY KEY);
-    CREATE TABLE trades (id text PRIMARY KEY);
-  `);
-  for (const filename of [
-    "0001_strategy_research.sql",
-    "0007_strategy_runtime.sql",
-    "0013_runtime_explanations.sql",
-    "0020_runtime_final_decision.sql",
-  ]) {
-    const migration = await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8");
-    await pool.query(migration);
-  }
+  await initializePre0024Schema(pool);
+  const migration0024 = await readFile(new URL("../postgres/migrations/0024_platform_demo_execution.sql", import.meta.url), "utf8");
+  await pool.query(migration0024);
+  await pool.query(migration0024);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
+  await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-official', $1)`, [JSON.stringify(platformStrategyDslV3("ai_conservative", "BTCUSDT"))]);
   await pool.query(`INSERT INTO exchange_accounts (id, exchange) VALUES ('account-a', 'binance')`);
+  await pool.query(`INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at) VALUES ('membership-official', 'owner-official', 'active', NULL, NULL)`);
 });
 
 test.beforeEach(async () => {
-  await pool.query("TRUNCATE strategy_deployments, runtime_explanation_bindings, llm_profiles CASCADE");
+  await pool.query("TRUNCATE strategy_deployments, official_paper_portfolios, runtime_explanation_bindings, llm_profiles CASCADE");
 });
 
 test.after(async () => {
@@ -361,4 +414,617 @@ test("positive funding charges longs, credits shorts, and is idempotent by fundi
   assert.equal(first.fundingCostUsdt, -0.2);
   assert.equal(repeated.applied, 0);
   assert.equal(Number((await pool.query("SELECT funding_usdt FROM strategy_paper_positions WHERE id = 'short-position'")).rows[0].funding_usdt), -0.2);
+});
+
+test("official contract follows through account-free spot runtime into its isolated 10k paper portfolio", async () => {
+  const portfolios = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const portfolio = portfolios.find((item) => item.strategyCode === "ai_conservative");
+  const deployment = await createStrategyDeployment(pool, {
+    ownerUserId: "owner-official",
+    strategyId: "strategy-official",
+    strategyVersionId: "version-official",
+    exchangeAccountId: null,
+    mode: "paper",
+    validationLabel: "UNVERIFIED",
+    idempotencyKey: "official-spot-paper",
+    riskAcknowledged: true,
+    executionProduct: "spot_usdt",
+    platformStrategyCode: "ai_conservative",
+    membershipId: "membership-official",
+    paperPortfolioId: portfolio.id,
+  });
+  let rows = officialEntryCandles();
+  const spotAdapter = {
+    async getCandles() { return { items: rows, provider: "fixture" }; },
+    async getFeeSchedule() { return { makerRate: 0.001, takerRate: 0.001, source: "fixture" }; },
+  };
+  const dependencies = {
+    createSpotAdapter: () => spotAdapter,
+    saveSnapshot: async (_database, input) => ({ id: input.sourceId, candleSha256: "a", fundingSha256: "b", datasetSha256: "c" }),
+  };
+  const firstNow = new Date(Date.now() + 60_000);
+  const firstLease = await leaseNextStrategyDeployment(pool, { workerId: "official-runtime-a", now: firstNow, leaseSeconds: 30 });
+  assert.equal(firstLease.id, deployment.id);
+  assert.equal(firstLease.exchangeAccountId, null);
+  assert.equal(firstLease.executionProduct, "spot_usdt");
+  const first = await processLeasedStrategyRuntimeDeployment(pool, firstLease, "official-runtime-a", { ...dependencies, now: () => firstNow });
+  assert.equal(first.decision.action, "enter_long");
+  assert.equal((await pool.query("SELECT status FROM official_paper_order_intents")).rows[0].status, "pending");
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_paper_order_intents")).rows[0].count, 0);
+
+  const last = rows.at(-1);
+  rows = [...rows, {
+    openTime: last.closeTime + 1,
+    closeTime: last.closeTime + 3_600_000,
+    open: last.close,
+    high: last.close * 1.002,
+    low: last.close * 0.998,
+    close: last.close,
+    volume: 100,
+  }];
+  const secondNow = new Date(firstNow.getTime() + 16_000);
+  const secondLease = await leaseNextStrategyDeployment(pool, { workerId: "official-runtime-b", now: secondNow, leaseSeconds: 30 });
+  await processLeasedStrategyRuntimeDeployment(pool, secondLease, "official-runtime-b", { ...dependencies, now: () => secondNow });
+  const storedPortfolio = (await pool.query(`
+    SELECT principal_usdt, cash_usdt FROM official_paper_portfolios WHERE id = $1
+  `, [portfolio.id])).rows[0];
+  assert.equal(Number(storedPortfolio.principal_usdt), 10_000);
+  assert.ok(Number(storedPortfolio.cash_usdt) < 10_000);
+  assert.equal((await pool.query("SELECT side FROM official_paper_positions WHERE portfolio_id = $1 AND status = 'open'", [portfolio.id])).rows[0].side, "long");
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_paper_funding_accruals WHERE deployment_id = $1", [deployment.id])).rows[0].count, 0);
+  const riskState = (await pool.query("SELECT risk_state_json FROM strategy_deployments WHERE id = $1", [deployment.id])).rows[0].risk_state_json;
+  assert.ok(riskState.dailyLossPct > 0);
+  assert.ok(riskState.maxDrawdownPct >= riskState.drawdownPct && riskState.maxDrawdownPct > 0);
+});
+
+test("performance fee scope is derived server-side from the complete official three-card portfolio set", async () => {
+  const membershipId = "membership-performance-scope";
+  const customerId = "owner-performance-scope";
+  await pool.query(`
+    INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at)
+    VALUES ($1, $2, 'active', NULL, NULL)
+  `, [membershipId, customerId]);
+  await ensureOfficialPaperPortfolios(pool, { membershipId, customerId });
+
+  const scope = await resolveOfficialThreeCardPortfolioScope(pool, { membershipId, customerId });
+  assert.deepEqual(scope, {
+    customerId,
+    membershipId,
+    scopeKey: `official-three:${membershipId}`,
+    strategies: [
+      { strategyCode: "ai_conservative", portfolioId: `official-paper:${membershipId}:ai_conservative` },
+      { strategyCode: "ai_balanced", portfolioId: `official-paper:${membershipId}:ai_balanced` },
+      { strategyCode: "ai_aggressive", portfolioId: `official-paper:${membershipId}:ai_aggressive` },
+    ],
+    portfolioIds: [
+      `official-paper:${membershipId}:ai_conservative`,
+      `official-paper:${membershipId}:ai_balanced`,
+      `official-paper:${membershipId}:ai_aggressive`,
+    ],
+  });
+
+  const incompleteMembershipId = "membership-performance-scope-incomplete";
+  await pool.query(`
+    INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at)
+    VALUES ($1, $2, 'active', NULL, NULL)
+  `, [incompleteMembershipId, customerId]);
+  await pool.query(`
+    INSERT INTO official_paper_portfolios (
+      id, membership_id, customer_id, strategy_code, risk_json
+    ) VALUES ($1, $2, $3, 'ai_conservative', '{}'::jsonb)
+  `, [
+    `official-paper:${incompleteMembershipId}:ai_conservative`,
+    incompleteMembershipId,
+    customerId,
+  ]);
+  await assert.rejects(
+    resolveOfficialThreeCardPortfolioScope(pool, { membershipId: incompleteMembershipId, customerId }),
+    /官方三卡组合不完整/,
+  );
+});
+
+test("official paper provisioning rejects a customer that does not own the membership", async () => {
+  const membershipId = "membership-owned";
+  await pool.query(`
+    INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at)
+    VALUES ($1, 'owner-membership', 'active', NULL, NULL)
+  `, [membershipId]);
+  await assert.rejects(
+    ensureOfficialPaperPortfolios(pool, { membershipId, customerId: "different-customer" }),
+    /会员.*客户|归属/,
+  );
+  assert.equal((await pool.query(`
+    SELECT count(*)::int AS count FROM official_paper_portfolios WHERE membership_id = $1
+  `, [membershipId])).rows[0].count, 0);
+});
+
+test("one customer/card has one active deployment and mode switches fail closed with an official position", async () => {
+  const [portfolio] = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const deployment = await createStrategyDeployment(pool, {
+    ownerUserId: "owner-official",
+    strategyId: "strategy-official",
+    strategyVersionId: "version-official",
+    exchangeAccountId: null,
+    mode: "paper",
+    validationLabel: "UNVERIFIED",
+    idempotencyKey: "official-one-active-paper",
+    riskAcknowledged: true,
+    executionProduct: "spot_usdt",
+    platformStrategyCode: portfolio.strategyCode,
+    membershipId: portfolio.membershipId,
+    paperPortfolioId: portfolio.id,
+  });
+  assert.deepEqual(await endConflictingOfficialStrategyDeployments(pool, {
+    ownerUserId: "owner-official",
+    strategyCode: portfolio.strategyCode,
+    strategyId: "strategy-official",
+    strategyVersionId: "version-official",
+    mode: "paper",
+    paperPortfolioId: portfolio.id,
+  }), { endedDeploymentIds: [], endedSubscriptionIds: [] });
+
+  await pool.query("UPDATE strategy_deployments SET status = 'paused' WHERE id = $1", [deployment.id]);
+  await assert.rejects(
+    changeStrategyDeploymentStatus(pool, {
+      deploymentId: deployment.id,
+      ownerUserId: "owner-official",
+      action: "resume",
+    }),
+    /官方策略|恢复/,
+  );
+
+  await pool.query(`
+    INSERT INTO official_paper_positions (
+      id, portfolio_id, symbol, side, status, quantity, average_entry_price,
+      cost_basis_usdt, last_mark_price, opened_at
+    ) VALUES ('mode-switch-position', $1, 'BTCUSDT', 'long', 'open', 0.01, 50000, 500, 50000, now())
+  `, [portfolio.id]);
+  await assert.rejects(
+    endConflictingOfficialStrategyDeployments(pool, {
+      ownerUserId: "owner-official",
+      strategyCode: portfolio.strategyCode,
+      strategyId: "strategy-official",
+      strategyVersionId: "version-official",
+      mode: "shadow",
+      paperPortfolioId: portfolio.id,
+    }),
+    (error) => error instanceof OfficialStrategyModeSwitchOpenPositionError,
+  );
+  await pool.query("DELETE FROM official_paper_positions WHERE id = 'mode-switch-position'");
+  const switched = await endConflictingOfficialStrategyDeployments(pool, {
+    ownerUserId: "owner-official",
+    strategyCode: portfolio.strategyCode,
+    strategyId: "strategy-official",
+    strategyVersionId: "version-official",
+    mode: "shadow",
+    paperPortfolioId: portfolio.id,
+  });
+  assert.deepEqual(switched.endedDeploymentIds, [deployment.id]);
+  assert.equal((await pool.query("SELECT status FROM strategy_deployments WHERE id = $1", [deployment.id])).rows[0].status, "ended");
+});
+
+test("generic resume cannot reactivate an official deployment paused between its check and update", async () => {
+  const [portfolio] = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const deployment = await createStrategyDeployment(pool, {
+    ownerUserId: "owner-official",
+    strategyId: "strategy-official",
+    strategyVersionId: "version-official",
+    exchangeAccountId: null,
+    mode: "paper",
+    validationLabel: "UNVERIFIED",
+    idempotencyKey: "official-resume-interleaving",
+    riskAcknowledged: true,
+    executionProduct: "spot_usdt",
+    platformStrategyCode: portfolio.strategyCode,
+    membershipId: portfolio.membershipId,
+    paperPortfolioId: portfolio.id,
+  });
+  let pauseInterleaved = false;
+  const interleavedDatabase = {
+    async query(text, values) {
+      if (!pauseInterleaved && /^\s*UPDATE strategy_deployments/.test(text) && /SET status = \$3/.test(text)) {
+        await pool.query("UPDATE strategy_deployments SET status = 'paused' WHERE id = $1", [deployment.id]);
+        pauseInterleaved = true;
+      }
+      const result = await pool.query(text, values);
+      if (!pauseInterleaved && /SELECT execution_product FROM strategy_deployments/.test(text)) {
+        await pool.query("UPDATE strategy_deployments SET status = 'paused' WHERE id = $1", [deployment.id]);
+        pauseInterleaved = true;
+      }
+      return result;
+    },
+  };
+
+  await assert.rejects(
+    changeStrategyDeploymentStatus(interleavedDatabase, {
+      deploymentId: deployment.id,
+      ownerUserId: "owner-official",
+      action: "resume",
+    }),
+    (error) => error instanceof OfficialStrategyGenericResumeBlockedError,
+  );
+  assert.equal(pauseInterleaved, true);
+  assert.equal((await pool.query(
+    "SELECT status FROM strategy_deployments WHERE id = $1",
+    [deployment.id],
+  )).rows[0].status, "paused");
+});
+
+test("official deployment ownership is bound to the same customer membership portfolio triple", async () => {
+  await pool.query(`
+    INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at)
+    VALUES ('membership-owner-b', 'owner-b', 'active', NULL, NULL)
+  `);
+  const [portfolioB] = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-owner-b",
+    customerId: "owner-b",
+  });
+  await assert.rejects(createStrategyDeployment(pool, {
+    ownerUserId: "owner-official",
+    strategyId: "strategy-official",
+    strategyVersionId: "version-official",
+    exchangeAccountId: null,
+    mode: "paper",
+    validationLabel: "UNVERIFIED",
+    idempotencyKey: "official-cross-owner-rejected",
+    riskAcknowledged: true,
+    executionProduct: "spot_usdt",
+    platformStrategyCode: portfolioB.strategyCode,
+    membershipId: portfolioB.membershipId,
+    paperPortfolioId: portfolioB.id,
+  }), /归属|组合/);
+  await assert.rejects(pool.query(`
+    INSERT INTO strategy_deployments (
+      id, owner_user_id, strategy_id, strategy_version_id, exchange_account_id,
+      mode, validation_label, idempotency_key, execution_product,
+      platform_strategy_code, membership_id, paper_portfolio_id
+    ) VALUES (
+      'official-cross-owner-direct', 'owner-official', 'strategy-official', 'version-official', NULL,
+      'paper', 'UNVERIFIED', 'official-cross-owner-direct', 'spot_usdt',
+      $1, $2, $3
+    )
+  `, [portfolioB.strategyCode, portfolioB.membershipId, portfolioB.id]), /foreign key|violates/i);
+});
+
+test("official deployment strategy code is bound to the portfolio strategy code after 0024 reapply", async () => {
+  const portfolios = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const conservative = portfolios.find((portfolio) => portfolio.strategyCode === "ai_conservative");
+  assert.ok(conservative);
+  await assert.rejects(pool.query(`
+    INSERT INTO strategy_deployments (
+      id, owner_user_id, strategy_id, strategy_version_id, exchange_account_id,
+      mode, validation_label, idempotency_key, execution_product,
+      platform_strategy_code, membership_id, paper_portfolio_id
+    ) VALUES (
+      'official-cross-strategy-direct', 'owner-official', 'strategy-official', 'version-official', NULL,
+      'paper', 'UNVERIFIED', 'official-cross-strategy-direct', 'spot_usdt',
+      'ai_aggressive', $1, $2
+    )
+  `, [conservative.membershipId, conservative.id]), /foreign key|violates/i);
+});
+
+test("0024 upgrades a historical pre-column deployment and reapplies", async () => {
+  const historicalSchema = `${schema}_historical`;
+  const historicalPool = new Pool({
+    connectionString: databaseUrl,
+    max: 1,
+    options: `-c search_path=${historicalSchema}`,
+  });
+  try {
+    await adminPool.query(`CREATE SCHEMA "${historicalSchema}"`);
+    await initializePre0024Schema(historicalPool);
+    await historicalPool.query(`
+      INSERT INTO strategy_deployments(
+        id,owner_user_id,strategy_id,strategy_version_id,exchange_account_id,
+        mode,validation_label,idempotency_key
+      ) VALUES(
+        'historical-n-minus-one','historical-owner','historical-strategy',
+        'historical-version','historical-account','paper','UNVERIFIED',
+        'historical-n-minus-one'
+      )
+    `);
+    const migration = await readFile(
+      new URL("../postgres/migrations/0024_platform_demo_execution.sql", import.meta.url),
+      "utf8",
+    );
+    await historicalPool.query(migration);
+    await historicalPool.query(migration);
+    assert.equal((await historicalPool.query(`
+      SELECT exchange_account_id IS NOT NULL
+          AND execution_product='usdt_perpetual'
+          AND platform_strategy_code IS NULL
+          AND membership_id IS NULL
+          AND paper_portfolio_id IS NULL AS valid
+      FROM strategy_deployments WHERE id='historical-n-minus-one'
+    `)).rows[0].valid, true);
+  } finally {
+    await historicalPool.end();
+    await adminPool.query(`DROP SCHEMA IF EXISTS "${historicalSchema}" CASCADE`);
+  }
+});
+
+test("deployment binding columns allow only official 0111 and legacy 1000 across all 32 product masks", async () => {
+  const portfolios = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const conservative = portfolios.find((portfolio) => portfolio.strategyCode === "ai_conservative");
+  assert.ok(conservative);
+
+  const insertDeployment = async ({ id, executionProduct, mask, missingPortfolio = false }) => pool.query(`
+    INSERT INTO strategy_deployments (
+      id, owner_user_id, strategy_id, strategy_version_id, exchange_account_id,
+      mode, validation_label, idempotency_key, execution_product,
+      platform_strategy_code, membership_id, paper_portfolio_id
+    ) VALUES (
+      $1, 'owner-official', 'strategy-official', 'version-official', $2,
+      'paper', 'UNVERIFIED', $1, $3,
+      $4, $5, $6
+    )
+  `, [
+    id,
+    mask & 0b1000 ? "account-a" : null,
+    executionProduct,
+    mask & 0b0100 ? conservative.strategyCode : null,
+    mask & 0b0010 ? conservative.membershipId : null,
+    mask & 0b0001 ? (missingPortfolio ? "portfolio-does-not-exist" : conservative.id) : null,
+  ]);
+
+  for (const executionProduct of ["spot_usdt", "usdt_perpetual"]) {
+    for (let mask = 0; mask < 0b1_0000; mask += 1) {
+      const allowed = executionProduct === "spot_usdt" ? 0b0111 : 0b1000;
+      const attempt = insertDeployment({
+        id: `${executionProduct}-binding-${mask}`,
+        executionProduct,
+        mask,
+      });
+      if (mask === allowed) await attempt;
+      else await assert.rejects(
+        attempt,
+        /check constraint|violates/i,
+        `${executionProduct} mask ${mask.toString(2).padStart(4, "0")} must fail closed`,
+      );
+    }
+  }
+
+  await assert.rejects(
+    createStrategyDeployment(pool, {
+      ownerUserId: "owner-official",
+      strategyId: "strategy-a",
+      strategyVersionId: "version-a",
+      exchangeAccountId: null,
+      mode: "paper",
+      validationLabel: "UNVERIFIED",
+      idempotencyKey: "legacy-missing-exchange-account",
+      riskAcknowledged: true,
+    }),
+    /交易账户|exchange/i,
+  );
+});
+
+test("official complete binding with an unknown portfolio reaches the foreign key", async () => {
+  await assert.rejects(
+    pool.query(`
+      INSERT INTO strategy_deployments(
+        id,owner_user_id,strategy_id,strategy_version_id,exchange_account_id,
+        mode,validation_label,idempotency_key,execution_product,
+        platform_strategy_code,membership_id,paper_portfolio_id
+      ) VALUES(
+        'official-unknown-portfolio','owner-official','strategy-official',
+        'version-official',NULL,'paper','UNVERIFIED','official-unknown-portfolio',
+        'spot_usdt','ai_conservative','membership-official','unknown-portfolio'
+      )
+    `),
+    (error) => error.code === "23503"
+      && /strategy_deployments_official_portfolio_(owner|strategy)_fk/.test(error.constraint),
+  );
+});
+
+test("0024 upgrades the immediate weaker N-1 binding check and reapplies", async () => {
+  await pool.query(`
+    INSERT INTO strategy_deployments(
+      id,owner_user_id,strategy_id,strategy_version_id,exchange_account_id,
+      mode,validation_label,idempotency_key
+    ) VALUES(
+      'immediate-n-minus-one','legacy-owner','legacy-strategy','legacy-version',
+      'account-a','paper','UNVERIFIED','immediate-n-minus-one'
+    );
+    ALTER TABLE strategy_deployments
+      DROP CONSTRAINT strategy_deployments_official_binding_check;
+    ALTER TABLE strategy_deployments
+      ADD CONSTRAINT strategy_deployments_official_binding_check
+      CHECK (
+        execution_product <> 'spot_usdt'
+        OR (paper_portfolio_id IS NOT NULL AND membership_id IS NOT NULL
+            AND platform_strategy_code IS NOT NULL AND exchange_account_id IS NULL)
+      );
+  `);
+  const migration = await readFile(
+    new URL("../postgres/migrations/0024_platform_demo_execution.sql", import.meta.url),
+    "utf8",
+  );
+  await pool.query(migration);
+  await pool.query(migration);
+  assert.equal((await pool.query(`
+    SELECT exchange_account_id IS NOT NULL
+        AND platform_strategy_code IS NULL
+        AND membership_id IS NULL
+        AND paper_portfolio_id IS NULL AS valid
+    FROM strategy_deployments WHERE id='immediate-n-minus-one'
+  `)).rows[0].valid, true);
+});
+
+test("pending official paper settlement locks current membership access and expired access permits only sells", async () => {
+  const membershipId = "membership-settlement-access";
+  const customerId = "owner-settlement-access";
+  await pool.query(`
+    INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at)
+    VALUES ($1, $2, 'active', NULL, NULL)
+  `, [membershipId, customerId]);
+  const portfolio = (await ensureOfficialPaperPortfolios(pool, { membershipId, customerId }))[0];
+  const deployment = await createStrategyDeployment(pool, {
+    ownerUserId: customerId,
+    strategyId: "strategy-official",
+    strategyVersionId: "version-official",
+    exchangeAccountId: null,
+    mode: "paper",
+    validationLabel: "UNVERIFIED",
+    idempotencyKey: "official-settlement-access",
+    riskAcknowledged: true,
+    executionProduct: "spot_usdt",
+    platformStrategyCode: portfolio.strategyCode,
+    membershipId,
+    paperPortfolioId: portfolio.id,
+  });
+  const insertPending = async (sequence, action, payload = {}, cycleAt = `2026-08-2${sequence}T00:00:00.000Z`) => {
+    const cycleId = `settlement-access-cycle-${sequence}`;
+    await pool.query(`
+      INSERT INTO strategy_runtime_cycles (
+        id, deployment_id, sequence, fencing_token, candle_open_time, candle_close_time,
+        status, decision_json, trace_id, started_at
+      ) VALUES ($1, $2, $3, 1, $4, $4, 'completed', '{}'::jsonb, $5, $4)
+    `, [cycleId, deployment.id, sequence, new Date(cycleAt), `trace-${sequence}`]);
+    await pool.query(`
+      INSERT INTO official_paper_order_intents (
+        id, portfolio_id, deployment_id, runtime_cycle_id, idempotency_key,
+        symbol, action, execution_timing, requested_price, status, payload_json
+      ) VALUES ($1, $2, $3, $4, $5, 'BTCUSDT', $6, 'next_candle_open', 50000, 'pending', $7::jsonb)
+    `, [crypto.randomUUID(), portfolio.id, deployment.id, cycleId, `settlement-access-${sequence}`, action,
+      JSON.stringify({ quoteAmountUsdt: 100, takerFeeRate: 0.001, ...payload })]);
+  };
+
+  await insertPending(1, "buy", {}, "2026-08-16T00:00:00.000Z");
+  assert.equal((await settlePendingOfficialPaperOrder(pool, {
+    deploymentId: deployment.id,
+    fillPrice: 50_000,
+    fillTime: new Date("2026-08-16T00:00:00.000Z"),
+    timing: "next_candle_open",
+    traceId: "settle-active-buy",
+  }))?.status, "filled");
+  await pool.query(`
+    UPDATE memberships
+    SET status = 'expired', expires_at = '2026-08-21T00:00:00.000Z', grace_ends_at = '2026-08-21T00:00:00.000Z'
+    WHERE id = $1
+  `, [membershipId]);
+  await insertPending(2, "sell", { quantity: 0.001 });
+  assert.equal((await settlePendingOfficialPaperOrder(pool, {
+    deploymentId: deployment.id,
+    fillPrice: 51_000,
+    fillTime: new Date("2026-08-22T00:00:00.000Z"),
+    timing: "next_candle_open",
+    traceId: "settle-expired-sell",
+  }))?.status, "filled");
+  const partialPosition = (await pool.query(`
+    SELECT quantity, entry_fees_usdt FROM official_paper_positions
+    WHERE portfolio_id = $1 AND status = 'open'
+  `, [portfolio.id])).rows[0];
+  assert.equal(Number(partialPosition.quantity), 0.001);
+  assert.equal(Number(partialPosition.entry_fees_usdt), 0.05);
+  await insertPending(3, "sell");
+  assert.equal((await settlePendingOfficialPaperOrder(pool, {
+    deploymentId: deployment.id,
+    fillPrice: 52_000,
+    fillTime: new Date("2026-08-23T00:00:00.000Z"),
+    timing: "next_candle_open",
+    traceId: "settle-expired-final-sell",
+  }))?.status, "filled");
+  await insertPending(4, "buy");
+  const expiredBuy = await settlePendingOfficialPaperOrder(pool, {
+    deploymentId: deployment.id,
+    fillPrice: 50_000,
+    fillTime: new Date("2026-08-24T00:00:00.000Z"),
+    timing: "next_candle_open",
+    traceId: "settle-expired-buy",
+  });
+  assert.equal(expiredBuy?.status, "rejected");
+  assert.match(expiredBuy?.reason || "", /只允许平仓|只读/);
+  assert.equal((await pool.query("SELECT access_status FROM official_paper_portfolios WHERE id = $1", [portfolio.id])).rows[0].access_status, "read_only");
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM official_paper_positions WHERE portfolio_id = $1 AND status = 'open'", [portfolio.id])).rows[0].count, 0);
+  await pool.query(`
+    UPDATE memberships
+    SET status = 'pending', expires_at = '2099-01-01T00:00:00.000Z', grace_ends_at = '2099-01-02T00:00:00.000Z'
+    WHERE id = $1
+  `, [membershipId]);
+  await insertPending(5, "buy");
+  const pendingFutureBuy = await settlePendingOfficialPaperOrder(pool, {
+    deploymentId: deployment.id,
+    fillPrice: 50_000,
+    fillTime: new Date("2026-08-25T00:00:00.000Z"),
+    timing: "next_candle_open",
+    traceId: "settle-pending-future-buy",
+  });
+  assert.equal(pendingFutureBuy?.status, "rejected");
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM official_paper_positions WHERE portfolio_id = $1 AND status = 'open'", [portfolio.id])).rows[0].count, 0);
+  const sellReceipts = (await pool.query(`
+    SELECT realized_gross_pnl_usdt, realized_net_pnl_usdt, allocated_entry_fee_usdt
+    FROM official_paper_fill_receipts
+    WHERE portfolio_id = $1 AND action = 'sell'
+    ORDER BY filled_at
+  `, [portfolio.id])).rows;
+  assert.deepEqual(sellReceipts.map((row) => Number(row.realized_gross_pnl_usdt)), [1, 2]);
+  assert.deepEqual(sellReceipts.map((row) => Number(row.realized_net_pnl_usdt)), [0.899, 1.898]);
+  assert.deepEqual(sellReceipts.map((row) => Number(row.allocated_entry_fee_usdt)), [0.05, 0.05]);
+
+  const week = await aggregateOfficialThreeCardPreviousUtcWeek(pool, {
+    membershipId,
+    customerId,
+    asOf: new Date("2026-08-24T12:00:00.000Z"),
+  });
+  assert.deepEqual(week.period, { start: "2026-08-17T00:00:00.000Z", end: "2026-08-24T00:00:00.000Z" });
+  assert.equal(week.scopeVersion, "official-paper-closed-sells-v1");
+  assert.equal(week.weekNetPnl, "2.797000000000");
+  assert.equal(week.cumulativeNetPnl, "2.797000000000");
+  assert.equal(week.priorNetPnl, "0.000000000000");
+  assert.equal(week.realizedGrossPnlUsdt, "3.000000000000");
+  assert.equal(week.realizedNetPnlUsdt, "2.797000000000");
+  assert.equal(week.feesUsdt, "0.203000000000");
+  await assert.rejects(
+    pool.query("UPDATE official_paper_fill_receipts SET trace_id = 'mutated' WHERE portfolio_id = $1", [portfolio.id]),
+    /append-only/i,
+  );
+});
+
+test("daily-loss halts reset on a new UTC day while persistent halt reasons remain", async () => {
+  const [portfolio] = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const deployment = await createStrategyDeployment(pool, {
+    ownerUserId: "owner-official", strategyId: "strategy-official", strategyVersionId: "version-official",
+    exchangeAccountId: null, mode: "paper", validationLabel: "UNVERIFIED",
+    idempotencyKey: "official-risk-halt-reasons", riskAcknowledged: true,
+    executionProduct: "spot_usdt", platformStrategyCode: portfolio.strategyCode,
+    membershipId: portfolio.membershipId, paperPortfolioId: portfolio.id,
+  });
+  await pool.query(`UPDATE official_paper_portfolios SET cash_usdt = 9700 WHERE id = $1`, [portfolio.id]);
+  await pool.query(`UPDATE strategy_deployments SET risk_state_json = $2::jsonb WHERE id = $1`, [deployment.id, JSON.stringify({
+    riskDayUtc: "2026-08-19", dailyBaselineEquityUsdt: 10000, equityUsdt: 9700,
+    peakEquityUsdt: 10000, maxDrawdownPct: 1, halted: true, haltReasons: ["daily_loss"],
+  })]);
+  const reset = await refreshOfficialPaperRiskState(pool, {
+    deploymentId: deployment.id, portfolioId: portfolio.id, asOf: new Date("2026-08-20T00:01:00.000Z"),
+  });
+  assert.equal(reset.halted, false);
+  assert.deepEqual(reset.haltReasons, []);
+  await pool.query(`UPDATE strategy_deployments SET risk_state_json = $2::jsonb WHERE id = $1`, [deployment.id, JSON.stringify({
+    riskDayUtc: "2026-08-19", dailyBaselineEquityUsdt: 10000, equityUsdt: 9700,
+    peakEquityUsdt: 10000, maxDrawdownPct: 1, halted: true, haltReasons: ["manual"],
+  })]);
+  const persistent = await refreshOfficialPaperRiskState(pool, {
+    deploymentId: deployment.id, portfolioId: portfolio.id, asOf: new Date("2026-08-20T00:02:00.000Z"),
+  });
+  assert.equal(persistent.halted, true);
+  assert.deepEqual(persistent.haltReasons, ["manual"]);
 });

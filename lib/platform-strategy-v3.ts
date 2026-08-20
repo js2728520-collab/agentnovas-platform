@@ -1,16 +1,32 @@
 import {
   PLATFORM_AI_STRATEGIES,
   type PlatformStrategyCode,
-  type PlatformStrategyDefinition,
 } from "./platform-ai-strategies.ts";
 import {
   createStrategyLegEvaluator,
-  normalizeStrategyDslV3,
   type StrategyCandle,
   type StrategyConditionV3,
-  type StrategyDslV3,
 } from "./strategy-dsl.ts";
 import { hashResearchStepInput } from "./research-steps.ts";
+import type { OfficialTradingHallStrategy } from "../packages/contracts/src/trading-hall.ts";
+
+export type OfficialSpotStrategySpecification = {
+  schemaVersion: "official_spot_v1";
+  strategyCode: PlatformStrategyCode;
+  name: string;
+  product: "spot_usdt";
+  symbol: "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
+  timeframe: "5m" | "15m" | "1h";
+  direction: "long_only";
+  execution: {
+    leverageEnabled: false;
+    shortSellingEnabled: false;
+    fundingEnabled: false;
+    realOrderRoutingEnabled: false;
+  };
+  legs: { long: { entry: StrategyConditionV3; exit: StrategyConditionV3 } };
+  risk: OfficialTradingHallStrategy["risk"];
+};
 
 const simpleRsi = (operator: "lt" | "lte" | "gte" | "gt", value: number) => ({
   type: "rsi_threshold" as const,
@@ -106,44 +122,61 @@ function exitFor(code: PlatformStrategyCode): StrategyConditionV3 {
   ] };
 }
 
-function riskFor(definition: PlatformStrategyDefinition) {
-  const maxDrawdownPct = definition.riskLevel === "low" ? 8 : definition.riskLevel === "medium" ? 12 : 16;
-  return {
-    positionSizePct: definition.maxCapitalPct,
-    maxDrawdownPct,
-    maxDailyLossPct: definition.riskLevel === "low" ? 2 : definition.riskLevel === "medium" ? 3 : 4,
-    maxConsecutiveLosses: definition.riskLevel === "low" ? 3 : definition.riskLevel === "medium" ? 4 : 5,
-  };
-}
-
-export function platformStrategyDslV3(code: PlatformStrategyCode, symbol: string): StrategyDslV3 {
+export function platformStrategyDslV3(code: PlatformStrategyCode, symbol: string): OfficialSpotStrategySpecification {
   const definition = PLATFORM_AI_STRATEGIES[code];
-  if (!definition.symbols.includes(symbol)) throw new Error(`${definition.name} 不支持该交易对`);
-  return normalizeStrategyDslV3({
-    schemaVersion: 3,
+  if (!(definition.symbols as readonly string[]).includes(symbol)) throw new Error(`${definition.name} 不支持该交易对`);
+  return {
+    schemaVersion: "official_spot_v1",
+    strategyCode: code,
     name: `${definition.name} · ${symbol}`,
-    market: "usdt_perpetual",
-    marginMode: "isolated",
-    leverage: 1,
-    symbol,
+    product: "spot_usdt",
+    symbol: symbol as OfficialSpotStrategySpecification["symbol"],
     timeframe: definition.interval,
     direction: "long_only",
+    execution: {
+      leverageEnabled: false,
+      shortSellingEnabled: false,
+      fundingEnabled: false,
+      realOrderRoutingEnabled: false,
+    },
     legs: { long: {
       entry: entryFor(code),
       exit: exitFor(code),
-      stopLossPct: definition.stopLossPct,
-      takeProfitPct: definition.takeProfitPct,
     } },
-    risk: riskFor(definition),
-  });
+    risk: { ...definition.risk },
+  };
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function normalizeOfficialSpotStrategySpecification(value: unknown): OfficialSpotStrategySpecification | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.schemaVersion !== "official_spot_v1") return null;
+  const code = String(candidate.strategyCode || "") as PlatformStrategyCode;
+  if (!(code in PLATFORM_AI_STRATEGIES)) throw new Error("官方现货策略代码无效");
+  const expected = platformStrategyDslV3(code, String(candidate.symbol || ""));
+  if (canonicalJson(candidate) !== canonicalJson(expected)) throw new Error("官方现货策略规格与平台合同不一致");
+  return expected;
 }
 
 export function evaluateConvertedPlatformStrategy(
-  dsl: StrategyDslV3,
+  dsl: OfficialSpotStrategySpecification,
   candles: StrategyCandle[],
   hasOpenPosition: boolean,
 ) {
-  const evaluator = createStrategyLegEvaluator(dsl.legs.long!, candles);
+  const evaluator = createStrategyLegEvaluator({
+    ...dsl.legs.long,
+    stopLossPct: 1,
+    takeProfitPct: 1,
+  }, candles);
   const index = candles.length - 1;
   if (hasOpenPosition && evaluator.exitAt(index)) return "exit" as const;
   if (!hasOpenPosition && evaluator.entryAt(index)) return "enter" as const;

@@ -4,6 +4,7 @@ import {
   allPlatformStrategyDslV3,
   platformStrategyConversionContractHash,
 } from "../lib/platform-strategy-v3.ts";
+import { ensureOfficialPaperPortfolios } from "../lib/official-paper-repository.ts";
 
 const connectionString = process.env.DATABASE_URL?.trim();
 if (!connectionString) throw new Error("DATABASE_URL is required");
@@ -22,7 +23,7 @@ function strategyId(code, symbol) {
 }
 
 function versionId(code, symbol) {
-  return `platform-version:${code}:${symbol.toLowerCase()}:v1`;
+  return `platform-version:${code}:${symbol.toLowerCase()}:spot-v2`;
 }
 
 function subscriptionId(legacyId) {
@@ -80,7 +81,10 @@ try {
             'published', 'marketplace', 'UNVERIFIED', $7, 1,
             to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
             to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
-          ) ON CONFLICT (id) DO NOTHING
+          ) ON CONFLICT (id) DO UPDATE SET
+            specification_json = EXCLUDED.specification_json,
+            summary = EXCLUDED.summary,
+            version = 2
         `, [
           id, authorUserId, item.dsl.name,
           "由旧平台策略逐条件转换并通过信号黄金测试；仍不代表未来收益。",
@@ -95,7 +99,7 @@ try {
         await client.query(`
           INSERT INTO strategy_versions (
             id, strategy_id, version, name, summary, specification_json, source, created_by_user_id
-          ) VALUES ($1, $2, 1, $3, $4, $5, 'guided_rules', $6)
+          ) VALUES ($1, $2, 2, $3, $4, $5, 'guided_rules', $6)
           ON CONFLICT (id) DO NOTHING
         `, [revisionId, id, item.dsl.name, "平台受限 DSL V3 迁移版本", specificationJson, authorUserId]);
         await client.query(`
@@ -106,7 +110,6 @@ try {
           SET strategy_id = EXCLUDED.strategy_id,
               strategy_version_id = EXCLUDED.strategy_version_id,
               conversion_contract_sha256 = EXCLUDED.conversion_contract_sha256
-          WHERE platform_strategy_migration_map.conversion_contract_sha256 = EXCLUDED.conversion_contract_sha256
         `, [item.code, item.symbol, id, revisionId, contractHash]);
       }
 
@@ -128,12 +131,6 @@ try {
         if (!candidates.length) throw new Error(`cutover blocked: unknown legacy strategy ${row.strategy_code}`);
         const selected = candidates.find(item => item.symbol === row.latest_symbol) || candidates[0];
         const selectionSource = selected.symbol === row.latest_symbol ? "latest_audited_decision" : "platform_primary_symbol";
-        if (Number(row.capital_pct) > selected.dsl.risk.positionSizePct) {
-          throw new Error(`cutover blocked: legacy capital limit exceeds converted version for ${row.id}`);
-        }
-        if (Number(row.stop_loss_pct) > selected.dsl.legs.long.stopLossPct) {
-          throw new Error(`cutover blocked: legacy stop loss exceeds converted version for ${row.id}`);
-        }
         const existingMigration = await client.query(`
           SELECT * FROM platform_subscription_migrations WHERE legacy_subscription_id = $1
         `, [row.id]);
@@ -145,11 +142,37 @@ try {
         }
         const mappedStrategyId = strategyId(selected.code, selected.symbol);
         const mappedVersionId = versionId(selected.code, selected.symbol);
+        const membership = (await client.query(`
+          SELECT id FROM memberships
+          WHERE customer_id = $1 AND status IN ('active', 'grace')
+          ORDER BY created_at DESC, id DESC LIMIT 1
+        `, [row.customer_id])).rows[0];
+        if (!membership) throw new Error(`cutover blocked: active membership missing for ${row.id}`);
+        const portfolios = await ensureOfficialPaperPortfolios(client, {
+          membershipId: membership.id,
+          customerId: row.customer_id,
+        });
+        const portfolio = portfolios.find(item => item.strategyCode === selected.code);
+        if (!portfolio) throw new Error(`cutover blocked: official paper portfolio missing for ${row.id}`);
         let unifiedSubscriptionId = subscriptionId(row.id);
         const collision = await client.query(`
           SELECT id FROM strategy_subscriptions WHERE strategy_id = $1 AND customer_id = $2 LIMIT 1
         `, [mappedStrategyId, row.customer_id]);
-        if (collision.rows[0]) unifiedSubscriptionId = collision.rows[0].id;
+        if (collision.rows[0]) {
+          unifiedSubscriptionId = collision.rows[0].id;
+          await client.query(`
+            UPDATE strategy_subscriptions
+            SET exchange_account_id = NULL,
+                capital_pct = $2,
+                stop_loss_pct = 0,
+                strategy_version_id = $3,
+                run_mode = $4,
+                risk_check_json = $5::jsonb,
+                updated_at = now()
+            WHERE id = $1
+          `, [unifiedSubscriptionId, selected.dsl.risk.maxAssetAllocationPct, mappedVersionId, mode,
+            JSON.stringify({ product: "spot_usdt", risk: selected.dsl.risk, customerExchangeAccountUsed: false })]);
+        }
         else await client.query(`
           INSERT INTO strategy_subscriptions (
             id, strategy_id, customer_id, exchange_account_id, capital_pct, stop_loss_pct,
@@ -157,9 +180,9 @@ try {
             started_at, ended_at, strategy_version_id, run_mode, runtime_status
           ) VALUES ($1, $2, $3, $4, $5, $6, 'proportional', $7, $8, $9, $10, $11, $12, $13, $14, $7)
         `, [
-          unifiedSubscriptionId, mappedStrategyId, row.customer_id, row.exchange_account_id,
-          row.capital_pct, row.stop_loss_pct, row.status, row.risk_consent_at,
-          row.last_risk_check_at, row.risk_check_json, row.started_at, row.ended_at,
+          unifiedSubscriptionId, mappedStrategyId, row.customer_id, null,
+          selected.dsl.risk.maxAssetAllocationPct, 0, row.status, row.risk_consent_at,
+          row.last_risk_check_at, JSON.stringify({ product: "spot_usdt", risk: selected.dsl.risk, customerExchangeAccountUsed: false }), row.started_at, row.ended_at,
           mappedVersionId, mode,
         ]);
         let runtimeDeploymentId = null;
@@ -169,14 +192,23 @@ try {
             INSERT INTO strategy_deployments (
               id, owner_user_id, strategy_id, strategy_version_id, strategy_subscription_id,
               exchange_account_id, mode, status, validation_label, unverified_warning,
-              position_size_pct, stop_loss_pct_override, idempotency_key, risk_acknowledged_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'UNVERIFIED', true, $9, $10, $11, now())
-            ON CONFLICT (owner_user_id, idempotency_key) DO NOTHING
+              position_size_pct, stop_loss_pct_override, idempotency_key, risk_acknowledged_at,
+              execution_product, platform_strategy_code, membership_id, paper_portfolio_id
+            ) VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, 'UNVERIFIED', true, NULL, NULL, $8, now(),
+                      'spot_usdt', $9, $10, $11)
+            ON CONFLICT (owner_user_id, idempotency_key) DO UPDATE SET
+              strategy_version_id = EXCLUDED.strategy_version_id,
+              exchange_account_id = NULL,
+              execution_product = 'spot_usdt',
+              platform_strategy_code = EXCLUDED.platform_strategy_code,
+              membership_id = EXCLUDED.membership_id,
+              paper_portfolio_id = EXCLUDED.paper_portfolio_id,
+              updated_at = now()
           `, [
             runtimeDeploymentId, row.customer_id, mappedStrategyId, mappedVersionId,
-            unifiedSubscriptionId, row.exchange_account_id, mode,
+            unifiedSubscriptionId, mode,
             row.status === "active" ? "active" : "paused",
-            row.capital_pct, row.stop_loss_pct, `legacy-platform-subscription:${row.id}`,
+            `legacy-platform-subscription:${row.id}`, selected.code, membership.id, portfolio.id,
           ]);
         }
         await client.query(`

@@ -7,6 +7,19 @@ import {
   type PerpetualExchange,
 } from "./perpetual-market-adapters.ts";
 import { saveMarketDataSnapshot } from "./market-data-snapshots.ts";
+import { getSpotCandles } from "./market-data.ts";
+import { membershipAccess } from "./membership-rules.ts";
+import { startLeaseHeartbeat } from "./lease-heartbeat.ts";
+import {
+  loadOfficialPaperOpenPosition,
+  markOfficialPaperPosition,
+  officialPaperHasOpenPositions,
+  refreshOfficialPaperRiskState,
+  settlePendingOfficialPaperOrder,
+  syncOfficialPaperPortfolioAccess,
+} from "./official-paper-repository.ts";
+import { normalizeOfficialSpotStrategySpecification } from "./platform-strategy-v3.ts";
+import { enqueuePlatformDemoIntentsForRound } from "./platform-demo-execution.ts";
 import {
   applyPaperFundingRates,
   completeRuntimeExplanationJob,
@@ -32,11 +45,21 @@ export type StrategyRuntimeLease = NonNullable<Awaited<ReturnType<typeof leaseNe
 
 type RuntimeMarketAdapter = ReturnType<typeof createPerpetualMarketAdapter>;
 
+type RuntimeSpotMarketAdapter = {
+  getCandles(input: { symbol: string; timeframe: string; limit: number }): Promise<{
+    items: Array<{ openTime: number; closeTime: number; open: number; high: number; low: number; close: number; volume: number }>;
+    provider: string;
+  }>;
+  getFeeSchedule(): Promise<{ makerRate: number; takerRate: number; source: string }>;
+};
+
 export type StrategyRuntimeWorkerDependencies = {
   now?: () => Date;
   createAdapter?: (exchange: PerpetualExchange) => RuntimeMarketAdapter;
+  createSpotAdapter?: () => RuntimeSpotMarketAdapter;
   saveSnapshot?: typeof saveMarketDataSnapshot;
   heartbeatIntervalMs?: number;
+  onHeartbeatError?: (error: unknown) => void | Promise<void>;
 };
 
 export type RuntimeExplanationWorkerDependencies = {
@@ -70,37 +93,190 @@ function nextPollAt(now: Date, hasBacklog: boolean) {
   return new Date(now.getTime() + (hasBacklog ? 1_000 : 15_000));
 }
 
-function startRuntimeLeaseHeartbeat(database: Pool, input: {
-  deploymentId: string;
-  workerId: string;
-  fencingToken: number;
-  leaseSeconds: number;
-  intervalMs?: number;
-}) {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let stopped = false;
-  let inFlight: Promise<void> | null = null;
-  const intervalMs = input.intervalMs === undefined
-    ? Math.max(1_000, Math.floor(input.leaseSeconds * 1_000 / 3))
-    : Math.min(Math.max(input.intervalMs, 10), Math.floor(input.leaseSeconds * 1_000 / 2));
-  const tick = () => {
-    if (stopped) return;
-    inFlight = renewStrategyRuntimeLease(database, {
-      deploymentId: input.deploymentId,
-      workerId: input.workerId,
-      fencingToken: input.fencingToken,
-      now: new Date(),
-      leaseSeconds: input.leaseSeconds,
-    }).then(() => undefined).catch(() => undefined).finally(() => {
-      inFlight = null;
-      if (!stopped) timer = setTimeout(tick, intervalMs);
-    });
+function createPublicSpotRuntimeAdapter(): RuntimeSpotMarketAdapter {
+  return {
+    async getCandles(input) {
+      const result = await getSpotCandles(input.symbol, input.timeframe, input.limit);
+      return { items: result.candles, provider: result.provider };
+    },
+    async getFeeSchedule() {
+      return { makerRate: 0.001, takerRate: 0.001, source: "conservative_public_spot_default" };
+    },
   };
-  timer = setTimeout(tick, intervalMs);
-  return async () => {
-    stopped = true;
-    if (timer) clearTimeout(timer);
-    if (inFlight) await inFlight;
+}
+
+function assertSpotCandles(candles: Awaited<ReturnType<RuntimeSpotMarketAdapter["getCandles"]>>["items"]) {
+  if (candles.length < 2) throw new Error("官方现货运行周期缺少足够的完整 K 线");
+  for (let index = 0; index < candles.length; index += 1) {
+    const candle = candles[index];
+    if (!Object.values(candle).every(Number.isFinite)
+      || candle.open <= 0 || candle.high <= 0 || candle.low <= 0 || candle.close <= 0 || candle.volume < 0
+      || candle.openTime >= candle.closeTime
+      || (index > 0 && candle.openTime <= candles[index - 1].openTime)) {
+      throw new Error("官方现货行情响应未通过严格校验");
+    }
+  }
+}
+
+async function processOfficialSpotRuntimeDeployment(
+  database: Pool,
+  lease: StrategyRuntimeLease,
+  workerId: string,
+  dependencies: StrategyRuntimeWorkerDependencies,
+) {
+  const now = dependencies.now?.() ?? new Date();
+  const specification = normalizeOfficialSpotStrategySpecification(lease.specification);
+  if (!specification || lease.executionProduct !== "spot_usdt") throw new Error("官方现货运行规格无效");
+  if (lease.platformStrategyCode !== specification.strategyCode || !lease.paperPortfolioId || lease.exchangeAccountId !== null) {
+    throw new Error("官方现货部署边界不一致");
+  }
+  const adapter = dependencies.createSpotAdapter?.() ?? createPublicSpotRuntimeAdapter();
+  const [market, feeSchedule] = await Promise.all([
+    adapter.getCandles({ symbol: specification.symbol, timeframe: specification.timeframe, limit: 500 }),
+    adapter.getFeeSchedule(),
+  ]);
+  assertSpotCandles(market.items);
+  if (!Number.isFinite(feeSchedule.takerRate) || feeSchedule.takerRate < 0 || feeSchedule.takerRate > 0.01) {
+    throw new Error("官方现货手续费响应未通过严格校验");
+  }
+  const lastClose = lease.lastCandleCloseAt?.getTime() ?? null;
+  const selected = lastClose === null
+    ? market.items.at(-1)
+    : market.items.find((candle) => candle.closeTime > lastClose);
+  if (!selected) {
+    await deferStrategyRuntimeLease(database, {
+      deploymentId: lease.id, workerId, fencingToken: lease.fencingToken,
+      nextCycleAt: nextPollAt(now, false),
+    });
+    return { status: "waiting_for_candle" as const };
+  }
+  const selectedIndex = market.items.findIndex((candle) => candle.closeTime === selected.closeTime);
+  const evaluationCandles = market.items.slice(0, selectedIndex + 1);
+  const cycleId = deterministicCycleId(lease.id, selected.closeTime);
+  const traceId = crypto.randomUUID();
+  const saveSnapshot = dependencies.saveSnapshot ?? saveMarketDataSnapshot;
+  const snapshot = await saveSnapshot(database, {
+    sourceType: "runtime_cycle",
+    sourceId: cycleId,
+    exchangeAccountId: null,
+    exchange: "binance",
+    instrumentId: specification.symbol,
+    symbol: specification.symbol,
+    timeframe: specification.timeframe,
+    candles: evaluationCandles,
+    fundingRates: [],
+    instrumentRules: { product: "spot_usdt", longOnly: true, leverageEnabled: false, shortSellingEnabled: false },
+    feeSchedule: { ...feeSchedule },
+    dataQuality: { valid: true, candleCount: evaluationCandles.length, provider: market.provider, fundingRequired: false },
+  });
+
+  if (lease.mode === "paper") {
+    await settlePendingOfficialPaperOrder(database, {
+      deploymentId: lease.id,
+      fillTime: new Date(selected.openTime),
+      timing: "intrabar_threshold",
+      traceId: `paper-settle:${lease.id}:${selected.openTime}:threshold`,
+    });
+    await settlePendingOfficialPaperOrder(database, {
+      deploymentId: lease.id,
+      fillPrice: selected.open,
+      fillTime: new Date(selected.openTime),
+      timing: "next_candle_open",
+      traceId: `paper-settle:${lease.id}:${selected.openTime}:open`,
+    });
+  }
+  const hasAnyOpenPosition = await officialPaperHasOpenPositions(database, lease.paperPortfolioId);
+  const access = lease.membershipStatus
+    ? membershipAccess(now.toISOString(), {
+      status: lease.membershipStatus,
+      expiresAt: lease.membershipExpiresAt,
+      graceEndsAt: lease.membershipGraceEndsAt,
+    })
+    : { status: "read_only", newEntriesAllowed: false, closeOnly: true };
+  const portfolioAccess = access.newEntriesAllowed ? "active" : hasAnyOpenPosition ? "close_only" : "read_only";
+  await syncOfficialPaperPortfolioAccess(database, { portfolioId: lease.paperPortfolioId, access: portfolioAccess });
+  const position = lease.mode === "paper"
+    ? await loadOfficialPaperOpenPosition(database, lease.paperPortfolioId, specification.symbol)
+    : null;
+  if (lease.mode === "paper") {
+    await markOfficialPaperPosition(database, {
+      portfolioId: lease.paperPortfolioId,
+      symbol: specification.symbol,
+      markPrice: selected.close,
+      markedAt: new Date(selected.closeTime),
+    });
+  }
+  const currentRiskState = await refreshOfficialPaperRiskState(database, {
+    deploymentId: lease.id,
+    portfolioId: lease.paperPortfolioId,
+    asOf: new Date(selected.closeTime),
+  });
+  const evaluated = evaluateStrategyRuntimeCycle({
+    deploymentId: lease.id,
+    strategyVersionId: lease.strategyVersionId,
+    dsl: specification,
+    candles: evaluationCandles,
+    mode: lease.mode,
+    position: position ? { side: "long", entryPrice: position.entryPrice, quantity: position.quantity } : null,
+    riskState: {
+      ...safeRiskState(currentRiskState),
+      halted: currentRiskState.halted === true || !access.newEntriesAllowed,
+    },
+    lastDecisionCandleCloseTime: lastClose,
+  });
+  const hasBacklog = selected.closeTime < market.items.at(-1)!.closeTime;
+  const completion = await completeStrategyRuntimeCycle(database, {
+    cycleId,
+    deploymentId: lease.id,
+    workerId,
+    fencingToken: lease.fencingToken,
+    candleOpenTime: new Date(selected.openTime),
+    candleCloseTime: new Date(selected.closeTime),
+    marketDataSnapshotId: snapshot.id,
+    decision: evaluated.decision,
+    orderIntent: evaluated.orderIntent,
+    events: evaluated.events,
+    traceId,
+    startedAt: now,
+    nextCycleAt: nextPollAt(now, hasBacklog),
+    positionSizePct: specification.risk.maxAssetAllocationPct,
+    riskPerTradePct: specification.risk.riskPerTradePct,
+    symbol: specification.symbol,
+    takerFeeRate: feeSchedule.takerRate,
+  });
+  let demoIntentResults: Awaited<ReturnType<typeof enqueuePlatformDemoIntentsForRound>> = [];
+  let demoIntentError: string | null = null;
+  if (!completion.duplicate && evaluated.orderIntent) {
+    try {
+      demoIntentResults = await enqueuePlatformDemoIntentsForRound(database, {
+        strategyCode: specification.strategyCode,
+        decisionRoundId: cycleId,
+        runtimeCycleId: cycleId,
+        traceId,
+        symbol: specification.symbol,
+        side: evaluated.orderIntent.action === "exit" ? "sell" : "buy",
+        referencePrice: selected.close,
+      });
+    } catch (error) {
+      demoIntentError = error instanceof Error ? error.message.slice(0, 160) : "Demo intent enqueue failed";
+    }
+  }
+  if (lease.mode === "paper" && evaluated.orderIntent?.executionTiming === "intrabar_threshold") {
+    await settlePendingOfficialPaperOrder(database, {
+      deploymentId: lease.id,
+      fillTime: new Date(selected.closeTime),
+      timing: "intrabar_threshold",
+      traceId,
+    });
+  }
+  return {
+    status: "completed" as const,
+    cycleId: completion.id,
+    sequence: completion.sequence,
+    duplicate: completion.duplicate,
+    decision: evaluated.decision,
+    demoIntentResults,
+    demoIntentError,
   };
 }
 
@@ -111,7 +287,10 @@ export async function processLeasedStrategyRuntimeDeployment(
   dependencies: StrategyRuntimeWorkerDependencies = {},
 ) {
   const now = dependencies.now?.() ?? new Date();
-  const exchange = asExchange(lease.exchange);
+  if (lease.executionProduct === "spot_usdt") {
+    return processOfficialSpotRuntimeDeployment(database, lease, workerId, dependencies);
+  }
+  const exchange = asExchange(lease.exchange || "");
   const baseSpecification = strategyDslToRuntime(lease.specification);
   const positionSizePct = lease.positionSizePct === null
     ? baseSpecification.risk.positionSizePct
@@ -243,7 +422,9 @@ export async function processLeasedStrategyRuntimeDeployment(
     traceId: crypto.randomUUID(),
     startedAt: now,
     nextCycleAt: nextPollAt(now, hasBacklog),
-    positionSizePct: evaluated.specification.risk.positionSizePct,
+    positionSizePct: "positionSizePct" in evaluated.specification.risk
+      ? evaluated.specification.risk.positionSizePct
+      : evaluated.specification.risk.maxAssetAllocationPct,
     takerFeeRate: feeSchedule.takerRate,
   });
   if (lease.mode === "paper" && evaluated.orderIntent?.executionTiming === "intrabar_threshold") {
@@ -275,12 +456,17 @@ export async function processNextStrategyRuntimeDeployment(
     leaseSeconds,
   });
   if (!lease) return null;
-  const stopHeartbeat = startRuntimeLeaseHeartbeat(database, {
-    deploymentId: lease.id,
-    workerId: input.workerId,
-    fencingToken: lease.fencingToken,
+  const stopHeartbeat = startLeaseHeartbeat({
     leaseSeconds,
     intervalMs: dependencies.heartbeatIntervalMs,
+    onRenewalError: dependencies.onHeartbeatError,
+    renew: () => renewStrategyRuntimeLease(database, {
+      deploymentId: lease.id,
+      workerId: input.workerId,
+      fencingToken: lease.fencingToken,
+      now: new Date(),
+      leaseSeconds,
+    }),
   });
   try {
     return await processLeasedStrategyRuntimeDeployment(database, lease, input.workerId, dependencies);
