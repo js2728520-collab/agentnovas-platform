@@ -161,13 +161,11 @@ function trustedForwardedHeader(request: Request, name: string) {
 function expectedRequestOrigin(request: Request) {
   const url = new URL(request.url);
   const forwardedProtocol = trustedForwardedHeader(request, "x-forwarded-proto");
-  const forwardedHost = trustedForwardedHeader(request, "x-forwarded-host");
   const protocol = forwardedProtocol === "https" || forwardedProtocol === "http"
     ? `${forwardedProtocol}:`
     : url.protocol;
   const directHost = request.headers.get("host")?.trim() || url.host;
-  const host = forwardedHost && /^[A-Za-z0-9.[\]:-]+$/.test(forwardedHost) ? forwardedHost : directHost;
-  return new URL(`${protocol}//${host}`).origin;
+  return new URL(`${protocol}//${directHost}`).origin;
 }
 
 export function assertSameOrigin(request: Request) {

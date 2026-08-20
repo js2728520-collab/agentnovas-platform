@@ -71,9 +71,17 @@ export function resolveAppAudienceStrict(input: {
   environment?: Record<string, string | undefined>;
 } = {}): AppAudience | null {
   const configured = input.environment?.RIVERTON_APP_AUDIENCE ?? process.env.RIVERTON_APP_AUDIENCE;
-  if (isAppAudience(configured)) return configured;
-  if (configured) return null;
   const host = normalizeHost(input.host);
+  if (isAppAudience(configured)) {
+    const configuredApp = appById.get(configured)!;
+    if (host === configuredApp.domain) return configured;
+    if (host === "localhost" || host === "127.0.0.1") {
+      const port = (input.host ?? "").match(/:(\d+)$/)?.[1];
+      return port === String(configuredApp.localPort) ? configured : null;
+    }
+    return null;
+  }
+  if (configured) return null;
   if (appByDomain.has(host)) return appByDomain.get(host)!;
   if (host === "localhost" || host === "127.0.0.1") {
     const port = (input.host ?? "").match(/:(\d+)$/)?.[1];

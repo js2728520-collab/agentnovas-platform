@@ -53,6 +53,18 @@ test("the versioned inventory covers every exported API method and route", async
 
 test("unknown hosts and cross-audience sensitive routes fail closed", () => {
   assert.equal(resolveAppAudienceStrict({ host: "untrusted.example" }), null);
+  assert.equal(resolveAppAudienceStrict({
+    host: "untrusted.example",
+    environment: { RIVERTON_APP_AUDIENCE: "maintenance" },
+  }), null);
+  assert.equal(resolveAppAudienceStrict({
+    host: "zht.agentnovas.com",
+    environment: { RIVERTON_APP_AUDIENCE: "maintenance" },
+  }), null);
+  assert.equal(resolveAppAudienceStrict({
+    host: "xm.agentnovas.com",
+    environment: { RIVERTON_APP_AUDIENCE: "maintenance" },
+  }), "maintenance");
 
   assert.throws(() => evaluateApiRequestPolicy(new Request("https://untrusted.example/api/auth/me")),
     (error) => error instanceof ApiPolicyError && error.code === "UNKNOWN_AUDIENCE" && error.status === 404);
@@ -71,6 +83,28 @@ test("unknown hosts and cross-audience sensitive routes fail closed", () => {
   })).audience, "operations");
   assert.throws(() => evaluateApiRequestPolicy(new Request("https://agentnovas.com/api/auth/mfa/verify", { method: "POST" })),
     (error) => error instanceof ApiPolicyError && error.code === "ROUTE_NOT_AVAILABLE" && error.status === 404);
+});
+
+test("a configured process still rejects an unknown Host and attacker-controlled Origin", () => {
+  const previous = process.env.RIVERTON_APP_AUDIENCE;
+  process.env.RIVERTON_APP_AUDIENCE = "maintenance";
+  try {
+    assert.throws(() => evaluateApiRequestPolicy(new Request("https://evil.example/api/admin/follow-policy", {
+      method: "PUT",
+      headers: { host: "evil.example", origin: "https://evil.example" },
+    })), (error) => error instanceof ApiPolicyError && error.code === "UNKNOWN_AUDIENCE" && error.status === 404);
+    assert.throws(() => evaluateApiRequestPolicy(new Request("https://zht.agentnovas.com/api/admin/follow-policy", {
+      method: "PUT",
+      headers: { host: "zht.agentnovas.com", origin: "https://zht.agentnovas.com" },
+    })), (error) => error instanceof ApiPolicyError && error.code === "UNKNOWN_AUDIENCE" && error.status === 404);
+    assert.equal(evaluateApiRequestPolicy(new Request("https://xm.agentnovas.com/api/admin/follow-policy", {
+      method: "PUT",
+      headers: { host: "xm.agentnovas.com", origin: "https://xm.agentnovas.com" },
+    })).audience, "maintenance");
+  } finally {
+    if (previous === undefined) delete process.env.RIVERTON_APP_AUDIENCE;
+    else process.env.RIVERTON_APP_AUDIENCE = previous;
+  }
 });
 
 test("legacy sensitive surfaces are assigned to their owning application", () => {

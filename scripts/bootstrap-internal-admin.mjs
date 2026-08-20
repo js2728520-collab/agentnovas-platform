@@ -17,7 +17,11 @@ const pool = new pg.Pool({
   application_name: "agentnovas-internal-bootstrap",
 });
 try {
-  const result = await bootstrapInternalAdmin(pool, { email, password });
+  const result = await bootstrapInternalAdmin(pool, {
+    email,
+    password,
+    adoptLegacyAdmin: process.env.ADOPT_LEGACY_ADMIN === "1",
+  });
   if (!result.ok) {
     process.stderr.write(`初始化未执行：${result.code}\n`);
     process.exitCode = 2;
