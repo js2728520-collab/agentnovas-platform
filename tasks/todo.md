@@ -71,8 +71,8 @@
 
 ## H. 最终提交与推送
 
-- [x] 所有 Wave 经独立质量/反证审查并 `merge --no-ff`；最终 MFA/本地验收增量正在做末轮复核。
-- [ ] 全量自动 Gate 与真实浏览器验收通过，三端本地启动。
-- [ ] 生成四类一次性验收账号；密码不进入 Git、文档或长期聊天。
-- [ ] 核对 status/branch/remotes/SSH/secret/backup/log/fixture。
+- [x] 所有 Wave 经独立质量/反证审查并 `merge --no-ff`；最终 MFA、硬 404、质量证据和 symlink 删除边界复核为 `APPROVE`。
+- [x] 全量自动 Gate 与真实浏览器验收通过；三端本地验收服务已在 3010/3011/3012 启动。
+- [x] 已生成四类两小时一次性验收账号；密码只在仓库外 `0600` 临时文件，不进入 Git、文档或长期聊天。
+- [x] 已核对 status/branch/remotes/SSH/secret/backup/log/fixture；本地忽略文件不会进入推送。
 - [ ] 展示最终 push 命令并等待用户确认；只推集成分支。
