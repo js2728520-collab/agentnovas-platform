@@ -207,15 +207,6 @@ export async function changeStrategyDeploymentStatus(database: Queryable, input:
   ownerUserId: string;
   action: "pause" | "resume";
 }) {
-  if (input.action === "resume") {
-    const current = await database.query<Pick<DeploymentRow, "execution_product">>(`
-      SELECT execution_product FROM strategy_deployments
-      WHERE id = $1 AND owner_user_id = $2 AND status = 'paused'
-    `, [input.deploymentId, input.ownerUserId]);
-    if (current.rows[0]?.execution_product === "spot_usdt") {
-      throw new OfficialStrategyGenericResumeBlockedError();
-    }
-  }
   const desired = input.action === "pause" ? "paused" : "active";
   const allowed = input.action === "pause" ? "active" : "paused";
   const result = await database.query<DeploymentRow>(`
@@ -224,8 +215,16 @@ export async function changeStrategyDeploymentStatus(database: Queryable, input:
         next_cycle_at = CASE WHEN $3 = 'active' THEN now() ELSE next_cycle_at END,
         lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
     WHERE id = $1 AND owner_user_id = $2 AND status = $4
+      AND ($5::boolean = false OR execution_product <> 'spot_usdt')
     RETURNING *
-  `, [input.deploymentId, input.ownerUserId, desired, allowed]);
+  `, [input.deploymentId, input.ownerUserId, desired, allowed, input.action === "resume"]);
+  if (!result.rows[0] && input.action === "resume") {
+    const official = await database.query<{ present: boolean }>(`
+      SELECT true AS present FROM strategy_deployments
+      WHERE id = $1 AND owner_user_id = $2 AND execution_product = 'spot_usdt'
+    `, [input.deploymentId, input.ownerUserId]);
+    if (official.rows[0]?.present === true) throw new OfficialStrategyGenericResumeBlockedError();
+  }
   if (!result.rows[0]) throw new Error(input.action === "pause" ? "部署不存在或当前无法暂停" : "部署不存在或当前无法恢复");
   return deploymentFromRow(result.rows[0]);
 }

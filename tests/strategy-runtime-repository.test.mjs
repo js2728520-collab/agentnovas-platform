@@ -13,6 +13,7 @@ import {
   endConflictingOfficialStrategyDeployments,
   leaseNextRuntimeExplanationJob,
   leaseNextStrategyDeployment,
+  OfficialStrategyGenericResumeBlockedError,
   OfficialStrategyModeSwitchOpenPositionError,
   renewStrategyRuntimeLease,
 } from "../lib/strategy-runtime-repository.ts";
@@ -130,6 +131,7 @@ test.before(async () => {
   ]) {
     const migration = await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8");
     await pool.query(migration);
+    if (filename === "0024_platform_demo_execution.sql") await pool.query(migration);
   }
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-official', $1)`, [JSON.stringify(platformStrategyDslV3("ai_conservative", "BTCUSDT"))]);
@@ -601,6 +603,56 @@ test("one customer/card has one active deployment and mode switches fail closed 
   assert.equal((await pool.query("SELECT status FROM strategy_deployments WHERE id = $1", [deployment.id])).rows[0].status, "ended");
 });
 
+test("generic resume cannot reactivate an official deployment paused between its check and update", async () => {
+  const [portfolio] = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const deployment = await createStrategyDeployment(pool, {
+    ownerUserId: "owner-official",
+    strategyId: "strategy-official",
+    strategyVersionId: "version-official",
+    exchangeAccountId: null,
+    mode: "paper",
+    validationLabel: "UNVERIFIED",
+    idempotencyKey: "official-resume-interleaving",
+    riskAcknowledged: true,
+    executionProduct: "spot_usdt",
+    platformStrategyCode: portfolio.strategyCode,
+    membershipId: portfolio.membershipId,
+    paperPortfolioId: portfolio.id,
+  });
+  let pauseInterleaved = false;
+  const interleavedDatabase = {
+    async query(text, values) {
+      if (!pauseInterleaved && /^\s*UPDATE strategy_deployments/.test(text) && /SET status = \$3/.test(text)) {
+        await pool.query("UPDATE strategy_deployments SET status = 'paused' WHERE id = $1", [deployment.id]);
+        pauseInterleaved = true;
+      }
+      const result = await pool.query(text, values);
+      if (!pauseInterleaved && /SELECT execution_product FROM strategy_deployments/.test(text)) {
+        await pool.query("UPDATE strategy_deployments SET status = 'paused' WHERE id = $1", [deployment.id]);
+        pauseInterleaved = true;
+      }
+      return result;
+    },
+  };
+
+  await assert.rejects(
+    changeStrategyDeploymentStatus(interleavedDatabase, {
+      deploymentId: deployment.id,
+      ownerUserId: "owner-official",
+      action: "resume",
+    }),
+    (error) => error instanceof OfficialStrategyGenericResumeBlockedError,
+  );
+  assert.equal(pauseInterleaved, true);
+  assert.equal((await pool.query(
+    "SELECT status FROM strategy_deployments WHERE id = $1",
+    [deployment.id],
+  )).rows[0].status, "paused");
+});
+
 test("official deployment ownership is bound to the same customer membership portfolio triple", async () => {
   await pool.query(`
     INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at)
@@ -635,6 +687,26 @@ test("official deployment ownership is bound to the same customer membership por
       $1, $2, $3
     )
   `, [portfolioB.strategyCode, portfolioB.membershipId, portfolioB.id]), /foreign key|violates/i);
+});
+
+test("official deployment strategy code is bound to the portfolio strategy code after 0024 reapply", async () => {
+  const portfolios = await ensureOfficialPaperPortfolios(pool, {
+    membershipId: "membership-official",
+    customerId: "owner-official",
+  });
+  const conservative = portfolios.find((portfolio) => portfolio.strategyCode === "ai_conservative");
+  assert.ok(conservative);
+  await assert.rejects(pool.query(`
+    INSERT INTO strategy_deployments (
+      id, owner_user_id, strategy_id, strategy_version_id, exchange_account_id,
+      mode, validation_label, idempotency_key, execution_product,
+      platform_strategy_code, membership_id, paper_portfolio_id
+    ) VALUES (
+      'official-cross-strategy-direct', 'owner-official', 'strategy-official', 'version-official', NULL,
+      'paper', 'UNVERIFIED', 'official-cross-strategy-direct', 'spot_usdt',
+      'ai_aggressive', $1, $2
+    )
+  `, [conservative.membershipId, conservative.id]), /foreign key|violates/i);
 });
 
 test("pending official paper settlement locks current membership access and expired access permits only sells", async () => {

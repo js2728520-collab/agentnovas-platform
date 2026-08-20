@@ -66,6 +66,9 @@ CREATE INDEX IF NOT EXISTS idx_official_paper_portfolios_customer
 CREATE UNIQUE INDEX IF NOT EXISTS idx_official_paper_portfolios_identity
   ON official_paper_portfolios (id, membership_id, customer_id);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_official_paper_portfolios_strategy_identity
+  ON official_paper_portfolios (id, membership_id, customer_id, strategy_code);
+
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -90,6 +93,16 @@ BEGIN
         OR (paper_portfolio_id IS NOT NULL AND membership_id IS NOT NULL
             AND platform_strategy_code IS NOT NULL AND exchange_account_id IS NULL)
       );
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'strategy_deployments_official_portfolio_strategy_fk'
+      AND conrelid = 'strategy_deployments'::regclass
+  ) THEN
+    ALTER TABLE strategy_deployments
+      ADD CONSTRAINT strategy_deployments_official_portfolio_strategy_fk
+      FOREIGN KEY (paper_portfolio_id, membership_id, owner_user_id, platform_strategy_code)
+      REFERENCES official_paper_portfolios(id, membership_id, customer_id, strategy_code);
   END IF;
 END $$;
 
