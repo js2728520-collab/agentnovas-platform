@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 
-import { apiErrorMessage, formatDateTime, formatDecimal, type EffectiveAccessPayload, type LedgerEntry, type ViewerPayload, type WalletBalance } from "@/packages/contracts/src/riverton-ui";
+import { formatDateTime, formatDecimal, type EffectiveAccessPayload, type LedgerEntry, type ViewerPayload, type WalletBalance } from "@/packages/contracts/src/riverton-ui";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 
+import { clientErrorMessage, clientRequest } from "./client-api";
 import { ClientPortalShell } from "./client-portal-shell";
 
 export function WalletWorkspace({ viewer, access }: { viewer: ViewerPayload; access: EffectiveAccessPayload }) {
@@ -16,22 +16,19 @@ export function WalletWorkspace({ viewer, access }: { viewer: ViewerPayload; acc
   const load = useCallback(async () => {
     setState("loading"); setError("");
     try {
-      const [balanceResponse, ledgerResponse] = await Promise.all([
-        fetch("/api/wallet/balances", { cache: "no-store" }),
-        fetch("/api/wallet/ledger?limit=100", { cache: "no-store" }),
+      const [balancePayload, ledgerPayload] = await Promise.all([
+        clientRequest<{ balances?: WalletBalance[] }>("/api/wallet/balances", {}, "钱包余额读取失败"),
+        clientRequest<{ entries?: LedgerEntry[] }>("/api/wallet/ledger?limit=100", {}, "账本流水读取失败"),
       ]);
-      const [balancePayload, ledgerPayload] = await Promise.all([balanceResponse.json().catch(() => ({})), ledgerResponse.json().catch(() => ({}))]);
-      if (!balanceResponse.ok) throw new Error(apiErrorMessage(balancePayload, "钱包余额读取失败"));
-      if (!ledgerResponse.ok) throw new Error(apiErrorMessage(ledgerPayload, "账本流水读取失败"));
       setBalances(Array.isArray(balancePayload.balances) ? balancePayload.balances : []);
       setEntries(Array.isArray(ledgerPayload.entries) ? ledgerPayload.entries : []);
       setState("ready");
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "钱包读取失败"); setState("error"); }
+    } catch (caught) { setError(clientErrorMessage(caught, "钱包读取失败")); setState("error"); }
   }, []);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
 
   return <ClientPortalShell viewer={viewer} access={access}>
-    <PageHeading eyebrow="CLIENT WALLET" title="钱包与账本" description="预付 USDT 仅用于会员和 AI 积分；账本流水不可编辑或删除。" actions={<Link className="rc-button" href="/wallet/deposits">创建充值订单</Link>} />
+    <PageHeading eyebrow="CLIENT WALLET · READ ONLY" title="钱包与账本" description="当前钱包为只读视图。余额与不可变账本来自服务端，充值能力在 Beta 阶段暂不开放。" />
     {state === "loading" ? <LoadingState /> : state === "error" ? <ErrorState message={error} retry={() => void load()} /> : <>
       <section className="rc-kpi-grid" aria-label="钱包余额">
         {balances.length ? balances.map((balance) => <article key={balance.currency}><small>{balance.currency} 可用余额</small><strong>{formatDecimal(balance.availableAmount)}</strong><span>冻结 {formatDecimal(balance.frozenAmount)} · 版本 {balance.version}</span></article>) : <article><small>USDT 可用余额</small><strong>0</strong><span>尚无账本余额</span></article>}

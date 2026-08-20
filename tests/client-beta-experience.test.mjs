@@ -21,3 +21,22 @@ test("membership experience uses commercial truth sources and contains no simula
   assert.match(source, /idempotency-key/);
   assert.doesNotMatch(source, /二维码|倒计时|监听中|充值积分|积分充值|TRC20|0x[a-fA-F0-9]{8}/);
 });
+
+test("wallet is read-only and the deposit workspace is a closed Beta boundary", async () => {
+  const wallet = await read("apps/client/ui/wallet-workspace.tsx");
+  const deposits = await read("apps/client/ui/deposit-workspace.tsx");
+  assert.match(wallet, /只读/);
+  assert.doesNotMatch(wallet, /创建充值订单/);
+  assert.match(deposits, /Beta/);
+  assert.match(deposits, /暂不开放/);
+  assert.doesNotMatch(deposits, /fetch\(|deposit-orders|method:\s*["']POST["']/);
+});
+
+test("client notification settings expose unintegrated external channels without demo verification", async () => {
+  const workspace = await read("apps/client/ui/notification-workspace.tsx");
+  const settings = await read("apps/client/ui/client-notification-settings.tsx");
+  assert.match(workspace, /ClientNotificationSettings/);
+  assert.match(settings, /not_integrated/);
+  assert.match(settings, /\/api\/notifications\/preferences/);
+  assert.doesNotMatch(settings, /verificationCode|演示验证码|\/api\/notifications\/channels/);
+});

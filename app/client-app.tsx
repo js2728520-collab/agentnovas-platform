@@ -9,7 +9,7 @@ import ExchangeLogo from "./exchange-logo";
 import FollowPolicySettings from "./follow-policy-settings";
 import LiveMarket from "./live-market";
 import MarketNewsSettings from "./market-news-settings";
-import NotificationSettingsPanel from "./notification-settings-panel";
+import ClientNotificationSettings from "@/apps/client/ui/client-notification-settings";
 import OrganizationRelationshipTree from "./organization-relationship-tree";
 import SupportFloating from "./support-floating";
 import TradingCenterV2 from "./trading-center";
@@ -2134,7 +2134,7 @@ function Security({ t }: { t: Record<string, string> }) {
   return (
     <div className="security-center-page">
       <PageHead title={t.security} sub="设置通知渠道与接收偏好" />
-      <NotificationSettingsPanel />
+      <ClientNotificationSettings />
     </div>
   );
 }
