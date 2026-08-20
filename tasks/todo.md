@@ -1,67 +1,77 @@
-# Riverton 受控测试任务清单
+# Riverton Capital 商业 Beta 进度清单
 
-状态：`[x] CURRENT` 已有证据；`[-] PARTIAL` 部分完成；`[ ] TARGET` 待开发；`[!] BLOCKED` 不在当前授权范围。
+状态说明：`[x]` 已有本分支代码/测试证据；`[-]` 实现中或部分；`[ ]` 未完成；`[!]` 等待外部依赖/授权。
 
-## P0 真源与验证
+## A. D1 合同与工程基线
 
-- [x] CURRENT：三应用 audience、独立 Cookie、服务端路由分发和共享 Shell。
-- [x] CURRENT：Client 服务钱包/充值/通知基础页；未配置支付不生成假地址。
-- [x] CURRENT：Operations 充值人工操作、只读账本和 Access Center 基础闭环。
-- [x] CURRENT：Maintenance 模型安全视图、邮件/支付状态、作用域紧急暂停基础页。
-- [x] CURRENT：PRD、七智能体基线、系统/三应用 Spec、迁移矩阵、系统评估、API 目录、OpenAPI、验收门禁和路线图。
-- [x] CURRENT：清洁 CI；rendered HTML 合同不再读取 ignored/stale `dist`，三端构建后会启动真实 Client production server 执行 HTML 冒烟。
-- [ ] TARGET：把 131 个 API route 纳入机器可读 audience/permission/scope policy。
+- [x] 唯一目标仓库、集成分支和起点已确认；三个本地 worktree 已建立。
+- [x] PostgreSQL 迁移器具备 version/checksum/advisory lock/每文件事务/legacy backfill 测试。
+- [x] 四档会员、paper 10,000/card、UTC 周分成、三 Demo provider 公共合同已冻结。
+- [x] Argon2id 依赖锁定并完成运行时 hash/verify 冒烟。
+- [x] Worker 迁移 `0025`、真实 heartbeat 和公开/内部 health 分层完成；公开 health 不泄露内部检查。
+- [-] PRD、七智能体、System Spec、三端 Spec、ADR、API、Gate、Runbook 按 v2 更新。
 
-## P0 七智能体交易大厅
+## B. API Security（Wave 1）
 
-- [x] CURRENT：说明书中的三卡参数、七角色、决策轮、非托管和失败即安全原则已同步到文档。
-- [x] CURRENT：共享合同定义三卡、七角色、产品边界、运行时映射和 decision round 完整性。
-- [x] CURRENT：Runtime 新周期独立记录 AI 最终决策；audit 仅作为横切/legacy 证据兼容读取。
-- [x] CURRENT：Client 首屏、官方策略卡和 Hall 删除硬编码价格、风险指数、延迟、交易所和 fallback 业绩，空数据如实显示。
-- [x] CURRENT：Meeting 从 API 读取决策轮与七阶段记录，明确完整、部分和 legacy 缺口。
-- [x] CURRENT：删除无行为 Client “紧急停止”，接真实客户控制合同前不显示。
-- [-] PARTIAL：浏览器已验证登录页、404 audience 隔离和无控制台错误；登录态空/部分/完整决策轮及四档响应式仍需仓库化 E2E 证据。
-- [!] BLOCKED：真实现货自动跟随；需独立合规、安全、交易所和上线授权。
-- [!] BLOCKED：真实永续订单；明确不启用。
+- [-] `0021_identity_access_hardening.sql`。
+- [-] `withApiPolicy`、requestId、统一错误和 route inventory。
+- [-] 未知 Host 404、Origin/CSRF、body limit、幂等与限流。
+- [-] Argon2id 新 hash、PBKDF2 lazy rehash、dummy verify。
+- [-] TOTP/recovery/recent MFA 与内部 session TTL。
+- [-] CLI-only bootstrap、一次性 set-password；移除临时密码 UI/payload。
+- [-] 显式 assignment、revoke tombstone、organization-set/team/direct-report scope。
+- [ ] 174 handler inventory 零遗漏和跨 audience PG 集成矩阵。
 
-## P0 身份与安全
+## C. Commercial（Wave 1）
 
-- [-] PARTIAL：当前应用 RBAC 与数据范围已用于新页面，legacy role fallback 仍广泛存在。
-- [ ] TARGET：迁移关键 legacy API，设置 fallback 观察和退出日期。
-- [ ] TARGET：密码 KDF、登录/找回/bootstrap 限流、一次性 bootstrap。
-- [ ] TARGET：Operations/Maintenance 高权限强认证/MFA。
-- [ ] TARGET：CSP 与公开 health 最小化。
-- [ ] TARGET：通知/成员创建不保存临时密码，改为一次性设置链接。
+- [-] `0022_ledger_approval_invariants.sql`：平衡、不可变、reversal、owner/account 唯一性。
+- [-] `0023_commercial_membership_settlement.sql`：plans/orders/evidence/entitlement/legal/credits/statements。
+- [-] 会员订单 + 外部付款凭证 + maker-checker 幂等激活。
+- [-] credits grant/reserve/settle/release 与不可变 ledger。
+- [-] UTC 周分成、高水位、亏损结转、应收/付款两段复核。
+- [ ] 自审/重复/并发/stale/rollback PG 集成证据。
 
-## P1 Operations
+## D. Strategy + Demo（Wave 1）
 
-- [-] PARTIAL：客户、组织树、充值、账本、财务、审批、RBAC 页面已有基础。
-- [ ] TARGET：组织树和成员接口完全接入新 RBAC/data scope。
-- [ ] TARGET：客户详情、备注历史、归属、冻结/恢复完整闭环。
-- [ ] TARGET：策略上架/修改/下架双人治理中心。
-- [ ] TARGET：团队任务、每日简报、月度目标和跟进。
-- [ ] TARGET：收入、结算、应收、收款确认、付款资料和调整单完整闭环。
-- [ ] TARGET：旧通用审批按业务适配器重构，补事务/锁/幂等。
-- [ ] TARGET：迁移完成后删除旧 Client Admin 和废弃 API。
+- [-] `0024_platform_demo_execution.sql`。
+- [-] 三卡 spot snapshot 与 runtime/follow/deployment/Hall 单一真源。
+- [-] 每用户/卡独立 10,000 USDT paper 组合；客户不需要 exchange account。
+- [-] paper trades/history、七阶段/traceId、到期停止新开仓。
+- [-] OKX Demo、Binance Spot Testnet、Bybit Demo allowlist/signature/receipt adapters。
+- [-] 确定性 clientOrderId、10/100 USDT 限额、provider/card kill switch。
+- [ ] 全链路断言无 perpetual/leverage/short/funding/customer secret/live endpoint。
 
-## P1 Maintenance
+## E. Client（Wave 2）
 
-- [-] PARTIAL：模型 Profile/绑定、邮件、支付、健康、安全、设置、RBAC 已有页面。
-- [ ] TARGET：研发角色、七智能体产品角色、运行时解释角色目录分离。
-- [ ] TARGET：模型版本查看、回滚和绑定依赖图。
-- [ ] TARGET：市场/新闻数据集成页面。
-- [ ] TARGET：Worker heartbeat、lease、队列、最近成功失败。
-- [ ] TARGET：统一技术系统审计。
+- [ ] 稳定 App Router 页面、audience chunk/CSS 分包和共享请求错误合同。
+- [ ] 法务同意、四计划 API、会员订单、credits。
+- [ ] 三 paper 组合、真实订单历史、七阶段与独立 Demo 证据。
+- [ ] 钱包只读；充值页关闭创建；移除假地址/二维码/倒计时/监听。
+- [ ] Telegram/WhatsApp `not_integrated`；无演示验证码。
+- [ ] 320/768/1024/1440、键盘/焦点、loading/error/not-found。
 
-## P1 前端质量
+## F. Operations / Maintenance（Wave 2）
 
-- [ ] TARGET：拆分 4,857 行 `app/client-app.tsx`。
-- [ ] TARGET：收敛 3,850 行全局 CSS 重复规则。
-- [ ] TARGET：用组件消息合同替换 DOM 文本 i18n。
-- [ ] TARGET：仓库化 Playwright 关键 E2E、axe 和四档响应式测试。
-- [ ] TARGET：所有列表/表单的 skeleton、空态、错误、重试和重复提交保护复核。
+- [ ] Ops 客户/邀请一次性设置密码、会员订单、凭证、双审、credits、周分成。
+- [ ] Ops 列表服务端 pagination/URL/data scope，审批后准确刷新。
+- [ ] Maintenance Demo 账户安全视图、worker/queue、模型/Email/支付/RBAC/技术审计。
+- [ ] UI 区分 configured/enabled/alive/healthy/stale；支付始终 disabled。
+- [ ] 未达生产合同的旧策略市场/自动结算/团队分析菜单隐藏。
 
-## 外部操作
+## G. 质量、部署与 Gate
 
-- [!] BLOCKED：真实支付、邮件外发、生产 Webhook 注册、生产数据库迁移。
-- [!] BLOCKED：本地提交、远程推送和 PR；仅在用户明确授权后执行。
+- [ ] Playwright 四身份 + 一次性 PG schema + axe + 四断点 + console zero。
+- [ ] Client/Ops/Maint bundle 隔离；JS ≤200KB gzip、CSS ≤50KB、首屏图 ≤200KB。
+- [ ] CSP nonce、security headers、secret scan、依赖 high/critical=0。
+- [ ] 三端 production Host smoke、migration fresh/N-1/rerun/concurrent/restore。
+- [ ] 独立最小 env/DB roles，清理旧 unit/端口/server name，回滚 <5min。
+- [!] 法务七项、Email 外部依赖、Demo staging 凭证、DNS/TLS、支持/值班未提供前不得付费上线。
+- [!] 不执行生产迁移、真实支付、客户充值、真实交易、真实退款或未授权外部变更。
+
+## H. 最终提交与推送
+
+- [ ] 所有 Wave 经独立质量/反证审查并 `merge --no-ff`。
+- [ ] 全量自动 Gate 与真实浏览器验收通过，三端本地启动。
+- [ ] 生成四类一次性验收账号；密码不进入 Git、文档或长期聊天。
+- [ ] 核对 status/branch/remotes/SSH/secret/backup/log/fixture。
+- [ ] 展示最终 push 命令并等待用户确认；只推集成分支。

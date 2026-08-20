@@ -1,9 +1,10 @@
 openapi: 3.1.0
 info:
   title: Riverton Capital Controlled Beta API
-  version: 1.0.0-beta
+  version: 2.0.0-beta
   description: >-
-    三应用一库的核心浏览器接口合同。真实支付、真实邮件和真实订单不在本合同中启用。
+    三应用一库的核心浏览器接口合同。客户 paper 与平台 Demo 证据分离；
+    真实支付、客户充值、客户交易所密钥、真实现货/永续和生产外部操作不启用。
 servers:
   - url: https://agentnovas.com
     description: Client
@@ -15,9 +16,13 @@ tags:
   - name: Auth
   - name: Access
   - name: Trading Hall
+  - name: Membership
+  - name: Credits
+  - name: Paper
   - name: Wallet
   - name: Operations
   - name: Maintenance
+  - name: Health
 paths:
   /api/auth/login:
     post:
@@ -87,6 +92,91 @@ paths:
                 $ref: '#/components/schemas/TradingHall'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /api/membership/plans:
+    get:
+      tags: [Membership]
+      summary: 查询版本化会员计划
+      responses:
+        '200':
+          description: 四档 v1 计划快照
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [plans]
+                properties:
+                  plans:
+                    type: array
+                    minItems: 4
+                    maxItems: 4
+                    items: { $ref: '#/components/schemas/CommercialPlan' }
+  /api/membership/me:
+    get:
+      tags: [Membership]
+      summary: 查询当前 trial 与会员权益
+      responses:
+        '200': { description: 当前 entitlement 安全视图 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/membership/orders:
+    get:
+      tags: [Membership]
+      summary: 查询当前客户会员订单
+      responses:
+        '200': { description: 订单列表，不含完整外部付款凭证 }
+    post:
+      tags: [Membership]
+      summary: 创建人工付款会员订单
+      description: 需要当前法务同意和 Idempotency-Key；不返回链上地址或二维码。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [planId]
+              properties:
+                planId: { type: string, enum: [monthly_v1, quarterly_v1, annual_v1, lifetime_v1] }
+      responses:
+        '201': { description: 已创建订单和人工付款指引 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/membership/performance-statements:
+    get:
+      tags: [Membership]
+      summary: 查询当前客户 paper 盈利分成账单
+      responses:
+        '200': { description: paper 模拟分成安全视图 }
+  /api/credits/me:
+    get:
+      tags: [Credits]
+      summary: 查询 AI credits 余额与不可变流水
+      responses:
+        '200': { description: 可用、预留和分录 }
+  /api/paper/portfolios:
+    get:
+      tags: [Paper]
+      summary: 查询三张官方策略独立 paper 组合
+      responses:
+        '200':
+          description: 每张卡初始 10,000 USDT，不代表真实资产
+  /api/paper/portfolios/{id}/trades:
+    get:
+      tags: [Paper]
+      summary: 查询服务端 paper 成交历史
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200': { description: 当前客户所属组合的 cursor 分页成交 }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/wallet/balances:
     get:
       tags: [Wallet]
@@ -108,14 +198,59 @@ paths:
       responses:
         '200':
           description: 充值订单
-    post:
-      tags: [Wallet]
-      summary: 创建服务充值订单
+  /api/operations/membership-orders:
+    get:
+      tags: [Operations]
+      summary: 按 data scope 查询会员订单
       responses:
-        '201':
-          description: 已创建真实服务商订单
-        '503':
-          $ref: '#/components/responses/Unavailable'
+        '200': { description: cursor 分页与脱敏凭证状态 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/operations/membership-orders/{id}/decision:
+    post:
+      tags: [Operations]
+      summary: 第二人复核会员付款并幂等激活权益
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionRequest' }
+      responses:
+        '200': { description: 审批与业务事务结果；不表示外部自动收款 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/operations/performance-statements/generate:
+    post:
+      tags: [Operations]
+      summary: 幂等生成上一完整 UTC 周 paper 分成账单
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201': { description: 已生成或返回既有 statement }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/operations/performance-statements/{id}/decision:
+    post:
+      tags: [Operations]
+      summary: 业务复核分成账单并形成应收
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionRequest' }
+      responses:
+        '200': { description: 只形成应收，不标 paid 或更新高水位 }
+        '409': { $ref: '#/components/responses/Conflict' }
   /api/operations/deposits:
     get:
       tags: [Operations]
@@ -186,7 +321,46 @@ paths:
       responses:
         '200':
           description: configured/enabled/heartbeat/last result 分离的状态
+  /api/maintenance/demo-exchanges:
+    get:
+      tags: [Maintenance]
+      summary: 查询平台 Demo 账户安全视图
+      responses:
+        '200': { description: hasSecret/environment/permission/verification，不含 secret }
+  /api/maintenance/demo-exchanges/{id}/verify:
+    post:
+      tags: [Maintenance]
+      summary: 在固定测试域名验证平台 Demo 账户
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: provider-specific 真实测试结果或明确 fixture 状态 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/health/live:
+    get:
+      tags: [Health]
+      summary: 粗粒度进程存活
+      responses:
+        '200': { description: alive 与时间，不含内部配置 }
+  /api/health/ready:
+    get:
+      tags: [Health]
+      summary: 粗粒度 readiness
+      responses:
+        '200': { description: ready }
+        '503': { description: not_ready，不含内部错误 }
 components:
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
   securitySchemes:
     clientSession:
       type: apiKey
@@ -201,6 +375,24 @@ components:
       in: cookie
       name: rc_maint_session
   schemas:
+    CommercialPlan:
+      type: object
+      additionalProperties: false
+      required: [id, version, priceUsd, durationDays, credits, performanceFeeBps]
+      properties:
+        id: { type: string, enum: [monthly_v1, quarterly_v1, annual_v1, lifetime_v1] }
+        version: { type: string, const: v1 }
+        priceUsd: { type: string, pattern: '^[0-9]+\\.[0-9]{2}$' }
+        durationDays: { type: [integer, 'null'] }
+        credits: { type: integer, minimum: 0 }
+        performanceFeeBps: { type: integer, enum: [1600, 2000] }
+    DecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, reason]
+      properties:
+        decision: { type: string, enum: [approve, reject] }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
     LoginRequest:
       type: object
       required: [account, password]
@@ -373,8 +565,23 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ApiError' }
+    NotFound:
+      description: 资源不存在或属于错误 audience
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Unprocessable:
+      description: 业务校验失败
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
     RateLimited:
       description: 请求过于频繁
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Unavailable:
+      description: 服务未配置、未启用或不健康
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ApiError' }

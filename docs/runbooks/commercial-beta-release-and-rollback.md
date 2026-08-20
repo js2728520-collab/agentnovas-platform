@@ -1,0 +1,34 @@
+# Riverton Capital 付费 Beta 发布与回滚 Runbook
+
+## 1. 发布前
+
+- 核对 commit、artifact hash、Node/PostgreSQL 版本、migration checksums 和所有 Gate 证据。
+- 检查 `.env`、密钥、密码、私钥、数据库备份、日志、截图、trace 和 fixture 未进入 Git/artifact。
+- 三端/Workers/migrator 使用独立最小 env/DB role；Payment Worker disabled。
+- `systemd-analyze verify`、`nginx -t`、端口/server name/Cookie/Host/TLS/CSP smoke 通过。
+- 备份恢复、fresh/N-1 migration、current/previous 应用回滚演练完成。
+
+## 2. 部署
+
+1. 迁移只在显式 staging/生产变更授权后执行；本实施阶段不得运行生产 migration。
+2. 部署新 release 目录并验证 hash，不覆盖 previous。
+3. 原子切换 current；按 Client→Operations→Maintenance→Workers 顺序 readiness。
+4. 运行三 Host 登录/404/Cookie、安全 header 与关键只读 smoke。
+5. 外部副作用开关保持默认 off；Email/Demo 分别经过独立 go-live 记录。
+
+## 3. 首小时监控
+
+监控 5xx/p95、401/403/cross-audience reject、DB pool、Worker heartbeat/queue、Client JS error、邀请/法务/订单/credits/paper/Demo/Email/statement 转化与异常。任何 fake state、重复副作用或安全越界立即停止新邀请。
+
+## 4. 应用回滚
+
+1. 停止新增副作用与相关 Worker claim；保留事件/队列。
+2. 原子切回 previous，逐端 readiness/Host smoke。
+3. 不回滚已执行的向前兼容 migration；旧应用必须与 expand schema 兼容。
+4. 对已提交商业事件使用幂等重放/reversal/补偿，不修改/删除历史。
+5. 目标 5 分钟内恢复应用；记录时间线、commit、requestIds、影响和后续措施。
+
+## 5. 数据恢复
+
+只在 incident commander、数据库负责人和业务负责人共同批准后恢复。先在隔离实例验证备份时间、checksum、迁移版本和关键行数；确定 RPO/RTO 与影响客户。恢复不能代替账本 reversal，也不能覆盖更晚的合法商业事件。
+

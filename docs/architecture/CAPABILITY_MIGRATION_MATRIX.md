@@ -46,6 +46,23 @@
 | 业务授权审计 | 新 Access Center 有基础 | Operations `/access/audit` | `MERGE` | 当前 audience、筛选、事件详情 | P0 |
 | 技术系统审计 | 分散 | Maintenance `/audit` | `REBUILD` | 认证、配置、集成、Worker、安全事件聚合 | P1 |
 
+## 付费 Beta 新能力与旧能力处置
+
+| 能力 | 目标应用 | 决定 | Beta 合同 |
+| --- | --- | --- | --- |
+| 客户充值创建/链上地址 | Client | `RETIRED/BETA` | 充值页只读并显示未开放；无地址/二维码/监听 |
+| 静态会员套餐/演示付款 | Client | `REBUILD` | 四档服务端计划、订单号、人工付款指引 |
+| 会员付款凭证与权益激活 | Operations | `NEW` | maker/checker，同事务 entitlement/credits/ledger/audit |
+| AI credits 充值 | Client | `RETIRED/BETA` | 只由会员和双审调整产生 |
+| Credits 调整 | Operations | `NEW` | 不可变 ledger、非负、maker/checker |
+| 客户模拟订单 | Client | `REBUILD` | 三卡独立 10,000 USDT server-owned paper portfolio |
+| 客户交易所账户连接 | Client | `RETIRED/BETA` | 客户不上传密钥；未来真实执行独立立项 |
+| 平台交易所测试账户 | Maintenance | `NEW` | OKX Demo/Binance Spot Testnet/Bybit Demo 安全视图 |
+| Demo 执行意图与回执 | Maintenance/Client read view | `NEW` | 与 paper 完全隔离，固定限额与 kill switch |
+| 周策略费/旧 collections | Operations | `REBUILD` | UTC 周 paper 净收益、高水位、应收/付款两段复核 |
+| Telegram/WhatsApp 验证 | Client | `RETIRED/BETA` | 未接入、不可验证；不得返回演示验证码 |
+| Payment Worker/自动入账 | Maintenance | `RETIRED/BETA` | 始终 disabled，不作为收费路径 |
+
 ## 旧代码退出条件
 
 旧 `Admin` 页面和 legacy API 只有同时满足以下条件才能删除：
@@ -69,8 +86,8 @@ Operations
 
 Maintenance
 ├─ Models & Agent Bindings
-├─ Data / Email / Payment Integrations
-├─ Worker & Database Health
+├─ Email / Disabled Payment / Demo Exchange Integrations
+├─ Worker, Queue & Database Health
 ├─ Safety Controls
 ├─ Platform Settings
 └─ Technical Access & Audit

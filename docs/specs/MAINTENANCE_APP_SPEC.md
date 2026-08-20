@@ -1,63 +1,48 @@
-# Maintenance 应用规格
+# Maintenance 付费 Beta 应用规格
 
-## 1. 职责边界
+## 1. 职责与导航
 
-Maintenance 管理技术配置、运行健康、安全控制和技术审计，不处理客户归属、业务收款、结算或策略上架审批。
+Maintenance 管理模型 Profile/Agent 绑定、Email、支付禁用态、平台 Demo 账户、Worker 健康、紧急暂停、RBAC 和技术审计，不处理客户归属、会员付款或 paper 分成业务决定。
+
+核心路由：`/models`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/access`、`/access/audit`、`/audit`。
 
 ## 2. 模型与 Agent
 
-- 模型 Profile 的读取与修改权限分离。
-- Profile 支持版本、启用状态、最近测试和回滚；保存后 API Key 不回显。
-- 角色目录分为：策略研发角色、七智能体产品角色、可选运行时解释角色。三者不得共用含糊的同名列表。
-- 七智能体并不要求七个模型持续运行；页面需要展示确定性内核、可选解释模型和依赖状态。
-- 绑定测试必须输入原因并审计，只返回安全摘要。
+- Profile 读取/修改分权；版本、启用、最近测试、绑定依赖和回滚可追溯。
+- 研发角色、七智能体产品角色、运行时解释角色分目录；确定性内核不伪装成 LLM。
+- 保存后密钥不回显；读取者看不到修改/测试控件；测试要求原因/recent MFA/audit。
+- 付费 AI 只允许可靠 usage 和已配置费率的 profile。
 
-目标权限：`maint.llm_profiles.view/manage`、`maint.agent_bindings.view/manage`。
+## 3. Email 与支付
 
-## 3. 数据、邮件与支付集成
+- Email 分别显示 domain、key、webhook、templates、suppression、retention、allowlist 和最近测试。任一未完成或未授权时为 `configured_not_sent`。
+- Payment 永远为 disabled；Beta 不提供连接测试成功、Webhook 入账或 Payment Worker 业务运行。
+- 页面只见 `hasSecret`、provider、安全 environment 和最近验证；不返回密钥、密文引用、完整私有 endpoint 或 raw webhook。
 
-- 数据集成展示 provider、数据类型、启用态、最后成功/失败、延迟和数据质量；不显示私有完整端点或密钥。
-- 邮件展示域名验证、API Key 是否存在、最近测试和结果；`configured_not_sent` 的文案固定为“已配置但未发送”。
-- 支付展示 provider、渠道、网络、阈值、密钥状态和 sandbox/active/disabled；测试开关关闭时保留 503。
-- 集成状态不得把 `configured` 等同于 `running`。
+## 4. 平台 Demo 账户
 
-目标权限：`maint.data_integrations.view/manage`、`maint.email_integrations.manage`、`maint.payment_integrations.manage`。
+- provider 为 OKX Demo、Binance Spot Testnet、Bybit Demo；环境/域名固定 allowlist。
+- 展示 configured、enabled、permissionCheck、lastVerifiedAt、latestReceipt、dailyNotional、kill switch；不显示 secret。
+- 权限检查拒绝提现、划转、杠杆、衍生品或生产域名。OKX header 不可由请求覆盖。
+- 修改账户、测试和 kill switch 要 reason、recent MFA 和审计。
+- `local-demo`/fixture 只能显示 fixture/not_sent，不能显示 connected 或真实测试成功。
 
-## 4. Worker 与系统健康
+## 5. Worker 与健康
 
-每个组件至少显示：
+每个 Worker 显示：configured、enabled、liveness、health、heartbeatAt、commitSha、lastSuccessAt、lastFailureAt、safe error code、currentJob、queueDepth/oldestAge。状态推导：disabled、unconfigured、missing、alive/healthy、degraded、stale；env 开关不能证明进程存活。
 
-- `configured`：必要配置是否齐全。
-- `enabled`：业务开关是否开启。
-- `heartbeatAt`：进程最近心跳。
-- `lastSuccessAt` / `lastFailureAt`：最近结果。
-- `queueDepth`：只对授权运维展示。
-- `status`：由上述字段推导，不能只读取环境变量。
+Database、Research、Paper Runtime、Demo Execution、Notification 和 Payment 分别建模。Payment 始终 disabled。公开 live/ready 只粗粒度，详细诊断需要 `maint.system_health.view`。
 
-Database、Research Worker、Runtime Worker、Payment Worker、Notification Worker、Resend 和支付服务商分别建模。
+## 6. 安全、RBAC 与审计
 
-## 5. 安全与紧急控制
+- Operations/Maintenance 显式 assignment，不回退 legacy；Access Center 只读取 Maintenance 数据。
+- 紧急暂停按 scope/provider/card 生效，要求原因；解除不自动恢复策略。
+- 系统审计包含登录/MFA、配置版本、Worker、provider 测试、kill switch、模型和授权事件；日志不含 secret/完整 PII/token。
+- 真实订单、支付、退款和生产基础设施没有 UI 或 API 可达路径。
 
-- 紧急暂停按 RBAC scope 生效，填写原因并审计。
-- 暂停默认阻断新开仓；解除后不自动恢复策略。
-- 自动平仓只允许现有明确授权的 OKX Demo 路径，不能连接生产订单。
-- 真实现货或永续紧急执行需要独立评审，不因页面存在而授权。
+## 7. 验收
 
-## 6. 平台设置
-
-- 公开设置仅包含安全品牌、客服和公告字段。
-- Telegram 客服链接必须 HTTPS 且域名在白名单。
-- 私有配置和功能开关不通过公开设置 API 返回。
-
-## 7. RBAC 与审计
-
-- Access Center 只读取 Maintenance 的权限、模板、角色、分配、审批和审计。
-- Operations 与 Maintenance 的授权数据不交叉读取。
-- 系统审计聚合认证、配置、Worker、集成测试、紧急控制和模型版本事件；业务审批仍在 Operations 查看。
-
-## 8. 验收
-
-- 密钥、完整端点、Webhook payload 和密文引用不出现在网络响应与浏览器页面。
-- Worker 关闭、未心跳、已配置未运行、测试未执行分别呈现。
-- 模型读取者看不到编辑/测试控件；修改者的敏感操作有原因和审计。
-- 任何真实外部调用在开关关闭时不会执行，也不会产生成功提示。
+- 停止 Worker 后 60 秒内 stale；configured/enabled/alive/healthy 不混淆。
+- 密钥、完整 endpoint、webhook payload 和临时 token 在网络响应/页面/日志均为零。
+- Demo 三 provider 的 fixture、未配置、失败和成功状态准确；paper 不受影响。
+- Email 未完全就绪显示 configured_not_sent；Payment 一直 disabled；不会生成假成功。

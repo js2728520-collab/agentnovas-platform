@@ -1,95 +1,44 @@
-# Riverton 受控测试优化路线图
+# Riverton Capital 14 天受邀付费 Beta 路线图
 
-估算为工程人日范围，不包含外部合规、供应商签约和等待时间。阶段必须通过前一 Gate，不能用并行堆页面绕过安全基础。
+本路线图是时间盒，不是上线承诺。Gate 优先于日期；新增社区市场、自动支付、客户充值、真实交易和退款进入 Beta 后 backlog。
 
-## 阶段 0：真源、CI 与风险冻结（8–12 人日）
+## Wave 1：D1–D8 后端纵向闭环
 
-目标：团队对齐同一产品/技术事实，测试证明当前代码而不是旧产物。
+| 切片 | 时间 | 交付 | 退出条件 |
+| --- | --- | --- | --- |
+| 真源/迁移器 | D1–D2 | PRD/Spec/contracts/ADR、checksum migration runner | 合同唯一、迁移可重跑/并发拒绝 |
+| API/身份 | D2–D4 | policy inventory、Argon2id、MFA、限流、scope、bootstrap/CSRF | 跨 audience/revoke/MFA 测试全绿 |
+| 商业/账本 | D3–D7 | ledger invariants、会员、credits、分成、typed approval | 重复/并发无重复权益/计费 |
+| Strategy/Demo | D3–D8 | spot snapshot、三 paper、三 provider adapter/worker | 无永续/客户密钥；paper/Demo 分离 |
 
-- 评审 PRD、七智能体基线、三应用 Spec、迁移矩阵和 ADR。
-- 修复 rendered HTML 对 ignored `dist` 的依赖，增加 clean-CI 任务。
-- 重写 tasks 状态，建立 API policy inventory。
-- 删除 Client 假紧急停止、静态实时 KPI 和静态会议的误导性呈现。
+## Wave 2：D5–D10 前端与运行收口
 
-退出条件：Gate 0 全部通过。
+- Client：稳定路由、法务/会员/credits/三 paper/Hall/Demo/通知/真实历史；移除假支付与假验证。
+- Operations：客户/邀请、会员凭证/双审、credits、分成、分页/scope/队列刷新。
+- Maintenance：模型、Email、支付禁用态、Demo 账户、真实 Worker/queue、kill switch、技术审计。
+- Foundation：audience import/lazy chunk、Client/Console CSS、a11y、请求取消/错误合同、CSP。
+- Observability/Deploy：heartbeat、requestId/traceId、指标告警、最小 env/DB role、清理旧 unit。
 
-## 阶段 1：身份、Audience 与 API 安全收口（15–22 人日）
+## Integration：D9–D11
 
-- 中央 API audience/permission/scope policy。
-- 迁移 50 个 legacy session/role route，优先客户、组织、审批、财务和系统接口。
-- legacy fallback 加观察、开关和截止日期。
-- 密码 KDF、登录限流、一次性 bootstrap、高权强认证和安全响应头。
-- 公开/内部 health 分层。
+合并顺序：API Security → Commercial → Strategy Demo → UI Foundation → Client/Internal → Quality/Deploy。每次 `merge --no-ff` 后跑 type/lint/相关测试/diff check；共享 contracts、package/lock、route dispatcher、CI 只有单一 owner。
 
-退出条件：Gate 1，无跨 audience 和关键越权。
+## Validation：D11–D13
 
-## 阶段 2：七智能体模拟产品闭环（20–32 人日）
+- 一次性 PostgreSQL staging：fresh/N-1/rerun/concurrent/restore。
+- 四身份 Playwright + axe + 四断点 + console/network。
+- 三端 clean production build/Host smoke/bundle/Lighthouse。
+- staging Demo 与 Email allowlist 只在凭证/域名/Webhook/外部授权就绪后执行。
+- D13 两名内部 canary 完成邀请到到期/分成演练和发布评审。
 
-- 统一 `packages/contracts` 角色目录、三卡参数和决策轮合同。
-- runtime 增加独立 final decision，legacy audit 保留为审计元数据。
-- Trading Hall API 输出 camelCase、安全证据和真实环境状态。
-- Client 展示七角色、三卡、决策轮列表/详情、成交与未成交原因。
-- 会议页删除静态内容；无数据/部分事件/异常/重试完整。
-- 官方现货目标与用户永续研究模拟在 UI 和文档中分开。
+## Release：D14
 
-退出条件：Gate 2；真实订单仍关闭。
+只有法务、外部依赖和全部技术 Gate 通过才开放 5–20 名受邀客户。首小时强化监控邀请/会员/paper/Demo/Email/credits/分成、5xx/p95、Worker stale 和安全拒绝。任一绝对否决项触发停止新增邀请并按 runbook 回退。
 
-## 阶段 3：Operations 旧能力迁移（30–45 人日）
+## GA Backlog
 
-- P0：组织树、客户详情/冻结、通用审批重构、策略治理、账本/调整。
-- P1：团队任务/目标、邀请、归属、收入、结算、应收、付款资料、跟随政策。
-- 旧 Admin/API 逐项观测、弃用和删除。
-- 所有写入增加事务、幂等、原因、审计和并发集成测试。
-
-退出条件：Gate 3，迁移矩阵无未决旧功能。
-
-## 阶段 4：Maintenance 与运行可观测性（15–24 人日）
-
-- 模型 Profile 版本/回滚和三类角色目录。
-- 数据/新闻集成页面。
-- Worker 心跳、队列、最近成功失败和报警基础。
-- 技术系统审计、公开设置最小化、紧急控制验收。
-
-退出条件：Gate 4。
-
-## 阶段 5：前端工程收敛与可访问性（18–28 人日）
-
-- 拆分 4,857 行 Client：Hall、Strategies、Account、Auth、Legacy Admin。
-- 将 3,850 行 CSS 按模块和 token 收敛，移除重复规则。
-- 替换 DOM 文本 i18n 为组件级消息合同。
-- 建立关键 Playwright E2E、视觉/响应式和 axe 测试。
-- 性能预算、错误边界、请求取消和缓存策略。
-
-退出条件：四档响应式、键盘和关键 E2E 可重复。
-
-## 阶段 6：受控测试发布（10–16 人日）
-
-- 一次性环境恢复演练、迁移/回滚演练和证据包。
-- 最小权限测试账户、运维值班、告警和事故流程。
-- 仅开放经过 Gate 的功能；Payment/Notification/订单外部开关仍按专项授权。
-- 5–20 个内部/受邀账户灰度，收集行为、错误和支持反馈。
-
-退出条件：发布否决项为零，团队签署已知限制。
-
-## 独立未来项目：真实现货跟随（40–70+ 人日）
-
-该项目不包含在当前前端完成范围，也未获执行授权。启动前需独立完成：
-
-- 合规/地区/交易所政策与客户协议。
-- 凭证保险库、权限验证、固定 IP、撤销与轮换。
-- 统一信号到本地执行器、滑点/偏差/深度/精度/余额检查。
-- 每客户幂等订单、成交同步、断线恢复、退出与紧急控制。
-- 影子、交易所 sandbox/demo、极小额灰度和事故演练。
-- 独立 ADR、威胁模型、安全评审和上线授权。
-
-## 优先顺序
-
-```text
-真源/CI
-  → 身份与 API 边界
-    → 七智能体模拟闭环
-      → Operations 迁移
-        → Maintenance 可观测性
-          → 前端收敛
-            → 受控测试
-```
+- Passkey/WebAuthn、审计 tamper evidence、DB RLS/更细角色、唯一迁移/schema 兼容层淘汰。
+- 客户/组织/团队/财务完整旧后台迁移，模型回滚/数据集成/统一技术审计。
+- Client 单体和 i18n 深度重构、RUM/SLO、通知更多渠道。
+- 社区策略治理/作者分润、自动支付/退款/对账。
+- 客户本地真实现货执行作为独立合规、安全、凭证与 go-live 项目；永续另立项。

@@ -1,7 +1,7 @@
 # API 目录与迁移状态
 
 日期：2026-08-20
-范围：当前 `app/api/**/route.ts` 共 131 个 route 文件。
+范围：基线包含约 131 个 route 文件、174 个 HTTP handler；新增商业接口进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明。
 
 ## 1. 使用说明
 
@@ -13,7 +13,7 @@
 - `REVIEW`：安全/产品语义未完成，不得视为生产合同。
 - `MACHINE`：供应商或 Worker 调用，使用签名/内部凭证而不是浏览器权限。
 
-所有接口在受控测试前都必须进入可执行的 route policy 清单：允许 audience、认证方式、permission、data scope、PII policy、mutation sensitivity、rate limit 和审计类型。
+所有接口在受控测试前都必须进入可执行的 route policy 清单：method/path、audience、认证/MFA、permission、assignment-bound data scope、PII policy、mutation sensitivity、idempotency、rate limit、body limit 和审计类型。未登记 handler 发布失败。
 
 ## 2. Access 与账户（26）
 
@@ -121,7 +121,9 @@
 | `/api/market/watchlist` | GET, POST, DELETE | C | KEEP；所有权 |
 | `/api/platform/network` | GET | C | KEEP；未配置 IP 不伪造 |
 | `/api/platform/settings` | GET | C | KEEP；只返回公开白名单字段 |
-| `/api/health` | GET | S | REVIEW/P0；公开响应最小化 |
+| `/api/health` | GET | S | KEEP；公开粗粒度模式/时间，不含内部检查 |
+| `/api/health/live` | GET | S | KEEP；进程存活，公开粗粒度 |
+| `/api/health/ready` | GET | S | KEEP；数据库 readiness，公开粗粒度 |
 | `/api/integrations/payments/[provider]/webhook` | POST | S | MACHINE；签名、幂等、body 限制 |
 | `/api/integrations/resend/webhook` | POST | S | MACHINE；Svix 签名、幂等、乱序保护 |
 
@@ -130,9 +132,10 @@
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
 | `/api/wallet/balances` | GET | C | KEEP；服务余额 |
-| `/api/wallet/deposit-orders` | GET, POST | C | KEEP；未配置返回 503 |
+| `/api/wallet/deposit-orders` | GET | C | KEEP；只读历史 |
+| `/api/wallet/deposit-orders` | POST | C | RETIRED/BETA；统一返回未开放，不生成地址/二维码 |
 | `/api/wallet/ledger` | GET | C | KEEP；不可变流水 |
-| `/api/notifications/channels` | GET, POST, PATCH | C | KEEP |
+| `/api/notifications/channels` | GET, POST, PATCH | C | REVIEW；Beta 仅 email/in-app，Telegram/WhatsApp 不可验证且不返回验证码 |
 | `/api/notifications/inbox` | GET, PATCH | C | KEEP |
 | `/api/notifications/preferences` | GET, PUT | C | KEEP；失败保留原值 |
 | `/api/operations/deposit-action-requests/[id]/decisions` | POST | O | KEEP；第二人审批 |
@@ -177,12 +180,43 @@
 | `/api/maintenance/payment-providers/[id]/status` | PATCH | M | KEEP；敏感操作 |
 | `/api/maintenance/payment-providers/[id]/test` | POST | M | KEEP；开关关闭 503 |
 | `/api/maintenance/payment-providers` | GET | M | KEEP；安全视图 |
-| `/api/maintenance/payment-workers/health` | GET | M | REVIEW；补真实心跳 |
+| `/api/maintenance/payment-workers/health` | GET | M | KEEP；真实 heartbeat，configured/enabled/liveness/health/last result 分离 |
 | `/api/maintenance/platform-settings` | GET, PUT | M | KEEP；私有/公开字段分离 |
 | `/api/maintenance/trading/emergency-stop` | GET, POST | M | KEEP；scope、原因、审计、Demo-only 自动平仓 |
 
-## 9. 下一步
+## 9. 商业会员、Credits、Paper 与 Demo（Beta 新合同）
 
-1. 把本目录转为机器可读 `api-policy.ts` 并在测试中验证 131 个 route 无遗漏。
-2. 优先迁移标为 P0/REVIEW 的认证、组织、审批、health 和交易大厅接口。
-3. 完成后再为核心合同扩展 `openapi-controlled-beta.yaml`；该 YAML 不是当前全部 131 个接口的授权证明。
+| 路由 | 方法 | 所有权 | 状态/说明 |
+| --- | --- | --- | --- |
+| `/api/legal/documents/current` | GET | C | TARGET；当前法务版本安全视图 |
+| `/api/legal/consents` | POST | C | TARGET；版本/hash/幂等同意记录 |
+| `/api/membership/plans` | GET | C | TARGET；四档 v1 服务端 snapshot |
+| `/api/membership/me` | GET | C | TARGET；trial/entitlement/到期状态 |
+| `/api/membership/orders` | GET, POST | C | TARGET；人工付款指引，无地址/二维码 |
+| `/api/membership/performance-statements` | GET | C | TARGET；paper 模拟分成安全视图 |
+| `/api/credits/me` | GET | C | TARGET；余额/预留/不可变流水 |
+| `/api/paper/portfolios` | GET | C | TARGET；每卡 10,000 USDT 独立组合 |
+| `/api/paper/portfolios/[id]` | GET | C | TARGET；持仓、现金、风险与收益 |
+| `/api/paper/portfolios/[id]/trades` | GET | C | TARGET；真实服务端 paper history/cursor |
+| `/api/operations/membership-orders` | GET | O | TARGET；scope/pagination/filter |
+| `/api/operations/membership-orders/[id]` | GET | O | TARGET；凭证脱敏/审批历史 |
+| `/api/operations/membership-orders/[id]/evidence` | POST | O | TARGET；maker/幂等/recent MFA |
+| `/api/operations/membership-orders/[id]/submit` | POST | O | TARGET；状态锁定 |
+| `/api/operations/membership-orders/[id]/decision` | POST | O | TARGET；checker/自审阻断/事务激活 |
+| `/api/operations/credit-adjustments` | GET, POST | O | TARGET；maker-checker，不可负余额 |
+| `/api/operations/credit-adjustments/[id]/decision` | POST | O | TARGET；exactly-once ledger side effect |
+| `/api/operations/performance-statements/generate` | POST | O | TARGET；上一完整 UTC 周幂等生成 |
+| `/api/operations/performance-statements/[id]/decision` | POST | O | TARGET；业务批准只形成应收 |
+| `/api/operations/performance-statements/[id]/payment-evidence` | POST | O | TARGET；外部付款凭证 |
+| `/api/operations/performance-statements/[id]/payment-decision` | POST | O | TARGET；复核后提交高水位 |
+| `/api/maintenance/demo-exchanges` | GET, POST | M | TARGET；安全账户视图/创建配置 |
+| `/api/maintenance/demo-exchanges/[id]` | PATCH | M | TARGET；不回显 secret |
+| `/api/maintenance/demo-exchanges/[id]/verify` | POST | M | TARGET；固定测试域名/权限检查 |
+| `/api/maintenance/demo-exchanges/[id]/kill-switch` | POST | M | TARGET；reason/recent MFA/audit |
+| `/api/maintenance/demo-executions` | GET | M | TARGET；intent/receipt/limit/trace |
+
+## 10. 下一步
+
+1. 以机器可读 policy 扫描实际 route/method，零遗漏后生成本目录的状态摘要。
+2. 先完成身份/access、商业事务、paper/Demo，再迁移 UI；legacy handler 未登记不得继续隐式暴露。
+3. `openapi-controlled-beta.yaml` 只描述核心浏览器合同，不能替代完整 API Policy。

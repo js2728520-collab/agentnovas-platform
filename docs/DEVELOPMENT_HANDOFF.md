@@ -300,3 +300,20 @@ Codex 仍然是同类开发代理，但新任务不会天然拥有旧聊天的�
 - 当前 lint 保留 7 个既有 warning；没有新增全局忽略规则。
 
 运行、路由、权限和验收说明见 `docs/runbooks/riverton-three-app-ui.md`。
+
+## 14. 2026-08-20 受邀付费 Beta v2 收口
+
+第 12、13 节记录的是历史阶段证据，不能覆盖当前 v2 PRD。最新目标已收窄为 5–20 人受邀付费 Beta：
+
+- 客户不再连接交易所或上传密钥；每张官方策略使用独立 10,000 USDT paper 组合。
+- 平台 OKX Demo、Binance Spot Testnet、Bybit Demo 只提供测试环境证据，与客户 paper 状态/盈亏/结算分离。
+- 四档会员使用版本化计划；外部人工付款、站内凭证、不同 Operations checker 复核后才激活权益并发放 credits。
+- UTC 周 paper 盈利分成按三卡已平仓净收益、高水位和亏损结转生成；业务审批只形成应收，付款复核后才提交高水位。
+- Client 充值创建、链上地址/二维码、credits 充值、Telegram/WhatsApp 验证、客户交易所连接、真实订单、自动支付/退款全部关闭。
+- 内部端采用 Argon2id、TOTP/recovery、recent MFA、中央 API Policy、显式 assignment/scope；具体完成度以 `tasks/todo.md` 和 Gate 证据为准。
+
+本轮主 Agent 已先形成独立提交：版本化 PostgreSQL 迁移器、Argon2id 依赖、商业公共合同、Worker heartbeat 与公开/内部 health 分层。Wave 1 使用本地 worktree 并行实现 API Security、Commercial 和 Strategy Demo；所有子分支只在独立审查后通过普通 `merge --no-ff` 合入集成分支。
+
+最新阅读顺序：`docs/product/PRD.md` → `docs/product/SEVEN_AGENT_TRADING_HALL.md` → `docs/specs/SYSTEM_SPEC.md` → 三端 Spec → ADR-0008 至 0012 → API Catalog/OpenAPI → Acceptance Gates → Runbooks → `tasks/todo.md`。
+
+法务主体、服务地区、隐私、条款、风险披露、模拟收益分成意见和退款规则任一未定稿，或 staging Demo/Email/DNS/TLS/支持/值班未就绪，均不得开放付费 Beta。本实施不执行生产数据库迁移、真实支付、真实交易、真实退款或未授权外部基础设施变更。

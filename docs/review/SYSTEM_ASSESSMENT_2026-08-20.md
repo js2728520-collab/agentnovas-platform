@@ -1,143 +1,88 @@
-# AgentNovas Platform 系统评估
+# AgentNovas Platform 系统评估（商业 Beta 基线）
 
 评估日期：2026-08-20
-评估对象：`codex/three-app-riverton-split`，HEAD `6931162` 加当前未提交工作区
-结论：架构方向成立，七智能体第一批纵向切片与清洁 CI 已在本次评估后完成，但整体仍只能称为“受控测试开发基线”，不能称为生产就绪或三端全部完成。
+评估基线：`codex/three-app-riverton-split`，起点 `0762fa3`；后续实施状态见 `tasks/todo.md`
+结论：可用于内部演示和工程验证，尚不可对外收费。商业化总体完整度约 30–35%。
 
-## 1. 执行摘要
+## 1. 已有资产
 
-项目已经拥有有价值的底座：PostgreSQL、多 Agent 研发状态机、确定性回测/运行时、三 audience、独立 Cookie、可配置 RBAC、双式账本、通知 outbox、Resend Webhook 幂等和共享内部工作台。当前最大问题不是“没有功能”，而是新旧权限、页面、接口、产品语义和验证层级同时存在，导致完成度被高估。
+- Next.js 三 audience、独立 Cookie、稳定内部路由与共享 Shell 已建立。
+- PostgreSQL research/runtime 状态机、确定性回测、lease/fencing 和七事件基础较强。
+- RBAC 具有应用、权限、scope、角色、assignment、敏感变更和审计基础。
+- 充值人工申请、部分双审、只读账本、Resend 签名/幂等/乱序/outbox 具有可复用实现。
+- Client 已有策略、Agent、回测、模拟盘、Hall、会员、钱包和通知页面；Operations/Maintenance 不是空壳。
+- 当前 live order routing 硬关闭，这是必须保留的安全基础。
 
-最需要立即纠正的四件事：
+## 2. 代码与交付事实
 
-1. 建立 audience/API 的统一安全边界，逐步停止无限期 legacy role 回退。
-2. 持续验证已经完成的七智能体产品/运行时对齐，不让静态数据和假控制回归。
-3. 维持已经修复的清洁 CI，确保不再依赖被 `.gitignore` 忽略的旧 `dist`。
-4. 按迁移矩阵补齐旧运营能力，之后再删除 4,857 行 Client 单体中的旧 Admin。
-
-## 2. 代码事实
-
-| 指标 | 当前值 | 说明 |
+| 指标 | 审计值 | 判断 |
 | --- | ---: | --- |
-| API route 文件 | 131 | 三端构建都会编译同一 API 面 |
-| 显式出现新 access-control 模式的 route | 30 | 搜索口径，不代表全部正确 |
-| 使用 `requireUser/currentUser` 的 route | 50 | 多数仍依赖 legacy role/旧数据范围；集合可能重叠 |
-| Client 主文件 | 4,857 行 | 包含客户 UI 与已不可导航的旧 Admin |
-| 全局 CSS | 3,850 行 | 视觉规则重复、难以按模块维护 |
-| 以源码正则为主的测试文件 | 38 | 能防合同删除，但不能证明运行行为 |
-| 检测到数据库/PostgreSQL 相关测试文件 | 15 | 有价值但覆盖远低于接口面 |
-| raw SQL/Postgres pool 使用文件 | 68 | 与兼容 getDb 并存 |
-| `getDb` 使用文件 | 64 | 双数据访问模型增加迁移成本 |
+| API route / handler | 约 131 / 174 | 大量 API 仍未中央策略化 |
+| 直接使用新 access-control | 约 31 route | 覆盖不足 |
+| 直接使用 legacy `requireUser/currentUser` | 约 50 route | 跨 audience/撤权风险 |
+| Client 主文件 | 约 4,811 行 | 页面、状态和旧 Admin 高耦合 |
+| 全局 CSS | 约 3,858 行 | 三端同包与重复样式 |
+| `.test.mjs` | 61（审计时） | 多数含源码合同；无仓库化 Playwright/axe |
+| 三端初始资产 | JS 约 334KB gzip；CSS 约 90.9KB | 三端相同，超过 200/50KB 预算 |
+| 核心 OpenAPI | 约 13 path（审计时） | 远低于接口面 |
 
-## 3. 维度评分
+## 3. 能力矩阵
 
-评分 1–5：1 为不可控，3 为可继续开发，5 为可验证生产成熟。
-
-| 维度 | 分数 | 判断 |
+| 域 | 当前完整度 | 核心问题 |
 | --- | ---: | --- |
-| 产品一致性 | 2→3 | 七角色、服务钱包/交易资金和真实/模拟展示已对齐；官方现货本地执行仍未实现 |
-| 应用分离 | 3 | 页面、Cookie 和 Shell 已分；API 面仍共享且缺中央 audience policy |
-| 身份与授权 | 2 | 新 RBAC 有基础；legacy fallback、bootstrap、密码和限流是高风险 |
-| 数据与账本 | 3 | PostgreSQL/不可变账本方向正确；双迁移/双访问模型需收敛 |
-| Agent/策略工程 | 3 | 状态机、确定性引擎和证据链较强；七产品角色已对齐，历史 audit 仍需迁移观察 |
-| 前端工程 | 2→3 | Hall 静态数据和假按钮已移除；Client 单体、脆弱 i18n 与自动化浏览器覆盖仍明显 |
-| 集成与 Worker | 3 | Notification 闭环质量较好；健康页缺真实心跳，支付仍骨架 |
-| 测试与 CI | 2→3 | 清洁 CI 与真实 production HTML 冒烟已修复；源码正则占比仍高，关键 E2E 尚未仓库化 |
-| 可观测性 | 2 | 局部有 audit/trace；缺统一 request ID、Worker heartbeat 和 SLO |
-| 文档与交接 | 2→3 | 本轮已建立分层文档，但旧 handoff/任务状态仍需同步 |
+| 三应用分发 | ~65% | 未知 Host 可能回 Client；API 未零遗漏隔离 |
+| 身份安全 | ~25% | 旧 KDF、限流/MFA/bootstrap/临时密码 |
+| RBAC | ~50% | legacy 自动回退；assignment scope 丢失 |
+| Client 研究/回测 | 70–75% | 单体、浏览器证据、错误恢复 |
+| 七智能体产品 | 45–50% | 公共 spot 合同与 perpetual runtime 错位 |
+| 会员/收费 | 10–15% | 静态套餐、无真实订单/权益事务、假付款 UI |
+| 钱包/充值 | 35–40% | provider/账本未闭环；Beta 应关闭创建 |
+| 通知 | 50–60% | Telegram/WhatsApp 假验证码；外发 Gate 不全 |
+| Operations | 35–40% | 组织/商业审批/完整财务/策略治理未收口 |
+| Maintenance | 35–40% | Demo、heartbeat/queue、技术审计不足 |
+| 发布质量 | 40–45% | 无 Playwright/axe/LH/restore/SLO 证据 |
 
-## 4. P0 问题
+## 4. P0 风险
 
-### P0-1：API audience/RBAC 覆盖不完整
+1. **跨 audience API**：合法 session 可能调用只校验 legacy role 的其他应用 API；三个构建又编译同一 API 面。
+2. **撤权回退**：缺显式 published assignment 时用 `users.role` 恢复权限，删除最后 assignment 反而可能重新授权。
+3. **scope 失真**：organization set/team/direct reports 没有完整携带 assignment 限制，列表和目标业务可能扩大数据范围。
+4. **可持续 HTTP bootstrap**：secret 泄露即可重置高权管理员，不是一锤子买卖。
+5. **身份基线**：旧 PBKDF2 轮数低、无共享登录/找回限流、内部 MFA/recent-MFA、全量 session revoke。
+6. **临时秘密**：组织 UI/通知 payload/接口仍可能显示临时密码或验证 token。
+7. **策略合同错位**：三卡公开合同为 spot，真实 follow/runtime 路径仍包含 USDT 永续、资金费率和客户 exchange account 要求；风险参数也有多真源。
+8. **假商业状态**：会员页曾生成演示地址/二维码/倒计时/监听；通知渠道直接返回演示验证码；交易历史固定 `setOrders([])`。
+9. **资金未闭环**：账本无唯一 posting service/DB 平衡与不可变保证；支付 Webhook 未真实验签，Payment Worker 只是 DB ping。
+10. **审批并发/原子性**：旧通用审批 JSON 驱动多业务，缺目标行锁、同事务 exactly-once 和 typed adapter。
+11. **迁移双真源**：历史迁移器重复执行文件，Postgres migrations 与 Drizzle/SQLite schema 权责并存。
+12. **健康假象/信息泄露**：旧 Maintenance 只看 env，公开 health 暴露密钥/队列/开关；部署共用全量 env/DB role。
+13. **前端三端同包**：server dispatcher 静态导入三端、layout 全量 CSS；Client 包可检索内部文案，影响隔离与性能。
+14. **发布证据不足**：无可重复真实浏览器/axe/Lighthouse/恢复演练；单独推功能分支不触发 CI。
 
-证据：三端共享 131 个 route；大量旧接口只调用 `requireUser(role)`。页面隐藏不阻止直接 API 调用，新组织树还复用旧接口。
+## 5. 额外安全与运营风险
 
-风险：跨应用功能越权、数据范围扩大、撤权后旧角色自动恢复权限。
+- LLM 可配置任意 HTTPS endpoint，存在 SSRF/DNS rebinding/redirect 风险。
+- 旧 route 可能把原始 `Error.message` 返回浏览器，JSON/body/schema/金额/日期治理不一致。
+- 财务使用 JS Number/Postgres double 的部分路径不适合商业金额。
+- 账本读取可能因一条命中 posting 返回交易全部 counterparty posting。
+- 审计表未 append-only/tamper-evident，Webhook PII 保留与 complaint suppression 未定义。
+- Client/Ops/Maint/Workers 共用 env 和数据库账户，单进程失陷可扩大影响。
 
-措施：建立 API route policy 清单和测试；所有内部业务接口要求明确 audience + permission + scope；为 legacy fallback 设置迁移开关和截止日期。
+## 6. 已开始的收口证据
 
-### P0-2：认证与 bootstrap 基线不满足内部高权限应用
+- 版本化/校验和/advisory lock PostgreSQL 迁移器已独立提交。
+- `@node-rs/argon2` 依赖已锁定并验证 Beta 参数。
+- 四计划、paper、分成和 Demo provider 公共合同已冻结。
+- `worker_instances`、四类 Worker heartbeat、public live/ready 与 Maintenance 真实诊断已实现并通过单测。
 
-证据：密码 KDF 参数偏低；缺登录限流和 MFA；setup/bootstrap 仍需严格收口，历史实现可重置高权账号。
+这些改动缩小风险，但不表示其他 P0 已完成；唯一进度见 `tasks/todo.md`。
 
-风险：凭证撞库、初始化入口被滥用、高权限账户失守。
+## 7. 最短商业化路径
 
-措施：先写攻击/限流集成测试，再升级密码 KDF、一次性 bootstrap、MFA/强认证和安全审计。
+邀请→一次性设密/MFA→法务同意→3 天 trial→选择计划→外部人工付款→maker/checker→幂等 entitlement/credits→三张 paper→七阶段与独立 Demo 证据→in-app/Email→UTC 周分成应收/付款双审→到期只读。
 
-### P0-3：交易大厅产品语义与运行时不一致
+选择该路径是因为它不触达客户交易本金和凭证，也不依赖自动支付。客户充值、社区市场和真实交易全部进入 GA 后独立项目。
 
-原始证据：说明书七角色包含 AI 决策官，旧 runtime 以审计占第七事件；研发 DSL 为永续模拟，官方卡定义为现货；会议页曾含静态内容。
+## 8. 评估结论
 
-整改状态：`CURRENT/PARTIAL`。共享合同、运行时 `decision` 事件、Hall API、三策略卡、Meeting 决策轮和 legacy 缺口展示已完成；真实现货本地执行仍为 `BLOCKED`。
-
-风险：客户误解风险边界、模拟被视为真实、审计记录不符合承诺。
-
-措施：采用 ADR-0006/0007；先完成合同、真实状态 UI 和新事件角色，再讨论任何真实执行。
-
-### P0-4：存在静态实时数据与无行为控制
-
-原始证据：Hall 曾硬编码 BTC 价格、风险、OKX Demo 和 fallback 策略；Client “紧急停止”没有操作合同；会议页曾使用静态时间和结论。
-
-整改状态：`CURRENT`。Client 首屏、官方策略卡和 Hall/Meeting 已删除静态报价、风险指数、延迟、收益目标和假角色状态，改为批准的产品合同、API 真实数据或明确空态；无行为按钮已移除，合同测试防止回归。
-
-风险：虚假业务状态、关键风险控制不可用。
-
-措施：API 无数据即空状态；去掉假按钮；会议读取真实 decision round。
-
-### P0-5：CI 清洁环境可靠性不足
-
-原始证据：`tests/rendered-html.test.mjs` 曾读取被忽略的 `dist/server/index.js`；本地 dist 早于当前源代码。
-
-整改状态：`CURRENT`。源码合同测试不再读取 dist；CI 在三端真实构建后启动 Client production server 执行 HTML 冒烟。
-
-风险：本地旧产物让测试假绿，fresh clone 失败或验证错误版本。
-
-措施：测试自己构建临时产物，或将 rendered-html 移入 build 后 suite；CI 删除旧产物后运行；README 与脚本保持一致。
-
-## 5. P1 问题
-
-- Client 主文件和 CSS 过大，客户/旧 Admin/登录/交易大厅耦合。
-- 旧通用审批可以跨多个业务对象修改状态，缺少统一事务、行锁、幂等和业务适配器。
-- 公开 health 泄露过多内部配置/队列信息；内部 health 又缺真实心跳。
-- 通知/成员流程可能把临时密码保存到 payload；应改为一次性设置链接。
-- PostgreSQL 兼容层仍使用 SQLite/Drizzle schema 类型，且存在两套迁移真源。
-- Operations 只迁移了骨架；团队、策略治理、完整财务和组织管理未完成。
-- Maintenance 缺数据集成、Worker 运行态和统一系统审计。
-- i18n 依赖 DOM 文本替换，容易在异步内容、可访问名称和服务端渲染中失真。
-- 没有 Playwright/Cypress 级别的仓库化关键 E2E；手工浏览器记录不可替代可重跑测试。
-- 当前 `tasks/todo.md` 全部勾选，与实际差距冲突。
-
-## 6. 已有优势
-
-- Worker 使用 PostgreSQL lease、`SKIP LOCKED`、幂等和 fencing，方向正确。
-- 策略研发对 LLM 与确定性计算做了较清晰的职责分离。
-- 回测包含下一根开盘、费用、资金费率和确定性风险等重要约束。
-- RBAC 已有应用、权限目录、数据范围、角色模板、角色版本、分配、变更申请和审计基础。
-- 账本采用 numeric 与双式分录，明确不可变和反向修正。
-- Resend Webhook 对签名、幂等、乱序和 Worker 竞态已有扎实测试。
-- 新 Maintenance 安全视图开始避免密钥和完整端点回显。
-
-## 7. 推荐技术优化
-
-### 架构
-
-- 建立 `lib/api-policy`：每个 route 注册 audience、permission、scope、PII policy 和 mutation sensitivity。
-- 把 Client 按 Hall、Strategies、Account、Membership、Auth 拆分；旧 Admin 迁移完成后删除。
-- 建立正式服务层，route 只做 request/response；SQL、scope 和业务状态机不写成单行 handler。
-- 选定 PostgreSQL migration 真源并写 ADR；对兼容 getDb 设置退出计划。
-
-### 安全
-
-- 密码、限流、MFA、bootstrap、CSP、健康信息最小化作为 Gate 1。
-- 将 PII、secret 和供应商 payload 安全视图做成可测试 serializer。
-- 敏感 mutation 使用版本/幂等键、事务和追加式审计。
-
-### 质量
-
-- 源码正则只保留结构合同；关键逻辑改为函数、route integration 和浏览器 E2E。
-- 每个 P0 先有失败测试；CI 在 clean checkout、空 dist 和临时 DB 上运行。
-- 构建矩阵使用项目实际 PostgreSQL 主版本，并覆盖 Node 最低版本。
-
-## 8. 结论
-
-项目不是推倒重来：核心研究、运行、账本、通知和 RBAC 资产值得保留。正确策略是先修“真源与边界”，再按纵向切片迁移旧业务。若继续在静态 UI、legacy API 和全勾选任务清单上叠加功能，系统会越来越难以证明安全和完成度。
+项目无需推倒重来，但不能再按“页面数量”判断完成。必须按可收费纵向切片推进：API/身份 → 账本/商业事务 → spot paper/Demo → 三端 UI → 浏览器/性能/部署 Gate。任何真实支付、真实 Email、Demo staging 或生产基础设施操作都需要外部依赖与明确授权。

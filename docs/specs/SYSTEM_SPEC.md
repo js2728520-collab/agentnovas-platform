@@ -1,147 +1,168 @@
-# Riverton 三应用一库系统规格
+# Riverton Capital 受邀付费 Beta 系统规格
 
-版本：1.0
-状态：受控测试基线
+版本：2.0
+状态：目标规格；以测试和 Gate 证据判定完成度
 
-## 1. 物理拓扑
+## 1. 拓扑与信任边界
 
 ```text
 Client Web ───────┐
-Operations Web ──┼─ Next.js codebase ─ PostgreSQL
-Maintenance Web ─┘          │
-                            ├─ Research Worker
-                            ├─ Runtime Worker
-                            ├─ Payment Worker（默认关闭）
-                            └─ Notification Worker（默认关闭）
+Operations Web ──┼── PostgreSQL（共享数据、逻辑隔离）
+Maintenance Web ─┘       ├─ Notification Worker
+                          ├─ Research Worker
+                          ├─ Paper Runtime Worker
+                          └─ Demo Execution Worker
+
+Payment Worker：部署存在但始终 disabled
+真实交易/提现/自动支付：代码路径硬关闭
 ```
 
-三个 Web 进程使用相同代码但独立的 `RIVERTON_APP_AUDIENCE`、域名、端口、构建目录和 Session Cookie。共享数据库不等于共享访问权；每次页面和 API 请求都必须解析 audience、会话、权限与数据范围。
+三个 Web 进程使用相同代码但独立 `RIVERTON_APP_AUDIENCE`、域名、端口、构建目录、Session Cookie、最小 env 和数据库角色。共享数据库不是共享授权；所有入口重新解析 audience、会话、MFA、权限与 assignment-bound data scope。
 
-目标部署为 Linux、Node.js 22.21+、PostgreSQL 16+、Nginx、Certbot 和 systemd。不引入 Cloudflare Runtime 或 Redis。
+## 2. Audience 与路由
 
-## 2. Audience 合同
+| Audience | 本地端口 | Cookie | 注册 |
+| --- | ---: | --- | --- |
+| `client` | 3000 | `rc_client_session` | 仅邀请/一次性设置密码 |
+| `operations` | 3001 | `rc_ops_session` | 禁止 |
+| `maintenance` | 3002 | `rc_maint_session` | 禁止 |
 
-| Audience | 生产域名 | 默认本地端口 | Cookie | 注册 |
-| --- | --- | ---: | --- | --- |
-| `client` | `agentnovas.com` | 3000 | `rc_client_session`，兼容 `an_session` | 邀请制 |
-| `operations` | `zht.agentnovas.com` | 3001 | `rc_ops_session` | 禁止 |
-| `maintenance` | `xm.agentnovas.com` | 3002 | `rc_maint_session` | 禁止 |
+解析顺序：显式进程 audience → 配置 Host allowlist → 已知本地 Host/端口 → 404。未知生产 Host 不得默认为 Client。页面错误 audience 404；API 不因同一用户在其他应用有权限而跨 audience 回退。
 
-解析优先级：明确环境 audience → 已配置 Host 映射 → 本地开发 Host/端口映射 → 拒绝不明确请求。生产环境不得根据路径猜测 audience。
+稳定路由：
 
-错误 audience 页面返回 404；API 不允许以当前用户在其他应用拥有权限为理由跨 audience 回退。
+- Client：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/notifications`、`/wallet`、`/wallet/deposits`。
+- Operations：`/`、`/customers`、`/organization`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
+- Maintenance：`/`、`/models`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/access`、`/access/audit`、`/audit`。
 
-## 3. 路由合同
+Beta 未完成或不在范围的旧策略市场、自动结算、团队经营分析入口 feature-gate 隐藏。
 
-### Client
+## 3. 中央 API Policy
 
-`/`、`/login`、`/wallet`、`/wallet/deposits`、`/notifications`；现有 SPA 内部工作区保留交易大厅、行情、策略广场、我的策略、Agent 对话、回测、模拟盘、会员、交易所连接、风险和账户设置。
+每个 HTTP method/path 在机器可读 inventory 中注册：
 
-### Operations
+```ts
+type ApiPolicy = {
+  method: HttpMethod;
+  path: string;
+  audiences: AppAudience[];
+  auth: "public" | "session" | "machine";
+  mfa: "none" | "required" | "recent";
+  permissions: string[];
+  scopeResolver?: string;
+  pii: "none" | "masked" | "reveal";
+  sensitivity: "read" | "write" | "critical";
+  idempotency: boolean;
+  rateLimit?: RateLimitPolicy;
+  bodyMaxBytes?: number;
+};
+```
 
-`/`、`/customers`、`/organization`、`/deposits`、`/deposits/[id]`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
+`withApiPolicy()` 构建 `ApiContext { requestId, audience, actor, grants, scope, mfaLevel }`。未登记 handler、错误 audience、缺权限、缺 recent MFA、写请求缺 Origin/CSRF 或幂等键均默认拒绝。CI 对全部 route/method inventory 做零遗漏断言。
 
-目标扩展：`/analytics`、`/team`、`/team/targets`、`/organization/members`、`/organization/invitations`、`/customers/attributions`、`/strategies/review`、`/finance/revenue`、`/finance/settlements`、`/finance/collections`、`/finance/payouts`、`/policies/follow`、`/audit`。
-
-### Maintenance
-
-`/`、`/models`、`/integrations`、`/integrations/email`、`/integrations/payments`、`/health`、`/safety`、`/settings`、`/access`、`/access/audit`。
-
-目标扩展：`/integrations/data`、`/health/workers`、`/audit`。
-
-## 4. 身份、会话与授权
-
-### 会话
-
-- Cookie 必须使用 `HttpOnly`、生产 `Secure`、合理 `SameSite` 和 audience 专属名称。
-- Session 行必须记录 `appAudience`；退出只删除当前 audience 会话。
-- `next` 只能接受站内绝对路径，拒绝 `//`、反斜杠和外部 URL。
-- Client 可邀请注册和找回密码；内部应用相同接口返回 404。
-
-### RBAC
-
-- 页面启动调用 `/api/access/me/effective`，只用于菜单、按钮和客户端路由体验。
-- API 必须重新校验当前 audience、权限键和数据范围。
-- 固定数据范围：`SELF`、`DIRECT_REPORTS`、`TEAM_TREE`、`ORGANIZATION`、`ORGANIZATION_SET`、`PLATFORM`。
-- 角色、模板、分配、变更申请和审计查询必须带当前应用条件。
-- 敏感角色、资金人工操作、策略上/下架和跨组织授权必须双人审批；申请人不能自审。
-
-旧 `users.role` 只允许作为有截止期的迁移兼容来源。生产受控测试前必须完成显式分配，禁用“无分配即自动恢复全部旧权限”的无限期回退。
-
-## 5. 业务数据域
-
-| 数据域 | 真源 | 写入规则 |
-| --- | --- | --- |
-| 用户、组织、归属 | PostgreSQL 业务表 | 运营 RBAC + 数据范围；关系变化审计 |
-| 平台钱包、充值、账本 | PostgreSQL | 账本分录不可变；修正使用反向分录 |
-| 策略研发、候选、评估 | PostgreSQL + Worker | 所有权、租约、幂等、版本固定 |
-| 运行周期与事件 | PostgreSQL | 完整 K 线触发；唯一周期/决策轮；七阶段有序 |
-| 模型 Profile/绑定 | PostgreSQL 加密字段 | Maintenance 管理；浏览器只见安全视图 |
-| 通知投递 | PostgreSQL outbox | Worker 开关、租约、幂等、Webhook 乱序保护 |
-| 外部集成状态 | PostgreSQL + 环境变量 | 配置态、启用态、心跳态分别表示 |
-
-业务组件只消费 `packages/contracts` 的 camelCase 合同，不直接消费数据库 snake_case 行。
-
-## 6. 七智能体运行规格
-
-官方三卡的角色与策略参数见 `../product/SEVEN_AGENT_TRADING_HALL.md`。系统层约束：
-
-- `decisionRoundId` 可以复用当前 runtime cycle 主键，但 API 字段必须使用产品语义。
-- 新运行事件角色：`market_analysis`、`technical_analysis`、`strategy_proposal`、`adversarial_review`、`risk_approval`、`final_decision`、`execution_receipt`。
-- 旧 runtime 角色允许通过显式兼容映射读取；旧 `audit` 不映射为 `final_decision`。
-- 运行审计元数据另存，不占七角色序列。
-- 实际执行环境枚举：`shadow`、`paper`、`exchange_demo`、`live_spot`；当前只允许前两者，现有明确授权的 OKX Demo 紧急平仓是独立运维路径，不代表 Client 实盘开放。
-
-## 7. API 与错误合同
-
-成功响应使用对应 `packages/contracts` 类型。错误逐步统一为：
+统一错误：
 
 ```json
 {
-  "error": {
-    "code": "FORBIDDEN",
-    "message": "当前账号无权查看该模块",
-    "details": {}
-  },
+  "error": { "code": "STATE_CONFLICT", "message": "当前状态不允许该操作" },
   "requestId": "..."
 }
 ```
 
-| HTTP | 语义 | 前端行为 |
-| ---: | --- | --- |
-| 400 | 格式错误 | 保留输入，定位字段 |
-| 401 | 会话缺失/过期 | 跳当前应用登录并保留 `next` |
-| 403 | 登录有效但无权 | 显示无权限，不循环跳转 |
-| 404 | 资源不存在或错误 audience | 不泄露资源是否在其他应用存在 |
-| 409 | 自审、重复决定、版本/状态冲突 | 显示服务端业务原因 |
-| 422 | 业务验证失败 | 显示字段或规则原因 |
-| 429 | 登录/敏感操作限流 | 显示重试时间 |
-| 503 | 服务未配置、Worker 关闭、测试禁用 | 显示真实不可用状态 |
+401 回当前应用登录并保留安全 `next`；403 显示无权限且不循环；404 隐藏跨 audience 资源；409 表示自审/重复/状态或版本冲突；422 返回业务校验；429 携带重试信息；503 表示未配置、未启用或 Worker 不健康。
 
-## 8. 安全要求
+## 4. 身份与会话
 
-- 密码采用适合口令的现代 KDF；登录、找回和 bootstrap/setup 必须限流并有审计。
-- 内部高权限账户在受控测试前启用 MFA 或等效强认证。
-- CSP、HSTS、frame、MIME、referrer 和 permissions 安全响应头纳入构建/浏览器验收。
-- 所有 SQL 参数化；动态排序、筛选和数据范围使用白名单。
-- PII 脱敏在服务端完成，列表与详情一致。
-- 不在通知 payload 中保存临时密码；初始账号通过一次性设置链接完成。
-- 公开健康检查只返回粗粒度可用性；密钥存在性、队列数量、紧急状态和内部组件细节仅对 Maintenance 开放。
+- 新密码使用 Argon2id：memory `19,456 KiB`、iterations `2`、parallelism `1`、32-byte output；旧 PBKDF2 登录成功后 lazy rehash。
+- 不存在账号执行等价 dummy verify，登录和找回不泄露账户存在性。
+- Client session：absolute 7 天、idle 24 小时；内部 session：absolute 12 小时、idle 1 小时。
+- 邮箱+audience 登录失败 5 次/15 分钟；IP 30 次/15 分钟；找回使用更严格小时限额，存储在 PostgreSQL 以覆盖多实例。
+- Operations/Maintenance 完成 TOTP 才发完整 session；recovery code 单次使用并保存 hash。critical 操作要求 15 分钟内 recent MFA。
+- 密码修改/重置、冻结、撤权和恢复码重置撤销相关 session。
+- HTTP bootstrap 在生产 404；CLI 仅在无内部管理员时一次成功并留审计。
+- 内部邀请与重置只发送一次性 set-password link；响应、通知 payload、日志和 UI 不含临时密码或明文 token。
+- 生产 Cookie 强制 `HttpOnly`/`Secure`/audience 专属；信任代理列表显式配置；敏感写操作校验 Origin/CSRF。
 
-## 9. 可观测性
+TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前任务。
 
-- 每个请求生成 `requestId`，关键操作携带 actor、audience、permission、scope、subject 和结果。
-- Worker 需要最后心跳、当前 lease owner、最近成功/失败、队列积压和开关状态。
-- “已配置”“已启用”“进程存活”“最近成功”是四个独立字段。
-- 七智能体使用 `decisionRoundId` 和 trace ID 串联行情快照、事件、决定和执行回执。
+## 5. RBAC 与数据范围
 
-## 10. 数据库迁移
+- Operations/Maintenance 必须有显式 published assignment；legacy fallback 在 Beta 为 disabled。
+- 撤权写 tombstone；删除最后 assignment 不会恢复 `users.role` 权限。
+- assignment 保存 organization、organization set、team、direct reports 和有效期；scope resolver 不得只使用当前用户组织替代 assignment 约束。
+- 列表、详情、计数、导出、审批目标和账本 counterparty 使用同一 scope。
+- 敏感授权、会员付款、credits 调整、盈利分成、客户冻结和充值人工操作强制 maker-checker；申请人永远不能自审。
+- 所有决定锁定请求和业务版本，在同一事务完成状态、业务副作用、账本/outbox 和审计。
 
-- PostgreSQL 是唯一生产真源。
-- 新功能迁移使用单一顺序迁移目录；Drizzle 元数据与 `postgres/migrations` 的权责必须在 Gate 0 选定并记录。
-- 生产迁移前必须在一次性 Schema/恢复副本中执行、核对行数与关键哈希，并准备回滚。
-- 本任务不执行生产迁移。
+## 6. 数据与迁移
 
-## 11. 完成定义
+`postgres/migrations` 是唯一生产 schema 真源。迁移器维护 `_agentnovas_migrations(version, checksum, applied_at, commit_sha)`，使用 advisory lock；每文件独立事务，已应用跳过，checksum 变化失败。必须验证 fresh、N-1、rerun、checksum mismatch、并发和恢复。
 
-一个模块只有在稳定路由、权限、数据范围、API 合同、真实状态、空/错/加载、重复提交保护、审计、自动测试、浏览器验收和文档全部完成后，才能从 `PARTIAL` 改为 `CURRENT`。
+本 Beta 固定迁移：
+
+- `0021_identity_access_hardening.sql`
+- `0022_ledger_approval_invariants.sql`
+- `0023_commercial_membership_settlement.sql`
+- `0024_platform_demo_execution.sql`
+- `0025_worker_observability.sql`
+
+数据库角色至少拆分为 migrator、client_web、ops_web、maint_web、notification_worker、research_worker、runtime_worker、demo_execution_worker；Payment Worker 不获得业务写权限。
+
+## 7. 账本、会员和 credits
+
+- 账本命令使用来源幂等锁、账户/余额行锁、同币种借贷平衡、wallet version CAS，并在同事务写 audit/outbox。
+- 已发布 transaction/posting 禁止 UPDATE/DELETE；修正只能 reversal。
+- 会员订单保存 v1 计划价格快照；外部人工凭证经过 maker-checker 后幂等激活 entitlement 并发放 credits。
+- Credits 使用独立不可变 ledger；reserve/settle/release 按模型费率和 provider usage 执行，余额不得为负。
+- Beta 不生成充值地址、二维码、链上监听、客户钱包入账或自动退款。
+
+商业状态机和 API 见 `../product/PRD.md` 与 `../api/API_CATALOG.md`。
+
+## 8. paper、七智能体与 Demo
+
+- `packages/contracts` 保存三卡唯一 snapshot，runtime/部署/Hall 只引用 snapshot hash。
+- 每个用户/卡片组合初始 `10,000 USDT`，只支持 BTC/ETH/SOL spot long-only。
+- runtime 对完整 candle 幂等地产生七事件、paper intent/trade 和 trace；到期停止新开仓。
+- Demo intent 与 paper trade 使用不同表、状态机和金额；provider 失败不改变 paper。
+- OKX 强制 Demo header；Binance 只允许 Spot Testnet；Bybit 只允许 Demo 域名。生产域名和提现/划转/杠杆/衍生品 endpoint 不在 allowlist。
+- provider/card/round 使用确定性 clientOrderId；单笔默认上限 10 USDT、provider 日上限 100 USDT；kill switch 默认安全。
+- CI 只用净化 fixture。真实 Demo smoke 只允许 staging、显式开关和已配置平台测试凭证。
+
+## 9. 周盈利分成
+
+系统按上一个完整 UTC 周汇总一个客户三卡已平仓 paper 净收益。费用基数、高水位、亏损结转、费率和付款条件以 PRD 为准。生成、业务审批、付款凭证、付款复核是四个不同事件；只有最终复核事务提交新高水位。任何状态都不得自动扣钱包或描述为真实投资结算。
+
+## 10. 通知与外部集成
+
+- Beta 渠道为 in-app 与 Email。Telegram/WhatsApp 为 `not_integrated`，接口不生成/返回验证码。
+- Email 只有 domain、API key、webhook、模板、suppression、retention、allowlist 全部就绪并获显式授权才可发送；否则为 `configured_not_sent`。
+- Maintenance DTO 仅含 `hasSecret`、provider/environment、权限检查、最近验证/测试；不返回 Key、密文引用、完整端点或 raw webhook。
+- 支付始终 disabled。Payment Webhook/Worker 不构成 Beta 收费路径。
+- LLM endpoint 采用 provider host allowlist，拒绝私网 IPv4/IPv6、redirect 与 DNS rebinding，并配合出口控制。
+
+## 11. 可观测性与健康
+
+每请求生成 `requestId`；七智能体和关键商业流程使用 `traceId`。JSON 日志记录 audience、actor ID、permission、result、latency 和安全错误码，不写 secret、完整 PII、token 或 raw webhook。
+
+`worker_instances` 记录 worker type、instance、commit SHA、started/heartbeat、last success/failure、error code、current job。Maintenance 分别显示 configured/enabled/alive/healthy/stale，包含 queue depth/oldest age；进程停止须在阈值内变 stale。
+
+公开 `/api/health/live` 与 `/api/health/ready` 只返回粗粒度状态；详细数据库、配置、队列、provider 和 Worker 诊断需要 `maint.system_health.view`。
+
+## 12. 前端与 NFR
+
+- audience server import 与 route-level lazy loading；Client bundle 不含 Ops/Maint 文案，内部端不加载交易大厅/会员资源。
+- 初始 JS ≤ 200KB gzip、CSS ≤ 50KB gzip、单张首屏图 ≤ 200KB。
+- loading/error/not-found、AbortController、防 stale response、标准错误行为、表单重复提交保护齐全。
+- 320/768/1024/1440 无非预期横向溢出；抽屉/对话框支持 ESC、focus trap、回焦、skip link 和 `aria-live`。
+- 严格 CSP 使用每请求 nonce；nonce 页面动态渲染的性能影响纳入预算。
+- 目标：LCP ≤ 2.5s、CLS ≤ 0.1、TBT ≤ 200ms；关键 E2E console error/warning 为 0，axe critical/serious 为 0。
+
+## 13. 部署安全
+
+三端和 Worker 使用独立最小 env/DB role；清理旧 Web unit、重复 3000 端口和重复 Nginx server name。Payment Worker 强制 disabled。部署使用 current/previous 原子链接，应用回滚目标 <5 分钟；数据库只做前向兼容 expand/contract。
+
+本计划不执行生产 migration、DNS/TLS、真实 Email、真实 Demo smoke、真实支付、真实交易或真实退款。
+
+## 14. 完成定义
+
+只有稳定路由、机器可读 API policy、显式权限与 scope、真实状态、幂等事务、空/错/加载、响应式、可访问性、PG 集成测试、四身份浏览器 E2E、迁移/恢复演练、文档和外部 Gate 全部具备证据，模块才能标记 `CURRENT`。页面或表存在不等于闭环完成。

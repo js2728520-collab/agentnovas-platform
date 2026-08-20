@@ -1,76 +1,70 @@
-# Implementation Plan: Riverton 受控测试与七智能体对齐
+# Riverton Capital 14 天商业 Beta 实施计划
 
-## Objective
+状态：执行中
+集成分支：`codex/three-app-riverton-split`
+起点：`0762fa3`
+目标：5–20 名受邀付费 Beta；未通过 Gate 不开放
 
-在单一 Next.js、PostgreSQL 和共享组件体系中，完成 Client、Operations、Maintenance 的功能/登录/权限分离；以《七智能体动态策略系统_用户说明书》为 Client 交易大厅产品真源，先完成可验证的影子/模拟闭环，再按迁移矩阵补齐 Operations/Maintenance。
+## 1. 锁定范围
 
-## Source of Truth
+- 三应用一库，audience 隔离登录、Cookie、路由、RBAC、data scope、env 和部署。
+- 三张官方 spot 策略；每用户/卡片独立 10,000 USDT paper 组合。
+- 平台 OKX Demo、Binance Spot Testnet、Bybit Demo 证据与客户 paper 完全分离。
+- 四档会员 v1、人工付款 maker-checker、AI credits、UTC 周 paper 盈利分成与高水位。
+- in-app + 真实 Email；Telegram/WhatsApp 不接入。
+- 真实支付、客户充值、客户密钥、真实现货/永续、提现、退款和生产迁移硬关闭。
+
+## 2. 真源顺序
 
 1. `docs/product/PRD.md`
 2. `docs/product/SEVEN_AGENT_TRADING_HALL.md`
-3. `docs/specs/SYSTEM_SPEC.md` 与三应用 Spec
-4. `docs/architecture/CAPABILITY_MIGRATION_MATRIX.md`
-5. `docs/quality/ACCEPTANCE_AND_RELEASE_GATES.md`
-6. `docs/roadmap/CONTROLLED_BETA_ROADMAP.md`
+3. `packages/contracts/src/commercial-beta.ts` 与策略 snapshot
+4. `docs/specs/SYSTEM_SPEC.md` 与三端 Spec
+5. ADR、API Catalog/OpenAPI、Acceptance/Release Gates、Runbooks
+6. `tasks/todo.md` 当前证据
 
-旧 handoff、历史计划和已经勾选的任务不能覆盖上述最新真源。
+附件《七智能体动态策略系统_用户说明书》是产品参考；仓库版本化合同是实现真源。历史 handoff 或页面常量不能覆盖上述顺序。
 
-## Architecture Decisions
+## 3. Git 与 Agent 边界
 
-- AgentNovas 是技术平台；Riverton Capital 是对外产品。
-- 平台服务钱包只支付会员和 AI 服务；交易策略资金留在客户交易所。
-- 三张官方策略卡的目标边界是 BTC/ETH/SOL 的 USDT 现货；用户自建 1x 永续研发/回测是独立模拟产品。
-- 七产品角色为市场分析、技术分析、策略研究、反方审查、风险审批、AI 最终决策和交易执行；audit 是横切能力。
-- 当前只允许 shadow/paper。真实永续订单关闭；真实现货执行也不在本计划中启用。
-- 页面权限改善体验，API audience + RBAC + data scope 才是安全边界。
+- 集成分支是唯一最终推送分支；子分支只本地存在。
+- 禁止 rebase/amend/reset/force push/历史重写；普通 `merge --no-ff`。
+- 主 Agent 独占 package/lock、公共 contracts、路由分发、CI、docs、合并与发布基线。
+- Wave 1 分支：`codex/beta-api-security`、`codex/beta-membership-ops`、`codex/beta-strategy-demo`。
+- Wave 2 分支：`codex/beta-client-experience`、`codex/beta-internal-consoles`、`codex/beta-quality-release`。
+- 合并前：TDD 证据、质量审查、独立反证；合并顺序为 Security → Commercial → Strategy → UI Foundation/Client/Internal → Quality/Deploy。
 
-## Delivery Order
+## 4. 里程碑
 
-### Phase 0：真源与 CI
+| 日期 | 必须形成的可验证交付 |
+| --- | --- |
+| D1 | PRD/Spec/七智能体/商业合同/权限/迁移编号冻结，worktree 建立 |
+| D2–D4 | API Policy、Argon2id、MFA、限流、audience、安全迁移器、账本/审批原子性 |
+| D3–D7 | 会员订单、付款凭证、entitlement、credits、法务同意、周分成 |
+| D3–D8 | spot 合同统一、三 paper 组合、三 provider Demo adapter/worker |
+| D5–D9 | Client/Operations/Maintenance 稳定路由与真实状态 UI |
+| D7–D10 | Worker heartbeat、日志指标、env/DB role 隔离、CI 与运行手册 |
+| D9–D11 | Wave 合并、全量回归、bundle/CSS/图片性能收口 |
+| D11–D12 | 一次性 PostgreSQL staging、Demo smoke、Email allowlist、恢复演练（需授权） |
+| D13 | 四身份内部 canary 和发布评审 |
+| D14 | Gate 通过后开放 5–20 名受邀客户 |
 
-1. 建立完整项目文档、PRD、Spec、ADR、API 目录、系统评估和路线图。
-2. 把任务状态从“全完成”改为证据化 CURRENT/PARTIAL/TARGET/BLOCKED。
-3. 修复测试对 ignored/stale `dist` 的依赖，增加 clean-CI 验证。
+## 5. 开发顺序与串行依赖
 
-### Phase 1：七智能体交易大厅纵向切片
+1. 产品/法务边界与公共合同冻结。
+2. 迁移器真源、advisory lock 和 checksum。
+3. API Policy、显式 assignment scope 与身份安全。
+4. 账本约束和 typed approval adapters。
+5. 会员/credits/分成事务。
+6. spot paper runtime 与 Demo 证据。
+7. 三端 UI 和真实状态。
+8. E2E、性能、部署和恢复证据。
 
-1. 在 `packages/contracts` 定义三卡、七角色、产品边界、决策轮和公开证据合同。
-2. 先写失败测试，证明角色数量/顺序、audit 边界、无静态 fallback 和真实订单关闭。
-3. Trading Hall API 输出 camelCase、安全状态、七角色目录和真实 decision rounds。
-4. Runtime 增加独立 final decision；旧 audit 作为 legacy 审计证据兼容读取。
-5. Hall/Meeting 读取 API，删除硬编码价格、风险、静态会议和无行为紧急停止。
-6. 浏览器验证空数据、部分事件、完整事件、风险拒绝和模拟执行。
+不得在账本/审批之前启用商业权益副作用，不得在签名/幂等/限额/熔断/heartbeat 之前运行 staging Demo，不得因 env flag 存在而宣称外部能力已启用。
 
-### Phase 2：身份与 API 收口
+## 6. 每次集成验证
 
-1. 建立覆盖 131 routes 的机器可读 API policy。
-2. 迁移 legacy role 接口；legacy fallback 加开关、观测和截止日期。
-3. 密码 KDF、限流、一次性 bootstrap、内部高权强认证和安全响应头。
-4. 公开/内部 health 分层。
-
-### Phase 3：Operations 业务迁移
-
-按 `CAPABILITY_MIGRATION_MATRIX.md`：先 P0 组织/客户/审批/策略治理/账本，再 P1 团队/财务/政策；每个写入具备原因、事务、幂等、双审和审计。
-
-### Phase 4：Maintenance 与运行可观测性
-
-完成模型版本/回滚、三类角色目录、数据集成、Worker heartbeat、技术审计和安全控制验收。
-
-### Phase 5：前端收敛与发布
-
-拆分 Client 单体和 CSS、替换 DOM i18n、补关键 E2E/axe/响应式测试，完成一次性数据库环境和发布证据包。
-
-## Boundaries
-
-- Always：参数化 SQL、接口输入校验、PII/secret 安全视图、服务端权限复核、真实状态、加载/空/错、审计和幂等。
-- Ask first：生产迁移、真实外部调用、提交、推送、PR、真实订单。
-- Never：跨 audience 数据、密钥回显、虚假地址/成功/实时数据、自动资金执行、把模拟说成真实。
-
-## Verification
-
-每个纵向切片执行定向测试，然后执行：
-
-```bash
+```text
 npm test
 npx tsc --noEmit
 npm run lint
@@ -78,4 +72,18 @@ npm run test:apps
 git diff --check
 ```
 
-浏览器使用隔离 Profile 和一次性测试 Schema，覆盖 Client、Ops 申请人、Ops 审批人和 Maintenance 管理员。
+最终增加 PostgreSQL 集成、安全、策略全链路、adapter、migration、四身份 Playwright、axe、四断点截图、bundle budget、Lighthouse、三端 production Host smoke 和 secret scan。
+
+## 7. 外部 Gate
+
+法务主体/地区/隐私/条款/风险披露/模拟收益分成意见/退款规则、平台 Demo 凭证、Email 域名/Webhook/allowlist、DNS/TLS、支持联系人和告警值班均由团队提供。缺任一项时工程可继续验证，但付费 Beta Gate 失败。
+
+## 8. 推送规则
+
+完成并清除 secret/backup/log/fixture 风险后，核对分支、remotes 和 `ssh -T git@github-js2728520`。只展示：
+
+```bash
+git push origin codex/three-app-riverton-split
+```
+
+等待用户明确确认后执行，不推子分支，不 force push。
