@@ -1,8 +1,8 @@
-import type { SpotCandle } from "@/lib/market-data";
+import type { SpotCandle } from "./market-data.ts";
 import {
   officialTradingHallStrategies,
   type OfficialTradingHallStrategy,
-} from "@/packages/contracts/src/trading-hall";
+} from "../packages/contracts/src/trading-hall.ts";
 
 export type PlatformStrategyCode = OfficialTradingHallStrategy["code"];
 export type PlatformStrategyAction = "enter" | "exit" | "hold";

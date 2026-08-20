@@ -1,4 +1,4 @@
-import { fetchPublicMarketJson } from "@/lib/public-market-source";
+import { fetchPublicMarketJson } from "./public-market-source.ts";
 
 export function normalizeSpotSymbol(value: string) {
   return value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
