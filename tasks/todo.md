@@ -60,9 +60,9 @@
 
 ## G. 质量、部署与 Gate
 
-- [x] Wave 1/2 独立反证审查通过；当前集成树 517/517 测试、203 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
+- [x] Wave 1/2 独立反证审查通过；当前集成树 519/519 测试、203 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
 - [x] Playwright 四身份 + 一次性 PG schema + axe + 320/768/1024/1440 + console/network zero；8/8 场景通过且临时 schema/凭证已清理。
-- [x] Client/Ops/Maint bundle 隔离；MFA 收口后的重建证据为 Client 185,316/8,012 bytes、Operations 202,095/8,012 bytes、Maintenance 196,000/8,012 bytes，三端均低于 200/50KB JS/CSS gzip 预算，首屏图不超过 200KB。
+- [x] Client/Ops/Maint bundle 隔离；MFA/硬 404 收口后的重建证据为 Client 185,320/8,012 bytes、Operations 202,099/8,012 bytes、Maintenance 196,004/8,012 bytes，三端均低于 200/50KB JS/CSS gzip 预算，首屏图不超过 200KB。
 - [-] CSP nonce、security headers和生产依赖 high/critical=0 已验证；最终 secret scan 与开发工具链例外退出仍待交付前复核。
 - [-] 三端 production build、Host/audience smoke、migration fresh/N-1/rerun 已通过；并发部署与备份恢复演练仍待 staging。
 - [-] 已完成独立最小 env 示例、Demo Worker unit、旧 Web/Payment unit 与重复 Nginx 配置清理；DB roles 与回滚演练待 staging。
