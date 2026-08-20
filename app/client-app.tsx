@@ -4,23 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import AccountSettings, { type AccountViewer } from "./account-settings";
-import CommunityStrategyCenter from "./community-strategy-center";
-import ConnectLive from "./connect-live";
-import ExchangeLogo from "./exchange-logo";
 import LiveMarket from "./live-market";
-import MarketNewsSettings from "./market-news-settings";
 import ClientNotificationSettings from "@/apps/client/ui/client-notification-settings";
-import OrganizationRelationshipTree from "./organization-relationship-tree";
 import SupportFloating from "./support-floating";
 import TradingCenterV2 from "./trading-center";
 import MembershipCenter from "./membership-center";
-import StrategyDetail, { type StrategyDetailData } from "./strategy-detail";
 import { dedupeAdjacentEnglish, scrubNonChineseText } from "./i18n-runtime";
 import { getAvatarPreset } from "@/lib/avatar-presets";
 import PersistentAgentChat from "./agent-chat";
 import { CustomLlmButton } from "./llm-config";
 import {
-  officialTradingHallStrategies,
   tradingHallAgentCatalog,
   type TradingHallPayload,
   type TradingHallStrategy,
@@ -29,10 +22,8 @@ import {
 type Page =
   | "home"
   | "login"
-  | "connect"
   | "trading"
   | "membership"
-  | "strategies"
   | "hall"
   | "market"
   | "agent"
@@ -446,8 +437,8 @@ const extraText: Record<Lang, Record<string, string>> = {
     trust2: "权限隔离",
     trust3: "多层风控",
     trust4: "全程审计",
-    flow1: "连接交易所",
-    flow1s: "资金留在你的账户",
+    flow1: "启动官方 paper 组合",
+    flow1s: "客户无需上传交易所密钥",
     flow2: "选择风险偏好",
     flow2s: "设定不可突破的边界",
     flow3: "AI 团队协作",
@@ -475,8 +466,8 @@ const extraText: Record<Lang, Record<string, string>> = {
     trust2: "權限隔離",
     trust3: "多層風控",
     trust4: "全程審計",
-    flow1: "連接交易所",
-    flow1s: "資金留在你的帳戶",
+    flow1: "啟動官方 paper 組合",
+    flow1s: "客戶無需上傳交易所金鑰",
     flow2: "選擇風險偏好",
     flow2s: "設定不可突破的邊界",
     flow3: "AI 團隊協作",
@@ -504,8 +495,8 @@ const extraText: Record<Lang, Record<string, string>> = {
     trust2: "Permission isolation",
     trust3: "Layered risk control",
     trust4: "Full audit trail",
-    flow1: "Connect exchange",
-    flow1s: "Funds remain in your account",
+    flow1: "Start an official paper portfolio",
+    flow1s: "No customer exchange credentials required",
     flow2: "Choose risk profile",
     flow2s: "Set hard safety boundaries",
     flow3: "AI team collaboration",
@@ -533,8 +524,8 @@ const extraText: Record<Lang, Record<string, string>> = {
     trust2: "Изоляция прав",
     trust3: "Многоуровневый риск-контроль",
     trust4: "Полный аудит",
-    flow1: "Подключить биржу",
-    flow1s: "Средства остаются на счёте",
+    flow1: "Запустить официальный paper-портфель",
+    flow1s: "Ключи биржи клиента не требуются",
     flow2: "Выбрать профиль риска",
     flow2s: "Установить жёсткие границы",
     flow3: "Работа команды ИИ",
@@ -562,8 +553,8 @@ const extraText: Record<Lang, Record<string, string>> = {
     trust2: "Permisos aislados",
     trust3: "Control de riesgo multicapa",
     trust4: "Auditoría completa",
-    flow1: "Conectar exchange",
-    flow1s: "Los fondos siguen en tu cuenta",
+    flow1: "Iniciar un portafolio paper oficial",
+    flow1s: "No se requieren claves del exchange del cliente",
     flow2: "Elegir perfil de riesgo",
     flow2s: "Definir límites inviolables",
     flow3: "Colaboración del equipo IA",
@@ -591,8 +582,8 @@ const extraText: Record<Lang, Record<string, string>> = {
     trust2: "権限を分離",
     trust3: "多層リスク管理",
     trust4: "完全監査",
-    flow1: "取引所を接続",
-    flow1s: "資金は口座に保持",
+    flow1: "公式 paper ポートフォリオを開始",
+    flow1s: "顧客の取引所キーは不要",
     flow2: "リスク設定",
     flow2s: "越えられない境界を設定",
     flow3: "AIチーム連携",
@@ -620,8 +611,8 @@ const extraText: Record<Lang, Record<string, string>> = {
     trust2: "권한 분리",
     trust3: "다층 리스크 관리",
     trust4: "전체 감사",
-    flow1: "거래소 연결",
-    flow1s: "자금은 고객 계정에 유지",
+    flow1: "공식 paper 포트폴리오 시작",
+    flow1s: "고객 거래소 키 불필요",
     flow2: "위험 성향 선택",
     flow2s: "넘을 수 없는 한도 설정",
     flow3: "AI 팀 협업",
@@ -647,23 +638,23 @@ const landingMore: Record<Lang, Record<string, string>> = {
       "市|市场分析师|识别当前市场状态;技|技术分析师|验证具体交易信号;策|策略研究员|生成候选策略方案;反|反方审查员|寻找漏洞与反向证据;险|首席风控官|执行硬风险审批;决|AI 决策官|形成最终决策单;执|交易执行员|生成影子或模拟执行回执",
     visibleTitle: "每一次决策，都看得见",
     visible:
-      "实时协作|查看 Agent 的观点、异议、修正和最终决定。;动态风控|市场变化时自动降低仓位、杠杆或暂停策略。;完整审计|策略信号、风控批准、交易所订单和成交一一对应。",
+      "实时协作|查看 Agent 的观点、异议、修正和最终决定。;动态风控|市场变化时自动降低 paper 仓位或暂停策略。;完整审计|策略信号、风控批准、paper 回执和平台 Demo 证据分开记录。",
     review: "风险复核中",
     enterHall: "进入实时交易大厅",
     safetyTitle: "AI负责适应，硬风控守住底线",
     safety:
-      "非托管连接|资产始终保留在用户交易所账户。;权限隔离|交易执行与结算授权相互隔离，敏感权限由客户自主配置。;固定IP白名单|只有授权执行服务器可以使用密钥。;账户级熔断|达到日亏损或回撤限制立即停止开仓。;异常拒绝交易|数据延迟、模型超时或格式异常时不下单。;人工紧急控制|用户与管理员均可暂停、撤单或仅许平仓。",
-    exchangeTitle: "连接你的交易账户",
+      "无需客户密钥|Beta 使用公共行情和服务端 paper 组合。;本金隔离|每张官方策略拥有独立的 10,000 USDT 模拟本金。;现货边界|仅 BTC、ETH、SOL 的 USDT 现货模拟，无杠杆和做空。;组合级熔断|达到日亏损或回撤限制立即停止新开仓。;异常安全|数据延迟、模型超时或格式异常时不生成 paper 成交。;证据隔离|平台 Demo 回执不影响客户 paper 收益或结算。",
+    exchangeTitle: "平台测试环境验证",
     exchangeDesc:
-      "支持八大主流交易所，先从模拟盘开始，验证稳定后再开放真实交易。",
+      "OKX Demo、Binance Spot Testnet 与 Bybit Demo 仅验证平台策略信号；客户无需连接账户，也不会产生真实成交。",
     launch: "首发",
     access: "接入",
     planned: "规划",
-    connectWays: "查看连接方式",
+    connectWays: "查看 paper 组合",
     faqTitle: "你可能关心的问题",
-    faq: "资金会转入平台吗？|不会。资金留在用户自己的交易所账户。;AI会直接随意下单吗？|不会。所有交易必须经过独立风控和硬规则。;现在展示的收益真实吗？|当前均为演示数据，不代表真实或未来收益。;可以随时停止吗？|可以暂停开仓、仅允许平仓、撤单或停止自动交易。",
+    faq: "需要连接交易所吗？|不需要。Beta 不接收客户交易所密钥。;AI会发送真实订单吗？|不会。客户侧仅生成受风控约束的 paper 回执。;现在展示的收益真实吗？|不是。paper 收益不代表真实或未来收益。;平台 Demo 回执是什么？|它只证明信号可在隔离测试环境验证，不影响客户组合。",
     ctaTitle: "进入AI量化团队的实时工作现场",
-    ctaSub: "先体验产品流程和风险体系，再决定是否连接模拟账户。",
+    ctaSub: "从三张官方现货策略开始体验 10,000 USDT 独立 paper 组合。",
     browse: "浏览AI策略",
     footer: "AI量化交易平台产品原型 · 所有行情与绩效均为演示数据",
     legal: "风险披露　隐私政策　服务条款",
@@ -673,22 +664,22 @@ const landingMore: Record<Lang, Record<string, string>> = {
       "市|市場分析師|識別當前市場狀態;技|技術分析師|驗證具體交易訊號;策|策略研究員|生成候選策略方案;反|反方審查員|尋找漏洞與反向證據;險|首席風控官|執行硬風險審批;決|AI 決策官|形成最終決策單;執|交易執行員|生成影子或模擬執行回執",
     visibleTitle: "每一次決策，都看得見",
     visible:
-      "即時協作|查看 Agent 的觀點、異議、修正與最終決定。;動態風控|市場變化時自動降低倉位、槓桿或暫停策略。;完整審計|策略訊號、風控批准、訂單與成交逐一對應。",
+      "即時協作|查看 Agent 的觀點、異議、修正與最終決定。;動態風控|市場變化時降低 paper 倉位或暫停策略。;完整審計|策略訊號、paper 回執與平台 Demo 證據分開記錄。",
     review: "風險複核中",
     enterHall: "進入即時交易大廳",
     safetyTitle: "AI負責適應，硬風控守住底線",
     safety:
-      "非託管連接|資產始終保留在用戶交易所帳戶。;權限隔離|交易執行與結算授權相互隔離，敏感權限由客戶自主設定。;固定IP白名單|只有授權伺服器可使用密鑰。;帳戶級熔斷|達到虧損或回撤限制立即停止開倉。;異常拒絕交易|資料延遲或模型異常時不下單。;人工緊急控制|用戶與管理員均可暫停、撤單或僅許平倉。",
-    exchangeTitle: "連接你的交易帳戶",
-    exchangeDesc: "支援八大主流交易所，先從模擬盤開始，穩定後再開放真實交易。",
+      "無需客戶金鑰|Beta 使用公共行情與服務端 paper 組合。;本金隔離|每張官方策略有獨立 10,000 USDT 模擬本金。;現貨邊界|僅 BTC、ETH、SOL 的 USDT 現貨模擬，無槓桿與做空。;組合級熔斷|達到虧損或回撤限制即停止新開倉。;異常安全|資料延遲或模型異常時不生成 paper 成交。;證據隔離|平台 Demo 回執不影響客戶 paper 收益或結算。",
+    exchangeTitle: "平台測試環境驗證",
+    exchangeDesc: "三個平台測試環境僅驗證策略訊號；客戶無需連接帳戶，也不會產生真實成交。",
     launch: "首發",
     access: "接入",
     planned: "規劃",
-    connectWays: "查看連接方式",
+    connectWays: "查看 paper 組合",
     faqTitle: "你可能關心的問題",
-    faq: "資金會轉入平台嗎？|不會。資金留在用戶自己的交易所帳戶。;AI會直接隨意下單嗎？|不會。所有交易必須通過獨立風控與硬規則。;現在展示的收益真實嗎？|目前均為演示資料，不代表真實或未來收益。;可以隨時停止嗎？|可以暫停開倉、僅許平倉、撤單或停止自動交易。",
+    faq: "需要連接交易所嗎？|不需要。Beta 不接收客戶交易所金鑰。;AI會發送真實訂單嗎？|不會。客戶側僅生成 paper 回執。;收益是真實的嗎？|不是。paper 收益不代表真實或未來收益。;平台 Demo 回執是什麼？|只證明訊號可在隔離測試環境驗證。",
     ctaTitle: "進入AI量化團隊的即時工作現場",
-    ctaSub: "先體驗產品流程與風險體系，再決定是否連接模擬帳戶。",
+    ctaSub: "從三張官方現貨策略開始體驗獨立 paper 組合。",
     browse: "瀏覽AI策略",
     footer: "AI量化交易平台產品原型 · 所有行情與績效均為演示資料",
     legal: "風險披露　隱私政策　服務條款",
@@ -698,24 +689,24 @@ const landingMore: Record<Lang, Record<string, string>> = {
       "M|Market Analyst|Classifies the current market;T|Technical Analyst|Validates concrete signals;S|Strategy Researcher|Builds a candidate plan;C|Adversarial Reviewer|Finds flaws and contrary evidence;R|Chief Risk Officer|Applies hard risk approval;D|AI Decision Officer|Issues the final decision;E|Execution Agent|Produces a shadow or paper receipt",
     visibleTitle: "Every decision is visible",
     visible:
-      "Live collaboration|See Agent views, objections, revisions and final decisions.;Dynamic risk control|Reduce exposure, leverage or pause as markets change.;Complete audit|Match signals and approvals to every order and fill.",
+      "Live collaboration|See Agent views, objections, revisions and final decisions.;Dynamic risk control|Reduce paper exposure or pause as markets change.;Complete audit|Keep paper receipts separate from platform Demo evidence.",
     review: "Risk review in progress",
     enterHall: "Enter live Trading Hall",
     safetyTitle: "AI adapts. Hard controls protect the boundary.",
     safety:
-      "Non-custodial connection|Assets always remain in your exchange account.;Permission isolation|Trading execution and settlement authorization are isolated; sensitive permissions remain user-controlled.;IP allowlist|Only authorized execution servers can use keys.;Account circuit breaker|Stop new positions at loss or drawdown limits.;Fail-safe rejection|No order on stale data, timeout or malformed output.;Human emergency control|Users and admins can pause, cancel or allow exits only.",
-    exchangeTitle: "Connect your trading account",
+      "No customer credentials|Beta uses public market data and server-managed paper portfolios.;Isolated principal|Each official card receives a separate 10,000 USDT paper balance.;Spot only|BTC, ETH and SOL against USDT, with no leverage or shorting.;Portfolio circuit breaker|Stop new entries at loss or drawdown limits.;Fail safe|No paper fill on stale data, timeout or malformed output.;Separated evidence|Platform Demo receipts never change customer paper performance or settlement.",
+    exchangeTitle: "Platform test-environment evidence",
     exchangeDesc:
-      "Eight major exchanges supported. Start in demo mode, then enable live trading after validation.",
+      "OKX Demo, Binance Spot Testnet and Bybit Demo validate platform signals only. Customers do not connect accounts and no live trade is placed.",
     launch: "Launch",
     access: "Available",
     planned: "Planned",
-    connectWays: "Connection options",
+    connectWays: "View paper portfolios",
     faqTitle: "Common questions",
-    faq: "Will funds move to the platform?|No. Funds remain in your exchange account.;Can AI place arbitrary orders?|No. Every trade must pass independent risk controls and hard rules.;Are the returns shown real?|No. Current figures are demo data and are not future performance.;Can I stop at any time?|Yes. Pause entries, allow exits only, cancel orders or stop automation.",
+    faq: "Must I connect an exchange?|No. Beta does not accept customer exchange credentials.;Will AI place live orders?|No. Customer activity is limited to risk-controlled paper receipts.;Are the returns real?|No. Paper performance is not actual or future performance.;What is a platform Demo receipt?|It only proves a signal was tested in an isolated provider environment.",
     ctaTitle: "Enter the AI quant team’s live workspace",
     ctaSub:
-      "Explore the workflow and risk system before connecting a demo account.",
+      "Explore three official spot strategies through isolated paper portfolios.",
     browse: "Browse AI strategies",
     footer:
       "AI quantitative trading product prototype · All market and performance data is illustrative",
@@ -726,23 +717,23 @@ const landingMore: Record<Lang, Record<string, string>> = {
       "Р|Рыночный аналитик|Определяет состояние рынка;Т|Технический аналитик|Проверяет конкретные сигналы;С|Исследователь стратегий|Формирует кандидатный план;О|Оппонент|Ищет ошибки и обратные доказательства;Р|Риск-директор|Применяет жёсткие лимиты;Д|AI-директор решений|Принимает итоговое решение;И|Агент исполнения|Формирует квитанцию симуляции",
     visibleTitle: "Каждое решение прозрачно",
     visible:
-      "Совместная работа|Мнения, возражения, правки и итог агентов.;Динамический риск|Снижение позиции, плеча или остановка стратегии.;Полный аудит|Связь сигналов и одобрений с ордерами и сделками.",
+      "Совместная работа|Мнения, возражения, правки и итог агентов.;Динамический риск|Снижение paper-позиции или остановка стратегии.;Полный аудит|Paper-квитанции отделены от доказательств платформы Demo.",
     review: "Проверка риска",
     enterHall: "Открыть торговый зал",
     safetyTitle: "ИИ адаптируется, жёсткий контроль защищает",
     safety:
-      "Без хранения средств|Активы остаются на биржевом счёте.;Изоляция прав|Исполнение сделок и расчётные полномочия разделены; чувствительные разрешения контролирует клиент.;Белый список IP|Ключи доступны только авторизованным серверам.;Стоп на уровне счёта|Новые позиции блокируются при достижении лимита.;Отказ при сбое|Нет ордера при задержке или ошибке модели.;Ручная остановка|Пользователь и администратор могут остановить работу.",
-    exchangeTitle: "Подключите торговый счёт",
+      "Без ключей клиента|Beta использует публичный рынок и серверные paper-портфели.;Раздельный капитал|Каждая стратегия получает 10 000 USDT paper.;Только spot|BTC, ETH и SOL без плеча и шорта.;Автостоп|Новые входы блокируются при лимите потерь.;Безопасный отказ|При ошибке paper-сделка не создаётся.;Раздельные доказательства|Demo платформы не меняет доходность клиента.",
+    exchangeTitle: "Проверка в тестовой среде платформы",
     exchangeDesc:
-      "Поддержка восьми бирж: сначала демо, затем реальная торговля после проверки.",
+      "Три тестовые среды проверяют только сигналы платформы; клиент не подключает счёт, реальных сделок нет.",
     launch: "Запуск",
     access: "Доступно",
     planned: "План",
-    connectWays: "Способы подключения",
+    connectWays: "Paper-портфели",
     faqTitle: "Частые вопросы",
-    faq: "Средства переходят платформе?|Нет, они остаются на вашем биржевом счёте.;ИИ может торговать произвольно?|Нет, каждая сделка проходит риск-контроль.;Доходность реальна?|Нет, сейчас это демонстрационные данные.;Можно остановить работу?|Да, можно запретить входы, отменить ордера или остановить автоматизацию.",
+    faq: "Нужно подключать биржу?|Нет, Beta не принимает ключи клиентов.;Есть реальные ордера?|Нет, только paper-квитанции.;Доходность реальна?|Нет, paper-результат не является фактическим или будущим.;Что такое Demo-квитанция?|Это отдельное доказательство тестирования сигнала платформой.",
     ctaTitle: "Откройте рабочее пространство ИИ-команды",
-    ctaSub: "Изучите процесс и риски перед подключением демо-счёта.",
+    ctaSub: "Изучите три официальные spot-стратегии в paper-портфелях.",
     browse: "Стратегии ИИ",
     footer: "Прототип ИИ-платформы · Все данные демонстрационные",
     legal: "Риски　Конфиденциальность　Условия",
@@ -752,23 +743,23 @@ const landingMore: Record<Lang, Record<string, string>> = {
       "M|Analista de mercado|Clasifica el estado del mercado;T|Analista técnico|Valida señales concretas;E|Investigador de estrategias|Formula un plan candidato;C|Revisor adversarial|Busca fallos y evidencia contraria;R|Director de riesgo|Aplica límites estrictos;D|Director de decisión IA|Emite la decisión final;E|Agente de ejecución|Genera un recibo simulado",
     visibleTitle: "Cada decisión es visible",
     visible:
-      "Colaboración en vivo|Consulta opiniones, objeciones, cambios y decisiones.;Riesgo dinámico|Reduce posición, apalancamiento o pausa estrategias.;Auditoría completa|Vincula señales y aprobaciones con órdenes y ejecuciones.",
+      "Colaboración en vivo|Consulta opiniones, objeciones, cambios y decisiones.;Riesgo dinámico|Reduce exposición paper o pausa estrategias.;Auditoría completa|Separa recibos paper de la evidencia Demo de la plataforma.",
     review: "Revisión de riesgo",
     enterHall: "Entrar a la sala en vivo",
     safetyTitle: "La IA se adapta; los controles protegen",
     safety:
-      "Conexión sin custodia|Los activos permanecen en tu exchange.;Permisos aislados|La ejecución y la liquidación están separadas; el cliente controla los permisos sensibles.;Lista blanca de IP|Solo servidores autorizados usan las claves.;Cortacircuitos de cuenta|Bloquea nuevas posiciones al alcanzar límites.;Rechazo seguro|No opera con datos atrasados o errores del modelo.;Control de emergencia|Usuario y administrador pueden pausar o cancelar.",
-    exchangeTitle: "Conecta tu cuenta de trading",
+      "Sin credenciales del cliente|Beta usa mercado público y portafolios paper del servidor.;Capital aislado|Cada estrategia recibe 10.000 USDT paper.;Solo spot|BTC, ETH y SOL sin apalancamiento ni cortos.;Cortacircuitos|Detiene nuevas entradas al alcanzar límites.;Fallo seguro|No genera fills paper ante errores.;Evidencia separada|Demo de plataforma no cambia el rendimiento del cliente.",
+    exchangeTitle: "Evidencia en entornos de prueba",
     exchangeDesc:
-      "Compatible con ocho exchanges. Empieza en demo y activa real tras validar.",
+      "Tres entornos de prueba validan señales de la plataforma; el cliente no conecta cuentas ni genera operaciones reales.",
     launch: "Inicial",
     access: "Disponible",
     planned: "Planificado",
-    connectWays: "Ver conexiones",
+    connectWays: "Ver portafolios paper",
     faqTitle: "Preguntas frecuentes",
-    faq: "¿Los fondos pasan a la plataforma?|No, permanecen en tu cuenta del exchange.;¿La IA opera libremente?|No, cada operación pasa controles independientes.;¿Los rendimientos son reales?|No, son datos de demostración.;¿Puedo detenerlo?|Sí, puedes pausar entradas, cancelar órdenes o parar la automatización.",
+    faq: "¿Debo conectar un exchange?|No, Beta no acepta claves del cliente.;¿Hay órdenes reales?|No, solo recibos paper con control de riesgo.;¿El rendimiento es real?|No, paper no representa resultados reales o futuros.;¿Qué prueba Demo?|Solo valida una señal en un entorno aislado.",
     ctaTitle: "Entra al espacio de trabajo del equipo IA",
-    ctaSub: "Conoce el flujo y el riesgo antes de conectar una cuenta demo.",
+    ctaSub: "Explora tres estrategias spot oficiales con portafolios paper aislados.",
     browse: "Ver estrategias IA",
     footer: "Prototipo de trading cuantitativo IA · Datos ilustrativos",
     legal: "Riesgos　Privacidad　Términos",
@@ -778,22 +769,22 @@ const landingMore: Record<Lang, Record<string, string>> = {
       "市|市場アナリスト|現在の市場状態を分類;技|テクニカルアナリスト|具体的なシグナルを検証;策|戦略研究員|候補戦略を作成;反|反証審査員|欠陥と反対証拠を探索;リ|最高リスク責任者|ハードリスクを審査;決|AI意思決定官|最終判断を作成;執|執行Agent|シャドーまたは模擬回执を生成",
     visibleTitle: "すべての意思決定を可視化",
     visible:
-      "リアルタイム連携|Agentの見解・異議・修正・最終判断を表示。;動的リスク管理|市場変化に応じてポジションやレバレッジを削減。;完全監査|シグナル・承認・注文・約定を一対一で追跡。",
+      "リアルタイム連携|Agentの見解・異議・修正・最終判断を表示。;動的リスク管理|市場変化に応じて paper ポジションを削減。;完全監査|paper 回执とプラットフォーム Demo 証跡を分離。",
     review: "リスク審査中",
     enterHall: "リアルタイム取引ホールへ",
     safetyTitle: "AIが適応し、ハード制御が守る",
     safety:
-      "非カストディ接続|資産は常に取引所口座に保持。;権限分離|取引執行と決済権限を分離し、機密権限はユーザーが管理します。;固定IP許可リスト|認可サーバーのみ鍵を使用。;口座サーキットブレーカー|損失限度到達時に新規建てを停止。;異常時は取引拒否|遅延やモデル異常時は注文しません。;緊急手動制御|ユーザーと管理者が停止・取消可能。",
-    exchangeTitle: "取引口座を接続",
-    exchangeDesc: "主要8取引所に対応。デモ検証後に実取引を有効化します。",
+      "顧客キー不要|Beta は公開市場データとサーバー paper を使用。;元本分離|公式戦略ごとに 10,000 USDT paper。;現物のみ|BTC・ETH・SOL、レバレッジとショートなし。;サーキットブレーカー|損失限度で新規建て停止。;安全な失敗|異常時は paper 約定を生成しない。;証跡分離|平台 Demo は顧客損益に影響しない。",
+    exchangeTitle: "プラットフォーム試験環境の証跡",
+    exchangeDesc: "3つの試験環境は平台シグナルのみ検証し、顧客口座接続や実取引はありません。",
     launch: "初期",
     access: "対応",
     planned: "予定",
-    connectWays: "接続方法を見る",
+    connectWays: "paper ポートフォリオ",
     faqTitle: "よくある質問",
-    faq: "資金はプラットフォームへ移りますか？|いいえ、取引所口座に残ります。;AIは自由に注文しますか？|いいえ、全取引が独立リスク審査を通過します。;表示収益は実績ですか？|いいえ、現在はすべてデモデータです。;いつでも停止できますか？|はい、新規建て停止・注文取消・自動化停止が可能です。",
+    faq: "取引所接続は必要ですか？|いいえ、Beta は顧客キーを受け取りません。;実注文はありますか？|いいえ、paper 回执のみです。;収益は実績ですか？|いいえ、実績や将来収益を示しません。;Demo 証跡とは？|分離された試験環境でのシグナル検証です。",
     ctaTitle: "AIクオンツチームの現場へ",
-    ctaSub: "デモ口座接続前に製品フローとリスク体系を体験。",
+    ctaSub: "3つの公式現物戦略を独立 paper で体験。",
     browse: "AI戦略を見る",
     footer: "AI量化取引プラットフォーム試作 · すべてデモデータ",
     legal: "リスク開示　プライバシー　利用規約",
@@ -803,22 +794,22 @@ const landingMore: Record<Lang, Record<string, string>> = {
       "시|시장 분석가|현재 시장 상태 분류;기|기술 분석가|구체적 신호 검증;전|전략 연구원|후보 전략 수립;반|반론 검토자|허점과 반대 증거 탐색;리|최고 리스크 책임자|하드 리스크 승인;결|AI 의사결정관|최종 결정 작성;실|거래 실행 Agent|섀도 또는 모의 실행 영수증 생성",
     visibleTitle: "모든 의사결정을 투명하게",
     visible:
-      "실시간 협업|Agent 의견·이의·수정·최종 결정을 확인합니다.;동적 위험 관리|시장 변화 시 포지션과 레버리지를 축소합니다.;완전한 감사|신호·승인·주문·체결을 일대일로 추적합니다.",
+      "실시간 협업|Agent 의견·이의·수정·최종 결정을 확인합니다.;동적 위험 관리|시장 변화 시 paper 포지션을 축소합니다.;완전한 감사|paper 영수증과 플랫폼 Demo 증거를 분리합니다.",
     review: "리스크 재검토 중",
     enterHall: "실시간 트레이딩 홀 입장",
     safetyTitle: "AI는 적응하고, 하드 리스크는 지킵니다",
     safety:
-      "비수탁 연결|자산은 항상 거래소 계정에 보관됩니다.;권한 분리|거래 실행과 정산 권한을 분리하며 민감한 권한은 고객이 직접 관리합니다.;고정 IP 허용 목록|승인 서버만 키를 사용합니다.;계정 차단 장치|손실 한도 도달 시 신규 진입을 중지합니다.;이상 거래 거부|데이터 지연이나 모델 오류 시 주문하지 않습니다.;긴급 수동 제어|사용자와 관리자가 중지·취소할 수 있습니다.",
-    exchangeTitle: "거래 계정 연결",
-    exchangeDesc: "8대 거래소 지원. 데모 검증 후 실거래를 활성화합니다.",
+      "고객 키 불필요|Beta는 공개 시세와 서버 paper를 사용합니다.;원금 분리|공식 전략마다 10,000 USDT paper.;현물 전용|BTC·ETH·SOL, 레버리지와 공매도 없음.;포트폴리오 차단|손실 한도 시 신규 진입 중지.;안전한 실패|오류 시 paper 체결을 만들지 않음.;증거 분리|플랫폼 Demo는 고객 수익에 영향 없음.",
+    exchangeTitle: "플랫폼 테스트 환경 증거",
+    exchangeDesc: "세 테스트 환경은 플랫폼 신호만 검증하며 고객 계정 연결이나 실거래는 없습니다.",
     launch: "우선",
     access: "지원",
     planned: "예정",
-    connectWays: "연결 방법 보기",
+    connectWays: "paper 포트폴리오 보기",
     faqTitle: "자주 묻는 질문",
-    faq: "자금이 플랫폼으로 이동하나요?|아니요, 고객 거래소 계정에 남습니다.;AI가 임의로 주문하나요?|아니요, 모든 거래는 독립 위험 심사를 통과합니다.;표시 수익은 실제인가요?|아니요, 현재는 모두 데모 데이터입니다.;언제든 중지할 수 있나요?|네, 신규 진입·주문·자동 거래를 중지할 수 있습니다.",
+    faq: "거래소 연결이 필요한가요?|아니요, Beta는 고객 키를 받지 않습니다.;실제 주문이 있나요?|아니요, 위험 통제된 paper 영수증만 있습니다.;수익이 실제인가요?|아니요, 실제 또는 미래 수익을 의미하지 않습니다.;Demo 증거란?|격리된 테스트 환경의 신호 검증입니다.",
     ctaTitle: "AI 퀀트 팀의 실시간 작업 현장",
-    ctaSub: "데모 계정 연결 전에 제품 흐름과 위험 체계를 체험하세요.",
+    ctaSub: "세 가지 공식 현물 전략을 독립 paper 포트폴리오로 체험하세요.",
     browse: "AI 전략 보기",
     footer: "AI 퀀트 거래 플랫폼 프로토타입 · 모든 데이터는 데모입니다",
     legal: "위험 고지　개인정보　이용약관",
@@ -830,7 +821,6 @@ const nav: [Page, string, string][] = [
   ["hall", "hall", "◉"],
   ["agent", "agent", "◎"],
   ["market", "marketNav", "⌁"],
-  ["strategies", "strategy", "◇"],
   ["trading", "trading", "⇄"],
   ["membership", "memberNav", "♢"],
   ["security", "security", "⊙"],
@@ -1164,7 +1154,7 @@ function Landing({
             <button className="primary" onClick={() => go("hall")}>
               {t.enter} →
             </button>
-            <button className="ghost" onClick={() => go("strategies")}>
+            <button className="ghost" onClick={() => go("hall")}>
               {t.demo}
             </button>
           </div>
@@ -1341,29 +1331,13 @@ function Landing({
       </section>
       <section className="exchange-band">
         <div>
-          <small>SUPPORTED EXCHANGES</small>
+          <small>PLATFORM DEMO EVIDENCE</small>
           <h2>{m.exchangeTitle}</h2>
           <p>{m.exchangeDesc}</p>
         </div>
-        <div className="exchange-logos">
-          {[
-            "OKX",
-            "BINANCE",
-            "BYBIT",
-            "BITGET",
-            "GATE.IO",
-            "KUCOIN",
-            "COINBASE",
-            "KRAKEN",
-            "CRYPTO.COM",
-            "METAMASK",
-            "ROBINHOOD",
-            "HTX",
-          ].map((name) => (
-            <div className="exchange-logo-card" key={name}>
-              <ExchangeLogo name={name} />
-              <b>{name}</b>
-            </div>
+        <div className="exchange-logos" aria-label="平台隔离的测试环境">
+          {["OKX Demo", "Binance Spot Testnet", "Bybit Demo"].map((name) => (
+            <div className="exchange-logo-card" key={name}><b>{name}</b><small>平台测试账户</small></div>
           ))}
         </div>
         <button
@@ -1397,7 +1371,7 @@ function Landing({
           <button className="primary" onClick={() => go("hall")}>
             {t.enter}
           </button>
-          <button className="ghost" onClick={() => go("strategies")}>
+          <button className="ghost" onClick={() => go("hall")}>
             {m.browse}
           </button>
         </div>
@@ -1496,8 +1470,6 @@ function renderPage(
       return <Hall t={t} go={go} setSelected={setSelected} />;
     case "market":
       return <LiveMarket locale={t._lang} onLogin={() => go("login")} />;
-    case "strategies":
-      return <Strategies />;
     case "membership":
       return <MembershipCenter />;
     case "agent":
@@ -1506,13 +1478,11 @@ function renderPage(
           title={
             t._lang === "zh-CN" || t._lang === "zh-TW" ? "Agent 对话" : t.agent
           }
-          onOpenStrategies={() => go("strategies")}
+          onOpenStrategies={() => go("hall")}
         />
       );
     case "meeting":
       return <Meeting go={go} />;
-    case "connect":
-      return <ConnectLive />;
     case "trading":
       return <TradingCenterV2 go={go} />;
     case "security":
@@ -1779,191 +1749,6 @@ function PageHead({
         {actions}
       </div>
     </div>
-  );
-}
-function Strategies() {
-  const [mine, setMine] = useState(false),
-    [detail, setDetail] = useState<StrategyDetailData | null>(null),
-    [createRequest, setCreateRequest] = useState(0),
-    [workspaceScreen, setWorkspaceScreen] = useState<"list" | "create" | "detail" | "backtest">("list");
-  if (detail)
-    return <StrategyDetail strategy={detail} onBack={() => setDetail(null)} />;
-  const toggleMine = () => {
-    if (mine) {
-      setMine(false);
-      setCreateRequest(0);
-      setWorkspaceScreen("list");
-    } else setMine(true);
-  };
-  return (
-    <>
-      {(!mine || workspaceScreen === "list") && <PageHead
-        className={mine ? "my-strategy-page-head" : undefined}
-        title={mine ? "我的策略" : "策略广场"}
-        sub={
-          mine
-            ? "AI沟通生成 · 历史回测 · 模拟测试 · 提交审核"
-            : "平台AI策略与用户创作策略的审核合作市场"
-        }
-        actions={
-          <>
-            {mine && (
-              <button
-                className="strategy-create-top"
-                onClick={() => { setWorkspaceScreen("create"); setCreateRequest((value) => value + 1); }}
-              >
-                创建策略
-              </button>
-            )}
-            <button
-              className={`strategy-list-toggle ${mine ? "soft" : "primary"}`}
-              onClick={toggleMine}
-            >
-              {mine ? "返回策略广场" : "我的策略"}
-            </button>
-          </>
-        }
-      />}
-      {mine ? (
-        <CommunityStrategyCenter
-          key={createRequest}
-          view="mine"
-          onOpenStrategy={setDetail}
-          createRequest={createRequest}
-          onWorkspaceScreenChange={setWorkspaceScreen}
-        />
-      ) : (
-        <>
-          <PlatformStrategies onOpen={setDetail} />
-          <CommunityStrategyCenter onOpenStrategy={setDetail} />
-        </>
-      )}
-    </>
-  );
-}
-const platformStrategyIds = ["ai-stable", "ai-balanced", "ai-aggressive"] as const;
-const platformRiskLevels = ["low", "medium", "high"] as const;
-const platformStrategyDetails: StrategyDetailData[] = officialTradingHallStrategies.map((strategy, index) => ({
-  id: platformStrategyIds[index],
-  name: strategy.name,
-  summary: `USDT 现货 / ${strategy.positioning}`,
-  riskLevel: platformRiskLevels[index],
-  symbols: strategy.symbols.map((symbol) => symbol.replace("USDT", "/USDT")),
-  version: 1,
-  rankingScore: 0,
-  activeFollowers: 0,
-  source: "platform",
-  authorName: "Riverton Capital AI Core",
-  authorRole: "平台 AI 策略团队",
-}));
-function PlatformStrategies({
-  onOpen,
-}: {
-  onOpen: (strategy: StrategyDetailData) => void;
-}) {
-  const [tip, setTip] = useState<number | null>(null);
-  const risk = { low: "低风险", medium: "中风险", high: "高风险" };
-  return (
-    <section className="platform-ai-section">
-      <div className="platform-strategy-layout">
-        <aside className="strategy-side-panel strategy-side-left">
-          <small>MARKET PULSE</small>
-          <h3>市场脉搏</h3>
-          <p>三套官方策略卡共享七角色链路；当前仅展示已批准的产品边界，不伪造实时指数。</p>
-          <div className="strategy-side-stat">
-            <span>目标市场</span>
-            <b>USDT 现货</b>
-          </div>
-          <div className="strategy-side-stat">
-            <span>真实订单</span>
-            <b>关闭</b>
-          </div>
-          <div className="strategy-pulse-readout">
-            <div>
-              <span>交易池</span>
-              <b>BTC / ETH / SOL</b>
-              <small>每张卡按合同限制可用币种</small>
-            </div>
-            <div>
-              <span>资金边界</span>
-              <b>非托管</b>
-              <small>交易资金留在客户交易所</small>
-            </div>
-          </div>
-        </aside>
-        <div className="cards">
-          {platformStrategyDetails.map((x, i) => {
-            const product = officialTradingHallStrategies[i];
-            return (
-              <article className="strategy-card" key={x.id}>
-                <div className={`strategy-icon s${i}`}>AI</div>
-                <span className="badge">{risk[x.riskLevel]}</span>
-                <h2>{x.name}</h2>
-                <p>{x.summary}</p>
-                <dl className="strategy-metrics">
-                  <div>
-                    <dt>最大总仓位</dt>
-                    <dd>≤{product.risk.maxTotalAllocationPct}%</dd>
-                  </div>
-                  <div>
-                    <dt>单资产上限</dt>
-                    <dd>≤{product.risk.maxAssetAllocationPct}%</dd>
-                  </div>
-                  <div className="risk-budget-metric">
-                    <dt>
-                      单笔风险{" "}
-                      <button className="metric-help" aria-label="查看单笔风险说明" onClick={() => setTip(tip === i ? null : i)}>i</button>
-                    </dt>
-                    <dd className="green">≤{product.risk.riskPerTradePct}%</dd>
-                    {tip === i && (
-                      <span className="metric-tip">
-                        这是产品硬风险预算，不是收益目标；最终允许仓位由确定性风控计算。
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <dt>日亏损暂停</dt>
-                    <dd>≥{product.risk.dailyLossHaltPct}%</dd>
-                  </div>
-                  <div>
-                    <dt>最大回撤阈值</dt>
-                    <dd>{product.risk.maxDrawdownPct}%</dd>
-                  </div>
-                  <div>
-                    <dt>每日新开仓</dt>
-                    <dd>≤{product.risk.maxNewEntriesPerDay} 次</dd>
-                  </div>
-                </dl>
-                <button
-                  className="strategy-follow-cta"
-                  aria-label={`跟随${x.name}`}
-                  onClick={() => onOpen(x)}
-                >
-                  跟随
-                </button>
-              </article>
-            );
-          })}
-        </div>
-        <aside className="strategy-side-panel strategy-side-right">
-          <small>SELECTION GUIDE</small>
-          <h3>选择建议</h3>
-          <p>根据趋势强度、风险承受能力和仓位纪律选择适合自己的策略。</p>
-          <div className="strategy-side-choice">
-            <b>低风险</b>
-            <span>适合稳健观察和现货配置</span>
-          </div>
-          <div className="strategy-side-choice">
-            <b>中风险</b>
-            <span>适合趋势与震荡切换</span>
-          </div>
-          <div className="strategy-side-choice">
-            <b>高风险</b>
-            <span>波动更大，需严格控制仓位</span>
-          </div>
-        </aside>
-      </div>
-    </section>
   );
 }
 function Meeting({ go }: { go: (page: Page) => void }) {
@@ -2648,2064 +2433,6 @@ function Login({
 }
 // The old component is unreachable from Client routing; it remains temporarily as a migration reference while Operations owns the replacement workspace.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function Admin() {
-  const [tab, setTab] = useState("overview");
-  const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
-  const [notice, setNotice] = useState("");
-  async function load(next = tab, urlOverride?: string) {
-    setTab(next);
-    setNotice("");
-    const map: Record<string, string> = {
-      data: "/api/data-center",
-      tasks: "/api/employee/tasks",
-      targets: "/api/team/monthly-targets",
-      customers: "/api/organization/customers",
-      approvals: "/api/approvals",
-      members: "/api/organization/members",
-      invites: "/api/invitations",
-      settlements: "/api/finance/settlements",
-      collections: "/api/finance/collections",
-      payouts: "/api/finance/payout-profiles",
-    };
-    if (!map[next]) {
-      setRows([]);
-      return;
-    }
-    const res = await fetch(urlOverride || map[next]);
-    const data = (await res.json()) as Record<string, unknown>;
-    if (!res.ok) {
-      setNotice(String(data.error || "请使用相应管理账户登录"));
-      setRows([]);
-      return;
-    }
-    if (next === "data" || next === "tasks" || next === "targets") {
-      setRows([data]);
-      return;
-    }
-    setRows(
-      (data.customers ||
-        data.requests ||
-        data.members ||
-        data.invitations ||
-        data.settlements ||
-        data.collections ||
-        data.profiles ||
-        []) as Array<Record<string, unknown>>,
-    );
-  }
-  useEffect(() => {
-    const timer = window.setTimeout(() => void load("overview"), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-  async function createInvite(kind: string) {
-    const res = await fetch("/api/invitations", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ kind }),
-    });
-    const data = (await res.json()) as {
-      error?: string;
-      invitation?: { code: string };
-    };
-    setNotice(
-      data.invitation
-        ? `新邀请码：${data.invitation.code}（请立即保存）`
-        : data.error || "生成失败",
-    );
-    if (res.ok) void load("invites");
-  }
-  const done = (m: string, next?: string) => {
-    setNotice(m);
-    if (next) void load(next);
-  };
-  const memberTreeRefreshKey = rows
-    .map((row) => `${String(row.id || "")}:${String(row.status || "")}`)
-    .join("|");
-  return (
-    <div className="operations-admin">
-      <PageHead
-        title="组织与运营后台"
-        sub="组织权限、客户归因、双人审批与收入结算"
-        actions={<button className="danger">全局紧急停止</button>}
-      />
-      <div className="admin-tabs">
-        {[
-          ["overview", "运营概览"],
-          ["data", "总数据中心"],
-          ["tasks", "团队客户任务"],
-          ["targets", "月度任务指标"],
-          ["members", "组织成员"],
-          ["customers", "客户管理"],
-          ["invites", "邀请码"],
-          ["approvals", "待审批"],
-          ["revenue", "月度分红"],
-          ["settlements", "结算付款"],
-          ["collections", "逾期应收款"],
-          ["payouts", "收款地址"],
-          ["adjustment", "收入调整"],
-          ["integrations", "行情新闻 API"],
-        ].map((x) => (
-          <button
-            key={x[0]}
-            className={tab === x[0] ? "active" : ""}
-            onClick={() => void load(x[0])}
-          >
-            {x[1]}
-          </button>
-        ))}
-      </div>
-      {notice && <div className="admin-notice">{notice}</div>}
-      {tab === "overview" && (
-        <>
-          <div className="kpis">
-            <Kpi n="组织架构" v="5级" s="逐级权限" />
-            <Kpi n="客户归因" v="实时" s="不追溯历史" />
-            <Kpi n="审批机制" v="双人" s="申请人不得自审" />
-            <Kpi n="月度结算" v="每月5日" s="USDT人工结算" />
-          </div>
-          <div className="admin-grid">
-            <section className="wide-panel">
-              <h2>后台模块状态</h2>
-              {[
-                "邮箱账户与验证",
-                "永久/一次性邀请码",
-                "组织向下权限",
-                "公海客户归因",
-                "双人审批",
-                "收入与分红账本",
-              ].map((x) => (
-                <div className="service" key={x}>
-                  <span>
-                    <i />
-                    {x}
-                  </span>
-                  <b>已接入</b>
-                  <small>服务端校验</small>
-                </div>
-              ))}
-            </section>
-            <section className="wide-panel collection-control">
-              <h2>规则控制</h2>
-              <p>
-                公海归因前收入100%归总公司；归因生效后按10% / 80% / 10%分配。
-              </p>
-              <div>
-                <span>盈利费率</span>
-                <b>18% / 20%</b>
-              </div>
-              <div>
-                <span>高水位线</span>
-                <b>仅新增已实现净利润</b>
-              </div>
-              <small>所有资金与归因操作均保留审计记录。</small>
-            </section>
-          </div>
-        </>
-      )}
-      {tab === "data" && <DataCenter data={rows[0]} />}
-      {tab === "tasks" && <EmployeeTasks data={rows[0]} />}{" "}
-      {tab === "targets" && (
-        <MonthlyTargets
-          data={rows[0]}
-          onDone={(m) => done(m, "targets")}
-          onMonth={(month) =>
-            void load("targets", "/api/team/monthly-targets?month=" + month)
-          }
-        />
-      )}{" "}
-      {tab === "members" && (
-        <>
-          <MemberCreate onDone={(m) => done(m, "members")} />
-          <ReportingLineChange onDone={(m) => done(m, "members")} />
-          <OrganizationRelationshipTree refreshKey={memberTreeRefreshKey} />
-        </>
-      )}{" "}
-      {tab === "customers" && (
-        <>
-          <AttributionCreate onDone={(m) => done(m)} />
-          <section className="customer-management-guide">
-            <h2>客户管理怎么用</h2>
-            <p>
-              这里展示当前组织权限范围内的直客与下属客户。你可以查看归属链、交易与结算状态，并在需要交接时补充备注。
-            </p>
-            <div className="customer-guide-grid">
-              <article>
-                <b>查看范围</b>
-                <span>上级只能看到自己组织下属的汇总与客户明细。</span>
-              </article>
-              <article>
-                <b>编辑与冻结</b>
-                <span>
-                  编辑资料、冻结交易或恢复权限都不会删除订单和审计历史。
-                </span>
-              </article>
-              <article>
-                <b>归属与交接</b>
-                <span>
-                  客户转移由分公司审批，历史收入不追溯；交接备注会保留在客户档案。
-                </span>
-              </article>
-            </div>
-          </section>
-          <CustomerManagement
-            rows={rows}
-            onDone={(m) => done(m, "customers")}
-          />
-        </>
-      )}{" "}
-      {tab === "invites" && (
-        <div className="admin-actions">
-          <button
-            className="primary"
-            onClick={() => void createInvite("employee_reusable")}
-          >
-            生成员工永久邀请码
-          </button>
-          <button onClick={() => void createInvite("public_pool_single_use")}>
-            生成客服一次性邀请码
-          </button>
-        </div>
-      )}
-      {tab === "revenue" && <MonthlyRevenue />}
-      {tab === "settlements" && (
-        <>
-          <SettlementOverview rows={rows} />
-          <SettlementForm onDone={(m) => done(m, "settlements")} />
-        </>
-      )}{" "}
-      {tab === "payouts" && <PayoutForm onDone={(m) => done(m, "payouts")} />}{" "}
-      {tab === "adjustment" && <AdjustmentForm onDone={(m) => done(m)} />}{" "}
-      {tab === "integrations" && <MarketNewsSettings />}{" "}
-      {tab === "approvals" ? (
-        <ApprovalRows rows={rows} onDone={(m) => done(m, "approvals")} />
-      ) : tab === "collections" ? (
-        <CollectionRows rows={rows} onDone={(m) => done(m, "collections")} />
-      ) : (
-        ![
-          "overview",
-          "data",
-          "tasks",
-          "targets",
-          "revenue",
-          "adjustment",
-          "integrations",
-        ].includes(tab) && (
-          <AdminRows rows={rows} empty="暂无数据，或当前账户没有该模块权限" />
-        )
-      )}
-    </div>
-  );
-}
-function DataCenter({ data }: { data?: Record<string, unknown> }) {
-  const [selected, setSelected] = useState<Record<string, unknown> | null>(
-    null,
-  );
-  if (!data)
-    return <div className="admin-empty">请登录组织账户查看数据中心</div>;
-  const s = (data.summary || {}) as Record<string, number>,
-    trend = (data.trend || []) as Array<Record<string, unknown>>,
-    customers = (data.customers || []) as Array<Record<string, unknown>>,
-    max = Math.max(
-      1,
-      ...trend.flatMap((x) => [
-        Math.abs(Number(x.pnl || 0)),
-        Number(x.trades || 0),
-        Number(x.registered || 0),
-      ]),
-    );
-  return (
-    <div className="data-center">
-      <div className="kpis">
-        <Kpi
-          n="所属客户"
-          v={String(s.customers || 0)}
-          s={`${s.connectedCustomers || 0}人已连接交易所`}
-        />
-        <Kpi
-          n="策略跟随客户"
-          v={String(s.followingCustomers || 0)}
-          s="权限范围内"
-        />
-        <Kpi
-          n="持仓本金"
-          v={`$${Number(s.principal || 0).toLocaleString()}`}
-          s={`${s.openPositions || 0}个未平仓`}
-        />
-        <Kpi
-          n="已实现盈利"
-          v={`$${Number(s.realizedPnl || 0).toLocaleString()}`}
-          s={`整体胜率 ${Number(s.winRate || 0).toFixed(1)}%`}
-        />
-      </div>
-      <section className="data-trends">
-        <header>
-          <div>
-            <small>ORGANIZATION ANALYTICS</small>
-            <h2>近六个月客户与交易趋势</h2>
-          </div>
-          <span>仅统计当前层级可见客户</span>
-        </header>
-        <div className="trend-chart">
-          {trend.map((x) => (
-            <div key={String(x.month)}>
-              <div className="trend-bars">
-                <i
-                  style={{
-                    height: `${Math.max(4, (Number(x.registered || 0) / max) * 100)}%`,
-                  }}
-                />
-                <i
-                  className="trade"
-                  style={{
-                    height: `${Math.max(4, (Number(x.trades || 0) / max) * 100)}%`,
-                  }}
-                />
-                <i
-                  className="pnl"
-                  style={{
-                    height: `${Math.max(4, (Math.abs(Number(x.pnl || 0)) / max) * 100)}%`,
-                  }}
-                />
-              </div>
-              <b>{String(x.month).slice(5)}月</b>
-              <small>{String(x.activeCustomers || 0)}活跃</small>
-            </div>
-          ))}
-        </div>
-      </section>
-      <section className="customer-analytics">
-        <div className="widget-head">
-          <b>客户详细数据</b>
-          <span>点击客户查看完整资料</span>
-        </div>
-        <div className="analytics-table">
-          <table>
-            <thead>
-              <tr>
-                <th>客户</th>
-                <th>交易所</th>
-                <th>持仓本金</th>
-                <th>已实现盈利</th>
-                <th>交易/胜率</th>
-                <th>最大回撤</th>
-                <th>跟随策略</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customers.map((row) => {
-                const m = row.metrics as Record<string, number>,
-                  ex = row.exchanges as Array<Record<string, unknown>>,
-                  f = row.following as Array<Record<string, unknown>>;
-                return (
-                  <tr
-                    key={String(row.customerId)}
-                    onClick={() => setSelected(row)}
-                  >
-                    <td>
-                      <b>{String(row.displayName || row.email)}</b>
-                      <small>{String(row.email)}</small>
-                    </td>
-                    <td>
-                      {ex.map((x) => String(x.name)).join(" · ") || "未连接"}
-                    </td>
-                    <td>${Number(m.principal || 0).toLocaleString()}</td>
-                    <td
-                      className={
-                        Number(m.realizedPnl || 0) >= 0 ? "green" : "down"
-                      }
-                    >
-                      ${Number(m.realizedPnl || 0).toLocaleString()}
-                    </td>
-                    <td>
-                      {m.totalTrades || 0} / {Number(m.winRate || 0).toFixed(1)}
-                      %
-                    </td>
-                    <td>${Number(m.maxDrawdown || 0).toLocaleString()}</td>
-                    <td>
-                      {f.map((x) => String(x.name)).join(" · ") || "暂无"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      {selected && (
-        <CustomerDataDrawer row={selected} close={() => setSelected(null)} />
-      )}
-    </div>
-  );
-}
-function CustomerDataDrawer({
-  row,
-  close,
-}: {
-  row: Record<string, unknown>;
-  close: () => void;
-}) {
-  const m = row.metrics as Record<string, number>,
-    ex = row.exchanges as Array<Record<string, unknown>>,
-    f = row.following as Array<Record<string, unknown>>;
-  return (
-    <div className="customer-data-overlay" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) close(); }}>
-      <aside>
-        <header>
-          <div>
-            <small>CUSTOMER 360°</small>
-            <h2>{String(row.displayName || row.email)}</h2>
-            <p>{String(row.email)}</p>
-          </div>
-          <button onClick={close}>×</button>
-        </header>
-        <div className="customer-detail-kpis">
-          <span>
-            <small>持仓本金</small>
-            <b>${Number(m.principal || 0).toLocaleString()}</b>
-          </span>
-          <span>
-            <small>已实现盈利</small>
-            <b>${Number(m.realizedPnl || 0).toLocaleString()}</b>
-          </span>
-          <span>
-            <small>胜率</small>
-            <b>{Number(m.winRate || 0).toFixed(1)}%</b>
-          </span>
-          <span>
-            <small>最大回撤</small>
-            <b>${Number(m.maxDrawdown || 0).toLocaleString()}</b>
-          </span>
-        </div>
-        <section>
-          <h3>注册与账户</h3>
-          <dl>
-            {[
-              ["注册IP", row.registrationIp],
-              ["注册时间", row.registeredAt],
-              ["邮箱验证", row.emailVerifiedAt ? "已验证" : "未验证"],
-              ["最后活跃", row.lastActiveAt || "暂无"],
-              ["语言/时区", `${row.locale} · ${row.timezone}`],
-              ["客户备注", row.contactNote || "暂无"],
-            ].map((x) => (
-              <div key={String(x[0])}>
-                <dt>{String(x[0])}</dt>
-                <dd>{String(x[1])}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-        <section>
-          <h3>跟单交易所</h3>
-          {ex.length ? (
-            ex.map((x) => (
-              <article key={String(x.id)}>
-                <b>
-                  {String(x.name)} · {String(x.label)}
-                </b>
-                <span>
-                  {String(x.environment)} · {String(x.status)}
-                </span>
-              </article>
-            ))
-          ) : (
-            <p>暂无连接</p>
-          )}
-        </section>
-        <section>
-          <h3>跟随策略</h3>
-          {f.length ? (
-            f.map((x) => (
-              <article key={String(x.id)}>
-                <b>{String(x.name)}</b>
-                <span>{String(x.status)}</span>
-              </article>
-            ))
-          ) : (
-            <p>暂无跟随</p>
-          )}
-        </section>
-        <section>
-          <h3>交易统计</h3>
-          <dl>
-            {[
-              ["总交易", `${m.totalTrades || 0}笔`],
-              ["已平仓", `${m.closedTrades || 0}笔`],
-              ["未平仓", `${m.openPositions || 0}笔`],
-              ["手续费和资金费", `$${Number(m.fees || 0).toLocaleString()}`],
-            ].map((x) => (
-              <div key={String(x[0])}>
-                <dt>{String(x[0])}</dt>
-                <dd>{String(x[1])}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      </aside>
-    </div>
-  );
-}
-function MemberCreate({ onDone }: { onDone: (m: string) => void }) {
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    const r = await fetch("/api/organization/members", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: f.get("email"), name: f.get("name") }),
-    });
-    const d = (await r.json()) as { error?: string; message?: string };
-    onDone(d.message || d.error || "操作完成");
-  }
-  return (
-    <form className="admin-inline-form" onSubmit={submit}>
-      <label>
-        成员邮箱
-        <input
-          name="email"
-          type="email"
-          required
-          placeholder="member@example.com"
-        />
-      </label>
-      <label>
-        组织/团队名称
-        <input name="name" placeholder="创建分公司时必填" />
-      </label>
-      <button className="primary">创建下一级成员</button>
-    </form>
-  );
-}
-function ReportingLineChange({ onDone }: { onDone: (m: string) => void }) {
-  const [members, setMembers] = useState<Array<Record<string, unknown>>>([]);
-  useEffect(() => {
-    void fetch("/api/organization/members")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) =>
-        setMembers((d?.members || []) as Array<Record<string, unknown>>),
-      )
-      .catch(() => setMembers([]));
-  }, []);
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.currentTarget)),
-      r = await fetch("/api/organization/members", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(f),
-      }),
-      d = (await r.json()) as { error?: string; message?: string };
-    onDone(d.message || d.error || "操作完成");
-  }
-  return (
-    <form className="admin-inline-form" onSubmit={submit}>
-      <label>
-        调整成员
-        <select name="memberId" required>
-          <option value="">请选择成员</option>
-          {members.map((m) => (
-            <option key={String(m.id)} value={String(m.id)}>
-              {String(m.email)} · {String(m.role)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        新的直属上级
-        <select name="newReportsToUserId" required>
-          <option value="">请选择上级</option>
-          {members.map((m) => (
-            <option key={String(m.id)} value={String(m.id)}>
-              {String(m.email)} · {String(m.role)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        职位
-        <select name="newRole" defaultValue="">
-          <option value="">保持原职位</option>
-          <option value="branch_admin">分公司管理员</option>
-          <option value="manager">经理</option>
-          <option value="supervisor">主管</option>
-          <option value="employee">员工</option>
-        </select>
-      </label>
-      <label>
-        调整原因
-        <input name="reason" required />
-      </label>
-      <button>提交双人审批</button>
-    </form>
-  );
-}
-function AttributionCreate({ onDone }: { onDone: (m: string) => void }) {
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.currentTarget));
-    const r = await fetch("/api/attributions/requests", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(f),
-    });
-    const d = (await r.json()) as { error?: string; requestId?: string };
-    onDone(
-      d.requestId
-        ? `归因申请已提交：${d.requestId}，等待两人审批`
-        : d.error || "提交失败",
-    );
-  }
-  return (
-    <form className="admin-inline-form attribution" onSubmit={submit}>
-      <label>
-        归因记录ID
-        <input name="attributionId" required />
-      </label>
-      <label>
-        分公司ID
-        <input name="branchId" required />
-      </label>
-      <label>
-        经理ID
-        <input name="managerId" required />
-      </label>
-      <label>
-        主管ID
-        <input name="supervisorId" />
-      </label>
-      <label>
-        员工ID
-        <input name="employeeId" />
-      </label>
-      <label>
-        生效时间
-        <input name="effectiveAt" type="datetime-local" />
-      </label>
-      <label>
-        归因依据
-        <input name="reason" required />
-      </label>
-      <button className="primary">提交双人审批</button>
-    </form>
-  );
-}
-function ApprovalRows({
-  rows,
-  onDone,
-}: {
-  rows: Array<Record<string, unknown>>;
-  onDone: (m: string) => void;
-}) {
-  async function decide(id: string, decision: string) {
-    const note =
-      window.prompt(
-        decision === "approve" ? "填写审批意见（可选）" : "填写驳回原因",
-      ) || "";
-    const r = await fetch(`/api/approvals/${id}/decision`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ decision, note }),
-    });
-    const d = (await r.json()) as {
-      error?: string;
-      status?: string;
-      approvals?: number;
-    };
-    onDone(
-      d.error ||
-        `审批状态：${d.status}${d.approvals ? `（${d.approvals}/2）` : ""}`,
-    );
-  }
-  if (!rows.length) return <div className="admin-empty">暂无待审批事项</div>;
-  return (
-    <div className="approval-list">
-      {rows.map((r) => (
-        <article key={String(r.id)}>
-          <div>
-            <small>{String(r.type)}</small>
-            <b>
-              {String(r.subjectType)} · {String(r.subjectId)}
-            </b>
-            <p>
-              当前通过 {String(r.approvals)}/2 · 申请时间{" "}
-              {String(r.requestedAt)}
-            </p>
-          </div>
-          <span>
-            <button
-              className="danger"
-              onClick={() => void decide(String(r.id), "reject")}
-            >
-              驳回
-            </button>
-            <button
-              className="primary"
-              onClick={() => void decide(String(r.id), "approve")}
-            >
-              通过
-            </button>
-          </span>
-        </article>
-      ))}
-    </div>
-  );
-}
-function AdminRows({
-  rows,
-  empty,
-}: {
-  rows: Array<Record<string, unknown>>;
-  empty: string;
-}) {
-  const [memberRows, setMemberRows] = useState(rows),
-    [notice, setNotice] = useState("");
-  useEffect(() => {
-    const timer = window.setTimeout(() => setMemberRows(rows), 0);
-    return () => window.clearTimeout(timer);
-  }, [rows]);
-  if (!rows.length) return <div className="admin-empty">{empty}</div>;
-  const memberAccounts = memberRows.filter(
-    (row) => row.role === "branch_admin",
-  );
-  if (memberAccounts.length)
-    return (
-      <section className="wide-panel member-admin-panel">
-        <h2>组织成员账户</h2>
-        <div className="table-wrap admin-data">
-          <table>
-            <thead>
-              <tr>
-                <th>邮箱</th>
-                <th>角色</th>
-                <th>状态</th>
-                <th>创建时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {memberAccounts.map((row) => {
-                const closed = row.status === "closed";
-                return (
-                  <tr key={String(row.id)}>
-                    <td>{String(row.email || "—")}</td>
-                    <td>{String(row.role || "—")}</td>
-                    <td>{closed ? "已删除" : String(row.status || "—")}</td>
-                    <td>{String(row.createdAt || "—")}</td>
-                    <td>
-                      <button
-                        className="danger"
-                        disabled={closed}
-                        onClick={async () => {
-                          if (
-                            !window.confirm(
-                              `确定删除成员账户 ${String(row.email || "")}？删除后该账户不能登录，但历史记录会保留。`,
-                            )
-                          )
-                            return;
-                          const response = await fetch(
-                            "/api/organization/members",
-                            {
-                              method: "DELETE",
-                              headers: { "content-type": "application/json" },
-                              body: JSON.stringify({ memberId: row.id }),
-                            },
-                          );
-                          const data = (await response.json()) as {
-                            message?: string;
-                            error?: string;
-                          };
-                          setNotice(data.message || data.error || "操作完成");
-                          if (response.ok)
-                            setMemberRows((previous) =>
-                              previous.map((item) =>
-                                item.id === row.id
-                                  ? { ...item, status: "closed" }
-                                  : item,
-                              ),
-                            );
-                        }}
-                      >
-                        删除账户
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {notice && <div className="admin-notice">{notice}</div>}
-      </section>
-    );
-  const keys = Object.keys(rows[0]).slice(0, 7);
-  return (
-    <div className="table-wrap admin-data">
-      <table>
-        <thead>
-          <tr>
-            {keys.map((k) => (
-              <th key={k}>{k}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i}>
-              {keys.map((k) => (
-                <td key={k}>
-                  {typeof row[k] === "object"
-                    ? JSON.stringify(row[k])
-                    : String(row[k] ?? "—")}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-function CustomerManagement({
-  rows,
-  onDone,
-}: {
-  rows: Array<Record<string, unknown>>;
-  onDone: (m: string) => void;
-}) {
-  async function action(row: Record<string, unknown>, type: string) {
-    let body: Record<string, unknown> = {
-      customerId: row.customerId,
-      action: type,
-    };
-    if (type === "edit")
-      body = {
-        ...body,
-        displayName:
-          window.prompt("客户显示名称", String(row.displayName || "")) || "",
-        contactNote:
-          window.prompt("客户详情摘要", String(row.contactNote || "")) || "",
-      };
-    if (
-      type === "archive" &&
-      !window.confirm("确定归档该客户？交易、财务和审计历史会保留。")
-    )
-      return;
-    const r = await fetch("/api/organization/customers", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-      d = (await r.json()) as { error?: string; message?: string };
-    onDone(d.message || d.error || "操作完成");
-  }
-  async function note(row: Record<string, unknown>) {
-    const content = window.prompt("填写客户交接备注") || "";
-    if (!content.trim()) return;
-    const r = await fetch(
-        `/api/organization/customers/${String(row.customerId)}/notes`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ content }),
-        },
-      ),
-      d = (await r.json()) as { error?: string; message?: string };
-    onDone(d.message || d.error || "操作完成");
-  }
-  return (
-    <div className="customer-manage-grid">
-      {rows.map((row) => (
-        <article key={String(row.customerId)}>
-          <header>
-            <div>
-              <b>{String(row.displayName || row.email)}</b>
-              <small>
-                {String(row.email)} · {String(row.status)}
-              </small>
-            </div>
-            <em>
-              {row.archivedAt
-                ? "已归档"
-                : row.status === "frozen"
-                  ? "已冻结"
-                  : "正常"}
-            </em>
-          </header>
-          <p>{String(row.contactNote || "暂无客户详情摘要")}</p>
-          <div className="customer-chain">
-            <span>经理 {String(row.managerId || "—")}</span>
-            <span>主管 {String(row.supervisorId || "—")}</span>
-            <span>员工 {String(row.employeeId || "—")}</span>
-          </div>
-          <section>
-            {((row.notes || []) as Array<Record<string, unknown>>)
-              .slice(0, 3)
-              .map((n) => (
-                <small key={String(n.id)}>
-                  {String(n.createdAt)} · {String(n.content)}
-                </small>
-              ))}
-          </section>
-          <footer>
-            <button onClick={() => void note(row)}>交接备注</button>
-            <button onClick={() => void action(row, "edit")}>编辑</button>
-            {row.status === "frozen" ? (
-              <button onClick={() => void action(row, "restore")}>恢复</button>
-            ) : (
-              <button onClick={() => void action(row, "freeze")}>冻结</button>
-            )}
-            <button
-              className="danger"
-              onClick={() => void action(row, "archive")}
-            >
-              归档
-            </button>
-          </footer>
-        </article>
-      ))}
-    </div>
-  );
-}
-function MonthlyRevenue() {
-  const [data, setData] = useState<Record<string, unknown> | null>(null);
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [loading, setLoading] = useState(false);
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/reports/monthly?month=${month}`);
-      setData((await res.json()) as Record<string, unknown>);
-    } finally {
-      setLoading(false);
-    }
-  }
-  const root = (data || {}) as Record<string, unknown>;
-  const asRecord = (value: unknown) =>
-    value && typeof value === "object" && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {};
-  const summary = asRecord(root.summary || root);
-  const amount = (...keys: string[]) => {
-    for (const key of keys) {
-      const value = summary[key];
-      if (typeof value === "number") return value;
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) return parsed;
-    }
-    return 0;
-  };
-  const revenue = Array.isArray(root.revenue)
-    ? (root.revenue as Array<Record<string, unknown>>)
-    : [];
-  const allocations = Array.isArray(root.allocations)
-    ? (root.allocations as Array<Record<string, unknown>>)
-    : [];
-  const totalRevenue =
-    revenue.reduce(
-      (sum, row) => sum + Number(row.amount || row.amountUsdt || 0),
-      0,
-    ) || amount("totalRevenue", "revenueTotal", "total");
-  const totalAllocated =
-    allocations.reduce(
-      (sum, row) => sum + Number(row.amount || row.amountUsdt || 0),
-      0,
-    ) || amount("totalAllocated", "allocatedTotal");
-  const paid = amount("paid", "paidAmount", "settled", "settledAmount");
-  const pending = amount("pending", "pendingAmount", "unpaid", "unpaidAmount");
-  const totalForShare = totalAllocated || totalRevenue;
-  const split = [
-    {
-      label: "总公司",
-      value:
-        amount("hq", "headOffice", "company", "hqAmount") ||
-        totalForShare * 0.1,
-      ratio: 10,
-      kind: "hq",
-    },
-    {
-      label: "分公司",
-      value:
-        amount("branch", "branchAmount", "branches") || totalForShare * 0.8,
-      ratio: 80,
-      kind: "branch",
-    },
-    {
-      label: "员工奖励",
-      value:
-        amount("employee", "staff", "employeeAmount", "staffAmount") ||
-        totalForShare * 0.1,
-      ratio: 10,
-      kind: "staff",
-    },
-  ];
-  const rawTrend = Array.isArray(root.monthlyTrend)
-    ? root.monthlyTrend
-    : Array.isArray(root.trend)
-      ? root.trend
-      : [];
-  const trend = rawTrend.map((item, index) => {
-    const row = asRecord(item);
-    const value = Number(
-      row.amount || row.amountUsdt || row.value || row.total || row.profit || 0,
-    );
-    return {
-      label: String(row.month || row.label || index + 1),
-      value: Number.isFinite(value) ? value : 0,
-    };
-  });
-  const trendMax = Math.max(1, ...trend.map((item) => item.value));
-  return (
-    <section className="monthly-report">
-      <div className="monthly-report-head">
-        <div>
-          <small>MONTHLY DIVIDEND CONTROL</small>
-          <h2>月度分红看板</h2>
-          <p>
-            按实际到账、客户归因与组织账本汇总，帮助财务快速核对本月可分配收入。
-          </p>
-        </div>
-        <div className="monthly-report-tools">
-          <label>
-            结算月份
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-            />
-          </label>
-          <button
-            className="primary"
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            {loading ? "读取中…" : "生成月度汇总"}
-          </button>
-        </div>
-      </div>
-      <div className="monthly-report-kpis">
-        <article>
-          <small>已确认收入</small>
-          <strong>
-            {totalRevenue.toFixed(2)} <em>USDT</em>
-          </strong>
-          <span>本月已确认的实际到账</span>
-        </article>
-        <article>
-          <small>已分配金额</small>
-          <strong>
-            {totalAllocated.toFixed(2)} <em>USDT</em>
-          </strong>
-          <span>按组织规则生成的分配</span>
-        </article>
-        <article>
-          <small>已结算付款</small>
-          <strong>
-            {paid.toFixed(2)} <em>USDT</em>
-          </strong>
-          <span>财务已完成付款</span>
-        </article>
-        <article>
-          <small>待处理金额</small>
-          <strong>
-            {pending.toFixed(2)} <em>USDT</em>
-          </strong>
-          <span>等待复核或人工结算</span>
-        </article>
-      </div>
-      <div className="monthly-report-grid">
-        <article className="monthly-chart-card">
-          <div className="monthly-chart-title">
-            <div>
-              <small>ALLOCATION MIX</small>
-              <h3>组织分配结构</h3>
-            </div>
-            <span>当前规则 10 / 80 / 10</span>
-          </div>
-          <div className="allocation-chart">
-            <div
-              className="allocation-donut"
-              style={{
-                background:
-                  "conic-gradient(#4d9dff 0 10%,#31c48d 10% 90%,#f3b657 90% 100%)",
-              }}
-            >
-              <b>
-                100%<small>分配结构</small>
-              </b>
-            </div>
-            <div className="allocation-legend">
-              {split.map((item) => (
-                <div className="allocation-row" key={item.kind}>
-                  <span>
-                    <i className={`allocation-dot ${item.kind}`} />
-                    {item.label}
-                  </span>
-                  <b>
-                    {item.ratio}% <em>{item.value.toFixed(2)} USDT</em>
-                  </b>
-                  <div>
-                    <i style={{ width: `${item.ratio}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </article>
-        <article className="monthly-chart-card">
-          <div className="monthly-chart-title">
-            <div>
-              <small>MONTHLY TREND</small>
-              <h3>月度分红趋势</h3>
-            </div>
-            <span>{trend.length ? "实际账本数据" : "等待月度汇总"}</span>
-          </div>
-          {trend.length ? (
-            <div className="monthly-trend-bars">
-              {trend.map((item) => (
-                <div className="monthly-trend-column" key={item.label}>
-                  <b
-                    style={{
-                      height: `${Math.max(4, (item.value / trendMax) * 100)}%`,
-                    }}
-                  />
-                  <span>{item.label}</span>
-                  <em>{item.value.toFixed(2)}</em>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="monthly-chart-empty">
-              <strong>暂无可展示的趋势数据</strong>
-              <span>生成月度汇总后，这里会按真实账本绘制月度分红变化。</span>
-            </div>
-          )}
-        </article>
-      </div>
-      {data && (
-        <details className="monthly-report-details">
-          <summary>查看本月接口明细</summary>
-          <pre>{JSON.stringify(data, null, 2)}</pre>
-        </details>
-      )}
-    </section>
-  );
-}
-function SettlementOverview({
-  rows,
-}: {
-  rows: Array<Record<string, unknown>>;
-}) {
-  const total = rows.reduce((n, r) => n + Number(r.amountUsdt || 0), 0),
-    paid = rows
-      .filter((r) => r.status === "paid")
-      .reduce((n, r) => n + Number(r.amountUsdt || 0), 0),
-    approved = rows
-      .filter((r) => r.status === "approved")
-      .reduce((n, r) => n + Number(r.amountUsdt || 0), 0),
-    pending = rows
-      .filter((r) => !["paid", "approved"].includes(String(r.status)))
-      .reduce((n, r) => n + Number(r.amountUsdt || 0), 0),
-    max = Math.max(total, 1);
-  return (
-    <section className="settlement-overview">
-      <div className="settlement-overview-head">
-        <div>
-          <small>SETTLEMENT CONTROL</small>
-          <h2>结算付款看板</h2>
-          <p>
-            用于快速查看本组织结算单的金额、审批和付款状态。创建结算单只是提交一笔待核对的付款申请，必须双人审批后才能进入人工付款，不会自动转账。
-          </p>
-        </div>
-        <span>{rows.length} 笔记录</span>
-      </div>
-      <div className="settlement-chart-grid">
-        <article>
-          <b>金额总览</b>
-          <strong>
-            {total.toFixed(2)} <small>USDT</small>
-          </strong>
-          <div className="chart-bar">
-            <i style={{ width: `${Math.min(100, (total / max) * 100)}%` }} />
-          </div>
-          <span>全部待处理与历史结算</span>
-        </article>
-        <article>
-          <b>已付款</b>
-          <strong>
-            {paid.toFixed(2)} <small>USDT</small>
-          </strong>
-          <div className="chart-bar paid">
-            <i style={{ width: `${Math.min(100, (paid / max) * 100)}%` }} />
-          </div>
-          <span>完成财务双人审批并已付款</span>
-        </article>
-        <article>
-          <b>审批中</b>
-          <strong>
-            {pending.toFixed(2)} <small>USDT</small>
-          </strong>
-          <div className="chart-bar pending">
-            <i style={{ width: `${Math.min(100, (pending / max) * 100)}%` }} />
-          </div>
-          <span>等待复核、批准或补充材料</span>
-        </article>
-        <article>
-          <b>已批准未付款</b>
-          <strong>
-            {approved.toFixed(2)} <small>USDT</small>
-          </strong>
-          <div className="chart-bar approved">
-            <i style={{ width: `${Math.min(100, (approved / max) * 100)}%` }} />
-          </div>
-          <span>可进入人工付款队列</span>
-        </article>
-      </div>
-    </section>
-  );
-}
-function SettlementForm({ onDone }: { onDone: (m: string) => void }) {
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.currentTarget));
-    const r = await fetch("/api/finance/settlements", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...f, amountUsdt: Number(f.amountUsdt) }),
-    });
-    const d = (await r.json()) as { error?: string; settlementId?: string };
-    onDone(
-      d.settlementId
-        ? `结算单 ${d.settlementId} 已进入双人审批`
-        : d.error || "创建失败",
-    );
-  }
-  return (
-    <form className="admin-inline-form finance-form" onSubmit={submit}>
-      <label>
-        期间开始
-        <input name="periodStart" type="date" required />
-      </label>
-      <label>
-        期间结束
-        <input name="periodEnd" type="date" required />
-      </label>
-      <label>
-        收款方ID
-        <input name="beneficiaryId" required />
-      </label>
-      <label>
-        金额 USDT
-        <input
-          name="amountUsdt"
-          type="number"
-          min="0.01"
-          step="0.01"
-          required
-        />
-      </label>
-      <label>
-        网络
-        <select name="network">
-          <option>TRC20</option>
-          <option>ERC20</option>
-          <option>BEP20</option>
-        </select>
-      </label>
-      <button className="primary">创建结算单</button>
-    </form>
-  );
-}
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    if (file.size > 2_000_000) {
-      reject(new Error("图片不能超过 2MB"));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(reader.error || new Error("读取图片失败"));
-    reader.readAsDataURL(file);
-  });
-}
-function PayoutForm({ onDone }: { onDone: (m: string) => void }) {
-  const [qrCode, setQrCode] = useState("");
-  const [uploadError, setUploadError] = useState("");
-  async function pick(file: File | undefined) {
-    if (!file) return;
-    try {
-      setUploadError("");
-      setQrCode(await fileToDataUrl(file));
-    } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "图片读取失败");
-    }
-  }
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.currentTarget));
-    const r = await fetch("/api/finance/payout-profiles", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...f, qrCode }),
-    });
-    const d = (await r.json()) as { error?: string; profileId?: string };
-    onDone(
-      d.profileId ? "收款地址与二维码已提交双人审批" : d.error || "提交失败",
-    );
-  }
-  return (
-    <form className="admin-inline-form" onSubmit={submit}>
-      <label>
-        网络
-        <select name="network">
-          <option>TRC20</option>
-          <option>ERC20</option>
-          <option>BEP20</option>
-        </select>
-      </label>
-      <label>
-        USDT收款地址
-        <input name="address" required />
-      </label>
-      <label>
-        收款二维码
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          onChange={(e) => void pick(e.target.files?.[0])}
-        />
-        {qrCode && (
-          <img className="upload-preview" src={qrCode} alt="收款二维码预览" />
-        )}
-        {uploadError && <small className="upload-error">{uploadError}</small>}
-      </label>
-      <button className="primary">提交地址变更</button>
-    </form>
-  );
-}
-function AdjustmentForm({ onDone }: { onDone: (m: string) => void }) {
-  const [evidenceImage, setEvidenceImage] = useState("");
-  const [uploadError, setUploadError] = useState("");
-  async function pick(file: File | undefined) {
-    if (!file) return;
-    try {
-      setUploadError("");
-      setEvidenceImage(await fileToDataUrl(file));
-    } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "图片读取失败");
-    }
-  }
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.currentTarget));
-    const r = await fetch("/api/finance/adjustments", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        ...f,
-        amountUsdt: Number(f.amountUsdt),
-        evidenceImage,
-      }),
-    });
-    const d = (await r.json()) as { error?: string; requestId?: string };
-    onDone(d.requestId ? "人工调整单已提交双人审批" : d.error || "提交失败");
-  }
-  return (
-    <form className="admin-inline-form finance-form" onSubmit={submit}>
-      <label>
-        客户ID
-        <input name="customerId" required />
-      </label>
-      <label>
-        关联订单/收入ID
-        <input name="sourceId" required />
-      </label>
-      <label>
-        调整金额
-        <input name="amountUsdt" type="number" step="0.01" required />
-      </label>
-      <label>
-        原因
-        <input name="reason" required />
-      </label>
-      <label>
-        证据说明
-        <input name="evidence" />
-      </label>
-      <label>
-        证据图片
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          onChange={(e) => void pick(e.target.files?.[0])}
-        />
-        {evidenceImage && (
-          <img
-            className="upload-preview"
-            src={evidenceImage}
-            alt="证据图片预览"
-          />
-        )}
-        {uploadError && <small className="upload-error">{uploadError}</small>}
-      </label>
-      <button className="primary">提交调整单</button>
-    </form>
-  );
-}
-function CollectionRows({
-  rows,
-  onDone,
-}: {
-  rows: Array<Record<string, unknown>>;
-  onDone: (m: string) => void;
-}) {
-  async function confirm(id: string) {
-    const note = window.prompt("填写收款凭证或备注") || "";
-    const r = await fetch(`/api/finance/collections/${id}/confirm-paid`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ note }),
-    });
-    const d = (await r.json()) as { error?: string; approvalId?: string };
-    onDone(d.approvalId ? "确认收款已进入双人审批" : d.error || "操作失败");
-  }
-  if (!rows.length) return <div className="admin-empty">暂无逾期应收款</div>;
-  return (
-    <div className="approval-list collection-list">
-      {rows.map((r) => (
-        <article key={String(r.id)}>
-          <div>
-            <small>
-              {String(r.status)} ·{" "}
-              {r.newEntriesAllowed ? "允许开仓" : "已停止新开仓"}
-            </small>
-            <b>
-              {String(r.email)} · {String(r.amountUsdt)} USDT
-            </b>
-            <p>
-              到期 {String(r.dueAt)} · 宽限结束 {String(r.graceEndsAt)} · 已提醒{" "}
-              {String(r.remindersSent)} 次
-            </p>
-          </div>
-          <button
-            className="primary"
-            disabled={r.status === "paid"}
-            onClick={() => void confirm(String(r.id))}
-          >
-            确认已收款
-          </button>
-        </article>
-      ))}
-    </div>
-  );
-}
-function EmployeeTasks({ data }: { data?: Record<string, unknown> }) {
-  if (!data)
-    return (
-      <div className="admin-empty">
-        请使用员工、主管、经理或分公司账户登录查看团队任务
-      </div>
-    );
-  const s = data.summary as Record<string, number>;
-  const collections = (data.collectionTasks || []) as Array<
-      Record<string, unknown>
-    >,
-    memberships = (data.membershipTasks || []) as Array<
-      Record<string, unknown>
-    >,
-    trades = (data.tradeSummary || []) as Array<Record<string, unknown>>;
-  return (
-    <div className="employee-tasks">
-      <DailyTeamBrief />
-      <CurrentMonthProgress />
-      <div className="kpis">
-        <Kpi n="可见客户" v={String(s.customers || 0)} s="当前权限范围" />
-        <Kpi n="今日催收" v={String(s.collection || 0)} s="待跟进" />
-        <Kpi n="未平仓交易" v={String(s.openTrades || 0)} s="实时跟踪" />
-        <Kpi n="即将到期" v={String(s.expiring || 0)} s="未来7天" />
-      </div>
-      <div className="task-columns">
-        <section>
-          <div className="widget-head">
-            <b>佣金催收任务</b>
-            <span>每日更新</span>
-          </div>
-          {collections.length ? (
-            collections.map((x) => (
-              <div
-                key={String(x.taskId)}
-                className={x.status === "trading_stopped" ? "urgent" : ""}
-              >
-                <span>
-                  <b>{String(x.email)}</b>
-                  <small>
-                    {String(x.amountUsdt)} USDT · 已提醒{" "}
-                    {String(x.remindersSent)} 次
-                  </small>
-                </span>
-                <em>
-                  {x.status === "trading_stopped"
-                    ? "已停止开仓"
-                    : x.status === "grace"
-                      ? "宽限期"
-                      : "待催收"}
-                </em>
-                <time>{String(x.dueAt)}</time>
-              </div>
-            ))
-          ) : (
-            <p className="task-empty">今天没有催收任务</p>
-          )}
-        </section>
-        <section>
-          <div className="widget-head">
-            <b>会员到期提醒</b>
-            <span>未来7天</span>
-          </div>
-          {memberships.length ? (
-            memberships.map((x) => (
-              <article key={String(x.taskId)}>
-                <span>
-                  <b>{String(x.email)}</b>
-                  <small>
-                    {String(x.planCode)} · {String(x.status)}
-                  </small>
-                </span>
-                <em>{x.status === "active" ? "即将到期" : "已到期/宽限"}</em>
-                <time>{String(x.expiresAt)}</time>
-              </article>
-            ))
-          ) : (
-            <p className="task-empty">近期没有到期客户</p>
-          )}
-        </section>
-      </div>
-      <section className="wide-panel">
-        <div className="widget-head">
-          <b>客户交易信息</b>
-          <span>仅显示权限范围内客户</span>
-        </div>
-        {trades.length ? (
-          <div className="admin-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>交易对</th>
-                  <th>方向</th>
-                  <th>来源</th>
-                  <th>状态</th>
-                  <th>已实现净收益</th>
-                  <th>开仓时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((x) => (
-                  <tr key={String(x.id)}>
-                    <td>{String(x.symbol)}</td>
-                    <td>{String(x.side)}</td>
-                    <td>{x.origin === "platform" ? "平台" : "客户手动"}</td>
-                    <td>{String(x.status)}</td>
-                    <td>{String(x.realizedNetPnlUsdt || "—")} USDT</td>
-                    <td>{String(x.openedAt || "—")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="task-empty">当前没有可显示的交易记录</p>
-        )}
-      </section>
-      <div className="admin-notice">
-        主管可查看自己的直客及下属员工客户；经理和分公司可查看其完整下属范围。客户消息由邮件、Telegram、WhatsApp和客服系统发送，员工后台不提供直接聊天功能。
-      </div>
-    </div>
-  );
-}
-function MonthlyTargets({
-  data,
-  onDone,
-  onMonth,
-}: {
-  data?: Record<string, unknown>;
-  onDone: (m: string) => void;
-  onMonth: (month: string) => void;
-}) {
-  if (!data) return <div className="admin-empty">正在加载月度任务</div>;
-  const staff = (data.staff || []) as Array<Record<string, unknown>>,
-    summary = (data.summary || {}) as Record<string, number>,
-    canAssign = Boolean(data.canAssign),
-    month = String(data.month || "");
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.currentTarget));
-    const r = await fetch("/api/team/monthly-targets", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        ...f,
-        newCustomersTarget: Number(f.newCustomersTarget),
-        monthlyCardsTarget: Number(f.monthlyCardsTarget),
-        quarterlyCardsTarget: Number(f.quarterlyCardsTarget),
-        annualCardsTarget: Number(f.annualCardsTarget),
-      }),
-    });
-    const d = (await r.json()) as { error?: string; message?: string };
-    onDone(d.message || d.error || "操作完成");
-  }
-  return (
-    <div className="monthly-targets">
-      <div className="widget-head">
-        <b>{month} 团队月度任务</b>
-        <div className="month-tools">
-          <a href={"/api/team/monthly-targets/export?month=" + month}>
-            导出 CSV
-          </a>
-          <label className="month-switch">
-            历史月份{" "}
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => onMonth(e.target.value)}
-            />
-          </label>
-        </div>
-      </div>
-      <TeamTargetSummary summary={summary} count={staff.length} />
-      <TargetAlerts
-        month={month}
-        alerts={(data.alerts || []) as Array<Record<string, unknown>>}
-        onDone={onDone}
-      />
-      <FollowUpHistory month={month} onDone={onDone} />
-      {canAssign && (
-        <form className="target-form" onSubmit={submit}>
-          <input name="month" type="month" defaultValue={month} required />
-          <select name="assigneeUserId" required>
-            <option value="">选择主管或员工</option>
-            {staff
-              .filter((x) =>
-                ["supervisor", "employee"].includes(String(x.role)),
-              )
-              .map((x) => (
-                <option key={String(x.userId)} value={String(x.userId)}>
-                  {String(x.email)} ·{" "}
-                  {x.role === "supervisor" ? "主管" : "员工"}
-                </option>
-              ))}
-          </select>
-          <input
-            name="newCustomersTarget"
-            type="number"
-            min="0"
-            placeholder="新增客户目标"
-            required
-          />
-          <input
-            name="monthlyCardsTarget"
-            type="number"
-            min="0"
-            placeholder="月卡目标"
-            required
-          />
-          <input
-            name="quarterlyCardsTarget"
-            type="number"
-            min="0"
-            placeholder="季卡目标"
-            required
-          />
-          <input
-            name="annualCardsTarget"
-            type="number"
-            min="0"
-            placeholder="年卡目标"
-            required
-          />
-          <input name="note" placeholder="任务说明（可选）" />
-          <button className="primary">下发/更新任务</button>
-        </form>
-      )}
-      {staff.length ? (
-        <div className="target-grid">
-          {staff.map((x) => {
-            const actual = x.actual as Record<string, number>,
-              goals = x.goals as Record<string, number>,
-              progress = x.progress as Record<string, number>;
-            return (
-              <article key={String(x.userId)}>
-                <header>
-                  <span>
-                    <b>{String(x.email)}</b>
-                    <small>
-                      {x.role === "manager"
-                        ? "经理"
-                        : x.role === "supervisor"
-                          ? "主管"
-                          : "员工"}
-                    </small>
-                  </span>
-                  <em>
-                    {x.assigned
-                      ? "第 " +
-                        String(x.rank) +
-                        " 名 · " +
-                        String(x.overallProgress) +
-                        "%"
-                      : "未设置目标"}
-                  </em>
-                </header>
-                {[
-                  ["新增客户", "newCustomers"],
-                  ["月卡开通", "monthlyCards"],
-                  ["季卡开通", "quarterlyCards"],
-                  ["年卡开通", "annualCards"],
-                ].map(([label, key]) => (
-                  <div className="target-line" key={key}>
-                    <span>
-                      {label}
-                      <b>
-                        {actual[key]}/{goals[key]}
-                      </b>
-                    </span>
-                    <div>
-                      <i style={{ width: `${progress[key]}%` }} />
-                    </div>
-                    <small>{progress[key]}%</small>
-                  </div>
-                ))}
-                {Boolean(x.note) && <p>{String(x.note)}</p>}
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="admin-empty">当前权限范围内暂无团队成员或月度数据</div>
-      )}
-      <div className="admin-notice">
-        经理可以给自己团队的主管、员工分配指标；主管查看自己及下属员工进度；分公司查看全分公司完成情况。上级只能查看自己的下属范围。
-      </div>
-    </div>
-  );
-}
-function TeamTargetSummary({
-  summary,
-  count,
-}: {
-  summary: Record<string, number>;
-  count: number;
-}) {
-  return (
-    <div className="kpis target-summary">
-      <Kpi
-        n="团队成员"
-        v={String(summary.visibleStaff || count)}
-        s="当前可见范围"
-      />
-      <Kpi
-        n="本月新增客户"
-        v={String(summary.newCustomers || 0)}
-        s="按注册时间"
-      />
-      <Kpi
-        n="月卡 / 季卡"
-        v={`${String(summary.monthlyCards || 0)} / ${String(summary.quarterlyCards || 0)}`}
-        s="实际开通"
-      />
-      <Kpi n="年卡开通" v={String(summary.annualCards || 0)} s="实际开通" />
-    </div>
-  );
-}
-function CurrentMonthProgress() {
-  const [data, setData] = useState<Record<string, unknown> | null>(null);
-  useEffect(() => {
-    fetch("/api/team/monthly-targets")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((x) => setData(x as Record<string, unknown> | null))
-      .catch(() => setData(null));
-  }, []);
-  if (!data) return null;
-  const month = String(data.month || ""),
-    summary = (data.summary || {}) as Record<string, number>,
-    staff = (data.staff || []) as Array<Record<string, unknown>>,
-    days = new Date(
-      Number(month.slice(0, 4)),
-      Number(month.slice(5, 7)),
-      0,
-    ).getDate(),
-    elapsed = Math.min(100, Math.round((new Date().getDate() / days) * 100)),
-    assigned = staff.filter((x) => Boolean(x.assigned)),
-    behind = assigned.filter(
-      (x) => Number(x.overallProgress || 0) + 10 < elapsed,
-    ).length;
-  return (
-    <section className="month-focus">
-      <div className="widget-head">
-        <b>{month} 月度任务进度</b>
-        <span>时间进度 {elapsed}%</span>
-      </div>
-      <div className="focus-metrics">
-        <span>
-          <small>本月新增客户</small>
-          <b>{String(summary.newCustomers || 0)}</b>
-        </span>
-        <span>
-          <small>会员卡开通</small>
-          <b>
-            {String(
-              (summary.monthlyCards || 0) +
-                (summary.quarterlyCards || 0) +
-                (summary.annualCards || 0),
-            )}
-          </b>
-        </span>
-        <span>
-          <small>已设置目标</small>
-          <b>{String(summary.assignedStaff || 0)}</b>
-        </span>
-        <span className={behind ? "warn" : ""}>
-          <small>进度落后人员</small>
-          <b>{String(behind)}</b>
-        </span>
-      </div>
-      {behind > 0 && (
-        <p>
-          有 {behind}{" "}
-          名成员的综合完成率低于本月时间进度10个百分点，建议经理或主管优先跟进。
-        </p>
-      )}
-    </section>
-  );
-}
-function TargetAlerts({
-  month,
-  alerts,
-  onDone,
-}: {
-  month: string;
-  alerts: Array<Record<string, unknown>>;
-  onDone: (m: string) => void;
-}) {
-  const [filter, setFilter] = useState("all");
-  if (!alerts.length)
-    return (
-      <section className="target-alerts clear">
-        <div>
-          <b>待管理事项</b>
-          <small>本月没有需要重点跟进的团队指标</small>
-        </div>
-        <em>正常</em>
-      </section>
-    );
-  async function resolve(x: Record<string, unknown>) {
-    const note = window.prompt("填写本次跟进情况") || "";
-    if (!note.trim()) return;
-    const r = await fetch("/api/team/monthly-targets/follow-up", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        month,
-        subjectUserId: x.userId,
-        alertType: x.type,
-        note,
-      }),
-    });
-    const d = (await r.json()) as { error?: string; message?: string };
-    onDone(d.message || d.error || "操作完成");
-  }
-  const visible = alerts.filter((x) => filter === "all" || x.type === filter);
-  return (
-    <section className="target-alerts">
-      <div className="widget-head">
-        <b>待管理事项 · {alerts.length}</b>
-        <div className="alert-filters">
-          <button
-            className={filter === "all" ? "active" : ""}
-            onClick={() => setFilter("all")}
-          >
-            全部
-          </button>
-          <button
-            className={filter === "target_missing" ? "active" : ""}
-            onClick={() => setFilter("target_missing")}
-          >
-            未设目标
-          </button>
-          <button
-            className={filter === "behind_schedule" ? "active" : ""}
-            onClick={() => setFilter("behind_schedule")}
-          >
-            进度落后
-          </button>
-        </div>
-      </div>
-      {visible.map((x) => (
-        <article key={`${String(x.userId)}-${String(x.type)}`}>
-          <span>
-            <b>{String(x.email)}</b>
-            <small>{String(x.message)}</small>
-          </span>
-          <div className="alert-action">
-            <em className={x.type === "target_missing" ? "missing" : "behind"}>
-              {x.type === "target_missing" ? "待分配" : "需跟进"}
-            </em>
-            <button onClick={() => void resolve(x)}>记录跟进</button>
-          </div>
-        </article>
-      ))}
-    </section>
-  );
-}
-function FollowUpHistory({
-  month,
-  onDone,
-}: {
-  month: string;
-  onDone: (m: string) => void;
-}) {
-  const [rows, setRows] = useState<Array<Record<string, unknown>>>([]),
-    [open, setOpen] = useState(false);
-  useEffect(() => {
-    fetch("/api/team/monthly-targets/follow-up?month=" + month)
-      .then((r) => (r.ok ? r.json() : { followUps: [] }))
-      .then((d) =>
-        setRows((d.followUps || []) as Array<Record<string, unknown>>),
-      )
-      .catch(() => setRows([]));
-  }, [month]);
-  async function reopen(row: Record<string, unknown>) {
-    const note = window.prompt("填写重新打开的原因") || "";
-    if (!note.trim()) return;
-    const r = await fetch("/api/team/monthly-targets/follow-up", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: row.id, note }),
-    });
-    const d = (await r.json()) as { error?: string; message?: string };
-    onDone(d.message || d.error || "操作完成");
-    if (r.ok)
-      setRows(
-        rows.map((x) => (x.id === row.id ? { ...x, status: "reopened" } : x)),
-      );
-  }
-  return (
-    <section className="follow-history">
-      <button className="history-toggle" onClick={() => setOpen(!open)}>
-        <span>
-          跟进历史 <b>{rows.length}</b>
-        </span>
-        <em>{open ? "收起" : "展开"}</em>
-      </button>
-      {open &&
-        (rows.length ? (
-          <div>
-            {rows.map((row) => (
-              <article key={String(row.id)}>
-                <span>
-                  <b>{String(row.subjectEmail)}</b>
-                  <small>
-                    {row.alertType === "target_missing"
-                      ? "未设置目标"
-                      : "进度落后"}{" "}
-                    · 处理人 {String(row.handledByEmail)}
-                  </small>
-                  <p>{String(row.note)}</p>
-                </span>
-                <div>
-                  <time>{String(row.handledAt)}</time>
-                  <em>{row.status === "resolved" ? "已处理" : "已重新打开"}</em>
-                  {row.status === "resolved" && (
-                    <button onClick={() => void reopen(row)}>重新打开</button>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="task-empty">本月暂无跟进历史</p>
-        ))}
-    </section>
-  );
-}
-function DailyTeamBrief() {
-  const [brief, setBrief] = useState<Record<string, unknown> | null>(null),
-    [message, setMessage] = useState(""),
-    [history, setHistory] = useState<Array<Record<string, unknown>>>([]),
-    [open, setOpen] = useState(false);
-  useEffect(() => {
-    fetch("/api/team/daily-brief")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setBrief(d as Record<string, unknown> | null))
-      .catch(() => setBrief(null));
-  }, []);
-  async function queue() {
-    const r = await fetch("/api/team/daily-brief", { method: "POST" }),
-      d = (await r.json()) as { message?: string };
-    setMessage(d.message || "生成失败");
-  }
-  async function historyLoad() {
-    setOpen(!open);
-    if (!open && !history.length) {
-      const r = await fetch("/api/team/daily-brief", { method: "PUT" }),
-        d = (await r.json()) as { deliveries?: Array<Record<string, unknown>> };
-      setHistory(d.deliveries || []);
-    }
-  }
-  if (!brief) return null;
-  const s = (brief.summary || {}) as Record<string, number>;
-  return (
-    <section className="daily-brief">
-      <div className="widget-head">
-        <b>{String(brief.date)} 内部运营日报</b>
-        <div>
-          <button onClick={() => void historyLoad()}>
-            {open ? "收起记录" : "发送记录"}
-          </button>
-          <button className="primary" onClick={() => void queue()}>
-            生成今日日报
-          </button>
-        </div>
-      </div>
-      <div className="brief-items">
-        <span>
-          <small>催收</small>
-          <b>{String(s.collections || 0)}</b>
-        </span>
-        <span>
-          <small>停开仓</small>
-          <b>{String(s.stopped || 0)}</b>
-        </span>
-        <span>
-          <small>会员到期</small>
-          <b>{String(s.expiring || 0)}</b>
-        </span>
-        <span>
-          <small>未设目标</small>
-          <b>{String(s.targetMissing || 0)}</b>
-        </span>
-        <span>
-          <small>未平仓</small>
-          <b>{String(s.openTrades || 0)}</b>
-        </span>
-      </div>
-      {message && <p>{message}</p>}
-      {open && (
-        <div className="brief-history">
-          {history.length ? (
-            history.map((row) => (
-              <span key={String(row.id)}>
-                <b>{String(row.channel)}</b>
-                <small>
-                  {String(row.status)} · {String(row.createdAt)}
-                </small>
-              </span>
-            ))
-          ) : (
-            <small>最近30天暂无发送记录</small>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
 function NotificationCenter() {
   const [open, setOpen] = useState(false),
     [rows, setRows] = useState<Array<Record<string, unknown>>>([]),
@@ -4733,7 +2460,7 @@ function NotificationCenter() {
     if (r.ok) void load();
   }
   function title(row: Record<string, unknown>) {
-    if (row.category === "team_daily_brief") return "内部运营日报";
+    if (row.category === "team_daily_brief") return "系统摘要";
     if (String(row.category).includes("collection")) return "账单催收提醒";
     if (String(row.category).includes("membership")) return "会员到期提醒";
     if (String(row.category).includes("security")) return "安全提醒";
@@ -4788,15 +2515,6 @@ function NotificationCenter() {
           )}
         </section>
       )}
-    </div>
-  );
-}
-function Kpi({ n, v, s }: { n: string; v: string; s: string }) {
-  return (
-    <div className="kpi">
-      <small>{n}</small>
-      <b>{v}</b>
-      <span>{s}</span>
     </div>
   );
 }

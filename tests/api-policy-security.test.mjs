@@ -126,12 +126,12 @@ test("session metadata names a method-level enforcing helper and public routes s
     ["GET", "/api/market/quote"],
     ["GET", "/api/market/ticker"],
     ["GET", "/api/platform/settings"],
-    ["GET", "/api/strategy-marketplace"],
     ["POST", "/api/strategy-studio/chat"],
   ]) {
     assert.equal(apiPolicyForRoute(route, method).authentication, "anonymous", `${method} ${route}`);
   }
-  assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "POST").authentication, "session");
+  assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "GET").authentication, "disabled");
+  assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "POST").authentication, "disabled");
 });
 
 test("commercial and official paper client routes declare exact RBAC permissions", () => {
@@ -165,6 +165,30 @@ test("payment webhook stays disabled until a provider verifier is implemented", 
     },
   )), (error) => error instanceof ApiPolicyError && error.code === "ROUTE_DISABLED" && error.status === 503);
   assert.equal(apiPolicyForRoute("/api/integrations/resend/webhook", "POST").authentication, "webhook");
+});
+
+test("commercial beta rejects legacy customer credentials, funding, and trading surfaces at the proxy", () => {
+  const disabled = [
+    ["GET", "/api/notifications/channels"],
+    ["POST", "/api/wallet/deposit-orders"],
+    ["POST", "/api/exchange-accounts"],
+    ["PATCH", "/api/exchange-accounts/:id"],
+    ["GET", "/api/risk/status"],
+    ["POST", "/api/strategies/:strategyId/versions/:versionId/deployments"],
+    ["POST", "/api/strategy-research/runs"],
+    ["GET", "/api/strategy-marketplace"],
+    ["POST", "/api/simulated-orders"],
+    ["GET", "/api/portfolio"],
+    ["POST", "/api/trading/emergency-stop"],
+  ];
+  for (const [method, route] of disabled) {
+    assert.equal(apiPolicyForRoute(route, method).authentication, "disabled", `${method} ${route}`);
+  }
+  assert.throws(() => evaluateApiRequestPolicy(new Request(
+    "https://agentnovas.com/api/exchange-accounts",
+    { method: "POST", headers: { origin: "https://agentnovas.com" } },
+  )), (error) => error instanceof ApiPolicyError && error.code === "ROUTE_DISABLED" && error.status === 503);
+  assert.equal(apiPolicyForRoute("/api/platform-strategies/:code/follow", "POST").authentication, "permission");
 });
 
 test("unknown hosts and cross-audience sensitive routes fail closed", () => {

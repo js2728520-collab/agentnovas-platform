@@ -57,7 +57,7 @@ export default function ClientNotificationSettings() {
       <header role="row"><b role="columnheader">通知类别</b><span role="columnheader">站内</span><span role="columnheader">邮件</span></header>
       {categories.map(([key, label, mandatory]) => <div key={key} role="row"><b role="rowheader">{label}{mandatory && <small>强制</small>}</b>{channels.map((channel) => {
         const controlKey = `${key}:${channel}`;
-        return <select key={channel} aria-label={`${label} · ${channel === "in_app" ? "站内" : "邮件"}`} value={modeFor(key, channel)} disabled={Boolean(busyKey)} onChange={(event) => void change(key, channel, event.target.value as Mode)}><option value="instant">即时</option><option value="digest">汇总</option><option value="important_only">仅重要</option>{!mandatory && <option value="disabled">关闭</option>}{busyKey === controlKey && <option value={modeFor(key, channel)}>保存中</option>}</select>;
+        return <span role="cell" key={channel}><select aria-label={`${label} · ${channel === "in_app" ? "站内" : "邮件"}`} value={modeFor(key, channel)} disabled={Boolean(busyKey)} onChange={(event) => void change(key, channel, event.target.value as Mode)}><option value="instant">即时</option><option value="digest">汇总</option><option value="important_only">仅重要</option>{!mandatory && <option value="disabled">关闭</option>}{busyKey === controlKey && <option value={modeFor(key, channel)}>保存中</option>}</select></span>;
       })}</div>)}
     </div>}
     {state !== "error" && message && <p role="status" aria-live="polite">{message}</p>}

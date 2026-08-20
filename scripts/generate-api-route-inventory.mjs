@@ -32,6 +32,18 @@ const PUBLIC_CLIENT_METHODS = new Set([
   "GET /api/strategy-marketplace",
   "POST /api/strategy-studio/chat",
 ]);
+const BETA_DISABLED_CLIENT_ROUTES = [
+  "/api/exchange-accounts",
+  "/api/notifications/channels",
+  "/api/platform/network",
+  "/api/portfolio",
+  "/api/risk/status",
+  "/api/simulated-orders",
+  "/api/strategy-marketplace",
+  "/api/strategy-research/runs",
+  "/api/trading/emergency-stop",
+  "/api/wallet/deposit-orders",
+];
 const SESSION_AUTH_HELPERS = new Set([
   "requireAccessPermission",
   "requireAiCustomer",
@@ -84,6 +96,10 @@ function hasPrefix(route, prefixes) {
 
 function basePolicy(route, method) {
   const mutation = !["GET", "HEAD", "OPTIONS"].includes(method);
+  if (BETA_DISABLED_CLIENT_ROUTES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
+    || route === "/api/strategies/:strategyId/versions/:versionId/deployments") {
+    return { audiences: ["client"], authentication: "disabled", sameOrigin: mutation };
+  }
   if (route === "/api/credits/me" || route === "/api/membership" || route.startsWith("/api/membership/")) {
     return { audiences: ["client"], authentication: "permission", sameOrigin: mutation };
   }

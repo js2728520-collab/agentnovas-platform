@@ -25,7 +25,6 @@ export default function ClientPortal({ segments, loginMode }: { segments: string
   if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
   if (route === "notifications") return <NotificationWorkspace viewer={session.viewer} access={session.access} />;
   if (!hasAnyPermission(session.access.permissions, ["client.wallet.view"])) return <AccessDenied />;
-  if (segments[1] === "deposits" && !hasAnyPermission(session.access.permissions, ["client.deposit.create"])) return <AccessDenied />;
   if (segments[1] === "deposits") return <DepositWorkspace viewer={session.viewer} access={session.access} />;
   return <WalletWorkspace viewer={session.viewer} access={session.access} />;
 }
