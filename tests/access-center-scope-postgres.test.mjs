@@ -4,7 +4,7 @@ import test from "node:test";
 
 import pg from "pg";
 
-import { accessUserScopePredicate } from "../lib/access-center-scope.ts";
+import { accessOrganizationResourcePredicate, accessUserScopePredicate } from "../lib/access-center-scope.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
 const schema = `access_center_scope_${process.pid}_${Date.now()}`;
@@ -51,4 +51,25 @@ test("Postgres Access Center predicate filters organization, direct-report, and 
   assert.deepEqual(await visible("TEAM_TREE"), ["employee", "manager", "root"]);
   assert.deepEqual(await visible("SELF"), ["root"]);
   assert.deepEqual(await visible("PLATFORM"), ["employee", "manager", "outsider", "root"]);
+});
+
+test("Postgres Access Center predicate hides roles if owner or applies-to organization crosses the grant", async () => {
+  await pool.query(`
+    INSERT INTO roles
+      (id, application_id, code, name, kind, created_organization_id, applies_to_organization_id, status)
+    VALUES
+      ('role-global', 'operations', 'scope_global', 'Global', 'custom', NULL, NULL, 'published'),
+      ('role-a', 'operations', 'scope_a', 'A', 'custom', 'org-a', 'org-a', 'published'),
+      ('role-b', 'operations', 'scope_b', 'B', 'custom', 'org-b', 'org-b', 'published'),
+      ('role-mixed', 'operations', 'scope_mixed', 'Mixed', 'custom', 'org-a', 'org-b', 'published')
+  `);
+  const predicate = accessOrganizationResourcePredicate({
+    scope: "ORGANIZATION_SET",
+    actor: { id: "root", organizationId: "org-a" },
+    organizationIds: ["org-a"],
+    columns: ["r.created_organization_id", "r.applies_to_organization_id"],
+    startIndex: 1,
+  });
+  const result = await pool.query(`SELECT r.id FROM roles AS r WHERE ${predicate.clause} ORDER BY r.id`, predicate.values);
+  assert.deepEqual(result.rows.map((row) => row.id), ["role-a", "role-global"]);
 });

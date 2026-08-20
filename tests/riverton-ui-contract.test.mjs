@@ -7,7 +7,8 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("root page dispatches one codebase to the three audience applications", async () => {
   const source = await read("app/page.tsx");
   assert.doesNotMatch(source, /^"use client";/);
-  assert.match(source, /resolveAppAudience/);
+  assert.match(source, /resolveAppAudienceStrict/);
+  assert.match(source, /if \(!audience\) notFound\(\)/);
   assert.match(source, /ClientApp/);
   assert.match(source, /OperationsApp/);
   assert.match(source, /MaintenanceApp/);
@@ -19,6 +20,8 @@ test("stable routes use the same audience dispatcher and reject wrong applicatio
   assert.match(source, /RivertonRoute/);
   assert.match(source, /notFound/);
   assert.match(source, /segments/);
+  assert.match(dispatcher, /resolveAppAudienceStrict/);
+  assert.match(dispatcher, /if \(!audience\) notFound\(\)/);
   assert.match(dispatcher, /root !== "wallet" && segments\.length > 1/);
 });
 

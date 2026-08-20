@@ -90,6 +90,32 @@ export function accessUserScopePredicate(input: {
   };
 }
 
+export function accessOrganizationResourcePredicate(input: {
+  scope: DataScope;
+  actor: AccessActor;
+  organizationIds: readonly string[];
+  columns: readonly string[];
+  startIndex: number;
+}) {
+  if (!input.columns.length || input.columns.some((column) => !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/i.test(column))) {
+    throw new Error("Invalid SQL organization column");
+  }
+  if (input.scope === "PLATFORM") return { clause: "TRUE", values: [] as unknown[] };
+  const organizationIds = effectiveOrganizationIds(input.actor, input.organizationIds);
+  if (!organizationIds.length) {
+    return {
+      clause: input.columns.map((column) => `${column} IS NULL`).join(" AND "),
+      values: [] as unknown[],
+    };
+  }
+  return {
+    clause: input.columns
+      .map((column) => `(${column} IS NULL OR ${column} = ANY($${input.startIndex}::text[]))`)
+      .join(" AND "),
+    values: [organizationIds] as unknown[],
+  };
+}
+
 export type AccessPagePosition = { createdAt: string; id: string };
 
 export function accessPageCursor(position: AccessPagePosition) {
