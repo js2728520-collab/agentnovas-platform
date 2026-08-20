@@ -559,6 +559,8 @@ test("one customer/card has one active deployment and mode switches fail closed 
     paperPortfolioId: portfolio.id,
   }), { endedDeploymentIds: [], endedSubscriptionIds: [] });
 
+  await pool.query("UPDATE strategy_deployments SET status = 'paused' WHERE id = $1", [deployment.id]);
+
   await pool.query(`
     INSERT INTO official_paper_positions (
       id, portfolio_id, symbol, side, status, quantity, average_entry_price,

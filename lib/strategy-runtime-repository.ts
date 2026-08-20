@@ -82,7 +82,7 @@ export async function endConflictingOfficialStrategyDeployments(database: Querya
            paper_portfolio_id, strategy_subscription_id
     FROM strategy_deployments
     WHERE owner_user_id = $1 AND platform_strategy_code = $2
-      AND execution_product = 'spot_usdt' AND status = 'active'
+      AND execution_product = 'spot_usdt' AND status IN ('active', 'paused')
     ORDER BY created_at, id
     FOR UPDATE
   `, [input.ownerUserId, input.strategyCode]);
@@ -110,7 +110,7 @@ export async function endConflictingOfficialStrategyDeployments(database: Querya
   await database.query(`
     UPDATE strategy_deployments
     SET status = 'ended', lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
-    WHERE id = ANY($1::text[]) AND owner_user_id = $2 AND status = 'active'
+    WHERE id = ANY($1::text[]) AND owner_user_id = $2 AND status IN ('active', 'paused')
   `, [deploymentIds, input.ownerUserId]);
   return {
     endedDeploymentIds: deploymentIds,
