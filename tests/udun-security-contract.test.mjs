@@ -11,6 +11,8 @@ test("Client address creation uses the safe projection, server-side runtime secr
   assert.match(route, /requestUdunDepositAddress/);
   assert.match(route, /idempotencyKey\(request\)/);
   assert.match(route, /existingOpenOrder/);
+  assert.match(route, /user\.organizationId/);
+  assert.doesNotMatch(route, /FROM users/i);
   assert.doesNotMatch(route, /settings_json\?\.depositAddress|depositAddress\s*=\s*["'`]/);
   assert.doesNotMatch(route, /\/mch\/withdraw|withdraw\(/);
 });

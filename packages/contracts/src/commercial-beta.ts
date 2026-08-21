@@ -172,7 +172,7 @@ export type AiCreditBalance = {
   lifetimeGranted: string;
   lifetimeConsumed: string;
   version: string;
-  updatedAt: string;
+  updatedAt: string | null;
 };
 
 export type AiCreditLedgerEntry = {

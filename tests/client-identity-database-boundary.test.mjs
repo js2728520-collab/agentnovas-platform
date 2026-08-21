@@ -108,3 +108,16 @@ test("Client production env documents the non-shared MFA key requirement", async
   assert.match(environment, /MFA_TOTP_ENCRYPTION_KEY[^\n]+must be identical across Client replicas/i);
   assert.match(environment, /must not reuse[^\n]+LLM_PROFILE_ENCRYPTION_KEY/i);
 });
+
+test("Client commercial writes use the authenticated subject without reopening users", async () => {
+  const commercial = await read("lib/commercial-membership-service.ts");
+  const start = commercial.indexOf("export async function acceptCurrentCommercialLegalDocuments");
+  const end = commercial.indexOf("export async function createMembershipOrder", start);
+  const acceptance = commercial.slice(start, end);
+  assert.match(acceptance, /pg_advisory_xact_lock/);
+  assert.doesNotMatch(acceptance, /FROM users|UPDATE users|INTO users/i);
+
+  const deposits = await read("app/api/wallet/deposit-orders/route.ts");
+  assert.match(deposits, /user\.organizationId/);
+  assert.doesNotMatch(deposits, /FROM users/i);
+});

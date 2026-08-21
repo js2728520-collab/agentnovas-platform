@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [1.0.0-beta.5] - 2026-08-22
+
+### Fixed
+
+- Credits 余额投影不再读取受 FORCE RLS 保护的 `users`，无 Credits 账户时返回明确零余额和空更新时间，不伪造时间。
+- Client 商业披露确认使用每用户 advisory transaction lock；优盾充值订单直接使用已认证 session 主体，不重新开放身份表。
+
 ## [1.0.0-beta.4] - 2026-08-22
 
 ### Fixed

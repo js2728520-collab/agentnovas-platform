@@ -262,7 +262,7 @@ export async function acceptCurrentCommercialLegalDocuments(
         { requiredDocumentVersionIds: currentIds },
       );
     }
-    await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [input.userId]);
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [input.userId]);
     const existing = await readCommercialLegalConsent(client, input.userId);
     if (existing.consentComplete) {
       await activatePendingInvitationTrial(client, input.userId);

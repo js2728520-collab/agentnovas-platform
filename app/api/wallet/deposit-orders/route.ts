@@ -114,14 +114,14 @@ export async function POST(request: Request) {
           id,platform_order_no,user_id,branch_id,currency,network,expected_amount,usdt_value,
           channel,provider,provider_config_id,deposit_address,required_confirmations,
           order_status,funds_status,risk_status,risk_reasons_json,metadata_json,idempotency_key,request_id
-        ) SELECT $1,$2,u.id,u.organization_id,'USDT',$3,$4::numeric,$4::numeric,
-          'on_chain','udun',$5,$6,$7,'PENDING_CONFIRMATION','NOT_CREDITED','REVIEW',
-          '["UDUN_CALLBACK_PENDING_MANUAL_REVIEW"]'::jsonb,$8::jsonb,$9,$10
-        FROM users u WHERE u.id=$11 RETURNING ${SELECT_COLUMNS}
+        ) VALUES($1,$2,$3,$4,'USDT',$5,$6::numeric,$6::numeric,
+          'on_chain','udun',$7,$8,$9,'PENDING_CONFIRMATION','NOT_CREDITED','REVIEW',
+          '["UDUN_CALLBACK_PENDING_MANUAL_REVIEW"]'::jsonb,$10::jsonb,$11,$12)
+        RETURNING ${SELECT_COLUMNS}
       `, [
-        orderId, orderNo, network, expectedAmount, selected.id, address.address,
+        orderId, orderNo, user.id, user.organizationId, network, expectedAmount, selected.id, address.address,
         selected.confirmation_threshold, JSON.stringify({ protocol: "legacy_md5", mainCoinType, tokenCoinType, addressCoinType: address.coinType }),
-        key, requestId(request), user.id,
+        key, requestId(request),
       ]);
       if (!inserted.rows[0]) throw new ResearchApiError("NOT_FOUND", "客户账户不存在", 404);
       return Response.json({ order: depositDto(inserted.rows[0]), replayed: false }, { status: 201, headers: { "cache-control": "no-store" } });
