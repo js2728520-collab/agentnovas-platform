@@ -45,7 +45,9 @@ services:
       RIVERTON_RELEASE_TAG: v${RIVERTON_RELEASE_VERSION}
       GIT_COMMIT_SHA: ${RIVERTON_COMMIT_SHA:?set RIVERTON_COMMIT_SHA}
       RIVERTON_ARTIFACT_SHA256: ${RIVERTON_ARTIFACT_SHA256:?set RIVERTON_ARTIFACT_SHA256}
-    secrets: [client_env]
+    secrets:
+      - source: client_env
+        target: client.env
     ports: ["127.0.0.1:${RIVERTON_CLIENT_PORT:-3100}:3000"]
     tmpfs:
       - /tmp:mode=1777
@@ -65,7 +67,9 @@ services:
       RIVERTON_RELEASE_TAG: v${RIVERTON_RELEASE_VERSION}
       GIT_COMMIT_SHA: ${RIVERTON_COMMIT_SHA:?set RIVERTON_COMMIT_SHA}
       RIVERTON_ARTIFACT_SHA256: ${RIVERTON_ARTIFACT_SHA256:?set RIVERTON_ARTIFACT_SHA256}
-    secrets: [operations_env]
+    secrets:
+      - source: operations_env
+        target: operations.env
     ports: ["127.0.0.1:${RIVERTON_OPERATIONS_PORT:-3101}:3000"]
     tmpfs:
       - /tmp:mode=1777
@@ -85,7 +89,9 @@ services:
       RIVERTON_RELEASE_TAG: v${RIVERTON_RELEASE_VERSION}
       GIT_COMMIT_SHA: ${RIVERTON_COMMIT_SHA:?set RIVERTON_COMMIT_SHA}
       RIVERTON_ARTIFACT_SHA256: ${RIVERTON_ARTIFACT_SHA256:?set RIVERTON_ARTIFACT_SHA256}
-    secrets: [maintenance_env]
+    secrets:
+      - source: maintenance_env
+        target: maintenance.env
     ports: ["127.0.0.1:${RIVERTON_MAINTENANCE_PORT:-3102}:3000"]
     tmpfs:
       - /tmp:mode=1777
@@ -101,7 +107,9 @@ services:
     profiles: [workers]
     image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
     command: [node, --env-file=/run/secrets/notification.env, --experimental-strip-types, scripts/notification-worker.mjs]
-    secrets: [notification_env]
+    secrets:
+      - source: notification_env
+        target: notification.env
     tmpfs: [/tmp:mode=1777]
     depends_on:
       postgres: { condition: service_healthy }
@@ -112,7 +120,9 @@ services:
     profiles: [workers]
     image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
     command: [node, --env-file=/run/secrets/runtime.env, --experimental-strip-types, scripts/strategy-runtime-worker.mjs]
-    secrets: [runtime_env]
+    secrets:
+      - source: runtime_env
+        target: runtime.env
     tmpfs: [/tmp:mode=1777]
     depends_on:
       postgres: { condition: service_healthy }
@@ -123,7 +133,9 @@ services:
     profiles: [workers]
     image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
     command: [node, --env-file=/run/secrets/demo.env, --experimental-strip-types, scripts/platform-demo-worker.mjs]
-    secrets: [demo_env]
+    secrets:
+      - source: demo_env
+        target: demo.env
     tmpfs: [/tmp:mode=1777]
     depends_on:
       postgres: { condition: service_healthy }
@@ -136,7 +148,9 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    secrets: [migrator_env]
+    secrets:
+      - source: migrator_env
+        target: migrator.env
     depends_on:
       postgres: { condition: service_healthy }
     networks: [backplane]

@@ -50,6 +50,22 @@ test("production compose keeps PostgreSQL private and mounts runtime env as secr
   assert.match(compose, /notification_env:/);
   assert.match(compose, /POSTGRES_PASSWORD_FILE/);
   assert.match(compose, /egress:/);
+  for (const [secret, target] of [
+    ["client_env", "client.env"],
+    ["operations_env", "operations.env"],
+    ["maintenance_env", "maintenance.env"],
+    ["notification_env", "notification.env"],
+    ["runtime_env", "runtime.env"],
+    ["demo_env", "demo.env"],
+    ["migrator_env", "migrator.env"],
+  ]) {
+    assert.match(
+      compose,
+      new RegExp(`source: ${secret}\\n\\s+target: ${target.replace(".", "\\.")}`),
+      `${secret} must use the filename consumed by node --env-file`,
+    );
+    assert.match(compose, new RegExp(`--env-file=/run/secrets/${target.replace(".", "\\.")}`));
+  }
   const postgresService = compose.split("\n  client:")[0];
   assert.doesNotMatch(postgresService, /networks:\s*\[backplane, egress\]/);
   for (const service of ["notification-worker", "runtime-worker", "demo-worker"]) {
