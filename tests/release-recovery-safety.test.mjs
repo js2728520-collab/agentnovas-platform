@@ -160,6 +160,32 @@ test("database role policy verifies Client identity RLS ownership and restrictiv
   assert.ok(findings.some((finding) => finding.code === "IDENTITY_POLICY_MISSING" && finding.message.includes("auth_tokens")));
 });
 
+test("database role policy distinguishes owner capabilities from runtime grants", () => {
+  const ownerFindings = evaluatePostgresRolePolicy({
+    roles: [],
+    grants: [
+      { grantee: "agentnovas_migrator", tableName: "users", privilegeType: "SELECT" },
+      { grantee: "agentnovas_migrator", tableName: "invitations", privilegeType: "UPDATE" },
+    ],
+    schemaGrants: [],
+  });
+  assert.equal(ownerFindings.some((finding) => finding.code === "IDENTITY_TABLE_GRANT"), false);
+
+  const gatewayFindings = evaluatePostgresRolePolicy({
+    roles: [], grants: [], schemaGrants: [],
+    identityRoutines: [{
+      signature: "client_login_identity(text,text,text)",
+      ownerName: "agentnovas_migrator",
+      securityDefiner: true,
+      config: ['search_path="public",pg_catalog'],
+      executeGrantees: ["agentnovas_client_auth", "agentnovas_migrator"],
+    }],
+  });
+  assert.equal(gatewayFindings.some((finding) => (
+    finding.code === "IDENTITY_GATEWAY_UNSAFE" && finding.message.includes("client_login_identity")
+  )), false);
+});
+
 test("least-privilege bootstrap is database-bound and leaves Payment and legacy Research inert", async () => {
   const sql = await read("deploy/postgres/least-privilege-roles.sql");
   const migratorBootstrap = await read("deploy/postgres/bootstrap-migrator.sql");
@@ -186,7 +212,12 @@ test("least-privilege bootstrap is database-bound and leaves Payment and legacy 
 
   const migrator = await read("deploy/env/migrator.env.example");
   assert.match(migrator, /^DATABASE_URL=postgresql:\/\/agentnovas_migrator:/m);
+  assert.match(migrator, /^POSTGRES_MIGRATION_SCHEMA=public$/m);
   assert.doesNotMatch(migrator, /PAYMENT|EXCHANGE|RESEND|LLM|MFA|NOTIFICATION/i);
+
+  const rolePolicy = await read("scripts/release/postgres-role-policy.mjs");
+  assert.match(rolePolicy, /\)::text\[\] AS "policyRoles"/);
+  assert.match(rolePolicy, /\)::text\[\] AS "executeGrantees"/);
 });
 
 test("Maintenance emergency control receives only the required Paper columns", async () => {

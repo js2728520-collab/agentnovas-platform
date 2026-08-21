@@ -60,12 +60,12 @@ const CLIENT_IDENTITY_GATEWAY_ROUTINES = Object.freeze([
 ]);
 
 const IDENTITY_TABLE_ALLOWED_GRANTEES = new Map([
-  ["users", new Set(["agentnovas_ops_web", "agentnovas_maint_web", "agentnovas_notification_worker"])],
-  ["sessions", new Set(["agentnovas_ops_web", "agentnovas_maint_web"])],
-  ["auth_tokens", new Set(["agentnovas_ops_web", "agentnovas_maint_web"])],
-  ["user_mfa_totp_credentials", new Set(["agentnovas_ops_web", "agentnovas_maint_web"])],
-  ["user_mfa_recovery_codes", new Set(["agentnovas_ops_web", "agentnovas_maint_web"])],
-  ["invitations", new Set(["agentnovas_ops_web", "agentnovas_maint_web"])],
+  ["users", new Set(["agentnovas_migrator", "agentnovas_ops_web", "agentnovas_maint_web", "agentnovas_notification_worker"])],
+  ["sessions", new Set(["agentnovas_migrator", "agentnovas_ops_web", "agentnovas_maint_web"])],
+  ["auth_tokens", new Set(["agentnovas_migrator", "agentnovas_ops_web", "agentnovas_maint_web"])],
+  ["user_mfa_totp_credentials", new Set(["agentnovas_migrator", "agentnovas_ops_web", "agentnovas_maint_web"])],
+  ["user_mfa_recovery_codes", new Set(["agentnovas_migrator", "agentnovas_ops_web", "agentnovas_maint_web"])],
+  ["invitations", new Set(["agentnovas_migrator", "agentnovas_ops_web", "agentnovas_maint_web"])],
 ]);
 
 const identityGatewayGrantee = (signature) => signature.startsWith("client_login_identity(")
@@ -299,9 +299,12 @@ export function evaluatePostgresRolePolicy({
       const config = Array.isArray(routine.config) ? routine.config : [];
       const executeGrantees = Array.isArray(routine.executeGrantees) ? routine.executeGrantees : [];
       const expectedGrantee = identityGatewayGrantee(signature);
+      const expectedExecuteGrantees = new Set(["agentnovas_migrator", expectedGrantee]);
+      const searchPathIsPinned = config.some((value) => /^search_path=(?:"public"|public),\s*pg_catalog$/i.test(value));
       if (routine.ownerName !== "agentnovas_migrator" || !routine.securityDefiner
-        || !config.includes("search_path=pg_catalog, public")
-        || executeGrantees.length !== 1 || executeGrantees[0] !== expectedGrantee) {
+        || !searchPathIsPinned
+        || executeGrantees.length !== expectedExecuteGrantees.size
+        || executeGrantees.some((grantee) => !expectedExecuteGrantees.has(grantee))) {
         findings.push(finding("IDENTITY_GATEWAY_UNSAFE", `Client identity gateway contract drifted: ${signature}`, "agentnovas_client_web"));
       }
     }
@@ -379,10 +382,10 @@ async function verifyConfiguredDatabase() {
                NOT policy.polpermissive AS restrictive,
                policy.polcmd AS command,
                ARRAY(
-                 SELECT CASE WHEN role_oid=0 THEN 'PUBLIC' ELSE role.rolname END
+                 SELECT CASE WHEN role_oid=0 THEN 'PUBLIC' ELSE role.rolname::text END
                  FROM unnest(policy.polroles) AS role_oid
                  LEFT JOIN pg_roles AS role ON role.oid=role_oid
-               ) AS "policyRoles",
+               )::text[] AS "policyRoles",
                pg_get_expr(policy.polqual,policy.polrelid) AS "usingExpression",
                pg_get_expr(policy.polwithcheck,policy.polrelid) AS "checkExpression"
           FROM pg_policy AS policy
@@ -401,7 +404,7 @@ async function verifyConfiguredDatabase() {
                    LEFT JOIN pg_roles AS grantee ON grantee.oid=acl.grantee
                   WHERE acl.privilege_type='EXECUTE'
                   ORDER BY COALESCE(grantee.rolname,'PUBLIC')
-               ) AS "executeGrantees"
+               )::text[] AS "executeGrantees"
           FROM pg_proc AS procedure
           JOIN pg_namespace AS namespace ON namespace.oid=procedure.pronamespace
           JOIN pg_roles AS owner ON owner.oid=procedure.proowner
