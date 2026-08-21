@@ -88,8 +88,8 @@
 - [x] 9.2 增加 digest 固定、非 root、只读根文件系统的 Client/Operations/Maintenance/Runtime 镜像。
 - [x] 9.3 增加私有 PostgreSQL、secret env、回环端口和显式 Worker/Migrator profile 的 Compose。
 - [x] 9.4 增加 SemVer identity、四镜像 manifest 与 tag-triggered GHCR workflow；不生成 `latest`。
-- [ ] 9.5 `v1.0.0-beta.1` 完成目标主机并行启动、迁移/角色校验、三 Host smoke 与切流。
-- [ ] 9.6 保存 artifact/镜像 digest、staging/production、回滚和首小时监控证据。
+- [x] 9.5 `v1.0.0-beta.3` 已完成目标主机三端/Worker 并行启动、迁移/角色校验、三 Host smoke 与切流。
+- [x] 9.6 已保存 artifact/镜像 digest、production、回滚和浏览器证据；staging 外部 Provider smoke 仍归 6.8 Gate。
 - [x] 8.5 同步 OpenAPI、API Catalog、ADR、Runbook、CHANGELOG、handoff 与发布 Gate。
 - [x] 8.6 执行全量自动 Gate、secret/audit/build/browser/恢复证据并完成独立发布反证审查。
 - [x] 8.7 普通提交并推送目标远端 `main`，确认远端 CI 全绿；不改写历史、不 force push。
@@ -103,3 +103,13 @@
 - [x] 9.5 实现 Maintenance 币种映射、连通测试、启停和密钥安全投影。
 - [x] 9.6 同步 OpenAPI/Spec/Runbook，执行全量 Gate、密钥扫描、普通提交并推送目标远端 `main`。
 - [!] 9.7 目标商户真实商户号/API Key/专属节点/币种编号需从优盾后台注入后，执行 staging 1 USDT smoke；仓库不保存这些值。
+
+## 10. 生产验收账号与配置交付
+
+- [x] 10.1 增加三端原子账号创建 CLI：随机密码、Argon2id、显式 audience RBAC、内部首次 TOTP、0600 文件交付和重复执行拒绝。
+- [x] 10.2 增加生产配置只读审计与 root-only 填空安装器；不会打印 secret，并强制保留 Email/Payment/Demo 外部副作用开关为关闭。
+- [x] 10.3 增加 Resend readiness 审计 CLI；域名/Webhook/模板/suppression 任一未验证时不能标记 active，且不自动打开外发。
+- [x] 10.4 增加平台 Demo root-only 凭证工具；加密录入或轮换后强制关闭账户、开启全部 kill switch 并使旧验证失效。
+- [x] 10.5 写入三端账号、Resend、优盾、LLM、Demo、重启、验收与清理完整 Runbook。
+- [-] 10.6 在生产创建三端账号、验证登录边界并向授权操作者交付凭证文件读取指令。
+- [!] 10.7 Resend、优盾、LLM 和三交易所 Demo 的真实 secret/商户/模型输入仍需授权人员通过仓库外 secret 渠道提供。

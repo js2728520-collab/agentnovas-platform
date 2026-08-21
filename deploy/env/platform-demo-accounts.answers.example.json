@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "accounts": {
+    "okx": {
+      "label": "OKX Demo",
+      "apiKey": "",
+      "secret": "",
+      "passphrase": ""
+    },
+    "binance": {
+      "label": "Binance Spot Testnet",
+      "apiKey": "",
+      "secret": ""
+    },
+    "bybit": {
+      "label": "Bybit Demo Trading",
+      "apiKey": "",
+      "secret": ""
+    }
+  }
+}

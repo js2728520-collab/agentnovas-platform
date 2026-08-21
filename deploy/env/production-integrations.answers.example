@@ -1,0 +1,13 @@
+# Copy this file to a root-only path outside the repository, chmod 0600, and fill it there.
+# Never commit, paste into chat, or run the installer with shell tracing enabled.
+
+RESEND_API_KEY=
+RESEND_WEBHOOK_SECRET=
+NOTIFICATION_EMAIL_ALLOWLIST=
+
+# Use the dedicated HTTPS API node shown in the Udun merchant dashboard.
+# Do not use home.udun.io and do not append /mch/address/create.
+UDUN_GATEWAY_BASE_URL=
+UDUN_MERCHANT_ID=
+UDUN_API_KEY=
+UDUN_CALLBACK_URL=https://xm.agentnovas.com/api/integrations/payments/udun/webhook

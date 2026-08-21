@@ -40,6 +40,7 @@
 - `runbooks/commercial-beta-maintenance.md`：MFA 恢复、Demo 熔断、Email suppression、密钥与事故。
 - `runbooks/commercial-beta-release-and-rollback.md`：发布、首小时监控、回滚和数据恢复。
 - `runbooks/udun-deposit-gateway.md`：优盾商户配置、币种映射、回调、复核、停用和事故处理。
+- `runbooks/production-accounts-and-configuration.md`：三端验收账号、凭证取回、配置审计、Resend、优盾、LLM 与 Demo 的安全配置步骤和填空脚本。
 - `releases/2026-08-22-v1.0.0-beta.3-deployment.md`：当前 `v1.0.0-beta.3` 的公开着陆页修复、真实部署过程、浏览器证据和 `beta.2` 回滚目标。
 - `releases/2026-08-22-v1.0.0-beta.2-deployment.md`：前一版本 `v1.0.0-beta.2` 的真实部署过程、证据、异常和历史回滚目标。
 - `../tasks/plan.md` / `../tasks/todo.md`：14 天实施顺序与唯一进度清单。
