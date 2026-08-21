@@ -34,6 +34,7 @@ test("container images are pinned, non-root and contain no embedded secrets", as
   assert.match(dockerfile, /node:22\.21\.1-bookworm-slim@sha256:[a-f0-9]{64}/);
   assert.match(dockerfile, /AS web/);
   assert.match(dockerfile, /AS runtime/);
+  assert.match(dockerfile, /npm ci --include=dev/);
   assert.match(dockerfile, /USER node/);
   assert.match(dockerfile, /HEALTHCHECK/);
   assert.doesNotMatch(dockerfile, /(?:RESEND_API_KEY|DATABASE_URL|MFA_TOTP_ENCRYPTION_KEY)\s*=/);
