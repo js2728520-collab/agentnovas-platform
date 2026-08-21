@@ -34,6 +34,26 @@ RELEASE_ROLE_POLICY_DATABASE_URL='postgresql://agentnovas_migrator@127.0.0.1/age
 
 `postgres/migrations/*.sql` 按文件名顺序执行，registry checksum 不变时可安全重跑。迁移失败或角色策略出现 finding 时禁止启动新版本，恢复上一应用制品；涉及不可逆数据变更时，从已验证备份恢复到新的数据库实例后再切换连接串。
 
+### 2.1 进程数据库角色 smoke
+
+角色模板校验通过后，必须使用每个进程实际加载的 secret/env 分别执行 `SELECT current_user`，不能用管理员或 migrator 连接代替应用进程结果。保存时只记录进程、连接变量、预期角色和实际角色，不保存 URL 或口令：
+
+| 进程/连接 | 预期 `current_user` |
+| --- | --- |
+| Client `DATABASE_URL` | `agentnovas_client_web` |
+| Client `CLIENT_AUTH_DATABASE_URL` | `agentnovas_client_auth` |
+| Operations `DATABASE_URL` | `agentnovas_ops_web` |
+| Maintenance `DATABASE_URL` | `agentnovas_maint_web` |
+| Notification Worker `DATABASE_URL` | `agentnovas_notification_worker` |
+| Runtime Worker `DATABASE_URL` | `agentnovas_runtime_worker` |
+| Demo Worker `DATABASE_URL` | `agentnovas_demo_execution_worker` |
+| Payment webhook `PAYMENT_WEBHOOK_DATABASE_URL` | `agentnovas_payment_webhook` |
+| Migrator `DATABASE_URL` | `agentnovas_migrator` |
+
+Client 还要反向验证：Web 角色直查身份/邀请表或调用登录投影必须返回 `42501`，Auth 角色调用 session 完成或 reset 消费必须返回 `42501`。Payment Worker 与 legacy Research 角色必须为 `NOLOGIN`。任一实际角色不匹配、可继承/切换到其他运行角色或拒绝测试未生效，都应停止切流并重新执行最小角色模板；禁止临时改用管理员连接。
+
+恢复证据与迁移集合严格绑定。当前记录覆盖截至 `0043` 的 44 个迁移和 139 张表；加入、改名或修改任何迁移后，必须重新执行隔离 fresh/N-1/rerun/concurrent 和 backup/restore，并以脚本实际输出更新表数与 checksum，旧证据不得继续用于发布。FORCE RLS 环境必须使用专用 `agentnovas_migrator` 和 `pg_dump --enable-row-security`，不得以 `BYPASSRLS` 规避策略。
+
 ## 3. 启动顺序
 
 1. 停止任何已运行的 legacy Research Worker 与 Runtime Worker，移除旧 Research enable symlink，并等待已租任务终止或租约安全过期。新 unit 不会自动停止旧进程。

@@ -36,18 +36,18 @@ node scripts/release/postgres-role-policy.mjs
 
 校验结果必须为 `findings: []`。Client/Operations 无 Maintenance 密钥表权限；Notification、Demo、Runtime Worker 只能访问各自允许清单；Payment/legacy Research 角色必须为 `NOLOGIN` 且无表权限。应用进程不得使用 migrator 或管理员连接串。Client 的 `DATABASE_URL` 必须为 `agentnovas_client_web`，`CLIENT_AUTH_DATABASE_URL` 必须为独立的 `agentnovas_client_auth`；后者只能执行精确登录身份投影，不能读表、创建会话或继承 Web 角色。
 
-`0040_client_identity_rls.sql` 应用后，角色校验还会确认 `users`、`sessions`、`auth_tokens` 与两张 MFA 表已启用限制性 RLS、所有者为 `agentnovas_migrator`，且策略只依赖数据库连接的 `current_user`。Client 连接必须始终显示 `current_user = agentnovas_client_web`；不得通过连接池 GUC、请求 Header 或 JWT 切换数据库身份。Client Web/Auth 均无身份与邀请表直访，只能经各自精确 gateway 处理登录投影或当前有效 session 绑定的主体；Operations/Maintenance 使用各自连接角色。邀请注册读取内部汇报链只能调用 `client_registration_attribution(text,text)`，不得恢复 Client 对内部 `users` 行的可见性。
+`0040_client_identity_rls.sql` 与 `0043_client_identity_gateway_hardening.sql` 应用后，角色校验还会确认 `users`、`sessions`、`auth_tokens` 与两张 MFA 表已启用强制限制性 RLS、所有者为 `agentnovas_migrator`，策略的 USING/WITH CHECK、policy roles 和完整角色 allowlist 均匹配。Client 连接必须始终显示 `current_user = agentnovas_client_web`；不得通过连接池 GUC、请求 Header 或 JWT 切换数据库身份。Client Web/Auth 均无身份与邀请表直访，只能经各自精确 gateway 处理登录投影或当前有效 session 绑定的主体；Operations/Maintenance 使用各自连接角色。邀请注册读取内部汇报链只能调用 `client_registration_attribution(text,text)`，不得恢复 Client 对内部 `users` 行的可见性。
 
-若登录、注册、MFA 或会话撤销在上线后返回 PostgreSQL `42501`，先停止 Client 切流，核对 migration registry 中 `0040`、重新执行本节最小角色模板并运行 role policy；禁止临时关闭 RLS或把 Client 改用 migrator/内部端连接串。修复后依次复测客户登录、邀请码注册、密码找回、MFA 启用/验证/恢复码轮换、其他设备会话撤销。用 Client Web 角色直查五张身份表、邀请表或调用 `client_login_identity` 必须得到 `42501`；用 Client Auth 角色调用 `client_complete_login` 也必须得到 `42501`。过期但未显式 revoked 的会话哈希不能调用任何 self gateway。
+若登录、注册、MFA 或会话撤销在上线后返回 PostgreSQL `42501`，先停止 Client 切流，核对 migration registry 中 `0040`、`0043`，重新执行本节最小角色模板并运行 role policy；禁止临时关闭 RLS 或把 Client 改用 migrator/内部端连接串。修复后依次复测客户登录、邀请码注册、密码找回、MFA 启用/验证/恢复码轮换、其他设备会话撤销。用 Client Web 角色直查五张身份表、邀请表或调用 `client_login_identity` 必须得到 `42501`；用 Client Auth 角色调用 `client_complete_login` 也必须得到 `42501`。过期但未显式 revoked 的会话哈希不能调用任何 self gateway。
 
 ### 1.2 本机隔离恢复演练
 
-恢复演练脚本具有三道限制：显式 `--execute`、`RELEASE_REHEARSAL_ALLOW_LOCAL=1`、loopback 且受控命名的源库。它创建一次性目标库，使用非 shell 的 `pg_dump/createdb/pg_restore/dropdb`，逐表核对行数与 migration checksum，最后自动删除目标库和临时目录：
+恢复演练脚本具有四道限制：显式 `--execute`、`RELEASE_REHEARSAL_ALLOW_LOCAL=1`、loopback 且受控命名的源库、源库与管理连接均使用专用 `agentnovas_migrator`。专用角色要求保证启用 FORCE RLS 后仍能读取迁移证据，并使还原对象保持正确所有者；本地演练期间可临时授予该角色 `CREATEDB`，结束后必须立即撤销。脚本创建一次性目标库，使用非 shell 的 `pg_dump/createdb/pg_restore/dropdb`，逐表核对行数与 migration checksum，最后自动删除目标库和临时目录：
 
 ```bash
 RELEASE_REHEARSAL_ALLOW_LOCAL=1 \
-RELEASE_REHEARSAL_SOURCE_DATABASE_URL=postgresql://rehearsal_role@127.0.0.1/agentnovas_recovery_source_release1 \
-RELEASE_REHEARSAL_ADMIN_DATABASE_URL=postgresql://rehearsal_role@127.0.0.1/postgres \
+RELEASE_REHEARSAL_SOURCE_DATABASE_URL=postgresql://agentnovas_migrator@127.0.0.1/agentnovas_recovery_source_release1 \
+RELEASE_REHEARSAL_ADMIN_DATABASE_URL=postgresql://agentnovas_migrator@127.0.0.1/postgres \
 node scripts/release/postgres-recovery-rehearsal.mjs --execute
 ```
 
@@ -72,12 +72,10 @@ RIVERTON_RELEASE_TAG='vX.Y.Z' # 执行前替换为尚未使用的新 SemVer
 npm run release:identity -- "$RIVERTON_RELEASE_TAG"
 ```
 
-`v1.0.0-beta.2` 部署时发现：`scripts/release/build-container-images.mjs` 尚未向 buildx 传入 `--file deploy/container/Dockerfile`，而仓库根目录没有 `Dockerfile`。在脚本修复并补充合同测试前，`npm run release:build-images` 不是批准的发布入口。不得创建根目录 Dockerfile 掩盖问题，也不得把失败 helper 的输出登记为制品。
+从 `v1.0.0-beta.4` 起，`scripts/release/build-container-images.mjs` 已通过合同测试固定使用 `deploy/container/Dockerfile`。批准的构建路径为：
 
-批准的构建路径为：
-
-1. 首选推送新的 annotated tag，由 `.github/workflows/container-release.yml` 显式使用 `deploy/container/Dockerfile`，生成四张 GHCR 镜像、SBOM、provenance 和 digest；
-2. 目标服务器没有 Registry 凭证时，只能从精确 tag/commit 的干净 checkout 运行显式 `docker buildx build --file deploy/container/Dockerfile ...`，逐张构建并 inspect，随后按仓库算法生成 manifest；参考 `docs/releases/2026-08-22-v1.0.0-beta.2-deployment.md`，但必须替换全部版本身份。
+1. 首选推送新的 annotated tag，由 `.github/workflows/container-release.yml` 生成四张 GHCR 镜像、SBOM、provenance 和 digest；
+2. 目标服务器没有 Registry 只读凭证时，从精确 tag/commit 的干净 checkout 执行 `npm run release:build-images -- vX.Y.Z`，逐张构建、inspect 并生成 manifest；不得改用工作区或手写 `latest` 镜像。
 
 manifest 包含完整 commit、最新 migration、平台、四张镜像 ID/digest 与聚合 `artifactSha256`。三端镜像必须来自同一次提交；不得把工作区临时构建登记为发布制品。后续修复 helper 后，应恢复单一受测命令并同步删除本临时限制。
 
@@ -100,7 +98,7 @@ docker compose -f deploy/container/compose.yml config --quiet
 2. 迁移只在显式 staging/生产变更授权后执行；本实施阶段不得运行生产 migration。
    迁移 registry 中任何已应用文件缺 checksum 或 checksum 不匹配都会失败关闭；不得直接补写 hash。先核对最后部署版本，必要时用新的 forward migration 修复。
 3. 部署新 release 目录并验证 hash，不覆盖 previous。
-4. 在维护窗口应用尚未部署的前向迁移；其中 `0029_beta_legacy_runtime_hard_close.sql` 终结非 `spot_usdt` 部署，`0036_pre_disclosure_trial_remediation.sql` 冻结披露前错误启动的历史试用并保留审计，`0037_bootstrap_system_role_permission_sync.sql` 同步既有 bootstrap 系统角色权限，`0038_client_ai_runtime_credits.sql` 建立 Client 模型安全投影和 AI 调用幂等账本，`0039_maintenance_idempotency.sql` 建立 Maintenance 高风险命令终态记录，`0040_client_identity_rls.sql` 隔离 Client 与内部身份数据，`0041_release_version_management.sql` 建立 Maintenance-only 不可变发布证据，`0042_udun_deposit_gateway.sql` 建立优盾 deposit-only 地址、回调证据、幂等和安全投影边界。所有文件必须由迁移器按 checksum 顺序应用，禁止手工摘抄执行；`0040` 后以及 `0042` 后必须重新执行最小角色模板，收敛业务表 ACL、Client Web/Auth/payment webhook capability 和发布表的 Maintenance-only `SELECT/INSERT` grants。
+4. 在维护窗口应用尚未部署的前向迁移；其中 `0029_beta_legacy_runtime_hard_close.sql` 终结非 `spot_usdt` 部署，`0036_pre_disclosure_trial_remediation.sql` 冻结披露前错误启动的历史试用并保留审计，`0037_bootstrap_system_role_permission_sync.sql` 同步既有 bootstrap 系统角色权限，`0038_client_ai_runtime_credits.sql` 建立 Client 模型安全投影和 AI 调用幂等账本，`0039_maintenance_idempotency.sql` 建立 Maintenance 高风险命令终态记录，`0040_client_identity_rls.sql` 隔离 Client 与内部身份数据，`0041_release_version_management.sql` 建立 Maintenance-only 不可变发布证据，`0042_udun_deposit_gateway.sql` 建立优盾 deposit-only 地址、回调证据、幂等和安全投影边界，`0043_client_identity_gateway_hardening.sql` 撤销 Client 对身份/邀请表的直接能力并收敛强制 RLS 与 gateway ACL。所有文件必须由迁移器按 checksum 顺序应用，禁止手工摘抄执行；`0043` 后必须重新执行最小角色模板，收敛业务表 ACL、Client Web/Auth/payment webhook capability 和发布表的 Maintenance-only `SELECT/INSERT` grants。
 5. 原子切换 current；按 Client→Operations→Maintenance→Notification/Demo→官方 spot Runtime 顺序 readiness。Beta 不重启 Research Worker，即使环境误设为 true 也必须保持硬关闭。
 6. 运行三 Host 登录/404/Cookie、安全 header 与关键只读 smoke；Maintenance 对 Research 的有效状态必须为 `disabled`。
 7. 外部副作用开关保持默认 off；Email/Demo 分别经过独立 go-live 记录。

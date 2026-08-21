@@ -142,8 +142,9 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 
 | 路由 | 页面 | 主要功能 | 主要权限/条件 |
 | --- | --- | --- | --- |
-| `/` | 客户工作台 | 展示商业服务入口、权益和状态摘要 | 已登录；披露未完成时只保留允许入口 |
+| `/` | 公开着陆页 | Riverton 产品介绍、策略边界和登录入口 | 公开，不启动客户会话树 |
 | `/login` | 登录/邀请注册/找回 | 当前 audience 身份流程 | 公开页面；注册只允许 Client |
+| `/dashboard` | 客户交易总览 | 展示三卡 Paper 权益、收益、运行状态、会员、积分、账单和通知摘要 | 已登录；按 Client 权限过滤 |
 | `/legal/consent` | 商业披露 | 阅读并确认当前七类正文 | 已登录，独立于商业权限 Gate |
 | `/membership` | 会员中心 | 查看计划、当前权益、创建人工付款订单 | `client.membership.view/order` |
 | `/membership/orders` | 会员订单 | 查看订单号、计划快照、付款说明和真实状态 | `client.membership.view` |
@@ -153,7 +154,7 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 | `/paper` | 模拟组合 | 查看三张官方组合汇总、持仓、运行状态 | `client.paper.view` |
 | `/paper/[portfolioId]` | 组合详情 | 查看单卡现金、权益、盈亏、持仓和成交 | 本人组合 |
 | `/trading-hall` | 七智能体交易大厅 | 三卡、七角色、决策轮、Paper 和 Demo 证据 | `client.paper.view` |
-| `/workspace` | 策略与 Agent | AI 助手、策略研究、策略 DSL、回测和版本历史 | 登录、披露、`client.paper.view` |
+| `/workspace` | 策略与 Agent | AI 助手、策略研究、策略 DSL、回测和版本历史 | 登录、`client.paper.view` |
 | `/wallet` | 钱包与账本 | 只读服务余额和历史账本 | `client.wallet.view` |
 | `/wallet/deposits` | 优盾 USDT 充值 | 创建真实订单、专属地址、链上与复核状态；未配置失败关闭 | `client.wallet.view`、`client.deposit.create` |
 | `/notifications` | 通知中心 | 收件箱、已读、偏好、免打扰和渠道状态 | 已登录 |
@@ -177,7 +178,7 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 - 七份正文必须属于同一已发布 bundle，正文长度和 SHA-256 必须一致；
 - 客户逐份阅读后一次性保存当前版本确认；
 - 系统保存 document ID、版本、内容哈希、确认时间、可信代理解析的 IP 和 user-agent 摘要；
-- 任一正文缺失、未发布或未确认时，会员计划、Trial、订单和 Paper 权限失败关闭；
+- 任一正文缺失、未发布或未确认时，新会员订单失败关闭；计划浏览、既有 Paper 数据与账户自助不被全局阻断；
 - 确认成功后启动 3 天 Trial，而不是在邀请或登录时提前启动；
 - 平台发布新版本后，客户需要确认新 bundle 才能继续商业功能。
 
@@ -229,7 +230,7 @@ Credits 是 AI 使用额度，不是 USDT、现金、Paper 本金或交易所余
 
 ### 6.5 策略与 Agent 工作区
 
-`/workspace` 保留 AgentNovas 原有策略研究能力，并置于 Client audience、商业披露和 Paper 权限之后：
+`/workspace` 保留 AgentNovas 原有策略研究能力，并置于 Client audience 会话和 Paper 权限之后，嵌入统一客户 Shell：
 
 - 策略大厅展示官方策略、七阶段状态和真实记录入口；
 - Agent 对话提供持久化会话、结构化回复和策略草稿保存；

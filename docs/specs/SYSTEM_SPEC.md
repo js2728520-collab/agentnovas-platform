@@ -23,6 +23,15 @@ Legacy Research Worker：Beta 不启动，HTTP/租约/orchestrator/systemd 均�
 
 Client 使用两个不可继承、不可链式放大的数据库角色。`agentnovas_client_web` 只通过绑定当前有效 Client session token hash 的 `SECURITY DEFINER` gateway 完成会话、自助资料、MFA、注册 claim 和 reset consume，不能直接读取身份/邀请表；`agentnovas_client_auth` 只可执行登录身份投影、当前主体密码投影和找回密码发行三个精确 gateway，不能创建/完成 session、消费 reset 或继承 Web 角色。所有 gateway 由 migrator 持有、固定 `search_path`，过期但未 revoked 的 session 也必须失败关闭。Next 构建不打开数据库连接；运行时第一条 SQL 前同时校验 URL 用户名和 `current_user` 与 audience 一致。
 
+Client 的两个连接是不同的能力边界，不是同一高权角色的两个别名：
+
+| 连接变量 | 固定角色 | 允许能力 | 必须拒绝 |
+| --- | --- | --- | --- |
+| Client `DATABASE_URL` | `agentnovas_client_web` | 当前有效 session、注册邀请码和一次性 reset capability 所需的精确 gateway | 身份/邀请表直访；登录 hash 投影；任意其他客户或内部身份 |
+| `CLIENT_AUTH_DATABASE_URL` | `agentnovas_client_auth` | `client_login_identity`、`client_self_password_identity`、`client_queue_password_reset` | 创建/完成 session；消费 reset；继承或切换为 Web/内部角色 |
+
+每次部署必须从每个实际进程加载的连接串执行 `SELECT current_user`，记录“进程/连接变量/预期角色/实际角色”。Client 两条连接、Operations、Maintenance、Notification、Runtime、Demo、payment webhook 和 migrator 任一不匹配都失败关闭；Payment Worker 与 legacy Research 角色必须保持 `NOLOGIN`。
+
 ## 2. Audience 与路由
 
 | Audience | 本地端口 | Cookie | 注册 |
@@ -129,10 +138,13 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 - `0040_client_identity_rls.sql`
 - `0041_release_version_management.sql`
 - `0042_udun_deposit_gateway.sql`
+- `0043_client_identity_gateway_hardening.sql`
 
-`0041` 增加 Maintenance-only 的不可变版本、验证与部署事实。版本状态和环境 current 由追加事实投影；production 要求同版本 staging 成功，失败记录不改变 current，三表禁止更新/删除。`0042` 增加优盾 deposit-only 配置安全视图、签名回调证据、重放/地址/开放订单唯一约束和独立 payment webhook 角色。
+`0041` 增加 Maintenance-only 的不可变版本、验证与部署事实。版本状态和环境 current 由追加事实投影；production 要求同版本 staging 成功，失败记录不改变 current，三表禁止更新/删除。`0042` 增加优盾 deposit-only 配置安全视图、签名回调证据、重放/地址/开放订单唯一约束和独立 payment webhook 角色。`0043` 以显式数据库角色 allowlist、强制 RLS 和精确 SECURITY DEFINER ACL 撤销 Client 对身份/邀请表的直接能力，并使未知/遗留数据库角色失败关闭。
 
-数据库角色至少拆分为 migrator、client_web、client_auth、ops_web、maint_web、notification_worker、runtime_worker、demo_execution_worker；legacy research 和 Payment Worker 不获得 Beta 业务写权限。
+数据库角色至少拆分为 migrator、client_web、client_auth、ops_web、maint_web、notification_worker、runtime_worker、demo_execution_worker 和 payment_webhook；legacy research 和 Payment Worker 不获得 Beta 业务写权限。
+
+当前恢复证据只覆盖至 `0042` 的 43 个迁移。新增、改名或 checksum 变化的迁移会立即使该证据失效；必须重新执行 fresh/N-1/rerun/concurrent 与隔离 backup/restore，按实际输出更新迁移数、表数和 checksum 后才能恢复 Gate 通过状态。
 
 ## 7. 账本、会员和 credits
 

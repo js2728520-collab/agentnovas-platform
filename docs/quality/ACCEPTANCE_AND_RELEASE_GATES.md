@@ -76,10 +76,12 @@
 - migration fresh、N-1、rerun、checksum mismatch、concurrent、backup restore 通过。
 - 已部署 registry 的每条记录必须有可验证 checksum；NULL/历史不明记录必须先做受控 reconciliation，禁止静默采用当前文件 hash。
 - 三端/Workers/migrator 使用独立最小 env 与 DB roles；Client 额外使用不可继承的 Auth 角色，Payment Worker 无业务写权限。
+- 从每个实际进程加载的连接执行 `SELECT current_user`：Client Web/Auth、Operations、Maintenance、Notification、Runtime、Demo、payment webhook、migrator 必须逐项等于预期角色；任何角色复用、URL 用户名与 `current_user` 不一致或可跨角色 `SET ROLE` 均使 Gate 失败。
 - systemd/nginx 校验通过，无旧 Web unit、重复 3000 端口或重复 server name。
 - current/previous 原子部署，应用回滚演练 <5 分钟；DB expand/contract 前向兼容。
 - Git tag/commit、artifact SHA-256、migration version 已登记为不可变版本；不同人员验证，production 记录以前置 staging 成功为条件，failed 记录不改变环境 current。
 - 准备启用的外部能力必须有对应 staging 证据：Demo 凭证、Email 依赖、DNS/TLS、支持联系人和告警值班。未启用能力必须保持关闭并在 UI/状态 API 明确显示未配置，不能阻塞纯 in-app Paper SaaS 的安全降级发布。
+- 恢复证据必须覆盖当前目录中的全部迁移及其 checksum。新增、改名或 checksum 变化后，先前的迁移数、表数和 restore 结果立即失效；fresh/N-1/rerun/concurrent/backup restore 全部重跑前不得沿用旧 Gate 结论。
 
 ## 9. 自动命令
 

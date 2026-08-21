@@ -40,6 +40,13 @@ test("container images are pinned, non-root and contain no embedded secrets", as
   assert.doesNotMatch(dockerfile, /(?:RESEND_API_KEY|DATABASE_URL|MFA_TOTP_ENCRYPTION_KEY)\s*=/);
 });
 
+test("the local versioned image builder uses the canonical container Dockerfile", async () => {
+  const builder = await read("scripts/release/build-container-images.mjs");
+  assert.match(builder, /"--file", "deploy\/container\/Dockerfile"/);
+  assert.match(builder, /"buildx", "build"/);
+  assert.doesNotMatch(builder, /(?:RESEND_API_KEY|DATABASE_URL|MFA_TOTP_ENCRYPTION_KEY)/);
+});
+
 test("production compose keeps PostgreSQL private and mounts runtime env as secrets", async () => {
   const compose = await read("deploy/container/compose.yml");
   assert.match(compose, /agentnovas-riverton\}-client/);

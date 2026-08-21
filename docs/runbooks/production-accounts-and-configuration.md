@@ -82,6 +82,14 @@ sudo docker run --rm \
 ssh an-saas 'cat /root/agentnovas-initial-access/<CREDENTIAL_FILE>'
 ```
 
+当前生产已创建的三端验收账号使用以下 root-only 文件；文件名本身不是密码，内容不得复制到聊天：
+
+```bash
+ssh an-saas 'sudo cat /root/agentnovas-initial-access/three-app-credentials-20260821T172923Z.json'
+```
+
+该命令只在你的终端显示三个登录邮箱与初始随机密码。完成首次登录、内部端 TOTP 绑定和密码管理器保存后，再按下方 `shred -u` 命令销毁服务器副本；销毁前不可重新运行创建器，因为它不会覆盖已有账号。
+
 立即存入获授权密码管理器并逐端登录；完成改密和 MFA 后删除服务器文件：
 
 ```bash
@@ -94,7 +102,7 @@ ssh an-saas 'shred -u /root/agentnovas-initial-access/<CREDENTIAL_FILE>'
 
 2026-08-22 已使用生产容器完成一次无密钥输出验收：三端正确 audience 登录均通过，Client 投影 9 项 Client-only 权限，Operations 投影 34 项 Operations-only 权限，Maintenance 投影 22 项 Maintenance-only 权限；内部端均进入首次 TOTP enrollment。验收产生的三个 session 已全部撤销。密码仍只存在服务器 root-only 凭证文件中，未写入本文或 Git。
 
-1. Client：<https://agentnovas.com/login>。确认只能看到 Client 菜单，Operations/Maintenance URL 返回 404/403。
+1. Client：<https://agentnovas.com/login>。登录后应进入 `/dashboard`，确认只能看到 Client 菜单，Operations/Maintenance URL 返回 404/403。
 2. Operations：<https://zht.agentnovas.com/login>。主密码通过后必须进入 TOTP enrollment；扫描二维码、输入一次验证码并离线保存 recovery codes。
 3. Maintenance：<https://xm.agentnovas.com/login>。执行相同的独立 TOTP enrollment，不能复用 Operations 的 secret。
 4. 分别退出，确认只清理当前 audience Cookie；重新登录并验证密码与 TOTP。

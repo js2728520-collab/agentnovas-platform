@@ -20,7 +20,7 @@ const images = [
 for (const image of images) {
   const reference = `${prefix}-${image.name}:${identity.version}`;
   const command = [
-    "buildx", "build", "--platform", platform, "--target", image.target,
+    "buildx", "build", "--file", "deploy/container/Dockerfile", "--platform", platform, "--target", image.target,
     "--build-arg", `RIVERTON_RELEASE_TAG=${identity.versionTag}`,
     "--build-arg", `GIT_COMMIT_SHA=${identity.commitSha}`,
     "--label", `org.opencontainers.image.version=${identity.versionTag}`,

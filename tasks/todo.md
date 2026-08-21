@@ -62,11 +62,11 @@
 
 - [x] 6.1 新增切片的 unit/contract/PostgreSQL/security/rollback 测试；233 个 method handler inventory 零遗漏。
 - [x] 6.2 CI quality-release job：三端 build、Playwright/axe、bundle/Lighthouse、audit、secret scan。
-- [x] 6.3 migration concurrent、独立 DB roles、43 迁移/139 表备份恢复和应用回滚本地隔离演练；恢复前后 registry checksum、表集合和逐表行数一致，临时数据库已清理。
+- [x] 6.3 2026-08-22 已由专用 `agentnovas_migrator` 在隔离 fresh 源库执行截至 `0043` 的 44 个迁移，并通过 FORCE RLS 下的 backup/restore；恢复前后 139 张表、migration registry checksum 与逐表行数完全一致，一次性源库、目标库和 dump 已清理，临时 `CREATEDB` 已撤销。migration concurrent、独立 DB roles、fresh/N-1/rerun/checksum 与应用回滚保护由自动测试持续覆盖。
 - [x] 6.4 四身份 12 场景真实浏览器覆盖商业双审、三端稳定路由、权限失败、响应式、axe、console/network 与焦点入口。
 - [x] 6.5 PRD/Spec/ADR/能力矩阵/API/OpenAPI/Gate/Runbook/handoff/发布证据同步。
 - [x] 6.6 全量自动 Gate、代码质量审查、独立反证审查、production dependency high/critical=0；开发工具链例外见质量证据，截止首批付费邀请前。
-- [x] 6.7 Client Web/Auth 双数据库角色无身份/邀请表直访、不可互调高权限 gateway，过期 session 无法调用 self gateway；URL 角色与运行时 `current_user` 双校验。
+- [x] 6.7 Client Web/Auth 双数据库角色无身份/邀请表直访、不可互调高权限 gateway，过期 session 无法调用 self gateway；URL 角色与运行时 `current_user` 双校验。每次部署继续从 Client 两条连接及各 Web/Worker/payment webhook/migrator 实际 env 保存脱敏的进程角色 smoke，代码测试不能替代该证据。
 - [!] 6.8 Email、Demo、DNS/TLS 没有真实凭证时保持明确未配置；提供真实配置后执行 staging smoke。
 
 ## 7. 最终提交、启动与推送
@@ -113,3 +113,11 @@
 - [x] 10.5 写入三端账号、Resend、优盾、LLM、Demo、重启、验收与清理完整 Runbook。
 - [x] 10.6 在生产创建三端账号，验证正确登录、首次 TOTP、跨 audience 拒绝、9/34/22 单域 RBAC，并准备 root-only 凭证文件读取指令。
 - [!] 10.7 Resend、优盾、LLM 和三交易所 Demo 的真实 secret/商户/模型输入仍需授权人员通过仓库外 secret 渠道提供。
+
+## 11. Client 产品工作台修复与发布
+
+- [x] 11.1 分离公开 `/` 与认证 `/dashboard`，登录和品牌入口统一进入客户交易总览。
+- [x] 11.2 以客户交易 Shell 替换内部控制台 Shell；主导航、二级产品导航和账户菜单继续按 RBAC 过滤。
+- [x] 11.3 `/workspace` 嵌入同一 Shell，移除第二套顶栏、侧栏和登录闪烁。
+- [x] 11.4 商业披露收窄为会员订单写入条件，Paper、行情、通知和账户安全不再进入重定向循环。
+- [-] 11.5 完成真实登录浏览器回归、全量 Gate、`v1.0.0-beta.4` 镜像发布与线上复验。

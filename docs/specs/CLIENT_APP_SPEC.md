@@ -4,17 +4,17 @@
 
 Client 为受邀用户提供登录/设置密码、商业披露确认、试用与会员、AI credits、三张官方 paper 组合、七智能体记录、平台 Demo 证据、研究/回测、只读钱包和通知。保留多语言与 Riverton 深色视觉，不做无关改版。
 
-稳定路由：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements`、`/performance-statements/[id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/wallet`、`/wallet/deposits`、`/notifications`、`/account/security`、`/support`；`/workspace` 是登录、披露和 `client.paper.view` 三重守卫后的策略/Agent 按需入口。普通客户不得看到旧 Admin/Ops/Maint 导航或代码文案。
+稳定路由：`/`、`/login`、`/dashboard`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements`、`/performance-statements/[id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/wallet`、`/wallet/deposits`、`/notifications`、`/account/security`、`/support`；`/workspace` 是登录和 `client.paper.view` 双重守卫后的策略/Agent 按需入口。普通客户不得看到旧 Admin/Ops/Maint 导航或代码文案。
 
-实现状态（2026-08-21）：上述商业 Beta 路由已作为独立 App Router 入口落地，均使用 Client audience 会话和精确权限守卫。`/legal/consent` 允许所有已登录 Client 读取并独立保存当前七正文版本；未确认时页面路由和 Client permission API 同时返回 Gate，身份、权限启动、商业披露、支持与退出仍可用。`/` 是受邀商业首页；`/workspace` 仅按需加载保留的策略、Agent、回测和账户工作区，默认进入真实七阶段记录，不再把旧静态 KPI 营销页或该大型工作区加入商业首屏初始资产。
+实现状态（2026-08-22）：`/` 是公开产品着陆页，`/dashboard` 是认证后的客户交易总览；登录默认进入 `/dashboard`，客户 Shell 内不存在指向 `/` 的产品导航。`/legal/consent` 允许所有已登录 Client 读取并保存当前七正文版本；只有新建会员订单要求当前版本确认，Paper、行情、通知和账户安全不再被全局重定向。`/workspace` 按需加载保留的策略、Agent、回测和账户工作区，并嵌入同一客户 Shell，不再显示第二套顶栏、侧栏或登录页。
 
 ## 2. 身份与商业披露
 
 - 仅邀请注册；邀请和找回链接单次使用、过期失效，不回显 token。
 - 登录失败和找回结果不泄露邮箱是否存在。
-- 首次使用和披露版本升级时必须先阅读产品身份、地区、隐私、条款、风险、Paper 收费和退款/不退款规则七份正文，再保存 document ID/version/hash/time、可信代理提供的请求 IP 与 user-agent 摘要。
+- 创建新会员订单前必须阅读产品身份、地区、隐私、条款、风险、Paper 收费和退款/不退款规则七份正文，再保存 document ID/version/hash/time、可信代理提供的请求 IP 与 user-agent 摘要。
 - `0028_commercial_legal_content.sql` 与 `0030_commercial_disclosure_trial.sql` 提供版本化 locale/正文、maker-checker 发布和用户确认；七份正文任一缺失、长度异常或 SHA-256 不匹配时，计划、试用与订单服务同时失败关闭。
-- 披露未发布或未确认时只允许身份、披露、支持和退出页面；不启动 trial、策略或会员订单。正文由平台 Maintenance 工作台维护，不等待仓库外部团队。
+- 披露未发布或未确认时拒绝创建会员订单，并返回真实缺失原因；不得借此阻断身份、Paper 工作台、行情、通知、钱包只读或账户安全。正文由平台 Maintenance 工作台维护。
 
 ## 3. 会员与 credits
 
