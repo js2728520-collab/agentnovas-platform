@@ -81,6 +81,15 @@
 - [x] 8.2 冻结版本管理 Spec、权限、不可变状态机、API 与数据库隔离合同。
 - [x] 8.3 增加迁移 `0041_release_version_management.sql`、service、API、contracts 与回归测试。
 - [x] 8.4 增加 Maintenance `/releases` 页面、权限导航、敏感操作确认和真实状态呈现。
+
+## 9. 版本化镜像部署
+
+- [x] 9.1 Next 三端启用 audience-bound standalone、commit build ID 和 deployment ID。
+- [x] 9.2 增加 digest 固定、非 root、只读根文件系统的 Client/Operations/Maintenance/Runtime 镜像。
+- [x] 9.3 增加私有 PostgreSQL、secret env、回环端口和显式 Worker/Migrator profile 的 Compose。
+- [x] 9.4 增加 SemVer identity、四镜像 manifest 与 tag-triggered GHCR workflow；不生成 `latest`。
+- [ ] 9.5 `v1.0.0-beta.1` 完成目标主机并行启动、迁移/角色校验、三 Host smoke 与切流。
+- [ ] 9.6 保存 artifact/镜像 digest、staging/production、回滚和首小时监控证据。
 - [x] 8.5 同步 OpenAPI、API Catalog、ADR、Runbook、CHANGELOG、handoff 与发布 Gate。
 - [x] 8.6 执行全量自动 Gate、secret/audit/build/browser/恢复证据并完成独立发布反证审查。
 - [x] 8.7 普通提交并推送目标远端 `main`，确认远端 CI 全绿；不改写历史、不 force push。

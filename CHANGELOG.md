@@ -4,11 +4,15 @@
 
 ## [Unreleased]
 
+## [1.0.0-beta.1] - 2026-08-21
+
 ### Added
 
 - Maintenance `/releases` 版本发布控制面：不可变版本身份、独立验证、staging/production 部署结果与回滚证据。
 - `maint.releases.view/manage/approve` 显式权限和 `0041_release_version_management.sql`。
 - 版本管理 contracts、OpenAPI、API inventory、PostgreSQL 状态机与回归测试。
+- 三端 audience-bound Next.js standalone 镜像、独立 Runtime/Migrator 镜像和私有 PostgreSQL Compose。
+- SemVer release identity、四镜像 manifest、GHCR tag workflow、SBOM/provenance 与无 `latest` 的版本升级路径。
 
 ### Fixed
 
@@ -17,6 +21,7 @@
 - 三端 audience Server Component 在导入应用树前分发登录页，不再加载已认证 session 数据树或预取受保护根路由；未使用字体不再阻塞登录页 LCP。
 - GitHub Actions 升级到 Node 24 runtime 的 checkout、setup-node 与 upload-artifact 官方 major，消除旧 Node 20 action 弃用路径。
 
-## Planned: v1.0.0-beta.1
+### Deployment boundaries
 
-首个受邀商业 Beta tag 只在全部发布 Gate、staging 证据和远端 CI 通过后创建；本文件不代表该版本已经部署。
+- Payment、legacy Research、真实订单和自动资金路径保持硬关闭。
+- Email、Udun 与平台 Demo 只有在目标环境 secret、allowlist/Webhook 和独立 smoke 通过后才启用；镜像发布不等于这些外部通道已启用。

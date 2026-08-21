@@ -1,5 +1,7 @@
 # Riverton Capital 付费 Beta 发布与回滚 Runbook
 
+当前发布方式为 `deploy/container/compose.yml` 的版本化容器；`deploy/systemd/` 与 `deploy/nginx/` 只保留为旧环境迁移参考，新安装不得同时启动两套 Web/Worker。容器发布仍遵守本文件的数据库、角色、证据和外部副作用 Gate。
+
 ## 1. 发布前
 
 - 核对 commit、artifact hash、Node/PostgreSQL 版本、migration checksums 和所有 Gate 证据。
@@ -61,6 +63,30 @@ node scripts/release/postgres-recovery-rehearsal.mjs --execute
 
 发布记录不得包含 token、密钥、环境变量正文、构建日志、Webhook payload 或数据库备份。CI run URL 只允许当前 GitHub Actions 的 HTTPS run；其他证据先归档到受控证据系统，再登记其 SHA-256。
 
+### 1.4 容器构建与制品清单
+
+首个 Beta 为 `v1.0.0-beta.1`。后续按 SemVer 提升版本，禁止覆盖已存在的 tag 或镜像，禁止构建/部署 `latest`：
+
+```bash
+npm run release:identity -- v1.0.0-beta.1
+npm run release:build-images -- v1.0.0-beta.1 --platform=linux/amd64
+```
+
+第二条命令只接受干净工作区，分别构建 `agentnovas-riverton-client`、`operations`、`maintenance` 和 `runtime`，并在被 Git 忽略的 `outputs/releases/` 写入 release manifest。manifest 包含完整 commit、最新 migration、平台、四张镜像 ID 与聚合 `artifactSha256`。三端镜像必须来自同一次提交；不得把工作区临时构建登记为发布制品。
+
+目标服务器没有 Registry 凭证时，使用受控传输交付同一个 Docker archive，并在传输前后校验 SHA-256；有 GHCR 凭证时按 digest 拉取。无论哪种方式，服务器 `docker image inspect` 的版本、revision 和 image ID 必须与 manifest 一致。
+
+Compose 的非敏感部署变量只包含版本、commit、artifact hash、端口和镜像前缀。数据库 URL、数据库口令、MFA/LLM/集成/通知密钥、Resend 与 Udun 凭证分别存放在 `/etc/agentnovas-riverton/*.env`，权限为 `0600`，通过 Compose secret 只读挂载；不得用 `docker inspect` 可见的普通 `environment` 传递密钥。
+
+配置预检必须先执行：
+
+```bash
+RIVERTON_RELEASE_VERSION=1.0.0-beta.1 \
+RIVERTON_COMMIT_SHA=<40位commit> \
+RIVERTON_ARTIFACT_SHA256=<64位manifest摘要> \
+docker compose -f deploy/container/compose.yml config --quiet
+```
+
 ## 2. 部署
 
 1. 在切换制品前先停止任何已运行的 legacy Research Worker，移除旧 enable symlink 并确认进程消失。新 unit 文件不会自动停止已运行的旧进程。
@@ -72,6 +98,17 @@ node scripts/release/postgres-recovery-rehearsal.mjs --execute
 6. 运行三 Host 登录/404/Cookie、安全 header 与关键只读 smoke；Maintenance 对 Research 的有效状态必须为 `disabled`。
 7. 外部副作用开关保持默认 off；Email/Demo 分别经过独立 go-live 记录。
 8. 每个环境完成实际部署和 smoke 后，再由有 `maint.releases.approve` 的人员登记 succeeded/failed 证据。production succeeded 必须已有同版本 staging succeeded；登记成功不是执行成功的替代品。
+
+### 2.1 容器化分阶段发布
+
+1. 为版本建立只读 release 目录，保存 compose、release manifest 和非敏感部署元数据；`current`/`previous` 只指向完整版本目录，不能指向工作区。
+2. 首次仅执行 `docker compose up -d postgres`。Fresh 库按 1.1 先 bootstrap migrator，由 migrator 容器执行全部 checksum migration，再执行 `least-privilege-roles.sql`、设置独立运行角色口令并运行 role policy。生产迁移必须有本次发布的显式变更授权。
+3. 使用 `docker compose up -d client operations maintenance` 并行启动三端，端口只绑定回环地址。依次用正确 Host 请求 `/api/health/live`、`/api/health/ready` 和 `/login`；错误 Host/audience 必须 404。
+4. 未完成 Resend allowlist/Webhook 或平台 Demo 凭证 smoke 时，不启用 `workers` profile。启用时逐个启动 Notification、Demo、Runtime，分别等待真实 heartbeat；进程 `running` 不能替代 `healthy`。
+5. 将反向代理接入 `agentnovas-riverton-edge` 网络，只先增加 `zht`/`xm` 或受控 staging 路由。确认 Cloudflare 到 origin TLS、Host、CSP、Cookie 和登录限流后，再切换根域 Client。不得停止或删除原服务作为“切流”。
+6. 保存切流前后的代理配置摘要、三端 HTTP 证据、容器 image ID、数据库 migration registry、角色校验和 Worker 状态。完成后才更新 `current`，原目标写入 `previous`。
+
+禁止执行 `docker compose down --volumes`、删除 `agentnovas-riverton-postgres`、复用其他项目数据库或让 Web 使用 postgres/migrator 账号。
 
 `0038` 上线前必须确认 `LLM_PROFILE_ENCRYPTION_KEY` 与既有 Profile 密文匹配；不匹配时先在隔离环境执行受控 rekey，禁止用新 Key 直接覆盖。AI 或 Maintenance 幂等记录超过处理时限时只允许进入人工核对终态，不能用同一键再次触发 provider 或外部源；核对 requestId/traceId、provider request ID 与安全审计后使用新键发起明确的新操作。
 
@@ -87,6 +124,7 @@ node scripts/release/postgres-recovery-rehearsal.mjs --execute
 4. 对已提交商业事件使用幂等重放/reversal/补偿，不修改/删除历史。
 5. 目标 5 分钟内恢复应用；记录时间线、commit、requestIds、影响和后续措施。
 6. 目标版本曾在同环境成功部署且回滚 smoke 完成后，在 `/releases` 登记 rollback succeeded；失败尝试登记 failed，不改写既有记录。
+7. 容器回滚使用 previous manifest 中的精确镜像 ID/digest和 compose 文件；只重新创建应用/Worker 容器，不删除 PostgreSQL volume。回滚后再次验证三 Host、数据库角色与 release runtime 元数据。
 
 ## 5. 数据恢复
 

@@ -1,6 +1,6 @@
 {
   "name": "agentnovas-platform",
-  "version": "0.1.0",
+  "version": "1.0.0-beta.1",
   "private": true,
   "engines": {
     "node": ">=22.21.0"
@@ -31,6 +31,8 @@
     "quality:lighthouse": "node scripts/quality/run-lighthouse.mjs",
     "quality:release": "node scripts/quality/verify-release-evidence.mjs",
     "quality:secret-scan": "node scripts/quality/repository-secret-scan.mjs",
+    "release:identity": "node scripts/release/release-identity.mjs",
+    "release:build-images": "node scripts/release/build-container-images.mjs",
     "lint": "eslint app apps db lib packages scripts tests drizzle.config.ts eslint.config.mjs next.config.ts postcss.config.mjs --ignore-pattern 'dist' --ignore-pattern '.next' --ignore-pattern '.next-*' --no-warn-ignored",
     "db:generate": "drizzle-kit generate",
     "postgres:migrate": "node --experimental-strip-types scripts/apply-postgres-migrations.mjs",

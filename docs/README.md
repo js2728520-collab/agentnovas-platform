@@ -54,6 +54,7 @@
 - `adr/0013-product-owned-commercial-disclosures.md`：平台自维护七份商业披露、发布双审和确认 Gate。
 - `adr/0014-immutable-release-version-management.md`：发布身份、独立复核、追加式环境证据与控制面边界。
 - `adr/0015-udun-deposit-only-gateway.md`：优盾充值专用通道、回调证据与双人复核入账边界。
+- `adr/0016-versioned-container-delivery.md`：三端 standalone 镜像、SemVer、secret、数据库和原子切流/回滚边界。
 
 ## 状态标签
 
