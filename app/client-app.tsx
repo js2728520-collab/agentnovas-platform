@@ -1023,11 +1023,8 @@ export default function Home({ canViewMembership = true }: { canViewMembership?:
   return (
     <main className="app-shell client-app-shell" data-app-shell>
       <header className="topbar">
-        <Link className="logo" href="/" aria-label="返回客户工作台">
-          <span>A</span>
-          <b>
-            {platformSettings.system.siteName || "Riverton Capital"}<small>{t.tagline}</small>
-          </b>
+        <Link className="logo" href="/" aria-label="Riverton Capital 首页">
+          <Image className="riverton-brand-logo" src="/riverton-capital-logo.png" width={2193} height={324} sizes="(max-width: 560px) 154px, 220px" alt="Riverton Capital" />
         </Link>
         <div className="top-actions">
           {memberButton && (
@@ -1382,7 +1379,7 @@ function Landing({
       </section>
       <footer>
         <div className="landing-footer-main">
-          <b className="landing-footer-mark">Riverton Capital</b>
+          <b className="landing-footer-mark"><Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="160px" alt="Riverton Capital" /></b>
           <span>{m.footer}</span>
           <div>{m.legal}</div>
         </div>

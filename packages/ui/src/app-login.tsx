@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 import type { AppAudience } from "@/lib/riverton-apps";
@@ -129,7 +130,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
           : mode === "forgot" ? "重置链接仅发送到已登记邮箱。" : "客户注册需要有效邀请码。";
 
   return <main className={`rc-auth rc-auth-${audience}`}>
-    <section className="rc-auth-brand"><Link href="/" prefetch={false}>R</Link><div><small>{audience.toUpperCase()} ACCESS</small><h1>{title}</h1><p>{description}</p></div><ul><li>独立应用会话</li><li>服务端权限校验</li><li>完整操作审计</li></ul></section>
+    <section className="rc-auth-brand"><Link href="/" prefetch={false}>{audience === "client" ? <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="220px" alt="Riverton Capital" priority /> : "R"}</Link><div><small>{audience.toUpperCase()} ACCESS</small><h1>{title}</h1><p>{description}</p></div><ul><li>独立应用会话</li><li>服务端权限校验</li><li>完整操作审计</li></ul></section>
     <form onSubmit={submit} aria-labelledby="rc-login-heading">
       <header><small>RIVERTON CAPITAL</small><h2 id="rc-login-heading">{heading}</h2><p>{helper}</p></header>
       {!mfaFlow && mode === "register" && <><label>手机号<input name="phone" type="tel" autoComplete="tel" required /></label><label>邮箱（可选）<input name="email" type="email" autoComplete="email" /></label><label>邀请码<input name="invitationCode" required autoCapitalize="characters" /></label></>}

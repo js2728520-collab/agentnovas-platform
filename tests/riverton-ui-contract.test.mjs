@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const readBytes = (path) => readFile(new URL(`../${path}`, import.meta.url));
 
 test("root page dispatches one codebase to the three audience applications", async () => {
   const source = await read("app/page.tsx");
@@ -12,6 +14,55 @@ test("root page dispatches one codebase to the three audience applications", asy
   assert.match(source, /CurrentApp/);
   assert.doesNotMatch(source, /^import .*@\/apps\//m);
   assert.match(source, /@\/app\/audience\/current-root/);
+});
+
+test("client root restores the public landing before any authenticated portal guard", async () => {
+  const root = await read("app/audience/client-root.tsx");
+  const landingRoot = await read("app/audience/client-landing-root.tsx");
+  const landing = await read("apps/client/ui/client-public-landing.tsx");
+  assert.match(root, /segments\.length === 0/);
+  assert.match(root, /import\("\.\/client-landing-root"\)/);
+  assert.ok(
+    root.indexOf("segments.length === 0") < root.indexOf('import("./client-portal-root")'),
+    "the public Client root must dispatch before the authenticated portal",
+  );
+  assert.match(landingRoot, /globals-beta\.css/);
+  assert.match(landingRoot, /apps\/client\/ui\/client-public-landing/);
+  assert.match(landing, /export function ClientPublicLanding/);
+  assert.match(landing, /\/login\?next=/);
+  assert.match(landing, /import\("\.\/client-public-landing-locales"\)/);
+  assert.doesNotMatch(landing, /@\/app\/i18n-runtime/);
+  assert.match(landing, /id="landing-main" tabIndex=\{-1\}/);
+  assert.doesNotMatch(landingRoot, /@\/app\/client-app/);
+});
+
+test("client surfaces and metadata use the supplied Riverton Capital brand assets", async () => {
+  const [clientApp, landing, shell, login, metadata, consoleCss, clientCss, logo, icon] = await Promise.all([
+    read("app/client-app.tsx"),
+    read("apps/client/ui/client-public-landing.tsx"),
+    read("packages/ui/src/console-shell.tsx"),
+    read("packages/ui/src/app-login.tsx"),
+    read("lib/riverton-metadata.ts"),
+    read("app/riverton-console.css"),
+    read("app/globals-beta.css"),
+    readBytes("public/riverton-capital-logo.png"),
+    readBytes("public/riverton-capital-icon.png"),
+  ]);
+  assert.equal(createHash("sha256").update(logo).digest("hex"), "cc15a314b6d7e8e3643a9cfcabb3b03a7a7cc8982ac911f16b1cf7022d4098d7");
+  assert.ok(logo.length <= 200 * 1024, "the supplied logo must stay within the client raster budget");
+  assert.ok(icon.length <= 200 * 1024, "the square favicon must stay within the client raster budget");
+  for (const source of [clientApp, landing, shell, login, metadata]) {
+    assert.match(source, /riverton-capital-logo\.png|riverton-capital-icon\.png/);
+  }
+  assert.match(consoleCss, /\.rc-client \.rc-console-brand > img/);
+  assert.match(consoleCss, /\.rc-auth-client \.rc-auth-brand > a img/);
+  assert.match(clientCss, /\.client-app-shell \.topbar \.logo \.riverton-brand-logo/);
+  assert.match(clientCss, /\.client-app-shell \.top-actions>\.top-login\{display:inline-flex!important/);
+  assert.match(clientCss, /\.client-app-shell \.top-actions>\.top-user-guest\{display:none!important/);
+  const { rivertonMetadata } = await import("../lib/riverton-metadata.ts");
+  assert.match(JSON.stringify(rivertonMetadata("client").icons), /riverton-capital-icon\.png/);
+  assert.doesNotMatch(JSON.stringify(rivertonMetadata("operations").icons), /riverton-capital/);
+  assert.doesNotMatch(JSON.stringify(rivertonMetadata("maintenance").icons), /riverton-capital/);
 });
 
 test("stable routes use the same audience dispatcher and reject wrong applications", async () => {

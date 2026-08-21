@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -99,7 +100,12 @@ export function ConsoleShell({
     </header>
     <button className={`rc-console-backdrop ${menuOpen ? "is-open" : ""}`} type="button" tabIndex={-1} aria-label="关闭导航菜单" onClick={() => setMenuOpen(false)} />
     <aside ref={drawerRef} id="rc-console-nav" className={menuOpen ? "is-open" : ""} inert={compactNavigation && !menuOpen ? true : undefined} aria-hidden={compactNavigation && !menuOpen ? true : undefined} role={compactNavigation && menuOpen ? "dialog" : undefined} aria-modal={compactNavigation && menuOpen ? true : undefined} aria-label={`${appName}菜单`}>
-      <Link className="rc-console-brand" href="/"><span>R</span><b>Riverton Capital<small>{appName}</small></b></Link>
+      <Link className="rc-console-brand" href="/" aria-label={`Riverton Capital ${appName}`}>
+        {appKind === "client"
+          ? <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="190px" alt="Riverton Capital" />
+          : <span>R</span>}
+        <b>{appKind === "client" ? null : "Riverton Capital"}<small>{appName}</small></b>
+      </Link>
       <nav aria-label={`${appName}导航`}>
         {items.map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);

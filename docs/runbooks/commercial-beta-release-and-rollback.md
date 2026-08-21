@@ -65,16 +65,23 @@ node scripts/release/postgres-recovery-rehearsal.mjs --execute
 
 ### 1.4 容器构建与制品清单
 
-首个 Beta 为 `v1.0.0-beta.1`。后续按 SemVer 提升版本，禁止覆盖已存在的 tag 或镜像，禁止构建/部署 `latest`：
+首个 Beta 为 `v1.0.0-beta.1`。后续按 SemVer 提升版本，禁止覆盖已存在的 tag 或镜像，禁止构建/部署 `latest`。先验证发布身份：
 
 ```bash
-npm run release:identity -- v1.0.0-beta.1
-npm run release:build-images -- v1.0.0-beta.1 --platform=linux/amd64
+RIVERTON_RELEASE_TAG='vX.Y.Z' # 执行前替换为尚未使用的新 SemVer
+npm run release:identity -- "$RIVERTON_RELEASE_TAG"
 ```
 
-第二条命令只接受干净工作区，分别构建 `agentnovas-riverton-client`、`operations`、`maintenance` 和 `runtime`，并在被 Git 忽略的 `outputs/releases/` 写入 release manifest。manifest 包含完整 commit、最新 migration、平台、四张镜像 ID 与聚合 `artifactSha256`。三端镜像必须来自同一次提交；不得把工作区临时构建登记为发布制品。
+`v1.0.0-beta.2` 部署时发现：`scripts/release/build-container-images.mjs` 尚未向 buildx 传入 `--file deploy/container/Dockerfile`，而仓库根目录没有 `Dockerfile`。在脚本修复并补充合同测试前，`npm run release:build-images` 不是批准的发布入口。不得创建根目录 Dockerfile 掩盖问题，也不得把失败 helper 的输出登记为制品。
 
-目标服务器没有 Registry 凭证时，使用受控传输交付同一个 Docker archive，并在传输前后校验 SHA-256；有 GHCR 凭证时按 digest 拉取。无论哪种方式，服务器 `docker image inspect` 的版本、revision 和 image ID 必须与 manifest 一致。
+批准的构建路径为：
+
+1. 首选推送新的 annotated tag，由 `.github/workflows/container-release.yml` 显式使用 `deploy/container/Dockerfile`，生成四张 GHCR 镜像、SBOM、provenance 和 digest；
+2. 目标服务器没有 Registry 凭证时，只能从精确 tag/commit 的干净 checkout 运行显式 `docker buildx build --file deploy/container/Dockerfile ...`，逐张构建并 inspect，随后按仓库算法生成 manifest；参考 `docs/releases/2026-08-22-v1.0.0-beta.2-deployment.md`，但必须替换全部版本身份。
+
+manifest 包含完整 commit、最新 migration、平台、四张镜像 ID/digest 与聚合 `artifactSha256`。三端镜像必须来自同一次提交；不得把工作区临时构建登记为发布制品。后续修复 helper 后，应恢复单一受测命令并同步删除本临时限制。
+
+目标服务器没有 Registry 凭证时，优先使用受控传输交付同一个 Docker archive，并在传输前后校验 SHA-256；只有 archive 不可用且发布负责人明确批准时，才能使用上一段的精确 tag/commit 本地构建例外。有 GHCR 凭证时按 digest 拉取，凭证只授予读取权限。无论哪种方式，服务器 `docker image inspect` 的版本、revision 和 image ID/digest 必须与该环境最终 manifest 一致。
 
 Compose 的非敏感部署变量只包含版本、commit、artifact hash、端口和镜像前缀。数据库 URL、数据库口令、MFA/LLM/集成/通知密钥、Resend 与 Udun 凭证分别存放在 `/etc/agentnovas-riverton/*.env`，通过 Compose secret 只读挂载；不得用 `docker inspect` 可见的普通 `environment` 传递密钥。使用本机 Docker Compose 的 bind-backed secret 时，secret 根目录保持 `0700 root:root`，Node 容器读取的七个 `*.env` 文件使用 `0440 root:<容器 node 的 gid>`；原始数据库口令、角色口令和独立 Key 文件继续使用 `0600 root:root`。不得为了可读性把 secret 根目录或文件改为 world-readable。
 

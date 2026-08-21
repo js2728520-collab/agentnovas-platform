@@ -1854,3 +1854,60 @@ body:has(.content) .market-terminal-page{
   .strategy-monitor-track,
   .strategy-monitor-pages i{animation:none!important}
 }
+
+/* Client brand source: public/riverton-capital-logo.png. Keep the supplied
+   lockup intact instead of reconstructing it from the retired AgentNovas mark. */
+.client-app-shell .topbar .logo{
+  display:flex!important;
+  width:auto!important;
+  height:72px!important;
+  min-height:72px!important;
+  align-items:center!important;
+  padding:10px 0!important;
+  margin-right:34px!important;
+  transform:none!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+.client-app-shell .topbar .logo .riverton-brand-logo{
+  display:block!important;
+  width:220px!important;
+  height:auto!important;
+  max-height:42px!important;
+  object-fit:contain!important;
+}
+.client-app-shell .landing-footer-mark{
+  display:block!important;
+  width:160px!important;
+  height:auto!important;
+  background:none!important;
+  font-size:0!important;
+}
+.client-app-shell .landing-footer-mark::before{display:none!important;content:none!important}
+.client-app-shell .landing-footer-mark img{display:block!important;width:100%!important;height:auto!important}
+@media(max-width:560px){
+  .client-app-shell .topbar .logo{
+    height:58px!important;
+    min-height:58px!important;
+    padding:8px 0!important;
+    margin-right:8px!important;
+  }
+  .client-app-shell .topbar .logo .riverton-brand-logo{width:154px!important;max-height:32px!important}
+}
+
+.client-app-shell .skip-link{
+  position:fixed;z-index:1000;top:10px;left:10px;padding:10px 14px;
+  border-radius:8px;background:#f4c96b;color:#101820;font-weight:800;
+  transform:translateY(-160%);
+}
+.client-app-shell .skip-link:focus{transform:translateY(0)}
+.client-app-shell .landing-locale-error{color:#ffb4a2;font-size:12px}
+@media(max-width:560px){
+  .client-app-shell .top-actions>.top-login{display:inline-flex!important;align-items:center!important}
+  .client-app-shell .top-actions>.top-user-guest{display:none!important}
+  .client-app-shell .top-actions select{
+    display:block!important;width:50px!important;max-width:50px!important;
+    padding:0 5px!important;font-size:11px!important;
+  }
+  .client-app-shell .top-actions select option{font-size:12px!important}
+}
