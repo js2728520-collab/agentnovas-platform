@@ -242,6 +242,18 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
       ]);
     }
 
+    for (const index of LEGAL_DOCUMENT_TYPES.keys()) {
+      await client.query(`
+        INSERT INTO commercial_legal_acceptances (
+          id,user_id,document_version_id,ip_address,user_agent
+        ) VALUES ($1,$2,$3,'127.0.0.1','AgentNovas Quality E2E')
+      `, [
+        `quality-legal-acceptance-${index + 1}-${schema.slice(-8)}`,
+        identities.client.userId,
+        `quality-legal-${index + 1}-${schema.slice(-10)}`,
+      ]);
+    }
+
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");

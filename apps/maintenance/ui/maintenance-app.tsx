@@ -80,5 +80,5 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "access" ? <AccessCenter appId="maintenance" permissions={permissions} auditOnly={subtype === "audit"} />
     : route === "audit" ? <TechnicalAuditWorkspace />
     : <SystemHealthWorkspace overview />;
-  return <ConsoleShell appName="运维端" appKind="maintenance" navigation={navigation} viewer={session.viewer} access={session.access}>{content}</ConsoleShell>;
+  return <ConsoleShell appName="运维端" appKind="maintenance" statusText="配置密钥不会在浏览器回显" accountLabel="运维账户" navigation={navigation} viewer={session.viewer} access={session.access}>{content}</ConsoleShell>;
 }

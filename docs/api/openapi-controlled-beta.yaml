@@ -92,6 +92,60 @@ paths:
                 $ref: '#/components/schemas/TradingHall'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /api/membership/legal-consent:
+    get:
+      tags: [Membership]
+      summary: 查询当前七份法务正文及本账号确认状态
+      responses:
+        '200':
+          description: 当前有效正文、版本、哈希、配置与确认状态；不返回订单或付款结果
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [requiredLegalDocuments, configurationComplete, consentComplete]
+                properties:
+                  requiredLegalDocuments:
+                    type: array
+                    minItems: 0
+                    maxItems: 7
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/CommercialLegalDocument'
+                        - type: object
+                          required: [acceptedAt]
+                          properties:
+                            acceptedAt: { type: [string, 'null'], format: date-time }
+                  configurationComplete: { type: boolean }
+                  consentComplete: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Membership]
+      summary: 独立保存当前七份法务正文版本确认
+      description: 精确匹配当前七份正文并幂等保存 ID、版本、哈希、时间、可信请求 IP 与 user-agent 摘要；不创建订单、付款或会员权益。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [acceptedDocumentVersionIds]
+              properties:
+                acceptedDocumentVersionIds:
+                  type: array
+                  minItems: 7
+                  maxItems: 7
+                  uniqueItems: true
+                  items: { type: string }
+      responses:
+        '200': { description: 当前版本确认已保存或幂等重放 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { description: 七正文配置未完成，确认失败关闭 }
   /api/membership/plans:
     get:
       tags: [Membership]
@@ -140,9 +194,15 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [planId]
+              required: [planCode, acceptedDocumentVersionIds]
               properties:
-                planId: { type: string, enum: [monthly_v1, quarterly_v1, annual_v1, lifetime_v1] }
+                planCode: { type: string, enum: [monthly_v1, quarterly_v1, annual_v1, lifetime_v1] }
+                acceptedDocumentVersionIds:
+                  type: array
+                  minItems: 7
+                  maxItems: 7
+                  uniqueItems: true
+                  items: { type: string }
       responses:
         '201': { description: 已创建订单和人工付款指引 }
         '409': { $ref: '#/components/responses/Conflict' }

@@ -74,6 +74,12 @@ export type CommercialLegalDocument = {
   effectiveAt: string;
 };
 
+export type CommercialLegalConsentStatus = {
+  requiredLegalDocuments: Array<CommercialLegalDocument & { acceptedAt: string | null }>;
+  configurationComplete: boolean;
+  consentComplete: boolean;
+};
+
 export type MembershipOrder = {
   id: string;
   orderNo: string;

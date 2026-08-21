@@ -102,6 +102,9 @@ function basePolicy(route, method) {
     || (route === "/api/strategy-subscriptions/:id" && method === "PATCH")) {
     return { audiences: ["client"], authentication: "disabled", sameOrigin: mutation };
   }
+  if (route === "/api/membership/legal-consent") {
+    return { audiences: ["client"], authentication: "session", sameOrigin: mutation };
+  }
   if (route === "/api/credits/me" || route === "/api/membership" || route.startsWith("/api/membership/")) {
     return { audiences: ["client"], authentication: "permission", sameOrigin: mutation };
   }
@@ -250,8 +253,12 @@ for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/r
   const parsed = parsedFunctions(source, filename);
   for (const methodNode of parsed.methods) {
     const method = methodNode.name.text;
-    const policy = basePolicy(route, method);
-    const permissionKeys = policy.authentication === "permission" ? permissionKeysFor(methodNode, policy.audiences, constants, parsed.functions) : [];
+    let policy = basePolicy(route, method);
+    const detectedPermissionKeys = permissionKeysFor(methodNode, policy.audiences, constants, parsed.functions);
+    if (policy.authentication === "session" && detectedPermissionKeys.length > 0) {
+      policy = { ...policy, authentication: "permission" };
+    }
+    const permissionKeys = policy.authentication === "permission" ? detectedPermissionKeys : [];
     const sessionAuthHelpers = policy.authentication === "session" ? sessionAuthHelpersFor(methodNode, parsed.functions) : [];
     if (policy.authentication === "permission" && permissionKeys.length === 0) {
       throw new Error(`${method} ${route} is permission-classified but does not call an exact DB authorization helper`);
@@ -260,6 +267,7 @@ for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/r
       throw new Error(`${method} ${route} is session-classified but does not call an enforcing session helper`);
     }
     const sensitive = permissionKeys.some((key) => sensitiveKeys.has(key));
+    const sensitiveLegalMutation = route === "/api/membership/legal-consent" && method === "POST";
     const permissionMfa = Object.fromEntries(permissionKeys.map((key) => [
       key,
       sensitiveKeys.has(key) && !key.startsWith("client.") ? "recent" : "none",
@@ -278,7 +286,7 @@ for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/r
         : policy.authentication === "permission" ? "grant" : "none",
       mfa: mfaRequirements.size > 1 ? "conditional" : [...mfaRequirements][0] ?? "none",
       pii: piiForRoute(route),
-      sensitivity: sensitive || policy.authentication === "webhook" || policy.authentication === "bootstrap" || policy.authentication === "disabled" ? "sensitive" : "normal",
+      sensitivity: sensitive || sensitiveLegalMutation || policy.authentication === "webhook" || policy.authentication === "bootstrap" || policy.authentication === "disabled" ? "sensitive" : "normal",
       requiresSameOrigin: policy.sameOrigin,
     });
   }

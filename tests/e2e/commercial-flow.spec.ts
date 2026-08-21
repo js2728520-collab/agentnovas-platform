@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
+import pg from "pg";
 
 import { totpCode } from "../../lib/mfa";
 import { qualityApplicationPorts, qualityBrowserOrigin } from "../../scripts/quality/quality-policy.mjs";
@@ -16,6 +17,10 @@ type PlansPayload = {
   orderCreationAvailable: boolean;
   requiredLegalDocuments: Array<{ id: string }>;
   plans: Array<{ code: string; priceUsd: string; priceCurrency: string; aiCredits: number }>;
+};
+type LegalConsentPayload = {
+  consentComplete: boolean;
+  requiredLegalDocuments: Array<{ id: string }>;
 };
 type OrderPayload = { order: { id: string; status: string } };
 type EvidencePayload = { evidence: { id: string; referenceMasked: string } };
@@ -66,8 +71,57 @@ test("four-identity membership evidence and maker-checker activation remains sid
   const maker = await scopedContext(runtime.baseUrls.operations);
   const checker = await scopedContext(runtime.baseUrls.operations);
   const contexts: APIRequestContext[] = [client, maker, checker];
+  const fixtureUrl = new URL(process.env.TEST_DATABASE_URL ?? "");
+  expect(fixtureUrl.hostname).toBe("127.0.0.1");
+  expect(fixtureUrl.searchParams.get("options")).toBe(`-csearch_path=${runtime.schema}`);
+  const fixturePool = new pg.Pool({ connectionString: fixtureUrl.toString(), max: 1 });
   const runId = randomUUID();
   try {
+    await fixturePool.query("DELETE FROM commercial_legal_acceptances WHERE user_id=$1", [runtime.identities.client.userId]);
+    const blockedPlans = await expectJson<ErrorPayload>(await client.get("/api/membership/plans", {
+      headers: officialRequestHeaders("client", runtime.identities.client),
+    }), 403);
+    expect(blockedPlans.error.code).toBe("LEGAL_CONSENT_REQUIRED");
+
+    const legalPayload = await expectJson<LegalConsentPayload>(await client.get("/api/membership/legal-consent", {
+      headers: officialRequestHeaders("client", runtime.identities.client),
+    }), 200);
+    expect(legalPayload.consentComplete).toBe(false);
+    expect(legalPayload.requiredLegalDocuments).toHaveLength(7);
+
+    const clientOrigin = qualityBrowserOrigin("client", qualityApplicationPorts(process.env)).baseURL;
+    const clientCookie = {
+      value: runtime.identities.client.token,
+      domain: runtime.identities.client.domain,
+      path: "/",
+      secure: true,
+      httpOnly: true,
+      sameSite: "Strict" as const,
+    };
+    await page.context().addCookies([
+      { ...clientCookie, name: runtime.identities.client.cookieName },
+      { ...clientCookie, name: "an_session" },
+    ]);
+    await page.goto(`${clientOrigin}/workspace`, { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(`${clientOrigin}/legal/consent?next=%2Fworkspace`);
+    await expect(page.getByRole("heading", { name: "法务正文与确认边界" })).toBeVisible();
+    await expect(page.locator("article")).toHaveCount(7);
+    const confirmButton = page.getByRole("button", { name: "保存当前版本确认" });
+    await expect(confirmButton).toBeDisabled();
+    await page.getByRole("checkbox").check();
+    await confirmButton.click();
+    await expect(page.getByText("当前版本确认已完成")).toBeVisible();
+    await expect(page.getByText(/本次操作没有创建订单、付款或激活会员/)).toBeVisible();
+    await Promise.all([
+      page.waitForURL(`${clientOrigin}/workspace`),
+      page.getByRole("link", { name: "继续访问原页面" }).click(),
+    ]);
+
+    const confirmedLegal = await expectJson<LegalConsentPayload>(await client.get("/api/membership/legal-consent", {
+      headers: officialRequestHeaders("client", runtime.identities.client),
+    }), 200);
+    expect(confirmedLegal.consentComplete).toBe(true);
+
     const plansPayload = await expectJson<PlansPayload>(await client.get("/api/membership/plans", {
       headers: officialRequestHeaders("client", runtime.identities.client),
     }), 200);
@@ -175,5 +229,6 @@ test("four-identity membership evidence and maker-checker activation remains sid
     await expect(page.getByRole("heading", { name: "运营概览" })).toBeVisible();
   } finally {
     await Promise.all(contexts.map((context) => context.dispose()));
+    await fixturePool.end();
   }
 });

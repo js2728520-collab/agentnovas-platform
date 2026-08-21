@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const pool=await getPostgresPool();
     const [plans,legal]=await Promise.all([
       pool.query(`SELECT plan_code,version,price_amount::text,price_currency,duration_days,ai_credit_grant::text,performance_fee_bps,status
-        FROM commercial_plan_versions WHERE status='active' AND effective_at<=now() ORDER BY price_amount`),
+        FROM commercial_plan_versions WHERE status='active' AND effective_at<=now() ORDER BY commercial_plan_versions.price_amount`),
       pool.query(`SELECT id,document_type,version,content_sha256,content_locale,content_markdown,effective_at FROM commercial_legal_document_versions
         WHERE status='active' AND effective_at<=now() AND approved_at IS NOT NULL ORDER BY document_type`),
     ]);

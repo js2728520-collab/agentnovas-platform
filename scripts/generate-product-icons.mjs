@@ -67,8 +67,9 @@ const stockIcons = {
 };
 await Promise.all(Object.entries(stockIcons).map(([symbol, svg]) => writeFile(path.join(outputRoot, "stocks", `${symbol}.svg`), svg, "utf8")));
 
+const generatedCryptoCount = (await readdir(path.join(outputRoot, "crypto"))).filter(file => file.endsWith(".svg")).length;
 const manifest = {
-  crypto: cryptoFiles.length + 1,
+  crypto: generatedCryptoCount,
   forex: currencies.length * (currencies.length - 1),
   metals: Object.keys(metals).length,
   stocks: Object.keys(stockIcons).length,

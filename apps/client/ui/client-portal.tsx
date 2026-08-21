@@ -3,9 +3,11 @@
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
 
+import type { CommercialLegalConsentStatus } from "@/packages/contracts/src/commercial-beta";
 import { AppLogin } from "@/packages/ui/src/app-login";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
+import { useApiData } from "@/packages/ui/src/use-api-data";
 import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 
 import { ClientPortalShell } from "./client-portal-shell";
@@ -14,6 +16,7 @@ import { ClientHomeWorkspace } from "./client-home-workspace";
 const workspaceLoading = () => <LoadingState label="正在加载客户端模块…" />;
 const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module) => module.CreditWorkspace), { loading: workspaceLoading });
 const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((module) => module.DepositWorkspace), { loading: workspaceLoading });
+const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience), { loading: workspaceLoading });
 const MembershipExperience = dynamic(() => import("./membership-experience"), { loading: workspaceLoading });
 const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace), { loading: workspaceLoading });
 const TradingExperience = dynamic(() => import("./trading-experience"), { loading: workspaceLoading });
@@ -22,15 +25,34 @@ const WalletWorkspace = dynamic(() => import("./wallet-workspace").then((module)
 export default function ClientPortal({ segments, loginMode }: { segments: string[]; loginMode?: "login" | "register" | "forgot" }) {
   const session = useAppSession("client");
   const route = segments[0];
+  const isLegalRoute = route === "legal" && segments[1] === "consent";
+  const shouldCheckLegalConsent = session.status === "authenticated" && route !== "login" && !isLegalRoute;
+  const legalConsentGate = useApiData<CommercialLegalConsentStatus>(
+    shouldCheckLegalConsent ? "/api/membership/legal-consent" : null,
+    "法务确认状态读取失败，业务入口保持关闭。",
+  );
   useEffect(() => {
     if (route !== "login" && session.status === "anonymous") {
       const next = `${window.location.pathname}${window.location.search}`;
       window.location.replace(`/login?next=${encodeURIComponent(next)}`);
     }
   }, [route, session.status]);
+  useEffect(() => {
+    if (!shouldCheckLegalConsent || !legalConsentGate.data || legalConsentGate.data.consentComplete) return;
+    const next = `${window.location.pathname}${window.location.search}`;
+    window.location.replace(`/legal/consent?next=${encodeURIComponent(next)}`);
+  }, [legalConsentGate.data, shouldCheckLegalConsent]);
   if (route === "login") return <AppLogin audience="client" title="Riverton Capital" description="AI 策略研发、回测、模拟盘和会员资产中心。" allowRegistration initialMode={loginMode} />;
   if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证客户端会话…" />;
   if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
+  if (isLegalRoute) {
+    return <ClientPortalShell viewer={session.viewer} access={session.access}>
+      <LegalConsentExperience />
+    </ClientPortalShell>;
+  }
+  if (shouldCheckLegalConsent && legalConsentGate.loading && !legalConsentGate.data) return <LoadingState label="正在核对当前法务版本…" />;
+  if (shouldCheckLegalConsent && legalConsentGate.error && !legalConsentGate.data) return <ErrorState message={legalConsentGate.error} retry={legalConsentGate.refresh} />;
+  if (shouldCheckLegalConsent && !legalConsentGate.data?.consentComplete) return <LoadingState label="正在进入法务确认…" />;
   if (!route) return <ClientHomeWorkspace viewer={session.viewer} access={session.access} />;
   if (route === "notifications") return <NotificationWorkspace viewer={session.viewer} access={session.access} />;
   if (route === "membership") {

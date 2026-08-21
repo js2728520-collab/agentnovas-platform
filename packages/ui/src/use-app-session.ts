@@ -36,6 +36,10 @@ export function useAppSession(expectedAudience: AppAudience) {
       }
       const accessResponse = await fetch("/api/access/me/effective", { cache: "no-store", signal: controller.signal });
       if (controller.signal.aborted) return;
+      if (accessResponse.status === 401) {
+        setState({ status: "anonymous", viewer: null, access: null, error: null });
+        return;
+      }
       if (!accessResponse.ok) {
         setState({ status: "error", viewer: null, access: null, error: accessResponse.status === 403 ? "当前账户无权访问此应用" : "权限信息读取失败" });
         return;

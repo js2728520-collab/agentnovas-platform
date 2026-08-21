@@ -113,6 +113,10 @@ test("shared console navigation is hydration-safe and keyboard-contained", async
   assert.match(shell, /aria-label="面包屑"/);
   assert.match(shell, /aria-current="page"/);
   assert.match(shell, /currentItem/);
+  assert.match(shell, /matchMedia\("\(max-width: 900px\)"\)/);
+  assert.match(shell, /inert=/);
+  assert.match(shell, /document\.body\.style\.overflow/);
+  assert.doesNotMatch(shell, /运营数据按权限展示|配置密钥不会在浏览器回显|兼容角色/);
   assert.doesNotMatch(shell, /typeof window === "undefined" \? "\/"/);
 });
 
@@ -125,6 +129,7 @@ test("shared request hooks cancel obsolete reads instead of committing stale dat
     assert.match(source, /abort\(\)/);
   }
   assert.match(dataHook, /requestSequence/);
+  assert.match(sessionHook, /accessResponse\.status === 401[\s\S]*status: "anonymous"/);
 });
 
 test("app router owns audience-neutral loading, error and not-found states", async () => {
@@ -166,6 +171,38 @@ test("client exposes stable membership, credits, paper, and trading-hall workspa
   assert.match(navigation, /href: "\/membership"/);
   assert.match(navigation, /href: "\/paper"/);
   assert.match(navigation, /href: "\/trading-hall"/);
+});
+
+test("legacy client workspace enforces the client session and paper permission before loading", async () => {
+  const loader = await read("apps/client/ui/client-workspace-loader.tsx");
+  const app = await read("app/client-app.tsx");
+  assert.match(loader, /useAppSession\("client"\)/);
+  assert.match(loader, /client\.paper\.view/);
+  assert.match(loader, /\/api\/membership\/legal-consent/);
+  assert.match(loader, /consentComplete/);
+  assert.match(loader, /\/login\?next=/);
+  assert.match(loader, /AccessDenied/);
+  assert.match(app, /canViewMembership/);
+  assert.match(app, /p !== "membership" \|\| canViewMembership/);
+});
+
+test("client exposes standalone legal consent and gates every business route on the saved current version", async () => {
+  const routeContract = await read("app/riverton-route-contract.ts");
+  const portal = await read("apps/client/ui/client-portal.tsx");
+  const navigation = await read("apps/client/ui/client-portal-shell.tsx");
+  const legal = await read("apps/client/ui/legal-consent-experience.tsx");
+  assert.match(routeContract, /root === "legal"[\s\S]*segments\[1\] === "consent"/);
+  assert.match(portal, /route === "legal"[\s\S]*segments\[1\] === "consent"[\s\S]*LegalConsentExperience/);
+  assert.match(navigation, /href: "\/legal\/consent"/);
+  assert.match(legal, /\/api\/membership\/legal-consent/);
+  assert.match(legal, /法务正文与确认边界/);
+  assert.match(legal, /确认会独立保存/);
+  assert.match(legal, /acceptedDocumentVersionIds/);
+  assert.match(legal, /idempotency-key/);
+  assert.match(portal, /legalConsentGate/);
+  assert.match(portal, /consentComplete/);
+  assert.match(portal, /\/legal\/consent\?next=/);
+  assert.doesNotMatch(navigation, /href: "\/legal\/consent"[^\n]*requiredPermissions/);
 });
 
 test("client workspaces bind to real wallet and notifications while deposits remain Beta closed", async () => {

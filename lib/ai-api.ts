@@ -1,4 +1,7 @@
 import { currentUser, type CurrentUser } from "@/lib/session";
+import { requireCommercialLegalConsentGate } from "@/lib/commercial-legal-consent-gate";
+import { getPostgresPool } from "@/lib/postgres";
+import { ResearchApiError } from "@/lib/research-errors";
 
 export class AiApiError extends Error {
   readonly code: string;
@@ -18,6 +21,12 @@ export async function requireAiCustomer(request: Request): Promise<CurrentUser> 
   const user = await currentUser(request);
   if (!user) throw new AiApiError("AUTH_REQUIRED", "请先登录", 401);
   if (user.role !== "customer") throw new AiApiError("FORBIDDEN", "无权使用客户 AI 助手", 403);
+  try {
+    await requireCommercialLegalConsentGate(await getPostgresPool(), user.id);
+  } catch (error) {
+    if (error instanceof ResearchApiError) throw new AiApiError(error.code, error.message, error.status);
+    throw error;
+  }
   return user;
 }
 

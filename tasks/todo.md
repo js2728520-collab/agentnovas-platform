@@ -20,7 +20,7 @@
 - [x] TOTP/recovery/recent MFA 与内部 session TTL；首次绑定、8 枚恢复码和登录跳转已进入真实浏览器 Gate。
 - [x] CLI-only bootstrap、一次性 set-password；后端不再返回或保存明文临时密码。
 - [x] 显式 assignment、revoke tombstone、organization-set/team/direct-report scope。
-- [x] 203 个 route method inventory 零遗漏；核心 audience/scope PostgreSQL 反证通过。
+- [x] 205 个 route method inventory 零遗漏；核心 audience/scope PostgreSQL 反证通过。
 
 ## C. Commercial（Wave 1）
 
@@ -44,11 +44,12 @@
 ## E. Client（Wave 2）
 
 - [x] `/`、`/login`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、钱包、充值说明和通知均为稳定路由；`/workspace` 按需加载保留的策略/Agent/回测工作区。
-- [x] 四计划、会员订单、credits 安全视图与可读七正文 Gate；真实法务正文仍为外部 Gate。
+- [x] 四计划、会员订单、credits 安全视图与可读七正文 Gate；当前版本确认独立落库且页面/API 双层失败关闭，真实法务正文仍为外部 Gate。
 - [x] 三 paper 组合、服务端交易历史和七阶段已接；Client 暂不伪造平台 Demo 回执，公开回执 API 仍待产品决定。
 - [x] 钱包只读；充值 Route 在 Proxy 禁用且页面无创建；假地址/二维码/倒计时/监听已移除。
 - [x] Telegram/WhatsApp `not_integrated`；channels Route 在 Proxy 禁用，无演示验证码。
-- [x] 320/768/1024/1440 浏览器验证通过；通知对比度、Maintenance Worker 卡片溢出、键盘入口、axe 与 console/network 均纳入可重复 Gate。
+- [x] 320/768/1024/1440 的 40 组 Client 路由矩阵通过；首页、法务版本确认、会员人工申请与通知成功/失败回执已走通，移动抽屉焦点、可滚动区、axe 与 console/network 均为零阻断。
+- [x] Client 法务 Gate 已下沉到 permission、AI、Research 与统一 `requireUser` 会话边界；身份资料/改密/权限启动/法务确认进入显式豁免清单，直接 API 绕过反证为 `403 LEGAL_CONSENT_REQUIRED`。
 
 ## F. Operations / Maintenance（Wave 2）
 
@@ -60,8 +61,8 @@
 
 ## G. 质量、部署与 Gate
 
-- [x] Wave 1/2 独立反证审查通过；当前集成树 519/519 测试、203 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
-- [x] Playwright 四身份 + 一次性 PG schema + axe + 320/768/1024/1440 + console/network zero；8/8 场景通过且临时 schema/凭证已清理。
+- [x] Wave 1/2 独立反证审查通过；当前集成树测试、205 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
+- [x] Playwright 四身份 + 一次性 PG schema + axe + 320/768/1024/1440 + console/network zero；12/12 场景通过且临时 schema/凭证已清理。
 - [x] Client/Ops/Maint bundle 隔离；MFA/硬 404 收口后的重建证据为 Client 185,320/8,012 bytes、Operations 202,099/8,012 bytes、Maintenance 196,004/8,012 bytes，三端均低于 200/50KB JS/CSS gzip 预算，首屏图不超过 200KB。
 - [-] CSP nonce、security headers和生产依赖 high/critical=0 已验证；最终 secret scan 与开发工具链例外退出仍待交付前复核。
 - [-] 三端 production build、Host/audience smoke、migration fresh/N-1/rerun 已通过；并发部署与备份恢复演练仍待 staging。

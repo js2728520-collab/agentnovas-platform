@@ -6,13 +6,13 @@ Client 为受邀用户提供登录/设置密码、法务同意、试用与会员
 
 稳定路由：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/wallet`、`/wallet/deposits`、`/notifications`。普通客户不得看到旧 Admin/Ops/Maint 导航或代码文案。
 
-实现状态（2026-08-21）：上述商业 Beta 路由已作为独立 App Router 入口落地，均使用 Client audience 会话和精确权限守卫。`/` 是受邀商业首页；`/workspace` 仅按需加载保留的策略、Agent、回测和账户工作区，不再把该大型工作区加入商业首屏初始资产。
+实现状态（2026-08-21）：上述商业 Beta 路由已作为独立 App Router 入口落地，均使用 Client audience 会话和精确权限守卫。`/legal/consent` 允许所有已登录 Client 读取并独立保存当前七正文版本；未确认时页面路由和 Client permission API 同时返回 Gate，身份、权限启动、法务与退出仍可用。`/` 是受邀商业首页；`/workspace` 仅按需加载保留的策略、Agent、回测和账户工作区，不再把该大型工作区加入商业首屏初始资产。
 
 ## 2. 身份与法务
 
 - 仅邀请注册；邀请和找回链接单次使用、过期失效，不回显 token。
 - 登录失败和找回结果不泄露邮箱是否存在。
-- 首次使用和法务版本升级时必须先阅读服务主体、地区、隐私、条款、风险披露、模拟收益分成意见和退款规则七份正文，再保存 document ID/version/hash/time/IP 摘要。
+- 首次使用和法务版本升级时必须先阅读服务主体、地区、隐私、条款、风险披露、模拟收益分成意见和退款规则七份正文，再保存 document ID/version/hash/time、可信代理提供的请求 IP 与 user-agent 摘要；该处理范围必须写入正式隐私正文。
 - `0028_commercial_legal_content.sql` 提供版本化 locale/正文存储；七份正文任一缺失、长度异常或 SHA-256 不匹配时，计划 API 与订单服务同时失败关闭。仓库不提供占位法务文本，正式正文仍由法务团队交付。
 - 法务未完成时只允许身份、法务和退出页面，不启动策略或创建会员订单。
 
