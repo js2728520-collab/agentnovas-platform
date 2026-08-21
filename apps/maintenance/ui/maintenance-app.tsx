@@ -20,6 +20,7 @@ const PlatformSettingsWorkspace = dynamic(() => import("./platform-settings-work
 const CommercialDisclosuresWorkspace = dynamic(() => import("./commercial-disclosures-workspace").then((module) => module.CommercialDisclosuresWorkspace), { loading: workspaceLoading });
 const SystemHealthWorkspace = dynamic(() => import("./system-health-workspace").then((module) => module.SystemHealthWorkspace), { loading: workspaceLoading });
 const TechnicalAuditWorkspace = dynamic(() => import("./technical-audit-workspace").then((module) => module.TechnicalAuditWorkspace), { loading: workspaceLoading });
+const ReleaseManagementWorkspace = dynamic(() => import("./release-management-workspace").then((module) => module.ReleaseManagementWorkspace), { loading: workspaceLoading });
 const SourceIntegrationsWorkspace = dynamic(() => import("./source-integrations-workspace").then((module) => module.SourceIntegrationsWorkspace), { loading: workspaceLoading });
 const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter), { loading: workspaceLoading });
 const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity), { loading: workspaceLoading });
@@ -36,6 +37,7 @@ const navigation: ConsoleNavigationItem[] = [
   { href: "/safety", label: "紧急暂停", icon: "停", requiredPermissions: ["maint.emergency_pause.execute"] },
   { href: "/settings", label: "平台与客服", icon: "设", requiredPermissions: ["maint.feature_flags.manage"] },
   { href: "/settings/disclosures", label: "商业披露", icon: "约", requiredPermissions: ["maint.commercial_disclosures.view"] },
+  { href: "/releases", label: "版本发布", icon: "版", requiredPermissions: ["maint.releases.view"] },
   { href: "/access", label: "角色权限", icon: "权", requiredPermissions: ["maint.roles.manage", "maint.roles.approve_sensitive"] },
   { href: "/access/audit", label: "授权审计", icon: "迹", requiredPermissions: ["maint.audit.view", "maint.roles.manage"] },
   { href: "/audit", label: "技术审计", icon: "审", requiredPermissions: ["maint.audit.view"] },
@@ -66,6 +68,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "safety" ? ["maint.emergency_pause.execute"]
     : route === "settings" && subtype === "disclosures" ? ["maint.commercial_disclosures.view"]
     : route === "settings" ? ["maint.feature_flags.manage"]
+    : route === "releases" ? ["maint.releases.view"]
     : route === "access" && subtype === "audit" ? ["maint.audit.view", "maint.roles.manage"]
     : route === "audit" ? ["maint.audit.view"]
     : route === "access" ? ["maint.roles.manage", "maint.roles.approve_sensitive"] : undefined;
@@ -91,6 +94,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "safety" ? <EmergencyControlWorkspace />
     : route === "settings" && subtype === "disclosures" ? <CommercialDisclosuresWorkspace currentUserId={session.viewer.id} canSubmit={Boolean(permissions["maint.commercial_disclosures.submit"])} canApprove={Boolean(permissions["maint.commercial_disclosures.approve"])} />
     : route === "settings" ? <PlatformSettingsWorkspace />
+    : route === "releases" ? <ReleaseManagementWorkspace currentUserId={session.viewer.id} canManage={Boolean(permissions["maint.releases.manage"])} canApprove={Boolean(permissions["maint.releases.approve"])} />
     : route === "access" ? <AccessCenter appId="maintenance" permissions={permissions} auditOnly={subtype === "audit"} />
     : route === "audit" ? <TechnicalAuditWorkspace />
     : <SystemHealthWorkspace overview />;

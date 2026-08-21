@@ -60,9 +60,9 @@
 
 ## 6. 质量、恢复与发布
 
-- [x] 6.1 新增切片的 unit/contract/PostgreSQL/security/rollback 测试；229 个 method handler inventory 零遗漏。
+- [x] 6.1 新增切片的 unit/contract/PostgreSQL/security/rollback 测试；233 个 method handler inventory 零遗漏。
 - [x] 6.2 CI quality-release job：三端 build、Playwright/axe、bundle/Lighthouse、audit、secret scan。
-- [x] 6.3 migration concurrent、独立 DB roles、41 迁移/135 表备份恢复和应用回滚本地隔离演练；恢复前后 registry checksum、表集合和逐表行数一致，临时数据库已清理。
+- [x] 6.3 migration concurrent、独立 DB roles、42 迁移/138 表备份恢复和应用回滚本地隔离演练；恢复前后 registry checksum、表集合和逐表行数一致，临时数据库已清理。
 - [x] 6.4 四身份 12 场景真实浏览器覆盖商业双审、三端稳定路由、权限失败、响应式、axe、console/network 与焦点入口。
 - [x] 6.5 PRD/Spec/ADR/能力矩阵/API/OpenAPI/Gate/Runbook/handoff/发布证据同步。
 - [x] 6.6 全量自动 Gate、代码质量审查、独立反证审查、production dependency high/critical=0；开发工具链例外见质量证据，截止首批付费邀请前。
@@ -73,4 +73,14 @@
 
 - [x] 7.1 检查 status/branch/remotes/SSH 与 `.env`/secret/password/private key/dump/log/fixture；`origin`/目标 SSH 账号正确，`github-old` 保留，仓库 secret scan 零发现。
 - [x] 7.2 已创建普通提交且未改写历史；三端在 3100/3101/3102 运行，一次性验收账号仅保存在仓库外权限 0600 的临时文件。
-- [ ] 7.3 展示最终 push 命令并等待确认；只推 `codex/three-app-riverton-split`。
+- [x] 7.3 上一轮完整代码与文档已推送；目标远端 `main` 与本地 `4fea508` 对齐。
+
+## 8. 最终收口与版本管理
+
+- [x] 8.1 修复远端 built runtime smoke 的 audience 随机端口映射，恢复 CI quality-release 执行。
+- [x] 8.2 冻结版本管理 Spec、权限、不可变状态机、API 与数据库隔离合同。
+- [x] 8.3 增加迁移 `0041_release_version_management.sql`、service、API、contracts 与回归测试。
+- [x] 8.4 增加 Maintenance `/releases` 页面、权限导航、敏感操作确认和真实状态呈现。
+- [x] 8.5 同步 OpenAPI、API Catalog、ADR、Runbook、CHANGELOG、handoff 与发布 Gate。
+- [x] 8.6 执行全量自动 Gate、secret/audit/build/browser/恢复证据并完成独立发布反证审查。
+- [x] 8.7 普通提交并推送目标远端 `main`，确认远端 CI 全绿；不改写历史、不 force push。

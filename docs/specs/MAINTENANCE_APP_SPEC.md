@@ -4,7 +4,7 @@
 
 Maintenance 管理模型 Profile/Agent 绑定、Email、支付禁用态、平台 Demo 账户、Worker 健康、紧急暂停、RBAC 和技术审计，不处理客户归属、会员付款或 paper 分成业务决定。
 
-核心路由：`/models`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/access`、`/access/audit`、`/audit`。
+核心路由：`/models`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/releases`、`/access`、`/access/audit`、`/audit`。
 
 ## 2. 模型与 Agent
 
@@ -40,7 +40,7 @@ Database、Research、Paper Runtime、Demo Execution、Notification 和 Payment 
 - Operations/Maintenance 显式 assignment，不回退 legacy；Access Center 只读取 Maintenance 数据。
 - 紧急暂停按 scope/provider/card 生效，要求原因；解除不自动恢复策略。
 - 系统审计包含登录/MFA、配置版本、Worker、provider 测试、kill switch、模型和授权事件；日志不含 secret/完整 PII/token。
-- `/audit` 聚合 Demo、模型、集成、商业设置、安全停控和身份/MFA allowlist 事件，支持 domain/action/status/cursor；失败检查由安全状态/错误码投影为 failed，不得显示成功；返回 actor/subject/reason/status/error/requestId/traceId/time，不读取 response payload、幂等键、hash、订单 ID 或密文。
+- `/audit` 聚合 Demo、模型、集成、商业设置、版本发布、安全停控和身份/MFA allowlist 事件，支持 domain/action/status/cursor；失败检查由安全状态/错误码投影为 failed，不得显示成功；返回 actor/subject/reason/status/error/requestId/traceId/time，不读取 response payload、幂等键、hash、订单 ID 或密文。
 - 授权数据仍由 audience 隔离的 `/access/audit` 提供；Worker 队列和 DB 状态属于 `/health` 实时诊断，不伪造成已发生的审计事件。
 - 真实订单、支付、退款和生产基础设施没有 UI 或 API 可达路径。
 
@@ -50,3 +50,11 @@ Database、Research、Paper Runtime、Demo Execution、Notification 和 Payment 
 - 密钥、完整 endpoint、webhook payload 和临时 token 在网络响应/页面/日志均为零。
 - Demo 三 provider 的 fixture、未配置、失败和成功状态准确；paper 不受影响。
 - Email 未完全就绪显示 configured_not_sent；Payment 一直 disabled；不会生成假成功。
+
+## 8. 版本发布
+
+- `/releases` 展示安全 runtime 身份、不可变候选版本、独立验证、staging/production current 和部署/回滚历史。
+- `maint.releases.view/manage/approve` 分离读取、登记与复核；创建者不能复核自己的版本。
+- production 成功记录要求同版本 staging 成功；failed 不切换 current，rollback 只能指向同环境历史成功版本。
+- 页面只记录 CI/CD 或值班人员已执行操作的证据，不提供 SSH、迁移、切流、Git tag 或自动回滚按钮。
+- Client/Operations 不含该路由、权限、菜单或数据库读路径；密钥、日志正文和访问令牌不进入记录。

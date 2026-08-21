@@ -26,6 +26,7 @@
 - `specs/CLIENT_APP_SPEC.md`：客户应用与七智能体交易大厅规格。
 - `specs/OPERATIONS_APP_SPEC.md`：运营业务域、审批、财务与策略治理规格。
 - `specs/MAINTENANCE_APP_SPEC.md`：技术配置、模型、Worker、集成、安全与审计规格。
+- `specs/RELEASE_VERSION_MANAGEMENT_SPEC.md`：SemVer、不可变验证/部署证据、环境 current 与回滚状态机。
 - `architecture/CAPABILITY_MIGRATION_MATRIX.md`：旧运营后台能力去向、保留/重构/下线决定。
 - `review/SYSTEM_ASSESSMENT_2026-08-20.md`：基于当前代码的系统评估和风险分级。
 - `api/API_CATALOG.md`：接口目录、audience、鉴权与迁移状态。
@@ -48,6 +49,7 @@
 - `adr/0011-central-api-policy-and-explicit-access.md`：机器可读 API Policy、显式授权和 scope。
 - `adr/0012-postgres-migrations-ledger-and-worker-evidence.md`：迁移、账本与 Worker 运行证据。
 - `adr/0013-product-owned-commercial-disclosures.md`：平台自维护七份商业披露、发布双审和确认 Gate。
+- `adr/0014-immutable-release-version-management.md`：发布身份、独立复核、追加式环境证据与控制面边界。
 
 ## 状态标签
 

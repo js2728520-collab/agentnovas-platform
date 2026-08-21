@@ -63,6 +63,14 @@ test.before(async () => {
       '{"status":"failed","errorCode":"HTTP_503","latencyMs":12,"reason":"provider readiness check"}',
       'req-integration-001','trace-integration-001','HTTP_503','2026-08-21T02:00:00Z'
     );
+    INSERT INTO audit_logs(
+      id,actor_user_id,action,subject_type,subject_id,after_json,
+      request_id,trace_id,error_code,created_at
+    ) VALUES (
+      'audit-release','maint-2','release.deploy.succeeded','release_deployment','deployment-1',
+      '{"releaseVersionId":"release-1","environment":"staging","reason":"staging smoke verified","evidenceSha256":"${"b".repeat(64)}"}',
+      'req-release-001',NULL,NULL,'2026-08-21T03:00:00Z'
+    );
   `);
 });
 
@@ -102,4 +110,13 @@ test("failed integration checks stay failed and expose only their safe reason", 
     createdAt: "2026-08-21T02:00:00.000Z", completedAt: "2026-08-21T02:00:00.000Z",
   }]);
   assert.doesNotMatch(JSON.stringify(rows), /latencyMs/);
+});
+
+test("release evidence appears in its own safe technical audit domain", async () => {
+  const rows = await loadMaintenanceTechnicalAudit(pool, { limit: 10, cursor: null, domain: "releases", status: "succeeded" });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].domain, "releases");
+  assert.equal(rows[0].action, "release.deploy.succeeded");
+  assert.equal(rows[0].reason, "staging smoke verified");
+  assert.doesNotMatch(JSON.stringify(rows), /evidenceSha256|bbbbbbbb/);
 });

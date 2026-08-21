@@ -124,6 +124,9 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 - `0038_client_ai_runtime_credits.sql`
 - `0039_maintenance_idempotency.sql`
 - `0040_client_identity_rls.sql`
+- `0041_release_version_management.sql`
+
+`0041` 增加 Maintenance-only 的不可变版本、验证与部署事实。版本状态和环境 current 由追加事实投影；production 要求同版本 staging 成功，失败记录不改变 current，三表禁止更新/删除。
 
 数据库角色至少拆分为 migrator、client_web、client_auth、ops_web、maint_web、notification_worker、runtime_worker、demo_execution_worker；legacy research 和 Payment Worker 不获得 Beta 业务写权限。
 

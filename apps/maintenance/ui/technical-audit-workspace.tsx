@@ -57,12 +57,12 @@ export function TechnicalAuditWorkspace() {
     <PageHeading
       eyebrow="TECHNICAL AUDIT"
       title="技术审计"
-      description="统一展示模型、集成、设置、安全、MFA 与 Demo 控制的安全投影；不会返回密钥、请求载荷、幂等键或 provider 订单标识。"
+      description="统一展示模型、集成、设置、版本发布、安全、MFA 与 Demo 控制的安全投影；不会返回密钥、请求载荷、幂等键或 provider 订单标识。"
       actions={<button className="rc-button" type="button" onClick={() => void resource.refresh()}>刷新</button>}
     />
     <section className="rc-panel" aria-label="技术审计筛选">
       <div className="rc-filter-grid">
-        <label>技术域<select value={domain} onChange={(event) => { setDomain(event.target.value); setCursor(""); }}><option value="">全部</option><option value="demo">Demo</option><option value="models">模型</option><option value="integrations">集成</option><option value="settings">设置</option><option value="safety">安全停控</option><option value="identity">身份与 MFA</option></select></label>
+        <label>技术域<select value={domain} onChange={(event) => { setDomain(event.target.value); setCursor(""); }}><option value="">全部</option><option value="demo">Demo</option><option value="models">模型</option><option value="integrations">集成</option><option value="settings">设置</option><option value="releases">版本发布</option><option value="safety">安全停控</option><option value="identity">身份与 MFA</option></select></label>
         <label>状态<select value={status} onChange={(event) => { setStatus(event.target.value); setCursor(""); }}><option value="">全部</option><option value="pending">处理中</option><option value="succeeded">已完成</option><option value="failed">失败</option></select></label>
       </div>
     </section>

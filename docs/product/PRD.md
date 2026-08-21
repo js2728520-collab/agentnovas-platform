@@ -1,7 +1,7 @@
 # Riverton Capital 受邀付费 Beta PRD
 
 状态：商用 Paper SaaS 产品真源；技术 Gate 全绿后可发布
-版本：2.1
+版本：2.2
 日期：2026-08-21
 适用发布：5–20 名受邀客户
 
@@ -27,7 +27,7 @@ Beta 提供：七阶段决策记录、三张隔离 paper 组合、平台 Demo �
 | --- | --- | --- | --- |
 | Client | 受邀客户 | 商业披露确认、试用/会员、credits、三策略 paper、七阶段记录、平台 Demo 证据、通知 | 内部运营/运维数据；客户充值；上传交易所密钥；真实下单 |
 | Operations | maker、checker、客服 | 邀请与客户、会员付款凭证、双人复核、credits 调整、周分成、业务审计 | 自审；技术密钥；把审批写成资金已自动执行 |
-| Maintenance | 技术/安全管理员 | 模型与 Agent 绑定、Email、平台 Demo 账户、Worker 健康、紧急暂停、RBAC、技术审计 | 查看密钥明文；替代业务审批；启用真实支付或真实订单 |
+| Maintenance | 技术/安全管理员 | 模型与 Agent 绑定、Email、平台 Demo 账户、Worker 健康、紧急暂停、版本发布证据、RBAC、技术审计 | 查看密钥明文；替代业务审批；从浏览器执行基础设施部署；启用真实支付或真实订单 |
 
 ## 4. Beta 主流程
 
@@ -41,6 +41,7 @@ Beta 提供：七阶段决策记录、三张隔离 paper 组合、平台 Demo �
 8. 决策轮生成客户 paper 执行回执；平台测试账户可另行向 OKX Demo、Binance Spot Testnet、Bybit Demo 发送小额验证意图。两类回执永不混写。
 9. Operations 对上一完整 UTC 周生成盈利分成账单，经过业务审批后形成应收；只有另一组付款凭证与复核完成后才标记 paid 并提交高水位。
 10. 到期停止新开仓；有持仓的组合进入 `close_only`，清仓后进入 `read_only`。Beta 不自动退款、不自动扣款，也不把 Paper 收益兑换为真实资金。
+11. 候选版本以 SemVer tag、commit、artifact SHA-256 和 migration version 登记并由不同 Maintenance 人员验证；production 证据必须已有同版本 staging 成功事实。
 
 ## 5. 会员计划 v1
 

@@ -1,7 +1,7 @@
 # API 目录与迁移状态
 
 日期：2026-08-21
-范围：当前包含 178 个 route 文件、229 个 HTTP method handler，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。
+范围：当前包含 181 个 route 文件、233 个 HTTP method handler，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。
 
 ## 1. 使用说明
 
@@ -175,6 +175,9 @@
 | `/api/maintenance/demo-exchanges/[id]/control` | POST | M | KEEP；reason/recent MFA/幂等/kill 安全语义 |
 | `/api/maintenance/demo-exchanges/[id]/verify` | POST | M | KEEP；固定测试域名、原因、幂等审计 |
 | `/api/maintenance/audit` | GET | M | KEEP；Demo/模型/集成/设置/安全/身份 allowlist 安全投影，domain/action/status/cursor 与 requestId/traceId |
+| `/api/maintenance/releases` | GET, POST | M | CURRENT；查询或幂等登记 SemVer/commit/artifact/migration 不可变版本身份 |
+| `/api/maintenance/releases/[id]/verification` | POST | M | CURRENT；不同人员 approve/reject，recent MFA、证据摘要和不可变审计 |
+| `/api/maintenance/releases/[id]/deployments` | POST | M | CURRENT；登记 staging/production deploy/rollback 成功或失败事实，不执行基础设施操作 |
 
 ## 9. 商业会员、Credits、Paper 与 Demo（Beta 新合同）
 
@@ -207,6 +210,6 @@
 
 ## 10. 下一步
 
-1. 机器可读 inventory 是 229 个 method handler 的发布真源；本文仅维护人类可读的所有权与产品状态。
+1. 机器可读 inventory 是 233 个 method handler 的发布真源；本文仅维护人类可读的所有权与产品状态。
 2. `DISABLED/BETA` 路径不得因未来重构重新暴露；重新启用必须先更新 PRD、ADR、policy、测试与页面合同。
 3. `openapi-controlled-beta.yaml` 只描述核心浏览器合同，不能替代完整 API Policy。

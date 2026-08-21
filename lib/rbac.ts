@@ -78,6 +78,9 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "maint.commercial_disclosures.view", appId: "maintenance", label: "查看商业披露" },
   { key: "maint.commercial_disclosures.submit", appId: "maintenance", label: "提交商业披露发布", sensitive: true },
   { key: "maint.commercial_disclosures.approve", appId: "maintenance", label: "审批商业披露发布", sensitive: true },
+  { key: "maint.releases.view", appId: "maintenance", label: "查看发布版本" },
+  { key: "maint.releases.manage", appId: "maintenance", label: "登记发布版本", sensitive: true },
+  { key: "maint.releases.approve", appId: "maintenance", label: "复核发布与回滚证据", sensitive: true },
 ];
 
 export const SENSITIVE_PERMISSION_KEYS = new Set(

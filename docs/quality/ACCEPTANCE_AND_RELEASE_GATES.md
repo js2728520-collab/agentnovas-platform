@@ -78,6 +78,7 @@
 - 三端/Workers/migrator 使用独立最小 env 与 DB roles；Client 额外使用不可继承的 Auth 角色，Payment Worker 无业务写权限。
 - systemd/nginx 校验通过，无旧 Web unit、重复 3000 端口或重复 server name。
 - current/previous 原子部署，应用回滚演练 <5 分钟；DB expand/contract 前向兼容。
+- Git tag/commit、artifact SHA-256、migration version 已登记为不可变版本；不同人员验证，production 记录以前置 staging 成功为条件，failed 记录不改变环境 current。
 - 准备启用的外部能力必须有对应 staging 证据：Demo 凭证、Email 依赖、DNS/TLS、支持联系人和告警值班。未启用能力必须保持关闭并在 UI/状态 API 明确显示未配置，不能阻塞纯 in-app Paper SaaS 的安全降级发布。
 
 ## 9. 自动命令

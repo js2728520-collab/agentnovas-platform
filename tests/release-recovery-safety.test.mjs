@@ -100,6 +100,7 @@ test("database role policy rejects elevated roles, broad PUBLIC grants, and disa
       { grantee: "agentnovas_research_worker", tableName: "strategy_research_runs", privilegeType: "SELECT" },
       { grantee: "agentnovas_client_web", tableName: "platform_demo_accounts", privilegeType: "SELECT" },
       { grantee: "agentnovas_ops_web", tableName: "llm_profile_revisions", privilegeType: "SELECT" },
+      { grantee: "agentnovas_client_web", tableName: "release_versions", privilegeType: "SELECT" },
     ],
     schemaGrants: [{ grantee: "agentnovas_demo_execution_worker", privilegeType: "CREATE" }],
     memberships: [{ memberRole: "agentnovas_client_web", grantedRole: "pg_read_all_data" }],
@@ -113,6 +114,7 @@ test("database role policy rejects elevated roles, broad PUBLIC grants, and disa
   assert.equal(findings.filter((finding) => finding.code === "WEB_SECRET_GRANT").length, 2);
   assert.ok(findings.some((finding) => finding.code === "ROLE_MEMBERSHIP"));
   assert.ok(findings.some((finding) => finding.code === "PUBLIC_ROUTINE_GRANT"));
+  assert.ok(findings.some((finding) => finding.code === "RELEASE_CONTROL_TABLE_GRANT"));
 });
 
 test("database role policy verifies Client identity RLS ownership and restrictive policies", () => {

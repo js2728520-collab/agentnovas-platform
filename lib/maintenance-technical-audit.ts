@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 
 import { ResearchApiError } from "./research-errors.ts";
 
-export const maintenanceAuditDomains = ["demo", "models", "integrations", "settings", "safety", "identity"] as const;
+export const maintenanceAuditDomains = ["demo", "models", "integrations", "settings", "safety", "releases", "identity"] as const;
 export type MaintenanceAuditDomain = typeof maintenanceAuditDomains[number];
 
 export type MaintenanceTechnicalAuditEvent = {
@@ -107,6 +107,7 @@ export async function loadMaintenanceTechnicalAudit(database: Pick<Pool, "query"
                WHEN audit.action LIKE 'maintenance.%' OR audit.action LIKE 'payment_provider.%' THEN 'integrations'
                WHEN audit.action LIKE 'platform.settings.%' OR audit.action LIKE 'commercial.disclosure.%' THEN 'settings'
                WHEN audit.action LIKE 'trading.emergency_stop.%' THEN 'safety'
+               WHEN audit.action LIKE 'release.%' THEN 'releases'
                ELSE 'identity'
              END,
              audit.action,audit.actor_user_id,audit.subject_id,audit.subject_type,
@@ -117,7 +118,7 @@ export async function loadMaintenanceTechnicalAudit(database: Pick<Pool, "query"
                  'maintenance.email_test_recorded',
                  'maintenance.payment_test_recorded',
                  'maintenance.llm_profile_rolled_back'
-               ) OR audit.action LIKE 'trading.emergency_stop.%'
+               ) OR audit.action LIKE 'trading.emergency_stop.%' OR audit.action LIKE 'release.%'
                  THEN NULLIF(audit.after_json::jsonb->>'reason','')
                WHEN audit.action='platform.settings.system.updated'
                  THEN NULLIF(audit.after_json::jsonb->>'maintenanceReason','')
@@ -137,6 +138,7 @@ export async function loadMaintenanceTechnicalAudit(database: Pick<Pool, "query"
           OR audit.action LIKE 'platform.settings.%'
           OR audit.action LIKE 'commercial.disclosure.%'
           OR audit.action LIKE 'trading.emergency_stop.%'
+          OR audit.action LIKE 'release.%'
           OR audit.action LIKE 'auth.mfa_%'
     )
     SELECT event.id,event.domain,event.action,event.actor_user_id,event.subject_id,

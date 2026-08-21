@@ -40,6 +40,7 @@ const child = spawn(process.execPath, [nextBin, "start", "-H", "127.0.0.1", "-p"
     ...process.env,
     NODE_ENV: "production",
     RIVERTON_APP_AUDIENCE: "client",
+    RIVERTON_APP_LOCAL_PORT: String(port),
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -51,7 +52,7 @@ try {
   assert.match(response.headers.get("content-type") || "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /Riverton Capital/i);
-  assert.match(html, /交易大厅|Trading Hall/i);
+  assert.match(html, /正在验证客户端会话/);
   assert.doesNotMatch(html, /name=["']codex-preview["']/i);
   console.log(`Client production HTML smoke passed on port ${port}.`);
 } finally {

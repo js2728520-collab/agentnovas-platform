@@ -46,7 +46,7 @@ test("Operations and Maintenance cases cover representative stable pages and aud
   assert.equal((maker.match(/\btest\(/g) ?? []).length, 2);
   assert.equal((checker.match(/\btest\(/g) ?? []).length, 1);
 
-  assertPathsCovered(maintenance, ["/", "/health", "/models", "/integrations", "/integrations/email", "/integrations/payments", "/integrations/demo-exchanges", "/audit"], "maintenance-admin-ui.spec.ts");
+  assertPathsCovered(maintenance, ["/", "/health", "/models", "/integrations", "/integrations/email", "/integrations/payments", "/integrations/demo-exchanges", "/audit", "/releases"], "maintenance-admin-ui.spec.ts");
   assert.match(maintenance, /expectAudienceNavigation\(page,\s*"maintenance"\)/);
   assert.equal((maintenance.match(/\btest\(/g) ?? []).length, 2);
 });

@@ -1,8 +1,8 @@
 # Riverton Capital 商用 Paper SaaS 完整收口计划
 
-状态：功能、工程 Gate、本地三端服务和普通提交已收口，待推送确认
+状态：版本管理与最终本地发布 Gate 已完成；本提交进入目标远端 `main` 验证
 集成分支：`codex/three-app-riverton-split`
-本轮实施起点：`3101f46`（最终交付提交以当前分支 HEAD 为准）
+本轮实施起点：`4fea508`（最终交付提交以当前分支 HEAD 为准）
 目标：完成代码可控范围内的全部 P0/P1，交付可收费、可审计、可恢复的受邀商用版本
 
 ## 1. 商用产品边界
@@ -85,6 +85,15 @@
 
 验收：`npm test`、`npx tsc --noEmit`、`npm run lint`、`npm run test:apps`、Playwright、bundle/Lighthouse、audit、secret scan、`git diff --check` 全绿；恢复演练可复现且清理临时数据。
 
+### Track 5：不可变版本管理
+
+- Maintenance `/releases` 登记 SemVer tag、commit、artifact SHA-256、migration version 和发布说明。
+- 版本创建/验证人员分离；staging/production deploy/rollback 结果只追加，失败不切换 current。
+- 发布 API/UI 只保存证据，不成为 SSH、迁移、Git 或切流执行器；Client/Operations 无菜单、路由和数据库读取。
+- OpenAPI、API Catalog、ADR-0014、CHANGELOG、Release Runbook 和环境元数据模板同步。
+
+验收：幂等 replay、自审阻断、production 前置 staging、合法回滚、表不可变、数据库角色隔离、API Policy 和真实浏览器页面通过。
+
 ## 4. 增量顺序
 
 1. Track 0 数据合同/迁移/测试 → API → UI；这是其他商业页面的共同门禁。
@@ -99,4 +108,4 @@
 - 保留 `github-old`，只允许最终集成分支进入 `origin`。
 - 不提交 `.env*`、密钥、密码、私钥、数据库备份、运行日志、一次性账号或 provider fixture 原文。
 - 完成功能和 Gate 后创建普通提交；推送前重新核对 status/branch/remotes/SSH/secret。
-- 推送前只展示 `git push origin codex/three-app-riverton-split` 并等待用户明确确认。
+- 当前集成分支通过显式 refspec 普通推送到目标远端 `main`；不推送其他分支、不 force、不改写历史。

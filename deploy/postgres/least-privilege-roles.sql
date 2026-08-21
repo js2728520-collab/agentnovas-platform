@@ -319,7 +319,8 @@ GRANT SELECT ON
   platform_demo_execution_receipts, platform_demo_fill_receipts, worker_instances,
   trading_emergency_stops, commercial_legal_document_versions,
   commercial_disclosure_bundles, commercial_disclosure_publish_requests,
-  maintenance_idempotency_records
+  maintenance_idempotency_records, release_versions, release_verifications,
+  release_deployments
   TO agentnovas_maint_web;
 GRANT SELECT ON platform_demo_accounts_safe TO agentnovas_maint_web;
 GRANT INSERT, UPDATE ON
@@ -337,6 +338,8 @@ GRANT INSERT, UPDATE ON
   maintenance_idempotency_records, roles, role_permissions, user_role_assignments
   TO agentnovas_maint_web;
 GRANT INSERT, UPDATE ON auth_rate_limit_buckets TO agentnovas_maint_web;
+GRANT INSERT ON release_versions, release_verifications, release_deployments
+  TO agentnovas_maint_web;
 GRANT DELETE ON sessions, auth_tokens, auth_rate_limit_buckets,
   user_mfa_recovery_codes TO agentnovas_maint_web;
 -- Emergency control needs customer scope plus Paper access-state transitions, but

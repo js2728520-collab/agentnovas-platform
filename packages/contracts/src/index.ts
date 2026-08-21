@@ -5,4 +5,5 @@ export * from "../../../lib/rbac.ts";
 export * from "../../../lib/riverton-apps.ts";
 export * from "./commercial-beta.ts";
 export * from "./riverton-ui.ts";
+export * from "./release-management.ts";
 export * from "./trading-hall.ts";

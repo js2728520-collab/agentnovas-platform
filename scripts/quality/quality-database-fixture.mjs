@@ -72,6 +72,9 @@ const ROLE_PERMISSIONS = {
     "maint.commercial_disclosures.view",
     "maint.commercial_disclosures.submit",
     "maint.commercial_disclosures.approve",
+    "maint.releases.view",
+    "maint.releases.manage",
+    "maint.releases.approve",
   ],
 };
 

@@ -2306,6 +2306,94 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/maintenance/releases",
+    "source": "app/api/maintenance/releases/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.view"
+    ],
+    "permissionMfa": {
+      "maint.releases.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/releases",
+    "source": "app/api/maintenance/releases/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.manage"
+    ],
+    "permissionMfa": {
+      "maint.releases.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/releases/:id/deployments",
+    "source": "app/api/maintenance/releases/[id]/deployments/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.approve"
+    ],
+    "permissionMfa": {
+      "maint.releases.approve": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/releases/:id/verification",
+    "source": "app/api/maintenance/releases/[id]/verification/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.approve"
+    ],
+    "permissionMfa": {
+      "maint.releases.approve": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "GET",
     "route": "/api/maintenance/trading/emergency-stop",
     "source": "app/api/maintenance/trading/emergency-stop/route.ts",
     "audiences": [

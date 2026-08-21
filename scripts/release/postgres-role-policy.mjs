@@ -93,6 +93,12 @@ const WEB_SECRET_TABLES = new Map([
   ])],
 ]);
 
+const RELEASE_CONTROL_TABLES = new Set([
+  "release_versions",
+  "release_verifications",
+  "release_deployments",
+]);
+
 const WORKER_TABLES = new Map([
   ["agentnovas_notification_worker", new Set([
     "notification_deliveries",
@@ -198,6 +204,14 @@ export function evaluatePostgresRolePolicy({
       findings.push(finding(
         "IDENTITY_TABLE_GRANT",
         `${grant.grantee} has direct access to protected identity table ${grant.tableName}`,
+        grant.grantee,
+      ));
+    }
+    if (RELEASE_CONTROL_TABLES.has(grant.tableName)
+      && !["agentnovas_migrator", "agentnovas_maint_web"].includes(grant.grantee)) {
+      findings.push(finding(
+        "RELEASE_CONTROL_TABLE_GRANT",
+        `${grant.grantee} can access Maintenance-only release evidence table ${grant.tableName}`,
         grant.grantee,
       ));
     }

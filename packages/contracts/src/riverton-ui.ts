@@ -159,7 +159,7 @@ export type MaintenanceWorkerHealth = {
   };
 };
 export type MaintenanceTechnicalAuditEvent = {
-  id: string; domain: "demo" | "models" | "integrations" | "settings" | "safety" | "identity";
+  id: string; domain: "demo" | "models" | "integrations" | "settings" | "safety" | "releases" | "identity";
   actorUserId: string | null; subject: { type: string; id: string; label: string | null };
   action: string; reason: string | null;
   status: "pending" | "succeeded" | "failed"; errorCode: string | null;

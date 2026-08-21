@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Riverton Capital Controlled Beta API
-  version: 2.1.0-beta
+  version: 2.2.0-beta
   description: >-
     三应用一库的核心浏览器接口合同。客户 paper 与平台 Demo 证据分离；
     真实支付、客户充值、客户交易所密钥、真实现货/永续和生产外部操作不启用。
@@ -493,7 +493,7 @@ paths:
       parameters:
         - in: query
           name: domain
-          schema: { type: string, enum: [demo, models, integrations, settings, safety, identity] }
+          schema: { type: string, enum: [demo, models, integrations, settings, safety, releases, identity] }
         - in: query
           name: action
           schema: { type: string }
@@ -509,6 +509,70 @@ paths:
       responses:
         '200': { description: allowlist 技术审计事件与下一游标 }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/maintenance/releases:
+    get:
+      tags: [Maintenance]
+      summary: 查询不可变发布版本、验证与环境 current
+      responses:
+        '200':
+          description: 安全 runtime 元数据、版本列表、环境 current 与下一游标
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReleaseManagement' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Maintenance]
+      summary: 幂等登记不可变候选版本身份
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReleaseRegistrationRequest' }
+      responses:
+        '201': { description: draft 版本身份；尚未验证或部署 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/releases/{id}/verification:
+    post:
+      tags: [Maintenance]
+      summary: 由不同人员批准或拒绝候选版本
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReleaseVerificationRequest' }
+      responses:
+        '200': { description: 不可变验证决定；批准不代表环境已部署 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/releases/{id}/deployments:
+    post:
+      tags: [Maintenance]
+      summary: 登记已由外部发布流程执行的部署或回滚结果
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReleaseDeploymentRequest' }
+      responses:
+        '201': { description: 部署证据已登记；API 未执行 SSH、迁移或切流 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /api/health/live:
     get:
       tags: [Health]
@@ -543,6 +607,69 @@ components:
       in: cookie
       name: rc_maint_session
   schemas:
+    ReleaseRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [versionTag, channel, commitSha, artifactSha256, migrationVersion, releaseNotes, reason]
+      properties:
+        versionTag: { type: string, pattern: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)([-+][0-9A-Za-z.-]+)?$' }
+        channel: { type: string, enum: [beta, stable] }
+        commitSha: { type: string, pattern: '^[a-fA-F0-9]{40}$' }
+        artifactSha256: { type: string, pattern: '^[a-fA-F0-9]{64}$' }
+        migrationVersion: { type: string, pattern: '^[0-9]{4}_[a-z0-9_]{3,96}$' }
+        releaseNotes: { type: string, minLength: 10, maxLength: 10000 }
+        reason: { type: string, minLength: 8, maxLength: 500 }
+    ReleaseVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, evidenceSha256, reason]
+      properties:
+        decision: { type: string, enum: [approve, reject] }
+        evidenceSha256: { type: string, pattern: '^[a-fA-F0-9]{64}$' }
+        ciRunUrl: { type: string, format: uri, maxLength: 500 }
+        reason: { type: string, minLength: 8, maxLength: 500 }
+    ReleaseDeploymentRequest:
+      type: object
+      additionalProperties: false
+      required: [environment, action, status, evidenceSha256, reason]
+      properties:
+        environment: { type: string, enum: [staging, production] }
+        action: { type: string, enum: [deploy, rollback] }
+        status: { type: string, enum: [succeeded, failed] }
+        evidenceSha256: { type: string, pattern: '^[a-fA-F0-9]{64}$' }
+        reason: { type: string, minLength: 8, maxLength: 500 }
+    ReleaseManagement:
+      type: object
+      required: [runtime, releases, currentByEnvironment, nextCursor]
+      properties:
+        runtime:
+          type: object
+          properties:
+            versionTag: { type: [string, 'null'] }
+            commitSha: { type: [string, 'null'] }
+            artifactSha256: { type: [string, 'null'] }
+        releases:
+          type: array
+          items:
+            type: object
+            required: [id, versionTag, channel, commitSha, artifactSha256, migrationVersion, releaseNotes, createdByUserId, reason, createdAt, status, deployments, currentEnvironments]
+            properties:
+              id: { type: string }
+              versionTag: { type: string }
+              channel: { type: string, enum: [beta, stable] }
+              commitSha: { type: string }
+              artifactSha256: { type: string }
+              migrationVersion: { type: string }
+              releaseNotes: { type: string }
+              createdByUserId: { type: string }
+              reason: { type: string }
+              createdAt: { type: string, format: date-time }
+              status: { type: string, enum: [draft, verified, rejected, deployed, superseded, rolled_back] }
+              verification: { type: [object, 'null'] }
+              deployments: { type: array, items: { type: object } }
+              currentEnvironments: { type: array, items: { type: string, enum: [staging, production] } }
+        currentByEnvironment: { type: object }
+        nextCursor: { type: [string, 'null'] }
     CommercialPlan:
       type: object
       additionalProperties: false

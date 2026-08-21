@@ -29,7 +29,7 @@ const audienceNavigationContract: Record<QualityAudience, {
   },
   maintenance: {
     navigationName: "运维端导航",
-    requiredLabels: ["系统概览", "系统健康", "模型与 Agent"],
+    requiredLabels: ["系统概览", "系统健康", "模型与 Agent", "版本发布"],
     forbiddenLabels: ["客户工作台", "会员中心", "七智能体交易大厅", "运营概览", "客户管理", "会员订单"],
   },
 };
