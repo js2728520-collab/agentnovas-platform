@@ -227,7 +227,7 @@ test("standalone legal consent is current-version, atomic and idempotent", async
     idempotencyKey: "consent-incomplete",
     trustedIp: "127.0.0.1",
     userAgent: "test",
-  }), /七项法务/);
+  }), /七项商业披露/);
   const accepted = await acceptCurrentCommercialLegalDocuments(pool, {
     userId: "consent-customer",
     acceptedDocumentVersionIds: legalIds,
@@ -376,7 +376,7 @@ test("seven-current-document gate, USD snapshot and bound idempotency activate s
       idempotencyKey: "legal-bad",
       requestId: "legal-bad",
     }),
-    /七项法务/,
+    /七项商业披露/,
   );
   const order = await createMembershipOrder(pool, {
     userId: "customer",
@@ -1219,6 +1219,15 @@ test("membership activation provisions official portfolios and settles their pri
     )
   ).rows;
   assert.equal(portfolios.length, 3);
+  assert.equal(
+    (
+      await pool.query(
+        `SELECT max_active_strategies FROM memberships WHERE id=$1`,
+        [activation.membershipId],
+      )
+    ).rows[0].max_active_strategies,
+    3,
+  );
   assert.equal(
     (
       await pool.query(

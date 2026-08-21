@@ -216,7 +216,13 @@ export async function verifyPlatformDemoAccount(database: Pool, input: {
     `, [account.id, input.actorId, account.api_key_ciphertext, account.secret_ciphertext,
       account.passphrase_ciphertext, verifiedAt]);
     if (updated.rowCount !== 1) throw new Error("Demo 凭证在验证期间已变更，请重新验证");
-    return { accountId: account.id, provider: account.provider, status: "passed" as const, verifiedAt: verifiedAt.toISOString() };
+    return {
+      accountId: account.id,
+      provider: account.provider,
+      status: "passed" as const,
+      verifiedAt: verifiedAt.toISOString(),
+      permissionCheck: verification.permissionCheck,
+    };
   } catch (error) {
     const failedAt = dependencies.now?.() ?? new Date();
     await database.query(`

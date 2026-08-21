@@ -15,7 +15,7 @@ const environment = { NOTIFICATION_TOKEN_ENCRYPTION_KEY: "test-notification-toke
 test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
   await adminPool.query(`CREATE SCHEMA "${schema}"`);
-  for (const filename of ["0000_business_schema.sql", "0015_riverton_three_app_rbac_wallet.sql", "0021_identity_access_hardening.sql"]) {
+  for (const filename of ["0000_business_schema.sql", "0015_riverton_three_app_rbac_wallet.sql", "0021_identity_access_hardening.sql", "0040_client_identity_rls.sql"]) {
     await pool.query(await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8"));
   }
   await pool.query(`INSERT INTO users (id, email, password_hash, role, status) VALUES ('known', 'known@example.test', 'disabled', 'customer', 'active')`);

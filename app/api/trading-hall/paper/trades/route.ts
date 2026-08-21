@@ -30,8 +30,13 @@ export async function GET(request: Request) {
     const { user } = await requireAccessPermission(request, "client.paper.view");
     const url = new URL(request.url);
     const limit = parseOfficialPaperTradeLimit(url.searchParams.get("limit"));
+    const portfolioIdValue = url.searchParams.get("portfolioId")?.trim() ?? "";
+    if (portfolioIdValue && (!/^[A-Za-z0-9:._-]+$/.test(portfolioIdValue) || portfolioIdValue.length > 256)) {
+      throw new ResearchApiError("VALIDATION_ERROR", "模拟组合标识无效", 422, { fields: ["portfolioId"] });
+    }
     const result = await listOfficialPaperTrades(await getPostgresPool(), {
       customerId: user.id,
+      portfolioId: portfolioIdValue || null,
       cursor: decodeCursor(url.searchParams.get("cursor")),
       limit,
     });

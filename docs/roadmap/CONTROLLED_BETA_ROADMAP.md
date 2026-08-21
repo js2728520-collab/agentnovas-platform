@@ -13,7 +13,7 @@
 
 ## Wave 2：D5–D10 前端与运行收口
 
-- Client：稳定路由、法务/会员/credits/三 paper/Hall/Demo/通知/真实历史；移除假支付与假验证。
+- Client：稳定路由、商业披露/会员/credits/三 paper/Hall/Demo/通知/真实历史；移除假支付与假验证。
 - Operations：客户/邀请、会员凭证/双审、credits、分成、分页/scope/队列刷新。
 - Maintenance：模型、Email、支付禁用态、Demo 账户、真实 Worker/queue、kill switch、技术审计。
 - Foundation：audience import/lazy chunk、Client/Console CSS、a11y、请求取消/错误合同、CSP。
@@ -33,7 +33,7 @@
 
 ## Release：D14
 
-只有法务、外部依赖和全部技术 Gate 通过才开放 5–20 名受邀客户。首小时强化监控邀请/会员/paper/Demo/Email/credits/分成、5xx/p95、Worker stale 和安全拒绝。任一绝对否决项触发停止新增邀请并按 runbook 回退。
+只有商业披露合同和全部技术 Gate 通过才开放 5–20 名受邀客户。未启用的外部依赖必须安全降级；计划启用 Email/Demo/DNS/TLS 时，对应 staging Gate 必须通过。首小时强化监控邀请/会员/paper/Demo/Email/credits/分成、5xx/p95、Worker stale 和安全拒绝。任一绝对否决项触发停止新增邀请并按 runbook 回退。
 
 ## GA Backlog
 

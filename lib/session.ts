@@ -2,6 +2,7 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { sessions, users } from "@/db/schema";
 import { sha256 } from "@/lib/auth";
+import { clientSessionIdentity } from "@/lib/client-identity-gateway";
 import { requireCommercialLegalConsentGate } from "@/lib/commercial-legal-consent-gate";
 import { clientRouteRequiresLegalConsent } from "@/lib/commercial-legal-consent-policy";
 import { getPostgresPool } from "@/lib/postgres";
@@ -29,19 +30,26 @@ export async function currentSession(
   const db = getDb();
   const now = new Date();
   const nowIso = now.toISOString();
-  const row = (await db.select({ user: users, session: sessions })
-    .from(sessions)
-    .innerJoin(users, eq(users.id, sessions.userId))
-    .where(and(
-      eq(sessions.tokenHash, await sha256(token)),
-      eq(sessions.appAudience, audience),
-      gt(sessions.expiresAt, nowIso),
-      gt(sessions.idleExpiresAt, nowIso),
-      gt(sessions.absoluteExpiresAt, nowIso),
-      isNull(sessions.revokedAt),
-      eq(users.status, "active"),
-    )).limit(1))[0];
+  const tokenHash = await sha256(token);
+  const clientIdentity = audience === "client"
+    ? await clientSessionIdentity(await getPostgresPool(), tokenHash, now)
+    : null;
+  const row = audience === "client" ? clientIdentity : (await db.select({ user: users, session: sessions })
+      .from(sessions)
+      .innerJoin(users, eq(users.id, sessions.userId))
+      .where(and(
+        eq(sessions.tokenHash, tokenHash),
+        eq(sessions.appAudience, audience),
+        gt(sessions.expiresAt, nowIso),
+        gt(sessions.idleExpiresAt, nowIso),
+        gt(sessions.absoluteExpiresAt, nowIso),
+        isNull(sessions.revokedAt),
+        eq(users.status, "active"),
+      )).limit(1))[0];
   if (!row) return null;
+  const clientPrimaryMfaPending = audience === "client" && row.session.mfaLevel === "primary"
+    && Boolean(clientIdentity?.hasActiveMfa);
+  if (clientPrimaryMfaPending && !options.allowPrimaryInternal) return null;
   const assurance = evaluateSessionAssurance({
     audience,
     idleExpiresAt: row.session.idleExpiresAt,
@@ -60,8 +68,12 @@ export async function currentSession(
       Date.parse(row.session.absoluteExpiresAt!),
       now.getTime() + idleSeconds * 1000,
     )).toISOString();
-    await db.update(sessions).set({ lastSeenAt: nowIso, idleExpiresAt })
-      .where(and(eq(sessions.id, row.session.id), isNull(sessions.revokedAt)));
+    if (audience === "client") {
+      await (await getPostgresPool()).query("SELECT client_touch_session($1,$2,$3)", [tokenHash, now, idleExpiresAt]);
+    } else {
+      await db.update(sessions).set({ lastSeenAt: nowIso, idleExpiresAt })
+        .where(and(eq(sessions.id, row.session.id), isNull(sessions.revokedAt)));
+    }
   }
   return { ...row, recentMfa: assurance.recentMfa };
 }

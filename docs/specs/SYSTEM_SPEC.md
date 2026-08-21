@@ -6,11 +6,12 @@
 ## 1. 拓扑与信任边界
 
 ```text
-Client Web ───────┐
-Operations Web ──┼── PostgreSQL（共享数据、逻辑隔离）
-Maintenance Web ─┘       ├─ Notification Worker
-                          ├─ Paper Runtime Worker
-                          └─ Demo Execution Worker
+Client Web ─────────┐
+Client Auth Gateway ┤
+Operations Web ─────┼── PostgreSQL（共享数据、逻辑隔离）
+Maintenance Web ────┘       ├─ Notification Worker
+                             ├─ Paper Runtime Worker
+                             └─ Demo Execution Worker
 
 Payment Worker：Beta 不部署 unit，接口与外部副作用路径 disabled
 Legacy Research Worker：Beta 不启动，HTTP/租约/orchestrator/systemd 均硬关闭
@@ -18,6 +19,8 @@ Legacy Research Worker：Beta 不启动，HTTP/租约/orchestrator/systemd 均�
 ```
 
 三个 Web 进程使用相同代码但独立 `RIVERTON_APP_AUDIENCE`、域名、端口、构建目录、Session Cookie、最小 env 和数据库角色。共享数据库不是共享授权；所有入口重新解析 audience、会话、MFA、权限与 assignment-bound data scope。
+
+Client 使用两个不可继承、不可链式放大的数据库角色。`agentnovas_client_web` 只通过绑定当前有效 Client session token hash 的 `SECURITY DEFINER` gateway 完成会话、自助资料、MFA、注册 claim 和 reset consume，不能直接读取身份/邀请表；`agentnovas_client_auth` 只可执行登录身份投影、当前主体密码投影和找回密码发行三个精确 gateway，不能创建/完成 session、消费 reset 或继承 Web 角色。所有 gateway 由 migrator 持有、固定 `search_path`，过期但未 revoked 的 session 也必须失败关闭。Next 构建不打开数据库连接；运行时第一条 SQL 前同时校验 URL 用户名和 `current_user` 与 audience 一致。
 
 ## 2. Audience 与路由
 
@@ -31,9 +34,9 @@ Legacy Research Worker：Beta 不启动，HTTP/租约/orchestrator/systemd 均�
 
 稳定路由：
 
-- Client：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/notifications`、`/wallet`、`/wallet/deposits`。
-- Operations：`/`、`/customers`、`/organization`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
-- Maintenance：`/`、`/models`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/access`、`/access/audit`、`/audit`。
+- Client：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements[/id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/notifications`、`/account/security`、`/support`、`/wallet`、`/wallet/deposits`。
+- Operations：`/`、`/customers`、`/organization`、`/team`、`/data-center`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
+- Maintenance：`/`、`/models`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/access`、`/access/audit`、`/audit`。
 
 Beta 未完成或不在范围的旧策略市场、自动结算、团队经营分析入口 feature-gate 隐藏。
 
@@ -78,6 +81,7 @@ type ApiPolicy = {
 - Client session：absolute 7 天、idle 24 小时；内部 session：absolute 12 小时、idle 1 小时。
 - 邮箱+audience 登录失败 5 次/15 分钟；IP 30 次/15 分钟；找回使用更严格小时限额，存储在 PostgreSQL 以覆盖多实例。
 - Operations/Maintenance 完成 TOTP 才发完整 session；recovery code 单次使用并保存 hash。critical 操作要求 15 分钟内 recent MFA。
+- Client 可选启用 TOTP；一旦启用，后续登录必须完成 TOTP 或消耗一枚 recovery code。启用/轮换只显示一次恢复码，服务器只存 hash。
 - 密码修改/重置、冻结、撤权和恢复码重置撤销相关 session。
 - HTTP bootstrap 在生产 404；CLI 仅在无内部管理员时一次成功并留审计。
 - 内部邀请与重置只发送一次性 set-password link；响应、通知 payload、日志和 UI 不含临时密码或明文 token。
@@ -109,8 +113,19 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 - `0027_platform_demo_admin_commands.sql`
 - `0028_commercial_legal_content.sql`
 - `0029_beta_legacy_runtime_hard_close.sql`
+- `0030_commercial_disclosure_trial.sql`
+- `0031_credit_adjustment_workflow.sql`
+- `0032_operations_customer_org_hardening.sql`
+- `0033_notification_email_suppression.sql`
+- `0034_client_registration_rate_limit.sql`
+- `0035_technical_audit_correlation.sql`
+- `0036_pre_disclosure_trial_remediation.sql`
+- `0037_bootstrap_system_role_permission_sync.sql`
+- `0038_client_ai_runtime_credits.sql`
+- `0039_maintenance_idempotency.sql`
+- `0040_client_identity_rls.sql`
 
-数据库角色至少拆分为 migrator、client_web、ops_web、maint_web、notification_worker、runtime_worker、demo_execution_worker；legacy research 和 Payment Worker 不获得 Beta 业务写权限。
+数据库角色至少拆分为 migrator、client_web、client_auth、ops_web、maint_web、notification_worker、runtime_worker、demo_execution_worker；legacy research 和 Payment Worker 不获得 Beta 业务写权限。
 
 ## 7. 账本、会员和 credits
 
@@ -140,16 +155,23 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 ## 10. 通知与外部集成
 
 - Beta 渠道为 in-app 与 Email。Telegram/WhatsApp 为 `not_integrated`，接口不生成/返回验证码。
+- 通知类别/渠道偏好和账号时区下的成对免打扰时段以一个数据库事务保存；Email Worker 在 claim 事务内按 IANA 时区、DST 和跨午夜窗口延迟发送，不增加 attempt 或保留 lease；in-app 不受影响。安全与缴费通知不可关闭。
 - Email 只有 domain、API key、webhook、模板、suppression、retention、allowlist 全部就绪并获显式授权才可发送；否则为 `configured_not_sent`。
+- `0033` 从唯一可信映射的历史 bounce/complaint/suppressed 事件回填收件人 SHA-256；歧义映射跳过，数据库不新增收件人明文。
 - Maintenance DTO 仅含 `hasSecret`、provider/environment、权限检查、最近验证/测试；不返回 Key、密文引用、完整端点或 raw webhook。
 - 支付始终 disabled。Payment Webhook/Worker 不构成 Beta 收费路径。
 - LLM endpoint 采用 provider host allowlist，拒绝私网 IPv4/IPv6、redirect 与 DNS rebinding，并配合出口控制。
+- Client AI/策略请求只使用 Maintenance 发布并绑定的平台模型 Profile，按平台费率扣减 Credits；`/api/account/llm-config` 及测试入口在 Beta 失败关闭，Client 不接受 BYOK、客户 API Key 或私有模型端点。缺少可用平台 Profile、费率或可靠 usage 时返回真实 503/422，不回退假模型结果。
+- Client 只读取 `client_ai_runtime_model_bindings` 安全投影，不读取 Profile 密文表；模型响应必须同时提供可靠 provider request ID 与 token usage。Credits 先原子预留，再按真实 usage 结算或释放；相同幂等键不得再次调用 provider。provider 已成功但进程在落库前崩溃时，平台承担无法证明的孤儿成本，客户预留释放并进入人工核对，不向客户重复扣费。
+- Maintenance 公共源测试与紧急停控必须提供 8–128 字符 `Idempotency-Key`。键只保存 SHA-256；operation、actor、subject 与 payload 绑定，重放返回已持久化终态，冲突/处理中/超时待核对均失败关闭。公共源网络请求在 claim 事务外执行，避免持有数据库事务等待外部网络。
 
 ## 11. 可观测性与健康
 
 每请求生成 `requestId`；七智能体和关键商业流程使用 `traceId`。JSON 日志记录 audience、actor ID、permission、result、latency 和安全错误码，不写 secret、完整 PII、token 或 raw webhook。
 
-`worker_instances` 记录 worker type、instance、commit SHA、started/heartbeat、last success/failure、error code、current job。Maintenance 分别显示 configured/enabled/alive/healthy/stale，包含 queue depth/oldest age；进程停止须在阈值内变 stale。
+`worker_instances` 记录 worker type、instance、commit SHA、started/heartbeat、last success/failure、error code、current job。Maintenance 分别显示 configured/enabled/alive/healthy/stale，包含 queue depth/oldest age；告警阈值由 `lib/maintenance-health-metrics.ts` 固定并在 API 返回，运行手册记录响应动作。
+
+技术审计聚合 Demo、模型、集成、商业设置、安全停控和身份/MFA allowlist，携带 requestId/traceId、安全错误码和游标；失败检查按 `error_code` 与安全投影状态显示为 failed，不会统一伪装为 succeeded；不返回 raw payload、幂等键、订单 ID、secret 或完整 PII。授权审计继续按 audience 保持独立。
 
 公开 `/api/health/live` 与 `/api/health/ready` 只返回粗粒度状态；详细数据库、配置、队列、provider 和 Worker 诊断需要 `maint.system_health.view`。
 

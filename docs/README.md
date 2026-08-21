@@ -4,9 +4,9 @@
 
 本目录是产品、研发、运营、运维、测试和上线协作的共同真源。AgentNovas 是技术平台与代码品牌，Riverton Capital 是面向客户的产品品牌。当前目标是 5–20 人受邀付费 Beta；文档描述目标能力时同时标注实现状态，禁止把规划、paper、Demo、已配置或环境开关写成已经上线/真实成交。
 
-责任人采用角色而非个人信息：产品负责人维护 PRD 与法务 Gate，架构负责人维护 System Spec/ADR/API Policy，三端负责人维护对应 App Spec，QA/Release 负责人维护 Gate 与证据，Ops/Maint 值班角色维护 Runbook。代码与测试证据优先于无证据状态标记。
+责任人采用角色而非个人信息：产品负责人维护 PRD 与商业披露合同，架构负责人维护 System Spec/ADR/API Policy，三端负责人维护对应 App Spec，QA/Release 负责人维护 Gate 与证据，Ops/Maint 值班角色维护 Runbook。代码与测试证据优先于无证据状态标记。
 
-实施快照（2026-08-21）：Wave 1 后端和 Wave 2 Client/Internal/Quality 已进入集成分支；当前机器可读 inventory 覆盖 205 个 method handler。Client 会员、credits、paper 和交易大厅稳定路由已落地，独立七正文版本确认在页面与 Client 权限 API 两层失败关闭，三端初始 JS/CSS 均通过 200/50KB gzip 预算。旧客户密钥、充值、外部渠道验证码、社区市场、永续部署与永续研究路径已在 HTTP、租约、Worker 和前向迁移层硬关闭。隔离 PostgreSQL 上的浏览器/axe/四断点验收已覆盖法务 Gate、会员人工付款申请、通知偏好、Operations 首次 TOTP 绑定、一次性恢复码和完整内部登录跳转，Lighthouse 也已通过；正式法务正文、恢复演练以及 Email/Demo/DNS/TLS 等外部 Gate 尚未完成，因此项目仍不可开放付费 Beta。
+实施快照（2026-08-21）：Wave 1 后端、Operations 和 Client/Maintenance 收口已进入集成树。Client 会员、credits、三张独立 paper、交易大厅、绩效账单和平台 Demo 安全摘要使用稳定路由；七份商业披露确认在页面、权限、trial 和订单服务同时失败关闭。旧客户密钥、充值、外部渠道验证码、社区市场、永续部署与永续研究路径已在 HTTP、租约、Worker 和前向迁移层硬关闭。当前变更完成全量自动化和新一轮隔离浏览器/性能/恢复证据前仍不得开放付费 Beta；Email/Demo/DNS/TLS 没有真实配置时按产品合同降级为未配置，而不是伪造成功。
 
 ## 阅读路径
 
@@ -47,6 +47,7 @@
 - `adr/0010-manual-membership-and-paper-performance-fees.md`：会费、credits 和 paper 分成人工双审。
 - `adr/0011-central-api-policy-and-explicit-access.md`：机器可读 API Policy、显式授权和 scope。
 - `adr/0012-postgres-migrations-ledger-and-worker-evidence.md`：迁移、账本与 Worker 运行证据。
+- `adr/0013-product-owned-commercial-disclosures.md`：平台自维护七份商业披露、发布双审和确认 Gate。
 
 ## 状态标签
 

@@ -29,6 +29,13 @@ test("Resend uses the canonical sender address and never exposes API keys", () =
     configured: true,
     senderDomainVerified: true,
     apiKeyPresent: true,
+    webhookSecretPresent: false,
+    allowlistPresent: false,
+    templatesReady: false,
+    suppressionReady: false,
+    workerEnabled: false,
+    sendAuthorized: false,
+    effectiveStatus: "configured_not_sent",
     lastTestAt: "2026-08-19T00:00:00.000Z",
   });
   assert.equal("apiKey" in status, false);

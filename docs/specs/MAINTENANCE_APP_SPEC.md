@@ -4,7 +4,7 @@
 
 Maintenance 管理模型 Profile/Agent 绑定、Email、支付禁用态、平台 Demo 账户、Worker 健康、紧急暂停、RBAC 和技术审计，不处理客户归属、会员付款或 paper 分成业务决定。
 
-核心路由：`/models`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/access`、`/access/audit`、`/audit`。
+核心路由：`/models`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/access`、`/access/audit`、`/audit`。
 
 ## 2. 模型与 Agent
 
@@ -12,6 +12,8 @@ Maintenance 管理模型 Profile/Agent 绑定、Email、支付禁用态、平台
 - 研发角色、七智能体产品角色、运行时解释角色分目录；确定性内核不伪装成 LLM。
 - 保存后密钥不回显；读取者看不到修改/测试控件；测试要求原因/recent MFA/audit。
 - 付费 AI 只允许可靠 usage 和已配置费率的 profile。
+
+数据/新闻目录只提供代码固定的公共只读检查目标；浏览器不能传 endpoint。页面分离 configured/enabled/healthy/stale、最近检测时间、安全错误码和延迟，不返回完整 endpoint 或 Key。
 
 ## 3. Email 与支付
 
@@ -38,8 +40,8 @@ Database、Research、Paper Runtime、Demo Execution、Notification 和 Payment 
 - Operations/Maintenance 显式 assignment，不回退 legacy；Access Center 只读取 Maintenance 数据。
 - 紧急暂停按 scope/provider/card 生效，要求原因；解除不自动恢复策略。
 - 系统审计包含登录/MFA、配置版本、Worker、provider 测试、kill switch、模型和授权事件；日志不含 secret/完整 PII/token。
-- 当前 Beta `/audit` 已实现 Demo provider 控制与验证命令的安全投影、服务端筛选和游标；只返回 actor/account/action/reason/status/error/time，不读取 response payload、幂等键、hash、订单 ID 或密文。
-- 登录/MFA、模型、Email、Worker 和通用配置的统一技术事件流仍为 GA backlog；授权事件继续位于 `/access/audit`。在统一事件流完成前，不得宣称 `/audit` 已覆盖所有技术域。
+- `/audit` 聚合 Demo、模型、集成、商业设置、安全停控和身份/MFA allowlist 事件，支持 domain/action/status/cursor；失败检查由安全状态/错误码投影为 failed，不得显示成功；返回 actor/subject/reason/status/error/requestId/traceId/time，不读取 response payload、幂等键、hash、订单 ID 或密文。
+- 授权数据仍由 audience 隔离的 `/access/audit` 提供；Worker 队列和 DB 状态属于 `/health` 实时诊断，不伪造成已发生的审计事件。
 - 真实订单、支付、退款和生产基础设施没有 UI 或 API 可达路径。
 
 ## 7. 验收

@@ -39,6 +39,10 @@ test("official paper portfolio DTO exposes exact camelCase commercial values", (
   assert.equal(dto.cashUsdt, "9990.100000000000");
   assert.equal(dto.marketValueUsdt, "9.900000000000");
   assert.equal(dto.status, "ACTIVE");
+  assert.deepEqual(dto.runtime, {
+    state: "NOT_STARTED", deploymentId: null, subscriptionId: null,
+    mode: null, lastCycleSequence: 0, lastDecisionAt: null,
+  });
   assert.equal(dto.positions[0].quantity, "0.000180000000");
   assert.equal(dto.positions[0].openedAt, "2026-08-20T00:00:00.000Z");
   assert.equal("principalUsdt" in dto, false);

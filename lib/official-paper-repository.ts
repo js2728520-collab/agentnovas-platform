@@ -13,6 +13,59 @@ import {
 
 type Queryable = Pick<Pool | PoolClient, "query">;
 type StrategyCode = OfficialTradingHallStrategy["code"];
+type OfficialPaperAccess = OfficialPaperPortfolioState["access"];
+
+export const OFFICIAL_PAPER_EMERGENCY_REJECTION_CODE = "TRADING_EMERGENCY_STOPPED";
+
+async function isOfficialPaperCustomerEmergencyStopped(database: Queryable, customerId: string) {
+  const result = await database.query<{ stopped: boolean }>(`
+    SELECT EXISTS (
+      SELECT 1
+      FROM trading_emergency_stops AS emergency
+      WHERE emergency.active = true
+        AND (
+          emergency.scope_key = 'platform'
+          OR EXISTS (
+            SELECT 1 FROM users AS customer
+            WHERE customer.id = $1
+              AND customer.organization_id IS NOT NULL
+              AND emergency.scope_key = 'organization:' || customer.organization_id
+          )
+          OR EXISTS (
+            SELECT 1 FROM customer_attributions AS attribution
+            WHERE attribution.customer_id = $1
+              AND attribution.status = 'active'
+              AND attribution.branch_id IS NOT NULL
+              AND emergency.scope_key = 'organization:' || attribution.branch_id
+          )
+        )
+    ) AS stopped
+  `, [customerId]);
+  return result.rows[0]?.stopped === true;
+}
+
+function constrainedOfficialPaperAccess(input: {
+  storedAccess: OfficialPaperAccess;
+  membershipAllowsNewEntries: boolean;
+  emergencyStopped: boolean;
+  hasOpenPositions: boolean;
+}): OfficialPaperAccess {
+  if (
+    input.membershipAllowsNewEntries
+    && !input.emergencyStopped
+    && input.storedAccess === "active"
+  ) return "active";
+  return input.hasOpenPositions ? "close_only" : "read_only";
+}
+
+async function lockOfficialPaperCustomerAccess(database: Queryable, customerIds: string[]) {
+  if (customerIds.length === 0) return;
+  await database.query(`
+    SELECT pg_advisory_xact_lock(hashtextextended('official-paper-access:' || customer_id, 0))
+    FROM unnest($1::text[]) AS scoped_customer(customer_id)
+    ORDER BY customer_id
+  `, [[...new Set(customerIds)].sort()]);
+}
 
 export async function ensureOfficialPaperPortfolios(database: Queryable, input: {
   membershipId: string;
@@ -286,16 +339,127 @@ export async function refreshOfficialPaperRiskState(database: Queryable, input: 
   return next;
 }
 
-export async function syncOfficialPaperPortfolioAccess(database: Queryable, input: {
+async function resolveOfficialPaperAccess(database: Queryable, input: {
   portfolioId: string;
-  access: "active" | "close_only" | "read_only";
+  asOf: Date;
+  lock: boolean;
 }) {
+  const portfolio = (await database.query<{
+    customer_id: string;
+    access_status: OfficialPaperAccess;
+    membership_status: string;
+    membership_expires_at: string | null;
+    membership_grace_ends_at: string | null;
+    has_open_positions: boolean;
+  }>(`
+    SELECT portfolio.customer_id, portfolio.access_status,
+           membership.status AS membership_status,
+           membership.expires_at AS membership_expires_at,
+           membership.grace_ends_at AS membership_grace_ends_at,
+           EXISTS (
+             SELECT 1 FROM official_paper_positions AS position
+             WHERE position.portfolio_id = portfolio.id AND position.status = 'open'
+           ) AS has_open_positions
+    FROM official_paper_portfolios AS portfolio
+    JOIN memberships AS membership
+      ON membership.id = portfolio.membership_id
+     AND membership.customer_id = portfolio.customer_id
+    WHERE portfolio.id = $1
+    ${input.lock ? "FOR UPDATE OF portfolio, membership" : ""}
+  `, [input.portfolioId])).rows[0];
+  if (!portfolio) throw new Error("官方模拟盘组合不存在");
+  const membership = membershipAccess(input.asOf.toISOString(), {
+    status: portfolio.membership_status,
+    expiresAt: portfolio.membership_expires_at,
+    graceEndsAt: portfolio.membership_grace_ends_at,
+  });
+  const emergencyStopped = await isOfficialPaperCustomerEmergencyStopped(database, portfolio.customer_id);
+  return {
+    access: constrainedOfficialPaperAccess({
+      storedAccess: portfolio.access_status,
+      membershipAllowsNewEntries: membership.newEntriesAllowed,
+      emergencyStopped,
+      hasOpenPositions: portfolio.has_open_positions,
+    }),
+    emergencyStopped,
+    membershipAllowsNewEntries: membership.newEntriesAllowed,
+    hasOpenPositions: portfolio.has_open_positions,
+  };
+}
+
+export async function resolveOfficialPaperRuntimeAccess(database: Queryable, input: {
+  portfolioId: string;
+  asOf: Date;
+}) {
+  return resolveOfficialPaperAccess(database, { ...input, lock: false });
+}
+
+export async function lockOfficialPaperRuntimeAccess(database: Queryable, input: {
+  portfolioId: string;
+  asOf: Date;
+}) {
+  return resolveOfficialPaperAccess(database, { ...input, lock: true });
+}
+
+export async function restrictOfficialPaperPortfoliosForEmergency(database: Queryable, input: {
+  customerIds: string[];
+  now: Date;
+}) {
+  if (input.customerIds.length === 0) {
+    return { changedPortfolios: [] as Array<{ accessStatus: "close_only" | "read_only" }>, rejectedPendingBuys: 0 };
+  }
+  await lockOfficialPaperCustomerAccess(database, input.customerIds);
+  const changedPortfolios = (await database.query<{ accessStatus: "close_only" | "read_only" }>(`
+    UPDATE official_paper_portfolios AS portfolio
+    SET access_status = CASE WHEN EXISTS (
+          SELECT 1 FROM official_paper_positions AS position
+          WHERE position.portfolio_id = portfolio.id
+            AND position.status = 'open'
+            AND position.quantity > 0
+        ) THEN 'close_only' ELSE 'read_only' END,
+        updated_at = $2
+    WHERE portfolio.customer_id = ANY($1::text[])
+      AND portfolio.access_status IS DISTINCT FROM CASE WHEN EXISTS (
+        SELECT 1 FROM official_paper_positions AS position
+        WHERE position.portfolio_id = portfolio.id
+          AND position.status = 'open'
+          AND position.quantity > 0
+      ) THEN 'close_only' ELSE 'read_only' END
+    RETURNING access_status AS "accessStatus"
+  `, [input.customerIds, input.now])).rows;
+  const rejectedPendingBuys = await database.query(`
+    UPDATE official_paper_order_intents AS intent
+    SET status = 'rejected', rejection_code = $2
+    FROM official_paper_portfolios AS portfolio
+    WHERE intent.portfolio_id = portfolio.id
+      AND portfolio.customer_id = ANY($1::text[])
+      AND intent.action = 'buy'
+      AND intent.status = 'pending'
+  `, [input.customerIds, OFFICIAL_PAPER_EMERGENCY_REJECTION_CODE]);
+  return { changedPortfolios, rejectedPendingBuys: rejectedPendingBuys.rowCount ?? 0 };
+}
+
+export async function activateOfficialPaperPortfoliosAfterDisclosure(database: Queryable, input: {
+  membershipId: string;
+  customerId: string;
+  now: Date;
+}) {
+  await lockOfficialPaperCustomerAccess(database, [input.customerId]);
+  if (await isOfficialPaperCustomerEmergencyStopped(database, input.customerId)) {
+    await restrictOfficialPaperPortfoliosForEmergency(database, {
+      customerIds: [input.customerId],
+      now: input.now,
+    });
+    return { activated: false, emergencyStopped: true };
+  }
   const result = await database.query(`
     UPDATE official_paper_portfolios
-    SET access_status = $2, updated_at = now()
-    WHERE id = $1 AND access_status IS DISTINCT FROM $2
-  `, [input.portfolioId, input.access]);
-  return { changed: result.rowCount === 1 };
+    SET access_status = 'active', updated_at = $3
+    WHERE membership_id = $1
+      AND customer_id = $2
+      AND access_status IS DISTINCT FROM 'active'
+  `, [input.membershipId, input.customerId, input.now]);
+  return { activated: true, emergencyStopped: false, changedPortfolios: result.rowCount ?? 0 };
 }
 
 export async function loadOfficialPaperOpenPosition(database: Queryable, portfolioId: string, symbol?: string) {
@@ -358,27 +522,13 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
   const client = await database.connect();
   try {
     await client.query("BEGIN");
-    const intent = (await client.query<{
-      id: string; portfolio_id: string; symbol: string; action: "buy" | "sell";
-      requested_price: string | null; payload_json: Record<string, unknown>;
-    }>(`
-      SELECT id, portfolio_id, symbol, action, requested_price, payload_json
-      FROM official_paper_order_intents
-      WHERE deployment_id = $1 AND status = 'pending' AND execution_timing = $2
-      ORDER BY created_at, id
-      FOR UPDATE SKIP LOCKED LIMIT 1
-    `, [input.deploymentId, input.timing])).rows[0];
-    if (!intent) {
-      await client.query("COMMIT");
-      return null;
-    }
     const portfolio = (await client.query<{
-      id: string; strategy_code: StrategyCode; access_status: OfficialPaperPortfolioState["access"];
+      id: string; customer_id: string; strategy_code: StrategyCode; access_status: OfficialPaperPortfolioState["access"];
       principal_usdt: string; cash_usdt: string; realized_pnl_usdt: string;
       realized_gross_pnl_usdt: string; realized_net_pnl_usdt: string; fees_usdt: string;
       membership_status: string; membership_expires_at: string | null; membership_grace_ends_at: string | null;
     }>(`
-      SELECT portfolio.id, portfolio.strategy_code, portfolio.access_status,
+      SELECT portfolio.id, portfolio.customer_id, portfolio.strategy_code, portfolio.access_status,
              portfolio.principal_usdt, portfolio.cash_usdt,
              portfolio.realized_pnl_usdt, portfolio.realized_gross_pnl_usdt,
              portfolio.realized_net_pnl_usdt, portfolio.fees_usdt,
@@ -389,10 +539,30 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
       JOIN memberships AS membership
         ON membership.id = portfolio.membership_id
        AND membership.customer_id = portfolio.customer_id
-      WHERE portfolio.id = $1
+      JOIN strategy_deployments AS deployment
+        ON deployment.paper_portfolio_id = portfolio.id
+      WHERE deployment.id = $1
       FOR UPDATE OF portfolio, membership
-    `, [intent.portfolio_id])).rows[0];
-    if (!portfolio) throw new Error("官方模拟盘组合不存在");
+    `, [input.deploymentId])).rows[0];
+    if (!portfolio) {
+      await client.query("COMMIT");
+      return null;
+    }
+    const intent = (await client.query<{
+      id: string; portfolio_id: string; symbol: string; action: "buy" | "sell";
+      requested_price: string | null; payload_json: Record<string, unknown>;
+    }>(`
+      SELECT id, portfolio_id, symbol, action, requested_price, payload_json
+      FROM official_paper_order_intents
+      WHERE deployment_id = $1 AND portfolio_id = $3
+        AND status = 'pending' AND execution_timing = $2
+      ORDER BY created_at, id
+      FOR UPDATE SKIP LOCKED LIMIT 1
+    `, [input.deploymentId, input.timing, portfolio.id])).rows[0];
+    if (!intent) {
+      await client.query("COMMIT");
+      return null;
+    }
     const positions = await client.query<{
       id: string; symbol: "BTCUSDT" | "ETHUSDT" | "SOLUSDT"; quantity: string;
       average_entry_price: string; cost_basis_usdt: string; entry_fees_usdt: string;
@@ -409,9 +579,13 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
       expiresAt: portfolio.membership_expires_at,
       graceEndsAt: portfolio.membership_grace_ends_at,
     });
-    const settlementAccess = currentMembershipAccess.newEntriesAllowed
-      ? "active" as const
-      : positions.rows.length > 0 ? "close_only" as const : "read_only" as const;
+    const emergencyStopped = await isOfficialPaperCustomerEmergencyStopped(client, portfolio.customer_id);
+    const settlementAccess = constrainedOfficialPaperAccess({
+      storedAccess: portfolio.access_status,
+      membershipAllowsNewEntries: currentMembershipAccess.newEntriesAllowed,
+      emergencyStopped,
+      hasOpenPositions: positions.rows.length > 0,
+    });
     if (settlementAccess !== portfolio.access_status) {
       await client.query(`
         UPDATE official_paper_portfolios
@@ -484,13 +658,19 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
         filledAt: input.fillTime.toISOString(),
       });
     } catch (error) {
+      const emergencyRejection = emergencyStopped && intent.action === "buy";
+      const rejectionReason = emergencyRejection
+        ? "当前范围处于紧急暂停，不能新增官方模拟盘持仓"
+        : error instanceof Error ? error.message : "模拟盘风控拒绝";
       await client.query(`
         UPDATE official_paper_order_intents
         SET status = 'rejected', rejection_code = $2
         WHERE id = $1
-      `, [intent.id, error instanceof Error ? error.message.slice(0, 120) : "PAPER_RISK_REJECTED"]);
+      `, [intent.id, emergencyRejection
+        ? OFFICIAL_PAPER_EMERGENCY_REJECTION_CODE
+        : rejectionReason.slice(0, 120)]);
       await client.query("COMMIT");
-      return { status: "rejected" as const, reason: error instanceof Error ? error.message : "模拟盘风控拒绝" };
+      return { status: "rejected" as const, reason: rejectionReason };
     }
 
     const nextPosition = next.positions.find((position) => position.symbol === intent.symbol);
@@ -534,9 +714,12 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
       `, [priorPosition.id, realizedNetDelta, realizedGrossDelta, input.fillTime]);
     }
 
-    const finalAccess = currentMembershipAccess.newEntriesAllowed
-      ? "active"
-      : next.positions.length > 0 ? "close_only" : "read_only";
+    const finalAccess = constrainedOfficialPaperAccess({
+      storedAccess: portfolio.access_status,
+      membershipAllowsNewEntries: currentMembershipAccess.newEntriesAllowed,
+      emergencyStopped,
+      hasOpenPositions: next.positions.length > 0,
+    });
     await client.query(`
       UPDATE official_paper_portfolios
       SET cash_usdt = $2, realized_pnl_usdt = $3,
@@ -592,6 +775,9 @@ export async function listOfficialPaperPortfolios(database: Queryable, customerI
     realized_net_pnl_usdt: string; fees_usdt: string; access_status: string;
     updated_at: Date; position_count: number; position_value_usdt: string; equity_usdt: string;
     unrealized_pnl_usdt: string;
+    deployment_id: string | null; strategy_subscription_id: string | null;
+    deployment_mode: "paper" | "shadow" | null; deployment_status: "active" | "paused" | "ended" | "failed" | null;
+    last_cycle_sequence: string | null; last_candle_close_at: Date | null;
   }>(`
     SELECT portfolio.id, portfolio.membership_id, portfolio.strategy_code,
            portfolio.principal_usdt, portfolio.cash_usdt, portfolio.realized_pnl_usdt,
@@ -600,12 +786,30 @@ export async function listOfficialPaperPortfolios(database: Queryable, customerI
            count(position.id)::int AS position_count,
            round(COALESCE(sum(position.quantity * position.last_mark_price), 0), 12)::numeric(30,12)::text AS position_value_usdt,
            round(portfolio.cash_usdt + COALESCE(sum(position.quantity * position.last_mark_price), 0), 12)::numeric(30,12)::text AS equity_usdt,
-           round(COALESCE(sum(position.unrealized_pnl_usdt), 0), 12)::numeric(30,12)::text AS unrealized_pnl_usdt
+           round(COALESCE(sum(position.unrealized_pnl_usdt), 0), 12)::numeric(30,12)::text AS unrealized_pnl_usdt,
+           runtime.id AS deployment_id,
+           runtime.strategy_subscription_id,
+           runtime.mode AS deployment_mode,
+           runtime.status AS deployment_status,
+           runtime.last_cycle_sequence::text,
+           runtime.last_candle_close_at
     FROM official_paper_portfolios AS portfolio
     LEFT JOIN official_paper_positions AS position
       ON position.portfolio_id = portfolio.id AND position.status = 'open'
+    LEFT JOIN LATERAL (
+      SELECT deployment.id,deployment.strategy_subscription_id,deployment.mode,
+             deployment.status,deployment.last_cycle_sequence,deployment.last_candle_close_at
+      FROM strategy_deployments AS deployment
+      WHERE deployment.owner_user_id = portfolio.customer_id
+        AND deployment.paper_portfolio_id = portfolio.id
+        AND deployment.execution_product = 'spot_usdt'
+        AND deployment.platform_strategy_code = portfolio.strategy_code
+      ORDER BY deployment.updated_at DESC,deployment.id DESC
+      LIMIT 1
+    ) AS runtime ON true
     WHERE portfolio.customer_id = $1
-    GROUP BY portfolio.id
+    GROUP BY portfolio.id,runtime.id,runtime.strategy_subscription_id,runtime.mode,
+             runtime.status,runtime.last_cycle_sequence,runtime.last_candle_close_at
     ORDER BY portfolio.strategy_code
   `, [customerId]);
   const positions = await database.query<{
@@ -635,6 +839,14 @@ export async function listOfficialPaperPortfolios(database: Queryable, customerI
       unrealizedPnlUsdt: row.unrealized_pnl_usdt,
       feesUsdt: row.fees_usdt,
       access: row.access_status,
+      runtime: {
+        state: row.deployment_status ?? "not_started",
+        deploymentId: row.deployment_id,
+        subscriptionId: row.strategy_subscription_id,
+        mode: row.deployment_mode,
+        lastCycleSequence: Number(row.last_cycle_sequence ?? 0),
+        lastDecisionAt: row.last_candle_close_at?.toISOString() ?? null,
+      },
       openPositionCount: row.position_count,
       positions: positions.rows.filter((position) => position.portfolio_id === row.id).map((position) => ({
         id: position.id,
@@ -655,15 +867,21 @@ export async function listOfficialPaperPortfolios(database: Queryable, customerI
 
 export async function listOfficialPaperTrades(database: Queryable, input: {
   customerId: string;
+  portfolioId?: string | null;
   cursor?: { filledAt: Date; id: string } | null;
   limit?: number;
 }) {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
   const values: unknown[] = [input.customerId];
+  let portfolioSql = "";
+  if (input.portfolioId) {
+    values.push(input.portfolioId);
+    portfolioSql = `AND receipt.portfolio_id = $${values.length}`;
+  }
   let cursorSql = "";
   if (input.cursor) {
     values.push(input.cursor.filledAt, input.cursor.id);
-    cursorSql = `AND (receipt.filled_at, receipt.id) < ($2, $3)`;
+    cursorSql = `AND (receipt.filled_at, receipt.id) < ($${values.length - 1}, $${values.length})`;
   }
   values.push(limit + 1);
   const result = await database.query<{
@@ -683,7 +901,7 @@ export async function listOfficialPaperTrades(database: Queryable, input: {
     FROM official_paper_fill_receipts AS receipt
     JOIN official_paper_order_intents AS intent ON intent.id = receipt.intent_id
     JOIN official_paper_portfolios AS portfolio ON portfolio.id = receipt.portfolio_id
-    WHERE portfolio.customer_id = $1 ${cursorSql}
+    WHERE portfolio.customer_id = $1 ${portfolioSql} ${cursorSql}
     ORDER BY receipt.filled_at DESC, receipt.id DESC
     LIMIT $${values.length}
   `, values);

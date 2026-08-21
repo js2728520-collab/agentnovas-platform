@@ -8,8 +8,8 @@
 
 - 安装 Linux、Node.js 22.21+、PostgreSQL 16+、Nginx 和 Certbot。
 - 创建无登录用户 `agentnovas`，将只读应用制品部署到 `/opt/agentnovas/current`。
-- 从 `deploy/env/*.env.example` 分别建立 `/etc/agentnovas/client.env`、`operations.env`、`maintenance.env`、`notification.env`、`demo.env`、`research.env`、`runtime.env`；所有者为 `root:agentnovas`，权限为 `0640` 或更严格。不得合并成共享密钥文件。
-- 为应用创建最小权限 PostgreSQL 用户；模型和交易所密钥的加密主密钥不得提交到 Git。
+- 从 `deploy/env/*.env.example` 分别建立 `/etc/agentnovas/client.env`、`operations.env`、`maintenance.env`、`notification.env`、`demo.env`、`runtime.env`、`migrator.env`；所有者为 `root:agentnovas`，权限为 `0640` 或更严格。Beta 不建立或加载 legacy `research.env`，不得合并成共享密钥文件。
+- 为每个进程创建最小权限 PostgreSQL 用户。Client 的业务连接必须使用 `agentnovas_client_web`，登录投影连接必须使用独立 `agentnovas_client_auth`；两者都不能直读身份/邀请表。模型和交易所密钥的加密主密钥不得提交到 Git。
 - Cloudflare 只作为 DNS 注册商/权威 DNS 使用，三个站点记录必须为 DNS-only，直接指向 Linux/Nginx。
 
 ## 2. 数据备份与迁移
@@ -22,15 +22,17 @@ pg_dump --format=custom --file=/var/backups/agentnovas/predeploy.dump "$DATABASE
 sha256sum /var/backups/agentnovas/predeploy.dump
 ```
 
-先在隔离数据库恢复备份并验证关键表行数、登录、租户隔离和研究队列，再在维护窗口执行：
+先在隔离数据库恢复备份并验证关键表行数、登录、租户隔离和官方 Paper 队列。Fresh 环境由管理员先执行 `deploy/postgres/bootstrap-migrator.sql`，随后只使用 migrator 连接执行迁移，再由管理员以单事务执行 `deploy/postgres/least-privilege-roles.sql`，最后运行 `scripts/release/postgres-role-policy.mjs`：
 
 ```bash
 npm ci
 npm run build
-DATABASE_URL='postgresql://…' npm run postgres:migrate
+DATABASE_URL='postgresql://agentnovas_migrator@127.0.0.1/agentnovas' npm run postgres:migrate
+RELEASE_ROLE_POLICY_DATABASE_URL='postgresql://agentnovas_migrator@127.0.0.1/agentnovas' \
+  node scripts/release/postgres-role-policy.mjs
 ```
 
-`postgres/migrations/*.sql` 按文件名顺序执行并可重复运行。迁移失败时禁止启动新版本，恢复上一应用制品；涉及不可逆数据变更时，从已验证备份恢复到新的数据库实例后再切换连接串。
+`postgres/migrations/*.sql` 按文件名顺序执行，registry checksum 不变时可安全重跑。迁移失败或角色策略出现 finding 时禁止启动新版本，恢复上一应用制品；涉及不可逆数据变更时，从已验证备份恢复到新的数据库实例后再切换连接串。
 
 ## 3. 启动顺序
 

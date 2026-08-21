@@ -2,6 +2,7 @@ import { requireAccessPermission } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
 import { researchErrorResponse } from "@/lib/research-api";
 import { demoExecutionWorkerConfig } from "@/lib/demo-worker-config";
+import { loadMaintenanceHealthMetrics } from "@/lib/maintenance-health-metrics";
 import {
   deriveWorkerHealthState,
   loadWorkerDiagnostics,
@@ -50,9 +51,24 @@ export async function GET(request: Request) {
     );
     const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
     const demoWorkerConfig = demoExecutionWorkerConfig();
+    const [queues, migration] = await Promise.all([
+      loadMaintenanceHealthMetrics(pool),
+      pool.query<{ name: string; checksum: string | null; commit_sha: string | null }>(
+        `SELECT name,checksum,commit_sha FROM _agentnovas_migrations ORDER BY name DESC LIMIT 1`,
+      ),
+    ]);
     const response = {
       checkedAt: new Date().toISOString(),
-      database: { status: "ready" },
+      database: {
+        status: "ready",
+        pool: { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount },
+        migration: migration.rows[0] ? {
+          latest: migration.rows[0].name,
+          checksumRecorded: Boolean(migration.rows[0].checksum),
+          commitRecorded: Boolean(migration.rows[0].commit_sha),
+        } : null,
+      },
+      queues,
       paymentWorker: workerStatus(diagnostics, "payment", {
         configured: databaseConfigured,
         enabled: process.env.PAYMENT_WORKER_ENABLED === "true",

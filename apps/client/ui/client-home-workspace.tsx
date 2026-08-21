@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 
-import type { AiCreditBalance, CursorPage, MembershipEntitlement, MembershipOrder, PaperPortfolio } from "@/packages/contracts/src/commercial-beta";
-import { formatDateTime, hasAnyPermission, type EffectiveAccessPayload, type ViewerPayload } from "@/packages/contracts/src/riverton-ui";
+import type { AiCreditBalance, CursorPage, MembershipEntitlement, MembershipOrder, PaperPortfolio, PerformanceFeeStatement } from "@/packages/contracts/src/commercial-beta";
+import { formatDateTime, formatDecimal, hasAnyPermission, type EffectiveAccessPayload, type ViewerPayload } from "@/packages/contracts/src/riverton-ui";
 import { PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
@@ -13,6 +13,7 @@ import styles from "./client-home-workspace.module.css";
 
 const modules = [
   { href: "/membership", permission: "client.membership.view", title: "会员与披露", description: "核对计划、商业披露快照、人工付款申请和权益状态。" },
+  { href: "/performance-statements", permission: "client.membership.view", title: "绩效账单", description: "查看 paper 模拟收益、高水位、亏损结转与人工付款复核证据链。" },
   { href: "/credits", permission: "client.credits.view", title: "AI 积分", description: "查看与 USDT 钱包分离的可用、预留、发放和消耗。" },
   { href: "/paper", permission: "client.paper.view", title: "三卡 Paper", description: "查看服务端模拟资金、现货持仓与已实现收益。" },
   { href: "/trading-hall", permission: "client.paper.view", title: "七智能体交易大厅", description: "核对七阶段决策证据与真实订单关闭边界。" },
@@ -24,6 +25,9 @@ const membershipLabels: Record<string, string> = {
 };
 const orderLabels: Record<string, string> = {
   AWAITING_EVIDENCE: "等待凭证", SUBMITTED: "人工复核中", REJECTED: "审核未通过", ACTIVATED: "已激活", CANCELLED: "已取消",
+};
+const statementLabels: Record<string, string> = {
+  SUBMITTED: "等待业务审批", APPROVED: "业务审批已记录", REJECTED: "审核未通过", INVOICED: "等待付款复核", PAID: "付款已复核", CLOSED_NO_FEE: "无需支付",
 };
 
 function SummaryCard({ label, value, detail, state, retry }: { label: string; value: string; detail: string; state?: "loading" | "error"; retry?: () => void }) {
@@ -41,8 +45,10 @@ export function ClientHomeWorkspace({ viewer, access }: { viewer: ViewerPayload;
   const canViewPaper = hasAnyPermission(access.permissions, ["client.paper.view"]);
   const membership = useApiData<{ membership: MembershipEntitlement | null }>(canViewMembership ? "/api/membership/me" : null, "会员状态读取失败");
   const orders = useApiData<CursorPage<MembershipOrder>>(canViewMembership ? "/api/membership/orders?limit=1" : null, "会员申请读取失败");
+  const statements = useApiData<CursorPage<PerformanceFeeStatement>>(canViewMembership ? "/api/membership/performance-statements?limit=1" : null, "绩效账单读取失败");
   const credits = useApiData<{ credits: AiCreditBalance }>(canViewCredits ? "/api/credits/me" : null, "AI 积分读取失败");
   const paper = useApiData<{ data: PaperPortfolio[] }>(canViewPaper ? "/api/trading-hall/paper/portfolio" : null, "模拟组合读取失败");
+  const notifications = useApiData<{ unread: number }>("/api/notifications/inbox?summary=1", "未读通知读取失败");
   const visible = modules.filter((module) => hasAnyPermission(access.permissions, [module.permission]));
   const task = deriveClientHomeTask({
     canViewMembership,
@@ -88,6 +94,18 @@ export function ClientHomeWorkspace({ viewer, access }: { viewer: ViewerPayload;
           : paper.loading || !paper.data
             ? <SummaryCard label="官方模拟组合" value="正在核对" detail="以服务端返回为准" state="loading" />
             : <SummaryCard label="官方模拟组合" value={`${paper.data.data.length} / 3`} detail={`${paper.data.data.filter((item) => item.status === "ACTIVE").length} 张允许新开仓 · 不代表 Worker 正在运行`} />)}
+      {canViewMembership && (statements.error
+          ? <SummaryCard label="最新绩效账单" value="读取失败" detail={statements.error} state="error" retry={statements.refresh} />
+          : statements.loading || !statements.data
+            ? <SummaryCard label="最新绩效账单" value="正在核对" detail="按 UTC 周期读取 paper 账单" state="loading" />
+            : statements.data.data[0]
+              ? <SummaryCard label="最新绩效账单" value={statementLabels[statements.data.data[0].status] ?? statements.data.data[0].status} detail={`应收 ${formatDecimal(statements.data.data[0].feeAmount)} USDT · ${formatDateTime(statements.data.data[0].cycleEndedAt)}`} />
+              : <SummaryCard label="最新绩效账单" value="暂无账单" detail="没有可结算周期时不会生成模拟数据" />)}
+      {notifications.error
+          ? <SummaryCard label="未读通知" value="读取失败" detail={notifications.error} state="error" retry={notifications.refresh} />
+          : notifications.loading || !notifications.data
+            ? <SummaryCard label="未读通知" value="正在核对" detail="仅读取当前账户站内未读数量" state="loading" />
+            : <SummaryCard label="未读通知" value={String(notifications.data.unread)} detail={notifications.data.unread > 0 ? "前往通知中心逐项核对" : "当前没有未读站内通知"} />}
     </section>
 
     <aside className={styles.boundary} role="note">

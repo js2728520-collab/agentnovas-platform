@@ -39,6 +39,8 @@ test("environment examples preserve disabled external effects", async () => {
   const demo = await read("deploy/env/demo.env.example");
   const notification = await read("deploy/env/notification.env.example");
   const maintenance = await read("deploy/env/maintenance.env.example");
+  const client = await read("deploy/env/client.env.example");
+  const legacy = await read("deploy/agentnovas.env.example");
   assert.match(demo, /^DEMO_EXECUTION_WORKER_ENABLED=false$/m);
   assert.match(demo, /^PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false$/m);
   assert.match(maintenance, /^DEMO_EXECUTION_WORKER_ENABLED=false$/m);
@@ -46,4 +48,19 @@ test("environment examples preserve disabled external effects", async () => {
   assert.doesNotMatch(demo, /PAYMENT_WORKER_ENABLED=true/);
   assert.match(notification, /^NOTIFICATION_EMAIL_SEND_ENABLED=false$/m);
   assert.match(notification, /^RESEND_API_KEY=$/m);
+  assert.doesNotMatch(client, /EXCHANGE_CREDENTIAL_ENCRYPTION_KEY/);
+  assert.match(legacy, /RETIRED|DO NOT USE/i);
+  assert.doesNotMatch(legacy, /^(?:DATABASE_URL|.*(?:SECRET|KEY|PASSWORD))=/m);
+});
+
+test("reverse proxy contains no legacy research fast path", async () => {
+  const nginx = await read("deploy/nginx/riverton-three-apps.conf");
+  assert.doesNotMatch(nginx, /api\/strategy-research|proxy_read_timeout\s+3600s/);
+});
+
+test("reverse proxy hard-closes payment webhooks before the application", async () => {
+  const nginx = await read("deploy/nginx/riverton-three-apps.conf");
+  assert.match(nginx, /location ~ \^\/api\/integrations\/payments\/.+?\{\s*return 404;\s*\}/s);
+  const paymentLocation = nginx.match(/location ~ \^\/api\/integrations\/payments\/.+?\n\s*\}/s)?.[0] ?? "";
+  assert.doesNotMatch(paymentLocation, /proxy_pass/);
 });

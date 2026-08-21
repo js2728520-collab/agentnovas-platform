@@ -238,6 +238,25 @@ test("commercial action and evidence DTOs are camelCase allowlists", () => {
   assert.equal(statement.simulatedFees, "0.2");
   assert.equal(statement.strategyBreakdown.length, 1);
   assert.equal(statement.highWaterMarkAfter, "1");
+  assert.equal(statement.settledHighWaterMark, "0");
+  const paid = performanceStatementDto({
+    id: "s1-paid",
+    user_id: "u1",
+    status: "paid",
+    week_start: "2026-08-03",
+    week_end: "2026-08-10",
+    strategy_codes_json: {},
+    week_net_pnl: "1",
+    cumulative_net_pnl: "1",
+    loss_carry: "0",
+    prior_high_water_mark: "0",
+    eligible_profit: "1",
+    fee_bps: 2000,
+    fee_amount: "0.2",
+    created_at: "2026-08-11",
+    paid_at: "2026-08-20",
+  });
+  assert.equal(paid.settledHighWaterMark, "1");
   const lossWeek = performanceStatementDto({
     ...{
       id: "s2",

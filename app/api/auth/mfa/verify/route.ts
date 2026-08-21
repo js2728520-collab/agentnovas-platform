@@ -5,16 +5,15 @@ import { auditLogs, sessions } from "@/db/schema";
 import { clearAuthRateLimit, consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { verifyAndConsumeMfa } from "@/lib/mfa";
 import { getPostgresPool } from "@/lib/postgres";
+import { readResearchJson } from "@/lib/research-api";
 import { sessionPolicyForAudience } from "@/lib/riverton-apps";
 import { requirePrimarySession, responseError } from "@/lib/session";
 
 export async function POST(request: Request) {
   try {
     const current = await requirePrimarySession(request);
-    if (current.session.appAudience === "client") {
-      return Response.json({ error: "当前应用不提供内部双重验证" }, { status: 404 });
-    }
-    const { code = "" } = await request.json() as { code?: string };
+    const body = await readResearchJson(request, 2_048);
+    const code = typeof body.code === "string" ? body.code : "";
     const pool = await getPostgresPool();
     const bucketKey = `session:${current.session.id}`;
     const limit = await consumeAuthRateLimit(pool, {
@@ -31,7 +30,11 @@ export async function POST(request: Request) {
         headers: { "retry-after": String(limit.retryAfterSeconds) },
       });
     }
-    const result = await verifyAndConsumeMfa(pool, { userId: current.user.id, code });
+    const result = await verifyAndConsumeMfa(pool, {
+      userId: current.user.id,
+      sessionTokenHash: current.session.appAudience === "client" ? current.session.tokenHash : undefined,
+      code,
+    });
     if (!result.ok) return Response.json({ error: "验证码无效、已使用或已过期" }, { status: 401 });
 
     const now = new Date();
@@ -41,7 +44,18 @@ export async function POST(request: Request) {
       now.getTime() + sessionPolicyForAudience(current.session.appAudience).idleSeconds * 1000,
     )).toISOString();
     const db = getDb();
-    await db.batch([
+    if (current.session.appAudience === "client") {
+      const changed = await pool.query<{ changed: boolean }>(`
+        SELECT client_mfa_mark_session_verified($1,$2,$3,$4) AS changed
+      `, [current.session.tokenHash,result.level,now,idleExpiresAt]);
+      if (!changed.rows[0]?.changed) return Response.json({ error: "登录验证已失效，请重新登录" }, { status: 409 });
+      await db.insert(auditLogs).values({
+        id: crypto.randomUUID(),actorUserId: current.user.id,
+        action: result.level === "recovery" ? "auth.mfa_recovery_verified" : "auth.mfa_totp_verified",
+        subjectType: "session",subjectId: current.session.id,
+        afterJson: JSON.stringify({ appAudience: current.session.appAudience,level: result.level }),
+      });
+    } else await db.batch([
       db.update(sessions).set({
         mfaLevel: result.level,
         mfaVerifiedAt: nowIso,

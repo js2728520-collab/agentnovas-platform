@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Riverton Capital Controlled Beta API
-  version: 2.0.0-beta
+  version: 2.1.0-beta
   description: >-
     三应用一库的核心浏览器接口合同。客户 paper 与平台 Demo 证据分离；
     真实支付、客户充值、客户交易所密钥、真实现货/永续和生产外部操作不启用。
@@ -95,7 +95,7 @@ paths:
   /api/membership/legal-consent:
     get:
       tags: [Membership]
-      summary: 查询当前七份法务正文及本账号确认状态
+      summary: 查询当前七份商业披露及本账号确认状态
       responses:
         '200':
           description: 当前有效正文、版本、哈希、配置与确认状态；不返回订单或付款结果
@@ -122,7 +122,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       tags: [Membership]
-      summary: 独立保存当前七份法务正文版本确认
+      summary: 独立保存当前七份商业披露版本确认
       description: 精确匹配当前七份正文并幂等保存 ID、版本、哈希、时间、可信请求 IP 与 user-agent 摘要；不创建订单、付款或会员权益。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -149,7 +149,7 @@ paths:
   /api/membership/plans:
     get:
       tags: [Membership]
-      summary: 查询版本化会员计划与可读法务正文
+      summary: 查询版本化会员计划与可读商业披露
       responses:
         '200':
           description: 四档 v1 计划快照；七份正文完整且哈希一致时才允许创建订单
@@ -184,7 +184,7 @@ paths:
     post:
       tags: [Membership]
       summary: 创建人工付款会员订单
-      description: 需要当前法务同意和 Idempotency-Key；不返回链上地址或二维码。
+      description: 需要确认当前商业披露和 Idempotency-Key；不返回链上地址或二维码。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -213,6 +213,18 @@ paths:
       summary: 查询当前客户 paper 盈利分成账单
       responses:
         '200': { description: paper 模拟分成安全视图 }
+  /api/membership/performance-statements/{id}:
+    get:
+      tags: [Membership]
+      summary: 查询当前客户的一张 Paper 分成账单详情与时间线
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 合同快照、计算区间、状态和净化事件时间线 }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/credits/me:
     get:
       tags: [Credits]
@@ -237,9 +249,20 @@ paths:
         - in: query
           name: limit
           schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: portfolioId
+          schema: { type: string }
       responses:
         '200': { description: 当前客户三张官方组合的 cursor 分页成交 }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/trading-hall/paper/platform-demo-summary:
+    get:
+      tags: [Paper]
+      summary: 查询平台测试环境的 Client 安全摘要
+      description: 不返回账户、密钥、endpoint、订单 ID、payload 或 traceId；Demo 状态不影响客户 Paper。
+      responses:
+        '200': { description: provider/card 状态、最近测试时间与净化回执；customerImpact 固定 false }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/wallet/balances:
     get:
       tags: [Wallet]
@@ -363,6 +386,69 @@ paths:
       responses:
         '200':
           description: 不含密钥和完整端点的状态
+  /api/maintenance/integrations/catalog:
+    get:
+      tags: [Maintenance]
+      summary: 查询公共数据与新闻集成安全目录
+      responses:
+        '200': { description: configured/enabled/health/stale/lastTest，不含 Key 或完整 endpoint }
+  /api/maintenance/integrations/{id}/test:
+    post:
+      tags: [Maintenance]
+      summary: 对代码固定的公共只读目标执行安全检查
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 成功、延迟和检测时间 }
+        '502': { description: 净化错误码；不返回上游正文 }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/maintenance/trading/emergency-stop:
+    get:
+      tags: [Maintenance]
+      summary: 查询当前授权范围的官方 Paper 紧急停控
+      responses:
+        '200': { description: scope、受影响客户与组合；平台 Demo 控制保持独立 }
+    post:
+      tags: [Maintenance]
+      summary: 幂等启用或解除官方 Paper 新开仓停控
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 已提交的 Paper 访问状态变化；不改变平台 Demo 控制 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: 原因、状态或幂等键无效 }
+  /api/maintenance/commercial-disclosures:
+    get:
+      tags: [Maintenance]
+      summary: 查询产品身份、商业披露版本与 readiness
+      responses:
+        '200': { description: 草稿/已发布版本、安全元数据和当前 bundle }
+    post:
+      tags: [Maintenance]
+      summary: 创建或提交商业披露版本
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 草稿或提交结果；不自动发布 }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/maintenance/commercial-disclosures/{id}/decision:
+    post:
+      tags: [Maintenance]
+      summary: 由不同人员发布或拒绝商业披露版本
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 发布决定和当前 bundle }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /api/maintenance/payment-providers:
     get:
       tags: [Maintenance]
@@ -373,10 +459,10 @@ paths:
   /api/maintenance/payment-workers/health:
     get:
       tags: [Maintenance]
-      summary: Payment Worker 健康
+      summary: Worker、队列、数据库与迁移详细健康
       responses:
         '200':
-          description: configured/enabled/heartbeat/last result 分离的状态
+          description: configured/enabled/alive/healthy/stale、queue age 阈值、DB pool 和迁移证据
   /api/maintenance/demo-exchanges:
     get:
       tags: [Maintenance]
@@ -400,13 +486,16 @@ paths:
   /api/maintenance/audit:
     get:
       tags: [Maintenance]
-      summary: 查询 Demo 管理命令技术审计
+      summary: 查询统一技术安全审计投影
       description: >-
-        Beta 只投影 Demo 控制与验证命令；不返回 response payload、幂等键、payload hash、
-        provider/client order ID、密文或完整凭证。其他技术域统一聚合属于 GA backlog。
+        聚合 Demo、模型、集成、商业设置、安全停控和身份/MFA allowlist 事件；不返回
+        response payload、幂等键、payload hash、provider/client order ID、密文或完整凭证。
       parameters:
         - in: query
-          name: operation
+          name: domain
+          schema: { type: string, enum: [demo, models, integrations, settings, safety, identity] }
+        - in: query
+          name: action
           schema: { type: string }
         - in: query
           name: status

@@ -69,7 +69,7 @@ export function LegalConsentExperience() {
       resource.setData(status);
       idempotencyKey.current = newIdempotencyKey();
       setAcknowledged(false);
-      setResult({ kind: "success", message: "当前七份正文的版本确认已独立保存；本次操作没有创建订单、付款或激活会员。" });
+      setResult({ kind: "success", message: "当前七份正文的版本确认已保存；受邀账号的 3 天试用已在确认后由服务端开通。本次操作没有创建订单或付款。" });
       window.setTimeout(() => resultRef.current?.focus(), 0);
     } catch (error) {
       setResult({ kind: "error", message: clientErrorMessage(error, "商业披露确认保存失败") });
@@ -90,8 +90,8 @@ export function LegalConsentExperience() {
     <section className={styles.boundary} aria-labelledby="legal-boundary-title">
       <div>
         <span>确认如何生效</span>
-        <h2 id="legal-boundary-title">确认会独立保存，并在提交会员申请时再次绑定订单快照</h2>
-        <p>当前页面只记录你对当前七份正文版本的确认，不会创建订单、付款或激活会员。提交申请前，系统仍会把同一组正文版本写入订单快照。</p>
+        <h2 id="legal-boundary-title">先确认当前版本，再开通受邀试用</h2>
+        <p>当前七份正文的版本确认会独立保存；若账号有待开通的受邀试用，服务端会在同一流程中激活 3 天试用与三张 Paper 组合。不会创建付费订单或付款。</p>
       </div>
       {!consentComplete && complete ? <a className={styles.primaryLink} href="#legal-acceptance">阅读后确认</a> : null}
     </section>
@@ -128,7 +128,7 @@ export function LegalConsentExperience() {
       <div>
         <span>VERSIONED CONSENT</span>
         <h2 id="legal-acceptance-title">确认当前七份正文</h2>
-        <p>本次确认会保存正文 ID、版本、内容哈希、确认时间及请求环境信息；不会创建会员订单、付款记录或资金流水。</p>
+        <p>本次确认会保存正文 ID、版本、内容哈希、确认时间及请求环境信息；待开通试用会在确认后激活，但不会创建付费订单、付款记录或资金流水。</p>
       </div>
       <label className={styles.acknowledgement} htmlFor={acknowledgementId}>
         <input id={acknowledgementId} type="checkbox" checked={acknowledged} disabled={busy} onChange={(event) => setAcknowledged(event.target.checked)} />

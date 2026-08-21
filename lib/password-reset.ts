@@ -21,6 +21,30 @@ export async function consumePasswordReset(pool: Pool, input: {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    if (input.audience === "client") {
+      const consumed = await client.query<{ user_id: string; account_activated: boolean }>(`
+        SELECT user_id,account_activated FROM client_consume_password_reset($1,$2,$3)
+      `, [input.tokenHash,input.passwordHash,now]);
+      const row = consumed.rows[0];
+      if (!row) {
+        await client.query("ROLLBACK");
+        return { ok: false as const, code: "INVALID_OR_EXPIRED" as const };
+      }
+      await client.query(`
+        INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,created_at)
+        VALUES($1,$2,$3,'user',$2,$4,$5)
+      `, [
+        crypto.randomUUID(),row.user_id,row.account_activated ? "auth.internal_account_activated" : "auth.password_reset",
+        JSON.stringify({ sessionsRevoked: true, accountActivated: row.account_activated, appAudience: "client", primarySessionCreated: false }),nowIso,
+      ]);
+      await client.query("COMMIT");
+      return {
+        ok: true as const,
+        accountActivated: row.account_activated,
+        primarySessionCreated: false,
+        mfaEnrollmentRequired: false,
+      };
+    }
     const candidate = await client.query<{ user_id: string }>(`
       SELECT token.user_id
       FROM auth_tokens token
@@ -72,7 +96,7 @@ export async function consumePasswordReset(pool: Pool, input: {
       return { ok: false as const, code: "INVALID_OR_EXPIRED" as const };
     }
     const accountActivated = row.status === "pending";
-    const internal = input.audience !== "client";
+    const internal = true;
     if (internal && (row.role === "customer" || !row.has_assignment || !input.primarySession)) {
       await client.query("ROLLBACK");
       return { ok: false as const, code: "INTERNAL_ACCESS_NOT_READY" as const };

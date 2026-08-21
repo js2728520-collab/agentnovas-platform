@@ -9,10 +9,12 @@ import {
   bindRuntimeExplanationRole,
   listAgentRoleBindings,
   listLlmProfiles,
+  listLlmProfileRevisions,
   listRuntimeExplanationBindings,
   missingAgentRoles,
   resolveAgentRoleConfig,
   resolveRuntimeExplanationRoleConfig,
+  rollbackLlmProfileRevision,
   saveLlmProfile,
   snapshotAgentRoleBindings,
 } from "../lib/agent-model-profiles.ts";
@@ -23,22 +25,23 @@ const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/pos
 const schema = `agent_profile_test_${process.pid}_${Date.now()}`;
 const adminPool = new Pool({ connectionString: databaseUrl, max: 2 });
 const pool = new Pool({ connectionString: databaseUrl, max: 4, options: `-c search_path=${schema}` });
-const originalEncryptionKey = process.env.INTEGRATION_CREDENTIAL_ENCRYPTION_KEY;
+const originalEncryptionKey = process.env.LLM_PROFILE_ENCRYPTION_KEY;
 
 test.before(async () => {
-  process.env.INTEGRATION_CREDENTIAL_ENCRYPTION_KEY = "test-only-encryption-key-with-32-chars";
+  process.env.LLM_PROFILE_ENCRYPTION_KEY = "test-only-llm-profile-key-with-32-chars";
   assert.match(schema, /^[a-z0-9_]+$/);
   await adminPool.query(`CREATE SCHEMA "${schema}"`);
   const migration = await readFile(new URL("../postgres/migrations/0001_strategy_research.sql", import.meta.url), "utf8");
   await pool.query(migration);
+  await pool.query("CREATE TABLE IF NOT EXISTS audit_logs(id text PRIMARY KEY,actor_user_id text,action text NOT NULL,subject_type text NOT NULL,subject_id text NOT NULL,before_json text,after_json text,request_id text,trace_id text,error_code text,created_at timestamptz NOT NULL DEFAULT now())");
 });
 
 test.after(async () => {
   await pool.end();
   await adminPool.query(`DROP SCHEMA "${schema}" CASCADE`);
   await adminPool.end();
-  if (originalEncryptionKey === undefined) delete process.env.INTEGRATION_CREDENTIAL_ENCRYPTION_KEY;
-  else process.env.INTEGRATION_CREDENTIAL_ENCRYPTION_KEY = originalEncryptionKey;
+  if (originalEncryptionKey === undefined) delete process.env.LLM_PROFILE_ENCRYPTION_KEY;
+  else process.env.LLM_PROFILE_ENCRYPTION_KEY = originalEncryptionKey;
 });
 
 test.beforeEach(async () => {
@@ -178,6 +181,56 @@ test("creates immutable profile revisions and resolves a task-pinned revision", 
   assert.equal(historical.apiKey, "sk-revision-one");
   assert.equal(JSON.stringify(before).includes("Provider"), false);
   assert.equal(JSON.stringify(before).includes("sk-revision"), false);
+});
+
+test("safe profile edits retain hidden endpoint and key when rotation fields are blank", async () => {
+  const original = await saveLlmProfile(pool, {
+    actorUserId: "admin-a",
+    input: { name: "安全编辑", providerName: "Provider", baseUrl: "https://llm.example.com/v1", modelName: "model-v1", apiKey: "sk-hidden-key", enabled: true },
+  });
+  await bindAgentRole(pool, { actorUserId: "admin-a", role: "requirements", profileId: original.id });
+  await saveLlmProfile(pool, {
+    id: original.id,
+    actorUserId: "admin-b",
+    input: { name: "安全编辑二版", providerName: "Provider", baseUrl: "", modelName: "model-v2", apiKey: "", enabled: false },
+  });
+  const revisions = await pool.query("SELECT base_url,encrypted_api_key FROM llm_profile_revisions WHERE profile_id=$1 ORDER BY revision_number", [original.id]);
+  assert.equal(revisions.rows[1].base_url, "https://llm.example.com/v1");
+  assert.equal(revisions.rows[1].encrypted_api_key, revisions.rows[0].encrypted_api_key);
+  assert.notEqual(revisions.rows[1].encrypted_api_key, "sk-hidden-key");
+});
+
+test("lists redacted model revisions and rolls back by cloning a new immutable revision", async () => {
+  const original = await saveLlmProfile(pool, {
+    actorUserId: "admin-a",
+    input: { name: "可回滚模型", providerName: "Provider", baseUrl: "https://llm.example.com/v1", modelName: "model-v1", apiKey: "sk-revision-one", enabled: true },
+  });
+  await bindAgentRole(pool, { actorUserId: "admin-a", role: "requirements", profileId: original.id });
+  const revisionOne = original.currentRevisionId;
+  const updated = await saveLlmProfile(pool, {
+    id: original.id,
+    actorUserId: "admin-b",
+    input: { name: "可回滚模型", providerName: "Provider", baseUrl: "https://llm.example.com/v1/responses", modelName: "model-v2", apiKey: "sk-revision-two", enabled: true },
+  });
+  const safeHistory = await listLlmProfileRevisions(pool, original.id);
+  assert.equal(safeHistory.length, 2);
+  assert.equal(safeHistory[0].isCurrent, true);
+  assert.equal(JSON.stringify(safeHistory).includes("llm.example.com"), false);
+  assert.equal(JSON.stringify(safeHistory).includes("sk-revision"), false);
+
+  const rollback = await rollbackLlmProfileRevision(pool, {
+    profileId: original.id,
+    revisionId: revisionOne,
+    expectedCurrentRevisionId: updated.currentRevisionId,
+    actorUserId: "admin-c",
+    reason: "回退供应商不兼容修订",
+  });
+  const current = await resolveAgentRoleConfig(pool, "requirements");
+  assert.equal(rollback.revisionNumber, 3);
+  assert.equal(current.modelName, "model-v1");
+  assert.equal(current.apiKey, "sk-revision-one");
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM llm_profile_revisions WHERE profile_id=$1", [original.id])).rows[0].count, 3);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM audit_logs WHERE action='maintenance.llm_profile_rolled_back'", [])).rows[0].count, 1);
 });
 
 test("reports every missing critical role and ignores bindings to disabled profiles", async () => {

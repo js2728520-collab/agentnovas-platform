@@ -8,6 +8,8 @@ import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
 import { ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
+import { ClientMfaPanel } from "./client-mfa-panel";
+
 type AccountSession = {
   id: string;
   audience: "client" | "operations" | "maintenance";
@@ -31,10 +33,14 @@ export function AccountSecurityWorkspace({ viewer }: { viewer: ViewerPayload }) 
     timezone: viewer.timezone ?? "Asia/Shanghai",
   });
   const [password, setPassword] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [profileCurrentPassword, setProfileCurrentPassword] = useState("");
+  const [savedIdentifiers, setSavedIdentifiers] = useState({ username: viewer.username ?? "", phone: viewer.phone ?? "" });
   const [revoking, setRevoking] = useState<AccountSession | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+  const loginIdentifierChanged = profile.username.trim() !== savedIdentifiers.username
+    || profile.phone.trim() !== savedIdentifiers.phone;
 
   function announce(kind: "success" | "error", text: string) {
     setMessage({ kind, text });
@@ -46,10 +52,16 @@ export function AccountSecurityWorkspace({ viewer }: { viewer: ViewerPayload }) 
     setBusy(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/account/profile", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(profile) });
+      const response = await fetch("/api/account/profile", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...profile, currentPassword: profileCurrentPassword }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, "资料保存失败"));
-      announce("success", "个人资料已保存。");
+      const updated = payload.user as { username?: string | null; phone?: string | null } | undefined;
+      const nextIdentifiers = { username: updated?.username ?? profile.username.trim(), phone: updated?.phone ?? profile.phone.trim() };
+      setSavedIdentifiers(nextIdentifiers);
+      setProfile((current) => ({ ...current, ...nextIdentifiers }));
+      setProfileCurrentPassword("");
+      const sessionsRevoked = typeof payload.sessionsRevoked === "number" ? payload.sessionsRevoked : 0;
+      announce("success", sessionsRevoked > 0 ? `个人资料已保存，其他 ${sessionsRevoked} 个登录会话已撤销。` : "个人资料已保存。");
     } catch (error) {
       announce("error", error instanceof Error ? error.message : "资料保存失败");
     } finally {
@@ -103,13 +115,15 @@ export function AccountSecurityWorkspace({ viewer }: { viewer: ViewerPayload }) 
       <div className="rc-form rc-form-grid">
         <label>用户名<input maxLength={32} value={profile.username} onChange={(event) => setProfile((current) => ({ ...current, username: event.target.value }))} /></label>
         <label>昵称<input maxLength={40} value={profile.nickname} onChange={(event) => setProfile((current) => ({ ...current, nickname: event.target.value }))} /></label>
-        <label>手机号（可选）<input type="tel" maxLength={32} value={profile.phone} onChange={(event) => setProfile((current) => ({ ...current, phone: event.target.value }))} /></label>
+        <label>手机号（登录标识）<input type="tel" autoComplete="tel" maxLength={32} value={profile.phone} onChange={(event) => setProfile((current) => ({ ...current, phone: event.target.value }))} /><small>将统一保存为规范格式；若没有其他用户名或可用邮箱，手机号不能清除。</small></label>
         <label>出生日期（可选）<input type="date" value={profile.dateOfBirth} onChange={(event) => setProfile((current) => ({ ...current, dateOfBirth: event.target.value }))} /></label>
         <label>性别<select value={profile.gender} onChange={(event) => setProfile((current) => ({ ...current, gender: event.target.value }))}><option value="">未设置</option><option value="female">女</option><option value="male">男</option><option value="other">其他</option></select></label>
         <label>时区<select value={profile.timezone} onChange={(event) => setProfile((current) => ({ ...current, timezone: event.target.value }))}><option value="Asia/Shanghai">中国标准时间</option><option value="Asia/Tokyo">日本标准时间</option><option value="America/New_York">美国东部时间</option><option value="Europe/London">英国时间</option><option value="UTC">UTC</option></select></label>
-        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy} onClick={() => void saveProfile()}>保存资料</button></div>
+        {loginIdentifierChanged ? <label className="rc-wide-field">当前密码<input type="password" autoComplete="current-password" maxLength={128} value={profileCurrentPassword} onChange={(event) => setProfileCurrentPassword(event.target.value)} /><small>用户名或手机号是登录标识。变更后会撤销当前设备之外的所有会话。</small></label> : null}
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || (loginIdentifierChanged && profileCurrentPassword.length < 1)} onClick={() => void saveProfile()}>保存资料</button></div>
       </div>
     </section>
+    <ClientMfaPanel />
     <section className="rc-panel">
       <header><div><small>PASSWORD</small><h2>修改密码</h2></div></header>
       <div className="rc-form rc-form-grid">

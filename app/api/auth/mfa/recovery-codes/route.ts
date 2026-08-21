@@ -6,8 +6,10 @@ import { requireCurrentSession, requireRecentMfaSession } from "@/lib/session";
 export async function GET(request: Request) {
   try {
     const current = await requireCurrentSession(request);
-    if (current.session.appAudience === "client") throw new ResearchApiError("ROUTE_NOT_AVAILABLE", "当前应用不提供内部双重验证", 404);
-    return Response.json(await getMfaRecoveryStatus(await getPostgresPool(), { userId: current.user.id }), {
+    return Response.json(await getMfaRecoveryStatus(await getPostgresPool(), {
+      userId: current.user.id,
+      sessionTokenHash: current.session.appAudience === "client" ? current.session.tokenHash : undefined,
+    }), {
       headers: { "cache-control": "no-store" },
     });
   } catch (error) {
@@ -17,19 +19,28 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const current = await requireRecentMfaSession(request);
+    const authenticated = await requireCurrentSession(request);
+    const current = authenticated.session.appAudience === "client"
+      ? authenticated
+      : await requireRecentMfaSession(request);
     const audience = current.session.appAudience;
-    if (audience !== "operations" && audience !== "maintenance") throw new ResearchApiError("ROUTE_NOT_AVAILABLE", "当前应用不提供内部双重验证", 404);
     const body = await readResearchJson(request, 2_048);
-    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    const reason = audience === "client"
+      ? "Client self-service recovery code rotation"
+      : typeof body.reason === "string" ? body.reason.trim() : "";
+    const verificationCode = typeof body.verificationCode === "string" ? body.verificationCode.trim() : "";
     const result = await rotateMfaRecoveryCodes(await getPostgresPool(), {
       userId: current.user.id,
       sessionId: current.session.id,
+      sessionTokenHash: audience === "client" ? current.session.tokenHash : undefined,
       audience,
       reason,
+      verificationCode,
     });
     if (!result.ok) {
-      const message = result.code === "NOT_ENROLLED" ? "双重验证尚未启用" : "轮换原因需要 3–500 个字符";
+      const message = result.code === "NOT_ENROLLED"
+        ? "双重验证尚未启用"
+        : result.code === "VERIFICATION_INVALID" ? "动态验证码或恢复码无效、已使用或已过期" : "轮换原因需要 3–500 个字符";
       throw new ResearchApiError(result.code, message, 422);
     }
     return Response.json({

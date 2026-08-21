@@ -17,7 +17,7 @@ test("agent page uses persistent server conversations and streamed messages", as
   assert.match(chat, /consumeAiEventStream/);
   assert.match(chat, /AiMessageContent/);
   assert.match(chat, /onAnswer=\{\(answer\) => void send\(answer\)\}/);
-  assert.match(chat, /body: JSON\.stringify\(\{ message: content \}\)/);
+  assert.match(chat, /body: JSON\.stringify\(\{ message: pendingRequest\.content \}\)/);
   assert.doesNotMatch(chat, /body: JSON\.stringify\(\{[^}]*history/);
 });
 
@@ -54,17 +54,18 @@ test("shared AI message UI exposes an accessible confirmation dialog and custom 
   assert.match(styles, /\.ai-answer-dialog\[open\]\{position:fixed;left:50%;top:50%;right:auto;bottom:auto;margin:0;transform:translate\(-50%,-50%\)/);
 });
 
-test("customer AI workspaces expose the private LLM configuration", async () => {
-  const [chat, studio, config] = await Promise.all([
+test("customer AI workspaces use the platform model without exposing private LLM configuration", async () => {
+  const [page, chat, studio] = await Promise.all([
+    source("../app/client-app.tsx"),
     source("../app/agent-chat.tsx"),
     source("../app/community-strategy-center.tsx"),
-    source("../app/llm-config.tsx"),
   ]);
 
-  assert.match(chat, /<CustomLlmButton\s*\/>/);
-  assert.match(studio, /<CustomLlmButton\s*\/>/);
-  assert.match(config, /endpoint="\/api\/account\/llm-config"/);
-  assert.match(config, /type="password"/);
+  for (const reachable of [page, chat, studio]) {
+    assert.doesNotMatch(reachable, /CustomLlmButton|account\/llm-config|\.\/llm-config/);
+  }
+  assert.match(chat, /平台模型服务/);
+  assert.match(studio, /平台模型/);
 });
 
 test("Agent conversation history hides legacy empty strategy threads", async () => {

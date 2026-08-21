@@ -1,5 +1,11 @@
-import { exerciseResponsiveWidths, test } from "./support/quality-test";
+import { exerciseResponsiveWidths, expectAudienceNavigation, test } from "./support/quality-test";
 
-test("checker operations overview is responsive, accessible and quiet", async ({ page }) => {
-  await exerciseResponsiveWidths(page, "/", "运营概览");
+test("checker overview and approval queue are responsive, accessible and audience-isolated", async ({ page }) => {
+  for (const [path, heading] of [
+    ["/", "运营概览"],
+    ["/approvals", "审批中心"],
+  ] as const) {
+    await exerciseResponsiveWidths(page, path, heading);
+    await expectAudienceNavigation(page, "operations");
+  }
 });

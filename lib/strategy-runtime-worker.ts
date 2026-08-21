@@ -9,15 +9,13 @@ import {
 } from "./perpetual-market-adapters.ts";
 import { saveMarketDataSnapshot } from "./market-data-snapshots.ts";
 import { getSpotCandles } from "./market-data.ts";
-import { membershipAccess } from "./membership-rules.ts";
 import { startLeaseHeartbeat } from "./lease-heartbeat.ts";
 import {
   loadOfficialPaperOpenPosition,
   markOfficialPaperPosition,
-  officialPaperHasOpenPositions,
   refreshOfficialPaperRiskState,
+  resolveOfficialPaperRuntimeAccess,
   settlePendingOfficialPaperOrder,
-  syncOfficialPaperPortfolioAccess,
 } from "./official-paper-repository.ts";
 import { normalizeOfficialSpotStrategySpecification } from "./platform-strategy-v3.ts";
 import { enqueuePlatformDemoIntentsForRound } from "./platform-demo-execution.ts";
@@ -186,16 +184,10 @@ async function processOfficialSpotRuntimeDeployment(
       traceId: `paper-settle:${lease.id}:${selected.openTime}:open`,
     });
   }
-  const hasAnyOpenPosition = await officialPaperHasOpenPositions(database, lease.paperPortfolioId);
-  const access = lease.membershipStatus
-    ? membershipAccess(now.toISOString(), {
-      status: lease.membershipStatus,
-      expiresAt: lease.membershipExpiresAt,
-      graceEndsAt: lease.membershipGraceEndsAt,
-    })
-    : { status: "read_only", newEntriesAllowed: false, closeOnly: true };
-  const portfolioAccess = access.newEntriesAllowed ? "active" : hasAnyOpenPosition ? "close_only" : "read_only";
-  await syncOfficialPaperPortfolioAccess(database, { portfolioId: lease.paperPortfolioId, access: portfolioAccess });
+  const runtimeAccess = await resolveOfficialPaperRuntimeAccess(database, {
+    portfolioId: lease.paperPortfolioId,
+    asOf: now,
+  });
   const position = lease.mode === "paper"
     ? await loadOfficialPaperOpenPosition(database, lease.paperPortfolioId, specification.symbol)
     : null;
@@ -221,7 +213,7 @@ async function processOfficialSpotRuntimeDeployment(
     position: position ? { side: "long", entryPrice: position.entryPrice, quantity: position.quantity } : null,
     riskState: {
       ...safeRiskState(currentRiskState),
-      halted: currentRiskState.halted === true || !access.newEntriesAllowed,
+      halted: currentRiskState.halted === true || runtimeAccess.access !== "active",
     },
     lastDecisionCandleCloseTime: lastClose,
   });

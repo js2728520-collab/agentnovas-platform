@@ -1,10 +1,19 @@
 import type { Pool } from "pg";
 
 import { sha256 } from "./auth.ts";
+import type { AppAudience } from "./riverton-apps.ts";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+export function mfaLoginRequirement(audience: AppAudience, enrolled: boolean) {
+  const internal = audience !== "client";
+  return {
+    required: internal || enrolled,
+    enrollmentRequired: internal && !enrolled,
+  };
+}
 
 function bytesToBase64(bytes: Uint8Array) {
   let binary = "";
@@ -141,12 +150,20 @@ export async function hashRecoveryCode(code: string) {
 
 export async function startMfaEnrollment(pool: Pool, input: {
   userId: string;
+  sessionTokenHash?: string;
   environment?: Record<string, string | undefined>;
   now?: Date;
 }) {
   const secret = generateTotpSecret();
   const encryptedSecret = await encryptTotpSecret(secret, input.environment ?? process.env);
   const now = input.now ?? new Date();
+  if (input.sessionTokenHash) {
+    const result = await pool.query<{ changed: boolean }>(
+      "SELECT client_mfa_start($1,$2,$3) AS changed",
+      [input.sessionTokenHash,encryptedSecret,now],
+    );
+    return result.rows[0]?.changed ? { ok: true as const, secret } : { ok: false as const, code: "ALREADY_ENROLLED" as const };
+  }
   const result = await pool.query(`
     INSERT INTO user_mfa_totp_credentials (
       user_id, encrypted_secret, encryption_key_version, status, created_at, updated_at
@@ -168,7 +185,8 @@ export async function startMfaEnrollment(pool: Pool, input: {
 export async function confirmMfaEnrollment(pool: Pool, input: {
   userId: string;
   sessionId: string;
-  audience: "operations" | "maintenance";
+  sessionTokenHash?: string;
+  audience: AppAudience;
   code: string;
   idleExpiresAt: string;
   environment?: Record<string, string | undefined>;
@@ -178,11 +196,13 @@ export async function confirmMfaEnrollment(pool: Pool, input: {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const credential = (await client.query<{ encrypted_secret: string }>(`
+    const credential = (await client.query<{ encrypted_secret: string }>(input.sessionTokenHash ? `
+      SELECT encrypted_secret FROM client_mfa_credential($1,'pending')
+    ` : `
       SELECT encrypted_secret FROM user_mfa_totp_credentials
       WHERE user_id = $1 AND status = 'pending'
       FOR UPDATE
-    `, [input.userId])).rows[0];
+    `, [input.sessionTokenHash ?? input.userId])).rows[0];
     if (!credential) {
       await client.query("ROLLBACK");
       return { ok: false as const, code: "NOT_PENDING" as const };
@@ -195,6 +215,13 @@ export async function confirmMfaEnrollment(pool: Pool, input: {
     }
     const recoveryCodes = generateRecoveryCodes();
     const recoveryHashes = await Promise.all(recoveryCodes.map((code) => hashRecoveryCode(code)));
+    if (input.sessionTokenHash) {
+      const codes = recoveryHashes.map((codeHash) => ({ id: crypto.randomUUID(), code_hash: codeHash }));
+      const completed = await client.query<{ completed: boolean }>(`
+        SELECT client_mfa_complete_enrollment($1,$2,$3,$4::jsonb,$5) AS completed
+      `, [input.sessionTokenHash,counter,input.idleExpiresAt,JSON.stringify(codes),now]);
+      if (!completed.rows[0]?.completed) throw new Error("PRIMARY_SESSION_STATE_CHANGED");
+    } else {
     await client.query(`
       UPDATE user_mfa_totp_credentials
       SET status = 'active', last_accepted_counter = $2, enabled_at = $3, updated_at = $3
@@ -216,6 +243,7 @@ export async function confirmMfaEnrollment(pool: Pool, input: {
       RETURNING id
     `, [input.sessionId, input.userId, input.audience, now, input.idleExpiresAt]);
     if (session.rowCount !== 1) throw new Error("PRIMARY_SESSION_STATE_CHANGED");
+    }
     await client.query(`
       INSERT INTO audit_logs (id, actor_user_id, action, subject_type, subject_id, after_json, created_at)
       VALUES ($1, $2, 'auth.mfa_enrolled', 'session', $3, $4, $5)
@@ -230,8 +258,9 @@ export async function confirmMfaEnrollment(pool: Pool, input: {
   }
 }
 
-export async function verifyAndConsumeMfa(pool: Pool, input: {
+export async function verifyAndConsumeMfa(pool: Pick<Pool, "query">, input: {
   userId: string;
+  sessionTokenHash?: string;
   code: string;
   now?: Date;
   environment?: Record<string, string | undefined>;
@@ -239,16 +268,20 @@ export async function verifyAndConsumeMfa(pool: Pool, input: {
   const now = input.now ?? new Date();
   const code = input.code.trim().toUpperCase();
   if (/^\d{6}$/.test(code)) {
-    const credential = (await pool.query<{ encrypted_secret: string; last_accepted_counter: string | null }>(`
+    const credential = (await pool.query<{ encrypted_secret: string; last_accepted_counter: string | null }>(input.sessionTokenHash ? `
+      SELECT encrypted_secret,last_accepted_counter FROM client_mfa_credential($1,'active')
+    ` : `
       SELECT encrypted_secret, last_accepted_counter
       FROM user_mfa_totp_credentials
       WHERE user_id = $1 AND status = 'active'
-    `, [input.userId])).rows[0];
+    `, [input.sessionTokenHash ?? input.userId])).rows[0];
     if (!credential) return { ok: false as const, code: "NOT_ENROLLED" as const };
     const secret = await decryptTotpSecret(credential.encrypted_secret, input.environment ?? process.env);
     const acceptedCounter = await matchingTotpCounter(secret, code, now);
     if (acceptedCounter === null) return { ok: false as const, code: "INVALID_OR_REPLAYED" as const };
-    const updated = await pool.query(`
+    const updated = input.sessionTokenHash
+      ? await pool.query<{ changed: boolean }>("SELECT client_mfa_accept_totp($1,$2,$3) AS changed", [input.sessionTokenHash,acceptedCounter,now])
+      : await pool.query(`
       UPDATE user_mfa_totp_credentials
       SET last_accepted_counter = $2, updated_at = $3
       WHERE user_id = $1
@@ -256,29 +289,34 @@ export async function verifyAndConsumeMfa(pool: Pool, input: {
         AND (last_accepted_counter IS NULL OR last_accepted_counter < $2)
       RETURNING user_id
     `, [input.userId, acceptedCounter, now]);
-    return updated.rowCount === 1
+    return (input.sessionTokenHash ? updated.rows[0]?.changed : updated.rowCount === 1)
       ? { ok: true as const, level: "totp" as const }
       : { ok: false as const, code: "INVALID_OR_REPLAYED" as const };
   }
 
   const recoveryHash = await hashRecoveryCode(code);
-  const consumed = await pool.query(`
+  const consumed = input.sessionTokenHash
+    ? await pool.query<{ changed: boolean }>("SELECT client_mfa_consume_recovery($1,$2,$3) AS changed", [input.sessionTokenHash,recoveryHash,now])
+    : await pool.query(`
     UPDATE user_mfa_recovery_codes
     SET used_at = $3
     WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL
     RETURNING id
   `, [input.userId, recoveryHash, now]);
-  return consumed.rowCount === 1
+  return (input.sessionTokenHash ? consumed.rows[0]?.changed : consumed.rowCount === 1)
     ? { ok: true as const, level: "recovery" as const }
     : { ok: false as const, code: "INVALID_OR_REPLAYED" as const };
 }
 
-export async function getMfaRecoveryStatus(pool: Pool, input: { userId: string }) {
+export async function getMfaRecoveryStatus(pool: Pool, input: { userId: string; sessionTokenHash?: string }) {
   const result = await pool.query<{
     enabled_at: Date | string | null;
     remaining_recovery_codes: string;
     last_recovery_code_created_at: Date | string | null;
-  }>(`
+  }>(input.sessionTokenHash ? `
+    SELECT enabled_at,remaining_recovery_codes::text,last_recovery_code_created_at
+      FROM client_mfa_recovery_status($1)
+  ` : `
     SELECT credential.enabled_at,
            count(recovery.id) FILTER (WHERE recovery.used_at IS NULL)::text AS remaining_recovery_codes,
            max(recovery.created_at) AS last_recovery_code_created_at
@@ -286,7 +324,7 @@ export async function getMfaRecoveryStatus(pool: Pool, input: { userId: string }
       LEFT JOIN user_mfa_recovery_codes AS recovery ON recovery.user_id=credential.user_id
      WHERE credential.user_id=$1 AND credential.status='active'
      GROUP BY credential.user_id,credential.enabled_at
-  `, [input.userId]);
+  `, [input.sessionTokenHash ?? input.userId]);
   const row = result.rows[0];
   return {
     enrolled: Boolean(row),
@@ -299,8 +337,11 @@ export async function getMfaRecoveryStatus(pool: Pool, input: { userId: string }
 export async function rotateMfaRecoveryCodes(pool: Pool, input: {
   userId: string;
   sessionId: string;
-  audience: "operations" | "maintenance";
+  sessionTokenHash?: string;
+  audience: AppAudience;
   reason: string;
+  verificationCode?: string;
+  environment?: Record<string, string | undefined>;
   now?: Date;
 }) {
   const reason = input.reason.trim();
@@ -309,23 +350,51 @@ export async function rotateMfaRecoveryCodes(pool: Pool, input: {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const credential = await client.query(`
+    const credential = await client.query(input.sessionTokenHash ? `
+      SELECT encrypted_secret FROM client_mfa_credential($1,'active')
+    ` : `
       SELECT user_id FROM user_mfa_totp_credentials
        WHERE user_id=$1 AND status='active'
        FOR UPDATE
-    `, [input.userId]);
+    `, [input.sessionTokenHash ?? input.userId]);
     if (!credential.rowCount) {
       await client.query("ROLLBACK");
       return { ok: false as const, code: "NOT_ENROLLED" as const };
     }
+    if (input.audience === "client") {
+      const verificationCode = input.verificationCode?.trim() ?? "";
+      if (verificationCode.length < 6 || verificationCode.length > 64) {
+        await client.query("ROLLBACK");
+        return { ok: false as const, code: "VERIFICATION_INVALID" as const };
+      }
+      const verification = await verifyAndConsumeMfa(client, {
+        userId: input.userId,
+        sessionTokenHash: input.sessionTokenHash,
+        code: verificationCode,
+        now,
+        environment: input.environment,
+      });
+      if (!verification.ok) {
+        await client.query("ROLLBACK");
+        return { ok: false as const, code: "VERIFICATION_INVALID" as const };
+      }
+    }
     const recoveryCodes = generateRecoveryCodes();
     const recoveryHashes = await Promise.all(recoveryCodes.map((code) => hashRecoveryCode(code)));
+    if (input.sessionTokenHash) {
+      const codes = recoveryHashes.map((codeHash) => ({ id: crypto.randomUUID(), code_hash: codeHash }));
+      const replaced = await client.query<{ changed: boolean }>(`
+        SELECT client_mfa_replace_recovery($1,$2::jsonb,$3) AS changed
+      `, [input.sessionTokenHash,JSON.stringify(codes),now]);
+      if (!replaced.rows[0]?.changed) throw new Error("MFA_IDENTITY_STATE_CHANGED");
+    } else {
     await client.query("DELETE FROM user_mfa_recovery_codes WHERE user_id=$1 AND used_at IS NULL", [input.userId]);
     for (const recoveryHash of recoveryHashes) {
       await client.query(`
         INSERT INTO user_mfa_recovery_codes(id,user_id,code_hash,created_at)
         VALUES($1,$2,$3,$4)
       `, [crypto.randomUUID(), input.userId, recoveryHash, now]);
+    }
     }
     await client.query(`
       INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,created_at)

@@ -8,6 +8,7 @@ const navigation = [
   { href: "/workspace", label: "策略与 Agent", icon: "↗", requiredPermissions: ["client.paper.view"] },
   { href: "/legal/consent", label: "商业披露", icon: "✓" },
   { href: "/membership", label: "会员中心", icon: "◇", requiredPermissions: ["client.membership.view"] },
+  { href: "/performance-statements", label: "绩效账单", icon: "≋", requiredPermissions: ["client.membership.view"] },
   { href: "/credits", label: "AI 积分", icon: "◎", requiredPermissions: ["client.credits.view"] },
   { href: "/paper", label: "模拟组合", icon: "▥", requiredPermissions: ["client.paper.view"] },
   { href: "/trading-hall", label: "七智能体交易大厅", icon: "◈", requiredPermissions: ["client.paper.view"] },

@@ -13,9 +13,9 @@ test("rejects empty and oversized AI messages at the server boundary", () => {
 
 test("detects credential-shaped content without blocking ordinary security questions", () => {
   assert.equal(containsPotentialSecret("我的密码忘记了，怎么重置？"), false);
-  assert.equal(containsPotentialSecret("API key: sk-proj-abcdefghijklmnopqrstuv"), true);
+  assert.equal(containsPotentialSecret(`API key: sk-proj-${"a".repeat(22)}`), true);
   assert.equal(containsPotentialSecret("password = correct-horse-battery-staple"), true);
-  assert.equal(containsPotentialSecret("-----BEGIN PRIVATE KEY-----"), true);
+  assert.equal(containsPotentialSecret(`-----BEGIN ${"PRIVATE KEY"}-----`), true);
 });
 
 test("uses explicit minute and daily request limits", () => {

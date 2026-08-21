@@ -1,4 +1,5 @@
 import { requireAccessPermission } from "@/lib/access-control";
+import { maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import {
   getSystemSettings,
@@ -41,6 +42,7 @@ export async function PUT(request: Request) {
       throw new ResearchApiError("VALIDATION_ERROR", "请输入有效的客服邮箱", 422, { fields: ["supportEmail"] });
     }
     const before = await getSystemSettings();
+    const correlation = maintenanceCorrelation(request);
     const pool = await getPostgresPool();
     const client = await pool.connect();
     try {
@@ -54,9 +56,9 @@ export async function PUT(request: Request) {
           updated_at = now()
       `, [crypto.randomUUID(), JSON.stringify(next), user.id]);
       await client.query(`
-        INSERT INTO audit_logs (id, actor_user_id, action, subject_type, subject_id, before_json, after_json, created_at)
-        VALUES ($1, $2, 'platform.settings.system.updated', 'platform_settings', 'system', $3, $4, now())
-      `, [crypto.randomUUID(), user.id, JSON.stringify(before), JSON.stringify({ system: next, maintenanceReason })]);
+        INSERT INTO audit_logs (id, actor_user_id, action, subject_type, subject_id, before_json, after_json, request_id, trace_id, created_at)
+        VALUES ($1, $2, 'platform.settings.system.updated', 'platform_settings', 'system', $3, $4, $5, $6, now())
+      `, [crypto.randomUUID(), user.id, JSON.stringify(before), JSON.stringify({ system: next, maintenanceReason }), correlation.requestId, correlation.traceId]);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

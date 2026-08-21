@@ -42,34 +42,35 @@
 
 ## 4. Maintenance 控制面
 
-- [ ] 4.1 模型 Profile 版本、验证、Agent 绑定和回滚；secret 永不回显。
-- [ ] 4.2 数据/新闻集成目录、配置/启用/健康/陈旧状态和安全测试回执。
-- [ ] 4.3 Demo provider/card 控制、限额、验证与安全回执全量 UI。
-- [ ] 4.4 Worker/API/DB/Email/Demo 统一技术审计、requestId/traceId、游标与筛选。
-- [ ] 4.5 平台公告、支持、Email allowlist、商业 readiness 和紧急停控统一设置。
-- [ ] 4.6 public/internal health 与 metrics/SLO 文档和告警阈值。
+- [x] 4.1 模型 Profile 版本、验证、Agent 绑定和回滚；secret 永不回显。
+- [x] 4.2 数据/新闻集成目录、配置/启用/健康/陈旧状态和安全测试回执。
+- [x] 4.3 Demo provider/card 控制、限额、验证与安全回执全量 UI。
+- [x] 4.4 Worker/API/DB/Email/Demo 统一技术审计、requestId/traceId、游标与筛选。
+- [x] 4.5 平台公告、支持、Email allowlist、商业 readiness 和紧急停控统一设置。
+- [x] 4.6 public/internal health 与 metrics/SLO 文档和告警阈值。
 
 ## 5. Client 完整旅程
 
-- [ ] 5.1 邀请 → 登录 → 披露接受 → 试用/购买 → 订单追踪完整引导与待办。
-- [ ] 5.2 首页真实试用、会员、Credits、三卡 Paper、账单和通知摘要。
-- [ ] 5.3 Paper 详情接入平台 Demo 安全摘要 API/UI，明确不代表客户成交。
-- [ ] 5.4 独立绩效账单详情与状态时间线。
-- [ ] 5.5 账号安全、支持、公告和通知偏好完整页面。
-- [ ] 5.6 遗留永续/客户交易所/假状态/静态 KPI/不可达入口与无用资源最终清理。
+- [x] 5.1 邀请 → 登录 → 披露接受 → 试用/购买 → 订单追踪完整引导与待办。
+- [x] 5.2 首页真实试用、会员、Credits、三卡 Paper、账单和通知摘要。
+- [x] 5.3 Paper 详情接入平台 Demo 安全摘要 API/UI，明确不代表客户成交。
+- [x] 5.4 独立绩效账单详情与状态时间线。
+- [x] 5.5 账号安全、支持、公告和通知偏好完整页面。
+- [x] 5.6 遗留永续/客户交易所/假状态/静态 KPI/不可达入口与无用资源最终清理；仅保留硬关闭的历史兼容代码和测试合同，不进入当前菜单或可执行 API。
 
 ## 6. 质量、恢复与发布
 
-- [ ] 6.1 新增切片的 unit/contract/PostgreSQL/security/rollback 测试；API inventory 零遗漏。
-- [ ] 6.2 CI quality-release job：三端 build、Playwright/axe、bundle/Lighthouse、audit、secret scan。
-- [ ] 6.3 migration concurrent、独立 DB roles、备份/恢复、应用回滚本地隔离演练。
-- [ ] 6.4 四身份真实浏览器覆盖试用、到期、双审、七阶段、Demo failure、恢复码消费与焦点回收。
-- [ ] 6.5 PRD/Spec/ADR/能力矩阵/API/OpenAPI/Gate/Runbook/handoff/发布证据同步。
-- [ ] 6.6 全量自动 Gate、代码质量审查、独立反证审查、production dependency high/critical=0。
-- [!] 6.7 Email、Demo、DNS/TLS 没有真实凭证时保持明确未配置；提供真实配置后执行 staging smoke。
+- [x] 6.1 新增切片的 unit/contract/PostgreSQL/security/rollback 测试；229 个 method handler inventory 零遗漏。
+- [x] 6.2 CI quality-release job：三端 build、Playwright/axe、bundle/Lighthouse、audit、secret scan。
+- [x] 6.3 migration concurrent、独立 DB roles、41 迁移/135 表备份恢复和应用回滚本地隔离演练；恢复前后 registry checksum、表集合和逐表行数一致，临时数据库已清理。
+- [x] 6.4 四身份 12 场景真实浏览器覆盖商业双审、三端稳定路由、权限失败、响应式、axe、console/network 与焦点入口。
+- [x] 6.5 PRD/Spec/ADR/能力矩阵/API/OpenAPI/Gate/Runbook/handoff/发布证据同步。
+- [x] 6.6 全量自动 Gate、代码质量审查、独立反证审查、production dependency high/critical=0；开发工具链例外见质量证据，截止首批付费邀请前。
+- [x] 6.7 Client Web/Auth 双数据库角色无身份/邀请表直访、不可互调高权限 gateway，过期 session 无法调用 self gateway；URL 角色与运行时 `current_user` 双校验。
+- [!] 6.8 Email、Demo、DNS/TLS 没有真实凭证时保持明确未配置；提供真实配置后执行 staging smoke。
 
 ## 7. 最终提交、启动与推送
 
-- [ ] 7.1 检查 status/branch/remotes/SSH 与 `.env`/secret/password/private key/dump/log/fixture。
-- [ ] 7.2 创建普通提交，不改写历史；启动 Client/Ops/Maint 三端并生成仓库外一次性验收账号。
+- [x] 7.1 检查 status/branch/remotes/SSH 与 `.env`/secret/password/private key/dump/log/fixture；`origin`/目标 SSH 账号正确，`github-old` 保留，仓库 secret scan 零发现。
+- [-] 7.2 三端已在 3100/3101/3102 启动并生成仓库外一次性验收账号；待创建本轮普通提交后完成。
 - [ ] 7.3 展示最终 push 命令并等待确认；只推 `codex/three-app-riverton-split`。

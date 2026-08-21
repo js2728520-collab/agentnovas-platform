@@ -162,7 +162,7 @@ export async function mutateAiCredits(
   };
 }
 
-async function reserveAiCreditsInTransaction(
+export async function reserveAiCreditsInTransaction(
   client: PoolClient,
   input: {
     userId: string;
@@ -264,21 +264,24 @@ export async function reserveAiCredits(
   );
 }
 
-export async function settleAiCreditReservation(
-  pool: Pool,
-  input: {
-    reservationId: string;
-    idempotencyKey: string;
-    requestId: string;
-    actorUserId?: string;
-    costModelVersion: "token-cost-v1";
-    trustedUsage: {
-      source: "provider_metering";
-      usageId: string;
-      inputTokens: number;
-      outputTokens: number;
-    };
-  },
+export type AiCreditSettlementInput = {
+  reservationId: string;
+  idempotencyKey: string;
+  requestId: string;
+  actorUserId?: string;
+  costModelVersion: "token-cost-v1";
+  trustedUsage: {
+    source: "provider_metering";
+    providerRequestId?: string;
+    usageId: string;
+    inputTokens: number;
+    outputTokens: number;
+  };
+};
+
+export async function settleAiCreditReservationInTransaction(
+  client: PoolClient,
+  input: AiCreditSettlementInput,
 ) {
   if (
     input.trustedUsage.source !== "provider_metering" ||
@@ -297,104 +300,107 @@ export async function settleAiCreditReservation(
     outputTokens: input.trustedUsage.outputTokens,
   });
   const actualCredits = BigInt(cost.credits);
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const reservation = await client.query<{
-      estimated_credits: string;
-      status: string;
-      user_id: string;
+  const reservation = await client.query<{
+    estimated_credits: string;
+    status: string;
+    user_id: string;
+  }>(
+    `SELECT r.estimated_credits::text,r.status,a.user_id FROM ai_credit_reservations r JOIN ai_credit_accounts a ON a.id=r.account_id WHERE r.id=$1 FOR UPDATE`,
+    [input.reservationId],
+  );
+  const row = reservation.rows[0];
+  if (!row)
+    throw new ResearchApiError(
+      "AI_CREDIT_RESERVATION_NOT_FOUND",
+      "Credits 预留不存在",
+      404,
+    );
+  if (row.status === "settled") {
+    const prior = await client.query<{
+      idempotency_key: string;
+      created_by_user_id: string | null;
+      cost_model_version: string | null;
+      usage_json: unknown;
     }>(
-      `SELECT r.estimated_credits::text,r.status,a.user_id FROM ai_credit_reservations r JOIN ai_credit_accounts a ON a.id=r.account_id WHERE r.id=$1 FOR UPDATE`,
+      `SELECT idempotency_key,created_by_user_id,cost_model_version,usage_json FROM ai_credit_ledger_entries WHERE reservation_id=$1 AND entry_type='settle'`,
       [input.reservationId],
     );
-    const row = reservation.rows[0];
-    if (!row)
-      throw new ResearchApiError(
-        "AI_CREDIT_RESERVATION_NOT_FOUND",
-        "Credits 预留不存在",
-        404,
-      );
-    if (row.status === "settled") {
-      const prior = await client.query<{
-        idempotency_key: string;
-        created_by_user_id: string | null;
-        cost_model_version: string | null;
-        usage_json: unknown;
-      }>(
-        `SELECT idempotency_key,created_by_user_id,cost_model_version,usage_json FROM ai_credit_ledger_entries WHERE reservation_id=$1 AND entry_type='settle'`,
-        [input.reservationId],
-      );
-      const expectedUsage = {
-        ...input.trustedUsage,
-        costModelVersion: cost.modelVersion,
-        credits: cost.credits,
-      };
-      if (
-        prior.rows[0]?.idempotency_key !== input.idempotencyKey ||
-        prior.rows[0]?.created_by_user_id !== (input.actorUserId ?? null) ||
-        prior.rows[0]?.cost_model_version !== input.costModelVersion ||
-        canonicalPayloadHash(prior.rows[0]?.usage_json) !==
-          canonicalPayloadHash(expectedUsage)
-      )
-        throw new ResearchApiError(
-          "IDEMPOTENCY_KEY_COLLISION",
-          "Credits settle 重放上下文不一致",
-          409,
-        );
-      await client.query("COMMIT");
-      return { reservationId: input.reservationId, created: false };
-    }
-    if (row.status !== "reserved")
-      throw new ResearchApiError(
-        "AI_CREDIT_RESERVATION_STATE_CONFLICT",
-        "Credits 预留状态冲突",
-        409,
-      );
-    const estimated = BigInt(row.estimated_credits);
-    if (actualCredits > estimated)
-      throw new ResearchApiError(
-        "AI_CREDIT_RESERVATION_EXCEEDED",
-        "可信用量成本超过预留，拒绝自动补扣",
-        409,
-      );
-    await mutateAiCredits(client, {
-      userId: row.user_id,
-      type: "settle",
-      availableDelta: estimated - actualCredits,
-      reservedDelta: -estimated,
-      sourceType: "ai_credit_reservation",
-      sourceId: input.reservationId,
-      idempotencyKey: input.idempotencyKey,
-      requestId: input.requestId,
-      actorUserId: input.actorUserId,
-      reservationId: input.reservationId,
-      costModelVersion: input.costModelVersion,
-      usage: {
-        ...input.trustedUsage,
-        costModelVersion: cost.modelVersion,
-        credits: cost.credits,
-      },
-    });
-    await client.query(
-      `UPDATE ai_credit_reservations SET status='settled',settled_credits=$2,version=version+1,updated_at=now() WHERE id=$1`,
-      [input.reservationId, actualCredits.toString()],
-    );
-    await client.query("COMMIT");
-    return {
-      reservationId: input.reservationId,
-      created: true,
-      settledCredits: cost.credits,
+    const expectedUsage = {
+      ...input.trustedUsage,
+      costModelVersion: cost.modelVersion,
+      credits: cost.credits,
     };
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
+    if (
+      prior.rows[0]?.idempotency_key !== input.idempotencyKey ||
+      prior.rows[0]?.created_by_user_id !== (input.actorUserId ?? null) ||
+      prior.rows[0]?.cost_model_version !== input.costModelVersion ||
+      canonicalPayloadHash(prior.rows[0]?.usage_json) !==
+        canonicalPayloadHash(expectedUsage)
+    )
+      throw new ResearchApiError(
+        "IDEMPOTENCY_KEY_COLLISION",
+        "Credits settle 重放上下文不一致",
+        409,
+      );
+    return { reservationId: input.reservationId, created: false };
   }
+  if (row.status !== "reserved")
+    throw new ResearchApiError(
+      "AI_CREDIT_RESERVATION_STATE_CONFLICT",
+      "Credits 预留状态冲突",
+      409,
+    );
+  const estimated = BigInt(row.estimated_credits);
+  if (actualCredits > estimated)
+    throw new ResearchApiError(
+      "AI_CREDIT_RESERVATION_EXCEEDED",
+      "可信用量成本超过预留，拒绝自动补扣",
+      409,
+    );
+  await mutateAiCredits(client, {
+    userId: row.user_id,
+    type: "settle",
+    availableDelta: estimated - actualCredits,
+    reservedDelta: -estimated,
+    sourceType: "ai_credit_reservation",
+    sourceId: input.reservationId,
+    idempotencyKey: input.idempotencyKey,
+    requestId: input.requestId,
+    actorUserId: input.actorUserId,
+    reservationId: input.reservationId,
+    costModelVersion: input.costModelVersion,
+    usage: {
+      ...input.trustedUsage,
+      costModelVersion: cost.modelVersion,
+      credits: cost.credits,
+    },
+  });
+  await client.query(
+    `UPDATE ai_credit_reservations SET status='settled',settled_credits=$2,version=version+1,updated_at=now() WHERE id=$1`,
+    [input.reservationId, actualCredits.toString()],
+  );
+  return {
+    reservationId: input.reservationId,
+    created: true,
+    settledCredits: cost.credits,
+  };
 }
 
-async function releaseAiCreditReservationInTransaction(
+export async function settleAiCreditReservation(
+  pool: Pool,
+  input: AiCreditSettlementInput,
+) {
+  return creditTransaction(pool, (client) =>
+    settleAiCreditReservationInTransaction(client, input),
+  );
+}
+
+/*
+ * Transaction-level helpers are exported so an inference result and its Credits
+ * ledger mutation can share one commit. Public callers should normally use the
+ * Pool wrappers above and below.
+ */
+export async function releaseAiCreditReservationInTransaction(
   client: PoolClient,
   input: {
     reservationId: string;

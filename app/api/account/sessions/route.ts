@@ -20,7 +20,8 @@ function summarizeUserAgent(value: string | null) {
 export async function GET(request: Request) {
   try {
     const current = await requireCurrentSession(request);
-    const result = await (await getPostgresPool()).query<{
+    const pool = await getPostgresPool();
+    const result = await pool.query<{
       id: string;
       app_audience: string;
       created_at: string;
@@ -29,16 +30,20 @@ export async function GET(request: Request) {
       absolute_expires_at: string;
       ip_address: string | null;
       user_agent: string | null;
-    }>(`
+    }>(current.session.appAudience === "client" ? `
+      SELECT id,app_audience,created_at,last_seen_at,idle_expires_at,
+             absolute_expires_at,ip_address,user_agent
+        FROM client_list_sessions($1,$2)
+    ` : `
       SELECT session.id,session.app_audience,session.created_at,session.last_seen_at,
              session.idle_expires_at,session.absolute_expires_at,session.ip_address,session.user_agent
         FROM sessions AS session
        WHERE session.user_id=$1
          AND session.revoked_at IS NULL
          AND session.absolute_expires_at::timestamptz>now()
-       ORDER BY COALESCE(session.last_seen_at,session.created_at) DESC,session.id DESC
+       ORDER BY COALESCE(session.last_seen_at,session.created_at::timestamptz) DESC,session.id DESC
        LIMIT 50
-    `, [current.user.id]);
+    `, current.session.appAudience === "client" ? [current.session.tokenHash,new Date()] : [current.user.id]);
     return Response.json({ sessions: result.rows.map((session) => ({
       id: session.id,
       audience: session.app_audience,
@@ -68,13 +73,17 @@ export async function DELETE(request: Request) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const revoked = await client.query(`
+      const revoked = current.session.appAudience === "client"
+        ? await client.query<{ app_audience: string }>(`
+            SELECT client_revoke_session($1,$2,$3) AS app_audience
+          `, [current.session.tokenHash,sessionId,new Date()])
+        : await client.query(`
         UPDATE sessions AS session
            SET revoked_at=now()
          WHERE session.id=$2 AND session.user_id=$1 AND session.revoked_at IS NULL
          RETURNING session.id,session.app_audience
       `, [current.user.id, sessionId]);
-      if (!revoked.rowCount) throw new ResearchApiError("SESSION_NOT_FOUND", "会话不存在或已经撤销", 404);
+      if (!revoked.rowCount || !revoked.rows[0]?.app_audience) throw new ResearchApiError("SESSION_NOT_FOUND", "会话不存在或已经撤销", 404);
       await client.query(`
         INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json,created_at)
         VALUES($1,$2,'account.session_revoked','session',$3,$4::jsonb,$5::jsonb,now())

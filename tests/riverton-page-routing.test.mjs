@@ -36,12 +36,15 @@ test("page routing contract accepts only the stable routes owned by each audienc
 
   assert.equal(isRivertonPagePath("maintenance", "/models"), true);
   assert.equal(isRivertonPagePath("maintenance", "/integrations/demo-exchanges"), true);
+  assert.equal(isRivertonPagePath("maintenance", "/integrations/sources"), true);
+  assert.equal(isRivertonPagePath("maintenance", "/settings/disclosures"), true);
   assert.equal(isRivertonPagePath("maintenance", "/access/audit"), true);
   assert.equal(isRivertonPagePath("maintenance", "/audit"), true);
   assert.equal(isRivertonPagePath("maintenance", "/workspace"), false);
   assert.equal(isRivertonPagePath("maintenance", "/legal/consent"), false);
   assert.equal(isRivertonPagePath("maintenance", "/customers"), false);
   assert.equal(isRivertonPagePath("maintenance", "/integrations/email/extra"), false);
+  assert.equal(isRivertonPagePath("operations", "/settings/disclosures"), false);
 });
 
 test("Proxy rejects invalid page routes before App Router can stream a soft 404", async () => {

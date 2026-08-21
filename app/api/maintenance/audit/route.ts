@@ -12,6 +12,8 @@ export async function GET(request: Request) {
     const rows = await loadMaintenanceTechnicalAudit(await getPostgresPool(), {
       limit,
       cursor,
+      domain: url.searchParams.get("domain")?.trim() || null,
+      action: url.searchParams.get("action")?.trim() || null,
       operation: url.searchParams.get("operation")?.trim() || null,
       status: url.searchParams.get("status")?.trim() || null,
     });

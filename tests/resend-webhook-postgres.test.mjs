@@ -26,6 +26,7 @@ test.before(async () => {
     "0017_notification_outbox_leases.sql",
     "0018_resend_delivery_events.sql",
     "0021_identity_access_hardening.sql",
+    "0033_notification_email_suppression.sql",
   ]) {
     const migration = await readFile(new URL(`../postgres/migrations/${filename}`, import.meta.url), "utf8");
     await pool.query(migration);
@@ -145,4 +146,20 @@ test("a conflicting delivery tag and provider id cannot update either delivery",
     { id: "delivery-1", status: "queued" },
     { id: "delivery-2", status: "queued" },
   ]);
+});
+
+test("bounce and complaint events activate hashed suppression without storing recipient", async () => {
+  await insertDelivery({ status: "sent", providerMessageId: "provider-1" });
+  const result = await applyResendWebhookEvent(pool, {
+    eventId: "evt-complaint",
+    payload: emailEvent("email.complained", "2026-08-20T03:00:05.000Z"),
+  });
+  assert.deepEqual(result, { duplicate: false, mapped: true, applied: true });
+  const suppression = (await pool.query("SELECT recipient_hash,reason,active FROM notification_email_suppressions")).rows[0];
+  assert.match(suppression.recipient_hash, /^[a-f0-9]{64}$/);
+  assert.equal(suppression.reason, "complaint");
+  assert.equal(suppression.active, true);
+  assert.equal(JSON.stringify(suppression).includes("user-1@example.test"), false);
+  const delivery = (await pool.query("SELECT status,last_error FROM notification_deliveries WHERE id='delivery-1'")).rows[0];
+  assert.deepEqual(delivery, { status: "failed", last_error: "RESEND_EMAIL_COMPLAINT" });
 });

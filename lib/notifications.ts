@@ -10,6 +10,12 @@ export function publicEmailIntegrationStatus(input: {
   configured: boolean;
   senderDomainVerified: boolean;
   apiKeyPresent: boolean;
+  webhookSecretPresent?: boolean;
+  allowlistPresent?: boolean;
+  templatesReady?: boolean;
+  suppressionReady?: boolean;
+  workerEnabled?: boolean;
+  sendAuthorized?: boolean;
   lastTestAt?: string | null;
 }) {
   return {
@@ -19,6 +25,21 @@ export function publicEmailIntegrationStatus(input: {
     configured: input.configured,
     senderDomainVerified: input.senderDomainVerified,
     apiKeyPresent: input.apiKeyPresent,
+    webhookSecretPresent: input.webhookSecretPresent ?? false,
+    allowlistPresent: input.allowlistPresent ?? false,
+    templatesReady: input.templatesReady ?? false,
+    suppressionReady: input.suppressionReady ?? false,
+    workerEnabled: input.workerEnabled ?? false,
+    sendAuthorized: input.sendAuthorized ?? false,
+    effectiveStatus: input.configured
+      && input.senderDomainVerified
+      && input.apiKeyPresent
+      && input.webhookSecretPresent
+      && input.allowlistPresent
+      && input.templatesReady
+      && input.suppressionReady
+      && input.workerEnabled
+      && input.sendAuthorized ? "ready" : "configured_not_sent",
     lastTestAt: input.lastTestAt ?? null,
   };
 }
@@ -28,4 +49,3 @@ export function notificationChannelStatus(input: { configured: boolean; verified
   if (!input.verified) return { status: "pending_verification" as const, canSend: false };
   return { status: "ready" as const, canSend: true };
 }
-

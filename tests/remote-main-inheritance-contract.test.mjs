@@ -12,15 +12,22 @@ test("inherits scoped emergency-stop storage in the PostgreSQL migration chain",
   assert.match(migration, /CHECK \("scope_type" IN \('platform', 'organization'\)\)/);
 });
 
-test("maintenance emergency control is RBAC protected, reasoned and demo-only", async () => {
+test("maintenance emergency control is RBAC protected and limited to official Paper access", async () => {
   const route = await read("app/api/maintenance/trading/emergency-stop/route.ts");
-  const close = await read("lib/trading-emergency-close.ts");
+  const paperRepository = await read("lib/official-paper-repository.ts");
+  const implementation = `${route}\n${paperRepository}`;
   assert.match(route, /maint\.emergency_pause\.execute/);
   assert.match(route, /必须填写紧急暂停原因/);
   assert.match(route, /emergencyScopeForAccess/);
-  assert.match(route, /executionVenue === "okx_demo"/);
-  assert.match(route, /account\.environment === "demo"/);
-  assert.doesNotMatch(close, /environment === "live"|place.*Live/i);
+  assert.match(implementation, /official_paper_portfolios/);
+  assert.match(implementation, /official_paper_positions/);
+  assert.match(implementation, /access_status/);
+  assert.match(implementation, /close_only/);
+  assert.match(implementation, /read_only/);
+  assert.match(implementation, /TRADING_EMERGENCY_STOPPED/);
+  assert.match(route, /paperAccessOnly/);
+  assert.doesNotMatch(route, /exchangeAccounts|\btrades\b|closeOkxDemoTrade|trading-emergency-close|closePositions/);
+  assert.doesNotMatch(route, /strategySubscriptions|platformStrategySubscriptions/);
 });
 
 test("platform strategy activation respects platform and organization emergency scopes", async () => {
@@ -46,8 +53,11 @@ test("maintenance exposes explicit emergency controls through its own navigation
   assert.match(app, /href: "\/safety"/);
   assert.match(app, /maint\.emergency_pause\.execute/);
   assert.match(workspace, /ConfirmActionDialog/);
-  assert.match(workspace, /OKX Demo/);
+  assert.match(workspace, /官方 Paper/);
+  assert.match(workspace, /平台 Demo/);
+  assert.match(workspace, /\/integrations\/demo-exchanges/);
   assert.match(workspace, /审批|审计|原因/);
+  assert.doesNotMatch(workspace, /pause_demo_close|closePositions|处理 OKX Demo 仓位|自动平仓/);
 });
 
 test("support configuration only accepts allowlisted Telegram HTTPS URLs", async () => {

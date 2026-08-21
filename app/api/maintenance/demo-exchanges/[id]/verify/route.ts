@@ -2,6 +2,7 @@ import { requireAccessPermission } from "@/lib/access-control";
 import { verifyPlatformDemoAccount } from "@/lib/platform-demo-execution";
 import { getPostgresPool } from "@/lib/postgres";
 import { idempotencyKey } from "@/lib/commercial-api";
+import { maintenanceCorrelation } from "@/lib/maintenance-audit";
 import {
   claimPlatformDemoAdminCommand,
   completePlatformDemoAdminCommand,
@@ -62,6 +63,7 @@ export async function POST(
         action: "verify",
         strategyCode: null,
         reason,
+        ...maintenanceCorrelation(request),
       });
       const replay = completedPlatformDemoCommandResponse(claim);
       commandId = claim.id;
@@ -84,6 +86,7 @@ export async function POST(
         provider: result.provider,
         status: result.status,
         verifiedAt: result.verifiedAt,
+        permissionCheck: result.permissionCheck,
       };
       const completion = await pool.connect();
       try {

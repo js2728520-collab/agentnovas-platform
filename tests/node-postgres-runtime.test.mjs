@@ -26,11 +26,26 @@ test("uses native Next.js commands without Cloudflare runtime dependencies", asy
 
 test("requires PostgreSQL and has no Cloudflare worker fallback", async () => {
   const databaseSource = await text("db/index.ts");
+  const postgresSource = await text("lib/postgres.ts");
   const runtimeSettingsSource = await text("lib/runtime-setting.ts");
 
   assert.doesNotMatch(databaseSource, /cloudflare:workers|D1 binding/i);
-  assert.match(databaseSource, /DATABASE_URL/);
+  assert.match(databaseSource, /getDeferredPostgresPool/);
+  assert.doesNotMatch(databaseSource, /await getPostgresPool|process\.env\.DATABASE_URL/);
+  assert.match(postgresSource, /environment\.DATABASE_URL/);
+  assert.match(postgresSource, /expectedWebDatabaseRole/);
+  assert.match(postgresSource, /SELECT current_user/);
   assert.doesNotMatch(runtimeSettingsSource, /cloudflare:workers/);
+});
+
+test("deferred build-time database handle remains a real Pool for Drizzle transactions", async () => {
+  const [{ getDeferredPostgresPool }, { default: pg }] = await Promise.all([
+    import("../lib/postgres.ts"),
+    import("pg"),
+  ]);
+  const deferred = getDeferredPostgresPool();
+  assert.equal(deferred instanceof pg.Pool, true);
+  assert.equal(Object.getPrototypeOf(deferred).constructor, pg.Pool);
 });
 
 test("does not ship obsolete Cloudflare entrypoints", async () => {

@@ -2,11 +2,11 @@
 
 状态：强制 Gate；任何否决项不得豁免为“先上线再修”
 
-## 1. Gate 0：合同、法务与范围
+## 1. Gate 0：产品合同、披露与范围
 
 - PRD、七智能体合同、System/三端 Spec、API Catalog/OpenAPI、ADR 和 Runbook 经责任角色评审。
 - 四计划、三卡、paper 10,000/card、Demo/paper 分离、credits 和周分成只有一个版本化合同真源。
-- 服务主体、地区、隐私、条款、风险披露、模拟收益分成法律意见和退款规则在 D3 前定稿并可访问。
+- 平台产品身份、地区、隐私、条款、风险、Paper 收费和退款/不退款规则经 maker-checker 发布为完整版本，Client 可访问且确认凭证可重放；不依赖外部团队交付。
 - 社区策略、自动支付、客户充值/密钥、真实交易和退款被 feature gate/代码硬关闭。
 
 ## 2. Gate 1：身份、Audience 与 API Policy
@@ -18,6 +18,8 @@
 - 全 route/method API Policy inventory 零遗漏；未登记默认拒绝。
 - 内部无 assignment 不回退 legacy；revoke tombstone、organization-set/team/direct-report scope 通过 PostgreSQL 集成矩阵。
 - Origin/CSRF、strict body schema/limit、requestId、统一错误和敏感幂等验证完成。
+- Client `DATABASE_URL=agentnovas_client_web`，`CLIENT_AUTH_DATABASE_URL=agentnovas_client_auth`；运行时同时核验 URL 用户名与 `current_user`，构建阶段不打开数据库连接。
+- Client Web/Auth 均不能直读身份或邀请表；Web 不能调用登录 hash 投影，Auth 不能创建/完成 session 或消费 reset。两角色不可继承/互相 `SET ROLE`，过期但未 revoked 的 session 不能调用任何 self gateway。
 
 ## 3. Gate 2：账本、会员和 Credits
 
@@ -25,6 +27,7 @@
 - trial→order→evidence→maker submit→different checker→entitlement/credits/ledger/outbox/audit 一事务完成。
 - 四档计划逐字段等于 v1 snapshot；历史订单不受后续计划变化影响。
 - credits grant/reserve/settle/release 不能负数；无费率/usage 拒绝付费请求。
+- Client AI 只使用平台发布 Profile 的安全投影；provider request ID 与 token usage 缺一即失败。相同幂等键不得重复调用 provider，超时处理中记录进入确定性核对终态。
 - 自审、重复 evidence/decision/idempotency、并发和 stale version 不重复激活/发放。
 - Client 无地址、二维码、倒计时、监听、充值或假支付成功。
 
@@ -45,7 +48,7 @@
 - 独立付款凭证/复核后才 paid 并提交高水位；重复/并发准确一次。
 - 客户/组织/会员/credits/分成/账本列表、详情、计数使用相同 scope 和 PII policy。
 - 邀请不返回临时密码；审批人看不到自审按钮，服务端仍阻断。
-- 未完成旧策略市场/自动结算/团队分析菜单隐藏并进入 GA backlog。
+- 旧策略市场和自动结算菜单隐藏并进入 GA backlog；当前团队简报、目标、跟进与数据中心必须使用真实持久化数据和 scope。
 
 ## 6. Gate 5：Maintenance、外部服务与可观测性
 
@@ -55,12 +58,13 @@
 - Email domain/key/webhook/template/suppression/retention/allowlist 全部完成并获授权，否则 `configured_not_sent`。
 - Telegram/WhatsApp `not_integrated` 且无验证码；Payment 永远 disabled。
 - JSON 日志/requestId/traceId/关键指标/告警/runbook 可用且无 secret/完整 PII。
+- 公共源测试和紧急停控由中央 API Policy 强制 `Idempotency-Key`，数据库绑定 actor/subject/payload 并返回持久化终态；网络超时或进程中断不得导致无期限 processing 或静默重复外部调用。
 
 ## 7. Gate 6：前端、浏览器、性能与 CI
 
 使用一次性 PostgreSQL schema 和四个隔离 storageState：Client、Ops maker、Ops checker、Maint admin。
 
-- Playwright 完整覆盖邀请、MFA、法务、trial、会员复核、credits、三 paper、七阶段、Demo 证据、通知、周分成、到期与权限失败路径。
+- Playwright 完整覆盖邀请、MFA、商业披露、trial、会员复核、credits、三 paper、七阶段、Demo 证据、通知、周分成、到期与权限失败路径。
 - 320/768/1024/1440 无非预期横向溢出；axe critical/serious=0；Tab/Shift+Tab/Escape/focus return 通过。
 - console error/warning=0；失败上传 trace/video/screenshot/network 摘要。
 - 三端 production build/Host smoke；Client 不含内部 chunk，内部端不含交易大厅/会员资源。
@@ -71,10 +75,10 @@
 
 - migration fresh、N-1、rerun、checksum mismatch、concurrent、backup restore 通过。
 - 已部署 registry 的每条记录必须有可验证 checksum；NULL/历史不明记录必须先做受控 reconciliation，禁止静默采用当前文件 hash。
-- 三端/Workers/migrator 使用独立最小 env 与 DB roles；Payment Worker 无业务写权限。
+- 三端/Workers/migrator 使用独立最小 env 与 DB roles；Client 额外使用不可继承的 Auth 角色，Payment Worker 无业务写权限。
 - systemd/nginx 校验通过，无旧 Web unit、重复 3000 端口或重复 server name。
 - current/previous 原子部署，应用回滚演练 <5 分钟；DB expand/contract 前向兼容。
-- staging Demo 凭证、Email 外部依赖、DNS/TLS、支持联系人和告警值班就绪。
+- 准备启用的外部能力必须有对应 staging 证据：Demo 凭证、Email 依赖、DNS/TLS、支持联系人和告警值班。未启用能力必须保持关闭并在 UI/状态 API 明确显示未配置，不能阻塞纯 in-app Paper SaaS 的安全降级发布。
 
 ## 9. 自动命令
 
@@ -90,13 +94,13 @@ git diff --check
 
 ## 10. 绝对否决项
 
-- 法务七项或目标服务地区未定稿。
+- 七份商业披露未完整发布、哈希不匹配、目标服务地区为空，或 Client 未确认仍可启动 trial/下单。
 - API inventory 有遗漏，或跨 audience/revoke/scope/PII/secret/临时密码测试失败。
 - entitlement、credits、高水位出现重复或部分副作用。
 - UI 存在假地址、二维码、验证码、连接、成交、成功或 Worker 状态。
 - `local-demo` 在 UI 被称为真实 provider；真实订单、支付、充值、退款或提现接口可达。
 - fresh migration、restore、三端 production smoke、关键 E2E、性能/安全预算失败。
-- Email/Demo/DNS/TLS/支持/值班等外部依赖不就绪。
+- UI 或运行状态宣称 Email/Demo/DNS/TLS/支持/值班已启用，但对应外部依赖或 staging 证据不就绪。
 
 ## 11. 证据包与测试账号
 

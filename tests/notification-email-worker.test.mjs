@@ -6,6 +6,8 @@ import {
   claimNextEmailDelivery,
   markEmailSent,
   notificationSendEnvironmentReady,
+  notificationRecipientAllowed,
+  notificationRecipientHash,
   purgeExpiredNotificationSecrets,
   processClaimedEmail,
   providerConfigAllowsSend,
@@ -16,7 +18,10 @@ import {
 } from "../lib/notification-email-worker.ts";
 import { encryptNotificationToken } from "../lib/notification-secrets.ts";
 
-const tokenEnvironment = { NOTIFICATION_TOKEN_ENCRYPTION_KEY: "test-notification-token-key-longer-than-thirty-two-characters" };
+const tokenEnvironment = {
+  NOTIFICATION_TOKEN_ENCRYPTION_KEY: "test-notification-token-key-longer-than-thirty-two-characters",
+  NOTIFICATION_EMAIL_ALLOWLIST: "person@example.com",
+};
 
 test("known notification templates render bounded escaped email", () => {
   const reset = renderNotificationEmail("reset_password", { token: "a&b", audience: "client" });
@@ -91,6 +96,8 @@ test("recipient and all send gates must be production-ready", () => {
     NOTIFICATION_EMAIL_SEND_ENABLED: "true",
     NODE_ENV: "production",
     RESEND_API_KEY: "secret",
+    RESEND_WEBHOOK_SECRET: "webhook-secret",
+    NOTIFICATION_EMAIL_ALLOWLIST: "person@example.com",
   }), true);
   assert.equal(notificationSendEnvironmentReady({
     NOTIFICATION_WORKER_ENABLED: "true",
@@ -104,6 +111,13 @@ test("recipient and all send gates must be production-ready", () => {
     status: "active",
     sender_domain: "agentnovas.com",
     settings_json: { senderDomainVerified: true },
+  }), false);
+  assert.equal(providerConfigAllowsSend({
+    provider: "resend",
+    channel: "email",
+    status: "active",
+    sender_domain: "agentnovas.com",
+    settings_json: { senderDomainVerified: true, webhookVerified: true, templatesVerified: true, suppressionEnabled: true },
   }), true);
   assert.equal(providerConfigAllowsSend({
     provider: "resend",
@@ -112,6 +126,9 @@ test("recipient and all send gates must be production-ready", () => {
     sender_domain: "mail.agentnovas.com",
     settings_json: { senderDomainVerified: true },
   }), false);
+  assert.equal(notificationRecipientAllowed("PERSON@example.com", { NOTIFICATION_EMAIL_ALLOWLIST: "person@example.com, other@example.com" }), true);
+  assert.equal(notificationRecipientAllowed("stranger@example.com", { NOTIFICATION_EMAIL_ALLOWLIST: "person@example.com" }), false);
+  assert.match(notificationRecipientHash("PERSON@example.com"), /^[a-f0-9]{64}$/);
 });
 
 test("Resend status and backoff classification are bounded", () => {
@@ -187,6 +204,35 @@ test("invalid synthetic recipient fails permanently without invoking sender", as
   assert.equal(updates[0].parameters[3], "INVALID_RECIPIENT");
 });
 
+test("non-allowlisted and suppressed recipients fail closed before provider send", async () => {
+  const updates = [];
+  const pool = { query: async (sql, parameters) => {
+    updates.push({ sql, parameters });
+    if (/SELECT 1 FROM notification_email_suppressions/.test(sql)) return { rowCount: 1, rows: [{ exists: 1 }] };
+    return { rowCount: 1, rows: [] };
+  } };
+  let sent = false;
+  const base = {
+    id: "delivery-allowlist", userId: "user-1", templateKey: "membership_read_only",
+    payloadJson: { planCode: "monthly", effectiveAt: "2026-08-20T00:00:00.000Z" },
+    secretKind: null, secretExpiresAt: null, attempts: 1, recipient: "person@example.com",
+  };
+  const blocked = await processClaimedEmail(pool, base, {
+    workerId: "worker-1", apiKey: "unused", environment: { NOTIFICATION_EMAIL_ALLOWLIST: "other@example.com" },
+    now: () => new Date("2026-08-20T00:00:00.000Z"),
+    send: async () => { sent = true; return { ok: true, providerMessageId: "never" }; },
+  });
+  assert.deepEqual(blocked, { status: "failed", errorCode: "RECIPIENT_NOT_ALLOWLISTED" });
+  assert.equal(sent, false);
+  const suppressed = await processClaimedEmail(pool, { ...base, id: "delivery-suppressed" }, {
+    workerId: "worker-1", apiKey: "unused", environment: tokenEnvironment,
+    now: () => new Date("2026-08-20T00:00:00.000Z"),
+    send: async () => { sent = true; return { ok: true, providerMessageId: "never" }; },
+  });
+  assert.deepEqual(suppressed, { status: "failed", errorCode: "RECIPIENT_SUPPRESSED" });
+  assert.equal(sent, false);
+});
+
 test("a fenced delivery update is never reported as sent", async () => {
   const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
   const encryptedToken = await encryptNotificationToken("secret-token", tokenEnvironment);
@@ -226,7 +272,7 @@ test("expired encrypted token payloads are cleared without decrypting or sending
     workerId: "worker-1",
     apiKey: "unused",
     now: () => new Date("2026-08-20T00:00:00.000Z"),
-    environment: {},
+    environment: { NOTIFICATION_EMAIL_ALLOWLIST: "person@example.com" },
     send: async () => { sent = true; return { ok: true, providerMessageId: "never" }; },
   });
   assert.equal(sent, false);

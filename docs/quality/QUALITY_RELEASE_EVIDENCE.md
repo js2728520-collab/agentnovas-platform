@@ -1,16 +1,18 @@
 # Controlled Beta quality evidence runner
 
+状态：已集成并在 2026-08-21 当前工作树完成最终本地重跑；证据目录为被 Git 忽略的 `outputs/`，发布提交变化后必须重新生成。
+
 This runner creates repeatable release evidence without contacting a payment provider, an email provider, a Demo exchange, or any other external host. It resolves only approved direct test dependencies and never downloads tools at runtime.
 
-## Required package and script integration
+## Package and script integration
 
-The package owner must add these direct, pinned development dependencies and refresh the lockfile:
+仓库已经锁定以下直接开发依赖：
 
 - `@playwright/test@1.62.1`
 - `@axe-core/playwright@4.13.0`
 - `@lhci/cli@0.15.1`
 
-The package owner must add these scripts without changing the commands:
+仓库已经提供以下脚本：
 
 ```json
 {
@@ -57,7 +59,7 @@ All external-effect switches are forced off, including `PAYMENT_PROVIDER_TESTS_E
 - serious/critical axe violations, keyboard entry, horizontal overflow, browser console/page errors, failed local requests, and denied external requests;
 - three application initial JS/CSS gzip budgets from Next build manifests;
 - three-run Client login Lighthouse thresholds for LCP, CLS, TBT, accessibility, best practices, and resource size;
-- a final hash manifest that accepts only an unfiltered eight-test E2E run, three passing bundle reports, three distinct existing Lighthouse JSON reports independently revalidated for scores, timings and non-empty script/stylesheet/image evidence, and complete cleanup evidence.
+- a final hash manifest that accepts only an unfiltered twelve-test E2E run, three passing bundle reports, three distinct existing Lighthouse JSON reports independently revalidated for scores, timings and non-empty script/stylesheet/image evidence, and complete cleanup evidence.
 
 Traces, videos, and screenshots are disabled because the MFA enrollment page temporarily renders a TOTP setup key and recovery codes, while binary screenshots cannot be reliably secret-scanned. Next servers bind explicitly to `127.0.0.1`. Bounded, redacted console/network summaries are retained. The final verifier rejects retained `.runtime` directories and all standalone binary-image artifacts, then scans textual evidence for the fixture password/token canaries and cookie/authorization material. Lighthouse starts from an empty output directory and the release verifier accepts exactly the three distinct reports named by the current run's manifest.
 
@@ -79,16 +81,18 @@ Network egress should be denied at the CI job/container boundary as the authorit
 
 The implementation follows the official Playwright guidance for [web servers](https://playwright.dev/docs/test-webserver), [projects](https://playwright.dev/docs/test-projects), [network interception](https://playwright.dev/docs/network), [blocked service workers](https://playwright.dev/docs/service-workers), and [axe accessibility tests](https://playwright.dev/docs/accessibility-testing), plus the official [Lighthouse CI configuration reference](https://github.com/GoogleChrome/lighthouse-ci/blob/main/docs/configuration.md).
 
-## Known release blockers outside this change
+## Current release status and external boundary
 
-- The pinned quality dependencies and five package commands are integrated. The separate CI `quality-release` job and infrastructure-level egress deny remain release-engineering actions.
-- Full invitation delivery, recovery-code consumption/revocation, all seven strategy lifecycle stages, expiry/weekly-fee paths, Demo fixture receipts, Shift+Tab/Escape/focus-return dialog behavior, and rollback/restore drills remain required by the broader Gate 6/7 checklist. This harness does not claim those gates are complete.
-- A real provider, email, payment, or Demo smoke is never part of this runner. Any separately authorized staging smoke needs a different job and approval record.
-- Integrated evidence after the MFA and hard-404 acceptance closeout: Client 185,320/8,012 bytes, Operations 202,099/8,012 bytes, and Maintenance 196,004/8,012 bytes for initial JS/CSS gzip. The eight canonical Playwright scenarios passed with four viewports, first-time Operations TOTP enrollment, and zero serious/critical axe findings. Three Lighthouse runs scored performance 0.99/0.98/0.99, accessibility 1.00, best practices 1.00, LCP 1,960/2,323/1,968 ms, CLS 0, and TBT 5/7/5 ms. These are local controlled-Beta artifacts and must be regenerated on the final release commit or any later code change.
+- CI `quality-release` job 已集成；基础设施级 egress deny、生产 DNS/TLS 和真实外部 provider smoke 仍由部署环境负责。
+- 当前三端初始 JS/CSS gzip：Client 188,771/9,344 bytes，Operations 185,342/8,655 bytes，Maintenance 185,387/8,655 bytes，均通过 200/50 KiB 预算。
+- 12 个 Playwright 场景使用四身份与四档 viewport，覆盖 Host/Cookie audience 隔离、会员 maker-checker、Client/Operations/Maintenance 稳定路由、axe 和 console/network；全部通过。
+- 最新三次 Lighthouse performance 均为 0.98，accessibility 与 best practices 均为 1.00；LCP 2,490/2,467/2,473 ms，CLS 均为 0，TBT 13.5/3/6 ms，全部满足 Gate 预算。
+- 本机恢复演练已在 2026-08-21 对 fresh 源库覆盖 41 个迁移和 135 张表；迁移 registry checksum、表集合与逐表行数在恢复前后完全一致，一次性源库、目标库和临时 dump 均已清理。
+- 真实 Email、Demo、Payment、交易或 DNS/TLS smoke 不属于本 runner。没有凭证时产品以 `not_configured/configured_not_sent/disabled` 安全降级；若决定启用，必须在独立 staging 记录中补充真实 provider 证据。
 
 ## Temporary development-tool vulnerability exception
 
-The package integration at `8e49aee` reports zero high/critical production dependency findings, but 17 development-tool findings, including 9 high findings. This is a temporary release-engineering exception, not a production-risk waiver.
+当前 lockfile 报告生产依赖 high/critical 为 0；完整开发工具链仍有 17 项（3 low、5 moderate、9 high、0 critical）。这是临时发布工程例外，不是生产风险豁免。
 
 - Owner: Platform Release Engineering.
 - Controls: trusted lockfile only; no untrusted fixture/source input; isolated CI runner; no provider secrets; loopback PostgreSQL; infrastructure egress deny; evidence retained for no more than 14 days.

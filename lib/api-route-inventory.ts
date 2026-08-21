@@ -15,6 +15,7 @@ export type ApiRouteInventoryEntry = {
   pii: "none" | "masked" | "full";
   sensitivity: "normal" | "sensitive";
   requiresSameOrigin: boolean;
+  idempotency: boolean;
 };
 
 export const API_ROUTE_INVENTORY = [
@@ -46,7 +47,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -72,7 +74,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "DELETE",
@@ -98,7 +101,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -126,7 +130,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -156,7 +161,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -186,7 +192,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -214,7 +221,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -235,7 +243,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -265,7 +274,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -295,7 +305,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -319,7 +330,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -349,7 +361,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -373,7 +386,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -397,7 +411,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -421,7 +436,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -430,17 +446,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireUser"
-    ],
+    "authentication": "disabled",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PUT",
@@ -449,17 +464,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireUser"
-    ],
+    "authentication": "disabled",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -468,17 +482,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireUser"
-    ],
+    "authentication": "disabled",
+    "sessionAuthHelpers": [],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -489,7 +502,7 @@ export const API_ROUTE_INVENTORY = [
     ],
     "authentication": "session",
     "sessionAuthHelpers": [
-      "requireUser"
+      "requireCurrentSession"
     ],
     "permissionKeys": [],
     "permissionMfa": {},
@@ -497,7 +510,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -514,9 +528,10 @@ export const API_ROUTE_INVENTORY = [
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
-    "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "pii": "full",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -527,15 +542,16 @@ export const API_ROUTE_INVENTORY = [
     ],
     "authentication": "session",
     "sessionAuthHelpers": [
-      "requireUser"
+      "requireCurrentSession"
     ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
-    "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "pii": "full",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "DELETE",
@@ -556,7 +572,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -577,7 +594,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -600,7 +618,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PUT",
@@ -621,7 +640,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -642,7 +662,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -663,7 +684,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PUT",
@@ -684,7 +706,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -693,19 +716,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "maintenance"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "maint.system_health.view"
-    ],
-    "permissionMfa": {
-      "maint.system_health.view": "none"
-    },
-    "scope": "platform",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PUT",
@@ -714,19 +734,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "maintenance"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "maint.llm_profiles.manage"
-    ],
-    "permissionMfa": {
-      "maint.llm_profiles.manage": "recent"
-    },
-    "scope": "platform",
-    "mfa": "recent",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -735,19 +752,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "maintenance"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "maint.llm_profiles.manage"
-    ],
-    "permissionMfa": {
-      "maint.llm_profiles.manage": "recent"
-    },
-    "scope": "platform",
-    "mfa": "recent",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -770,7 +784,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -791,7 +806,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -812,7 +828,54 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/admin/llm-profiles/:id/revisions",
+    "source": "app/api/admin/llm-profiles/[id]/revisions/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.llm_profiles.manage",
+      "maint.system_health.view"
+    ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent",
+      "maint.system_health.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "conditional",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/admin/llm-profiles/:id/revisions",
+    "source": "app/api/admin/llm-profiles/[id]/revisions/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.llm_profiles.manage"
+    ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -835,7 +898,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PUT",
@@ -856,7 +920,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -877,7 +942,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -886,17 +952,20 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireAiCustomer"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -905,17 +974,20 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireAiCustomer"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -924,17 +996,20 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireAiCustomer"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -943,17 +1018,20 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireAiCustomer"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -962,17 +1040,20 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireAiCustomer"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -981,17 +1062,20 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireAiCustomer"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1012,7 +1096,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1033,7 +1118,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1054,7 +1140,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1075,7 +1162,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1092,7 +1180,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1111,7 +1200,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1130,7 +1220,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1149,13 +1240,15 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
     "route": "/api/auth/mfa/enroll/confirm",
     "source": "app/api/auth/mfa/enroll/confirm/route.ts",
     "audiences": [
+      "client",
       "operations",
       "maintenance"
     ],
@@ -1169,13 +1262,15 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
     "route": "/api/auth/mfa/enroll/start",
     "source": "app/api/auth/mfa/enroll/start/route.ts",
     "audiences": [
+      "client",
       "operations",
       "maintenance"
     ],
@@ -1189,13 +1284,15 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
     "route": "/api/auth/mfa/recovery-codes",
     "source": "app/api/auth/mfa/recovery-codes/route.ts",
     "audiences": [
+      "client",
       "operations",
       "maintenance"
     ],
@@ -1209,18 +1306,21 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
     "route": "/api/auth/mfa/recovery-codes",
     "source": "app/api/auth/mfa/recovery-codes/route.ts",
     "audiences": [
+      "client",
       "operations",
       "maintenance"
     ],
     "authentication": "session",
     "sessionAuthHelpers": [
+      "requireCurrentSession",
       "requireRecentMfaSession"
     ],
     "permissionKeys": [],
@@ -1229,13 +1329,15 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
     "route": "/api/auth/mfa/verify",
     "source": "app/api/auth/mfa/verify/route.ts",
     "audiences": [
+      "client",
       "operations",
       "maintenance"
     ],
@@ -1249,7 +1351,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1266,7 +1369,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1285,7 +1389,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1302,7 +1407,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1319,7 +1425,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1336,7 +1443,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1357,7 +1465,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1377,8 +1486,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1398,8 +1508,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1416,7 +1527,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1433,7 +1545,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -1450,7 +1563,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1467,7 +1581,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1484,7 +1599,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1501,7 +1617,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1518,7 +1635,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1535,7 +1653,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1552,7 +1671,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1569,7 +1689,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "full",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1586,7 +1707,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "full",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1603,7 +1725,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1620,7 +1743,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1637,7 +1761,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1656,7 +1781,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1675,7 +1801,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1694,7 +1821,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1703,15 +1831,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "anonymous",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1728,7 +1857,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1745,7 +1875,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1766,7 +1897,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1787,7 +1919,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1808,7 +1941,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -1829,7 +1963,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1850,7 +1985,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -1871,7 +2007,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -1892,7 +2029,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1915,7 +2053,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -1936,7 +2075,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -1959,7 +2099,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -1980,7 +2121,54 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/integrations/:id/test",
+    "source": "app/api/maintenance/integrations/[id]/test/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.feature_flags.manage"
+    ],
+    "permissionMfa": {
+      "maint.feature_flags.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/maintenance/integrations/catalog",
+    "source": "app/api/maintenance/integrations/catalog/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.feature_flags.manage",
+      "maint.system_health.view"
+    ],
+    "permissionMfa": {
+      "maint.feature_flags.manage": "recent",
+      "maint.system_health.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "conditional",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2003,7 +2191,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "conditional",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -2024,7 +2213,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2045,7 +2235,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2066,7 +2257,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2087,7 +2279,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PUT",
@@ -2108,7 +2301,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2129,7 +2323,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2150,7 +2345,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -2167,7 +2363,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2184,7 +2381,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2201,7 +2399,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2218,7 +2417,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2235,7 +2435,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "DELETE",
@@ -2254,7 +2455,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2273,7 +2475,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2292,7 +2495,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2311,7 +2515,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2330,7 +2535,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -2351,7 +2557,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2372,7 +2579,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2393,7 +2601,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -2414,7 +2623,30 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/membership/performance-statements/:id",
+    "source": "app/api/membership/performance-statements/[id]/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.membership.view"
+    ],
+    "permissionMfa": {
+      "client.membership.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2435,7 +2667,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2452,7 +2685,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -2469,7 +2703,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2486,7 +2721,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2505,7 +2741,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -2524,7 +2761,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2543,7 +2781,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PUT",
@@ -2562,7 +2801,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2583,7 +2823,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2604,7 +2845,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -2625,7 +2867,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -2646,7 +2889,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2667,7 +2911,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -2688,7 +2933,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -2709,7 +2955,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2730,7 +2977,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2751,7 +2999,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2772,7 +3021,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2793,7 +3043,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2814,7 +3065,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2835,7 +3087,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2855,8 +3108,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2876,8 +3130,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2898,7 +3153,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "full",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2918,8 +3174,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2940,7 +3197,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2961,7 +3219,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -2982,7 +3241,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3003,7 +3263,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -3024,7 +3285,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -3045,7 +3307,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -3066,7 +3329,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3087,7 +3351,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3108,7 +3373,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -3129,7 +3395,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -3150,7 +3417,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -3171,7 +3439,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -3191,8 +3460,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -3213,7 +3483,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "masked",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3234,7 +3505,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "masked",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "DELETE",
@@ -3251,7 +3523,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "full",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3271,8 +3544,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "full",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -3293,7 +3567,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "full",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3314,7 +3589,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "full",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3335,7 +3611,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -3356,7 +3633,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3377,7 +3655,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -3398,7 +3677,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3415,7 +3695,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3432,7 +3713,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3449,7 +3731,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "DELETE",
@@ -3466,7 +3749,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3483,7 +3767,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3500,7 +3785,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3509,19 +3795,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.customers.view"
-    ],
-    "permissionMfa": {
-      "ops.customers.view": "none"
-    },
-    "scope": "grant",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3542,7 +3825,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3559,7 +3843,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3576,7 +3861,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3593,7 +3879,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -3610,7 +3897,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3627,7 +3915,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -3644,7 +3933,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3661,7 +3951,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3678,7 +3969,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3695,7 +3987,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3712,7 +4005,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3729,7 +4023,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3746,7 +4041,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -3763,7 +4059,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3780,7 +4077,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3797,7 +4095,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -3814,7 +4113,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3831,7 +4131,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3848,7 +4149,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3865,7 +4167,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3882,7 +4185,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3899,7 +4203,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3918,7 +4223,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -3935,7 +4241,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3952,7 +4259,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -3969,7 +4277,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -3986,7 +4295,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -4003,7 +4313,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -4020,7 +4331,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4037,7 +4349,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -4054,7 +4367,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -4063,17 +4377,20 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireAiCustomer"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": true
   },
   {
     "method": "PATCH",
@@ -4090,7 +4407,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -4107,7 +4425,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4127,8 +4446,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -4149,7 +4469,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "masked",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "PUT",
@@ -4169,8 +4490,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
-    "sensitivity": "normal",
-    "requiresSameOrigin": true
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4190,8 +4512,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -4212,7 +4535,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "masked",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4232,8 +4556,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4253,8 +4578,9 @@ export const API_ROUTE_INVENTORY = [
     "scope": "grant",
     "mfa": "none",
     "pii": "masked",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "PATCH",
@@ -4275,7 +4601,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "masked",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -4296,7 +4623,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "masked",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4317,7 +4645,30 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/trading-hall/paper/platform-demo-summary",
+    "source": "app/api/trading-hall/paper/platform-demo-summary/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
+    ],
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4338,7 +4689,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4359,7 +4711,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -4376,7 +4729,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4397,7 +4751,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4414,7 +4769,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -4431,7 +4787,8 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
-    "requiresSameOrigin": true
+    "requiresSameOrigin": true,
+    "idempotency": false
   },
   {
     "method": "GET",
@@ -4452,6 +4809,7 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "requiresSameOrigin": false,
+    "idempotency": false
   }
 ] as const satisfies readonly ApiRouteInventoryEntry[];

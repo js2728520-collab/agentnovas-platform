@@ -116,7 +116,7 @@ export function CreditsWorkspace({ canAdjust, canApprove }: { canAdjust: boolean
       <PageHeading
         eyebrow="AI CREDITS"
         title="客户 Credits"
-        description="展示当前 RBAC 数据范围内的可用与冻结余额；人工调整采用申请人与复核人分离，批准后才写入不可变分录。"
+        description="账户列表为当前 RBAC 数据范围内的只读余额投影；人工调整采用申请人与复核人分离，批准后才写入不可变分录。"
         actions={
           <button
             className="rc-button"

@@ -51,6 +51,17 @@ export function officialPaperPortfolioDto(value: unknown): PaperPortfolio {
     : access === "close_only" ? "CLOSE_ONLY"
       : access === "read_only" ? "READ_ONLY" : null;
   if (!status || !Array.isArray(row.positions)) throw new Error("INVALID_PAPER_PORTFOLIO");
+  const runtime = row.runtime && typeof row.runtime === "object"
+    ? row.runtime as Record<string, unknown>
+    : {};
+  const runtimeState = String(runtime.state ?? "not_started").toUpperCase();
+  if (!["NOT_STARTED", "ACTIVE", "PAUSED", "ENDED", "FAILED"].includes(runtimeState)) {
+    throw new Error("INVALID_PAPER_RUNTIME_STATE");
+  }
+  const runtimeMode = runtime.mode == null ? null : String(runtime.mode).toUpperCase();
+  if (runtimeMode !== null && runtimeMode !== "PAPER" && runtimeMode !== "SHADOW") {
+    throw new Error("INVALID_PAPER_RUNTIME_MODE");
+  }
   return {
     id: identifier(row.id, "PORTFOLIO_ID"),
     membershipId: identifier(row.membershipId, "MEMBERSHIP_ID"),
@@ -65,6 +76,14 @@ export function officialPaperPortfolioDto(value: unknown): PaperPortfolio {
     unrealizedPnlUsdt: decimal12(row.unrealizedPnlUsdt),
     feesUsdt: decimal12(row.feesUsdt),
     status,
+    runtime: {
+      state: runtimeState as PaperPortfolio["runtime"]["state"],
+      deploymentId: runtime.deploymentId == null ? null : identifier(runtime.deploymentId, "DEPLOYMENT_ID"),
+      subscriptionId: runtime.subscriptionId == null ? null : identifier(runtime.subscriptionId, "SUBSCRIPTION_ID"),
+      mode: runtimeMode as PaperPortfolio["runtime"]["mode"],
+      lastCycleSequence: Math.max(0, Number(runtime.lastCycleSequence ?? 0)),
+      lastDecisionAt: runtime.lastDecisionAt == null ? null : timestamp(runtime.lastDecisionAt),
+    },
     openPositionCount: Number(row.openPositionCount),
     positions: row.positions.map((positionValue) => {
       const position = positionValue as Record<string, unknown>;

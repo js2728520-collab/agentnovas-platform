@@ -92,6 +92,16 @@ test("Resend delivery events map only bounded canonical sender payloads", () => 
   }), /INVALID_WEBHOOK_PAYLOAD/);
 });
 
+test("complaints are permanent failures and never count as delivered", () => {
+  const complaint = parseResendDeliveryEvent({
+    type: "email.complained",
+    created_at: "2026-08-20T03:00:00.000Z",
+    data: { email_id: "provider-1", from: "noreply@agentnovas.com" },
+  });
+  assert.equal(complaint.nextStatus, "failed");
+  assert.equal(complaint.errorCode, "RESEND_EMAIL_COMPLAINT");
+});
+
 test("Resend event ordering never lets an older or lower-priority event regress delivery state", () => {
   const current = { eventType: "email.opened", eventCreatedAt: "2026-08-20T03:00:02.000Z" };
   const olderDelivery = parseResendDeliveryEvent({
@@ -121,8 +131,8 @@ test("verified Resend events are persisted and applied in one transaction", asyn
     async query(sql, parameters) {
       queries.push({ sql, parameters });
       if (/INSERT INTO resend_webhook_events/.test(sql)) return { rows: [{ event_id: "evt-1" }], rowCount: 1 };
-      if (/SELECT id, status, provider_message_id/.test(sql)) {
-        return { rows: [{ id: "delivery-1", status: "sent", provider_message_id: "provider-1", provider_event_type: null, provider_event_at: null }] };
+      if (/SELECT delivery\.id, delivery\.status, delivery\.provider_message_id/.test(sql)) {
+        return { rows: [{ id: "delivery-1", status: "sent", provider_message_id: "provider-1", provider_event_type: null, provider_event_at: null, recipient: "person@example.com" }] };
       }
       if (/UPDATE notification_deliveries/.test(sql)) return { rows: [{ id: "delivery-1" }], rowCount: 1 };
       return { rows: [], rowCount: 1 };

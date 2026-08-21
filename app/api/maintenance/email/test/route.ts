@@ -1,5 +1,5 @@
 import { requireAccessPermission } from "@/lib/access-control";
-import { maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { maintenanceCorrelation, maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       SET last_test_at = $1, updated_at = now()
       WHERE provider = 'resend'
     `, [testedAt]);
-    await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.email_test_recorded", subjectType: "notification_provider", subjectId: "resend", reason });
+    await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.email_test_recorded", subjectType: "notification_provider", subjectId: "resend", reason, ...maintenanceCorrelation(request) });
     return Response.json({
       ok: false,
       status: "configured_not_sent",

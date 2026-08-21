@@ -36,7 +36,13 @@ test.before(async () => {
       actor_user_id text NOT NULL, account_id text NOT NULL, action text NOT NULL,
       strategy_code text, reason text NOT NULL, canonical_payload_sha256 text NOT NULL,
       status text NOT NULL, response_json jsonb, error_code text,
+      request_id text, trace_id text,
       created_at timestamptz NOT NULL, completed_at timestamptz
+    );
+    CREATE TABLE audit_logs (
+      id text PRIMARY KEY,actor_user_id text,action text NOT NULL,
+      subject_type text NOT NULL,subject_id text NOT NULL,request_id text,trace_id text,
+      after_json text,error_code text,created_at timestamptz NOT NULL
     );
     INSERT INTO platform_demo_accounts
       (id,provider,label,enabled,kill_switch_enabled,api_key_ciphertext,secret_ciphertext,
@@ -47,7 +53,16 @@ test.before(async () => {
       ('cmd-1','control','private-idempotency','maint-1','demo-okx','kill',NULL,
        'incident containment','${"a".repeat(64)}','succeeded',
        '{"secret":"must-not-leak","providerOrderId":"private"}',NULL,
+       'req-demo-001','trace-demo-001',
        '2026-08-21T01:00:00Z','2026-08-21T01:00:01Z');
+    INSERT INTO audit_logs(
+      id,actor_user_id,action,subject_type,subject_id,after_json,
+      request_id,trace_id,error_code,created_at
+    ) VALUES (
+      'audit-failed','maint-1','maintenance.integration_test','integration','binance-public-market',
+      '{"status":"failed","errorCode":"HTTP_503","latencyMs":12,"reason":"provider readiness check"}',
+      'req-integration-001','trace-integration-001','HTTP_503','2026-08-21T02:00:00Z'
+    );
   `);
 });
 
@@ -57,13 +72,14 @@ test.after(async () => {
   await admin.end();
 });
 
-test("maintenance technical audit projects only allowlisted Demo command evidence", async () => {
+test("maintenance technical audit projects allowlisted cross-domain evidence", async () => {
   const rows = await loadMaintenanceTechnicalAudit(pool, { limit: 10, cursor: null, operation: "control", status: "succeeded" });
   assert.deepEqual(rows, [{
-    id: "cmd-1", operation: "control", actorUserId: "maint-1",
-    account: { id: "demo-okx", provider: "okx", label: "OKX isolated" },
-    action: "kill", strategyCode: null, reason: "incident containment",
+    id: "demo:cmd-1", domain: "demo", actorUserId: "maint-1",
+    subject: { id: "demo-okx", type: "platform_demo_account", label: "okx · OKX isolated" },
+    action: "demo.control.kill", reason: "incident containment",
     status: "succeeded", errorCode: null,
+    requestId: "req-demo-001", traceId: "trace-demo-001",
     createdAt: "2026-08-21T01:00:00.000Z", completedAt: "2026-08-21T01:00:01.000Z",
   }]);
   const serialized = JSON.stringify(rows);
@@ -71,6 +87,19 @@ test("maintenance technical audit projects only allowlisted Demo command evidenc
 });
 
 test("technical audit DTO rejects unknown internal states", () => {
-  assert.throws(() => maintenanceTechnicalAuditDto({ operation: "future", status: "succeeded" }), /UNKNOWN_AUDIT_OPERATION/);
-  assert.throws(() => maintenanceTechnicalAuditDto({ operation: "control", status: "future" }), /UNKNOWN_AUDIT_STATUS/);
+  assert.throws(() => maintenanceTechnicalAuditDto({ domain: "future", action: "safe", status: "succeeded" }), /UNKNOWN_AUDIT_DOMAIN/);
+  assert.throws(() => maintenanceTechnicalAuditDto({ domain: "demo", action: "safe", status: "future" }), /UNKNOWN_AUDIT_STATUS/);
+});
+
+test("failed integration checks stay failed and expose only their safe reason", async () => {
+  const rows = await loadMaintenanceTechnicalAudit(pool, { limit: 10, cursor: null, domain: "integrations", status: "failed" });
+  assert.deepEqual(rows, [{
+    id: "audit:audit-failed", domain: "integrations", actorUserId: "maint-1",
+    subject: { id: "binance-public-market", type: "integration", label: null },
+    action: "maintenance.integration_test", reason: "provider readiness check",
+    status: "failed", errorCode: "HTTP_503",
+    requestId: "req-integration-001", traceId: "trace-integration-001",
+    createdAt: "2026-08-21T02:00:00.000Z", completedAt: "2026-08-21T02:00:00.000Z",
+  }]);
+  assert.doesNotMatch(JSON.stringify(rows), /latencyMs/);
 });

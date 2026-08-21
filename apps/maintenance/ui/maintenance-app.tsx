@@ -1,29 +1,34 @@
 "use client";
 
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 
-import { EmailIntegrationWorkspace } from "./email-integration-workspace";
-import { DemoExchangesWorkspace } from "./demo-exchanges-workspace";
-import { EmergencyControlWorkspace } from "./emergency-control-workspace";
-import { IntegrationsOverview } from "./integrations-overview";
-import { ModelsWorkspace } from "./models-workspace";
-import { PaymentIntegrationWorkspace } from "./payment-integration-workspace";
-import { PlatformSettingsWorkspace } from "./platform-settings-workspace";
-import { CommercialDisclosuresWorkspace } from "./commercial-disclosures-workspace";
-import { SystemHealthWorkspace } from "./system-health-workspace";
-import { TechnicalAuditWorkspace } from "./technical-audit-workspace";
-import { AccessCenter } from "@/packages/ui/src/access-center";
 import { AppLogin } from "@/packages/ui/src/app-login";
 import { ConsoleShell } from "@/packages/ui/src/console-shell";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
 import { hasAnyPermission, type ConsoleNavigationItem } from "@/packages/contracts/src/riverton-ui";
-import { InternalAccountSecurity } from "@/packages/ui/src/internal-account-security";
+
+const workspaceLoading = () => <LoadingState label="正在加载运维模块…" />;
+const EmailIntegrationWorkspace = dynamic(() => import("./email-integration-workspace").then((module) => module.EmailIntegrationWorkspace), { loading: workspaceLoading });
+const DemoExchangesWorkspace = dynamic(() => import("./demo-exchanges-workspace").then((module) => module.DemoExchangesWorkspace), { loading: workspaceLoading });
+const EmergencyControlWorkspace = dynamic(() => import("./emergency-control-workspace").then((module) => module.EmergencyControlWorkspace), { loading: workspaceLoading });
+const IntegrationsOverview = dynamic(() => import("./integrations-overview").then((module) => module.IntegrationsOverview), { loading: workspaceLoading });
+const ModelsWorkspace = dynamic(() => import("./models-workspace").then((module) => module.ModelsWorkspace), { loading: workspaceLoading });
+const PaymentIntegrationWorkspace = dynamic(() => import("./payment-integration-workspace").then((module) => module.PaymentIntegrationWorkspace), { loading: workspaceLoading });
+const PlatformSettingsWorkspace = dynamic(() => import("./platform-settings-workspace").then((module) => module.PlatformSettingsWorkspace), { loading: workspaceLoading });
+const CommercialDisclosuresWorkspace = dynamic(() => import("./commercial-disclosures-workspace").then((module) => module.CommercialDisclosuresWorkspace), { loading: workspaceLoading });
+const SystemHealthWorkspace = dynamic(() => import("./system-health-workspace").then((module) => module.SystemHealthWorkspace), { loading: workspaceLoading });
+const TechnicalAuditWorkspace = dynamic(() => import("./technical-audit-workspace").then((module) => module.TechnicalAuditWorkspace), { loading: workspaceLoading });
+const SourceIntegrationsWorkspace = dynamic(() => import("./source-integrations-workspace").then((module) => module.SourceIntegrationsWorkspace), { loading: workspaceLoading });
+const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter), { loading: workspaceLoading });
+const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity), { loading: workspaceLoading });
 
 const navigation: ConsoleNavigationItem[] = [
   { href: "/", label: "系统概览", icon: "⌂", requiredPermissions: ["maint.system_health.view"] },
   { href: "/models", label: "模型与 Agent", icon: "模", requiredPermissions: ["maint.system_health.view", "maint.llm_profiles.manage", "maint.agent_bindings.manage"] },
   { href: "/integrations", label: "服务集成", icon: "接", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage", "maint.payment_integrations.manage", "maint.demo_exchanges.view"] },
+  { href: "/integrations/sources", label: "数据与新闻", icon: "源", requiredPermissions: ["maint.system_health.view", "maint.feature_flags.manage"] },
   { href: "/integrations/email", label: "邮件服务", icon: "邮", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage"] },
   { href: "/integrations/payments", label: "支付服务", icon: "付", requiredPermissions: ["maint.system_health.view", "maint.payment_integrations.manage"] },
   { href: "/integrations/demo-exchanges", label: "Demo 交易所", icon: "测", requiredPermissions: ["maint.demo_exchanges.view"] },
@@ -56,6 +61,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "integrations" && subtype === "email" ? ["maint.system_health.view", "maint.email_integrations.manage"]
     : route === "integrations" && subtype === "payments" ? ["maint.system_health.view", "maint.payment_integrations.manage"]
     : route === "integrations" && subtype === "demo-exchanges" ? ["maint.demo_exchanges.view"]
+    : route === "integrations" && subtype === "sources" ? ["maint.system_health.view", "maint.feature_flags.manage"]
     : route === "integrations" ? ["maint.system_health.view", "maint.email_integrations.manage", "maint.payment_integrations.manage", "maint.demo_exchanges.view"]
     : route === "safety" ? ["maint.emergency_pause.execute"]
     : route === "settings" && subtype === "disclosures" ? ["maint.commercial_disclosures.view"]
@@ -76,6 +82,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
       canManage={Boolean(permissions["maint.demo_exchanges.manage"])}
       canKill={Boolean(permissions["maint.demo_exchanges.kill"])}
     />
+    : route === "integrations" && subtype === "sources" ? <SourceIntegrationsWorkspace canTest={Boolean(permissions["maint.feature_flags.manage"])} />
     : route === "integrations" ? <IntegrationsOverview
       canViewEmail={Boolean(permissions["maint.email_integrations.manage"])}
       canViewPayments={Boolean(permissions["maint.payment_integrations.manage"])}

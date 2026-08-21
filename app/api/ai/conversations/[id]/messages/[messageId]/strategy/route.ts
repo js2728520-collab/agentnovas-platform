@@ -1,4 +1,5 @@
-import { AiApiError, aiErrorResponse, requireAiCustomer } from "@/lib/ai-api";
+import { AiApiError, aiErrorResponse } from "@/lib/ai-api";
+import { requireAccessPermission } from "@/lib/access-control";
 import { getOwnedAiConversation, getOwnedAiMessage } from "@/lib/ai-conversations";
 import { strategyDraftFromAiMessage } from "@/lib/ai-strategy-save";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
@@ -13,7 +14,7 @@ export async function POST(
 ) {
   try {
     await ensureDatabaseSchema();
-    const user = await requireAiCustomer(request);
+    const { user } = await requireAccessPermission(request, "client.paper.view");
     const { id, messageId } = await params;
     if (!uuidPattern.test(id) || !uuidPattern.test(messageId)) {
       throw new AiApiError("INVALID_RESOURCE_ID", "对话或回复 ID 格式无效", 400);

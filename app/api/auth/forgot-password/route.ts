@@ -3,7 +3,7 @@ import { normalizeEmail } from "@/lib/auth";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { queueForgotPasswordRequest } from "@/lib/forgot-password";
-import { getPostgresPool } from "@/lib/postgres";
+import { getClientAuthPostgresPool, getPostgresPool } from "@/lib/postgres";
 import { authConnectionBucketKey } from "@/lib/riverton-apps";
 
 export async function POST(request: Request) {
@@ -30,6 +30,6 @@ export async function POST(request: Request) {
       headers: { "retry-after": String(rateLimit.retryAfterSeconds) },
     });
   }
-  await queueForgotPasswordRequest(pool, { email: normalizedEmail });
+  await queueForgotPasswordRequest(await getClientAuthPostgresPool(), { email: normalizedEmail });
   return Response.json({ ok: true, message: "如果邮箱存在，重置邮件已进入发送队列" });
 }

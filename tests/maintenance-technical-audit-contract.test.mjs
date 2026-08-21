@@ -11,6 +11,12 @@ test("Maintenance exposes a permission guarded stable technical audit page", asy
   assert.match(app, /href: "\/audit"[^\n]+maint\.audit\.view/);
   assert.match(app, /route === "audit" \? <TechnicalAuditWorkspace/);
   assert.match(api, /requireAccessPermission\(request, "maint\.audit\.view"\)/);
+  assert.match(query, /audit\.action LIKE 'maintenance\.%'/);
+  assert.match(query, /audit\.action LIKE 'auth\.mfa_%'/);
+  assert.match(query, /event\.request_id/);
+  assert.match(query, /event\.trace_id/);
+  assert.match(query, /audit\.after_json::jsonb->>'status'='failed'/);
+  assert.match(query, /audit\.error_code IS NOT NULL/);
   assert.doesNotMatch(query, /response_json|idempotency_key|canonical_payload_sha256|provider_order|client_order/i);
   const workspace = await readFile(new URL("../apps/maintenance/ui/technical-audit-workspace.tsx", import.meta.url), "utf8");
   assert.match(workspace, /window\.location\.search/);

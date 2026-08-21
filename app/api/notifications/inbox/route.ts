@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { notificationDeliveries } from "@/db/schema";
 import { readResearchJson, researchErrorResponse, ResearchApiError } from "@/lib/research-api";
@@ -32,6 +32,15 @@ async function notificationUser(request: Request) {
 export async function GET(request: Request) {
   try {
     const user = await notificationUser(request), db = getDb();
+    const summary = new URL(request.url).searchParams.get("summary") === "1";
+    if (summary) {
+      const [row] = await db.select({ unread: count() }).from(notificationDeliveries).where(and(
+        eq(notificationDeliveries.userId, user.id),
+        eq(notificationDeliveries.channel, "in_app"),
+        isNull(notificationDeliveries.readAt),
+      ));
+      return Response.json({ unread: Number(row?.unread ?? 0) }, { headers: { "cache-control": "no-store" } });
+    }
     const rows = await db.select().from(notificationDeliveries).where(and(eq(notificationDeliveries.userId, user.id), eq(notificationDeliveries.channel, "in_app"))).orderBy(desc(notificationDeliveries.createdAt)).limit(100);
     return Response.json({ unread: rows.filter(row => !row.readAt).length, notifications: rows.map(row => ({ id: row.id, category: row.category, templateKey: row.templateKey, status: row.status, payload: safePayload(row.payloadJson), createdAt: row.createdAt, readAt: row.readAt })) }, { headers: { "cache-control": "no-store" } });
   } catch (error) { return researchErrorResponse(error, request); }

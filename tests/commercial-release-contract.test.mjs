@@ -120,8 +120,8 @@ test("evidence routes return DTOs and legal acceptance never trusts forwarded-fo
   assert.doesNotMatch(create, /x-forwarded-for/i);
   assert.match(create, /trustedIp/);
   const api = await readFile(new URL("lib/commercial-api.ts", root), "utf8");
-  assert.doesNotMatch(api, /headers\.get\(["']x-request-id/i);
-  assert.match(api, /requestId[\s\S]+randomUUID/);
+  assert.match(api, /import \{ requestIdFor \} from "\.\/api-policy\.ts"/);
+  assert.match(api, /requestId\(request: Request\) \{ return requestIdFor\(request\); \}/);
 });
 
 test("ledger closes posting window when transaction is committed", async () => {

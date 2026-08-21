@@ -13,6 +13,7 @@ export type ApiRoutePolicy = {
   pii: "none" | "masked" | "full";
   sensitivity: "normal" | "sensitive";
   requiresSameOrigin: boolean;
+  idempotency: boolean;
   sensitive: boolean;
 };
 
@@ -81,6 +82,7 @@ export function apiPolicyForRoute(route: string, method: string): ApiRoutePolicy
     pii: entry.pii,
     sensitivity: entry.sensitivity,
     requiresSameOrigin: entry.requiresSameOrigin,
+    idempotency: entry.idempotency,
     sensitive: entry.sensitivity === "sensitive",
   };
 }
@@ -129,6 +131,18 @@ export function assertSameOrigin(request: Request) {
   }
 }
 
+export function assertIdempotencyKey(request: Request) {
+  const key = request.headers.get("idempotency-key")?.trim() ?? "";
+  if (!/^[A-Za-z0-9._:-]{8,128}$/.test(key)) {
+    throw new ApiPolicyError(
+      "IDEMPOTENCY_KEY_REQUIRED",
+      "必须提供有效的 Idempotency-Key 请求头",
+      422,
+      { fields: ["Idempotency-Key"] },
+    );
+  }
+}
+
 export function evaluateApiRequestPolicy(request: Request): ApiRequestContext {
   const url = new URL(request.url);
   const requestId = requestIdFor(request);
@@ -144,6 +158,7 @@ export function evaluateApiRequestPolicy(request: Request): ApiRequestContext {
     throw new ApiPolicyError("ROUTE_DISABLED", "接口尚未启用", 503);
   }
   if (policy.requiresSameOrigin) assertSameOrigin(request);
+  if (policy.idempotency) assertIdempotencyKey(request);
   return { requestId, audience, method: inventory.method, pathname: url.pathname, inventory, policy };
 }
 

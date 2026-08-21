@@ -111,7 +111,7 @@ test("four-identity membership evidence and maker-checker activation remains sid
     await page.getByRole("checkbox").check();
     await confirmButton.click();
     await expect(page.getByText("当前版本确认已完成")).toBeVisible();
-    await expect(page.getByText(/本次操作没有创建订单、付款或激活会员/)).toBeVisible();
+    await expect(page.getByText(/3 天试用已在确认后由服务端开通/)).toBeVisible();
     await Promise.all([
       page.waitForURL(`${clientOrigin}/workspace`),
       page.getByRole("link", { name: "继续访问原页面" }).click(),

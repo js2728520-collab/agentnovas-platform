@@ -20,7 +20,10 @@ import {
   requiredLegalDocumentTypes,
 } from "./commercial-membership-domain.ts";
 import { hasReadableCommercialLegalContent } from "./commercial-legal.ts";
-import { ensureOfficialPaperPortfolios } from "./official-paper-repository.ts";
+import {
+  activateOfficialPaperPortfoliosAfterDisclosure,
+  ensureOfficialPaperPortfolios,
+} from "./official-paper-repository.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 type CommercialMutationAuthorization = (
@@ -174,6 +177,69 @@ export async function requireCurrentCommercialLegalConsent(pool: Pick<Pool, "que
   return status;
 }
 
+async function activatePendingInvitationTrial(client: PoolClient, userId: string) {
+  const pending = await client.query<{ id: string }>(`
+    SELECT id FROM memberships
+    WHERE customer_id=$1 AND plan_code='trial_monthly_equivalent' AND status='pending'
+    ORDER BY created_at,id
+    FOR UPDATE
+  `, [userId]);
+  if (!pending.rows.length) return null;
+  if (pending.rows.length !== 1) {
+    throw new ResearchApiError("TRIAL_INTEGRITY_CONFLICT", "当前账号存在多个待开通试用", 409);
+  }
+  const membershipId = pending.rows[0].id;
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
+  const expiresAt = new Date(nowDate.getTime() + 3 * 86_400_000).toISOString();
+  const graceEndsAt = new Date(nowDate.getTime() + 4 * 86_400_000).toISOString();
+  const activated = await client.query(`
+    UPDATE memberships
+    SET status='active',starts_at=$2,expires_at=$3,grace_ends_at=$4,
+        max_active_strategies=3,updated_at=$2
+    WHERE id=$1 AND customer_id=$5 AND status='pending'
+    RETURNING id
+  `, [membershipId, now, expiresAt, graceEndsAt, userId]);
+  if (activated.rowCount !== 1) {
+    throw new ResearchApiError("TRIAL_STATE_CONFLICT", "试用状态已变化，请重新读取", 409);
+  }
+  await ensureOfficialPaperPortfolios(client, { membershipId, customerId: userId });
+  await activateOfficialPaperPortfoliosAfterDisclosure(client, {
+    membershipId,
+    customerId: userId,
+    now: nowDate,
+  });
+  await client.query(`
+    INSERT INTO membership_access_events(
+      id,membership_id,customer_id,event_type,effective_at,state_json,dedupe_key
+    ) VALUES($1,$2,$3,'trial_started',$4,$5::jsonb,$6)
+    ON CONFLICT(dedupe_key) DO NOTHING
+  `, [
+    randomUUID(), membershipId, userId, now,
+    JSON.stringify({ planCode: "trial_monthly_equivalent", expiresAt, graceEndsAt }),
+    `membership:${membershipId}:trial_started:disclosure`,
+  ]);
+  await client.query(`
+    INSERT INTO notification_deliveries(
+      id,user_id,channel,category,template_key,payload_json,status,scheduled_at,dedupe_key
+    ) VALUES($1,$2,'in_app','membership_billing','trial_started',$3,'queued',$4,$5)
+    ON CONFLICT(dedupe_key) DO NOTHING
+  `, [
+    randomUUID(), userId,
+    JSON.stringify({ membershipId, expiresAt, graceEndsAt, entitlement: "monthly" }),
+    now, `trial-started:${membershipId}`,
+  ]);
+  await client.query(`
+    INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json)
+    VALUES($1,$2,'commercial.trial_activated','membership',$3,$4,$5)
+  `, [
+    randomUUID(), userId, membershipId,
+    JSON.stringify({ status: "pending" }),
+    JSON.stringify({ status: "active", expiresAt, graceEndsAt, officialPaperPortfolioCount: 3 }),
+  ]);
+  return { membershipId, expiresAt, graceEndsAt };
+}
+
 export async function acceptCurrentCommercialLegalDocuments(
   pool: Pool,
   input: {
@@ -198,7 +264,10 @@ export async function acceptCurrentCommercialLegalDocuments(
     }
     await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [input.userId]);
     const existing = await readCommercialLegalConsent(client, input.userId);
-    if (existing.consentComplete) return existing;
+    if (existing.consentComplete) {
+      await activatePendingInvitationTrial(client, input.userId);
+      return existing;
+    }
     const claim = await claimCommercialIdempotency(client, {
       operation: "commercial.legal.accept",
       key: input.idempotencyKey,
@@ -225,6 +294,7 @@ export async function acceptCurrentCommercialLegalDocuments(
       [randomUUID(), input.userId, JSON.stringify({ consentComplete: false }), JSON.stringify({ consentComplete: true, acceptedDocumentVersionIds: currentIds })],
     );
     const response = await readCommercialLegalConsent(client, input.userId);
+    await activatePendingInvitationTrial(client, input.userId);
     await completeCommercialIdempotency(client, "commercial.legal.accept", input.idempotencyKey, response);
     return response;
   });
@@ -799,12 +869,12 @@ export async function decideMembershipOrder(
           ).toISOString();
     if (before)
       await client.query(
-        `UPDATE memberships SET plan_code=$2,status='active',starts_at=COALESCE(starts_at,$3),expires_at=$4,updated_at=$3 WHERE id=$1`,
+        `UPDATE memberships SET plan_code=$2,status='active',starts_at=COALESCE(starts_at,$3),expires_at=$4,max_active_strategies=3,updated_at=$3 WHERE id=$1`,
         [membershipId, row.plan_version_id, now.toISOString(), expiresAt],
       );
     else
       await client.query(
-        `INSERT INTO memberships(id,customer_id,plan_code,status,starts_at,expires_at) VALUES($1,$2,$3,'active',$4,$5)`,
+        `INSERT INTO memberships(id,customer_id,plan_code,status,starts_at,expires_at,max_active_strategies) VALUES($1,$2,$3,'active',$4,$5,3)`,
         [
           membershipId,
           row.user_id,
@@ -816,6 +886,11 @@ export async function decideMembershipOrder(
     await ensureOfficialPaperPortfolios(client, {
       membershipId,
       customerId: row.user_id,
+    });
+    await activateOfficialPaperPortfoliosAfterDisclosure(client, {
+      membershipId,
+      customerId: row.user_id,
+      now,
     });
     const clearingId = await ensurePlatformLedgerAccount(
         client,

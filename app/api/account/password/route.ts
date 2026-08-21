@@ -1,22 +1,31 @@
 import { changeAccountPassword } from "@/lib/account-password";
+import { clientSelfPasswordHash } from "@/lib/client-identity-gateway";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
-import { getPostgresPool } from "@/lib/postgres";
+import { getClientAuthPostgresPool, getPostgresPool } from "@/lib/postgres";
 import { authConnectionBucketKey, clearSessionCookieHeaders } from "@/lib/riverton-apps";
-import { requireUser, responseError } from "@/lib/session";
+import { requireCurrentSession, responseError } from "@/lib/session";
 import { readResearchJson, ResearchApiError } from "@/lib/research-api";
 
 export async function POST(request: Request) {
   try {
     await ensureDatabaseSchema();
-    const current = await requireUser(request);
+    const current = await requireCurrentSession(request);
     const input = await readResearchJson(request, 4_096);
     const currentPassword = String(input.currentPassword ?? "");
     const newPassword = String(input.newPassword ?? "");
     if (currentPassword.length < 1 || currentPassword.length > 128) throw new ResearchApiError("CURRENT_PASSWORD_INVALID", "当前密码不正确", 422);
     if (newPassword.length < 10 || newPassword.length > 128) throw new ResearchApiError("PASSWORD_LENGTH_INVALID", "新密码须为 10–128 个字符", 422);
     const connection = authConnectionBucketKey(request);
+    const clientPasswordHash = current.session.appAudience === "client"
+      ? await clientSelfPasswordHash(await getClientAuthPostgresPool(), current.session.tokenHash)
+      : undefined;
+    if (current.session.appAudience === "client" && !clientPasswordHash) {
+      throw new ResearchApiError("CURRENT_PASSWORD_INVALID", "当前密码不正确", 422);
+    }
     const result = await changeAccountPassword(await getPostgresPool(), {
-      userId: current.id,
+      userId: current.user.id,
+      sessionTokenHash: current.session.appAudience === "client" ? current.session.tokenHash : undefined,
+      currentPasswordHash: clientPasswordHash ?? undefined,
       currentPassword,
       newPassword,
       ipAddress: connection?.ipAddress,

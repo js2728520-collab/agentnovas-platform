@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import type { PoolClient } from "pg";
 
 import { getDb } from "@/db";
 import { aiConversations, aiMessages, aiUsageDaily, auditLogs, communityStrategies } from "@/db/schema";
@@ -244,6 +245,35 @@ export async function recordStrategyGeneration(options: {
   return generationId;
 }
 
+export async function recordStrategyGenerationInTransaction(
+  client: PoolClient,
+  options: {
+    userId: string;
+    conversationId: string;
+    mode: "ai_provider";
+    specificationJson: string;
+  },
+) {
+  const now = new Date().toISOString();
+  const generationId = crypto.randomUUID();
+  const specificationHash = await sha256(options.specificationJson);
+  await client.query(
+    `UPDATE ai_usage_daily SET output_chars=output_chars+$3,updated_at=$4
+      WHERE user_id=$1 AND usage_date=$2`,
+    [options.userId, now.slice(0, 10), options.specificationJson.length, now],
+  );
+  await client.query(
+    `INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,created_at)
+     VALUES($1,$2,'ai.strategy.generated','ai_conversation',$3,$4,$5)`,
+    [generationId, options.userId, options.conversationId, JSON.stringify({
+      mode: options.mode,
+      outputChars: options.specificationJson.length,
+      specificationHash,
+    }), now],
+  );
+  return generationId;
+}
+
 export async function resolveStrategyVersionSource(options: {
   userId: string;
   conversationId: string | null;
@@ -353,6 +383,51 @@ export async function appendAssistantMessage(options: {
     }),
   ]);
   return publicMessage(row);
+}
+
+export async function appendAssistantMessageInTransaction(
+  client: PoolClient,
+  options: {
+    userId: string;
+    conversationId: string;
+    content: string;
+    providerName: string;
+    model: string;
+    suggestedAction?: "strategy";
+  },
+) {
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+  await client.query(
+    `INSERT INTO ai_messages(
+       id,conversation_id,user_id,role,content,generation_mode,provider_name,model,metadata_json,created_at
+     ) VALUES($1,$2,$3,'assistant',$4,'ai_provider',$5,$6,$7,$8)`,
+    [id, options.conversationId, options.userId, options.content, options.providerName, options.model,
+      JSON.stringify({ suggestedAction: options.suggestedAction || null }), now],
+  );
+  await client.query(
+    `UPDATE ai_conversations SET last_message_at=$3,updated_at=$3 WHERE id=$1 AND user_id=$2`,
+    [options.conversationId, options.userId, now],
+  );
+  await client.query(
+    `UPDATE ai_usage_daily SET output_chars=output_chars+$3,updated_at=$4
+      WHERE user_id=$1 AND usage_date=$2`,
+    [options.userId, now.slice(0, 10), options.content.length, now],
+  );
+  await client.query(
+    `INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,created_at)
+     VALUES($1,$2,'ai.message.completed','ai_conversation',$3,$4,$5)`,
+    [crypto.randomUUID(), options.userId, options.conversationId,
+      JSON.stringify({ mode: "ai_provider", outputChars: options.content.length }), now],
+  );
+  return {
+    id,
+    role: "assistant" as const,
+    content: options.content,
+    generationMode: "ai_provider" as const,
+    model: options.model,
+    createdAt: now,
+  };
 }
 
 export async function recordAiMessageFailure(userId: string, conversationId: string) {

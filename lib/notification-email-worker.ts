@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 
 import { RESEND_SENDER_ADDRESS, RESEND_SENDER_DOMAIN } from "./notifications.ts";
@@ -196,11 +197,28 @@ export function validateEmailRecipient(value: unknown) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
 }
 
+export function notificationRecipientHash(value: string) {
+  return createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
+}
+
+export function notificationEmailAllowlist(environment: Record<string, string | undefined>) {
+  return new Set((environment.NOTIFICATION_EMAIL_ALLOWLIST ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => validateEmailRecipient(value)));
+}
+
+export function notificationRecipientAllowed(value: string, environment: Record<string, string | undefined>) {
+  return notificationEmailAllowlist(environment).has(value.trim().toLowerCase());
+}
+
 export function notificationSendEnvironmentReady(environment: Record<string, string | undefined>) {
   return environment.NOTIFICATION_WORKER_ENABLED === "true"
     && environment.NOTIFICATION_EMAIL_SEND_ENABLED === "true"
     && environment.NODE_ENV !== "test"
-    && Boolean(environment.RESEND_API_KEY?.trim());
+    && Boolean(environment.RESEND_API_KEY?.trim())
+    && Boolean(environment.RESEND_WEBHOOK_SECRET?.trim())
+    && notificationEmailAllowlist(environment).size > 0;
 }
 
 export function providerConfigAllowsSend(config: unknown) {
@@ -217,7 +235,18 @@ export function providerConfigAllowsSend(config: unknown) {
     && candidate.channel === "email"
     && candidate.status === "active"
     && candidate.sender_domain === RESEND_SENDER_DOMAIN
-    && settings.senderDomainVerified === true;
+    && settings.senderDomainVerified === true
+    && settings.webhookVerified === true
+    && settings.templatesVerified === true
+    && settings.suppressionEnabled === true;
+}
+
+export async function isNotificationRecipientSuppressed(pool: Pick<Pool, "query">, recipient: string) {
+  const result = await pool.query(
+    `SELECT 1 FROM notification_email_suppressions WHERE recipient_hash=$1 AND active=true LIMIT 1`,
+    [notificationRecipientHash(recipient)],
+  );
+  return result.rows.length > 0;
 }
 
 export function retryDelayMilliseconds(attempts: number) {
@@ -294,8 +323,25 @@ export async function claimNextEmailDelivery(pool: Pick<Pool, "connect">, input:
     await client.query("BEGIN");
     const result = await client.query(
       `WITH candidate AS (
-         SELECT delivery.id
+         SELECT delivery.id,
+                delivery.user_id,
+                delivery.template_key,
+                delivery.payload_json,
+                delivery.secret_kind,
+                delivery.secret_expires_at,
+                delivery.attempts,
+                users.email AS recipient,
+                COALESCE(zone.name, 'UTC') AS user_timezone,
+                preference.quiet_start,
+                preference.quiet_end,
+                $2::timestamptz AT TIME ZONE COALESCE(zone.name, 'UTC') AS local_now
            FROM notification_deliveries AS delivery
+           JOIN users ON users.id = delivery.user_id
+           LEFT JOIN pg_timezone_names AS zone ON zone.name = users.timezone
+           LEFT JOIN notification_preferences AS preference
+             ON preference.user_id = delivery.user_id
+            AND preference.channel = 'email'
+            AND preference.category = delivery.category
           WHERE delivery.channel = 'email'
             AND delivery.status = 'queued'
             AND delivery.attempts < $3
@@ -304,15 +350,59 @@ export async function claimNextEmailDelivery(pool: Pick<Pool, "connect">, input:
           ORDER BY delivery.scheduled_at, delivery.id
           FOR UPDATE OF delivery SKIP LOCKED
           LIMIT 1
+       ), quiet_timing AS (
+         SELECT candidate.*,
+                CASE
+                  WHEN candidate.quiet_start ~ '^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$'
+                   AND candidate.quiet_end ~ '^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$'
+                  THEN candidate.quiet_start::time
+                  ELSE NULL
+                END AS quiet_start_time,
+                CASE
+                  WHEN candidate.quiet_start ~ '^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$'
+                   AND candidate.quiet_end ~ '^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$'
+                  THEN candidate.quiet_end::time
+                  ELSE NULL
+                END AS quiet_end_time
+           FROM candidate
+       ), quiet_decision AS (
+         SELECT quiet_timing.*,
+                CASE
+                  WHEN quiet_start_time IS NULL OR quiet_start_time = quiet_end_time THEN NULL
+                  WHEN quiet_start_time < quiet_end_time
+                   AND local_now::time >= quiet_start_time
+                   AND local_now::time < quiet_end_time
+                  THEN (local_now::date + quiet_end_time) AT TIME ZONE user_timezone
+                  WHEN quiet_start_time > quiet_end_time AND local_now::time >= quiet_start_time
+                  THEN (local_now::date + 1 + quiet_end_time) AT TIME ZONE user_timezone
+                  WHEN quiet_start_time > quiet_end_time AND local_now::time < quiet_end_time
+                  THEN (local_now::date + quiet_end_time) AT TIME ZONE user_timezone
+                  ELSE NULL
+                END AS defer_until
+           FROM quiet_timing
+       ), rescheduled AS (
+         UPDATE notification_deliveries AS delivery
+            SET scheduled_at = to_char(
+                  GREATEST(quiet.defer_until, $2::timestamptz + interval '1 minute') AT TIME ZONE 'UTC',
+                  'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                ),
+                lease_owner = NULL,
+                lease_expires_at = NULL,
+                updated_at = $2
+           FROM quiet_decision AS quiet
+          WHERE delivery.id = quiet.id
+            AND quiet.defer_until IS NOT NULL
+         RETURNING delivery.id
        )
        UPDATE notification_deliveries AS delivery
           SET lease_owner = $1,
               lease_expires_at = $2::timestamptz + ($4 * interval '1 second'),
               attempts = delivery.attempts + 1,
               updated_at = $2
-         FROM candidate, users
-        WHERE delivery.id = candidate.id
-          AND users.id = delivery.user_id
+         FROM quiet_decision AS quiet
+        WHERE delivery.id = quiet.id
+          AND quiet.defer_until IS NULL
+          AND NOT EXISTS (SELECT 1 FROM rescheduled)
        RETURNING delivery.id,
                  delivery.user_id AS "userId",
                  delivery.template_key AS "templateKey",
@@ -320,7 +410,7 @@ export async function claimNextEmailDelivery(pool: Pick<Pool, "connect">, input:
                  delivery.secret_kind AS "secretKind",
                  delivery.secret_expires_at AS "secretExpiresAt",
                  delivery.attempts,
-                 users.email AS recipient`,
+                 quiet.recipient`,
       [input.workerId, input.now.toISOString(), NOTIFICATION_MAX_ATTEMPTS, input.leaseSeconds ?? NOTIFICATION_LEASE_SECONDS],
     );
     await client.query("COMMIT");
@@ -413,8 +503,11 @@ export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: C
   let rendered: NotificationEmail;
   let errorCode: string | null = null;
   const processingStartedAt = input.now?.() ?? new Date();
+  const environment = input.environment ?? process.env;
   if (!validateEmailRecipient(delivery.recipient)) {
     errorCode = "INVALID_RECIPIENT";
+  } else if (!notificationRecipientAllowed(delivery.recipient, environment)) {
+    errorCode = "RECIPIENT_NOT_ALLOWLISTED";
   } else {
     try {
       const payload = await materializeNotificationPayload(
@@ -422,7 +515,7 @@ export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: C
         delivery.payloadJson,
         delivery.secretKind,
         delivery.secretExpiresAt,
-        input.environment ?? process.env,
+        environment,
         processingStartedAt,
       );
       rendered = renderNotificationEmail(delivery.templateKey, payload);
@@ -435,6 +528,11 @@ export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: C
   if (errorCode) {
     await markEmailFailed(pool, { deliveryId: delivery.id, workerId: input.workerId, errorCode, retryable: false, attempts: delivery.attempts, now: input.now?.() ?? new Date() });
     return { status: "failed" as const, errorCode };
+  }
+  if (await isNotificationRecipientSuppressed(pool, delivery.recipient)) {
+    const suppressionError = "RECIPIENT_SUPPRESSED";
+    await markEmailFailed(pool, { deliveryId: delivery.id, workerId: input.workerId, errorCode: suppressionError, retryable: false, attempts: delivery.attempts, now: input.now?.() ?? new Date() });
+    return { status: "failed" as const, errorCode: suppressionError };
   }
   const result = await (input.send ?? sendResendEmail)({
     apiKey: input.apiKey,

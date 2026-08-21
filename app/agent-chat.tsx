@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { consumeAiEventStream } from "./ai-sse";
 import { AiMessageContent } from "./ai-message-content";
-import { CustomLlmButton } from "./llm-config";
 
 type Conversation = {
   id: string;
@@ -24,6 +23,13 @@ type Message = {
   createdAt: string;
 };
 
+type PendingAiRequest = {
+  conversationId: string;
+  content: string;
+  idempotencyKey: string;
+  temporaryMessageId: string;
+};
+
 function apiError(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object") return fallback;
   const error = (payload as { error?: unknown }).error;
@@ -32,6 +38,13 @@ function apiError(payload: unknown, fallback: string) {
     return String((error as { message?: unknown }).message || fallback);
   }
   return fallback;
+}
+
+function apiErrorCode(payload: unknown) {
+  if (!payload || typeof payload !== "object") return "";
+  const error = (payload as { error?: unknown }).error;
+  if (!error || typeof error !== "object" || !("code" in error)) return "";
+  return String((error as { code?: unknown }).code || "");
 }
 
 function formatRelative(value: string) {
@@ -64,6 +77,7 @@ export default function AgentChat({
   const [savingStrategyMessageId, setSavingStrategyMessageId] = useState("");
   const [savedStrategyMessageIds, setSavedStrategyMessageIds] = useState<Record<string, string>>({});
   const [strategySaveNotices, setStrategySaveNotices] = useState<Record<string, string>>({});
+  const [retryRequest, setRetryRequest] = useState<PendingAiRequest | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const active = conversations.find((item) => item.id === activeId) || null;
   const prompts = ["BTC 当前行情与风险如何？", "解释我的持仓风险", "当前跟随策略有哪些？", "帮我生成一个策略"];
@@ -75,6 +89,7 @@ export default function AgentChat({
   async function loadConversation(id: string) {
     setActiveId(id);
     setError("");
+    setRetryRequest(null);
     setSuggestedAction(null);
     setPromptMessageId("");
     const response = await fetch(`/api/ai/conversations/${encodeURIComponent(id)}`, { cache: "no-store" });
@@ -96,6 +111,7 @@ export default function AgentChat({
     setActiveId(payload.conversation.id);
     setSuggestedAction(null);
     setPromptMessageId("");
+    setRetryRequest(null);
     return payload.conversation;
   }
 
@@ -181,38 +197,62 @@ export default function AgentChat({
     else await createConversation().catch(() => undefined);
   }
 
-  async function send(contentOverride?: string) {
-    const content = (contentOverride ?? question).trim();
-    if (!content || sending || !activeId) return;
-    const temporaryId = `pending-${Date.now()}`;
-    if (contentOverride === undefined) setQuestion("");
+  async function send(contentOverride?: string, retry?: PendingAiRequest) {
+    const content = (retry?.content ?? contentOverride ?? question).trim();
+    const conversationId = retry?.conversationId ?? activeId;
+    if (!content || sending || !conversationId) return;
+    const pendingRequest: PendingAiRequest = retry ?? {
+      conversationId,
+      content,
+      idempotencyKey: crypto.randomUUID(),
+      temporaryMessageId: `pending-${Date.now()}`,
+    };
+    const temporaryId = pendingRequest.temporaryMessageId;
+    if (!retry && contentOverride === undefined) setQuestion("");
     setError("");
+    setRetryRequest(null);
     setSuggestedAction(null);
     setPromptMessageId("");
     setSending(true);
     setStreamingText("");
-    setMessages((items) => [...items, {
-      id: temporaryId,
-      role: "user",
-      content,
-      createdAt: new Date().toISOString(),
-    }]);
+    if (!retry) {
+      setMessages((items) => [...items, {
+        id: temporaryId,
+        role: "user",
+        content,
+        createdAt: new Date().toISOString(),
+      }]);
+    }
+    let response: Response | null = null;
+    let completed = false;
+    let terminalError = false;
+    let requestStillProcessing = false;
+    let userMessagePersisted = false;
     try {
-      const response = await fetch(`/api/ai/conversations/${encodeURIComponent(activeId)}/messages`, {
+      response = await fetch(`/api/ai/conversations/${encodeURIComponent(pendingRequest.conversationId)}/messages`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: content }),
+        headers: { "content-type": "application/json", "idempotency-key": pendingRequest.idempotencyKey },
+        body: JSON.stringify({ message: pendingRequest.content }),
       });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        requestStillProcessing = response.status === 409 && apiErrorCode(payload) === "AI_REQUEST_IN_PROGRESS";
+        throw new Error(apiError(payload, `AI 服务返回 ${response.status}`));
+      }
       await consumeAiEventStream(response, (event, data) => {
         if (event === "meta") {
           const saved = data.userMessage as Message | undefined;
-          if (saved) setMessages((items) => items.map((item) => item.id === temporaryId ? saved : item));
+          if (saved) {
+            userMessagePersisted = true;
+            setMessages((items) => items.map((item) => item.id === temporaryId ? saved : item));
+          }
           if (typeof data.title === "string") {
             setConversations((items) => items.map((item) => item.id === activeId ? { ...item, title: data.title as string } : item));
           }
         } else if (event === "delta" && typeof data.text === "string") {
           setStreamingText((value) => value + data.text);
         } else if (event === "done") {
+          completed = true;
           const saved = data.message as Message | undefined;
           if (saved) {
             setMessages((items) => [...items, saved]);
@@ -224,12 +264,29 @@ export default function AgentChat({
             ? { ...item, messageCount: item.messageCount + 2, lastMessageAt: new Date().toISOString() }
             : item));
         } else if (event === "error") {
+          terminalError = true;
           throw new Error(String(data.message || "AI 回复暂时不可用"));
         }
       });
+      if (!completed) throw new Error("AI 响应在完成确认前中断");
+      setRetryRequest(null);
     } catch (caught) {
       setStreamingText("");
-      setError(caught instanceof Error ? caught.message : "AI 回复暂时不可用");
+      if (completed) {
+        setRetryRequest(null);
+        setError("");
+        return;
+      }
+      const ambiguous = !response || requestStillProcessing || (response.ok && !terminalError && !completed);
+      if (ambiguous) {
+        setRetryRequest(pendingRequest);
+        setError("请求结果尚未确认。请重试原请求以查询同一结果；系统会复用请求标识，不会再次调用模型或重复扣费。");
+      } else {
+        if (!userMessagePersisted) {
+          setMessages((items) => items.filter((item) => item.id !== temporaryId));
+        }
+        setError(caught instanceof Error ? caught.message : "AI 回复暂时不可用");
+      }
     } finally {
       setSending(false);
     }
@@ -272,9 +329,9 @@ export default function AgentChat({
         <footer><span><i />持久化对话服务</span><small>不会执行交易</small></footer>
       </aside>
       <section className="agent-chat-main" aria-busy={loading || sending}>
-        <header className="agent-chat-page-head"><div><span className="eyebrow">AI CONSULTATION</span><h2>与 Agent 团队对话</h2><p>服务端结合当前账号的行情、持仓摘要和策略关系回答。</p></div><div className="agent-chat-header-actions"><CustomLlmButton /><span className="agent-chat-status"><i />{sending ? "回复生成中" : "对话服务在线"}</span></div></header>
+        <header className="agent-chat-page-head"><div><span className="eyebrow">AI CONSULTATION</span><h2>与 Agent 团队对话</h2><p>服务端结合当前账号的行情、持仓摘要和策略关系回答。</p></div><div className="agent-chat-header-actions"><span className="agent-chat-status"><i />{sending ? "回复生成中" : "平台模型服务"}</span></div></header>
         <div className="agent-chat-current"><span>当前会话</span><b>{active?.title || "新对话"}</b><small>市场分析 · 风险解释 · 策略研究</small>{active && <button className="agent-chat-archive" type="button" onClick={() => void archiveConversation()}>归档</button>}</div>
-        {error && <div className="agent-chat-error" role="alert">{error}</div>}
+        {error && <div className="agent-chat-error" role="alert"><span>{error}</span>{retryRequest && <button type="button" disabled={sending} onClick={() => void send(undefined, retryRequest)}>{sending ? "正在查询原请求…" : "重试原请求"}</button>}</div>}
         <div className="agent-chat-messages" aria-live="polite">
           {loading && <div className="agent-chat-empty">正在加载对话…</div>}
           {!loading && !messages.length && <div className="agent-chat-empty"><b>开始一段真实对话</b><span>可以咨询行情依据、持仓风险，或讨论一个待回测策略。</span></div>}

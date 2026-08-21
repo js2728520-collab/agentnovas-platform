@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CustomLlmButton } from "./llm-config";
 import type { StrategyDetailData } from "./strategy-detail";
 import { StrategyBacktestCenter, type StrategyBacktestSummary } from "./strategy-backtest-center";
 import { StrategyBacktestDetail } from "./strategy-backtest-detail";
@@ -366,7 +365,7 @@ export default function CommunityStrategyCenter({
       <header>
         <button onClick={() => openScreen("list")}>返回我的策略</button>
         <div><small>AI STRATEGY LAB</small><h2>创建策略</h2><p>专业引导、真实历史回测、作者策略模拟测试和平台人工审核。</p></div>
-        <div className="strategy-studio-header-actions"><CustomLlmButton /><span>后台任务可恢复</span></div>
+        <div className="strategy-studio-header-actions"><span>平台模型 · 后台任务可恢复</span></div>
       </header>
       {message && <div className="notice">{message}</div>}
       <section className="strategy-research-boundary" aria-label="策略研发与 Agent 对话职责说明">

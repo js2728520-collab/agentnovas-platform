@@ -5,15 +5,19 @@ import { requirePrimarySession, responseError } from "@/lib/session";
 export async function POST(request: Request) {
   try {
     const current = await requirePrimarySession(request);
-    if (current.session.appAudience === "client") return Response.json({ error: "当前应用不提供内部双重验证" }, { status: 404 });
-    const assignment = await (await getPostgresPool()).query(`
-      SELECT 1 FROM user_role_assignments
-      WHERE user_id = $1 AND application_id = $2 AND status = 'active'
-        AND effective_at <= now() AND (expires_at IS NULL OR expires_at > now())
-      LIMIT 1
-    `, [current.user.id, current.session.appAudience]);
-    if (!assignment.rowCount) return Response.json({ error: "当前内部账号没有有效显式授权" }, { status: 403 });
-    const result = await startMfaEnrollment(await getPostgresPool(), { userId: current.user.id });
+    if (current.session.appAudience !== "client") {
+      const assignment = await (await getPostgresPool()).query(`
+        SELECT 1 FROM user_role_assignments
+        WHERE user_id = $1 AND application_id = $2 AND status = 'active'
+          AND effective_at <= now() AND (expires_at IS NULL OR expires_at > now())
+        LIMIT 1
+      `, [current.user.id, current.session.appAudience]);
+      if (!assignment.rowCount) return Response.json({ error: "当前内部账号没有有效显式授权" }, { status: 403 });
+    }
+    const result = await startMfaEnrollment(await getPostgresPool(), {
+      userId: current.user.id,
+      sessionTokenHash: current.session.appAudience === "client" ? current.session.tokenHash : undefined,
+    });
     if (!result.ok) return Response.json({ error: "双重验证已经配置" }, { status: 409 });
     const issuer = encodeURIComponent("Riverton Capital");
     const label = encodeURIComponent(`Riverton Capital:${current.user.email}`);

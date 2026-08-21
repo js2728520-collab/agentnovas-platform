@@ -19,19 +19,40 @@ async function encryptionKey() {
   return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
-export async function encryptIntegrationSecret(value: string) {
+async function llmProfileEncryptionKey() {
+  const secret = process.env.LLM_PROFILE_ENCRYPTION_KEY?.trim();
+  if (!secret || secret.length < 32) throw new Error("LLM Profile 加密密钥尚未配置");
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(secret));
+  return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
+async function encryptWithKey(value: string, key: CryptoKey) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await encryptionKey();
   const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(value));
   return `v1.${bytesToBase64(iv)}.${bytesToBase64(new Uint8Array(encrypted))}`;
 }
 
-export async function decryptIntegrationSecret(value: string) {
+async function decryptWithKey(value: string, key: CryptoKey) {
   const [version, iv, data] = value.split(".");
   if (version !== "v1" || !iv || !data) throw new Error("无法识别 API 凭证格式");
-  const key = await encryptionKey();
   const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(iv) }, key, base64ToBytes(data));
   return decoder.decode(plain);
+}
+
+export async function encryptIntegrationSecret(value: string) {
+  return encryptWithKey(value, await encryptionKey());
+}
+
+export async function decryptIntegrationSecret(value: string) {
+  return decryptWithKey(value, await encryptionKey());
+}
+
+export async function encryptLlmProfileSecret(value: string) {
+  return encryptWithKey(value, await llmProfileEncryptionKey());
+}
+
+export async function decryptLlmProfileSecret(value: string) {
+  return decryptWithKey(value, await llmProfileEncryptionKey());
 }
 
 export function maskedIntegrationSecret(value: string) {

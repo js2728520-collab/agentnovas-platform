@@ -1,5 +1,6 @@
 import { ensureDatabaseSchema } from "@/lib/database-schema";
-import { aiErrorResponse, readAiJson, requireAiCustomer } from "@/lib/ai-api";
+import { aiErrorResponse, readAiJson } from "@/lib/ai-api";
+import { requireAccessPermission } from "@/lib/access-control";
 import {
   getConversationMessages,
   getOwnedAiConversation,
@@ -10,7 +11,7 @@ import {
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await ensureDatabaseSchema();
-    const user = await requireAiCustomer(request);
+    const { user } = await requireAccessPermission(request, "client.paper.view");
     const { id } = await params;
     const conversation = await getOwnedAiConversation(user.id, id);
     const messages = await getConversationMessages(user.id, id);
@@ -41,7 +42,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await ensureDatabaseSchema();
-    const user = await requireAiCustomer(request);
+    const { user } = await requireAccessPermission(request, "client.paper.view");
     const { id } = await params;
     const body = await readAiJson(request);
     return Response.json({ conversation: await updateAiConversation(user.id, id, body) });

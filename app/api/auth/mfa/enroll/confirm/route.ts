@@ -1,14 +1,15 @@
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { confirmMfaEnrollment } from "@/lib/mfa";
 import { getPostgresPool } from "@/lib/postgres";
+import { readResearchJson } from "@/lib/research-api";
 import { sessionPolicyForAudience } from "@/lib/riverton-apps";
 import { requirePrimarySession, responseError } from "@/lib/session";
 
 export async function POST(request: Request) {
   try {
     const current = await requirePrimarySession(request);
-    if (current.session.appAudience === "client") return Response.json({ error: "当前应用不提供内部双重验证" }, { status: 404 });
-    const { code = "" } = await request.json() as { code?: string };
+    const body = await readResearchJson(request, 2_048);
+    const code = typeof body.code === "string" ? body.code : "";
     const pool = await getPostgresPool();
     const bucketKey = `session:${current.session.id}`;
     const limit = await consumeAuthRateLimit(pool, {
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
     const result = await confirmMfaEnrollment(pool, {
       userId: current.user.id,
       sessionId: current.session.id,
+      sessionTokenHash: current.session.appAudience === "client" ? current.session.tokenHash : undefined,
       audience: current.session.appAudience,
       code,
       idleExpiresAt,

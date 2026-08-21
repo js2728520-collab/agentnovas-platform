@@ -442,6 +442,20 @@ body:has(.membership-plans) .content>.page-head>div:last-child>.online{
   transform-origin:center bottom!important;
   will-change:transform;
 }
+.scene.compact .hotspot.hall-role-static,
+.scene.compact .hotspot.hall-role-static .hall-operator{
+  animation:none!important;
+}
+.hall-role-illustration-note{
+  margin:8px 0 10px;
+  color:#8293a3;
+  font-size:11px;
+  line-height:1.5;
+}
+.strategy-monitor-dot.inactive{
+  background:#62717d!important;
+  box-shadow:none!important;
+}
 .scene.compact .hotspot.action-idle{
   animation:actor-idle 4.8s ease-in-out infinite!important;
 }
@@ -1815,3 +1829,28 @@ body:has(.content) .market-terminal-page{
 }
 .client-app-shell .landing .hero:before{right:0!important}
 @media(min-width:901px) and (max-width:1100px){.client-app-shell .landing .orbital .o2{width:350px!important;height:350px!important}}
+
+/* Trading hall motion must never imply runtime activity. Roles and records are
+   static evidence; the strategy carousel has an explicit keyboard control. */
+.scene.compact .hall-role-static,
+.scene.compact .hall-role-static::before,
+.scene.compact .hall-role-static .hall-operator,
+.scene.compact .hall-role-static>.speech,
+.scene.compact .hall-role-static>.speech em,
+.scene.compact .hall-role-static>.meeting-speech,
+.scene.compact .hall-role-static>.meeting-speech em{
+  animation:none!important;
+  filter:none!important;
+  text-shadow:none!important;
+}
+.agent-dialogue-viewport{overflow:auto!important;mask-image:none!important;-webkit-mask-image:none!important}
+.agent-dialogue-track{animation:none!important;will-change:auto!important}
+.strategy-monitor-ticker:focus-visible{outline:2px solid #67b8ef;outline-offset:2px}
+.strategy-monitor-ticker.paused .strategy-monitor-track,
+.strategy-monitor-ticker.paused .strategy-monitor-pages i{animation-play-state:paused}
+.strategy-monitor-pause{position:absolute;right:72px;bottom:2px;z-index:2;border:0;background:transparent;color:#71889e;font-size:8px;cursor:pointer}
+.strategy-monitor-pause:focus-visible{outline:2px solid #67b8ef;outline-offset:1px}
+@media(prefers-reduced-motion:reduce){
+  .strategy-monitor-track,
+  .strategy-monitor-pages i{animation:none!important}
+}

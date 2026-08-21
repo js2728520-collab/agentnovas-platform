@@ -14,6 +14,8 @@ export type PlatformDemoAdminCommand = {
   action: string;
   strategyCode: string | null;
   reason: string;
+  requestId?: string | null;
+  traceId?: string | null;
 };
 
 type StoredCommand = {
@@ -46,8 +48,8 @@ export async function claimPlatformDemoAdminCommand(
   const inserted = await client.query<{ id: string }>(
     `INSERT INTO platform_demo_admin_commands(
        id,operation,idempotency_key,actor_user_id,account_id,action,
-       strategy_code,reason,canonical_payload_sha256
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       strategy_code,reason,canonical_payload_sha256,request_id,trace_id
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
      ON CONFLICT(operation,idempotency_key) DO NOTHING RETURNING id`,
     [
       randomUUID(),
@@ -59,6 +61,8 @@ export async function claimPlatformDemoAdminCommand(
       input.strategyCode,
       input.reason,
       payloadHash,
+      input.requestId ?? null,
+      input.traceId ?? null,
     ],
   );
   const result = await client.query<StoredCommand>(

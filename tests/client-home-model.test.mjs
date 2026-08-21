@@ -12,7 +12,7 @@ const activeMembership = {
   closeOnly: false,
 };
 
-test("home sends a legally confirmed new customer to membership instead of looping back to consent", () => {
+test("home sends a disclosure-confirmed new customer to membership instead of looping back to consent", () => {
   assert.deepEqual(deriveClientHomeTask({
     canViewMembership: true,
     membership: null,
@@ -21,7 +21,7 @@ test("home sends a legally confirmed new customer to membership instead of loopi
     portfolios: [],
   }), {
     title: "选择会员计划",
-    description: "当前法务版本已确认，但没有有效会员或待处理申请。可在会员中心选择计划并提交人工付款申请。",
+    description: "当前商业披露版本已确认，但没有有效会员或待处理申请。可在会员中心选择计划并提交人工付款申请。",
     href: "/membership",
     action: "进入会员中心",
     state: "ACTION_REQUIRED",

@@ -56,7 +56,7 @@ test("normalizes a bounded strategy brief and rejects secrets", () => {
   assert.equal(brief.name, "BTC 保守趋势");
   assert.equal(brief.symbol, "BTC/USDT");
   assert.throws(
-    () => normalizeStrategyBrief({ ...brief, riskRule: "api_key = sk-proj-abcdefghijklmnopqrstuv" }),
+    () => normalizeStrategyBrief({ ...brief, riskRule: `api_key = sk-proj-${"a".repeat(22)}` }),
     /敏感信息/,
   );
 });

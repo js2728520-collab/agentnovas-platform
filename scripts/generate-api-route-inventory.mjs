@@ -22,7 +22,6 @@ const CLIENT_PREFIXES = [
 const PUBLIC_CLIENT_METHODS = new Set([
   "POST /api/automation/demo-cycle",
   "POST /api/automation/platform-ai-cycle",
-  "GET /api/integrations/catalog",
   "GET /api/market/candles",
   "GET /api/market/instruments",
   "GET /api/market/news",
@@ -33,7 +32,9 @@ const PUBLIC_CLIENT_METHODS = new Set([
   "POST /api/strategy-studio/chat",
 ]);
 const BETA_DISABLED_CLIENT_ROUTES = [
+  "/api/account/llm-config",
   "/api/exchange-accounts",
+  "/api/integrations/catalog",
   "/api/notifications/channels",
   "/api/platform/network",
   "/api/portfolio",
@@ -56,6 +57,11 @@ const BETA_DISABLED_OPERATIONS_METHODS = new Set([
   "POST /api/finance/payout-profiles",
   "POST /api/finance/settlements",
   "POST /api/finance/settlements/:id/paid",
+  "GET /api/public-pool",
+]);
+const BETA_DISABLED_MAINTENANCE_ROUTES = new Set([
+  "/api/admin/llm-config",
+  "/api/admin/llm-config/test",
 ]);
 const SESSION_AUTH_HELPERS = new Set([
   "requireAccessPermission",
@@ -111,6 +117,9 @@ function hasPrefix(route, prefixes) {
 
 function basePolicy(route, method) {
   const mutation = !["GET", "HEAD", "OPTIONS"].includes(method);
+  if (BETA_DISABLED_MAINTENANCE_ROUTES.has(route)) {
+    return { audiences: ["maintenance"], authentication: "disabled", sameOrigin: mutation };
+  }
   if (BETA_DISABLED_OPERATIONS_METHODS.has(`${method} ${route}`)) {
     return { audiences: ["operations"], authentication: "disabled", sameOrigin: true };
   }
@@ -135,13 +144,13 @@ function basePolicy(route, method) {
     return { audiences: ALL_AUDIENCES, authentication: "anonymous", sameOrigin: mutation };
   }
   if (route === "/api/auth/mfa/verify") {
-    return { audiences: INTERNAL_AUDIENCES, authentication: "session", sameOrigin: true };
+    return { audiences: ALL_AUDIENCES, authentication: "session", sameOrigin: true };
   }
   if (route.startsWith("/api/auth/mfa/enroll/")) {
-    return { audiences: INTERNAL_AUDIENCES, authentication: "session", sameOrigin: true };
+    return { audiences: ALL_AUDIENCES, authentication: "session", sameOrigin: true };
   }
   if (route === "/api/auth/mfa/recovery-codes") {
-    return { audiences: INTERNAL_AUDIENCES, authentication: "session", sameOrigin: mutation };
+    return { audiences: ALL_AUDIENCES, authentication: "session", sameOrigin: mutation };
   }
   if (route === "/api/auth/reset-password") {
     return { audiences: ALL_AUDIENCES, authentication: "anonymous", sameOrigin: true };
@@ -240,6 +249,26 @@ function sessionAuthHelpersFor(methodNode, functions) {
   return [...helpers].sort();
 }
 
+function requiresIdempotencyKey(methodNode) {
+  let required = false;
+  function visit(node) {
+    if (ts.isCallExpression(node)
+      && ts.isIdentifier(node.expression)
+      && node.expression.text === "idempotencyKey") {
+      required = true;
+      return;
+    }
+    if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+      && node.text.toLowerCase() === "idempotency-key") {
+      required = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(methodNode);
+  return required;
+}
+
 function sensitivePermissionKeys(source) {
   const file = ts.createSourceFile(rbacPath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const keys = new Set();
@@ -257,7 +286,7 @@ function sensitivePermissionKeys(source) {
 }
 
 function piiForRoute(route) {
-  if (["/api/data-center", "/api/employee/tasks", "/api/organization/members"].includes(route)
+  if (["/api/account/profile", "/api/data-center", "/api/employee/tasks", "/api/organization/members"].includes(route)
     || route.startsWith("/api/finance/payout-profiles") || route.startsWith("/api/operations/deposits")) return "full";
   if (route.startsWith("/api/organization/customers") || route.startsWith("/api/team/")) return "masked";
   return "none";
@@ -295,6 +324,7 @@ for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/r
       sensitiveKeys.has(key) && !key.startsWith("client.") ? "recent" : "none",
     ]));
     const mfaRequirements = new Set(Object.values(permissionMfa));
+    const pii = piiForRoute(route);
     entries.push({
       method,
       route,
@@ -307,9 +337,10 @@ for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/r
       scope: policy.authentication === "permission" && policy.audiences.length === 1 && policy.audiences[0] === "maintenance" ? "platform"
         : policy.authentication === "permission" ? "grant" : "none",
       mfa: sensitiveSessionMfa ? "recent" : mfaRequirements.size > 1 ? "conditional" : [...mfaRequirements][0] ?? "none",
-      pii: piiForRoute(route),
-      sensitivity: sensitive || sensitiveLegalMutation || policy.authentication === "webhook" || policy.authentication === "bootstrap" || policy.authentication === "disabled" ? "sensitive" : "normal",
+      pii,
+      sensitivity: sensitive || sensitiveLegalMutation || pii !== "none" || policy.authentication === "webhook" || policy.authentication === "bootstrap" || policy.authentication === "disabled" ? "sensitive" : "normal",
       requiresSameOrigin: policy.sameOrigin,
+      idempotency: requiresIdempotencyKey(methodNode),
     });
   }
 }
@@ -331,6 +362,7 @@ const contents = `// Generated by scripts/generate-api-route-inventory.mjs. Do n
   `  pii: "none" | "masked" | "full";\n` +
   `  sensitivity: "normal" | "sensitive";\n` +
   `  requiresSameOrigin: boolean;\n` +
+  `  idempotency: boolean;\n` +
   `};\n\n` +
   `export const API_ROUTE_INVENTORY = ${JSON.stringify(entries, null, 2)} as const satisfies readonly ApiRouteInventoryEntry[];\n`;
 

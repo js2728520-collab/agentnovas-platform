@@ -7,7 +7,6 @@ import {
   generateTotpSecret,
   hashRecoveryCode,
 } from "./mfa.ts";
-import { PERMISSION_DEFINITIONS } from "./rbac.ts";
 
 type BootstrapInput = {
   email: string;
@@ -73,7 +72,15 @@ async function createSystemRole(client: PoolClient, input: {
       ) VALUES ($1, $2, $3, true)
     `, [input.appId, systemKey, roleId]);
   }
-  for (const permission of PERMISSION_DEFINITIONS.filter((definition) => definition.appId === input.appId)) {
+  const permissions = await client.query<{ key: string }>(`
+    SELECT key
+      FROM permission_definitions
+     WHERE application_id=$1 AND status='active'
+     ORDER BY key
+     FOR SHARE
+  `, [input.appId]);
+  if (!permissions.rowCount) throw new Error("BOOTSTRAP_PERMISSION_CATALOG_EMPTY");
+  for (const permission of permissions.rows) {
     await client.query(`
       INSERT INTO role_permissions (id, role_id, permission_key, scope)
       VALUES ($1, $2, $3, 'PLATFORM')

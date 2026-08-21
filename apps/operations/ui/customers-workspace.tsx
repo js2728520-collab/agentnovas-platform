@@ -38,9 +38,15 @@ export function CustomersWorkspace() {
   const [transfer, setTransfer] = useState({ managerId: "", supervisorId: "", employeeId: "", effectiveAt: "" });
   const [transferConfirming, setTransferConfirming] = useState(false);
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const initialQuery = params.get("query") ?? "";
-    setQuery(initialQuery); setAppliedQuery(initialQuery); setCursor(params.get("cursor") ?? ""); setReady(true);
+    const frame = window.requestAnimationFrame(() => {
+      const params = new URLSearchParams(window.location.search);
+      const initialQuery = params.get("query") ?? "";
+      setQuery(initialQuery);
+      setAppliedQuery(initialQuery);
+      setCursor(params.get("cursor") ?? "");
+      setReady(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
   const resourceUrl = useMemo(() => {
     if (!ready) return null;

@@ -9,6 +9,7 @@ import {
   completedPlatformDemoCommandResponse,
 } from "@/lib/platform-demo-admin-commands";
 import { idempotencyKey } from "@/lib/commercial-api";
+import { maintenanceCorrelation } from "@/lib/maintenance-audit";
 import {
   readResearchJson,
   ResearchApiError,
@@ -98,6 +99,7 @@ export async function POST(
         action: input.action,
         strategyCode: input.strategyCode,
         reason: input.reason,
+        ...maintenanceCorrelation(request),
       });
       const replay = completedPlatformDemoCommandResponse(claim);
       if (replay) {

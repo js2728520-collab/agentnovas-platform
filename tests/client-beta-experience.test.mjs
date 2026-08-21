@@ -77,13 +77,15 @@ test("client notification settings expose unintegrated external channels without
   const workspace = await read("apps/client/ui/notification-workspace.tsx");
   const settings = await read("apps/client/ui/client-notification-settings.tsx");
   const preferencesRoute = await read("app/api/notifications/preferences/route.ts");
+  const preferencesPolicy = await read("lib/notification-preferences.ts");
   assert.match(workspace, /ClientNotificationSettings/);
   assert.match(settings, /not_integrated/);
   assert.match(settings, /\/api\/notifications\/preferences/);
   assert.doesNotMatch(settings, /verificationCode|演示验证码|\/api\/notifications\/channels/);
-  assert.match(preferencesRoute, /allowedChannels = new Set\(\["in_app", "email"\]\)/);
+  assert.match(preferencesRoute, /normalizeNotificationPreferenceBatch/);
+  assert.match(preferencesPolicy, /new Set\(\["in_app", "email"\]\)/);
   assert.match(preferencesRoute, /readResearchJson\(request, 4_096\)/);
-  assert.match(preferencesRoute, /MANDATORY_NOTIFICATION/);
+  assert.match(preferencesPolicy, /MANDATORY_NOTIFICATION/);
   assert.match(preferencesRoute, /onConflictDoUpdate/);
   assert.doesNotMatch(preferencesRoute, /select\(\)\.from\(notificationPreferences\)/);
 });
@@ -95,7 +97,9 @@ test("trading experience reads official paper evidence and never presents client
   assert.match(source, /\/api\/trading-hall\/paper\/portfolio/);
   assert.match(source, /\/api\/trading-hall\/paper\/trades/);
   assert.match(source, /\/api\/trading-hall/);
-  assert.match(source, /未提供平台验证回执/);
+  assert.match(source, /\/api\/trading-hall\/paper\/platform-demo-summary/);
+  assert.match(source, /脱敏的平台测试账户摘要/);
+  assert.match(source, /不会改变客户 Paper 余额、成交或绩效账单/);
   assert.doesNotMatch(source, /\/api\/exchange-accounts|\/api\/portfolio|\/api\/trading\/emergency-stop/);
   assert.doesNotMatch(source, /连接交易所|API Key/);
 });
@@ -111,6 +115,34 @@ test("the client application no longer exposes the legacy operations page", asyn
   assert.match(source, /className="flow" tabIndex=\{0\}/);
   assert.match(css, /\.client-app-shell \.dash>aside\{[^}]*flex-direction:row!important/);
   assert.match(css, /\.client-app-shell \.landing \.hero:before\{[^}]*right:0!important/);
+});
+
+test("the isolated strategy workspace opens live records instead of the legacy static landing", async () => {
+  const workspace = await read("app/client-app.tsx");
+  assert.match(workspace, /typeof window === "undefined"\) return "hall"/);
+  assert.match(workspace, /<Link className="logo" href="\/"/);
+  assert.doesNotMatch(workspace, /<button className="logo" onClick=\{go\("home"\)\}/);
+});
+
+test("the trading hall presents server strategy state without simulated live activity", async () => {
+  const workspace = await read("app/client-app.tsx");
+  const css = await read("app/globals-beta.css");
+  assert.match(workspace, /tradingHallStrategyPresentation/);
+  assert.match(workspace, /tradingHallEnvironmentLabel/);
+  assert.match(workspace, /角色位置仅为界面示意，不代表智能体正在运行/);
+  assert.match(workspace, /三套AI策略服务端状态/);
+  assert.doesNotMatch(workspace, /影子运行/);
+  assert.doesNotMatch(workspace, /三套AI策略实时监控/);
+  assert.doesNotMatch(workspace, /<small>运行策略<\/small>/);
+  assert.doesNotMatch(workspace, /Math\.random/);
+  assert.doesNotMatch(workspace, /action-\$\{agentActions/);
+  assert.doesNotMatch(workspace, /\[\.\.\.rows, \.\.\.rows, \.\.\.rows\]/);
+  assert.match(css, /\.scene\.compact \.hall-role-static[^}]*animation:none!important/);
+  assert.match(css, /\.agent-dialogue-track\{[^}]*animation:none!important/);
+  assert.match(workspace, /strategy-monitor-pause/);
+  assert.match(css, /strategy-monitor-ticker\.paused/);
+  assert.doesNotMatch(css, /strategy-monitor-ticker:focus-within/);
+  assert.match(css, /prefers-reduced-motion:reduce[^}]*strategy-monitor-track/);
 });
 
 test("client raster assets stay under the 200 KiB budget and the hall uses an optimized source", async () => {

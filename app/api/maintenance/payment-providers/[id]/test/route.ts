@@ -1,5 +1,5 @@
 import { requireAccessPermission } from "@/lib/access-control";
-import { maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { maintenanceCorrelation, maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
@@ -18,7 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (provider.rows[0].status === "disabled" || !provider.rows[0].encrypted_secret_ref) {
       throw new ResearchApiError("SERVICE_NOT_CONFIGURED", "支付渠道未启用或密钥未配置", 503, { providerConfigId: id });
     }
-    await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.payment_test_recorded", subjectType: "payment_provider_config", subjectId: id, reason });
+    await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.payment_test_recorded", subjectType: "payment_provider_config", subjectId: id, reason, ...maintenanceCorrelation(request) });
     return Response.json({ ok: false, status: "configured_not_called", providerConfigId: id }, { status: 202 });
   } catch (error) {
     return researchErrorResponse(error, request);

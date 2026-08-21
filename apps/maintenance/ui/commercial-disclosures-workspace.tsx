@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 
 import type { SystemSettings } from "@/lib/platform-settings-contract";
 import { requiredLegalDocumentTypes } from "@/lib/commercial-membership-domain";
@@ -162,7 +163,7 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
     <PageHeading eyebrow="COMMERCIAL DISCLOSURE CONTROL" title="平台商业披露" description="平台维护版本化产品披露；发布采用提交人与复核人分离。这里记录商业合同与产品边界，不宣称外部法律意见。" actions={<StatusBadge value={initial.readiness.activeBundlePublished ? `生效版本 ${initial.activeBundle?.version}` : "尚未发布"} />} />
     <div className="rc-live" aria-live="polite">{message}</div>
     <section className="rc-panel">
-      <header><div><small>PUBLIC IDENTITY SNAPSHOT</small><h2>发布身份与就绪状态</h2></div><a className="rc-button" href="/settings">修改平台身份</a></header>
+      <header><div><small>PUBLIC IDENTITY SNAPSHOT</small><h2>发布身份与就绪状态</h2></div><Link className="rc-button" href="/settings">修改平台身份</Link></header>
       <dl className="rc-description-list">
         <div><dt>服务运营方</dt><dd>{identity.operatorName || "未配置"}</dd></div>
         <div><dt>服务区域</dt><dd>{identity.serviceRegion || "未配置"}</dd></div>

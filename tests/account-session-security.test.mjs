@@ -41,6 +41,8 @@ test("account profile and password mutations bound request bodies and return dom
   }
   assert.match(profile, /PROFILE_USERNAME_INVALID/);
   assert.match(profile, /PROFILE_DATE_INVALID/);
+  assert.match(profile, /currentPassword/);
+  assert.match(profile, /updateAccountProfile/);
   assert.match(password, /PASSWORD_LENGTH_INVALID/);
   assert.match(password, /CURRENT_PASSWORD_INVALID/);
 });

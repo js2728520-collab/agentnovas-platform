@@ -34,12 +34,17 @@ test.before(async () => {
     CREATE TABLE strategy_subscriptions (id text PRIMARY KEY);
     CREATE TABLE platform_decisions (id text PRIMARY KEY);
     CREATE TABLE trades (id text PRIMARY KEY);
+    CREATE TABLE audit_logs (
+      id text PRIMARY KEY, actor_user_id text, action text NOT NULL,
+      subject_type text NOT NULL, subject_id text NOT NULL, created_at timestamptz DEFAULT now()
+    );
   `);
   for (const filename of [
     "0004_market_data_snapshots.sql",
     "0007_strategy_runtime.sql",
     "0024_platform_demo_execution.sql",
     "0027_platform_demo_admin_commands.sql",
+    "0035_technical_audit_correlation.sql",
   ]) {
     await pool.query(
       await readFile(

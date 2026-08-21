@@ -8,7 +8,7 @@
 
 1. maker 核对客户邮箱、服务地区和邀请批次，确认未超过 Beta 席位。
 2. 创建邀请后只记录 invitation ID/状态/过期时间；不得复制、发送或保存临时密码。
-3. 客户通过一次性链接设置密码并完成邮箱验证/法务同意。
+3. 客户通过一次性链接设置密码，完成邮箱验证并确认当前商业披露 bundle；确认成功后才启动试用。
 4. 链接过期时作废旧邀请后新建；不要手工替客户设置密码。
 5. 冻结、密码重置或撤权后核对相关 session 已撤销。
 
@@ -49,16 +49,15 @@ Checker：
 
 1. 将 statement 标记 dispute/hold，不修改原始计算、paper trades 或高水位。
 2. 导出安全证据：周期、策略 IDs、closed trades、费用、合同 hash、计算版本、审批 requestIds；脱敏其他客户。
-3. 产品/法务/运营共同判断；任何修正创建新决定/reversal/adjustment，不覆盖原记录。
-4. 争议期间阻断重叠账单，会员处置遵循定稿法务规则。
+3. 产品与运营按客户确认的计划/披露快照共同判断；任何修正创建新决定/reversal/adjustment，不覆盖原记录。
+4. 争议期间阻断重叠账单，会员处置遵循版本化产品合同。
 
 ## 7. 到期与停止服务
 
 - 到期前通过 in-app/Email 提醒；Email 未授权时只发 in-app。
-- 到期后核对新开仓被阻断、组合只读；平仓/账单/退款按法务版本执行。
+- 到期后核对新开仓被阻断；有持仓组合为 close_only、无持仓组合为 read_only。Beta 不自动退款，任何人工调整使用版本化合同、双审和 reversal/adjustment。
 - 不用手工数据库更新延长期限；续期必须走会员订单双审。
 
 ## 8. 运营事故
 
 重复权益/credits/高水位、跨客户数据、PII/secret、临时密码、假支付状态任一出现：立即停止对应 maker/checker 队列，保留 requestId/traceId/版本与时间，通知 Maintenance 和 incident commander，使用 reversal/补偿流程，不直接改账本或删除审计。
-

@@ -7,6 +7,11 @@ export const commercialBetaPlans = [
 
 export const betaPaperCapitalUsdt = "10000.00" as const;
 export const platformDemoProviders = ["OKX_DEMO", "BINANCE_SPOT_TESTNET", "BYBIT_DEMO"] as const;
+export const clientDemoProviderCatalog = [
+  { provider: "OKX", environment: "OKX_DEMO" },
+  { provider: "BINANCE", environment: "BINANCE_SPOT_TESTNET" },
+  { provider: "BYBIT", environment: "BYBIT_DEMO" },
+] as const;
 export const performanceFeeCycle = { cadence: "WEEKLY", timezone: "UTC" } as const;
 export const performanceFeeCurrency = "USDT" as const;
 
@@ -32,6 +37,59 @@ export type MembershipOrderStatus = typeof membershipOrderStatuses[number];
 export type PerformanceFeeStatementStatus = typeof performanceFeeStatementStatuses[number];
 export type PlatformDemoProvider = typeof platformDemoProviders[number];
 export type OfficialStrategyCode = "ai_conservative" | "ai_balanced" | "ai_aggressive";
+export type ClientDemoProvider = typeof clientDemoProviderCatalog[number]["provider"];
+export type ClientDemoEnvironment = typeof clientDemoProviderCatalog[number]["environment"];
+export type ClientDemoProviderStatus =
+  | "NOT_CONFIGURED"
+  | "DISABLED"
+  | "PAUSED"
+  | "UNVERIFIED"
+  | "VERIFIED"
+  | "VERIFICATION_FAILED";
+export type ClientDemoCardStatus =
+  | "NOT_TESTED"
+  | "PAUSED"
+  | "PENDING"
+  | "RUNNING"
+  | "UNKNOWN"
+  | "RETRY_WAIT"
+  | "RECONCILE_WAIT"
+  | "FILLED"
+  | "CANCELLED"
+  | "FAILED"
+  | "QUARANTINED";
+export type ClientDemoReceiptStatus =
+  | "ACCEPTED"
+  | "PARTIALLY_FILLED"
+  | "FILLED"
+  | "CANCELLED"
+  | "REJECTED";
+
+export type ClientDemoReceiptSummary = {
+  status: ClientDemoReceiptStatus;
+  observedAt: string;
+};
+
+export type ClientDemoCardSummary = {
+  strategyCode: OfficialStrategyCode;
+  status: ClientDemoCardStatus;
+  lastTestedAt: string | null;
+  receiptSummary: ClientDemoReceiptSummary | null;
+};
+
+export type ClientDemoProviderSummary = {
+  provider: ClientDemoProvider;
+  environment: ClientDemoEnvironment;
+  status: ClientDemoProviderStatus;
+  lastTestedAt: string | null;
+  cards: ClientDemoCardSummary[];
+};
+
+export type ClientDemoSummary = {
+  customerImpact: false;
+  demoFailureAffectsPaper: false;
+  providers: ClientDemoProviderSummary[];
+};
 
 export type ApiErrorEnvelope = {
   error: {
@@ -101,7 +159,7 @@ export type MembershipOrder = {
 
 export type MembershipEntitlement = {
   id: string;
-  planCode: CommercialPlanCode;
+  planCode: CommercialPlanCode | "trial_monthly_equivalent";
   status: "TRIAL" | "ACTIVE" | "GRACE" | "READ_ONLY" | "EXPIRED" | "CANCELLED";
   startsAt: string;
   expiresAt: string | null;
@@ -159,6 +217,31 @@ export type PerformanceFeeStatement = {
   createdAt: string;
 };
 
+export const performanceStatementTimelineEventKinds = [
+  "STATEMENT_CREATED",
+  "ASSESSMENT_APPROVED",
+  "ASSESSMENT_REJECTED",
+  "RECEIVABLE_CREATED",
+  "PAYMENT_EVIDENCE_RECORDED",
+  "PAYMENT_EVIDENCE_ACCEPTED",
+  "PAYMENT_EVIDENCE_REJECTED",
+  "PAYMENT_APPROVED",
+  "PAYMENT_REJECTED",
+  "STATEMENT_PAID",
+  "NO_FEE_CLOSED",
+] as const;
+
+export type PerformanceStatementTimelineEvent = {
+  id: string;
+  kind: typeof performanceStatementTimelineEventKinds[number];
+  occurredAt: string;
+};
+
+export type ClientPerformanceStatementDetail = {
+  statement: PerformanceFeeStatement;
+  timeline: PerformanceStatementTimelineEvent[];
+};
+
 export type PaperPortfolio = {
   id: string;
   membershipId: string;
@@ -173,6 +256,14 @@ export type PaperPortfolio = {
   unrealizedPnlUsdt: string;
   feesUsdt: string;
   status: "ACTIVE" | "CLOSE_ONLY" | "READ_ONLY";
+  runtime: {
+    state: "NOT_STARTED" | "ACTIVE" | "PAUSED" | "ENDED" | "FAILED";
+    deploymentId: string | null;
+    subscriptionId: string | null;
+    mode: "PAPER" | "SHADOW" | null;
+    lastCycleSequence: number;
+    lastDecisionAt: string | null;
+  };
   openPositionCount: number;
   positions: Array<{
     id: string;

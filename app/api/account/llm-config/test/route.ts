@@ -1,12 +1,12 @@
-import { ensureDatabaseSchema } from "@/lib/database-schema";
-import { testLlmConfig, type LlmConfigInput } from "@/lib/llm-config";
-import { requireUser, responseError } from "@/lib/session";
+import { ApiPolicyError, apiErrorResponse, requestIdFor } from "../../../../../lib/api-policy.ts";
 
 export async function POST(request: Request) {
-  try {
-    await ensureDatabaseSchema();
-    const user = await requireUser(request);
-    const input = await request.json() as LlmConfigInput;
-    return Response.json(await testLlmConfig({ id: `user-${user.id}`, input }));
-  } catch (error) { return responseError(error); }
+  return apiErrorResponse(
+    new ApiPolicyError(
+      "ROUTE_DISABLED",
+      "当前 Beta 已关闭客户私有模型连通测试",
+      503,
+    ),
+    requestIdFor(request),
+  );
 }

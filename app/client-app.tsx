@@ -7,6 +7,10 @@ import Link from "next/link";
 import type { AccountViewer } from "./account-settings";
 import SupportFloating from "./support-floating";
 import { dedupeAdjacentEnglish, scrubNonChineseText } from "./i18n-runtime";
+import {
+  tradingHallEnvironmentLabel,
+  tradingHallStrategyPresentation,
+} from "./trading-hall-status";
 import { getAvatarPreset } from "@/lib/avatar-presets";
 import {
   tradingHallAgentCatalog,
@@ -21,7 +25,6 @@ const ClientNotificationSettings = dynamic(() => import("@/apps/client/ui/client
 const TradingCenterV2 = dynamic(() => import("./trading-center"), { loading: pageModuleLoading });
 const MembershipCenter = dynamic(() => import("./membership-center"), { loading: pageModuleLoading });
 const PersistentAgentChat = dynamic(() => import("./agent-chat"), { loading: pageModuleLoading });
-const CustomLlmButton = dynamic(() => import("./llm-config").then((module) => module.CustomLlmButton), { loading: pageModuleLoading });
 
 type Page =
   | "home"
@@ -58,13 +61,6 @@ const waitingAgentTalks = [
   ["AI 决策官", "等待完整决策链"],
   ["交易执行员", "等待影子或模拟执行意图"],
 ];
-type AgentAction =
-  | "idle"
-  | "typing"
-  | "standing"
-  | "stretching"
-  | "waving"
-  | "walking";
 function AgentDialoguePanel({ talks = [] }: { talks?: string[][] }) {
   const rows = talks.length ? talks : waitingAgentTalks;
   return (
@@ -78,7 +74,7 @@ function AgentDialoguePanel({ talks = [] }: { talks?: string[][] }) {
       </div>
       <div className="agent-dialogue-viewport">
         <div className="agent-dialogue-track">
-          {[...rows, ...rows, ...rows].map((x, i) => (
+          {rows.map((x, i) => (
             <article key={`${x[0]}-${i}`}>
               <b>{x[0] === "策略工作流" ? "AI Decision Officer" : x[0]}</b>
               <p>{x[1]}</p>
@@ -865,7 +861,7 @@ function membershipAction(
 
 export default function Home({ canViewMembership = true }: { canViewMembership?: boolean }) {
   const [page, setPage] = useState<Page>(() => {
-    if (typeof window === "undefined") return "home";
+    if (typeof window === "undefined") return "hall";
     const params = new URLSearchParams(window.location.search);
     const requested = params.get("page");
     if (requested === "market") return "market";
@@ -877,7 +873,7 @@ export default function Home({ canViewMembership = true }: { canViewMembership?:
       /\/(?:invite|register)\/[^/?#]+/i.test(window.location.pathname)
     )
       return "login";
-    return "home";
+    return "hall";
   });
   const [lang, setLang] = useState<Lang>("zh-CN");
   const [selectedAgent, setSelectedAgent] = useState("Chief Risk Officer");
@@ -1027,12 +1023,12 @@ export default function Home({ canViewMembership = true }: { canViewMembership?:
   return (
     <main className="app-shell client-app-shell" data-app-shell>
       <header className="topbar">
-        <button className="logo" onClick={go("home")}>
+        <Link className="logo" href="/" aria-label="返回客户工作台">
           <span>A</span>
           <b>
             {platformSettings.system.siteName || "Riverton Capital"}<small>{t.tagline}</small>
           </b>
-        </button>
+        </Link>
         <div className="top-actions">
           {memberButton && (
             <button
@@ -1529,49 +1525,6 @@ function Hall({
   setSelected: (s: string) => void;
 }) {
   const { data, loading, error, retry } = useTradingHallData();
-  const [agentActions, setAgentActions] = useState<Record<string, AgentAction>>({});
-  useEffect(() => {
-    let stopped = false;
-    let actionTimer: ReturnType<typeof setTimeout> | undefined;
-    let resetTimer: ReturnType<typeof setTimeout> | undefined;
-    const schedule = () => {
-      actionTimer = setTimeout(
-        () => {
-          if (stopped) return;
-          const person = agents[Math.floor(Math.random() * agents.length)];
-          const roll = Math.random();
-          const action: AgentAction =
-            roll < 0.05
-              ? "walking"
-              : roll < 0.2
-                ? "waving"
-                : roll < 0.38
-                  ? "stretching"
-                  : roll < 0.56
-                    ? "standing"
-                    : "typing";
-          setAgentActions((previous) => ({ ...previous, [person.n]: action }));
-          resetTimer = setTimeout(
-            () => {
-              setAgentActions((previous) => ({
-                ...previous,
-                [person.n]: "idle",
-              }));
-              schedule();
-            },
-            action === "walking" ? 7600 : action === "typing" ? 4400 : 3000,
-          );
-        },
-        5500 + Math.random() * 6000,
-      );
-    };
-    schedule();
-    return () => {
-      stopped = true;
-      if (actionTimer) clearTimeout(actionTimer);
-      if (resetTimer) clearTimeout(resetTimer);
-    };
-  }, []);
   const liveTalks = useMemo(() => data?.decisionRounds.flatMap((round) =>
     round.events.flatMap((event) => event.role === "legacy_audit" ? [] : [[
       event.name,
@@ -1589,13 +1542,7 @@ function Hall({
   };
   const meetingTalk = data?.agents.find((agent) => agent.key === "final_decision")?.latestConclusion ||
     "等待前五阶段完成后形成最终决定";
-  const executionModeLabel = data?.productBoundary.currentExecutionMode === "paper"
-    ? "模拟盘"
-    : data?.productBoundary.currentExecutionMode === "shadow"
-      ? "影子运行"
-      : data?.productBoundary.currentExecutionMode === "mixed_simulation"
-        ? "混合模拟环境"
-        : "尚未部署";
+  const executionModeLabel = tradingHallEnvironmentLabel(data?.productBoundary.currentExecutionMode);
   return (
     <>
       <PageHead
@@ -1633,6 +1580,9 @@ function Hall({
         {!loading && !error && data && data.decisionRounds.length === 0 && <span>当前没有决策轮记录；系统不会用演示数据填充。</span>}
         {data && data.legacyAuditRecords > 0 && <span>检测到 {data.legacyAuditRecords} 条旧周期审计记录；旧记录缺少独立 AI 最终决策阶段，已明确标记。</span>}
       </div>
+      <p className="hall-role-illustration-note" role="note">
+        角色位置仅为界面示意，不代表智能体正在运行；状态以服务端策略与决策记录为准。
+      </p>
       <div className="compact-hall">
         <div className="hall-left">
           <div className="scene compact">
@@ -1643,10 +1593,10 @@ function Hall({
               sizes="(max-width: 768px) 100vw, 860px"
               alt="AI quantitative trading operations center"
             />
-            {agents.map((a, index) => (
+            {agents.map((a) => (
               <button
                 key={a.n}
-                className={`hotspot action-${agentActions[a.n] || "idle"} walk-path-${index % 3}`}
+                className="hotspot hall-role-static"
                 style={{ left: `${a.x}%`, top: `${a.y}%` }}
                 onClick={() => {
                   setSelected(a.n);
@@ -1663,7 +1613,7 @@ function Hall({
                 </span>
               </button>
             ))}
-            <button className="meeting-hotspot" onClick={() => go("meeting")}>
+            <button className="meeting-hotspot hall-role-static" onClick={() => go("meeting")}>
               <span>AI 决策官</span>
               <small>{data?.agents.find((agent) => agent.key === "final_decision")?.status === "reported" ? "已提交决策" : "等待记录"}</small>
               <b className="meeting-speech">
@@ -1689,14 +1639,20 @@ function StrategyMonitorTicker({
   strategies?: TradingHallStrategy[];
   loading?: boolean;
 }) {
-  const rows = strategies.map((strategy) => ({
-    name: `${strategy.name}${strategy.version ? ` · ${strategy.version}` : ""}`,
-    universe: strategy.symbols.map((symbol) => symbol.replace("USDT", "")).join(" / "),
-    risk: `总仓位 ≤ ${strategy.risk.maxTotalAllocationPct}%`,
-    decision: strategy.latestDecisionStatus || "尚无决策记录",
-  }));
+  const [paused, setPaused] = useState(false);
+  const rows = strategies.map((strategy) => {
+    const presentation = tradingHallStrategyPresentation(strategy);
+    return {
+      name: `${strategy.name}${strategy.version ? ` · ${strategy.version}` : ""}`,
+      universe: strategy.symbols.map((symbol) => symbol.replace("USDT", "")).join(" / "),
+      risk: `总仓位 ≤ ${strategy.risk.maxTotalAllocationPct}%`,
+      decision: strategy.latestDecisionStatus || "尚无决策记录",
+      state: presentation.label,
+      inactive: presentation.inactive,
+    };
+  });
   return (
-    <div className="strategy-monitor-ticker" aria-label="三套AI策略实时监控">
+    <div className={`strategy-monitor-ticker${paused ? " paused" : ""}`} aria-label="三套AI策略服务端状态">
       <div className="strategy-monitor-track">
         {rows.length === 0 && (
           <article className="strategy-monitor-empty">
@@ -1708,10 +1664,10 @@ function StrategyMonitorTicker({
           </article>
         )}
         {rows.map((row, i) => (
-          <article key={row.name}>
-            <span className={`strategy-monitor-dot s${i}`} />
+          <article key={row.name} aria-label={`${row.name}：${row.state}`}>
+            <span className={`strategy-monitor-dot s${i}${row.inactive ? " inactive" : ""}`} />
             <div>
-              <small>运行策略</small>
+              <small>{row.state}</small>
               <b>{row.name}</b>
             </div>
             <div>
@@ -1734,6 +1690,16 @@ function StrategyMonitorTicker({
         <i />
         <i />
       </div>
+      {rows.length > 1 && (
+        <button
+          className="strategy-monitor-pause"
+          type="button"
+          aria-pressed={paused}
+          onClick={() => setPaused((value) => !value)}
+        >
+          {paused ? "继续轮播" : "暂停轮播"}
+        </button>
+      )}
     </div>
   );
 }
@@ -1755,7 +1721,6 @@ function PageHead({
         <p>{sub}</p>
       </div>
       <div>
-        {title === "会员中心" && <CustomLlmButton />}
         {actions}
       </div>
     </div>

@@ -5,7 +5,7 @@ import {
   strategyDslFromBrief,
   type StrategyRule,
 } from "./strategy-dsl.ts";
-import type { ResolvedLlmConfig } from "./llm-config.ts";
+import type { ResolvedLlmConfig } from "./client-platform-llm.ts";
 
 const allowedBriefFields = new Set([
   "name", "symbol", "period", "timeframe", "style", "risk", "capital",
@@ -144,13 +144,14 @@ export async function generateStrategyProposal(options: {
     ...boundedAiHistory(options.history),
     { role: "user", content: `根据以下已校验问卷生成候选 DSL：${JSON.stringify(options.brief)}` },
   ];
-  const output = await requestAiText(options.config, messages, { maxOutputTokens: 1_200, temperature: 0.1 });
-  const specification = extractStrategyDslFromText(output);
+  const response = await requestAiText(options.config, messages, { maxOutputTokens: 1_200, temperature: 0.1 });
+  const specification = extractStrategyDslFromText(response.text);
   return {
     specification,
     explanation: strategyDslExplanation(specification),
     mode: "ai_provider" as const,
     provider: options.config.providerName,
     model: options.config.model,
+    metering: response.metering,
   };
 }

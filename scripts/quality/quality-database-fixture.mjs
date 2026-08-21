@@ -32,11 +32,14 @@ const ROLE_PERMISSIONS = {
   ],
   operationsMaker: [
     "ops.customers.view",
+    "ops.organization.view",
     "ops.membership_orders.view",
     "ops.membership_orders.evidence",
     "ops.credits.view",
     "ops.performance_fees.view",
     "ops.performance_fees.payment_evidence",
+    "ops.deposits.view",
+    "ops.ledger.view",
   ],
   operationsChecker: [
     "ops.customers.view",

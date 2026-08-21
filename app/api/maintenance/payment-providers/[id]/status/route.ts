@@ -1,4 +1,5 @@
 import { requireAccessPermission } from "@/lib/access-control";
+import { maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
@@ -24,7 +25,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       if (!existing.rows[0]) throw new ResearchApiError("NOT_FOUND", "支付渠道不存在", 404);
       const result = await client.query("UPDATE payment_provider_configs SET status = 'disabled', updated_by_user_id = $1, updated_at = now() WHERE id = $2 AND status IS DISTINCT FROM 'disabled' RETURNING id", [user.id, id]);
       changed = result.rowCount === 1;
-      if (changed) await client.query(`INSERT INTO audit_logs (id, actor_user_id, action, subject_type, subject_id, after_json) VALUES ($1, $2, 'payment_provider.status_changed', 'payment_provider_config', $3, $4)`, [crypto.randomUUID(), user.id, id, JSON.stringify({ status, reason })]);
+      if (changed) {
+        const correlation = maintenanceCorrelation(request);
+        await client.query(`INSERT INTO audit_logs (id, actor_user_id, action, subject_type, subject_id, after_json, request_id, trace_id) VALUES ($1, $2, 'payment_provider.status_changed', 'payment_provider_config', $3, $4, $5, $6)`, [crypto.randomUUID(), user.id, id, JSON.stringify({ status, reason }), correlation.requestId, correlation.traceId]);
+      }
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

@@ -136,6 +136,9 @@ export function membershipOrderDto(row: Record<string, unknown>) {
 export function performanceStatementDto(row: Record<string, unknown>) {
   const cumulativeNetPnl = String(row.cumulative_net_pnl);
   const priorHighWaterMark = String(row.prior_high_water_mark);
+  const prospectiveHighWaterMark = compareSignedDecimalStrings(cumulativeNetPnl, priorHighWaterMark) > 0
+    ? cumulativeNetPnl
+    : priorHighWaterMark;
   const snapshot =
     row.strategy_codes_json &&
     typeof row.strategy_codes_json === "object" &&
@@ -182,11 +185,10 @@ export function performanceStatementDto(row: Record<string, unknown>) {
     cumulativeNetRealizedPnl: cumulativeNetPnl,
     lossCarry: String(row.loss_carry),
     highWaterMarkBefore: priorHighWaterMark,
-    highWaterMarkAfter:
-      compareSignedDecimalStrings(cumulativeNetPnl, priorHighWaterMark) > 0
-        ? cumulativeNetPnl
-        : priorHighWaterMark,
-    settledHighWaterMark: priorHighWaterMark,
+    highWaterMarkAfter: prospectiveHighWaterMark,
+    settledHighWaterMark: String(row.status) === "paid" || row.paid_at
+      ? prospectiveHighWaterMark
+      : priorHighWaterMark,
     billableProfit: String(row.eligible_profit),
     feeRate: rate(row.fee_bps),
     feeAmount: String(row.fee_amount),
@@ -200,6 +202,94 @@ export function performanceStatementDto(row: Record<string, unknown>) {
     paidAt: timestamp(row.paid_at),
     createdAt: timestamp(row.created_at)!,
   };
+}
+
+type TimelineInput = {
+  statement: Record<string, unknown>;
+  decisions: Array<Record<string, unknown>>;
+  evidence: Array<Record<string, unknown>>;
+  receivable: Record<string, unknown> | null;
+};
+
+type TimelineEventKind =
+  | "STATEMENT_CREATED"
+  | "ASSESSMENT_APPROVED"
+  | "ASSESSMENT_REJECTED"
+  | "RECEIVABLE_CREATED"
+  | "PAYMENT_EVIDENCE_RECORDED"
+  | "PAYMENT_EVIDENCE_ACCEPTED"
+  | "PAYMENT_EVIDENCE_REJECTED"
+  | "PAYMENT_APPROVED"
+  | "PAYMENT_REJECTED"
+  | "STATEMENT_PAID"
+  | "NO_FEE_CLOSED";
+
+const timelineEventOrder: Record<TimelineEventKind, number> = {
+  STATEMENT_CREATED: 0,
+  ASSESSMENT_APPROVED: 10,
+  ASSESSMENT_REJECTED: 10,
+  RECEIVABLE_CREATED: 20,
+  PAYMENT_EVIDENCE_RECORDED: 30,
+  PAYMENT_EVIDENCE_ACCEPTED: 40,
+  PAYMENT_EVIDENCE_REJECTED: 40,
+  PAYMENT_APPROVED: 50,
+  PAYMENT_REJECTED: 50,
+  STATEMENT_PAID: 60,
+  NO_FEE_CLOSED: 60,
+};
+
+function timelineTimestamp(value: unknown) {
+  if (!value) return null;
+  const date = new Date(value as string | Date);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+export function performanceStatementTimeline(input: TimelineInput) {
+  const events: Array<{ id: string; kind: TimelineEventKind; occurredAt: string }> = [];
+  const add = (id: string, kind: TimelineEventKind, value: unknown) => {
+    const occurredAt = timelineTimestamp(value);
+    if (occurredAt) events.push({ id, kind, occurredAt });
+  };
+  const statementId = String(input.statement.id);
+  add(`statement:${statementId}`, "STATEMENT_CREATED", input.statement.created_at);
+
+  for (const decision of input.decisions) {
+    const stage = String(decision.stage);
+    const decisionValue = String(decision.decision);
+    if (stage !== "assessment" && stage !== "payment") continue;
+    if (decisionValue !== "approve" && decisionValue !== "reject") continue;
+    const prefix = stage === "assessment" ? "ASSESSMENT" : "PAYMENT";
+    add(
+      `decision:${String(decision.id)}`,
+      `${prefix}_${decisionValue === "approve" ? "APPROVED" : "REJECTED"}` as TimelineEventKind,
+      decision.created_at,
+    );
+  }
+
+  if (input.receivable) {
+    add(`receivable:${String(input.receivable.id)}`, "RECEIVABLE_CREATED", input.receivable.created_at);
+  }
+  for (const item of input.evidence) {
+    const evidenceId = String(item.id);
+    add(`evidence:${evidenceId}:recorded`, "PAYMENT_EVIDENCE_RECORDED", item.created_at);
+    if (item.status === "accepted") {
+      add(`evidence:${evidenceId}:accepted`, "PAYMENT_EVIDENCE_ACCEPTED", item.reviewed_at);
+    } else if (item.status === "rejected") {
+      add(`evidence:${evidenceId}:rejected`, "PAYMENT_EVIDENCE_REJECTED", item.reviewed_at);
+    }
+  }
+  if (input.receivable?.paid_at) {
+    add(`statement:${statementId}:paid`, "STATEMENT_PAID", input.receivable.paid_at);
+  }
+  if (input.statement.status === "no_fee") {
+    const approved = input.decisions.find((item) => item.stage === "assessment" && item.decision === "approve");
+    add(`statement:${statementId}:no-fee`, "NO_FEE_CLOSED", approved?.created_at ?? input.statement.created_at);
+  }
+
+  return events.sort((left, right) =>
+    left.occurredAt.localeCompare(right.occurredAt)
+      || timelineEventOrder[left.kind] - timelineEventOrder[right.kind]
+      || left.id.localeCompare(right.id));
 }
 export function paymentEvidenceDto(value: unknown) {
   const row = value as Record<string, unknown>,

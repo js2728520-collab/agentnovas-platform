@@ -4,9 +4,12 @@ import { auditLogs, sessions, users } from "@/db/schema";
 import { effectiveAccessForUser } from "@/lib/access-control";
 import { dummyVerifyPassword, hashPassword, normalizeEmail, randomToken, sha256, verifyPasswordState } from "@/lib/auth";
 import { clearAuthRateLimit, consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { clientLoginIdentity } from "@/lib/client-identity-gateway";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
-import { getPostgresPool } from "@/lib/postgres";
+import { mfaLoginRequirement } from "@/lib/mfa";
+import { getClientAuthPostgresPool, getPostgresPool } from "@/lib/postgres";
+import { readResearchJson } from "@/lib/research-api";
 import { authConnectionBucketKey, sessionCookieHeaders, sessionDeadlinesForAudience } from "@/lib/riverton-apps";
 import { responseError } from "@/lib/session";
 
@@ -17,7 +20,12 @@ async function userCanAccessApp(user: typeof users.$inferSelect, appAudience: "c
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as { identifier?: string; email?: string; password?: string };
+    const input = await readResearchJson(request, 4_096);
+    const body = {
+      identifier: typeof input.identifier === "string" ? input.identifier : undefined,
+      email: typeof input.email === "string" ? input.email : undefined,
+      password: typeof input.password === "string" ? input.password : undefined,
+    };
     await ensureDatabaseSchema();
     const db = getDb();
     const rawIdentifier = String(body.identifier ?? body.email ?? "").trim();
@@ -43,7 +51,12 @@ export async function POST(request: Request) {
         headers: { "retry-after": String(rateLimit.retryAfterSeconds) },
       });
     }
-    const user = (await db.select().from(users).where(or(eq(users.phone, phone), eq(users.email, email), eq(users.username, rawIdentifier))).limit(1))[0];
+    const clientIdentity = provisionalCookie.audience === "client"
+      ? await clientLoginIdentity(await getClientAuthPostgresPool(), { phone,email,username: rawIdentifier })
+      : null;
+    const user = provisionalCookie.audience === "client"
+      ? clientIdentity?.user
+      : (await db.select().from(users).where(or(eq(users.phone, phone), eq(users.email, email), eq(users.username, rawIdentifier))).limit(1))[0];
 
     if (!user) {
       await dummyVerifyPassword(body.password ?? "");
@@ -64,29 +77,48 @@ export async function POST(request: Request) {
     if (!await userCanAccessApp(user, sessionCookie.audience)) {
       return Response.json({ error: "无权登录当前应用" }, { status: 403 });
     }
-    const mfaRequired = sessionCookie.audience !== "client";
-    let mfaEnrollmentRequired = false;
+    const enrollment = sessionCookie.audience === "client"
+      ? clientIdentity?.hasActiveMfa
+      : Boolean((await pool.query(`
+          SELECT 1 FROM user_mfa_totp_credentials
+          WHERE user_id = $1 AND status = 'active'
+        `, [user.id])).rowCount);
+    const requirement = mfaLoginRequirement(sessionCookie.audience, Boolean(enrollment));
+    const mfaRequired = requirement.required;
+    const mfaEnrollmentRequired = requirement.enrollmentRequired;
     if (mfaRequired) {
-      const enrollment = await pool.query(`
-        SELECT 1 FROM user_mfa_totp_credentials
-        WHERE user_id = $1 AND status = 'active'
-      `, [user.id]);
-      mfaEnrollmentRequired = !enrollment.rowCount;
       deadlines.idleExpiresAt = new Date(now.getTime() + 10 * 60_000).toISOString();
     }
-    if (passwordState.needsRehash) {
-      await db.update(users).set({ passwordHash: await hashPassword(body.password ?? ""), updatedAt: now.toISOString() })
-        .where(and(eq(users.id, user.id), eq(users.passwordHash, user.passwordHash)));
-    }
+    const replacementPasswordHash = passwordState.needsRehash ? await hashPassword(body.password ?? "") : null;
     await clearAuthRateLimit(pool, { action: "login", audience: sessionCookie.audience, bucketKeys: [identifierBucket, connection.bucketKey] });
-    await db.batch([
-      db.insert(sessions).values({
-        id: crypto.randomUUID(), userId: user.id, tokenHash: await sha256(token), appAudience: sessionCookie.audience,
-        expiresAt: deadlines.absoluteExpiresAt, mfaLevel: "primary", ...deadlines,
-        ipAddress, userAgent: request.headers.get("user-agent"),
-      }),
-      db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: mfaRequired ? "auth.primary_authenticated" : "auth.login", subjectType: "user", subjectId: user.id, afterJson: JSON.stringify({ appAudience: sessionCookie.audience, mfaRequired }), ipAddress, userAgent: request.headers.get("user-agent") }),
-    ]);
+    const sessionId = crypto.randomUUID();
+    const sessionTokenHash = await sha256(token);
+    if (sessionCookie.audience === "client") {
+      const completed = await pool.query<{ completed: boolean }>(`
+        SELECT client_complete_login(
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+        ) AS completed
+      `, [
+        user.id,user.passwordHash,replacementPasswordHash,sessionId,sessionTokenHash,
+        deadlines.absoluteExpiresAt,mfaRequired ? "primary" : "none",now,
+        deadlines.idleExpiresAt,deadlines.absoluteExpiresAt,ipAddress,request.headers.get("user-agent"),
+      ]);
+      if (!completed.rows[0]?.completed) return Response.json({ error: "账号状态已变化，请重新登录" }, { status: 409 });
+      await db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: mfaRequired ? "auth.primary_authenticated" : "auth.login", subjectType: "user", subjectId: user.id, afterJson: JSON.stringify({ appAudience: sessionCookie.audience, mfaRequired }), ipAddress, userAgent: request.headers.get("user-agent") });
+    } else {
+      if (replacementPasswordHash) {
+        await db.update(users).set({ passwordHash: replacementPasswordHash, updatedAt: now.toISOString() })
+          .where(and(eq(users.id, user.id), eq(users.passwordHash, user.passwordHash)));
+      }
+      await db.batch([
+        db.insert(sessions).values({
+          id: sessionId, userId: user.id, tokenHash: sessionTokenHash, appAudience: sessionCookie.audience,
+          expiresAt: deadlines.absoluteExpiresAt, mfaLevel: mfaRequired ? "primary" : "none", ...deadlines,
+          ipAddress, userAgent: request.headers.get("user-agent"),
+        }),
+        db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: mfaRequired ? "auth.primary_authenticated" : "auth.login", subjectType: "user", subjectId: user.id, afterJson: JSON.stringify({ appAudience: sessionCookie.audience, mfaRequired }), ipAddress, userAgent: request.headers.get("user-agent") }),
+      ]);
+    }
     const headers = new Headers({ "content-type": "application/json" });
     for (const cookie of sessionCookie.headers) headers.append("set-cookie", cookie);
     return new Response(JSON.stringify({ ok: true, mfaRequired, mfaEnrollmentRequired, appAudience: sessionCookie.audience, user: { id: user.id, email: user.email, phone: user.phone, username: user.username, role: user.role } }), { headers });

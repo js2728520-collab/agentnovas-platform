@@ -26,6 +26,7 @@ export type PlatformDemoTransport = {
 const PLATFORM_DEMO_ALLOWED_ROUTES = Object.freeze({
   okx: new Set([
     "GET /api/v5/account/balance",
+    "GET /api/v5/account/config",
     "POST /api/v5/trade/order",
     "GET /api/v5/trade/order",
     "POST /api/v5/trade/cancel-order",
@@ -40,6 +41,7 @@ const PLATFORM_DEMO_ALLOWED_ROUTES = Object.freeze({
   ]),
   bybit: new Set([
     "GET /v5/account/wallet-balance",
+    "GET /v5/user/query-api",
     "POST /v5/order/create",
     "GET /v5/order/realtime",
     "POST /v5/order/cancel",
@@ -72,7 +74,7 @@ function assertTransportSpotBoundary(
     if (header("x-simulated-trading") !== "1") throw new Error("OKX Demo 请求缺少模拟交易标记");
     const body = input.method === "POST" ? transportBody(input) : null;
     const instId = String(body?.instId ?? url.searchParams.get("instId") ?? "");
-    if (url.pathname !== "/api/v5/account/balance"
+    if (!["/api/v5/account/balance", "/api/v5/account/config"].includes(url.pathname)
       && !["BTC-USDT", "ETH-USDT", "SOL-USDT"].includes(instId)) {
       throw new Error("OKX Demo 仅允许 BTC/ETH/SOL USDT 现货");
     }
@@ -98,6 +100,7 @@ function assertTransportSpotBoundary(
     }
     return;
   }
+  if (url.pathname === "/v5/user/query-api") return;
   const body = input.method === "POST" ? transportBody(input) : null;
   const category = String(body?.category ?? url.searchParams.get("category") ?? "");
   if (category !== "spot") throw new Error("Bybit Demo 仅允许 spot 类别");
@@ -178,6 +181,11 @@ function record(value: unknown, label: string): Record<string, unknown> {
 function rows(value: unknown, label: string) {
   if (!Array.isArray(value)) throw new PlatformDemoResponseError(`${label}响应列表无效`);
   return value.map((item) => record(item, label));
+}
+
+function strings(value: unknown, label: string) {
+  if (!Array.isArray(value)) throw new PlatformDemoResponseError(`${label}响应列表无效`);
+  return value.map((item) => requiredString(item, label, 64));
 }
 
 function requiredString(value: unknown, label: string, maximum = 128) {
@@ -324,10 +332,20 @@ function okxAdapter(credentials: Credentials, options: Required<AdapterOptions>)
   return {
     provider: "okx" as const,
     async verify() {
+      const configuration = (await request("GET", "/api/v5/account/config"))[0];
+      if (!configuration) throw new PlatformDemoResponseError("OKX Demo 账户配置响应为空");
+      const permissions = requiredString(configuration.perm, "OKX Demo API permission", 120)
+        .split(",").map((item) => item.trim()).filter(Boolean);
+      if (!permissions.includes("trade") || permissions.includes("withdraw")) {
+        throw new PlatformDemoResponseError("OKX Demo Key 必须具备交易权限且禁止提现权限");
+      }
+      if (configuration.acctLv !== "1" || configuration.enableSpotBorrow !== false || configuration.autoLoan !== false) {
+        throw new PlatformDemoResponseError("OKX Demo 账户必须为无借币的现货模式");
+      }
       const data = await request("GET", "/api/v5/account/balance");
       if (!data.length) throw new PlatformDemoResponseError("OKX Demo 账户响应为空");
       decimal(data[0].totalEq, "OKX Demo account");
-      return { provider: "okx" as const, status: "verified" as const, observedAt: options.now().toISOString() };
+      return { provider: "okx" as const, status: "verified" as const, observedAt: options.now().toISOString(), permissionCheck: { spotTrade: true, withdrawal: false, transfer: false, derivatives: false } };
     },
     async placeOrder(raw: Parameters<typeof validatePlace>[0]) {
       if (!options.externalWritesEnabled) throw new PlatformDemoWritesDisabledError();
@@ -396,8 +414,12 @@ function binanceAdapter(credentials: Credentials, options: Required<AdapterOptio
     provider: "binance" as const,
     async verify() {
       const account = record(await request("GET", "/api/v3/account", new URLSearchParams()), "Binance Demo account");
-      if (account.accountType !== "SPOT" || account.canTrade !== true) throw new PlatformDemoResponseError("Binance Demo 账户响应无效或不可交易");
-      return { provider: "binance" as const, status: "verified" as const, observedAt: options.now().toISOString() };
+      const permissions = strings(account.permissions, "Binance Demo permission");
+      if (account.accountType !== "SPOT" || account.canTrade !== true || account.canWithdraw !== false
+        || !permissions.includes("SPOT") || permissions.some((permission) => permission !== "SPOT")) {
+        throw new PlatformDemoResponseError("Binance Spot Testnet Key 必须仅具备 SPOT 交易能力且禁止提现");
+      }
+      return { provider: "binance" as const, status: "verified" as const, observedAt: options.now().toISOString(), permissionCheck: { spotTrade: true, withdrawal: false, transfer: false, derivatives: false } };
     },
     async placeOrder(raw: Parameters<typeof validatePlace>[0]) {
       if (!options.externalWritesEnabled) throw new PlatformDemoWritesDisabledError();
@@ -462,9 +484,17 @@ function bybitAdapter(credentials: Credentials, options: Required<AdapterOptions
   return {
     provider: "bybit" as const,
     async verify() {
+      const key = await request("GET", "/v5/user/query-api", {});
+      const permissions = record(key.permissions, "Bybit Demo API permission");
+      const spot = strings(permissions.Spot, "Bybit Demo Spot permission");
+      const forbiddenPermissionGroups = ["ContractTrade", "Wallet", "Options", "Derivatives", "Exchange", "Earn", "FiatP2P", "FiatBitPay", "FiatConvertBroker", "BitCard", "ByXPost", "BlockTrade"];
+      if (key.readOnly !== 0 || !spot.includes("SpotTrade")
+        || forbiddenPermissionGroups.some((group) => strings(permissions[group] ?? [], `Bybit Demo ${group} permission`).length > 0)) {
+        throw new PlatformDemoResponseError("Bybit Demo Key 必须仅具备 SpotTrade，禁止划转、提现和衍生品权限");
+      }
       const result = await request("GET", "/v5/account/wallet-balance", { accountType: "UNIFIED" });
       if (!rows(result.list, "Bybit Demo account").length) throw new PlatformDemoResponseError("Bybit Demo 账户响应为空");
-      return { provider: "bybit" as const, status: "verified" as const, observedAt: options.now().toISOString() };
+      return { provider: "bybit" as const, status: "verified" as const, observedAt: options.now().toISOString(), permissionCheck: { spotTrade: true, withdrawal: false, transfer: false, derivatives: false } };
     },
     async placeOrder(raw: Parameters<typeof validatePlace>[0]) {
       if (!options.externalWritesEnabled) throw new PlatformDemoWritesDisabledError();

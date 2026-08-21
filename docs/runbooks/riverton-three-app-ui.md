@@ -76,7 +76,7 @@ Maintenance：`/`、`/models`、`/integrations`、`/integrations/email`、`/inte
 - 邮件测试的 `configured_not_sent` 显示“已配置但未发送”，不能写成已发送。
 - 运维页面只展示 `hasSecret`、配置状态和最近测试时间；密钥、完整端点和 Webhook payload 不得回显。
 - 真实永续订单始终关闭。
-- 运维紧急暂停按当前 RBAC 数据范围生效，必须填写原因并审计；自动处理仓位仅限已授权 OKX Demo 账户，解除后策略不会自动恢复。
+- 运维紧急暂停按当前 RBAC 数据范围生效，必须填写原因并审计；它只把官方 Paper 组合限制为 `close_only/read_only` 并拒绝待处理买入，不发送任何订单，也不改变平台 Demo kill switch。解除后组合不会自动恢复，必须由显式会员/客户状态流程重新核验。
 - 客户端只读取平台设置中的公开品牌、客服和公告字段。Telegram 客服链接只接受受支持域名的 HTTPS 地址；未配置时明确显示未配置，不生成假工单回执。
 
 ## 6. 验证命令

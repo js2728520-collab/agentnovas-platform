@@ -72,6 +72,7 @@ test("external demo writes are disabled by default and never reach transport", a
 
 test("OKX demo signs every private request and always sends x-simulated-trading: 1", async () => {
   const transport = fixtureTransport([
+    { status: 200, json: { code: "0", data: [{ perm: "read_only,trade", acctLv: "1", enableSpotBorrow: false, autoLoan: false }] } },
     { status: 200, json: { code: "0", data: [{ totalEq: "1000" }] } },
     { status: 200, json: { code: "0", data: [{ ordId: "okx-order", clOrdId: "rv12345678", sCode: "0" }] } },
     { status: 200, json: { code: "0", data: [{ ordId: "okx-order", clOrdId: "rv12345678", state: "live", accFillSz: "0" }] } },
@@ -97,7 +98,7 @@ test("OKX demo signs every private request and always sends x-simulated-trading:
       .digest("base64");
     assert.equal(request.headers["OK-ACCESS-SIGN"], expected);
   }
-  const placed = JSON.parse(transport.requests[1].body);
+  const placed = JSON.parse(transport.requests[2].body);
   assert.deepEqual({ instId: placed.instId, tdMode: placed.tdMode, ordType: placed.ordType, tgtCcy: placed.tgtCcy, sz: placed.sz }, {
     instId: "BTC-USDT", tdMode: "cash", ordType: "market", tgtCcy: "quote_ccy", sz: "10",
   });
@@ -105,7 +106,7 @@ test("OKX demo signs every private request and always sends x-simulated-trading:
 
 test("Binance adapter uses only Spot Test Network HMAC endpoints", async () => {
   const transport = fixtureTransport([
-    { status: 200, json: { accountType: "SPOT", canTrade: true } },
+    { status: 200, json: { accountType: "SPOT", canTrade: true, canWithdraw: false, permissions: ["SPOT"] } },
     { status: 200, json: { symbol: "BTCUSDT", orderId: 42, clientOrderId: "rv12345678", status: "NEW" } },
     { status: 200, json: { symbol: "BTCUSDT", orderId: 42, clientOrderId: "rv12345678", status: "FILLED", executedQty: "0.001", cummulativeQuoteQty: "10" } },
     { status: 200, json: { symbol: "BTCUSDT", orderId: 42, clientOrderId: "rv12345678", status: "CANCELED" } },
@@ -134,6 +135,7 @@ test("Binance adapter uses only Spot Test Network HMAC endpoints", async () => {
 
 test("Bybit demo forces category=spot and isLeverage=0 with v5 signing", async () => {
   const transport = fixtureTransport([
+    { status: 200, json: { retCode: 0, retMsg: "OK", result: { readOnly: 0, permissions: { Spot: ["SpotTrade"], ContractTrade: [], Wallet: [], Options: [], Derivatives: [], Exchange: [], Earn: [], FiatP2P: [], FiatBitPay: [], FiatConvertBroker: [], BitCard: [], ByXPost: [], BlockTrade: [] } } } },
     { status: 200, json: { retCode: 0, retMsg: "OK", result: { list: [{ accountType: "UNIFIED" }] } } },
     { status: 200, json: { retCode: 0, retMsg: "OK", result: { orderId: "bybit-order", orderLinkId: "rv12345678" } } },
     { status: 200, json: { retCode: 0, retMsg: "OK", result: { list: [{ orderId: "bybit-order", orderLinkId: "rv12345678", orderStatus: "New", cumExecQty: "0", cumExecValue: "0" }] } } },
@@ -149,15 +151,32 @@ test("Bybit demo forces category=spot and isLeverage=0 with v5 signing", async (
   await adapter.cancelOrder({ symbol: "BTCUSDT", clientOrderId: "rv12345678" });
   await adapter.listFills({ symbol: "BTCUSDT", providerOrderId: "bybit-order" });
   for (const request of transport.requests) assert.equal(new URL(request.url).origin, PLATFORM_DEMO_ENDPOINTS.bybit);
-  const placed = JSON.parse(transport.requests[1].body);
+  const placed = JSON.parse(transport.requests[2].body);
   assert.deepEqual({ category: placed.category, isLeverage: placed.isLeverage, marketUnit: placed.marketUnit, qty: placed.qty }, {
     category: "spot", isLeverage: 0, marketUnit: "quoteCoin", qty: "10",
   });
-  const payload = transport.requests[1].body;
+  const payload = transport.requests[2].body;
   const expected = createHmac("sha256", "fixture-secret")
     .update(`${now().getTime()}fixture-key5000${payload}`)
     .digest("hex");
-  assert.equal(transport.requests[1].headers["X-BAPI-SIGN"], expected);
+  assert.equal(transport.requests[2].headers["X-BAPI-SIGN"], expected);
+});
+
+test("demo verification rejects withdrawal, transfer, or derivatives permissions", async () => {
+  const okx = createPlatformDemoAdapter("okx", {
+    apiKey: "fixture-key", secret: "fixture-secret", passphrase: "fixture-passphrase",
+  }, { transport: fixtureTransport([{ status: 200, json: { code: "0", data: [{ perm: "read_only,trade,withdraw", acctLv: "1", enableSpotBorrow: false, autoLoan: false }] } }]), now });
+  await assert.rejects(okx.verify(), /禁止提现/);
+
+  const binance = createPlatformDemoAdapter("binance", {
+    apiKey: "fixture-key", secret: "fixture-secret",
+  }, { transport: fixtureTransport([{ status: 200, json: { accountType: "SPOT", canTrade: true, canWithdraw: true, permissions: ["SPOT"] } }]), now });
+  await assert.rejects(binance.verify(), /禁止提现/);
+
+  const bybit = createPlatformDemoAdapter("bybit", {
+    apiKey: "fixture-key", secret: "fixture-secret",
+  }, { transport: fixtureTransport([{ status: 200, json: { retCode: 0, result: { readOnly: 0, permissions: { Spot: ["SpotTrade"], Wallet: ["Withdraw"] } } } }]), now });
+  await assert.rejects(bybit.verify(), /禁止划转|提现|衍生品/);
 });
 
 test("malformed provider responses are rejected instead of treated as success", async () => {

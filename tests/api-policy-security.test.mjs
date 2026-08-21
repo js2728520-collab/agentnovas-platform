@@ -24,6 +24,16 @@ import { SENSITIVE_PERMISSION_KEYS } from "../lib/rbac.ts";
 const appApi = new URL("../app/api/", import.meta.url);
 const execFileAsync = promisify(execFile);
 
+test("commercial mutations preserve the proxy request id", async () => {
+  const source = await readFile(new URL("../lib/commercial-api.ts", import.meta.url), "utf8");
+  const request = new Request("https://agentnovas.com/api/membership/orders", {
+    headers: { "x-request-id": "req-commercial-123" },
+  });
+  assert.equal(normalizeRequestId(request.headers.get("x-request-id")), "req-commercial-123");
+  assert.match(source, /import \{ requestIdFor \} from "\.\/api-policy\.ts"/);
+  assert.match(source, /return requestIdFor\(request\)/);
+});
+
 async function routeFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const rows = await Promise.all(entries.map((entry) => {
@@ -120,7 +130,6 @@ test("session metadata names a method-level enforcing helper and public routes s
     ["POST", "/api/auth/logout"],
     ["POST", "/api/automation/demo-cycle"],
     ["POST", "/api/automation/platform-ai-cycle"],
-    ["GET", "/api/integrations/catalog"],
     ["GET", "/api/market/candles"],
     ["GET", "/api/market/instruments"],
     ["GET", "/api/market/news"],
@@ -156,13 +165,21 @@ test("commercial and official paper client routes declare exact RBAC permissions
   }
 });
 
+test("Client account profile is classified as full PII and a sensitive same-origin write", () => {
+  const readPolicy = apiPolicyForRoute("/api/account/profile", "GET");
+  const writePolicy = apiPolicyForRoute("/api/account/profile", "PATCH");
+  assert.equal(readPolicy.pii, "full");
+  assert.equal(readPolicy.sensitivity, "sensitive");
+  assert.equal(writePolicy.pii, "full");
+  assert.equal(writePolicy.sensitivity, "sensitive");
+  assert.equal(writePolicy.requiresSameOrigin, true);
+});
+
 test("client permission enforcement also requires the current legal bundle", async () => {
   const source = await readFile(new URL("../lib/access-control.ts", import.meta.url), "utf8");
-  const ai = await readFile(new URL("../lib/ai-api.ts", import.meta.url), "utf8");
   const research = await readFile(new URL("../lib/research-api.ts", import.meta.url), "utf8");
   const session = await readFile(new URL("../lib/session.ts", import.meta.url), "utf8");
   assert.match(source, /definition\.appId === "client"[\s\S]*requireCommercialLegalConsentGate\(pool, user\.id\)/);
-  assert.match(ai, /requireCommercialLegalConsentGate\(await getPostgresPool\(\), user\.id\)/);
   assert.match(research, /user\.role === "customer"[\s\S]*requireCommercialLegalConsentGate\(await getPostgresPool\(\), user\.id\)/);
   assert.match(session, /audience === "client"[\s\S]*clientRouteRequiresLegalConsent[\s\S]*requireCommercialLegalConsentGate/);
 });
@@ -201,7 +218,42 @@ test("standalone legal consent is a client session gate with same-origin protect
   assert.equal(write.authentication, "session");
   assert.deepEqual(write.audiences, ["client"]);
   assert.equal(write.requiresSameOrigin, true);
+  assert.equal(write.idempotency, true);
   assert.equal(write.sensitivity, "sensitive");
+});
+
+test("central policy declares and validates persistent idempotency contracts", () => {
+  for (const route of [
+    "/api/maintenance/integrations/:id/test",
+    "/api/maintenance/trading/emergency-stop",
+  ]) {
+    const policy = apiPolicyForRoute(route, "POST");
+    assert.equal(policy.idempotency, true, route);
+    const url = `https://xm.agentnovas.com${route.replace(":id", "market-news")}`;
+    assert.throws(() => evaluateApiRequestPolicy(new Request(url, {
+      method: "POST",
+      headers: { origin: "https://xm.agentnovas.com" },
+    })), (error) => error instanceof ApiPolicyError
+      && error.code === "IDEMPOTENCY_KEY_REQUIRED"
+      && error.status === 422);
+    assert.throws(() => evaluateApiRequestPolicy(new Request(url, {
+      method: "POST",
+      headers: {
+        origin: "https://xm.agentnovas.com",
+        "idempotency-key": "short",
+      },
+    })), (error) => error instanceof ApiPolicyError
+      && error.code === "IDEMPOTENCY_KEY_REQUIRED"
+      && error.status === 422);
+    assert.equal(evaluateApiRequestPolicy(new Request(url, {
+      method: "POST",
+      headers: {
+        origin: "https://xm.agentnovas.com",
+        "idempotency-key": "maintenance-command-123",
+      },
+    })).audience, "maintenance");
+  }
+  assert.equal(apiPolicyForRoute("/api/maintenance/integrations/catalog", "GET").idempotency, false);
 });
 
 test("payment webhook stays disabled until a provider verifier is implemented", () => {
@@ -222,6 +274,8 @@ test("payment webhook stays disabled until a provider verifier is implemented", 
 test("commercial beta rejects legacy customer credentials, funding, and trading surfaces at the proxy", () => {
   const disabled = [
     ["GET", "/api/notifications/channels"],
+    ["GET", "/api/integrations/catalog"],
+    ["GET", "/api/public-pool"],
     ["POST", "/api/wallet/deposit-orders"],
     ["POST", "/api/exchange-accounts"],
     ["PATCH", "/api/exchange-accounts/:id"],
@@ -292,8 +346,12 @@ test("unknown hosts and cross-audience sensitive routes fail closed", () => {
     method: "POST",
     headers: { origin: "https://zht.agentnovas.com" },
   })).audience, "operations");
+  assert.equal(evaluateApiRequestPolicy(new Request("https://agentnovas.com/api/auth/mfa/verify", {
+    method: "POST",
+    headers: { origin: "https://agentnovas.com" },
+  })).audience, "client");
   assert.throws(() => evaluateApiRequestPolicy(new Request("https://agentnovas.com/api/auth/mfa/verify", { method: "POST" })),
-    (error) => error instanceof ApiPolicyError && error.code === "ROUTE_NOT_AVAILABLE" && error.status === 404);
+    (error) => error instanceof ApiPolicyError && error.code === "CSRF_ORIGIN_REQUIRED" && error.status === 403);
 });
 
 test("a configured process still rejects an unknown Host and attacker-controlled Origin", () => {
@@ -322,7 +380,6 @@ test("legacy sensitive surfaces are assigned to their owning application", () =>
   for (const pathname of [
     "/api/approvals",
     "/api/data-center",
-    "/api/finance/settlements",
     "/api/organization/members",
     "/api/team/monthly-targets",
   ]) {
@@ -330,6 +387,8 @@ test("legacy sensitive surfaces are assigned to their owning application", () =>
     assert.throws(() => evaluateApiRequestPolicy(new Request(`https://xm.agentnovas.com${pathname}`)),
       (error) => error instanceof ApiPolicyError && error.status === 404);
   }
+  assert.deepEqual(apiPolicyForRoute("/api/finance/settlements", "GET").audiences, ["operations"]);
+  assert.equal(apiPolicyForRoute("/api/finance/settlements", "GET").authentication, "disabled");
   assert.equal(evaluateApiRequestPolicy(new Request("https://xm.agentnovas.com/api/admin/llm-profiles")).audience, "maintenance");
   assert.deepEqual(apiPolicyForRoute("/api/wallet/deposit-orders", "POST").audiences, ["client"]);
   assert.deepEqual(apiPolicyForRoute("/api/operations/deposits", "GET").audiences, ["operations"]);

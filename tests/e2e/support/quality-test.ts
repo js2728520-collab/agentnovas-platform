@@ -10,6 +10,29 @@ import {
 } from "../../../scripts/quality/quality-policy.mjs";
 
 type QualityFixtures = { qualityEvidence: void };
+type QualityAudience = "client" | "operations" | "maintenance";
+
+const audienceNavigationContract: Record<QualityAudience, {
+  navigationName: string;
+  requiredLabels: string[];
+  forbiddenLabels: string[];
+}> = {
+  client: {
+    navigationName: "客户端资产中心导航",
+    requiredLabels: ["客户工作台", "会员中心", "AI 积分", "模拟组合", "七智能体交易大厅", "钱包与账本", "通知中心"],
+    forbiddenLabels: ["运营概览", "客户管理", "系统概览", "模型与 Agent"],
+  },
+  operations: {
+    navigationName: "运营端导航",
+    requiredLabels: ["运营概览"],
+    forbiddenLabels: ["客户工作台", "会员中心", "七智能体交易大厅", "系统概览", "模型与 Agent"],
+  },
+  maintenance: {
+    navigationName: "运维端导航",
+    requiredLabels: ["系统概览", "系统健康", "模型与 Agent"],
+    forbiddenLabels: ["客户工作台", "会员中心", "七智能体交易大厅", "运营概览", "客户管理", "会员订单"],
+  },
+};
 
 function safeUrl(value: string) {
   try {
@@ -165,6 +188,19 @@ export async function expectInitialResourceBudget(page: Page) {
   expect(bytes.scripts, "initial script transfer budget").toBeLessThanOrEqual(200 * 1024);
   expect(bytes.styles, "initial stylesheet transfer budget").toBeLessThanOrEqual(50 * 1024);
   expect(bytes.largestImage, "single initial image transfer budget").toBeLessThanOrEqual(200 * 1024);
+}
+
+export async function expectAudienceNavigation(page: Page, audience: QualityAudience) {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const contract = audienceNavigationContract[audience];
+  const navigation = page.getByRole("navigation", { name: contract.navigationName });
+  await expect(navigation).toBeVisible();
+  for (const label of contract.requiredLabels) {
+    await expect(navigation.getByRole("link", { name: label, exact: true }), `${audience} navigation must expose ${label}`).toBeVisible();
+  }
+  for (const label of contract.forbiddenLabels) {
+    await expect(navigation.getByRole("link", { name: label, exact: true }), `${audience} navigation must not expose ${label}`).toHaveCount(0);
+  }
 }
 
 export async function exerciseResponsiveWidths(page: Page, path: string, heading: string | RegExp) {

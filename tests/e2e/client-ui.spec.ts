@@ -1,14 +1,38 @@
-import { exerciseResponsiveWidths, test } from "./support/quality-test";
+import { exerciseResponsiveWidths, expectAudienceNavigation, test } from "./support/quality-test";
 
-test("client notification workspace is responsive, accessible and quiet", async ({ page }) => {
-  await exerciseResponsiveWidths(page, "/notifications", "通知中心");
+test("client communication and account workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
+  for (const [path, heading] of [
+    ["/notifications", "通知中心"],
+    ["/account/security", "账号与登录安全"],
+    ["/support", "支持与公告"],
+  ] as const) {
+    await exerciseResponsiveWidths(page, path, heading);
+    await expectAudienceNavigation(page, "client");
+  }
 });
 
-test("client wallet workspace is responsive, accessible and quiet", async ({ page }) => {
-  await exerciseResponsiveWidths(page, "/wallet", "钱包与账本");
+test("client wallet boundaries are responsive, accessible and audience-isolated", async ({ page }) => {
+  for (const [path, heading] of [
+    ["/wallet", "钱包与账本"],
+    ["/wallet/deposits", "充值暂不开放"],
+  ] as const) {
+    await exerciseResponsiveWidths(page, path, heading);
+    await expectAudienceNavigation(page, "client");
+  }
 });
 
-test("client home and versioned commercial disclosure workspace are responsive, accessible and quiet", async ({ page }) => {
-  await exerciseResponsiveWidths(page, "/", "客户工作台");
-  await exerciseResponsiveWidths(page, "/legal/consent", "商业披露与版本确认");
+test("client commercial and paper workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
+  for (const [path, heading] of [
+    ["/", "客户工作台"],
+    ["/membership", "会员与 AI 积分"],
+    ["/membership/orders", "会员与 AI 积分"],
+    ["/credits", "AI 积分"],
+    ["/paper", "交易中心"],
+    ["/trading-hall", "交易中心"],
+    ["/performance-statements", "绩效账单"],
+    ["/legal/consent", "商业披露与版本确认"],
+  ] as const) {
+    await exerciseResponsiveWidths(page, path, heading);
+    await expectAudienceNavigation(page, "client");
+  }
 });

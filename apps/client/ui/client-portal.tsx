@@ -19,6 +19,7 @@ const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((modul
 const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience), { loading: workspaceLoading });
 const MembershipExperience = dynamic(() => import("./membership-experience"), { loading: workspaceLoading });
 const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace), { loading: workspaceLoading });
+const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace), { loading: workspaceLoading });
 const TradingExperience = dynamic(() => import("./trading-experience"), { loading: workspaceLoading });
 const WalletWorkspace = dynamic(() => import("./wallet-workspace").then((module) => module.WalletWorkspace), { loading: workspaceLoading });
 const AccountSecurityWorkspace = dynamic(() => import("./account-security-workspace").then((module) => module.AccountSecurityWorkspace), { loading: workspaceLoading });
@@ -73,10 +74,17 @@ export default function ClientPortal({ segments, loginMode }: { segments: string
     if (!hasAnyPermission(session.access.permissions, ["client.credits.view"])) return <AccessDenied />;
     return <CreditWorkspace viewer={session.viewer} access={session.access} />;
   }
+  if (route === "performance-statements") {
+    if (!hasAnyPermission(session.access.permissions, ["client.membership.view"])) return <AccessDenied />;
+    return <PerformanceStatementsWorkspace viewer={session.viewer} access={session.access} statementId={segments[1]} />;
+  }
   if (route === "paper" || route === "trading-hall") {
     if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
     return <ClientPortalShell viewer={session.viewer} access={session.access}>
-      <TradingExperience portfolioId={route === "paper" ? segments[1] : undefined} />
+      <TradingExperience
+        portfolioId={route === "paper" ? segments[1] : undefined}
+        canManage={hasAnyPermission(session.access.permissions, ["client.paper.manage"])}
+      />
     </ClientPortalShell>;
   }
   if (!hasAnyPermission(session.access.permissions, ["client.wallet.view"])) return <AccessDenied />;

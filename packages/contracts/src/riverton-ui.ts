@@ -109,15 +109,86 @@ export type MaintenancePaymentProvider = {
 };
 export type MaintenanceEmailStatus = {
   provider: string; configured: boolean; senderDomainVerified: boolean; apiKeyPresent: boolean;
+  webhookSecretPresent: boolean; allowlistPresent: boolean; templatesReady: boolean;
+  suppressionReady: boolean; workerEnabled: boolean; sendAuthorized: boolean;
+  effectiveStatus: "ready" | "configured_not_sent";
   lastTestAt: string | null;
 };
+export type MaintenanceResourcePhase = "ready" | "loading" | "error" | "unknown";
+export type MaintenanceResourceDisplayStatus = "ready" | "loading" | "unavailable" | "unknown";
+export type MaintenanceResourceSnapshot<T> = {
+  data: T | null | undefined;
+  loading: boolean;
+  error: string | null | undefined;
+};
+export type MaintenanceWorkerStatus = {
+  configured: boolean;
+  enabled: boolean;
+  liveness: "missing" | "alive" | "stale";
+  health: "disabled" | "unconfigured" | "missing" | "stale" | "degraded" | "healthy";
+  runtimeStatus: string | null;
+  heartbeatAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  lastErrorCode: string | null;
+  currentJobId: string | null;
+  commitSha: string | null;
+};
+export type MaintenanceWorkerHealth = {
+  checkedAt: string;
+  database: {
+    status: string;
+    pool: { total: number; idle: number; waiting: number };
+    migration: { latest: string; checksumRecorded: boolean; commitRecorded: boolean } | null;
+  };
+  queues: Array<{
+    queue: string;
+    depth: number;
+    oldestAgeSeconds: number | null;
+    status: string;
+    warningAgeSeconds: number;
+    criticalAgeSeconds: number;
+  }>;
+  paymentWorker: MaintenanceWorkerStatus;
+  notificationWorker: MaintenanceWorkerStatus & { resendConfigured: boolean };
+  researchWorker: MaintenanceWorkerStatus;
+  runtimeWorker: MaintenanceWorkerStatus;
+  demoExecutionWorker: MaintenanceWorkerStatus & {
+    externalWritesEnabled: boolean;
+    executionEnabled: boolean;
+  };
+};
 export type MaintenanceTechnicalAuditEvent = {
-  id: string; operation: "control" | "verify"; actorUserId: string;
-  account: { id: string; provider: string; label: string };
-  action: string; strategyCode: string | null; reason: string;
+  id: string; domain: "demo" | "models" | "integrations" | "settings" | "safety" | "identity";
+  actorUserId: string | null; subject: { type: string; id: string; label: string | null };
+  action: string; reason: string | null;
   status: "pending" | "succeeded" | "failed"; errorCode: string | null;
+  requestId: string | null; traceId: string | null;
   createdAt: string; completedAt: string | null;
 };
+
+export function maintenanceResourcePhase<T>(resource: MaintenanceResourceSnapshot<T>): MaintenanceResourcePhase {
+  if (resource.error?.trim()) return "error";
+  if (resource.loading) return "loading";
+  if (resource.data === null || resource.data === undefined) return "unknown";
+  return "ready";
+}
+
+export function maintenanceResourceDisplayStatus(phase: MaintenanceResourcePhase): MaintenanceResourceDisplayStatus {
+  return phase === "error" ? "unavailable" : phase;
+}
+
+export function maintenanceQueueDisplayStatus(
+  phase: MaintenanceResourcePhase,
+  queues: ReadonlyArray<{ status: string }> | null | undefined,
+): Exclude<MaintenanceResourceDisplayStatus, "ready"> | "healthy" | "warning" | "critical" {
+  if (phase !== "ready") return maintenanceResourceDisplayStatus(phase) as Exclude<MaintenanceResourceDisplayStatus, "ready">;
+  if (!queues?.length) return "unknown";
+  if (queues.some((queue) => queue.status === "critical")) return "critical";
+  if (queues.some((queue) => queue.status === "warning")) return "warning";
+  if (queues.every((queue) => queue.status === "healthy")) return "healthy";
+  return "unknown";
+}
 
 export function hasAnyPermission(
   permissions: Record<string, DataScope>,

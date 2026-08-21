@@ -1,26 +1,29 @@
 "use client";
 
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 
-import { ApprovalsWorkspace } from "./approvals-workspace";
-import { CustomersWorkspace } from "./customers-workspace";
-import { CreditsWorkspace } from "./credits-workspace";
-import { DepositsWorkspace } from "./deposits-workspace";
-import { FinanceWorkspace } from "./finance-workspace";
-import { LedgerWorkspace } from "./ledger-workspace";
-import { MembershipOrdersWorkspace } from "./membership-orders-workspace";
-import { OperationsOverview } from "./operations-overview";
-import { OrganizationWorkspace } from "./organization-workspace";
-import { PerformanceStatementsWorkspace } from "./performance-statements-workspace";
-import { TeamWorkspace } from "./team-workspace";
-import { DataCenterWorkspace } from "./data-center-workspace";
 import { AppLogin } from "@/packages/ui/src/app-login";
-import { AccessCenter } from "@/packages/ui/src/access-center";
 import { ConsoleShell } from "@/packages/ui/src/console-shell";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
 import { hasAnyPermission, type ConsoleNavigationItem } from "@/packages/contracts/src/riverton-ui";
-import { InternalAccountSecurity } from "@/packages/ui/src/internal-account-security";
+
+const workspaceLoading = () => <LoadingState label="正在加载运营模块…" />;
+const ApprovalsWorkspace = dynamic(() => import("./approvals-workspace").then((module) => module.ApprovalsWorkspace), { loading: workspaceLoading });
+const CustomersWorkspace = dynamic(() => import("./customers-workspace").then((module) => module.CustomersWorkspace), { loading: workspaceLoading });
+const CreditsWorkspace = dynamic(() => import("./credits-workspace").then((module) => module.CreditsWorkspace), { loading: workspaceLoading });
+const DepositsWorkspace = dynamic(() => import("./deposits-workspace").then((module) => module.DepositsWorkspace), { loading: workspaceLoading });
+const FinanceWorkspace = dynamic(() => import("./finance-workspace").then((module) => module.FinanceWorkspace), { loading: workspaceLoading });
+const LedgerWorkspace = dynamic(() => import("./ledger-workspace").then((module) => module.LedgerWorkspace), { loading: workspaceLoading });
+const MembershipOrdersWorkspace = dynamic(() => import("./membership-orders-workspace").then((module) => module.MembershipOrdersWorkspace), { loading: workspaceLoading });
+const OperationsOverview = dynamic(() => import("./operations-overview").then((module) => module.OperationsOverview), { loading: workspaceLoading });
+const OrganizationWorkspace = dynamic(() => import("./organization-workspace").then((module) => module.OrganizationWorkspace), { loading: workspaceLoading });
+const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace), { loading: workspaceLoading });
+const TeamWorkspace = dynamic(() => import("./team-workspace").then((module) => module.TeamWorkspace), { loading: workspaceLoading });
+const DataCenterWorkspace = dynamic(() => import("./data-center-workspace").then((module) => module.DataCenterWorkspace), { loading: workspaceLoading });
+const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter), { loading: workspaceLoading });
+const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity), { loading: workspaceLoading });
 
 const navigation: ConsoleNavigationItem[] = [
   { href: "/", label: "运营概览", icon: "⌂" },

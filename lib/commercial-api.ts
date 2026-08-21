@@ -1,6 +1,7 @@
 import { decodeCommercialCursor } from "./commercial-api-support.ts";
 import { readResearchJson } from "./research-api.ts";
 import { ResearchApiError } from "./research-errors.ts";
+import { requestIdFor } from "./api-policy.ts";
 
 export function commercialListInput(request: Request) {
   const url = new URL(request.url);
@@ -26,6 +27,6 @@ export function stringArray(body: Record<string, unknown>, key: string, maximum 
     throw new ResearchApiError("VALIDATION_ERROR",`${key} 无效`,422,{fields:[key]});
   return value.map(item=>(item as string).trim());
 }
-export function requestId(request: Request) { void request;return crypto.randomUUID(); }
+export function requestId(request: Request) { return requestIdFor(request); }
 
 export { idempotencyKey,paymentEvidenceInput } from "./commercial-request-validation.ts";

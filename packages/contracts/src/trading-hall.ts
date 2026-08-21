@@ -45,7 +45,7 @@ export const tradingHallAgentCatalog = [
     key: "execution_receipt",
     sequence: 7,
     name: "交易执行员",
-    question: "如何在客户交易所安全成交？",
+    question: "如何生成客户 Paper 回执并记录独立的平台 Demo 证据？",
     outputName: "交易执行回执",
   },
 ] as const;

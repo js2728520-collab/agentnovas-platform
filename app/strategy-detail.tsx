@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { useEffect, useMemo, useState } from "react";
 import { strategyRequiresContracts } from "@/lib/exchange-capabilities";
 
@@ -209,7 +211,7 @@ export default function StrategyDetail({ strategy, onBack }: { strategy: Strateg
           <article><small>STRATEGY LOGIC</small><h3>策略逻辑</h3><p>结合多周期趋势、波动率与成交量确认识别交易机会。信号必须同时满足数据完整性、风险预算和执行条件才会提交。</p><ul><li>趋势与市场状态识别</li><li>成交量和流动性过滤</li><li>分批入场与动态退出</li><li>异常行情自动停止开仓</li></ul></article>
           <article><small>RISK BOUNDARIES</small><h3>风险边界</h3><p>AI可以提出仓位和退出建议，但不能突破账户级硬风控，也无权绕过风控审批。</p><dl><div><dt>单次资金上限</dt><dd>≤ 8%</dd></div><div><dt>策略最大杠杆</dt><dd>2×</dd></div><div><dt>连续失败熔断</dt><dd>3 次</dd></div><div><dt>行情延迟阈值</dt><dd>3 秒</dd></div></dl></article>
         </section>
-        <section className="strategy-author-panel"><div className="strategy-author-heading"><div className="strategy-author-avatar">{strategy.authorAvatarUrl?.startsWith("http") ? <img src={strategy.authorAvatarUrl} alt="" /> : strategy.source === "platform" ? "AI" : authorName.slice(0, 1).toUpperCase()}</div><div><small>AUTHOR PROFILE</small><h2>作者信息</h2></div></div><div className="strategy-author-content"><div><b>{authorName}</b><span>{authorRole}</span></div><dl><div><dt>发布方式</dt><dd>{strategy.source === "platform" ? "平台策略" : "策略广场"}</dd></div><div><dt>策略版本</dt><dd>V{strategy.version}</dd></div>{strategy.authorEmail && <div><dt>联系邮箱</dt><dd>{strategy.authorEmail}</dd></div>}</dl></div></section>
+        <section className="strategy-author-panel"><div className="strategy-author-heading"><div className="strategy-author-avatar">{strategy.authorAvatarUrl?.startsWith("http") ? <Image src={strategy.authorAvatarUrl} alt="" width={48} height={48} unoptimized /> : strategy.source === "platform" ? "AI" : authorName.slice(0, 1).toUpperCase()}</div><div><small>AUTHOR PROFILE</small><h2>作者信息</h2></div></div><div className="strategy-author-content"><div><b>{authorName}</b><span>{authorRole}</span></div><dl><div><dt>发布方式</dt><dd>{strategy.source === "platform" ? "平台策略" : "策略广场"}</dd></div><div><dt>策略版本</dt><dd>V{strategy.version}</dd></div>{strategy.authorEmail && <div><dt>联系邮箱</dt><dd>{strategy.authorEmail}</dd></div>}</dl></div></section>
       </main>
 
       <aside className="strategy-follow-panel">

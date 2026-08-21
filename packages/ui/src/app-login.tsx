@@ -88,7 +88,6 @@ export function AppLogin({ audience, title, description, allowRegistration, init
       const payload = await postJson(endpoint, values);
       if (mode === "login") {
         if (payload.mfaRequired === true) {
-          if (audience === "client") throw new Error("当前客户端会话返回了无效的双重验证要求");
           if (payload.mfaEnrollmentRequired === true) {
             const enrollment = await postJson("/api/auth/mfa/enroll/start", {});
             const setupKey = setupKeyFromUri(enrollment.otpauthUri);

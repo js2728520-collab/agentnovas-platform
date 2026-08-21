@@ -1,5 +1,9 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 
+import {
+  lockOfficialPaperRuntimeAccess,
+  OFFICIAL_PAPER_EMERGENCY_REJECTION_CODE,
+} from "./official-paper-repository.ts";
 import { resolveRuntimeExplanationPrompt, type RuntimeExplanationOutput } from "./runtime-explanations.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
@@ -681,24 +685,36 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
       events: input.events,
     });
     if (input.orderIntent) {
-      const status = deployment.rows[0].mode === "shadow" ? "shadowed" : "pending";
+      let status: "shadowed" | "pending" | "rejected" = deployment.rows[0].mode === "shadow" ? "shadowed" : "pending";
       if (deployment.rows[0].execution_product === "spot_usdt") {
         const action = String(input.orderIntent.action);
         if (action === "enter_short") throw new Error("官方现货策略禁止生成空头意图");
         if (action !== "enter_long" && action !== "exit") throw new Error("官方现货策略订单动作无效");
         if (!deployment.rows[0].paper_portfolio_id || !input.symbol) throw new Error("官方模拟盘组合或交易对缺失");
         if (!Number.isFinite(input.riskPerTradePct) || Number(input.riskPerTradePct) <= 0) throw new Error("官方模拟盘单笔风险合同缺失");
+        const runtimeAccess = await lockOfficialPaperRuntimeAccess(client, {
+          portfolioId: deployment.rows[0].paper_portfolio_id,
+          asOf: input.startedAt,
+        });
+        const rejectionCode = deployment.rows[0].mode === "paper"
+          && action === "enter_long"
+          && runtimeAccess.access !== "active"
+          ? runtimeAccess.emergencyStopped
+            ? OFFICIAL_PAPER_EMERGENCY_REJECTION_CODE
+            : "OFFICIAL_PAPER_ACCESS_RESTRICTED"
+          : null;
+        if (rejectionCode) status = "rejected";
         await client.query(`
           INSERT INTO official_paper_order_intents (
             id, portfolio_id, deployment_id, runtime_cycle_id,
             idempotency_key, symbol, action, execution_timing,
-            requested_price, status, payload_json
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+            requested_price, status, rejection_code, payload_json
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
           ON CONFLICT (idempotency_key) DO NOTHING
         `, [crypto.randomUUID(), deployment.rows[0].paper_portfolio_id, input.deploymentId, input.cycleId,
           String(input.orderIntent.idempotencyKey), input.symbol, action === "enter_long" ? "buy" : "sell",
           String(input.orderIntent.executionTiming), input.orderIntent.requestedPrice ?? null,
-          status, JSON.stringify({
+          status, rejectionCode, JSON.stringify({
             mode: input.orderIntent.mode,
             quoteAmountUsdt: 10_000 * Number(input.riskPerTradePct) / 100,
             takerFeeRate: input.takerFeeRate ?? 0.001,

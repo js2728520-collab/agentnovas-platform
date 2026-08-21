@@ -4,10 +4,14 @@ import test from "node:test";
 
 test("internal login creates a restricted primary session that can enter enrollment", async () => {
   const login = await readFile(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
+  const mfa = await readFile(new URL("../lib/mfa.ts", import.meta.url), "utf8");
   assert.match(login, /user_mfa_totp_credentials/);
   assert.match(login, /mfaEnrollmentRequired/);
-  assert.match(login, /mfaLevel: "primary"/);
+  assert.match(login, /mfaLevel: mfaRequired \? "primary" : "none"/);
   assert.match(login, /mfaRequired/);
+  assert.match(mfa, /const internal = audience !== "client"/);
+  assert.match(mfa, /required: internal \|\| enrolled/);
+  assert.match(mfa, /enrollmentRequired: internal && !enrolled/);
 });
 test("the MFA endpoint is rate limited and atomically upgrades the same session", async () => {
   const verify = await readFile(new URL("../app/api/auth/mfa/verify/route.ts", import.meta.url), "utf8");

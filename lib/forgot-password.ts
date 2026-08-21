@@ -17,20 +17,8 @@ export async function queueForgotPasswordRequest(pool: Pick<Pool, "query">, inpu
     dummyVerifyPassword(input.email),
   ]);
   const payload = JSON.stringify({ encryptedToken, audience: "client", expiresAt });
-  const result = await pool.query(`
-    WITH target_user AS (
-      SELECT id FROM users WHERE email = $1 LIMIT 1
-    ), inserted_token AS (
-      INSERT INTO auth_tokens (id, user_id, token_hash, purpose, token_audience, expires_at)
-      SELECT $2, target_user.id, $3, 'reset_password', 'client', $4
-      FROM target_user
-      RETURNING user_id
-    )
-    INSERT INTO notification_deliveries
-      (id, user_id, channel, category, template_key, payload_json, scheduled_at, secret_kind, secret_expires_at)
-    SELECT $5, inserted_token.user_id, 'email', 'login_security', 'reset_password', $6, $7, 'reset_password', $4::timestamptz
-    FROM inserted_token
-    RETURNING id
-  `, [input.email, crypto.randomUUID(), tokenHash, expiresAt, crypto.randomUUID(), payload, now.toISOString()]);
-  return { queued: (result.rowCount ?? 0) === 1 };
+  const result = await pool.query<{ queued: boolean }>(`
+    SELECT client_queue_password_reset($1,$2,$3,$4,$5,$6,$7) AS queued
+  `, [input.email,crypto.randomUUID(),tokenHash,expiresAt,crypto.randomUUID(),payload,now]);
+  return { queued: Boolean(result.rows[0]?.queued) };
 }

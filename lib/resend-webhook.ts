@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Pool } from "pg";
 
 import { RESEND_SENDER_ADDRESS } from "./notifications.ts";
+import { notificationRecipientHash } from "./notification-email-worker.ts";
 
 const DEFAULT_TOLERANCE_SECONDS = 5 * 60;
 const MAX_EVENT_ID_LENGTH = 256;
@@ -27,7 +28,7 @@ const DELIVERY_EVENT_RULES = new Map<string, Pick<ResendDeliveryEvent, "nextStat
   ["email.delivered", { nextStatus: "delivered", errorCode: null, rank: 30 }],
   ["email.opened", { nextStatus: "delivered", errorCode: null, rank: 40 }],
   ["email.clicked", { nextStatus: "delivered", errorCode: null, rank: 40 }],
-  ["email.complained", { nextStatus: "delivered", errorCode: null, rank: 50 }],
+  ["email.complained", { nextStatus: "failed", errorCode: "RESEND_EMAIL_COMPLAINT", rank: 60 }],
   ["email.bounced", { nextStatus: "failed", errorCode: "RESEND_EMAIL_BOUNCED", rank: 60 }],
   ["email.failed", { nextStatus: "failed", errorCode: "RESEND_EMAIL_FAILED", rank: 60 }],
   ["email.suppressed", { nextStatus: "failed", errorCode: "RESEND_EMAIL_SUPPRESSED", rank: 60 }],
@@ -164,11 +165,13 @@ export async function applyResendWebhookEvent(pool: Pick<Pool, "connect">, input
     let applied = false;
     if (deliveryEvent) {
       const delivery = await client.query(
-        `SELECT id, status, provider_message_id, provider_event_type, provider_event_at
-           FROM notification_deliveries
+        `SELECT delivery.id, delivery.status, delivery.provider_message_id,
+                delivery.provider_event_type, delivery.provider_event_at, users.email AS recipient
+           FROM notification_deliveries AS delivery
+           JOIN users ON users.id=delivery.user_id
           WHERE channel = 'email'
-            AND (($1::text IS NOT NULL AND id = $1) OR provider_message_id = $2)
-          FOR UPDATE`,
+            AND (($1::text IS NOT NULL AND delivery.id = $1) OR delivery.provider_message_id = $2)
+          FOR UPDATE OF delivery`,
         [deliveryEvent.deliveryId, deliveryEvent.providerMessageId],
       );
       if (delivery.rows.length === 1) {
@@ -178,11 +181,26 @@ export async function applyResendWebhookEvent(pool: Pick<Pool, "connect">, input
           provider_message_id: string | null;
           provider_event_type: string | null;
           provider_event_at: string | Date | null;
+          recipient: string;
         };
         const identityMatches = (!deliveryEvent.deliveryId || current.id === deliveryEvent.deliveryId)
           && (!current.provider_message_id || current.provider_message_id === deliveryEvent.providerMessageId);
         if (identityMatches && ["queued", "sent", "delivered", "failed"].includes(current.status)) {
           mappedDeliveryId = current.id;
+          const suppressionReason = deliveryEvent.eventType === "email.bounced" ? "bounce"
+            : deliveryEvent.eventType === "email.complained" ? "complaint"
+              : deliveryEvent.eventType === "email.suppressed" ? "provider_suppression" : null;
+          if (suppressionReason) {
+            await client.query(`
+              INSERT INTO notification_email_suppressions(
+                recipient_hash,reason,source_event_id,active,created_at,updated_at
+              ) VALUES($1,$2,$3,true,$4,$4)
+              ON CONFLICT(recipient_hash) DO UPDATE SET
+                reason=EXCLUDED.reason,source_event_id=EXCLUDED.source_event_id,
+                active=true,updated_at=EXCLUDED.updated_at,resolved_at=NULL,
+                resolved_by=NULL,resolution_reason=NULL
+            `, [notificationRecipientHash(current.recipient), suppressionReason, input.eventId, receivedAt]);
+          }
           if (statusAllowsResendDeliveryEvent(current.status, deliveryEvent) && shouldApplyResendDeliveryEvent({
             eventType: current.provider_event_type,
             eventCreatedAt: current.provider_event_at,

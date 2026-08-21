@@ -1,12 +1,19 @@
+import {
+  normalizeNewsPublishedAt,
+  summarizeNewsFreshness,
+  type NewsContentFreshness,
+} from "../../../../lib/market-content-freshness.ts";
+
 type NewsItem = {
   id: string;
   title: string;
   summary: string;
   category: "快讯" | "资金流向" | "公告";
-  publishedAt: string;
+  publishedAt: string | null;
   source: string;
   link: string;
   live: boolean;
+  freshness?: NewsContentFreshness;
 };
 
 const defaultFeeds = [
@@ -93,23 +100,23 @@ function parseFeed(xml: string, source: string): NewsItem[] {
       const publishedAt = pick(block, "pubDate") || pick(block, "published") || pick(block, "updated");
       const link = pick(block, "link") || block.match(/<link[^>]+href=["']([^"']+)["']/i)?.[1] || "";
       if (!title) return [];
-      const parsedDate = new Date(publishedAt);
+      const normalizedPublishedAt = normalizeNewsPublishedAt(publishedAt);
       return [{
-        id: `${source.toLowerCase()}-${parsedDate.getTime() || Date.now()}-${index}`,
+        id: `${source.toLowerCase()}-${normalizedPublishedAt || "unknown-date"}-${index}`,
         title,
         summary: summary.slice(0, 150),
         category: categoryFor(title),
-        publishedAt: Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString(),
+        publishedAt: normalizedPublishedAt,
         source,
         link,
-        live: true,
+        live: false,
       }];
     });
 }
 
-function ageLabel(value: string, now: number) {
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "刚刚";
+function ageLabel(value: string | null, now: number) {
+  const timestamp = value ? new Date(value).getTime() : Number.NaN;
+  if (!Number.isFinite(timestamp)) return "发布时间未知";
   const minutes = Math.max(0, Math.floor((now - timestamp) / 60000));
   if (minutes < 1) return "刚刚";
   if (minutes < 60) return `${minutes}分钟前`;
@@ -121,6 +128,7 @@ function ageLabel(value: string, now: number) {
 export async function GET(request: Request) {
   const coin = new URL(request.url).searchParams.get("coin")?.toUpperCase() || "";
   const now = Date.now();
+  const observedAt = new Date(now);
   const results = await Promise.all(
     configuredFeeds().map(async (feed) => {
       try {
@@ -141,18 +149,30 @@ export async function GET(request: Request) {
   const ranked = [...fetched].sort((a, b) => {
     const aCoin = coin && new RegExp(`\\b${coin}\\b|${coin}USDT`, "i").test(a.title) ? 1 : 0;
     const bCoin = coin && new RegExp(`\\b${coin}\\b|${coin}USDT`, "i").test(b.title) ? 1 : 0;
-    return bCoin - aCoin || new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+    return bCoin - aCoin || (b.publishedAt ? Date.parse(b.publishedAt) : Number.NEGATIVE_INFINITY) - (a.publishedAt ? Date.parse(a.publishedAt) : Number.NEGATIVE_INFINITY);
   });
-  const items = (ranked.length ? ranked.slice(0, 12) : fallbackNews).map((item) => ({
-    ...item,
-    timeLabel: item.live ? ageLabel(item.publishedAt, now) : "备用提示",
-  }));
+  const content = summarizeNewsFreshness(fetched.map((item) => item.publishedAt), observedAt);
+  const items = (ranked.length ? ranked.slice(0, 12) : fallbackNews).map((item) => {
+    const itemFreshness = ranked.length
+      ? summarizeNewsFreshness([item.publishedAt], observedAt).freshness
+      : "unavailable";
+    return {
+      ...item,
+      freshness: itemFreshness,
+      live: itemFreshness === "fresh",
+      timeLabel: !ranked.length ? "备用提示" : itemFreshness === "unknown" ? "发布时间未知" : ageLabel(item.publishedAt, now),
+    };
+  });
 
   return Response.json(
     {
       source: ranked.length ? (process.env.NEWS_RSS_URLS || process.env.NEWS_API_URL ? "configured-rss" : "CoinDesk / Cointelegraph RSS") : "fallback",
-      live: ranked.length > 0,
-      updatedAt: new Date().toISOString(),
+      live: content.freshness === "fresh",
+      observedAt: observedAt.toISOString(),
+      updatedAt: observedAt.toISOString(),
+      contentFreshness: content.freshness,
+      stale: content.stale,
+      newestPublishedAt: content.newestPublishedAt,
       items,
     },
     {

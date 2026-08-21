@@ -1,8 +1,16 @@
-import type { ResolvedLlmConfig } from "@/lib/llm-config";
+import type { ResolvedLlmConfig } from "@/lib/client-platform-llm";
 
 export type AiProviderMessage = {
   role: "system" | "user" | "assistant";
   content: string;
+};
+
+export type TrustedAiUsage = {
+  source: "provider_metering";
+  providerRequestId: string;
+  usageId: string;
+  inputTokens: number;
+  outputTokens: number;
 };
 
 export function boundedAiHistory(
@@ -45,7 +53,11 @@ async function safeProviderError(response: Response, providerName: string) {
 export async function requestAiText(
   config: ResolvedLlmConfig,
   messages: AiProviderMessage[],
-  options: { maxOutputTokens?: number; temperature?: number } = {},
+  options: {
+    maxOutputTokens?: number;
+    temperature?: number;
+    fetchImpl?: typeof fetch;
+  } = {},
 ) {
   const maxOutputTokens = options.maxOutputTokens ?? 500;
   const body = config.apiStyle === "responses"
@@ -56,7 +68,7 @@ export async function requestAiText(
         temperature: options.temperature ?? 0.2,
         max_tokens: maxOutputTokens,
       };
-  const response = await fetch(config.endpoint, {
+  const response = await (options.fetchImpl ?? fetch)(config.endpoint, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -68,14 +80,44 @@ export async function requestAiText(
   });
   if (!response.ok) throw new Error(await safeProviderError(response, config.providerName));
   const data = await response.json() as {
+    id?: string;
     choices?: Array<{ message?: { content?: string } }>;
     output_text?: string;
     output?: Array<{ content?: Array<{ text?: string }> }>;
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      input_tokens?: number;
+      output_tokens?: number;
+    };
   };
   const text = config.apiStyle === "responses"
     ? responseOutputText(data)
     : data.choices?.[0]?.message?.content?.trim() || "";
   if (!text) throw new Error("AI 服务没有返回有效内容");
   if (text.length > 8_000) throw new Error("AI 服务返回内容过长");
-  return text;
+  const providerRequestId = data.id?.trim() ?? "";
+  const inputTokens = config.apiStyle === "responses"
+    ? data.usage?.input_tokens
+    : data.usage?.prompt_tokens;
+  const outputTokens = config.apiStyle === "responses"
+    ? data.usage?.output_tokens
+    : data.usage?.completion_tokens;
+  if (
+    !providerRequestId || providerRequestId.length > 200
+    || !Number.isSafeInteger(inputTokens) || Number(inputTokens) < 0
+    || !Number.isSafeInteger(outputTokens) || Number(outputTokens) <= 0
+  ) {
+    throw new Error("AI 服务未返回可靠的请求标识与用量计量");
+  }
+  return {
+    text,
+    metering: {
+      source: "provider_metering" as const,
+      providerRequestId,
+      usageId: providerRequestId,
+      inputTokens: Number(inputTokens),
+      outputTokens: Number(outputTokens),
+    },
+  };
 }

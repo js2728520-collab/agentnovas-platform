@@ -30,6 +30,7 @@
     "quality:bundle": "node scripts/quality/check-next-bundle-budget.mjs",
     "quality:lighthouse": "node scripts/quality/run-lighthouse.mjs",
     "quality:release": "node scripts/quality/verify-release-evidence.mjs",
+    "quality:secret-scan": "node scripts/quality/repository-secret-scan.mjs",
     "lint": "eslint app apps db lib packages scripts tests drizzle.config.ts eslint.config.mjs next.config.ts postcss.config.mjs --ignore-pattern 'dist' --ignore-pattern '.next' --ignore-pattern '.next-*' --no-warn-ignored",
     "db:generate": "drizzle-kit generate",
     "postgres:migrate": "node --experimental-strip-types scripts/apply-postgres-migrations.mjs",

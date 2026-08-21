@@ -26,6 +26,7 @@ import {
   ensureOfficialPaperPortfolios,
   resolveOfficialThreeCardPortfolioScope,
   refreshOfficialPaperRiskState,
+  restrictOfficialPaperPortfoliosForEmergency,
   settlePendingOfficialPaperOrder,
 } from "../lib/official-paper-repository.ts";
 import { evaluatePlatformStrategy, PLATFORM_AI_STRATEGIES } from "../lib/platform-ai-strategies.ts";
@@ -105,6 +106,27 @@ async function initializePre0024Schema(database) {
   }
 }
 
+async function initializeEmergencyAccessSchema(database) {
+  await database.query(`
+    CREATE TABLE users (
+      id text PRIMARY KEY,
+      organization_id text
+    );
+    CREATE TABLE customer_attributions (
+      id text PRIMARY KEY,
+      customer_id text NOT NULL,
+      branch_id text,
+      status text NOT NULL,
+      effective_at timestamptz
+    );
+    CREATE TABLE trading_emergency_stops (
+      id text PRIMARY KEY,
+      scope_key text NOT NULL UNIQUE,
+      active boolean NOT NULL DEFAULT false
+    );
+  `);
+}
+
 async function seedDeployment(mode = "shadow", key = crypto.randomUUID()) {
   return createStrategyDeployment(pool, {
     ownerUserId: "owner-a",
@@ -147,14 +169,16 @@ test.before(async () => {
   const migration0024 = await readFile(new URL("../postgres/migrations/0024_platform_demo_execution.sql", import.meta.url), "utf8");
   await pool.query(migration0024);
   await pool.query(migration0024);
+  await initializeEmergencyAccessSchema(pool);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-official', $1)`, [JSON.stringify(platformStrategyDslV3("ai_conservative", "BTCUSDT"))]);
   await pool.query(`INSERT INTO exchange_accounts (id, exchange) VALUES ('account-a', 'binance')`);
   await pool.query(`INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at) VALUES ('membership-official', 'owner-official', 'active', NULL, NULL)`);
+  await pool.query(`INSERT INTO users (id, organization_id) VALUES ('owner-official', NULL)`);
 });
 
 test.beforeEach(async () => {
-  await pool.query("TRUNCATE strategy_deployments, official_paper_portfolios, runtime_explanation_bindings, llm_profiles CASCADE");
+  await pool.query("TRUNCATE strategy_deployments, official_paper_portfolios, runtime_explanation_bindings, llm_profiles, trading_emergency_stops CASCADE");
 });
 
 test.after(async () => {
@@ -963,6 +987,191 @@ test("pending official paper settlement locks current membership access and expi
     pool.query("UPDATE official_paper_fill_receipts SET trace_id = 'mutated' WHERE portfolio_id = $1", [portfolio.id]),
     /append-only/i,
   );
+});
+
+test("emergency access is sticky across membership refresh while exits remain settleable", async () => {
+  const deployment = await seedOfficialDeployment("paper", "official-emergency-settlement");
+  const portfolioId = deployment.paperPortfolioId;
+  const insertPending = async (sequence, action, payload = {}) => {
+    const cycleId = `emergency-settlement-cycle-${sequence}`;
+    const cycleAt = new Date(`2026-08-${String(10 + sequence).padStart(2, "0")}T00:00:00.000Z`);
+    await pool.query(`
+      INSERT INTO strategy_runtime_cycles (
+        id, deployment_id, sequence, fencing_token, candle_open_time, candle_close_time,
+        status, decision_json, trace_id, started_at
+      ) VALUES ($1, $2, $3, 1, $4, $4, 'completed', '{}'::jsonb, $5, $4)
+    `, [cycleId, deployment.id, sequence, cycleAt, `emergency-trace-${sequence}`]);
+    await pool.query(`
+      INSERT INTO official_paper_order_intents (
+        id, portfolio_id, deployment_id, runtime_cycle_id, idempotency_key,
+        symbol, action, execution_timing, requested_price, status, payload_json
+      ) VALUES ($1, $2, $3, $4, $5, 'BTCUSDT', $6, 'next_candle_open', 50000, 'pending', $7::jsonb)
+    `, [crypto.randomUUID(), portfolioId, deployment.id, cycleId, `emergency-intent-${sequence}`, action,
+      JSON.stringify({ quoteAmountUsdt: 100, takerFeeRate: 0.001, ...payload })]);
+  };
+  const settle = (sequence) => settlePendingOfficialPaperOrder(pool, {
+    deploymentId: deployment.id,
+    fillPrice: 50_000,
+    fillTime: new Date(`2026-08-${String(10 + sequence).padStart(2, "0")}T00:00:00.000Z`),
+    timing: "next_candle_open",
+    traceId: `emergency-settle-${sequence}`,
+  });
+
+  await insertPending(1, "buy");
+  assert.equal((await settle(1))?.status, "filled");
+  await insertPending(2, "buy");
+  await insertPending(3, "sell");
+  const pauseClient = await pool.connect();
+  try {
+    await pauseClient.query("BEGIN");
+    const pauseBackendPid = (await pauseClient.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    await pauseClient.query(`
+      INSERT INTO trading_emergency_stops(id,scope_key,active)
+      VALUES('platform-emergency','platform',true)
+    `);
+    const restricted = await restrictOfficialPaperPortfoliosForEmergency(pauseClient, {
+      customerIds: ["owner-official"],
+      now: new Date("2026-08-12T00:00:00.000Z"),
+    });
+    assert.equal(restricted.rejectedPendingBuys, 1);
+    assert.deepEqual((await pauseClient.query(`
+      SELECT action,status,rejection_code FROM official_paper_order_intents
+      WHERE idempotency_key IN ('emergency-intent-2','emergency-intent-3')
+      ORDER BY action
+    `)).rows, [
+      { action: "buy", status: "rejected", rejection_code: "TRADING_EMERGENCY_STOPPED" },
+      { action: "sell", status: "pending", rejection_code: null },
+    ]);
+    const pendingExitSettlement = settle(3);
+    let settlementBlockedByPause = false;
+    for (let attempt = 0; attempt < 100 && !settlementBlockedByPause; attempt += 1) {
+      const blocked = await pool.query(`
+        SELECT EXISTS (
+          SELECT 1 FROM pg_stat_activity
+          WHERE $1::int = ANY(pg_blocking_pids(pid))
+        ) AS present
+      `, [pauseBackendPid]);
+      settlementBlockedByPause = blocked.rows[0].present === true;
+      if (!settlementBlockedByPause) await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(settlementBlockedByPause, true);
+    await pauseClient.query("COMMIT");
+    assert.equal((await pendingExitSettlement)?.status, "filled");
+  } catch (error) {
+    await pauseClient.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    pauseClient.release();
+  }
+  assert.equal((await pool.query(
+    "SELECT access_status FROM official_paper_portfolios WHERE id=$1",
+    [portfolioId],
+  )).rows[0].access_status, "read_only");
+
+  await insertPending(4, "buy");
+  const stoppedBuy = await settle(4);
+  assert.equal(stoppedBuy?.status, "rejected");
+  assert.match(stoppedBuy?.reason || "", /只允许平仓|只读|紧急暂停/);
+  assert.equal((await pool.query(`
+    SELECT rejection_code FROM official_paper_order_intents
+    WHERE idempotency_key='emergency-intent-4'
+  `)).rows[0].rejection_code, "TRADING_EMERGENCY_STOPPED");
+
+  await pool.query(`UPDATE trading_emergency_stops SET active=false WHERE scope_key='platform'`);
+  await insertPending(5, "buy");
+  const stillRestrictedBuy = await settle(5);
+  assert.equal(stillRestrictedBuy?.status, "rejected");
+  assert.equal((await pool.query(
+    "SELECT access_status FROM official_paper_portfolios WHERE id=$1",
+    [portfolioId],
+  )).rows[0].access_status, "read_only");
+});
+
+test("a buy completed after emergency pause during a lease is rejected", async () => {
+  const deployment = await seedOfficialDeployment("paper", "official-emergency-during-lease");
+  const leasedAt = new Date(Date.now() + 60_000);
+  const lease = await leaseNextStrategyDeployment(pool, {
+    workerId: "emergency-race-worker",
+    now: leasedAt,
+    leaseSeconds: 30,
+  });
+  assert.equal(lease.id, deployment.id);
+  const events = [
+    "market_data", "technical_analysis", "strategy_decision", "adversarial_review",
+    "risk", "decision", "execution",
+  ].map((role, index) => ({
+    sequence: index + 1,
+    role,
+    conclusion: role,
+    evidence: {},
+    durationMs: 0,
+    llmUsed: false,
+  }));
+  const completionInput = {
+    cycleId: "emergency-during-lease-cycle",
+    deploymentId: deployment.id,
+    workerId: "emergency-race-worker",
+    fencingToken: lease.fencingToken,
+    candleOpenTime: leasedAt,
+    candleCloseTime: new Date(leasedAt.getTime() + 3_599_999),
+    marketDataSnapshotId: "emergency-during-lease-snapshot",
+    decision: { action: "enter_long" },
+    orderIntent: {
+      action: "enter_long",
+      executionTiming: "next_candle_open",
+      requestedPrice: null,
+      idempotencyKey: "emergency-during-lease-intent",
+      mode: "paper",
+    },
+    events,
+    traceId: "emergency-during-lease-trace",
+    startedAt: leasedAt,
+    nextCycleAt: new Date(leasedAt.getTime() + 15_000),
+    positionSizePct: 5,
+    riskPerTradePct: 1,
+    symbol: "BTCUSDT",
+  };
+  const pauseClient = await pool.connect();
+  try {
+    await pauseClient.query("BEGIN");
+    const pauseBackendPid = (await pauseClient.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    await pauseClient.query(`
+      INSERT INTO trading_emergency_stops(id,scope_key,active)
+      VALUES('platform-emergency-during-lease','platform',true)
+    `);
+    await restrictOfficialPaperPortfoliosForEmergency(pauseClient, {
+      customerIds: ["owner-official"],
+      now: leasedAt,
+    });
+    const completion = completeStrategyRuntimeCycle(pool, completionInput);
+    let completionBlockedByPause = false;
+    for (let attempt = 0; attempt < 100 && !completionBlockedByPause; attempt += 1) {
+      const blocked = await pool.query(`
+        SELECT EXISTS (
+          SELECT 1 FROM pg_stat_activity
+          WHERE $1::int = ANY(pg_blocking_pids(pid))
+        ) AS present
+      `, [pauseBackendPid]);
+      completionBlockedByPause = blocked.rows[0].present === true;
+      if (!completionBlockedByPause) await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(completionBlockedByPause, true);
+    await pauseClient.query("COMMIT");
+    await completion;
+  } catch (error) {
+    await pauseClient.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    pauseClient.release();
+  }
+  const intent = (await pool.query(`
+    SELECT status,rejection_code FROM official_paper_order_intents
+    WHERE idempotency_key='emergency-during-lease-intent'
+  `)).rows[0];
+  assert.deepEqual(intent, {
+    status: "rejected",
+    rejection_code: "TRADING_EMERGENCY_STOPPED",
+  });
 });
 
 test("daily-loss halts reset on a new UTC day while persistent halt reasons remain", async () => {

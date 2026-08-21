@@ -1,4 +1,4 @@
-import type { ResolvedLlmConfig } from "@/lib/llm-config";
+import type { ResolvedLlmConfig } from "@/lib/client-platform-llm";
 import {
   buildSessionWorkingMemory,
   classifyAssistantIntent,
@@ -43,9 +43,10 @@ export async function generateAssistantReply(options: {
     { role: "system", content: system },
     ...boundedAiHistory(options.history),
   ];
-  const text = await requestAiText(options.config, messages, { maxOutputTokens: 900, temperature: 0.15 });
+  const response = await requestAiText(options.config, messages, { maxOutputTokens: 900, temperature: 0.15 });
   return {
-    text,
+    text: response.text,
+    metering: response.metering,
     mode: "ai_provider" as const,
     provider: options.config.providerName,
     model: options.config.model,

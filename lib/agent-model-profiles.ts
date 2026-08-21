@@ -1,11 +1,12 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 
 import {
-  decryptIntegrationSecret,
-  encryptIntegrationSecret,
+  decryptLlmProfileSecret,
+  encryptLlmProfileSecret,
   maskedIntegrationSecret,
 } from "./integration-credentials.ts";
 import { normalizeLlmBaseUrl, normalizeLlmCompletionEndpoint } from "./llm-endpoint.ts";
+import { ResearchApiError } from "./research-errors.ts";
 import type { ResolvedAgentRoleConfig, ResolvedLlmProfileConfig } from "./research-types.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
@@ -83,6 +84,19 @@ type RevisionRow = QueryResultRow & {
   enabled: boolean;
 };
 
+export type LlmProfileRevisionView = {
+  id: string;
+  revisionNumber: number;
+  name: string;
+  providerName: string;
+  modelName: string;
+  hasSecret: boolean;
+  enabled: boolean;
+  isCurrent: boolean;
+  createdByUserId: string;
+  createdAt: string;
+};
+
 type RuntimeBindingRow = QueryResultRow & {
   id: string;
   role: RuntimeExplanationRole;
@@ -149,6 +163,93 @@ export async function listLlmProfiles(database: Queryable) {
     ORDER BY name, id
   `);
   return result.rows.map(profileFromRow);
+}
+
+export async function listLlmProfileRevisions(database: Queryable, profileId: string) {
+  const result = await database.query<RevisionRow & { created_by_user_id: string; created_at: Date; is_current: boolean }>(`
+    SELECT revision.id,revision.profile_id,revision.revision_number,revision.name,
+           revision.provider_name,revision.base_url,revision.model_name,
+           revision.encrypted_api_key,revision.masked_api_key,revision.enabled,
+           revision.created_by_user_id,revision.created_at,
+           profile.current_revision_id=revision.id AS is_current
+      FROM llm_profile_revisions revision
+      JOIN llm_profiles profile ON profile.id=revision.profile_id
+     WHERE revision.profile_id=$1
+     ORDER BY revision.revision_number DESC
+     LIMIT 100
+  `, [profileId]);
+  return result.rows.map((row): LlmProfileRevisionView => ({
+    id: row.id,
+    revisionNumber: row.revision_number,
+    name: row.name,
+    providerName: row.provider_name,
+    modelName: row.model_name,
+    hasSecret: Boolean(row.encrypted_api_key),
+    enabled: row.enabled,
+    isCurrent: row.is_current,
+    createdByUserId: row.created_by_user_id,
+    createdAt: new Date(row.created_at).toISOString(),
+  }));
+}
+
+export async function rollbackLlmProfileRevision(pool: Pool, input: {
+  profileId: string;
+  revisionId: string;
+  expectedCurrentRevisionId: string;
+  actorUserId: string;
+  reason: string;
+  requestId?: string | null;
+  traceId?: string | null;
+}) {
+  const reason = input.reason.trim();
+  if (reason.length < 3 || reason.length > 500) throw new ResearchApiError("MODEL_ROLLBACK_REASON_INVALID", "回滚原因需要 3–500 个字符", 422);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const profile = (await client.query<ProfileRow>("SELECT * FROM llm_profiles WHERE id=$1 FOR UPDATE", [input.profileId])).rows[0];
+    if (!profile) throw new ResearchApiError("MODEL_PROFILE_NOT_FOUND", "模型 Profile 不存在", 404);
+    if (profile.current_revision_id !== input.expectedCurrentRevisionId) {
+      throw new ResearchApiError("MODEL_PROFILE_STALE", "模型 Profile 当前修订已变化，请刷新后重试", 409, { currentRevisionId: profile.current_revision_id });
+    }
+    if (profile.current_revision_id === input.revisionId) {
+      await client.query("COMMIT");
+      return { currentRevisionId: profile.current_revision_id, revisionNumber: null, replayed: true };
+    }
+    const target = (await client.query<RevisionRow>(`
+      SELECT id,profile_id,revision_number,name,provider_name,base_url,model_name,
+             encrypted_api_key,masked_api_key,enabled
+        FROM llm_profile_revisions
+       WHERE id=$1 AND profile_id=$2
+       FOR SHARE
+    `, [input.revisionId, input.profileId])).rows[0];
+    if (!target) throw new ResearchApiError("MODEL_REVISION_NOT_FOUND", "目标模型修订不存在", 404);
+    const created = (await client.query<{ id: string; revision_number: number }>(`
+      INSERT INTO llm_profile_revisions(
+        id,profile_id,revision_number,name,provider_name,base_url,model_name,
+        encrypted_api_key,masked_api_key,enabled,created_by_user_id
+      ) SELECT $1,$2,COALESCE(MAX(revision_number),0)+1,$3,$4,$5,$6,$7,$8,$9,$10
+          FROM llm_profile_revisions WHERE profile_id=$2
+      RETURNING id,revision_number
+    `, [crypto.randomUUID(), input.profileId, target.name, target.provider_name, target.base_url, target.model_name, target.encrypted_api_key, target.masked_api_key, target.enabled, input.actorUserId])).rows[0];
+    await client.query(`
+      UPDATE llm_profiles
+         SET name=$2,provider_name=$3,base_url=$4,model_name=$5,
+             encrypted_api_key=$6,masked_api_key=$7,enabled=$8,
+             current_revision_id=$9,updated_by_user_id=$10,updated_at=now()
+       WHERE id=$1
+    `, [input.profileId, target.name, target.provider_name, target.base_url, target.model_name, target.encrypted_api_key, target.masked_api_key, target.enabled, created.id, input.actorUserId]);
+    await client.query(`
+      INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json,request_id,trace_id)
+      VALUES($1,$2,'maintenance.llm_profile_rolled_back','llm_profile',$3,$4,$5,$6,$7)
+    `, [crypto.randomUUID(), input.actorUserId, input.profileId, JSON.stringify({ currentRevisionId: profile.current_revision_id }), JSON.stringify({ currentRevisionId: created.id, clonedFromRevisionId: target.id, reason }), input.requestId ?? null, input.traceId ?? null]);
+    await client.query("COMMIT");
+    return { currentRevisionId: created.id, revisionNumber: created.revision_number, replayed: false };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function runtimeBindingRows(database: Queryable) {
@@ -249,13 +350,15 @@ export async function saveLlmProfile(database: Queryable, options: {
 
     const name = requiredText(options.input.name, "配置名称", 80);
     const providerName = requiredText(options.input.providerName, "供应商名称", 60);
-    const baseUrl = normalizeLlmBaseUrl(options.input.baseUrl);
+    const baseUrl = existing && (options.input.baseUrl === undefined || String(options.input.baseUrl).trim() === "")
+      ? existing.base_url
+      : normalizeLlmBaseUrl(options.input.baseUrl);
     const modelName = requiredText(options.input.modelName, "模型名称", 100);
     const apiKey = String(options.input.apiKey ?? "").trim();
     if (!existing?.encrypted_api_key && !apiKey) throw new Error("首次配置必须填写 API Key");
     if (apiKey.length > 4096) throw new Error("API Key 长度无效");
     const encryptedApiKey = apiKey
-      ? await encryptIntegrationSecret(apiKey)
+      ? await encryptLlmProfileSecret(apiKey)
       : existing?.encrypted_api_key ?? "";
     const maskedApiKey = apiKey
       ? maskedIntegrationSecret(apiKey)
@@ -442,7 +545,7 @@ export async function resolveAgentRoleConfig(database: Queryable, role: string, 
       providerName: revision.provider_name,
       endpoint: target.endpoint,
       apiStyle: target.apiStyle,
-      apiKey: await decryptIntegrationSecret(revision.encrypted_api_key),
+      apiKey: await decryptLlmProfileSecret(revision.encrypted_api_key),
     };
   }
   const result = await database.query<BindingRow>(`
@@ -474,7 +577,7 @@ export async function resolveAgentRoleConfig(database: Queryable, role: string, 
     providerName: row.provider_name,
     endpoint: target.endpoint,
     apiStyle: target.apiStyle,
-    apiKey: await decryptIntegrationSecret(row.encrypted_api_key),
+    apiKey: await decryptLlmProfileSecret(row.encrypted_api_key),
   };
 }
 
@@ -502,7 +605,7 @@ export async function resolveRuntimeExplanationRoleConfig(database: Queryable, r
       providerName: revision.provider_name,
       endpoint: target.endpoint,
       apiStyle: target.apiStyle,
-      apiKey: await decryptIntegrationSecret(revision.encrypted_api_key),
+      apiKey: await decryptLlmProfileSecret(revision.encrypted_api_key),
     };
   }
   const result = await database.query<RuntimeBindingRow>(`
@@ -534,6 +637,6 @@ export async function resolveRuntimeExplanationRoleConfig(database: Queryable, r
     providerName: row.provider_name,
     endpoint: target.endpoint,
     apiStyle: target.apiStyle,
-    apiKey: await decryptIntegrationSecret(row.encrypted_api_key),
+    apiKey: await decryptLlmProfileSecret(row.encrypted_api_key),
   };
 }
