@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { deriveClientHomeTask } = await import("../apps/client/ui/client-home-model.ts");
+const { deriveClientHomeTask, derivePaperPortfolioSummary } = await import("../apps/client/ui/client-home-model.ts");
 
 const activeMembership = {
   id: "membership-1",
@@ -12,7 +12,7 @@ const activeMembership = {
   closeOnly: false,
 };
 
-test("home sends a disclosure-confirmed new customer to membership instead of looping back to consent", () => {
+test("home sends a new customer to membership without claiming disclosure acceptance", () => {
   assert.deepEqual(deriveClientHomeTask({
     canViewMembership: true,
     membership: null,
@@ -21,7 +21,7 @@ test("home sends a disclosure-confirmed new customer to membership instead of lo
     portfolios: [],
   }), {
     title: "选择会员计划",
-    description: "当前商业披露版本已确认，但没有有效会员或待处理申请。可在会员中心选择计划并提交人工付款申请。",
+    description: "当前没有有效会员或待处理申请。可先浏览交易大厅，再到会员中心查看计划并提交人工付款申请。",
     href: "/membership",
     action: "进入会员中心",
     state: "ACTION_REQUIRED",
@@ -91,4 +91,18 @@ test("home respects a missing membership permission", () => {
   });
   assert.equal(task.state, "LIMITED_ACCESS");
   assert.equal(task.href, null);
+});
+
+test("home portfolio summary uses only server-returned paper balances", () => {
+  assert.deepEqual(derivePaperPortfolioSummary([
+    { equityUsdt: "10025.50", realizedNetPnlUsdt: "12.25", unrealizedPnlUsdt: "13.25", status: "ACTIVE", runtime: { state: "ACTIVE" } },
+    { equityUsdt: "9980.00", realizedNetPnlUsdt: "-15.00", unrealizedPnlUsdt: "-5.00", status: "CLOSE_ONLY", runtime: { state: "PAUSED" } },
+    { equityUsdt: "10010.25", realizedNetPnlUsdt: "0.25", unrealizedPnlUsdt: "10.00", status: "ACTIVE", runtime: { state: "NOT_STARTED" } },
+  ]), {
+    totalEquityUsdt: 30015.75,
+    realizedNetPnlUsdt: -2.5,
+    unrealizedPnlUsdt: 18.25,
+    activePortfolioCount: 2,
+    runningStrategyCount: 1,
+  });
 });

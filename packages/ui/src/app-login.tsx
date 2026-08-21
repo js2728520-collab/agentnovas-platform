@@ -47,7 +47,8 @@ export function AppLogin({ audience, title, description, allowRegistration, init
 
   function enterApplication() {
     const params = new URLSearchParams(window.location.search);
-    window.location.assign(safeNextPath(params.get("next"), "/"));
+    const defaultPath = audience === "client" ? "/dashboard" : "/";
+    window.location.assign(safeNextPath(params.get("next"), defaultPath));
   }
 
   async function postJson(endpoint: string, body: Record<string, unknown>) {

@@ -16,7 +16,6 @@ import {
 } from "../lib/api-policy.ts";
 import { researchErrorResponse } from "../lib/research-error-response.ts";
 import { ResearchApiError } from "../lib/research-errors.ts";
-import { CLIENT_LEGAL_GATE_EXEMPT_ROUTES, clientRouteRequiresLegalConsent } from "../lib/commercial-legal-consent-policy.ts";
 import { contentSecurityPolicy } from "../lib/content-security-policy.ts";
 import { resolveAppAudienceStrict } from "../lib/riverton-apps.ts";
 import { SENSITIVE_PERMISSION_KEYS } from "../lib/rbac.ts";
@@ -175,38 +174,20 @@ test("Client account profile is classified as full PII and a sensitive same-orig
   assert.equal(writePolicy.requiresSameOrigin, true);
 });
 
-test("client permission enforcement also requires the current legal bundle", async () => {
+test("client workbench access is independent from disclosure acceptance", async () => {
   const source = await readFile(new URL("../lib/access-control.ts", import.meta.url), "utf8");
   const research = await readFile(new URL("../lib/research-api.ts", import.meta.url), "utf8");
   const session = await readFile(new URL("../lib/session.ts", import.meta.url), "utf8");
-  assert.match(source, /definition\.appId === "client"[\s\S]*requireCommercialLegalConsentGate\(pool, user\.id\)/);
-  assert.match(research, /user\.role === "customer"[\s\S]*requireCommercialLegalConsentGate\(await getPostgresPool\(\), user\.id\)/);
-  assert.match(session, /audience === "client"[\s\S]*clientRouteRequiresLegalConsent[\s\S]*requireCommercialLegalConsentGate/);
+  for (const implementation of [source, research, session]) {
+    assert.doesNotMatch(implementation, /requireCommercialLegalConsentGate|clientRouteRequiresLegalConsent/);
+  }
 });
 
-test("every Client requireUser session route passes the central legal gate unless explicitly identity-exempt", () => {
-  assert.deepEqual([...CLIENT_LEGAL_GATE_EXEMPT_ROUTES].sort(), [
-    "/api/access/me/effective",
-    "/api/account/password",
-    "/api/account/profile",
-    "/api/account/sessions",
-    "/api/membership/legal-consent",
-  ]);
-  assert.equal(clientRouteRequiresLegalConsent("/api/account/profile"), false);
-  assert.equal(clientRouteRequiresLegalConsent("/api/account/sessions"), false);
-  assert.equal(clientRouteRequiresLegalConsent("/api/account/llm-config"), true);
-  assert.equal(clientRouteRequiresLegalConsent("/api/market/watchlist"), true);
-  assert.equal(clientRouteRequiresLegalConsent("/api/ai/conversations"), true);
-  for (const entry of API_ROUTE_INVENTORY.filter((candidate) =>
-    candidate.authentication === "session"
-    && candidate.audiences.includes("client")
-    && candidate.sessionAuthHelpers.includes("requireUser"))) {
-    assert.equal(
-      clientRouteRequiresLegalConsent(entry.route),
-      !CLIENT_LEGAL_GATE_EXEMPT_ROUTES.has(entry.route),
-      `${entry.method} ${entry.route}`,
-    );
-  }
+test("commercial disclosure acceptance is scoped inside membership order creation", async () => {
+  const membership = await readFile(new URL("../lib/commercial-membership-service.ts", import.meta.url), "utf8");
+  assert.match(membership, /createMembershipOrder[\s\S]*currentLegalDocuments/);
+  assert.match(membership, /LEGAL_ACCEPTANCE_REQUIRED/);
+  assert.match(membership, /commercial_legal_acceptances/);
 });
 
 test("standalone legal consent is a client session gate with same-origin protection on writes", () => {

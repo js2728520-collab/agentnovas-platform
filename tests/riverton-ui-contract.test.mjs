@@ -238,7 +238,7 @@ test("client exposes stable membership, credits, paper, and trading-hall workspa
   const routeContract = await read("app/riverton-route-contract.ts");
   const portal = await read("apps/client/ui/client-portal.tsx");
   const navigation = await read("apps/client/ui/client-portal-shell.tsx");
-  for (const route of ["membership", "credits", "paper", "trading-hall"]) {
+  for (const route of ["dashboard", "membership", "credits", "paper", "trading-hall"]) {
     assert.match(routeContract, new RegExp(`CLIENT_ROUTES[\\s\\S]*["']${route}["']`));
   }
   assert.match(portal, /MembershipExperience/);
@@ -251,36 +251,61 @@ test("client exposes stable membership, credits, paper, and trading-hall workspa
   assert.match(navigation, /href: "\/trading-hall"/);
 });
 
+test("authenticated Client navigation stays inside the customer trading product", async () => {
+  const shell = await read("apps/client/ui/client-portal-shell.tsx");
+  const login = await read("packages/ui/src/app-login.tsx");
+  const landing = await read("apps/client/ui/client-public-landing.tsx");
+  assert.doesNotMatch(shell, /ConsoleShell|@\/packages\/ui\/src\/console-shell/);
+  assert.match(shell, /href: "\/dashboard"/);
+  assert.match(shell, /交易大厅/);
+  assert.match(shell, /模拟组合/);
+  assert.doesNotMatch(shell, /href: "\/"/);
+  assert.match(login, /audience === "client" \? "\/dashboard" : "\/"/);
+  assert.match(landing, /\/login\?next=\$\{encodeURIComponent\("\/dashboard"\)\}/);
+});
+
+test("Client dashboard leads with portfolio and strategy state instead of compliance administration", async () => {
+  const dashboard = await read("apps/client/ui/client-home-workspace.tsx");
+  assert.match(dashboard, /组合总权益/);
+  assert.match(dashboard, /三张官方策略/);
+  assert.match(dashboard, /进入交易大厅/);
+  assert.doesNotMatch(dashboard, /CONTROLLED BETA|PERMISSION-AWARE MODULES|Beta 执行边界|已授权模块/);
+});
+
 test("legacy client workspace enforces the client session and paper permission before loading", async () => {
   const loader = await read("apps/client/ui/client-workspace-loader.tsx");
   const app = await read("app/client-app.tsx");
   assert.match(loader, /useAppSession\("client"\)/);
   assert.match(loader, /client\.paper\.view/);
-  assert.match(loader, /\/api\/membership\/legal-consent/);
-  assert.match(loader, /consentComplete/);
+  assert.doesNotMatch(loader, /\/api\/membership\/legal-consent|consentComplete|legalConsentGate/);
   assert.match(loader, /\/login\?next=/);
   assert.match(loader, /AccessDenied/);
+  assert.match(loader, /ClientPortalShell/);
+  assert.match(loader, /<ClientApp embedded/);
   assert.match(app, /canViewMembership/);
+  assert.match(app, /client-workspace-embedded/);
+  assert.match(app, /client-workspace-nav/);
+  assert.match(app, /href="\/dashboard"/);
+  assert.match(app, /embedded\s*\?\s*page\s*:\s*!authResolved/);
+  assert.match(app, /const ShellElement = embedded \? "div" : "main"/);
+  assert.match(app, /<ShellElement className=/);
   assert.match(app, /p !== "membership" \|\| canViewMembership/);
 });
 
-test("client exposes standalone legal consent and gates every business route on the saved current version", async () => {
+test("client exposes standalone disclosures without blocking the trading workbench", async () => {
   const routeContract = await read("app/riverton-route-contract.ts");
   const portal = await read("apps/client/ui/client-portal.tsx");
   const navigation = await read("apps/client/ui/client-portal-shell.tsx");
   const legal = await read("apps/client/ui/legal-consent-experience.tsx");
   assert.match(routeContract, /root === "legal"[\s\S]*segments\[1\] === "consent"/);
   assert.match(portal, /route === "legal"[\s\S]*segments\[1\] === "consent"[\s\S]*LegalConsentExperience/);
-  assert.match(navigation, /href: "\/legal\/consent"/);
+  assert.doesNotMatch(navigation, /label: "商业披露"/);
   assert.match(legal, /\/api\/membership\/legal-consent/);
   assert.match(legal, /商业披露与版本确认/);
   assert.match(legal, /确认会独立保存/);
   assert.match(legal, /acceptedDocumentVersionIds/);
   assert.match(legal, /idempotency-key/);
-  assert.match(portal, /legalConsentGate/);
-  assert.match(portal, /consentComplete/);
-  assert.match(portal, /\/legal\/consent\?next=/);
-  assert.doesNotMatch(navigation, /href: "\/legal\/consent"[^\n]*requiredPermissions/);
+  assert.doesNotMatch(portal, /legalConsentGate|shouldCheckLegalConsent|\/legal\/consent\?next=/);
 });
 
 test("client workspaces bind to real wallet, Udun deposit orders, and notifications", async () => {

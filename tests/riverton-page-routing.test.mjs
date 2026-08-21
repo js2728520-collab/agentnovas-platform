@@ -17,6 +17,7 @@ test("page routing contract accepts only the stable routes owned by each audienc
   }
 
   assert.equal(isRivertonPagePath("client", "/workspace"), true);
+  assert.equal(isRivertonPagePath("client", "/dashboard"), true);
   assert.equal(isRivertonPagePath("client", "/legal/consent"), true);
   assert.equal(isRivertonPagePath("client", "/membership/orders"), true);
   assert.equal(isRivertonPagePath("client", "/paper/portfolio-1"), true);

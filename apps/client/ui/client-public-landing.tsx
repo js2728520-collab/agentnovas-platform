@@ -182,7 +182,7 @@ export function ClientPublicLanding() {
       page === "home"
         ? "/"
         : page === "login"
-          ? "/login"
+          ? `/login?next=${encodeURIComponent("/dashboard")}`
           : `/login?next=${encodeURIComponent(nextPath)}`,
     );
   };

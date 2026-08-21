@@ -127,7 +127,7 @@ test("the client application no longer exposes the legacy operations page", asyn
 test("the isolated strategy workspace opens live records instead of the legacy static landing", async () => {
   const workspace = await read("app/client-app.tsx");
   assert.match(workspace, /typeof window === "undefined"\) return "hall"/);
-  assert.match(workspace, /<Link className="logo" href="\/"/);
+  assert.match(workspace, /<Link className="logo" href="\/dashboard"/);
   assert.doesNotMatch(workspace, /<button className="logo" onClick=\{go\("home"\)\}/);
 });
 

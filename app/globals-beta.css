@@ -1911,3 +1911,12 @@ body:has(.content) .market-terminal-page{
   }
   .client-app-shell .top-actions select option{font-size:12px!important}
 }
+.client-workspace-host{min-height:0!important;background:transparent!important}
+.client-workspace-embedded{display:block!important;min-height:0!important;background:transparent!important}
+.client-workspace-embedded>.content{padding:0!important;background:transparent!important}
+.client-workspace-nav{display:flex;max-width:100%;align-items:center;gap:6px;margin:0 0 18px;padding:6px;border:1px solid #283d50;border-radius:11px;background:#0a1722;overflow-x:auto;overscroll-behavior-inline:contain}
+.client-workspace-nav :is(button,a){display:inline-flex;min-height:38px;align-items:center;gap:7px;flex:0 0 auto;border:1px solid transparent;border-radius:7px;padding:7px 11px;color:#8fa6b8;font-size:11px;text-decoration:none;white-space:nowrap}
+.client-workspace-nav button i{font-style:normal}
+.client-workspace-nav :is(button,a):hover,.client-workspace-nav button.active{border-color:#36526a;color:#edf6fb;background:#102536}
+.client-workspace-nav button.active{box-shadow:inset 0 -2px 0 #62d9b9}
+@media(max-width:560px){.client-workspace-nav{margin-bottom:12px}.client-workspace-nav :is(button,a){min-height:36px;padding:6px 9px}}

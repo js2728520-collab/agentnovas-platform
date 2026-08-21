@@ -3,10 +3,8 @@
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
 
-import type { CommercialLegalConsentStatus } from "@/packages/contracts/src/commercial-beta";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
-import { useApiData } from "@/packages/ui/src/use-api-data";
 import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 
 import { ClientPortalShell } from "./client-portal-shell";
@@ -27,26 +25,15 @@ const SupportWorkspace = dynamic(() => import("./support-workspace").then((modul
 export default function ClientPortal({ segments }: { segments: string[] }) {
   const session = useAppSession("client");
   const route = segments[0];
-  const isLegalRoute = route === "legal" && segments[1] === "consent";
-  const shouldCheckLegalConsent = session.status === "authenticated" && route !== "login" && route !== "account" && route !== "support" && !isLegalRoute;
-  const legalConsentGate = useApiData<CommercialLegalConsentStatus>(
-    shouldCheckLegalConsent ? "/api/membership/legal-consent" : null,
-    "商业披露确认状态读取失败，业务入口保持关闭。",
-  );
   useEffect(() => {
     if (session.status === "anonymous") {
       const next = `${window.location.pathname}${window.location.search}`;
       window.location.replace(`/login?next=${encodeURIComponent(next)}`);
     }
   }, [route, session.status]);
-  useEffect(() => {
-    if (!shouldCheckLegalConsent || !legalConsentGate.data || legalConsentGate.data.consentComplete) return;
-    const next = `${window.location.pathname}${window.location.search}`;
-    window.location.replace(`/legal/consent?next=${encodeURIComponent(next)}`);
-  }, [legalConsentGate.data, shouldCheckLegalConsent]);
   if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证客户端会话…" />;
   if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
-  if (isLegalRoute) {
+  if (route === "legal" && segments[1] === "consent") {
     return <ClientPortalShell viewer={session.viewer} access={session.access}>
       <LegalConsentExperience />
     </ClientPortalShell>;
@@ -57,10 +44,7 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
   if (route === "support") {
     return <ClientPortalShell viewer={session.viewer} access={session.access}><SupportWorkspace /></ClientPortalShell>;
   }
-  if (shouldCheckLegalConsent && legalConsentGate.loading && !legalConsentGate.data) return <LoadingState label="正在核对当前商业披露版本…" />;
-  if (shouldCheckLegalConsent && legalConsentGate.error && !legalConsentGate.data) return <ErrorState message={legalConsentGate.error} retry={legalConsentGate.refresh} />;
-  if (shouldCheckLegalConsent && !legalConsentGate.data?.consentComplete) return <LoadingState label="正在进入商业披露确认…" />;
-  if (!route) return <ClientHomeWorkspace viewer={session.viewer} access={session.access} />;
+  if (route === "dashboard") return <ClientHomeWorkspace viewer={session.viewer} access={session.access} />;
   if (route === "notifications") return <NotificationWorkspace viewer={session.viewer} access={session.access} />;
   if (route === "membership") {
     if (!hasAnyPermission(session.access.permissions, ["client.membership.view"])) return <AccessDenied />;

@@ -19,6 +19,28 @@ type ClientHomeTaskInput = {
   portfolioError?: string;
 };
 
+type PaperPortfolioSummaryInput = Pick<PaperPortfolio, "equityUsdt" | "realizedNetPnlUsdt" | "unrealizedPnlUsdt" | "status" | "runtime">;
+
+export function derivePaperPortfolioSummary(portfolios: PaperPortfolioSummaryInput[]) {
+  const decimal = (value: string) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return portfolios.reduce((summary, portfolio) => ({
+    totalEquityUsdt: summary.totalEquityUsdt + decimal(portfolio.equityUsdt),
+    realizedNetPnlUsdt: summary.realizedNetPnlUsdt + decimal(portfolio.realizedNetPnlUsdt),
+    unrealizedPnlUsdt: summary.unrealizedPnlUsdt + decimal(portfolio.unrealizedPnlUsdt),
+    activePortfolioCount: summary.activePortfolioCount + (portfolio.status === "ACTIVE" ? 1 : 0),
+    runningStrategyCount: summary.runningStrategyCount + (portfolio.runtime.state === "ACTIVE" ? 1 : 0),
+  }), {
+    totalEquityUsdt: 0,
+    realizedNetPnlUsdt: 0,
+    unrealizedPnlUsdt: 0,
+    activePortfolioCount: 0,
+    runningStrategyCount: 0,
+  });
+}
+
 export function deriveClientHomeTask(input: ClientHomeTaskInput): ClientHomeTask {
   if (!input.canViewMembership) return {
     title: "当前账户使用受限",
@@ -44,7 +66,7 @@ export function deriveClientHomeTask(input: ClientHomeTaskInput): ClientHomeTask
   if (!input.membership) {
     if (!input.latestOrder) return {
       title: "选择会员计划",
-      description: "当前商业披露版本已确认，但没有有效会员或待处理申请。可在会员中心选择计划并提交人工付款申请。",
+      description: "当前没有有效会员或待处理申请。可先浏览交易大厅，再到会员中心查看计划并提交人工付款申请。",
       href: "/membership",
       action: "进入会员中心",
       state: "ACTION_REQUIRED",

@@ -859,7 +859,7 @@ function membershipAction(
     : null;
 }
 
-export default function Home({ canViewMembership = true }: { canViewMembership?: boolean }) {
+export default function Home({ canViewMembership = true, embedded = false }: { canViewMembership?: boolean; embedded?: boolean }) {
   const [page, setPage] = useState<Page>(() => {
     if (typeof window === "undefined") return "hall";
     const params = new URLSearchParams(window.location.search);
@@ -1015,15 +1015,18 @@ export default function Home({ canViewMembership = true }: { canViewMembership?:
     );
   };
   const memberButton = canViewMembership ? membershipAction(t, viewer?.membership) : null;
-  const visiblePage: Page = !authResolved
-    ? "home"
-    : page !== "home" && page !== "login" && !viewer
-      ? "login"
-      : page;
+  const visiblePage: Page = embedded
+    ? page
+    : !authResolved
+      ? "home"
+      : page !== "home" && page !== "login" && !viewer
+        ? "login"
+        : page;
+  const ShellElement = embedded ? "div" : "main";
   return (
-    <main className="app-shell client-app-shell" data-app-shell>
-      <header className="topbar">
-        <Link className="logo" href="/" aria-label="Riverton Capital 首页">
+    <ShellElement className={`app-shell client-app-shell ${embedded ? "client-workspace-host" : ""}`} data-app-shell>
+      {!embedded && <header className="topbar">
+        <Link className="logo" href="/dashboard" aria-label="Riverton Capital 交易总览">
           <Image className="riverton-brand-logo" src="/riverton-capital-logo.png" width={2193} height={324} sizes="(max-width: 560px) 154px, 220px" alt="Riverton Capital" />
         </Link>
         <div className="top-actions">
@@ -1071,7 +1074,7 @@ export default function Home({ canViewMembership = true }: { canViewMembership?:
             </button>
           )}
         </div>
-      </header>
+      </header>}
       {platformSettings.system.maintenanceBanner && <div className="platform-maintenance-banner" role="status" aria-live="polite">{platformSettings.system.maintenanceBanner}</div>}
       {visiblePage === "home" ? (
         <Landing key={lang} t={t} go={navigate} />
@@ -1088,10 +1091,11 @@ export default function Home({ canViewMembership = true }: { canViewMembership?:
           setSelectedAgent={setSelectedAgent}
           canViewMembership={canViewMembership}
           onOpenSettings={() => setAccountSettingsOpen(true)}
+          embedded={embedded}
         />
       )}
       <SupportFloating lang={lang} telegramUrl={platformSettings.system.telegramSupportUrl} supportEmail={platformSettings.system.supportEmail} />
-    </main>
+    </ShellElement>
   );
 }
 
@@ -1401,6 +1405,7 @@ function Dashboard({
   setSelectedAgent,
   canViewMembership,
   onOpenSettings,
+  embedded,
 }: {
   page: Page;
   t: Record<string, string>;
@@ -1410,6 +1415,7 @@ function Dashboard({
   setSelectedAgent: (s: string) => void;
   canViewMembership: boolean;
   onOpenSettings: () => void;
+  embedded: boolean;
 }) {
   const tradingLabel =
     t._lang === "en-US"
@@ -1424,8 +1430,8 @@ function Dashboard({
               ? "거래 센터"
               : "交易中心";
   return (
-    <div className="dash">
-      <aside>
+    <div className={`dash ${embedded ? "client-workspace-embedded" : ""}`}>
+      {!embedded && <aside>
         <SidebarAccount viewer={viewer} t={t} onOpenSettings={onOpenSettings} />
         {nav.slice(1).filter(([p]) => p !== "membership" || canViewMembership).map(([p, k, icon]) => (
           <button
@@ -1453,8 +1459,18 @@ function Dashboard({
           </span>
           <small>状态以交易大厅真实记录为准</small>
         </div>
-      </aside>
+      </aside>}
       <section className="content">
+        {embedded && <nav className="client-workspace-nav" aria-label="策略实验室导航">
+          {nav.slice(1).filter(([item]) => ["hall", "agent", "market", "trading"].includes(item)).map(([item, label, icon]) => <button
+            key={item}
+            type="button"
+            className={page === item ? "active" : ""}
+            onClick={() => go(item)}
+          ><i aria-hidden="true">{icon}</i>{item === "trading" ? tradingLabel : item === "agent" ? "Agent 对话" : t[label] || label}</button>)}
+          {canViewMembership && <Link href="/membership">会员中心</Link>}
+          <Link href="/account/security">账户与安全</Link>
+        </nav>}
         {renderPage(page, t, go, selectedAgent, setSelectedAgent)}
       </section>
     </div>

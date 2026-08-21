@@ -16,14 +16,12 @@ test("account sessions expose only masked device evidence and revoke owned non-c
   assert.doesNotMatch(route, /token_hash.*Response\.json|SELECT \*/);
 });
 
-test("Client account security is a stable consent-exempt route with profile, password and sessions", async () => {
+test("Client account security is a stable route with profile, password and sessions", async () => {
   const contract = await read("app/riverton-route-contract.ts");
-  const policy = await read("lib/commercial-legal-consent-policy.ts");
   const portal = await read("apps/client/ui/client-portal.tsx");
   const shell = await read("apps/client/ui/client-portal-shell.tsx");
   const workspace = await read("apps/client/ui/account-security-workspace.tsx");
   assert.match(contract, /"account"/);
-  assert.match(policy, /\/api\/account\/sessions/);
   assert.match(portal, /AccountSecurityWorkspace/);
   assert.match(shell, /\/account\/security/);
   for (const endpoint of ["/api/account/profile", "/api/account/password", "/api/account/sessions"]) assert.ok(workspace.includes(endpoint));

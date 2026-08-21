@@ -3,8 +3,6 @@ import { getDb } from "@/db";
 import { sessions, users } from "@/db/schema";
 import { sha256 } from "@/lib/auth";
 import { clientSessionIdentity } from "@/lib/client-identity-gateway";
-import { requireCommercialLegalConsentGate } from "@/lib/commercial-legal-consent-gate";
-import { clientRouteRequiresLegalConsent } from "@/lib/commercial-legal-consent-policy";
 import { getPostgresPool } from "@/lib/postgres";
 import { ResearchApiError } from "@/lib/research-errors";
 import { cookieNameForAudience, resolveAppAudienceStrict, sessionPolicyForAudience } from "@/lib/riverton-apps";
@@ -109,10 +107,6 @@ export async function requireUser(request: Request, roles?: CurrentUser["role"][
   const user = await currentUser(request);
   if (!user) throw new Response(JSON.stringify({ error: "请先登录" }), { status: 401, headers: { "content-type": "application/json" } });
   if (roles && !roles.includes(user.role)) throw new Response(JSON.stringify({ error: "无权执行此操作" }), { status: 403, headers: { "content-type": "application/json" } });
-  const audience = resolveAppAudienceStrict({ host: request.headers.get("host") ?? undefined });
-  if (audience === "client" && user.role === "customer" && clientRouteRequiresLegalConsent(new URL(request.url).pathname)) {
-    await requireCommercialLegalConsentGate(await getPostgresPool(), user.id);
-  }
   return user;
 }
 
