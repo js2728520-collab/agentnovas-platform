@@ -72,5 +72,5 @@
 ## 7. 最终提交、启动与推送
 
 - [x] 7.1 检查 status/branch/remotes/SSH 与 `.env`/secret/password/private key/dump/log/fixture；`origin`/目标 SSH 账号正确，`github-old` 保留，仓库 secret scan 零发现。
-- [-] 7.2 三端已在 3100/3101/3102 启动并生成仓库外一次性验收账号；待创建本轮普通提交后完成。
+- [x] 7.2 已创建普通提交且未改写历史；三端在 3100/3101/3102 运行，一次性验收账号仅保存在仓库外权限 0600 的临时文件。
 - [ ] 7.3 展示最终 push 命令并等待确认；只推 `codex/three-app-riverton-split`。
