@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 let poolPromise: Promise<Pool> | undefined;
 let clientAuthPoolPromise: Promise<Pool> | undefined;
 let paymentWebhookPoolPromise: Promise<Pool> | undefined;
+let demoExecutionPoolPromise: Promise<Pool> | undefined;
 
 /**
  * Drizzle is constructed while Next.js discovers Route Handlers during a
@@ -51,6 +52,14 @@ export function expectedWebDatabaseRole(environment: Record<string, string | und
   return null;
 }
 
+function configuredDatabaseRole(connectionString: string, label: string) {
+  try {
+    return decodeURIComponent(new URL(connectionString).username);
+  } catch {
+    throw new Error(`${label} 格式无效`);
+  }
+}
+
 export function isolatedQualityDatabaseRoleBypass(
   connectionString: string,
   environment: Record<string, string | undefined> = process.env,
@@ -70,24 +79,26 @@ export function isolatedQualityDatabaseRoleBypass(
   return disabledFlags.every((name) => environment[name] === "false");
 }
 
+export function resolveWebDatabaseConfiguration(
+  environment: Record<string, string | undefined> = process.env,
+) {
+  const expectedRole = expectedWebDatabaseRole(environment);
+  if (!expectedRole) {
+    throw new Error("RIVERTON_APP_AUDIENCE 必须明确配置为 client、operations 或 maintenance");
+  }
+  const connectionString = businessDatabaseUrl(environment);
+  if (!connectionString) throw new Error("Web DATABASE_URL 尚未配置");
+  const qualityRoleBypass = isolatedQualityDatabaseRoleBypass(connectionString, environment);
+  if (!qualityRoleBypass && configuredDatabaseRole(connectionString, "Web DATABASE_URL") !== expectedRole) {
+    throw new Error("Web DATABASE_URL 数据库角色与 RIVERTON_APP_AUDIENCE 不匹配");
+  }
+  return { connectionString, expectedRole, qualityRoleBypass };
+}
+
 export async function getPostgresPool() {
   if (!poolPromise) {
     poolPromise = (async () => {
-      const expectedRole = expectedWebDatabaseRole();
-      const connectionString = expectedRole ? businessDatabaseUrl() : researchDatabaseUrl();
-      if (!connectionString) throw new Error("PostgreSQL RESEARCH_DATABASE_URL 或 DATABASE_URL 尚未配置");
-      const qualityRoleBypass = expectedRole && isolatedQualityDatabaseRoleBypass(connectionString);
-      if (expectedRole && !qualityRoleBypass) {
-        let configuredRole = "";
-        try {
-          configuredRole = decodeURIComponent(new URL(connectionString).username);
-        } catch {
-          throw new Error("Web DATABASE_URL 格式无效");
-        }
-        if (configuredRole !== expectedRole) {
-          throw new Error("Web DATABASE_URL 数据库角色与 RIVERTON_APP_AUDIENCE 不匹配");
-        }
-      }
+      const { connectionString, expectedRole, qualityRoleBypass } = resolveWebDatabaseConfiguration();
       const maxUses = researchDatabaseMaxUses();
       const { default: pg } = await import("pg");
       const pool = new pg.Pool({
@@ -101,7 +112,7 @@ export async function getPostgresPool() {
       pool.on("error", error => {
         console.error("PostgreSQL idle client error", { code: "code" in error ? error.code : "UNKNOWN" });
       });
-      if (expectedRole && !qualityRoleBypass) {
+      if (!qualityRoleBypass) {
         const role = await pool.query<{ current_user: string }>("SELECT current_user");
         if (role.rows[0]?.current_user !== expectedRole) {
           await pool.end();
@@ -112,6 +123,34 @@ export async function getPostgresPool() {
     })();
   }
   return poolPromise;
+}
+
+export async function getDemoExecutionPostgresPool() {
+  if (!demoExecutionPoolPromise) {
+    demoExecutionPoolPromise = (async () => {
+      const connectionString = businessDatabaseUrl();
+      if (!connectionString) throw new Error("Demo execution DATABASE_URL 尚未配置");
+      const expectedRole = "agentnovas_demo_execution_worker";
+      if (configuredDatabaseRole(connectionString, "Demo execution DATABASE_URL") !== expectedRole) {
+        throw new Error("Demo execution DATABASE_URL 必须使用 agentnovas_demo_execution_worker");
+      }
+      const { default: pg } = await import("pg");
+      const pool = new pg.Pool({
+        connectionString,max: 6,idleTimeoutMillis: 30_000,connectionTimeoutMillis: 5_000,
+        application_name: "agentnovas-demo-execution-worker",
+      });
+      pool.on("error", error => {
+        console.error("PostgreSQL Demo execution idle error", { code: "code" in error ? error.code : "UNKNOWN" });
+      });
+      const role = await pool.query<{ current_user: string }>("SELECT current_user");
+      if (role.rows[0]?.current_user !== expectedRole) {
+        await pool.end();
+        throw new Error("Demo execution PostgreSQL 当前角色不匹配");
+      }
+      return pool;
+    })();
+  }
+  return demoExecutionPoolPromise;
 }
 
 export async function getClientAuthPostgresPool() {

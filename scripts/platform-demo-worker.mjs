@@ -1,4 +1,4 @@
-import { getPostgresPool } from "../lib/postgres.ts";
+import { getDemoExecutionPostgresPool } from "../lib/postgres.ts";
 import { processNextPlatformDemoExecution } from "../lib/platform-demo-execution.ts";
 import { createWorkerHeartbeatReporter } from "../lib/worker-observability.ts";
 import { demoExecutionWorkerConfig } from "../lib/demo-worker-config.ts";
@@ -13,7 +13,7 @@ const workerId = process.env.PLATFORM_DEMO_WORKER_ID?.trim() || `platform-demo-$
 let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { stopping = true; });
 
-const pool = await getPostgresPool();
+const pool = await getDemoExecutionPostgresPool();
 const heartbeat = createWorkerHeartbeatReporter(pool, {
   workerType: "demo_execution",
   instanceId: workerId,

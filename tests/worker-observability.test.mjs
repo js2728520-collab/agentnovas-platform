@@ -123,6 +123,8 @@ test("platform Demo worker reports lifecycle health and stays explicitly gated",
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
   assert.match(worker, /workerConfig\.processEnabled/);
+  assert.match(worker, /getDemoExecutionPostgresPool/);
+  assert.doesNotMatch(worker, /getPostgresPool/);
   assert.doesNotMatch(worker, /if\s*\([^)]*PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED/);
   assert.match(worker, /createWorkerHeartbeatReporter/);
   assert.match(worker, /workerType:\s*"demo_execution"/);
@@ -133,6 +135,7 @@ test("platform Demo worker reports lifecycle health and stays explicitly gated",
   assert.match(health, /externalWritesEnabled/);
   assert.match(health, /executionEnabled/);
   assert.match(demoEnvironment, /^DEMO_EXECUTION_WORKER_ENABLED=false$/m);
+  assert.match(demoEnvironment, /^DATABASE_URL=postgresql:\/\/agentnovas_demo_execution_worker:/m);
   assert.match(demoEnvironment, /^PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false$/m);
   assert.match(maintenanceEnvironment, /^DEMO_EXECUTION_WORKER_ENABLED=false$/m);
   assert.match(maintenanceEnvironment, /^PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false$/m);

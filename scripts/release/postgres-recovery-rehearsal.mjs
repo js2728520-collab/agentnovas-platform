@@ -68,6 +68,17 @@ export function assertRecoveryRehearsalAuthorized({ execute, environment }) {
   }
 }
 
+export function assertRecoveryRehearsalDatabaseRoles({ source, admin }) {
+  const requiredRole = "agentnovas_migrator";
+  const sourceRole = decoded(source.username);
+  const adminRole = decoded(admin.username);
+  if (sourceRole !== requiredRole || adminRole !== requiredRole) {
+    throw new Error(
+      "Recovery rehearsal requires agentnovas_migrator for source evidence, restore ownership, and FORCE RLS access",
+    );
+  }
+}
+
 export function assertControlledRehearsalDatabaseName(name) {
   if (!REHEARSAL_DATABASE_NAME.test(String(name))) {
     throw new Error("Refusing operation outside a controlled rehearsal database");
@@ -184,6 +195,7 @@ async function runRecoveryRehearsal() {
     process.env.RELEASE_REHEARSAL_ADMIN_DATABASE_URL?.trim(),
     { allowAdminDatabase: true },
   );
+  assertRecoveryRehearsalDatabaseRoles({ source, admin });
   const targetDatabase = rehearsalDatabaseName();
   const target = urlForDatabase(admin, targetDatabase);
   const temporaryDirectory = controlledTemporaryDirectory(await mkdtemp(join(tmpdir(), "agentnovas-release-recovery-")));
@@ -194,6 +206,7 @@ async function runRecoveryRehearsal() {
     await runPostgresTool("pg_dump", [
       "--dbname", decoded(source.pathname.slice(1)),
       "--format", "custom",
+      "--enable-row-security",
       "--no-owner",
       "--no-privileges",
       "--file", dumpPath,

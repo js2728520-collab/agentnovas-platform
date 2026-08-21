@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   assertControlledRehearsalDatabaseName,
   assertLoopbackPostgresUrl,
+  assertRecoveryRehearsalDatabaseRoles,
   assertRestorableMigrationEvidence,
   assertRecoveryRehearsalAuthorized,
   databaseConnectionOptions,
@@ -32,6 +33,21 @@ test("recovery rehearsal accepts only an explicit isolated loopback PostgreSQL s
   ]) {
     assert.throws(() => assertLoopbackPostgresUrl(unsafe), /unsafe|explicit|rehearsal/i, unsafe);
   }
+});
+
+test("recovery rehearsal uses the dedicated migrator for FORCE RLS evidence", () => {
+  const source = new URL("postgresql://agentnovas_migrator:secret@127.0.0.1/agentnovas_recovery_source_release1");
+  const admin = new URL("postgresql://agentnovas_migrator:secret@127.0.0.1/postgres");
+  assert.doesNotThrow(() => assertRecoveryRehearsalDatabaseRoles({ source, admin }));
+
+  assert.throws(() => assertRecoveryRehearsalDatabaseRoles({
+    source: new URL("postgresql://rehearsal_role:secret@127.0.0.1/agentnovas_recovery_source_release1"),
+    admin,
+  }), /agentnovas_migrator/i);
+  assert.throws(() => assertRecoveryRehearsalDatabaseRoles({
+    source,
+    admin: new URL("postgresql://rehearsal_role:secret@127.0.0.1/postgres"),
+  }), /agentnovas_migrator/i);
 });
 
 test("recovery rehearsal requires a complete checksummed migration registry", () => {
@@ -74,6 +90,7 @@ test("recovery rehearsal owns one narrowly named temporary database and never em
 });
 
 test("database role policy rejects elevated roles, broad PUBLIC grants, and disabled-worker access", () => {
+  assert.ok(EXPECTED_RELEASE_DATABASE_ROLES.includes("agentnovas_payment_webhook"));
   const safeRoles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
     roleName,
     canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
@@ -101,6 +118,7 @@ test("database role policy rejects elevated roles, broad PUBLIC grants, and disa
       { grantee: "agentnovas_client_web", tableName: "platform_demo_accounts", privilegeType: "SELECT" },
       { grantee: "agentnovas_ops_web", tableName: "llm_profile_revisions", privilegeType: "SELECT" },
       { grantee: "agentnovas_client_web", tableName: "release_versions", privilegeType: "SELECT" },
+      { grantee: "agentnovas_payment_webhook", tableName: "users", privilegeType: "SELECT" },
     ],
     schemaGrants: [{ grantee: "agentnovas_demo_execution_worker", privilegeType: "CREATE" }],
     memberships: [{ memberRole: "agentnovas_client_web", grantedRole: "pg_read_all_data" }],
@@ -115,6 +133,7 @@ test("database role policy rejects elevated roles, broad PUBLIC grants, and disa
   assert.ok(findings.some((finding) => finding.code === "ROLE_MEMBERSHIP"));
   assert.ok(findings.some((finding) => finding.code === "PUBLIC_ROUTINE_GRANT"));
   assert.ok(findings.some((finding) => finding.code === "RELEASE_CONTROL_TABLE_GRANT"));
+  assert.ok(findings.some((finding) => finding.code === "WORKER_TABLE_GRANT" && finding.roleName === "agentnovas_payment_webhook"));
 });
 
 test("database role policy verifies Client identity RLS ownership and restrictive policies", () => {
@@ -124,19 +143,18 @@ test("database role policy verifies Client identity RLS ownership and restrictiv
     "auth_tokens",
     "user_mfa_totp_credentials",
     "user_mfa_recovery_codes",
-  ].map((tableName) => ({ tableName, rlsEnabled: true, ownerName: "agentnovas_migrator" }));
+  ].map((tableName) => ({ tableName, rlsEnabled: true, forceRlsEnabled: true, ownerName: "agentnovas_migrator" }));
   const identityPolicies = identityTables.flatMap(({ tableName }) => {
-    const rowContract = tableName === "users" ? "role = 'customer'"
-      : tableName === "sessions" ? "app_audience = 'client' AND account.role = 'customer'"
-        : tableName === "auth_tokens" ? "token_audience = 'client' AND account.role = 'customer'"
-          : "account.role = 'customer'";
+    const allowedRoles = tableName === "users"
+      ? "'agentnovas_migrator','agentnovas_ops_web','agentnovas_maint_web','agentnovas_notification_worker'"
+      : "'agentnovas_migrator','agentnovas_ops_web','agentnovas_maint_web'";
     const baseName = tableName === "user_mfa_totp_credentials" ? "mfa_totp_identity_base_access"
       : tableName === "user_mfa_recovery_codes" ? "mfa_recovery_identity_base_access"
         : `${tableName}_identity_base_access`;
     return [{
       tableName,policyName: `${tableName}_client_identity_partition`,restrictive: true,command: "*",policyRoles: ["PUBLIC"],
-      usingExpression: `current_user = 'agentnovas_client_web' AND ${rowContract}`,
-      checkExpression: `current_user = 'agentnovas_client_web' AND ${rowContract}`,
+      usingExpression: `current_user IN (${allowedRoles})`,
+      checkExpression: `current_user IN (${allowedRoles})`,
     }, {
       tableName,policyName: baseName,restrictive: false,command: "*",policyRoles: ["PUBLIC"],
       usingExpression: "true",checkExpression: "true",
@@ -151,13 +169,23 @@ test("database role policy verifies Client identity RLS ownership and restrictiv
     grants: [],
     schemaGrants: [],
     identityTables: identityTables.map((table) => table.tableName === "sessions"
-      ? { ...table, rlsEnabled: false, ownerName: "agentnovas_client_web" }
+      ? { ...table, rlsEnabled: false, forceRlsEnabled: false, ownerName: "agentnovas_client_web" }
       : table),
     identityPolicies: identityPolicies.filter((policy) => policy.tableName !== "auth_tokens"),
   });
   assert.ok(findings.some((finding) => finding.code === "IDENTITY_RLS_DISABLED"));
+  assert.ok(findings.some((finding) => finding.code === "IDENTITY_RLS_NOT_FORCED"));
   assert.ok(findings.some((finding) => finding.code === "IDENTITY_TABLE_OWNER"));
   assert.ok(findings.some((finding) => finding.code === "IDENTITY_POLICY_MISSING" && finding.message.includes("auth_tokens")));
+
+  const legacyPolicyFindings = evaluatePostgresRolePolicy({
+    roles: [],grants: [],schemaGrants: [],identityTables,
+    identityPolicies: identityPolicies.map((policy) => policy.tableName === "users"
+      && policy.policyName === "users_client_identity_partition"
+      ? { ...policy,usingExpression: `${policy.usingExpression} OR current_user='legacy_client'` }
+      : policy),
+  });
+  assert.ok(legacyPolicyFindings.some((finding) => finding.code === "IDENTITY_POLICY_UNSAFE"));
 });
 
 test("database role policy distinguishes owner capabilities from runtime grants", () => {
@@ -177,13 +205,35 @@ test("database role policy distinguishes owner capabilities from runtime grants"
       signature: "client_login_identity(text,text,text)",
       ownerName: "agentnovas_migrator",
       securityDefiner: true,
-      config: ['search_path="public",pg_catalog'],
+      config: ["search_path=pg_catalog, public"],
       executeGrantees: ["agentnovas_client_auth", "agentnovas_migrator"],
     }],
   });
   assert.equal(gatewayFindings.some((finding) => (
     finding.code === "IDENTITY_GATEWAY_UNSAFE" && finding.message.includes("client_login_identity")
   )), false);
+
+  const unsafeGatewayFindings = evaluatePostgresRolePolicy({
+    roles: [], grants: [], schemaGrants: [],
+    identityRoutines: [{
+      signature: "client_login_identity(text,text,text)",
+      ownerName: "legacy_owner",
+      securityDefiner: false,
+      config: ["search_path=public, pg_catalog"],
+      executeGrantees: ["PUBLIC", "agentnovas_client_web"],
+    }],
+  });
+  assert.ok(unsafeGatewayFindings.some((finding) => finding.code === "IDENTITY_GATEWAY_UNSAFE"));
+
+  const unregisteredGatewayFindings = evaluatePostgresRolePolicy({
+    roles: [],grants: [],schemaGrants: [],
+    identityRoutines: [{
+      signature: "client_unreviewed_identity(text)",ownerName: "agentnovas_migrator",
+      securityDefiner: true,config: ["search_path=pg_catalog, public"],
+      executeGrantees: ["agentnovas_migrator", "agentnovas_client_web"],
+    }],
+  });
+  assert.ok(unregisteredGatewayFindings.some((finding) => finding.code === "IDENTITY_GATEWAY_UNREGISTERED"));
 });
 
 test("least-privilege bootstrap is database-bound and leaves Payment and legacy Research inert", async () => {
@@ -202,6 +252,7 @@ test("least-privilege bootstrap is database-bound and leaves Payment and legacy 
   assert.match(sql, /ALTER ROLE agentnovas_migrator SET search_path=pg_catalog,public/i);
   assert.match(sql, /agentnovas_payment_worker[^;]+NOLOGIN/is);
   assert.match(sql, /agentnovas_research_worker[^;]+NOLOGIN/is);
+  assert.match(sql, /agentnovas_payment_webhook[^;]+LOGIN[^;]+NOBYPASSRLS[^;]+NOINHERIT/is);
   assert.match(sql, /CREATE ROLE %I LOGIN PASSWORD NULL[^']+NOINHERIT/i);
   assert.match(sql, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM agentnovas_payment_worker/i);
   assert.match(sql, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM agentnovas_research_worker/i);
@@ -244,6 +295,7 @@ test("Maintenance emergency control receives only the required Paper columns", a
 test("recovery script uses non-shell PostgreSQL tools and exact owned cleanup targets", async () => {
   const source = await read("scripts/release/postgres-recovery-rehearsal.mjs");
   assert.match(source, /pg_dump/);
+  assert.match(source, /"--enable-row-security"/);
   assert.match(source, /pg_restore/);
   assert.match(source, /createdb/);
   assert.match(source, /dropdb/);

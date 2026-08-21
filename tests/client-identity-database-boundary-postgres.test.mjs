@@ -10,6 +10,7 @@ const schema = `client_identity_rls_${suffix}`;
 const internalRole = `agentnovas_test_internal_${suffix}`;
 const clientRole = "agentnovas_client_web";
 const clientAuthRole = "agentnovas_client_auth";
+const legacyRole = `agentnovas_test_legacy_${suffix}`;
 const clientToken1 = "1".repeat(64);
 const clientToken2 = "2".repeat(64);
 const expiredClientToken = "3".repeat(64);
@@ -18,6 +19,7 @@ const pool = new pg.Pool({ connectionString: databaseUrl, max: 3, options: `-c s
 let createdClientRole = false;
 let createdInternalRole = false;
 let createdClientAuthRole = false;
+let createdLegacyRole = false;
 
 const quotedIdentifier = (value) => `"${value.replaceAll('"', '""')}"`;
 
@@ -104,13 +106,17 @@ test.before(async () => {
       VALUES('invite-1','invite-hash-1','employee_reusable','manager-1','employee-1','active');
   `);
 
-  const migration = await readFile(new URL("../postgres/migrations/0040_client_identity_rls.sql", import.meta.url), "utf8");
-  const preparedMigration = migration
+  const ownerName = (await pool.query("SELECT current_user AS name")).rows[0].name;
+  const prepareMigration = (migration) => migration
       .replaceAll("pg_catalog, public", `pg_catalog, ${quotedIdentifier(schema)}`)
       .replaceAll("public.", `${quotedIdentifier(schema)}.`)
+      .replaceAll("'agentnovas_migrator'", `'${ownerName}'`)
       .replaceAll("'agentnovas_ops_web'", `'${internalRole}'`);
-  await pool.query(preparedMigration);
-  await pool.query(preparedMigration);
+  const identityMigration = prepareMigration(await readFile(new URL("../postgres/migrations/0040_client_identity_rls.sql", import.meta.url), "utf8"));
+  const hardeningMigration = prepareMigration(await readFile(new URL("../postgres/migrations/0043_client_identity_gateway_hardening.sql", import.meta.url), "utf8"));
+  await pool.query(identityMigration);
+  await pool.query(hardeningMigration);
+  await pool.query(hardeningMigration);
 
   const role = await adminPool.query("SELECT 1 FROM pg_roles WHERE rolname=$1", [clientRole]);
   if (!role.rowCount) {
@@ -124,9 +130,12 @@ test.before(async () => {
   }
   await adminPool.query(`CREATE ROLE ${quotedIdentifier(internalRole)} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`);
   createdInternalRole = true;
+  await adminPool.query(`CREATE ROLE ${quotedIdentifier(legacyRole)} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`);
+  createdLegacyRole = true;
   await pool.query(`
-    GRANT USAGE ON SCHEMA ${quotedIdentifier(schema)} TO ${quotedIdentifier(clientRole)},${quotedIdentifier(clientAuthRole)},${quotedIdentifier(internalRole)};
+    GRANT USAGE ON SCHEMA ${quotedIdentifier(schema)} TO ${quotedIdentifier(clientRole)},${quotedIdentifier(clientAuthRole)},${quotedIdentifier(internalRole)},${quotedIdentifier(legacyRole)};
     GRANT SELECT,INSERT,UPDATE,DELETE ON users,sessions,auth_tokens,user_mfa_totp_credentials,user_mfa_recovery_codes,invitations TO ${quotedIdentifier(internalRole)};
+    GRANT SELECT,INSERT,UPDATE,DELETE ON users,sessions,auth_tokens,user_mfa_totp_credentials,user_mfa_recovery_codes TO ${quotedIdentifier(clientRole)},${quotedIdentifier(legacyRole)};
     GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA ${quotedIdentifier(schema)} TO ${quotedIdentifier(clientRole)};
     REVOKE EXECUTE ON FUNCTION client_login_identity(text,text,text) FROM ${quotedIdentifier(clientRole)};
     REVOKE EXECUTE ON FUNCTION client_self_password_identity(text,timestamptz) FROM ${quotedIdentifier(clientRole)};
@@ -139,6 +148,7 @@ test.after(async () => {
   await pool.end();
   await adminPool.query(`DROP SCHEMA ${quotedIdentifier(schema)} CASCADE`);
   if (createdInternalRole) await adminPool.query(`DROP ROLE ${quotedIdentifier(internalRole)}`);
+  if (createdLegacyRole) await adminPool.query(`DROP ROLE ${quotedIdentifier(legacyRole)}`);
   if (createdClientAuthRole) await adminPool.query(`DROP ROLE ${quotedIdentifier(clientAuthRole)}`);
   if (createdClientRole) await adminPool.query(`DROP ROLE ${quotedIdentifier(clientRole)}`);
   await adminPool.end();
@@ -150,12 +160,21 @@ async function rejectsAsClient(sql, values = []) {
   });
 }
 
-test("Client role has no direct identity or invitation table access", async () => {
+test("Client and unknown legacy roles remain fail-closed even if stale identity ACLs reappear", async () => {
   for (const table of ["users", "sessions", "auth_tokens", "user_mfa_totp_credentials", "user_mfa_recovery_codes", "invitations"]) {
-    await rejectsAsClient(`SELECT * FROM ${table} LIMIT 1`);
+    if (table === "invitations") await rejectsAsClient(`SELECT * FROM ${table} LIMIT 1`);
+    else await withRole(clientRole, async (client) => {
+      assert.equal((await client.query(`SELECT count(*)::int AS count FROM ${table}`)).rows[0].count, 0);
+    });
   }
-  await rejectsAsClient("UPDATE users SET password_hash='attacker' WHERE id='customer-2'");
-  await rejectsAsClient("DELETE FROM user_mfa_recovery_codes WHERE user_id='customer-2'");
+  await withRole(clientRole, async (client) => {
+    assert.equal((await client.query("UPDATE users SET password_hash='attacker' WHERE id='customer-2'")).rowCount, 0);
+    assert.equal((await client.query("DELETE FROM user_mfa_recovery_codes WHERE user_id='customer-2'")).rowCount, 0);
+  });
+  await withRole(legacyRole, async (client) => {
+    assert.equal((await client.query("SELECT count(*)::int AS count FROM users")).rows[0].count, 0);
+    assert.equal((await client.query("UPDATE sessions SET revoked_at=now()::text")).rowCount, 0);
+  });
 });
 
 test("exact login/session capabilities cannot resolve internal or another customer session", async () => {

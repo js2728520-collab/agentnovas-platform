@@ -9,6 +9,7 @@ export const EXPECTED_RELEASE_DATABASE_ROLES = Object.freeze([
   "agentnovas_client_web",
   "agentnovas_ops_web",
   "agentnovas_maint_web",
+  "agentnovas_payment_webhook",
   "agentnovas_notification_worker",
   "agentnovas_demo_execution_worker",
   "agentnovas_runtime_worker",
@@ -74,6 +75,24 @@ const identityGatewayGrantee = (signature) => signature.startsWith("client_login
   ? "agentnovas_client_auth"
   : "agentnovas_client_web";
 
+function agentnovasRolesInExpression(expression) {
+  return new Set(Array.from(
+    String(expression ?? "").matchAll(/'(agentnovas_[a-z0-9_]+)'/gi),
+    (match) => match[1].toLowerCase(),
+  ));
+}
+
+function quotedValuesInExpression(expression) {
+  return new Set(Array.from(
+    String(expression ?? "").matchAll(/'((?:''|[^'])*)'/g),
+    (match) => match[1].replaceAll("''", "'").toLowerCase(),
+  ));
+}
+
+function sameStringSet(left, right) {
+  return left.size === right.size && [...left].every((value) => right.has(value));
+}
+
 const WEB_SECRET_TABLES = new Map([
   ["agentnovas_client_web", new Set([
     "llm_configurations",
@@ -100,6 +119,11 @@ const RELEASE_CONTROL_TABLES = new Set([
 ]);
 
 const WORKER_TABLES = new Map([
+  ["agentnovas_payment_webhook", new Set([
+    "deposit_orders",
+    "deposit_provider_events",
+    "payment_webhook_provider_configs_safe",
+  ])],
   ["agentnovas_notification_worker", new Set([
     "audit_logs",
     "membership_access_events",
@@ -262,6 +286,9 @@ export function evaluatePostgresRolePolicy({
       if (!table?.rlsEnabled) {
         findings.push(finding("IDENTITY_RLS_DISABLED", `Client identity table has no RLS: ${tableName}`, "agentnovas_client_web"));
       }
+      if (!table?.forceRlsEnabled) {
+        findings.push(finding("IDENTITY_RLS_NOT_FORCED", `Client identity table owner can bypass RLS: ${tableName}`, "agentnovas_client_web"));
+      }
       if (table && table.ownerName !== "agentnovas_migrator") {
         findings.push(finding("IDENTITY_TABLE_OWNER", `Identity table is not owned by the migrator: ${tableName}`, table.ownerName));
       }
@@ -275,19 +302,26 @@ export function evaluatePostgresRolePolicy({
       const checkExpression = String(policy.checkExpression ?? "");
       const expression = `${usingExpression} ${checkExpression}`;
       const roles = Array.isArray(policy.policyRoles) ? policy.policyRoles : [];
-      const tableContract = tableName === "users" ? /role\s*=\s*'customer'/i
-        : tableName === "sessions" ? /app_audience\s*=\s*'client'[\s\S]+role\s*=\s*'customer'/i
-          : tableName === "auth_tokens" ? /token_audience\s*=\s*'client'[\s\S]+role\s*=\s*'customer'/i
-            : /role\s*=\s*'customer'/i;
-      if (!policy.restrictive || policy.command !== "*" || !roles.includes("PUBLIC")
-        || !/current_user\s*=\s*'agentnovas_client_web'/i.test(usingExpression)
-        || !/current_user\s*=\s*'agentnovas_client_web'/i.test(checkExpression)
-        || !tableContract.test(usingExpression) || !tableContract.test(checkExpression)
-        || /\bor\s+true\b|current_setting|set_config|request\.|jwt/i.test(expression)) {
-        findings.push(finding("IDENTITY_POLICY_UNSAFE", `Client identity policy is not connection-role bound: ${tableName}`, "agentnovas_client_web"));
+      const expectedPolicyRoles = IDENTITY_TABLE_ALLOWED_GRANTEES.get(tableName) ?? new Set();
+      const usingRoles = agentnovasRolesInExpression(usingExpression);
+      const checkRoles = agentnovasRolesInExpression(checkExpression);
+      const usingValues = quotedValuesInExpression(usingExpression);
+      const checkValues = quotedValuesInExpression(checkExpression);
+      if (!policy.restrictive || policy.command !== "*"
+        || roles.length !== 1 || roles[0] !== "PUBLIC"
+        || !/current_user/i.test(usingExpression) || !/current_user/i.test(checkExpression)
+        || !sameStringSet(usingRoles, expectedPolicyRoles)
+        || !sameStringSet(checkRoles, expectedPolicyRoles)
+        || !sameStringSet(usingValues, expectedPolicyRoles)
+        || !sameStringSet(checkValues, expectedPolicyRoles)
+        || /agentnovas_client_(?:web|auth)|\bor\b|current_setting|set_config|request\.|jwt|session_user/i.test(expression)) {
+        findings.push(finding("IDENTITY_POLICY_UNSAFE", `Client identity policy does not fail closed to gateway-only access: ${tableName}`, "agentnovas_client_web"));
       }
       const basePolicy = policiesByName.get(`${tableName}:${tableName.replace(/^user_mfa_totp_credentials$/, "mfa_totp").replace(/^user_mfa_recovery_codes$/, "mfa_recovery")}_identity_base_access`);
-      if (!basePolicy || basePolicy.restrictive || basePolicy.command !== "*" || !(basePolicy.policyRoles ?? []).includes("PUBLIC")) {
+      if (!basePolicy || basePolicy.restrictive || basePolicy.command !== "*"
+        || (basePolicy.policyRoles ?? []).length !== 1 || basePolicy.policyRoles[0] !== "PUBLIC"
+        || String(basePolicy.usingExpression).trim() !== "true"
+        || String(basePolicy.checkExpression).trim() !== "true") {
         findings.push(finding("IDENTITY_BASE_POLICY_MISSING", `Identity base policy is missing or malformed: ${tableName}`, "agentnovas_client_web"));
       }
     }
@@ -295,6 +329,18 @@ export function evaluatePostgresRolePolicy({
 
   if (identityRoutines) {
     const bySignature = new Map(identityRoutines.map((routine) => [routine.signature, routine]));
+    const expectedSignatures = new Set(CLIENT_IDENTITY_GATEWAY_ROUTINES);
+    for (const routine of identityRoutines) {
+      const executeGrantees = Array.isArray(routine.executeGrantees) ? routine.executeGrantees : [];
+      if (!expectedSignatures.has(routine.signature)
+        && executeGrantees.some((grantee) => grantee !== "agentnovas_migrator")) {
+        findings.push(finding(
+          "IDENTITY_GATEWAY_UNREGISTERED",
+          `Unregistered Client routine is executable by a runtime role: ${routine.signature}`,
+          "agentnovas_client_web",
+        ));
+      }
+    }
     for (const signature of CLIENT_IDENTITY_GATEWAY_ROUTINES) {
       const routine = bySignature.get(signature);
       if (!routine) {
@@ -305,7 +351,10 @@ export function evaluatePostgresRolePolicy({
       const executeGrantees = Array.isArray(routine.executeGrantees) ? routine.executeGrantees : [];
       const expectedGrantee = identityGatewayGrantee(signature);
       const expectedExecuteGrantees = new Set(["agentnovas_migrator", expectedGrantee]);
-      const searchPathIsPinned = config.some((value) => /^search_path=(?:"public"|public),\s*pg_catalog$/i.test(value));
+      const searchPathIsPinned = config.some((value) => (
+        String(value).replaceAll('"', "").replace(/\s+/g, " ").trim().toLowerCase()
+          === "search_path=pg_catalog, public"
+      ));
       if (routine.ownerName !== "agentnovas_migrator" || !routine.securityDefiner
         || !searchPathIsPinned
         || executeGrantees.length !== expectedExecuteGrantees.size
@@ -375,7 +424,8 @@ async function verifyConfiguredDatabase() {
         WHERE member.rolname = ANY($1::text[])
       `, [EXPECTED_RELEASE_DATABASE_ROLES]),
       pool.query(`
-        SELECT class.relname AS "tableName",class.relrowsecurity AS "rlsEnabled",owner.rolname AS "ownerName"
+        SELECT class.relname AS "tableName",class.relrowsecurity AS "rlsEnabled",
+               class.relforcerowsecurity AS "forceRlsEnabled",owner.rolname AS "ownerName"
           FROM pg_class AS class
           JOIN pg_namespace AS namespace ON namespace.oid=class.relnamespace
           JOIN pg_roles AS owner ON owner.oid=class.relowner

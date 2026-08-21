@@ -64,6 +64,17 @@ REVOKE ALL PRIVILEGES ON DATABASE :"agentnovas_database" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM
+  agentnovas_client_web,
+  agentnovas_client_auth,
+  agentnovas_ops_web,
+  agentnovas_maint_web,
+  agentnovas_payment_webhook,
+  agentnovas_notification_worker,
+  agentnovas_demo_execution_worker,
+  agentnovas_runtime_worker,
+  agentnovas_payment_worker,
+  agentnovas_research_worker;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM agentnovas_payment_worker;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM agentnovas_payment_worker;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM agentnovas_research_worker;
@@ -173,6 +184,28 @@ BEGIN
   END LOOP;
 END
 $identity_acl_convergence$;
+
+-- A restored explicit EXECUTE grant must not turn an unknown/legacy database
+-- role into an identity API. Rebuild the gateway ACL from zero, pin its path,
+-- then add only the two exact Client roles below.
+DO $identity_gateway_acl_convergence$
+DECLARE gateway record;
+DECLARE role_row record;
+BEGIN
+  FOR gateway IN
+    SELECT procedure.oid::regprocedure AS identity
+      FROM pg_proc AS procedure
+      JOIN pg_namespace AS namespace ON namespace.oid=procedure.pronamespace
+     WHERE namespace.nspname='public' AND procedure.proname LIKE 'client\_%' ESCAPE '\'
+  LOOP
+    EXECUTE format('ALTER FUNCTION %s SET search_path TO pg_catalog, public', gateway.identity);
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', gateway.identity);
+    FOR role_row IN SELECT rolname FROM pg_roles WHERE rolname<>'agentnovas_migrator' LOOP
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM %I', gateway.identity, role_row.rolname);
+    END LOOP;
+  END LOOP;
+END
+$identity_gateway_acl_convergence$;
 
 -- Client can read only Client/shared product data. Secret-bearing provider and
 -- model-revision tables are intentionally absent; the Demo account view is safe.
