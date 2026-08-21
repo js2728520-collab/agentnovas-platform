@@ -76,7 +76,7 @@ npm run release:build-images -- v1.0.0-beta.1 --platform=linux/amd64
 
 目标服务器没有 Registry 凭证时，使用受控传输交付同一个 Docker archive，并在传输前后校验 SHA-256；有 GHCR 凭证时按 digest 拉取。无论哪种方式，服务器 `docker image inspect` 的版本、revision 和 image ID 必须与 manifest 一致。
 
-Compose 的非敏感部署变量只包含版本、commit、artifact hash、端口和镜像前缀。数据库 URL、数据库口令、MFA/LLM/集成/通知密钥、Resend 与 Udun 凭证分别存放在 `/etc/agentnovas-riverton/*.env`，权限为 `0600`，通过 Compose secret 只读挂载；不得用 `docker inspect` 可见的普通 `environment` 传递密钥。
+Compose 的非敏感部署变量只包含版本、commit、artifact hash、端口和镜像前缀。数据库 URL、数据库口令、MFA/LLM/集成/通知密钥、Resend 与 Udun 凭证分别存放在 `/etc/agentnovas-riverton/*.env`，通过 Compose secret 只读挂载；不得用 `docker inspect` 可见的普通 `environment` 传递密钥。使用本机 Docker Compose 的 bind-backed secret 时，secret 根目录保持 `0700 root:root`，Node 容器读取的七个 `*.env` 文件使用 `0440 root:<容器 node 的 gid>`；原始数据库口令、角色口令和独立 Key 文件继续使用 `0600 root:root`。不得为了可读性把 secret 根目录或文件改为 world-readable。
 
 配置预检必须先执行：
 
@@ -102,7 +102,7 @@ docker compose -f deploy/container/compose.yml config --quiet
 ### 2.1 容器化分阶段发布
 
 1. 为版本建立只读 release 目录，保存 compose、release manifest 和非敏感部署元数据；`current`/`previous` 只指向完整版本目录，不能指向工作区。
-2. 首次仅执行 `docker compose up -d postgres`。Fresh 库按 1.1 先 bootstrap migrator，由 migrator 容器执行全部 checksum migration，再执行 `least-privilege-roles.sql`、设置独立运行角色口令并运行 role policy。生产迁移必须有本次发布的显式变更授权。
+2. 首次仅执行 `docker compose up -d postgres`。Fresh 库按 1.1 先 bootstrap migrator；`migrator.env` 必须显式设置 `POSTGRES_MIGRATION_SCHEMA=public`，由 migrator 容器执行全部 checksum migration，再执行 `least-privilege-roles.sql`、设置独立运行角色口令并运行 role policy。迁移器保持角色默认 `search_path=pg_catalog,public`，只在单个迁移事务内临时使用经校验的 `public,pg_catalog`，且 registry 始终使用 schema-qualified 表名。生产迁移必须有本次发布的显式变更授权。
 3. 使用 `docker compose up -d client operations maintenance` 并行启动三端，端口只绑定回环地址。依次用正确 Host 请求 `/api/health/live`、`/api/health/ready` 和 `/login`；错误 Host/audience 必须 404。
 4. 未完成 Resend allowlist/Webhook 或平台 Demo 凭证 smoke 时，不启用 `workers` profile。启用时逐个启动 Notification、Demo、Runtime，分别等待真实 heartbeat；进程 `running` 不能替代 `healthy`。
 5. 将反向代理接入 `agentnovas-riverton-edge` 网络，只先增加 `zht`/`xm` 或受控 staging 路由。确认 Cloudflare 到 origin TLS、Host、CSP、Cookie 和登录限流后，再切换根域 Client。不得停止或删除原服务作为“切流”。

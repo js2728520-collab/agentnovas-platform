@@ -3,8 +3,16 @@ import test from "node:test";
 
 import {
   migrationChecksum,
+  migrationSchemaSearchPath,
   planPostgresMigrations,
 } from "../scripts/postgres-migration-runner.mjs";
+
+test("uses an explicitly quoted application schema before pg_catalog", () => {
+  assert.equal(migrationSchemaSearchPath("public"), '"public",pg_catalog');
+  assert.equal(migrationSchemaSearchPath("release_2026"), '"release_2026",pg_catalog');
+  assert.throws(() => migrationSchemaSearchPath("pg_catalog"), /unsafe PostgreSQL migration schema/i);
+  assert.throws(() => migrationSchemaSearchPath("public,pg_catalog"), /unsafe PostgreSQL migration schema/i);
+});
 
 test("plans only unapplied PostgreSQL migrations in filename order", () => {
   const migrations = [
