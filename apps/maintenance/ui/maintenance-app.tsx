@@ -45,16 +45,19 @@ const navigation: ConsoleNavigationItem[] = [
 ];
 
 export default function MaintenanceApp({ segments }: { segments: string[] }) {
+  if (segments[0] === "login") return <AppLogin audience="maintenance" title="Riverton 运维端" description="模型、集成、安全、审计和系统健康工作台。" allowRegistration={false} />;
+  return <MaintenanceSessionApp segments={segments} />;
+}
+
+function MaintenanceSessionApp({ segments }: { segments: string[] }) {
   const session = useAppSession("maintenance");
   const route = segments[0] || "overview";
-  const isLogin = route === "login";
   useEffect(() => {
-    if (!isLogin && session.status === "anonymous") {
+    if (session.status === "anonymous") {
       const next = `${window.location.pathname}${window.location.search}`;
       window.location.replace(`/login?next=${encodeURIComponent(next)}`);
     }
-  }, [isLogin, session.status]);
-  if (isLogin) return <AppLogin audience="maintenance" title="Riverton 运维端" description="模型、集成、安全、审计和系统健康工作台。" allowRegistration={false} />;
+  }, [session.status]);
   if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证运维端会话…" />;
   if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
   const subtype = segments[1];

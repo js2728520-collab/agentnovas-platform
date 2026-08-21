@@ -26,6 +26,11 @@ const AccountSecurityWorkspace = dynamic(() => import("./account-security-worksp
 const SupportWorkspace = dynamic(() => import("./support-workspace").then((module) => module.SupportWorkspace), { loading: workspaceLoading });
 
 export default function ClientPortal({ segments, loginMode }: { segments: string[]; loginMode?: "login" | "register" | "forgot" }) {
+  if (segments[0] === "login") return <AppLogin audience="client" title="Riverton Capital" description="AI 策略研发、回测、模拟盘和会员资产中心。" allowRegistration initialMode={loginMode} />;
+  return <ClientSessionPortal segments={segments} />;
+}
+
+function ClientSessionPortal({ segments }: { segments: string[] }) {
   const session = useAppSession("client");
   const route = segments[0];
   const isLegalRoute = route === "legal" && segments[1] === "consent";
@@ -35,7 +40,7 @@ export default function ClientPortal({ segments, loginMode }: { segments: string
     "商业披露确认状态读取失败，业务入口保持关闭。",
   );
   useEffect(() => {
-    if (route !== "login" && session.status === "anonymous") {
+    if (session.status === "anonymous") {
       const next = `${window.location.pathname}${window.location.search}`;
       window.location.replace(`/login?next=${encodeURIComponent(next)}`);
     }
@@ -45,7 +50,6 @@ export default function ClientPortal({ segments, loginMode }: { segments: string
     const next = `${window.location.pathname}${window.location.search}`;
     window.location.replace(`/legal/consent?next=${encodeURIComponent(next)}`);
   }, [legalConsentGate.data, shouldCheckLegalConsent]);
-  if (route === "login") return <AppLogin audience="client" title="Riverton Capital" description="AI 策略研发、回测、模拟盘和会员资产中心。" allowRegistration initialMode={loginMode} />;
   if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证客户端会话…" />;
   if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
   if (isLegalRoute) {

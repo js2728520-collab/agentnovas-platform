@@ -56,17 +56,20 @@ const routePermissions: Record<string, string[] | undefined> = {
 };
 
 export default function OperationsApp({ segments }: { segments: string[] }) {
+  if (segments[0] === "login") return <AppLogin audience="operations" title="Riverton 运营端" description="客户、充值、账务、财务和审批工作台。" allowRegistration={false} />;
+  return <OperationsSessionApp segments={segments} />;
+}
+
+function OperationsSessionApp({ segments }: { segments: string[] }) {
   const session = useAppSession("operations");
   const route = segments[0] || "overview";
-  const isLogin = route === "login";
   useEffect(() => {
-    if (!isLogin && session.status === "anonymous") {
+    if (session.status === "anonymous") {
       const next = `${window.location.pathname}${window.location.search}`;
       window.location.replace(`/login?next=${encodeURIComponent(next)}`);
     }
-  }, [isLogin, session.status]);
+  }, [session.status]);
   const required = routePermissions[route];
-  if (isLogin) return <AppLogin audience="operations" title="Riverton 运营端" description="客户、充值、账务、财务和审批工作台。" allowRegistration={false} />;
   if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证运营端会话…" />;
   if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
   if (!hasAnyPermission(session.access.permissions, required)) return <AccessDenied />;

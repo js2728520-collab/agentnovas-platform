@@ -91,6 +91,28 @@ test("internal applications use permission-driven navigation and login without r
   }
 });
 
+test("login routes do not start authenticated session trees or prefetch protected roots", async () => {
+  const login = await read("packages/ui/src/app-login.tsx");
+  const consoleCss = await read("app/riverton-console.css");
+  const layout = await read("app/layout.tsx");
+  assert.match(login, /<Link href="\/" prefetch=\{false\}>/);
+  assert.match(consoleCss, /\.rc-auth\s*\{[^}]*font-family:\s*system-ui/s);
+  assert.doesNotMatch(consoleCss, /\.rc-auth\s*\{[^}]*var\(--font-geist-sans\)/s);
+  assert.equal((layout.match(/preload:\s*false/g) ?? []).length, 2);
+  for (const [path, sessionComponent] of [
+    ["apps/client/ui/client-portal.tsx", "ClientSessionPortal"],
+    ["apps/operations/ui/operations-app.tsx", "OperationsSessionApp"],
+    ["apps/maintenance/ui/maintenance-app.tsx", "MaintenanceSessionApp"],
+  ]) {
+    const source = await read(path);
+    const wrapper = source.indexOf("export default function");
+    const sessionTree = source.indexOf(`function ${sessionComponent}`);
+    const sessionHook = source.indexOf("const session = useAppSession");
+    assert.ok(wrapper >= 0 && sessionTree > wrapper && sessionHook > sessionTree, `${path} must isolate its login wrapper from session hooks`);
+    assert.match(source.slice(wrapper, sessionTree), /return <AppLogin/);
+  }
+});
+
 test("internal login completes required TOTP enrollment and verification", async () => {
   const login = await read("packages/ui/src/app-login.tsx");
   assert.match(login, /mfaEnrollmentRequired/);
