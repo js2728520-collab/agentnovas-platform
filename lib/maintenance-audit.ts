@@ -20,7 +20,7 @@ export function maintenanceCorrelation(request: Request) {
   };
 }
 
-export async function recordMaintenanceAudit(pool: Pool, input: {
+export async function recordMaintenanceAudit(pool: Pick<Pool, "query">, input: {
   actorUserId: string;
   action: string;
   subjectType: string;

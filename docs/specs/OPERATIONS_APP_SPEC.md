@@ -6,6 +6,8 @@ Operations 处理邀请/客户、组织、会员付款、credits 调整、paper 
 
 核心路由：`/customers`、`/organization`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
 
+优盾成功回调只进入 `MANUAL_REVIEW`。maker 提交 `APPROVE_CREDIT` 原因，checker 不得自审；批准时订单状态、平衡账本、钱包版本、审计和通知在同一事务提交并返回 `fundsExecuted=true`。其他人工操作批准仍只表示相应决定，不得统一写成资金已执行。
+
 ## 2. 权限与 data scope
 
 权限分 view/manage/request/approve/pii_reveal；会员、credits、分成和付款分别具有 maker/checker 权限。所有查询使用 assignment-bound SELF/DIRECT_REPORTS/TEAM_TREE/ORGANIZATION/ORGANIZATION_SET/PLATFORM，列表、详情、计数和导出一致。申请人不返回 decision action；服务端再次阻断自审。

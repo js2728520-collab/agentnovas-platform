@@ -7,7 +7,7 @@
 - PRD、七智能体合同、System/三端 Spec、API Catalog/OpenAPI、ADR 和 Runbook 经责任角色评审。
 - 四计划、三卡、paper 10,000/card、Demo/paper 分离、credits 和周分成只有一个版本化合同真源。
 - 平台产品身份、地区、隐私、条款、风险、Paper 收费和退款/不退款规则经 maker-checker 发布为完整版本，Client 可访问且确认凭证可重放；不依赖外部团队交付。
-- 社区策略、自动支付、客户充值/密钥、真实交易和退款被 feature gate/代码硬关闭。
+- 社区策略、提现/划转、自动扣款、客户交易所密钥、真实交易和退款被 feature gate/代码硬关闭；优盾充值须通过验签/重放/双审/账本 Gate。
 
 ## 2. Gate 1：身份、Audience 与 API Policy
 
@@ -56,7 +56,7 @@
 - Worker 从数据库 heartbeat 推导 configured/enabled/alive/healthy/stale；停止后 60 秒内 stale。
 - public live/ready 不泄露内部配置；详细诊断需要 Maintenance permission。
 - Email domain/key/webhook/template/suppression/retention/allowlist 全部完成并获授权，否则 `configured_not_sent`。
-- Telegram/WhatsApp `not_integrated` 且无验证码；Payment 永远 disabled。
+- Telegram/WhatsApp `not_integrated` 且无验证码；优盾未配置时明确 disabled/incomplete，配置后仍须真实测试与双审 smoke。
 - JSON 日志/requestId/traceId/关键指标/告警/runbook 可用且无 secret/完整 PII。
 - 公共源测试和紧急停控由中央 API Policy 强制 `Idempotency-Key`，数据库绑定 actor/subject/payload 并返回持久化终态；网络超时或进程中断不得导致无期限 processing 或静默重复外部调用。
 

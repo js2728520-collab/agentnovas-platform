@@ -59,6 +59,12 @@ test("known notification templates render bounded escaped email", () => {
   });
   assert.match(readOnly.text, /停止新开仓/);
 
+  const maintenanceTest = renderNotificationEmail("maintenance_email_test", {
+    requestedAt: "2026-08-20T00:00:00.000Z",
+  });
+  assert.match(maintenanceTest.subject, /邮件投递测试/);
+  assert.match(maintenanceTest.text, /不代表已发送或已送达|最终投递状态/);
+
   const delist = renderNotificationEmail("strategy_delist_notice", {
     strategyId: "strategy-1",
     strategyName: "A < B",
@@ -96,9 +102,16 @@ test("recipient and all send gates must be production-ready", () => {
     NOTIFICATION_EMAIL_SEND_ENABLED: "true",
     NODE_ENV: "production",
     RESEND_API_KEY: "secret",
-    RESEND_WEBHOOK_SECRET: "webhook-secret",
+    NOTIFICATION_TOKEN_ENCRYPTION_KEY: "notification-token-key-at-least-thirty-two-characters",
     NOTIFICATION_EMAIL_ALLOWLIST: "person@example.com",
   }), true);
+  assert.equal(notificationSendEnvironmentReady({
+    NOTIFICATION_WORKER_ENABLED: "true",
+    NOTIFICATION_EMAIL_SEND_ENABLED: "true",
+    NODE_ENV: "production",
+    RESEND_API_KEY: "secret",
+    NOTIFICATION_EMAIL_ALLOWLIST: "person@example.com",
+  }), false);
   assert.equal(notificationSendEnvironmentReady({
     NOTIFICATION_WORKER_ENABLED: "true",
     NOTIFICATION_EMAIL_SEND_ENABLED: "true",

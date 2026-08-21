@@ -14,7 +14,7 @@ test("client communication and account workspaces are responsive, accessible and
 test("client wallet boundaries are responsive, accessible and audience-isolated", async ({ page }) => {
   for (const [path, heading] of [
     ["/wallet", "钱包与账本"],
-    ["/wallet/deposits", "充值暂不开放"],
+    ["/wallet/deposits", "USDT 充值与订单"],
   ] as const) {
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "client");

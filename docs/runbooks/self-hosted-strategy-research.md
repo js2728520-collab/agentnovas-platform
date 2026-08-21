@@ -52,11 +52,13 @@ RELEASE_ROLE_POLICY_DATABASE_URL='postgresql://agentnovas_migrator@127.0.0.1/age
 ### 3.1 Resend 上线验收
 
 1. 在 Resend 创建 HTTPS Webhook，地址指向 `https://xm.agentnovas.com/api/integrations/resend/webhook`，订阅 `email.sent`、`email.delivery_delayed`、`email.delivered`、`email.opened`、`email.clicked`、`email.complained`、`email.bounced`、`email.failed` 和 `email.suppressed`。
-2. 将 `RESEND_WEBHOOK_SECRET` 仅写入 `maintenance.env`，将 `RESEND_API_KEY` 仅写入 `notification.env`；两者均由 root 持有、服务组只读。Web 端最多返回“是否存在”的布尔状态，不得返回密钥值。不得把任一密钥写入仓库、命令历史或运维截图。
-3. 执行 `npm run postgres:migrate`，确认 `0018_resend_delivery_events.sql` 已应用；检查 `notification_deliveries.provider_event_at` 和 `resend_webhook_events.mapped_delivery_id` 存在。
-4. 在运维端把 Resend 邮件服务商状态设为 `active`，确认 `agentnovas.com` 发件域已验证。保持两个通知开关为 `false`，先使用服务商测试事件验证签名错误返回 401、合法事件在事务提交后返回 200。
-5. 开启 Notification Worker 后发送一个受控测试邮件，确认投递记录依次达到 `sent` 或 `delivered`，相同 `svix-id` 重放不重复应用，旧事件不会覆盖新状态。Webhook 返回非 200 时 Resend 会重试，因此必须先排除数据库迁移、连接和字段映射错误。
-6. 验收完成后才同时启用 `NOTIFICATION_WORKER_ENABLED=true` 与 `NOTIFICATION_EMAIL_SEND_ENABLED=true`。若持续出现 5xx、签名失败、事件无法映射或队列租约异常，立即关闭两个开关并保留事件/投递审计记录。
+2. 将 `RESEND_WEBHOOK_SECRET` 仅写入 `maintenance.env`；将 `RESEND_API_KEY`、`NOTIFICATION_EMAIL_ALLOWLIST` 和 `NOTIFICATION_TOKEN_ENCRYPTION_KEY` 仅写入 `notification.env`。Client Auth 产生密码重置令牌，因此 `client.env` 必须持有与 Notification Worker 相同的 `NOTIFICATION_TOKEN_ENCRYPTION_KEY`。该共享值只通过受保护的部署密钥注入，不得进入 Git、聊天、命令历史或截图。Web 端只读取 Worker heartbeat 发布的布尔就绪标记，不读取或回显 API Key 与 allowlist。
+3. 发件地址固定为 `noreply@agentnovas.com`。`support@agentnovas.com`、`security@agentnovas.com`、`billing@agentnovas.com` 和 `operations@agentnovas.com` 仅为预留业务身份；在企业邮箱 MX、实际邮箱和真实收件测试完成前，不得宣称它们可以收信。
+4. 执行 `npm run postgres:migrate`，确认 `0018_resend_delivery_events.sql` 和 suppression 迁移已应用；检查 `notification_deliveries.provider_event_at`、`resend_webhook_events.mapped_delivery_id` 和 `notification_email_suppressions` 存在。
+5. 保持 `NOTIFICATION_EMAIL_SEND_ENABLED=false` 启动 Notification Worker，确认运维端只能看到 `apiKeyPresent`、`allowlistConfigured`、`tokenEncryptionKeyPresent` 等布尔证据和真实 heartbeat。使用服务商测试事件验证签名错误返回 401、合法事件在事务提交后返回 200。
+6. 只有域名、Webhook 签名、模板和 suppression 均完成验收后，才在变更记录中把 `notification_provider_configs` 的 Resend 行设为 `active`，并在 `settings_json` 中分别记录 `senderDomainVerified`、`webhookVerified`、`templatesVerified`、`suppressionEnabled` 四个非秘密布尔事实。不得用数据库标记替代外部验收证据。
+7. 设置最小 Beta allowlist，并同时启用 `NOTIFICATION_WORKER_ENABLED=true` 与 `NOTIFICATION_EMAIL_SEND_ENABLED=true` 后重启 Worker。运维端“安全测试”会在单一事务中创建 `maintenance_email_test` 投递与审计；HTTP 202 只表示请求已记录，不代表 Resend 已接收或邮件已送达。
+8. 确认投递记录依次达到 `sent` 或 `delivered`，相同请求 ID 不重复入队，相同 `svix-id` 重放不重复应用，旧事件不会覆盖新状态。若持续出现 5xx、签名失败、事件无法映射、队列租约异常或 Worker heartbeat 过期，立即关闭邮件发送开关并保留事件/投递审计记录。
 
 ## 4. systemd 与 Nginx
 

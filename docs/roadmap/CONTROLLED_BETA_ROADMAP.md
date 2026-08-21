@@ -1,6 +1,6 @@
 # Riverton Capital 14 天受邀付费 Beta 路线图
 
-本路线图是时间盒，不是上线承诺。Gate 优先于日期；新增社区市场、自动支付、客户充值、真实交易和退款进入 Beta 后 backlog。
+本路线图是时间盒，不是上线承诺。Gate 优先于日期；优盾 deposit-only 充值按 ADR-0015 收口，社区市场、提现/划转、自动扣款、真实交易和退款进入 Beta 后 backlog。
 
 ## Wave 1：D1–D8 后端纵向闭环
 
@@ -15,7 +15,7 @@
 
 - Client：稳定路由、商业披露/会员/credits/三 paper/Hall/Demo/通知/真实历史；移除假支付与假验证。
 - Operations：客户/邀请、会员凭证/双审、credits、分成、分页/scope/队列刷新。
-- Maintenance：模型、Email、支付禁用态、Demo 账户、真实 Worker/queue、kill switch、技术审计。
+- Maintenance：模型、Email、优盾充值配置/测试/停控、Demo 账户、真实 Worker/queue、kill switch、技术审计。
 - Foundation：audience import/lazy chunk、Client/Console CSS、a11y、请求取消/错误合同、CSP。
 - Observability/Deploy：heartbeat、requestId/traceId、指标告警、最小 env/DB role、清理旧 unit。
 

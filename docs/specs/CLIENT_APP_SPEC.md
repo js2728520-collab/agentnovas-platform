@@ -56,10 +56,10 @@ Client 为受邀用户提供登录/设置密码、商业披露确认、试用与
 ## 6. 钱包和通知
 
 - `/wallet` 只读显示历史服务余额和账本；与 credits、paper 本金分区解释。
-- `/wallet/deposits` 显示“本 Beta 未开放充值”，无创建、地址、二维码或确认数。
+- `/wallet/deposits` 读取真实订单并允许有 `client.deposit.create` 的客户创建优盾 USDT 充值订单；地址只使用服务端优盾响应，展示网络、预计/实际金额、交易哈希、确认、风控、复核和入账状态，不生成二维码或占位地址。
 - Beta 通知为 in-app 与 Email，支持账号时区下的成对免打扰时段原子保存；Email Worker 按 IANA 时区/DST/跨午夜窗口延迟到结束时间，in-app 立即可用。Email 未满足 Gate 时显示 `configured_not_sent`。
 - Telegram/WhatsApp 固定“未接入、不可验证”，接口/UI 不生成演示验证码。
-- Proxy 将历史 `/api/notifications/channels`、`/api/wallet/deposit-orders`、`/api/exchange-accounts/**`、`/api/strategy-deployments/**`、旧永续 research/deployment、社区市场、旧 portfolio/simulated orders 与 Client emergency-stop 标为 `DISABLED/BETA`；运行时租约、Worker 和 `0029` 迁移同时拒绝/终结旧永续任务，隐藏 UI 不是唯一安全边界。
+- Proxy 将 `/api/wallet/deposit-orders` 注册为 Client RBAC 接口，POST 强制同源和 `Idempotency-Key`。历史 `/api/notifications/channels`、`/api/exchange-accounts/**`、`/api/strategy-deployments/**`、旧永续 research/deployment、社区市场、旧 portfolio/simulated orders 与 Client emergency-stop 仍为 `DISABLED/BETA`。
 - 偏好保存失败保留原值，动态结果用 `aria-live`。
 
 ## 7. 错误、可访问性与性能

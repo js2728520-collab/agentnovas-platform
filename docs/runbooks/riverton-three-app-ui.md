@@ -73,7 +73,7 @@ Maintenance：`/`、`/models`、`/integrations`、`/integrations/email`、`/inte
 - 角色审批完成后，新角色保持草稿；角色管理员核对后填写发布原因，发布事件写入当前应用授权审计。
 - “审批已记录”不等于资金执行、链上转账或账本变更。账本页面没有编辑和删除入口。
 - 支付未配置或测试功能关闭时保留 API 的 503 原因，不生成地址、二维码或成功提示。
-- 邮件测试的 `configured_not_sent` 显示“已配置但未发送”，不能写成已发送。
+- 邮件测试成功入队时显示 `queued` 并明确“请求已记录”；只有 Worker/Resend 回执才能显示 `sent` 或 `delivered`。Gate 未满足时显示 `configured_not_sent` 或具体 503 原因，不能写成已发送。
 - 运维页面只展示 `hasSecret`、配置状态和最近测试时间；密钥、完整端点和 Webhook payload 不得回显。
 - 真实永续订单始终关闭。
 - 运维紧急暂停按当前 RBAC 数据范围生效，必须填写原因并审计；它只把官方 Paper 组合限制为 `close_only/read_only` 并拒绝待处理买入，不发送任何订单，也不改变平台 Demo kill switch。解除后组合不会自动恢复，必须由显式会员/客户状态流程重新核验。

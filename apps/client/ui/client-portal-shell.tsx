@@ -13,7 +13,7 @@ const navigation = [
   { href: "/paper", label: "模拟组合", icon: "▥", requiredPermissions: ["client.paper.view"] },
   { href: "/trading-hall", label: "七智能体交易大厅", icon: "◈", requiredPermissions: ["client.paper.view"] },
   { href: "/wallet", label: "钱包与账本", icon: "◫", requiredPermissions: ["client.wallet.view"] },
-  { href: "/wallet/deposits", label: "充值（Beta 暂停）", icon: "＋", requiredPermissions: ["client.wallet.view"] },
+  { href: "/wallet/deposits", label: "USDT 充值", icon: "＋", requiredPermissions: ["client.wallet.view"] },
   { href: "/notifications", label: "通知中心", icon: "◌" },
   { href: "/account/security", label: "账号安全", icon: "盾" },
   { href: "/support", label: "支持与公告", icon: "?" },

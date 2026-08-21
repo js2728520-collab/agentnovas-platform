@@ -109,7 +109,7 @@
 | `/api/health` | GET | S | KEEP；公开粗粒度模式/时间，不含内部检查 |
 | `/api/health/live` | GET | S | KEEP；进程存活，公开粗粒度 |
 | `/api/health/ready` | GET | S | KEEP；数据库 readiness，公开粗粒度 |
-| `/api/integrations/payments/[provider]/webhook` | POST | S | DISABLED/BETA；自动支付与供应商回调均未开放，Proxy/Nginx 双层拒绝 |
+| `/api/integrations/payments/[provider]/webhook` | POST | S | MACHINE；仅 `udun`，原始 body MD5 协议验签、时效、nonce/event/tx 防重放，使用独立 DB role；无提现动作 |
 | `/api/integrations/resend/webhook` | POST | S | MACHINE；Svix 签名、幂等、乱序保护 |
 
 ## 6. 钱包、通知、运营充值与账本（19）
@@ -117,12 +117,12 @@
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
 | `/api/wallet/balances` | GET | C | KEEP；服务余额 |
-| `/api/wallet/deposit-orders` | GET, POST | C | DISABLED/BETA；历史地址也不返回，页面固定说明未开放 |
+| `/api/wallet/deposit-orders` | GET, POST | C | CURRENT；GET 自身订单，POST RBAC/同源/幂等并从优盾生成真实专属地址；未配置返回 503 |
 | `/api/wallet/ledger` | GET | C | KEEP；不可变流水 |
 | `/api/notifications/channels` | GET, POST, PATCH | C | DISABLED/BETA；Telegram/WhatsApp 不接入，偏好仅走 email/in-app |
 | `/api/notifications/inbox` | GET, PATCH | C | KEEP |
 | `/api/notifications/preferences` | GET, PUT | C | KEEP；失败保留原值 |
-| `/api/operations/deposit-action-requests/[id]/decisions` | POST | O | KEEP；第二人审批 |
+| `/api/operations/deposit-action-requests/[id]/decisions` | POST | O | KEEP；第二人审批；批准 `APPROVE_CREDIT` 时原子写钱包、不可变账本、审计和通知 |
 | `/api/operations/deposit-action-requests` | GET | O | KEEP；当前 audience/scope |
 | `/api/operations/deposits/[id]/action-requests` | POST | O | KEEP；原因、幂等 |
 | `/api/operations/deposits/[id]` | GET | O | KEEP；PII policy |
@@ -164,7 +164,8 @@
 | `/api/maintenance/integrations/catalog` | GET | M | KEEP；代码固定的公共数据/新闻目录，仅安全状态投影 |
 | `/api/maintenance/integrations/[id]/test` | POST | M | KEEP；固定只读目标、5 秒超时、原因、recent MFA 与持久化幂等；外部请求不占用 DB 事务，同键不重复 fetch，拒绝浏览器 URL |
 | `/api/maintenance/payment-providers/[id]/status` | PATCH | M | KEEP；敏感操作 |
-| `/api/maintenance/payment-providers/[id]/test` | POST | M | KEEP；开关关闭 503 |
+| `/api/maintenance/payment-providers/[id]/configuration` | PATCH | M | CURRENT；disabled 状态下配置非密钥币种映射，修改后强制重测 |
+| `/api/maintenance/payment-providers/[id]/test` | POST | M | CURRENT；显式开关后调用优盾支持币种接口，不创建地址/交易 |
 | `/api/maintenance/payment-providers` | GET | M | KEEP；安全视图 |
 | `/api/maintenance/payment-workers/health` | GET | M | KEEP；真实 heartbeat，configured/enabled/liveness/health/last result 分离 |
 | `/api/maintenance/platform-settings` | GET, PUT | M | KEEP；私有/公开字段分离 |

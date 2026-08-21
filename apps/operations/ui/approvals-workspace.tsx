@@ -28,7 +28,7 @@ export function ApprovalsWorkspace({ canApproveDeposits, canManageAccess, canApp
     {canManageAttributions ? <AttributionApprovals key={`attribution-${refreshVersion}`} onDecision={setPending} /> : null}
     {canReviewOrganization ? <ReportingApprovals key={`reporting-${refreshVersion}`} onDecision={setPending} /> : null}
     {canManageAccess ? <AccessApprovals key={`access-${refreshVersion}`} onDecision={setPending} /> : <section className="rc-panel"><EmptyState title="无授权审批权限" description="当前账户不会看到角色变更队列。" /></section>}
-    <ConfirmActionDialog open={Boolean(pending)} title={`${pending?.decision === "approve" ? "批准" : "拒绝"}${pending?.label ?? "申请"}`} description={pending?.kind === "deposit" ? "审批只会记录复核结果，不会自动修改资金或账本。" : pending?.kind === "credit" ? "批准会在同一事务写入余额、不可变 Credits 分录和审计；拒绝不会改变余额。" : pending?.kind === "attribution" ? "批准会原子更新客户归属；如原归属已变化，服务端会拒绝旧快照。" : pending?.kind === "reporting" ? "申请人与复核人必须不同；批准前会再次校验当前汇报关系快照。" : "权限变更将由服务端按双人审批规则校验并应用。"} confirmLabel="确认审批" busy={busy} onCancel={() => setPending(null)} onConfirm={async (note) => {
+    <ConfirmActionDialog open={Boolean(pending)} title={`${pending?.decision === "approve" ? "批准" : "拒绝"}${pending?.label ?? "申请"}`} description={pending?.kind === "deposit" ? pending.label === "APPROVE_CREDIT" && pending.decision === "approve" ? "批准会在同一数据库事务写入不可变账本、钱包余额和审计；任何校验失败都会整体回滚。" : "决定会记录到审批历史；非入账操作不会由此接口改变钱包余额。" : pending?.kind === "credit" ? "批准会在同一事务写入余额、不可变 Credits 分录和审计；拒绝不会改变余额。" : pending?.kind === "attribution" ? "批准会原子更新客户归属；如原归属已变化，服务端会拒绝旧快照。" : pending?.kind === "reporting" ? "申请人与复核人必须不同；批准前会再次校验当前汇报关系快照。" : "权限变更将由服务端按双人审批规则校验并应用。"} confirmLabel="确认审批" busy={busy} onCancel={() => setPending(null)} onConfirm={async (note) => {
       if (!pending) return;
       setBusy(true); setMessage("");
       try {
@@ -37,10 +37,10 @@ export function ApprovalsWorkspace({ canApproveDeposits, canManageAccess, canApp
             : pending.kind === "credit" ? `/api/operations/credit-adjustments/${pending.id}/decision`
               : pending.kind === "attribution" ? `/api/operations/attribution-changes/${pending.id}/decision`
                 : `/api/approvals/${pending.id}/decision`;
-        const response = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json", ...(pending.kind === "credit" || pending.kind === "attribution" ? { "idempotency-key": crypto.randomUUID() } : {}) }, body: JSON.stringify({ decision: pending.decision, note }) });
+        const response = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json", ...(pending.kind === "credit" || pending.kind === "attribution" || pending.kind === "deposit" ? { "idempotency-key": crypto.randomUUID() } : {}) }, body: JSON.stringify({ decision: pending.decision, note }) });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(apiErrorMessage(payload, "审批失败"));
-        setMessage(pending.kind === "deposit" ? "审批已记录；资金和账本尚未由此接口执行变更。" : pending.kind === "credit" ? "Credits 复核已记录；批准时余额与不可变分录在同一事务写入。" : pending.kind === "attribution" ? "客户归属复核已记录；批准时组织归属原子生效。" : pending.kind === "reporting" ? "汇报关系复核已记录；服务端快照有效时关系已原子生效。" : "授权审批已记录，结果以服务端回执和审计记录为准。");
+        setMessage(pending.kind === "deposit" ? String(payload.message ?? (payload.fundsExecuted ? "充值已通过不可变账本入账。" : "审批记录已保存，未执行资金变更。")) : pending.kind === "credit" ? "Credits 复核已记录；批准时余额与不可变分录在同一事务写入。" : pending.kind === "attribution" ? "客户归属复核已记录；批准时组织归属原子生效。" : pending.kind === "reporting" ? "汇报关系复核已记录；服务端快照有效时关系已原子生效。" : "授权审批已记录，结果以服务端回执和审计记录为准。");
         setPending(null);
         setRefreshVersion((version) => version + 1);
         window.dispatchEvent(new Event("riverton:approvals-changed"));

@@ -5,6 +5,7 @@ import pg from "pg";
 import {
   claimNextEmailDelivery,
   loadResendProviderConfig,
+  notificationEmailAllowlist,
   notificationSendEnvironmentReady,
   processClaimedEmail,
   providerConfigAllowsSend,
@@ -30,6 +31,14 @@ const heartbeat = createWorkerHeartbeatReporter(pool, {
   workerType: "notification",
   instanceId: workerId,
   commitSha: process.env.GIT_COMMIT_SHA,
+  metadata: {
+    processEnabled: process.env.NOTIFICATION_WORKER_ENABLED === "true",
+    emailSendEnabled: process.env.NOTIFICATION_EMAIL_SEND_ENABLED === "true",
+    apiKeyPresent: Boolean(process.env.RESEND_API_KEY?.trim()),
+    allowlistConfigured: notificationEmailAllowlist(process.env).size > 0,
+    tokenEncryptionKeyPresent: (process.env.NOTIFICATION_TOKEN_ENCRYPTION_KEY?.trim().length ?? 0) >= 32,
+    emailEnvironmentReady: sendEnabled,
+  },
   onError: (error) => console.error("Notification Worker heartbeat failed", {
     code: error instanceof Error ? error.name : "UNKNOWN",
   }),

@@ -10,7 +10,7 @@
 - [x] 三张官方 spot 卡、每卡 10,000 USDT Paper、七阶段决策链和真实 Paper trade history。
 - [x] OKX Demo/Binance Spot Testnet/Bybit Demo allowlist、签名、幂等、限额、kill switch 与 Worker。
 - [x] Client 核心商业页面、Operations 会员/分成、Maintenance Demo/健康、12 项四身份生产浏览器 Gate。
-- [x] 真实交易、客户充值、客户密钥、自动支付/退款、社区市场和 legacy 永续运行时硬关闭。
+- [x] 真实交易、客户密钥、提现/划转、自动扣款/退款、社区市场和 legacy 永续运行时硬关闭；客户充值仅开放优盾 deposit-only。
 
 ## 1. 商业合同、试用与账号
 
@@ -62,7 +62,7 @@
 
 - [x] 6.1 新增切片的 unit/contract/PostgreSQL/security/rollback 测试；233 个 method handler inventory 零遗漏。
 - [x] 6.2 CI quality-release job：三端 build、Playwright/axe、bundle/Lighthouse、audit、secret scan。
-- [x] 6.3 migration concurrent、独立 DB roles、42 迁移/138 表备份恢复和应用回滚本地隔离演练；恢复前后 registry checksum、表集合和逐表行数一致，临时数据库已清理。
+- [x] 6.3 migration concurrent、独立 DB roles、43 迁移/139 表备份恢复和应用回滚本地隔离演练；恢复前后 registry checksum、表集合和逐表行数一致，临时数据库已清理。
 - [x] 6.4 四身份 12 场景真实浏览器覆盖商业双审、三端稳定路由、权限失败、响应式、axe、console/network 与焦点入口。
 - [x] 6.5 PRD/Spec/ADR/能力矩阵/API/OpenAPI/Gate/Runbook/handoff/发布证据同步。
 - [x] 6.6 全量自动 Gate、代码质量审查、独立反证审查、production dependency high/critical=0；开发工具链例外见质量证据，截止首批付费邀请前。
@@ -84,3 +84,13 @@
 - [x] 8.5 同步 OpenAPI、API Catalog、ADR、Runbook、CHANGELOG、handoff 与发布 Gate。
 - [x] 8.6 执行全量自动 Gate、secret/audit/build/browser/恢复证据并完成独立发布反证审查。
 - [x] 8.7 普通提交并推送目标远端 `main`，确认远端 CI 全绿；不改写历史、不 force push。
+
+## 9. 优盾 Client 充值通道
+
+- [x] 9.1 冻结 deposit-only ADR、威胁模型、API/状态与运行时配置边界。
+- [x] 9.2 增加迁移 `0042_udun_deposit_gateway.sql`、安全视图、独立 webhook DB role、事件/nonce/地址幂等约束。
+- [x] 9.3 实现地址生成、固定 Udun HTTPS allowlist、原始 body 验签、时效和回调 evidence。
+- [x] 9.4 实现 Operations maker/checker `APPROVE_CREDIT` 原子账本入账与 Client 真实订单 UI。
+- [x] 9.5 实现 Maintenance 币种映射、连通测试、启停和密钥安全投影。
+- [x] 9.6 同步 OpenAPI/Spec/Runbook，执行全量 Gate、密钥扫描、普通提交并推送目标远端 `main`。
+- [!] 9.7 目标商户真实商户号/API Key/专属节点/币种编号需从优盾后台注入后，执行 staging 1 USDT smoke；仓库不保存这些值。

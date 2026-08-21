@@ -4,7 +4,7 @@ info:
   version: 2.2.0-beta
   description: >-
     三应用一库的核心浏览器接口合同。客户 paper 与平台 Demo 证据分离；
-    真实支付、客户充值、客户交易所密钥、真实现货/永续和生产外部操作不启用。
+    优盾 deposit-only 客户充值可在目标商户配置和双人复核 Gate 下启用；提现、划转、自动扣款、客户交易所密钥、真实现货/永续和其他生产外部操作不启用。
 servers:
   - url: https://agentnovas.com
     description: Client
@@ -346,6 +346,57 @@ paths:
           description: 已按权限脱敏的充值列表
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/wallet/deposit-orders:
+    get:
+      tags: [Client]
+      summary: 查询当前客户的优盾充值订单
+      responses:
+        '200': { description: 真实地址、交易与复核状态；仅当前客户 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Client]
+      summary: 通过优盾生成 USDT 专属充值地址
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [network, amount]
+              properties:
+                network: { type: string, enum: [TRC20, ERC20, BEP20] }
+                amount: { type: string, pattern: '^\\d+(\\.\\d{1,18})?$' }
+      responses:
+        '201': { description: 优盾真实地址已生成；不表示到账 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { description: 优盾运行时、币种映射或通道未配置 }
+  /api/integrations/payments/{provider}/webhook:
+    post:
+      tags: [Machine]
+      summary: 优盾充值签名回调
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { type: string, enum: [udun] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [timestamp, nonce, sign, body]
+              properties:
+                timestamp: { type: string }
+                nonce: { type: string }
+                sign: { type: string, pattern: '^[a-fA-F0-9]{32}$' }
+                body: { type: string, description: 优盾签名覆盖的原始 JSON 字符串 }
+      responses:
+        '200': { description: 回调已幂等记录；成功充值仅进入人工复核 }
+        '401': { description: 签名无效 }
+        '409': { description: 回调过期 }
   /api/operations/deposit-action-requests/{id}/decisions:
     post:
       tags: [Operations]
@@ -361,13 +412,13 @@ paths:
           application/json:
             schema:
               type: object
-              required: [decision, reason]
+              required: [decision, note]
               properties:
                 decision: { type: string, enum: [approve, reject] }
-                reason: { type: string, minLength: 1, maxLength: 1000 }
+                note: { type: string, minLength: 1, maxLength: 500 }
       responses:
         '200':
-          description: 审批已记录；不表示资金或账本已经执行
+          description: APPROVE_CREDIT 批准时原子写钱包和账本，其他决定仅记录；以 fundsExecuted 为准
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
@@ -456,6 +507,45 @@ paths:
       responses:
         '200':
           description: 不含密钥的 provider 列表
+  /api/maintenance/payment-providers/{id}/configuration:
+    patch:
+      tags: [Maintenance]
+      summary: 在停用状态配置优盾非密钥币种映射
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 映射已保存且旧测试失效 }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/maintenance/payment-providers/{id}/test:
+    post:
+      tags: [Maintenance]
+      summary: 调用优盾支持币种接口进行无资金连通测试
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 签名接口测试通过；未创建地址或交易 }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/maintenance/payment-providers/{id}/status:
+    patch:
+      tags: [Maintenance]
+      summary: 启用或停用优盾充值通道
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 状态已变更或幂等无变化 }
+        '409': { description: 启用前配置/测试 Gate 未满足 }
   /api/maintenance/payment-workers/health:
     get:
       tags: [Maintenance]

@@ -63,14 +63,16 @@ test("client home uses permission-gated live summaries instead of static KPI", a
   assert.doesNotMatch(home, /rc-kpi-grid|单卡模拟本金|<strong>10,000<\/strong>|<strong>3<\/strong>/);
 });
 
-test("wallet is read-only and the deposit workspace is a closed Beta boundary", async () => {
+test("wallet remains read-only while deposits use the server-side Udun order boundary", async () => {
   const wallet = await read("apps/client/ui/wallet-workspace.tsx");
   const deposits = await read("apps/client/ui/deposit-workspace.tsx");
   assert.match(wallet, /只读/);
   assert.doesNotMatch(wallet, /创建充值订单/);
-  assert.match(deposits, /Beta/);
-  assert.match(deposits, /暂不开放/);
-  assert.doesNotMatch(deposits, /fetch\(|deposit-orders|method:\s*["']POST["']/);
+  assert.match(deposits, /UDUN/);
+  assert.match(deposits, /\/api\/wallet\/deposit-orders/);
+  assert.match(deposits, /method:\s*"POST"/);
+  assert.match(deposits, /idempotency-key/);
+  assert.doesNotMatch(deposits, /QRCode|fakeAddress|0x[a-fA-F0-9]{20,}|T[A-Za-z0-9]{30,}/);
 });
 
 test("client notification settings expose unintegrated external channels without demo verification", async () => {

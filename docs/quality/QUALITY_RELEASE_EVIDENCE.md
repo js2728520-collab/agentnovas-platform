@@ -87,7 +87,7 @@ The implementation follows the official Playwright guidance for [web servers](ht
 - 当前三端初始 JS/CSS gzip：Client 188,677/9,386 bytes，Operations 185,268/8,704 bytes，Maintenance 185,448/8,704 bytes，均通过 200/50 KiB 预算。
 - 12 个 Playwright 场景使用四身份与四档 viewport，覆盖 Host/Cookie audience 隔离、会员 maker-checker、Client/Operations/Maintenance 稳定路由、axe 和 console/network；全部通过。
 - 最新三次 Lighthouse performance 均为 0.99，accessibility 与 best practices 均为 1.00；LCP 2,221/2,163/2,162 ms，CLS 均为 0，TBT 24/4.2/3.3 ms，全部满足 Gate 预算。登录由 audience Server Component 在导入已认证应用树之前分发，不启动 session 数据树或受保护根路由预取，并关闭登录页未使用字体的 preload。
-- 本机恢复演练已在 2026-08-21 对 fresh 源库覆盖 42 个迁移和 138 张表；迁移 registry checksum、表集合与逐表行数在恢复前后完全一致，一次性源库、目标库和临时 dump 均已清理。
+- 本机恢复演练已在 2026-08-21 对 fresh 源库覆盖 43 个迁移和 139 张表；迁移 registry checksum、表集合与逐表行数在恢复前后完全一致，一次性源库、目标库和临时 dump 均已清理。新增范围包含 `0042_udun_deposit_gateway.sql`，通道默认 disabled，未执行真实商户请求或资金操作。
 - 真实 Email、Demo、Payment、交易或 DNS/TLS smoke 不属于本 runner。没有凭证时产品以 `not_configured/configured_not_sent/disabled` 安全降级；若决定启用，必须在独立 staging 记录中补充真实 provider 证据。
 
 ## Temporary development-tool vulnerability exception

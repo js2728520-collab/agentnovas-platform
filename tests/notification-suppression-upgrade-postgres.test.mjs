@@ -42,6 +42,8 @@ test.before(async () => {
       ('delivery-conflict-b','user-conflict-b','email','api_security','reset_password','failed','provider-conflict-b','2026-08-20T00:00:00.000Z'),
       ('delivery-wrong-sender','user-wrong-sender','email','api_security','reset_password','failed','provider-wrong-sender','2026-08-20T00:00:00.000Z');
   `);
+  // Migration 0033 is immutable and backfills the historical sender. The
+  // canonical sender switch is enforced by application contracts and live webhooks.
   const event = (type, providerMessageId, deliveryId, sender = "noreply@agentnovas.com") => JSON.stringify({
     type,
     created_at: "2026-08-20T03:00:00.000Z",

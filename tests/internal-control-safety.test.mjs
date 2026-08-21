@@ -7,16 +7,21 @@ import { maintenanceDemoAccountDto } from "../lib/maintenance-demo-view.ts";
 const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("Beta payment status endpoint can only preserve or enter disabled state", async () => {
-  const [source, list] = await Promise.all([
+test("Udun activation requires complete runtime config, coin mapping, and a passed connectivity test", async () => {
+  const [source, list, configuration] = await Promise.all([
     read("app/api/maintenance/payment-providers/[id]/status/route.ts"),
     read("app/api/maintenance/payment-providers/route.ts"),
+    read("app/api/maintenance/payment-providers/[id]/configuration/route.ts"),
   ]);
-  assert.match(source, /BETA_PAYMENT_EXECUTION_DISABLED/);
-  assert.match(source, /status\s*!==\s*["']disabled["']/);
-  assert.doesNotMatch(source, /new Set\(\[["']sandbox["'],\s*["']active["']/);
+  assert.match(source, /readUdunRuntimeConfig/);
+  assert.match(source, /PAYMENT_PROVIDER_TEST_REQUIRED/);
+  assert.match(source, /tokenCoinType/);
+  assert.match(source, /idempotencyKey\(request\)/);
   assert.match(list, /configuredStatus:\s*row\.status/);
-  assert.match(list, /effectiveStatus:\s*["']disabled["']/);
+  assert.match(list, /effectiveStatus:/);
+  assert.match(list, /runtimeSecretPresent/);
+  assert.match(configuration, /PAYMENT_PROVIDER_MUST_BE_DISABLED/);
+  assert.match(configuration, /last_test_status=NULL/);
 });
 
 test("Demo control and verification bind reason and payload to an idempotent audit command", async () => {

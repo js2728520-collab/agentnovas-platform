@@ -36,7 +36,7 @@ export type LedgerEntry = { id: string; type: string; sourceType: string; source
 export type DepositOrder = {
   id: string; platformOrderNo: string; currency: string; network: string | null;
   expectedAmount: string | null; actualAmount: string | null; creditedAmount: string;
-  channel: string; depositAddress: string | null; txId: string | null; confirmations: number;
+  channel: string; provider: string | null; depositAddress: string | null; txId: string | null; confirmations: number;
   requiredConfirmations: number | null; orderStatus: string; fundsStatus: string; riskStatus: string;
   createdAt: string; externalReceivedAt: string | null; creditedAt: string | null;
 };
@@ -104,8 +104,11 @@ export type MaintenanceAgentBinding = {
 };
 export type MaintenancePaymentProvider = {
   id: string; provider: string; channel: string; network: string | null;
-  configuredStatus: string; effectiveStatus: "disabled";
-  confirmationThreshold: number | null; hasSecret: boolean; updatedAt: string;
+  configuredStatus: string; effectiveStatus: "disabled" | "incomplete" | "active";
+  confirmationThreshold: number | null; hasSecret: boolean; merchantConfigured: boolean;
+  gatewayConfigured: boolean; callbackConfigured: boolean; coinMappingConfigured: boolean;
+  protocol: string | null; lastTestAt: string | null; lastTestStatus: string | null;
+  lastErrorCode: string | null; updatedAt: string;
 };
 export type MaintenanceEmailStatus = {
   provider: string; configured: boolean; senderDomainVerified: boolean; apiKeyPresent: boolean;
@@ -113,6 +116,11 @@ export type MaintenanceEmailStatus = {
   suppressionReady: boolean; workerEnabled: boolean; sendAuthorized: boolean;
   effectiveStatus: "ready" | "configured_not_sent";
   lastTestAt: string | null;
+  lastTestStatus: string | null;
+  lastTestErrorCode: string | null;
+  workerHeartbeatAt: string | null;
+  contactAddresses: { support: string; security: string; billing: string; operations: string };
+  inboundMailboxesVerified: boolean;
 };
 export type MaintenanceResourcePhase = "ready" | "loading" | "error" | "unknown";
 export type MaintenanceResourceDisplayStatus = "ready" | "loading" | "unavailable" | "unknown";

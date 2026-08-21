@@ -170,6 +170,14 @@ export function renderNotificationEmail(templateKey: string, payloadJson: unknow
         "如需恢复权益，请在会员中心提交新的人工付款申请。",
       ]);
     }
+    case "maintenance_email_test": {
+      const requestedAt = isoDate(payload, "requestedAt");
+      return email("AgentNovas 邮件投递测试", [
+        `测试请求时间：${requestedAt}`,
+        "这是一封由 Notification Worker 通过受控发送队列发出的测试邮件。",
+        "收到此邮件只证明发送链路可达；最终投递状态仍以已验证的 Resend Webhook 事件为准。",
+      ]);
+    }
     case "strategy_delist_notice":
     case "strategy_modify_notice": {
       const strategyName = boundedString(payload, "strategyName");
@@ -217,7 +225,8 @@ export function notificationSendEnvironmentReady(environment: Record<string, str
     && environment.NOTIFICATION_EMAIL_SEND_ENABLED === "true"
     && environment.NODE_ENV !== "test"
     && Boolean(environment.RESEND_API_KEY?.trim())
-    && Boolean(environment.RESEND_WEBHOOK_SECRET?.trim())
+    && Boolean(environment.NOTIFICATION_TOKEN_ENCRYPTION_KEY?.trim())
+    && (environment.NOTIFICATION_TOKEN_ENCRYPTION_KEY?.trim().length ?? 0) >= 32
     && notificationEmailAllowlist(environment).size > 0;
 }
 

@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 
 let poolPromise: Promise<Pool> | undefined;
 let clientAuthPoolPromise: Promise<Pool> | undefined;
+let paymentWebhookPoolPromise: Promise<Pool> | undefined;
 
 /**
  * Drizzle is constructed while Next.js discovers Route Handlers during a
@@ -153,6 +154,41 @@ export async function getClientAuthPostgresPool() {
     })();
   }
   return clientAuthPoolPromise;
+}
+
+export async function getPaymentWebhookPostgresPool() {
+  if (!paymentWebhookPoolPromise) {
+    paymentWebhookPoolPromise = (async () => {
+      if (process.env.RIVERTON_APP_AUDIENCE?.trim().toLowerCase() !== "maintenance") {
+        throw new Error("Payment webhook database pool is unavailable outside the Maintenance audience");
+      }
+      const qualityConnection = businessDatabaseUrl();
+      const qualityRoleBypass = isolatedQualityDatabaseRoleBypass(qualityConnection);
+      const connectionString = qualityRoleBypass ? qualityConnection : process.env.PAYMENT_WEBHOOK_DATABASE_URL?.trim() ?? "";
+      if (!connectionString) throw new Error("PAYMENT_WEBHOOK_DATABASE_URL 尚未配置");
+      if (!qualityRoleBypass) {
+        let configuredRole = "";
+        try { configuredRole = decodeURIComponent(new URL(connectionString).username); } catch {
+          throw new Error("PAYMENT_WEBHOOK_DATABASE_URL 格式无效");
+        }
+        if (configuredRole !== "agentnovas_payment_webhook") {
+          throw new Error("PAYMENT_WEBHOOK_DATABASE_URL 必须使用 agentnovas_payment_webhook");
+        }
+      }
+      const { default: pg } = await import("pg");
+      const pool = new pg.Pool({ connectionString, max: 6, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000, application_name: "agentnovas-payment-webhook" });
+      pool.on("error", error => console.error("PostgreSQL payment webhook idle error", { code: "code" in error ? error.code : "UNKNOWN" }));
+      if (!qualityRoleBypass) {
+        const role = await pool.query<{ current_user: string }>("SELECT current_user");
+        if (role.rows[0]?.current_user !== "agentnovas_payment_webhook") {
+          await pool.end();
+          throw new Error("Payment webhook PostgreSQL 当前角色不匹配");
+        }
+      }
+      return pool;
+    })();
+  }
+  return paymentWebhookPoolPromise;
 }
 
 export async function checkPostgresConnection() {

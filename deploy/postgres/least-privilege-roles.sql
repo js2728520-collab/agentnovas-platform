@@ -34,6 +34,7 @@ BEGIN
     'agentnovas_client_web',
     'agentnovas_ops_web',
     'agentnovas_maint_web',
+    'agentnovas_payment_webhook',
     'agentnovas_notification_worker',
     'agentnovas_demo_execution_worker',
     'agentnovas_runtime_worker'
@@ -72,6 +73,7 @@ REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM
   agentnovas_client_auth,
   agentnovas_ops_web,
   agentnovas_maint_web,
+  agentnovas_payment_webhook,
   agentnovas_notification_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
@@ -80,6 +82,7 @@ REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM
   agentnovas_client_auth,
   agentnovas_ops_web,
   agentnovas_maint_web,
+  agentnovas_payment_webhook,
   agentnovas_notification_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
@@ -90,6 +93,7 @@ GRANT CONNECT ON DATABASE :"agentnovas_database" TO
   agentnovas_client_web,
   agentnovas_ops_web,
   agentnovas_maint_web,
+  agentnovas_payment_webhook,
   agentnovas_notification_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
@@ -98,6 +102,7 @@ GRANT USAGE ON SCHEMA public TO
   agentnovas_client_web,
   agentnovas_ops_web,
   agentnovas_maint_web,
+  agentnovas_payment_webhook,
   agentnovas_notification_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
@@ -193,9 +198,11 @@ GRANT SELECT ON
   official_paper_fill_receipts, official_paper_ledger_entries,
   platform_demo_order_intents, platform_demo_execution_receipts,
   platform_demo_fill_receipts, wallet_balances, wallet_balance_versions,
-  ledger_accounts, ledger_transactions, ledger_postings, trades, customer_attributions
+  ledger_accounts, ledger_transactions, ledger_postings, trades, customer_attributions,
+  deposit_orders
   TO agentnovas_client_web;
 GRANT SELECT ON platform_demo_accounts_safe TO agentnovas_client_web;
+GRANT SELECT ON client_payment_provider_configs_safe TO agentnovas_client_web;
 GRANT SELECT ON client_ai_runtime_model_bindings TO agentnovas_client_web;
 GRANT INSERT, UPDATE ON
   commercial_legal_acceptances,
@@ -207,6 +214,12 @@ GRANT INSERT, UPDATE ON
   market_watchlist, strategy_subscriptions, strategy_favorites, strategy_deployments,
   official_paper_portfolios, customer_attributions
   TO agentnovas_client_web;
+GRANT INSERT (
+  id,platform_order_no,user_id,branch_id,currency,network,expected_amount,usdt_value,
+  channel,provider,provider_config_id,deposit_address,required_confirmations,
+  order_status,funds_status,risk_status,risk_reasons_json,metadata_json,
+  idempotency_key,request_id
+) ON deposit_orders TO agentnovas_client_web;
 GRANT INSERT, UPDATE ON auth_rate_limit_buckets, commercial_idempotency_records,
   authorization_audit_events, audit_logs TO agentnovas_client_web;
 GRANT DELETE ON auth_rate_limit_buckets TO agentnovas_client_web;
@@ -267,7 +280,7 @@ GRANT SELECT ON
   ai_credit_reservations, ai_credit_adjustment_requests,
   ai_credit_adjustment_decisions, performance_fee_statements,
   performance_fee_decisions, performance_fee_receivables,
-  performance_fee_high_water_marks, high_water_marks, deposit_orders,
+  performance_fee_high_water_marks, high_water_marks, deposit_orders, deposit_provider_events,
   deposit_risk_flags, deposit_action_requests, deposit_action_decisions,
   deposit_exports, ledger_accounts, ledger_transactions, ledger_postings,
   wallet_balances, wallet_balance_versions, payout_profiles, revenue_events,
@@ -290,7 +303,7 @@ GRANT INSERT, UPDATE ON
   ai_credit_adjustment_requests, ai_credit_adjustment_decisions,
   performance_fee_statements, performance_fee_decisions,
   performance_fee_receivables, performance_fee_high_water_marks, high_water_marks,
-  deposit_action_requests, deposit_action_decisions, deposit_exports,
+  deposit_orders, deposit_action_requests, deposit_action_decisions, deposit_exports,
   ledger_accounts, ledger_transactions, ledger_postings, wallet_balances,
   wallet_balance_versions, payout_profiles, revenue_events, revenue_allocations,
   settlements, collection_cases, reconciliation_runs,
@@ -342,6 +355,25 @@ GRANT INSERT ON release_versions, release_verifications, release_deployments
   TO agentnovas_maint_web;
 GRANT DELETE ON sessions, auth_tokens, auth_rate_limit_buckets,
   user_mfa_recovery_codes TO agentnovas_maint_web;
+
+-- Provider callbacks use a dedicated role that cannot read users, wallets,
+-- ledger postings, sessions, RBAC, or unrelated integration credentials.
+GRANT SELECT ON payment_webhook_provider_configs_safe TO agentnovas_payment_webhook;
+GRANT SELECT (
+  id,provider_config_id,user_id,network,order_status,tx_id,deposit_address,
+  ledger_transaction_id,required_confirmations
+) ON deposit_orders TO agentnovas_payment_webhook;
+GRANT SELECT (outcome,provider,provider_event_id,nonce_sha256)
+  ON deposit_provider_events TO agentnovas_payment_webhook;
+GRANT UPDATE (
+  actual_amount,usdt_value,tx_id,provider_event_id,confirmations,order_status,
+  risk_status,risk_reasons_json,external_received_at,updated_at
+) ON deposit_orders TO agentnovas_payment_webhook;
+GRANT INSERT (
+  id,provider,provider_event_id,provider_config_id,deposit_order_id,event_type,outcome,
+  payload_sha256,nonce_sha256,provider_timestamp_ms,tx_id,deposit_address,amount,
+  status_code,error_code,request_id
+) ON deposit_provider_events TO agentnovas_payment_webhook;
 -- Emergency control needs customer scope plus Paper access-state transitions, but
 -- Maintenance must not receive table-wide access to positions, orders, or P&L.
 GRANT SELECT (customer_id, branch_id, status)

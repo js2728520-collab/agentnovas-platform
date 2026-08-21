@@ -9,6 +9,14 @@ export type WorkerHealthState = "disabled" | "unconfigured" | "missing" | "stale
 
 const DEFAULT_STALE_AFTER_MS = 60_000;
 
+function boundedBooleanMetadata(value: Record<string, unknown> | undefined) {
+  const metadata: Record<string, boolean> = {};
+  for (const [key, entry] of Object.entries(value ?? {}).slice(0, 20)) {
+    if (/^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(key) && typeof entry === "boolean") metadata[key] = entry;
+  }
+  return metadata;
+}
+
 export function classifyWorkerHeartbeat(
   now: Date,
   heartbeatAt: Date | string | null,
@@ -53,6 +61,7 @@ export async function recordWorkerHeartbeat(database: Queryable, input: {
   lastSuccessAt?: Date | null;
   lastFailureAt?: Date | null;
   lastErrorCode?: string | null;
+  metadata?: Record<string, unknown>;
 }) {
   const now = input.now ?? new Date();
   const instanceId = input.instanceId.trim().slice(0, 160);
@@ -61,8 +70,8 @@ export async function recordWorkerHeartbeat(database: Queryable, input: {
   await database.query(`
     INSERT INTO worker_instances (
       worker_type, instance_id, commit_sha, status, started_at, heartbeat_at,
-      last_success_at, last_failure_at, last_error_code, current_job_id, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $5)
+      last_success_at, last_failure_at, last_error_code, current_job_id, metadata_json, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10::jsonb, $5)
     ON CONFLICT (worker_type, instance_id) DO UPDATE SET
       commit_sha = COALESCE(EXCLUDED.commit_sha, worker_instances.commit_sha),
       status = EXCLUDED.status,
@@ -74,6 +83,7 @@ export async function recordWorkerHeartbeat(database: Queryable, input: {
         ELSE worker_instances.last_error_code
       END,
       current_job_id = EXCLUDED.current_job_id,
+      metadata_json = EXCLUDED.metadata_json,
       updated_at = EXCLUDED.updated_at
   `, [
     input.workerType,
@@ -85,6 +95,7 @@ export async function recordWorkerHeartbeat(database: Queryable, input: {
     input.lastFailureAt?.toISOString() || null,
     errorCode,
     input.currentJobId?.trim().slice(0, 160) || null,
+    JSON.stringify(boundedBooleanMetadata(input.metadata)),
   ]);
 }
 
@@ -93,6 +104,7 @@ export function createWorkerHeartbeatReporter(database: Queryable, input: {
   instanceId: string;
   commitSha?: string | null;
   intervalMs?: number;
+  metadata?: Record<string, unknown>;
   onError?: (error: unknown) => void;
 }) {
   const intervalMs = Math.max(5_000, Math.min(input.intervalMs ?? 15_000, 30_000));
@@ -109,6 +121,7 @@ export function createWorkerHeartbeatReporter(database: Queryable, input: {
         workerType: input.workerType,
         instanceId: input.instanceId,
         commitSha: input.commitSha,
+        metadata: input.metadata,
         status: stopped ? "stopped" : "running",
         currentJobId,
         ...overrides,

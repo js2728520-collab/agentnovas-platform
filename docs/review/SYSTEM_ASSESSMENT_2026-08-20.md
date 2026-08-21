@@ -8,7 +8,7 @@
 
 本文件第 1–5 节保留起点 `0762fa3` 的审计快照，用于解释为何启动收口，不代表当前树仍有相同缺陷。当前集成树已完成：233 个 method handler 的 fail-closed inventory、未知 Host 拒绝、显式内部 RBAC/MFA/Argon2id、迁移 checksum/advisory lock、商业账本/会员/credits/周分成、官方 spot paper、三 provider Demo 安全边界、Worker heartbeat、Operations/Maintenance 商业工作台、不可变版本发布证据、Client 旧 Admin 物理移除、legacy 客户交易/充值接口中央禁用、独立可读商业披露确认 Gate 和 Demo 技术审计安全投影。
 
-当前 Client 会员/credits/paper/交易大厅稳定路由已完成，三端初始 JS/CSS 在最终集成点通过 200/50KB gzip 预算；存量永续部署和研究任务已由 `0029` 终结，新 Runtime/Research 处理器也失败关闭。隔离 PostgreSQL 上的 12 场景 Playwright/axe/Host-Cookie 验收再次通过；本机恢复演练覆盖 42 个迁移、138 张表，包含 `0041` 的不可变版本表，恢复前后 registry checksum、表集合与逐表行数一致。当前收口新增平台自维护的商业披露、平台 Profile + Credits 的可靠 usage 闭环、Maintenance 高风险命令持久化幂等、Client Web/Auth 双数据库角色能力网关、不可变发布证据、Client 完整旅程和恢复/质量要求；最终结论以 `tasks/todo.md` 与当前提交的 Gate 证据为准。Email/Demo/DNS/TLS 无配置时可以安全降级，但不能被记录为外部 smoke 已通过。
+当前 Client 会员/credits/paper/交易大厅稳定路由已完成，三端初始 JS/CSS 在最终集成点通过 200/50KB gzip 预算；存量永续部署和研究任务已由 `0029` 终结，新 Runtime/Research 处理器也失败关闭。隔离 PostgreSQL 上的 12 场景 Playwright/axe/Host-Cookie 验收再次通过；本机恢复演练覆盖 43 个迁移、139 张表，包含 `0041` 的不可变版本表和 `0042` 的优盾 deposit-only 边界，恢复前后 registry checksum、表集合与逐表行数一致。当前收口新增平台自维护的商业披露、平台 Profile + Credits 的可靠 usage 闭环、Maintenance 高风险命令持久化幂等、Client Web/Auth 双数据库角色能力网关、不可变发布证据、Client 完整旅程和恢复/质量要求；最终结论以 `tasks/todo.md` 与当前提交的 Gate 证据为准。Email/Demo/DNS/TLS 无配置时可以安全降级，但不能被记录为外部 smoke 已通过。
 
 ## 1. 已有资产
 
@@ -42,7 +42,7 @@
 | Client 研究/回测 | 70–75% | 单体、浏览器证据、错误恢复 |
 | 七智能体产品 | 45–50% | 公共 spot 合同与 perpetual runtime 错位 |
 | 会员/收费 | 10–15% | 静态套餐、无真实订单/权益事务、假付款 UI |
-| 钱包/充值 | 35–40% | provider/账本未闭环；Beta 应关闭创建 |
+| 钱包/充值 | 80–85% | 优盾地址、验签、双审与账本已闭环；仍缺目标商户 staging smoke |
 | 通知 | 50–60% | Telegram/WhatsApp 假验证码；外发 Gate 不全 |
 | Operations | 35–40% | 组织/商业审批/完整财务/策略治理未收口 |
 | Maintenance | 35–40% | Demo、heartbeat/queue、技术审计不足 |
@@ -87,7 +87,7 @@
 
 邀请→一次性设密/MFA→商业披露确认→3 天 trial→选择计划→外部人工付款→maker/checker→幂等 entitlement/credits→三张 paper→七阶段与独立 Demo 证据→in-app/Email→UTC 周分成应收/付款双审→到期只读。
 
-选择该路径是因为它不触达客户交易本金和凭证，也不依赖自动支付。客户充值、社区市场和真实交易全部进入 GA 后独立项目。
+选择该路径是因为它不接收客户交易所凭证，也不执行真实交易。客户充值后来通过 ADR-0015 限定为优盾 deposit-only；社区市场、提现/划转和真实交易仍进入 GA 后独立项目。
 
 ## 8. 评估结论
 

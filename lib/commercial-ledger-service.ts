@@ -30,8 +30,22 @@ export async function ensurePlatformLedgerAccount(client: PoolClient, accountTyp
   return row.rows[0].id;
 }
 
+export async function ensureUserAvailableLedgerAccount(client: PoolClient, userId: string, currency: string) {
+  const id = `ledger-user-${userId}-available-${currency.toLowerCase()}`;
+  await client.query(`
+    INSERT INTO ledger_accounts(id,owner_user_id,account_type,currency)
+    VALUES($1,$2,'user_available',$3) ON CONFLICT DO NOTHING
+  `, [id,userId,currency]);
+  const row = await client.query<{ id: string }>(`
+    SELECT id FROM ledger_accounts
+    WHERE owner_user_id=$1 AND account_type='user_available' AND currency=$2 FOR UPDATE
+  `, [userId,currency]);
+  if (!row.rows[0]) throw new Error("LEDGER_USER_ACCOUNT_MISSING");
+  return row.rows[0].id;
+}
+
 export async function postCommercialLedgerTransaction(client: PoolClient, input: {
-  transactionType: "membership_purchase" | "performance_fee_payment" | "correction";
+  transactionType: "deposit_credit" | "membership_purchase" | "performance_fee_payment" | "correction";
   sourceType: string;
   sourceId: string;
   currency: string;

@@ -44,6 +44,10 @@ test("worker reporter records an explicit lifecycle without logging an error bod
   const reporter = createWorkerHeartbeatReporter(database, {
     workerType: "notification",
     instanceId: "test-worker",
+    metadata: {
+      apiKeyPresent: true,
+      emailEnvironmentReady: false,
+    },
   });
   await reporter.start();
   reporter.setCurrentJob("delivery-1");
@@ -53,6 +57,29 @@ test("worker reporter records an explicit lifecycle without logging an error bod
   assert.deepEqual(writes.map((values) => values[3]), ["starting", "error", "stopped"]);
   assert.equal(writes[1][7], "ERROR");
   assert.equal(writes[2][8], null);
+  assert.deepEqual(JSON.parse(writes[0][9]), {
+    apiKeyPresent: true,
+    emailEnvironmentReady: false,
+  });
+});
+
+test("worker metadata only retains bounded boolean readiness markers", async () => {
+  const writes = [];
+  await createWorkerHeartbeatReporter({
+    async query(_text, values) {
+      writes.push(values);
+      return { rows: [] };
+    },
+  }, {
+    workerType: "notification",
+    instanceId: "metadata-worker",
+    metadata: {
+      apiKeyPresent: true,
+      secretValue: "must-not-be-persisted",
+      ["x".repeat(81)]: true,
+    },
+  }).start();
+  assert.deepEqual(JSON.parse(writes[0][9]), { apiKeyPresent: true });
 });
 
 test("worker observability migration stores heartbeat and bounded diagnostics", async () => {

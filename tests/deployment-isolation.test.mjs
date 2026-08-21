@@ -48,6 +48,12 @@ test("environment examples preserve disabled external effects", async () => {
   assert.doesNotMatch(demo, /PAYMENT_WORKER_ENABLED=true/);
   assert.match(notification, /^NOTIFICATION_EMAIL_SEND_ENABLED=false$/m);
   assert.match(notification, /^RESEND_API_KEY=$/m);
+  assert.match(notification, /^NOTIFICATION_EMAIL_ALLOWLIST=$/m);
+  assert.match(notification, /^NOTIFICATION_TOKEN_ENCRYPTION_KEY=/m);
+  assert.doesNotMatch(notification, /^RESEND_WEBHOOK_SECRET=/m);
+  assert.match(client, /^NOTIFICATION_TOKEN_ENCRYPTION_KEY=/m);
+  assert.match(maintenance, /^RESEND_WEBHOOK_SECRET=$/m);
+  assert.doesNotMatch(maintenance, /^RESEND_API_KEY=/m);
   assert.doesNotMatch(client, /EXCHANGE_CREDENTIAL_ENCRYPTION_KEY/);
   assert.match(legacy, /RETIRED|DO NOT USE/i);
   assert.doesNotMatch(legacy, /^(?:DATABASE_URL|.*(?:SECRET|KEY|PASSWORD))=/m);

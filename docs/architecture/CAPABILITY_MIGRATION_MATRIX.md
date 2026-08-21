@@ -29,8 +29,8 @@
 | 客户归属/转移 | maker-checker、有效期和历史链 | Operations `/customers/[id]`、`/approvals` | `CURRENT` | 无 | P1 |
 | 旧通用审批队列 | 只做跨领域安全投影，决定回到各领域事务 | Operations `/approvals` | `CURRENT` | 无 | P0 |
 | 官方/社区策略审核 | 官方三卡在 Ops 只读看业务影响；社区市场硬关闭 | Operations `/finance`、Maintenance `/models` | `RETIRED/MERGE` | GA 新立项才可恢复社区能力 | P0 |
-| 充值查询、详情 | Beta 仅历史查询，PII/分页/筛选统一 | Operations `/deposits` | `CURRENT` | 创建继续关闭 | P0 |
-| 充值人工操作 | 申请/不同人审批；不声称资金已执行 | Operations `/deposits/[id]`、`/approvals` | `CURRENT` | 创建继续关闭 | P0 |
+| 充值查询、详情 | 优盾真实订单；PII/分页/筛选统一 | Client `/wallet/deposits`、Operations `/deposits` | `CURRENT` | 仅 deposit-only；未配置失败关闭 | P0 |
+| 充值人工操作 | 验签回调→maker 申请→checker 入账；资金与账本同事务 | Operations `/deposits/[id]`、`/approvals` | `CURRENT` | 提现/划转仍关闭 | P0 |
 | 只读账本 | 游标、scope、分录详情、不可变 | Operations `/ledger` | `CURRENT` | 无 | P0 |
 | 月度收入报表 | 商业订单、Paper 应收和账本真实投影 | Operations `/finance` | `CURRENT` | 无 | P1 |
 | 旧结算/collections/payout | 与本 Beta 人工会员/分成合同冲突 | Operations `/finance` | `RETIRED/BETA` | 写 API Policy 硬关闭 | P1 |
@@ -39,7 +39,7 @@
 | 市场/新闻集成 | 代码固定公共只读目标，真实健康/陈旧/延迟 | Maintenance `/integrations/sources` | `CURRENT` | 无浏览器 URL | P1 |
 | 系统 LLM 单配置 | 旧 API 返回 retired；Profile 为唯一真源 | Maintenance `/models` | `RETIRED/MERGE` | 无 | P0 |
 | LLM Profile/Agent 绑定 | 版本、验证、绑定、回滚和密钥轮换 | Maintenance `/models` | `CURRENT` | 无 | P0 |
-| 邮件/支付状态 | Email readiness 逐项；Payment 始终 disabled | Maintenance `/integrations/*` | `CURRENT` | 外部凭证未配置时安全降级 | P0 |
+| 邮件/支付状态 | Email readiness；优盾配置/测试/启停分离 | Maintenance `/integrations/*` | `CURRENT` | 外部凭证未配置时安全降级 | P0 |
 | Worker 健康 | DB heartbeat、queue age、migration 与固定阈值 | Maintenance `/health` | `CURRENT` | 无 | P0 |
 | 全局紧急停止 | 仅暂停官方 Paper 新开仓，平台 Demo 单独控制 | Maintenance `/safety` | `CURRENT` | 无客户交易所/自动平仓副作用 | P0 |
 | 业务授权审计 | audience 隔离、筛选和事件详情 | Operations `/access/audit` | `CURRENT` | 无 | P0 |
@@ -49,7 +49,7 @@
 
 | 能力 | 目标应用 | 决定 | Beta 合同 |
 | --- | --- | --- | --- |
-| 客户充值创建/链上地址 | Client | `RETIRED/BETA` | 充值页只读并显示未开放；无地址/二维码/监听 |
+| 客户充值创建/链上地址 | Client | `CURRENT` | 优盾真实专属地址、验签回调、双审入账；无二维码/静态地址 |
 | 静态会员套餐/演示付款 | Client | `REBUILD` | 四档服务端计划、订单号、人工付款指引 |
 | 会员付款凭证与权益激活 | Operations | `NEW` | maker/checker，同事务 entitlement/credits/ledger/audit |
 | AI credits 充值 | Client | `RETIRED/BETA` | 只由会员和双审调整产生 |

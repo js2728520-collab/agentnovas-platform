@@ -232,15 +232,15 @@ test("client exposes standalone legal consent and gates every business route on 
   assert.doesNotMatch(navigation, /href: "\/legal\/consent"[^\n]*requiredPermissions/);
 });
 
-test("client workspaces bind to real wallet and notifications while deposits remain Beta closed", async () => {
+test("client workspaces bind to real wallet, Udun deposit orders, and notifications", async () => {
   const wallet = await read("apps/client/ui/wallet-workspace.tsx");
   const deposits = await read("apps/client/ui/deposit-workspace.tsx");
   const notifications = await read("apps/client/ui/notification-workspace.tsx");
   assert.match(wallet, /\/api\/wallet\/balances/);
   assert.match(wallet, /\/api\/wallet\/ledger/);
-  assert.match(deposits, /Beta/);
-  assert.match(deposits, /暂不开放/);
-  assert.doesNotMatch(deposits, /fetch\(|\/api\/wallet\/deposit-orders/);
+  assert.match(deposits, /UDUN/);
+  assert.match(deposits, /\/api\/wallet\/deposit-orders/);
+  assert.match(deposits, /idempotency-key/);
   assert.match(notifications, /\/api\/notifications\/inbox/);
   assert.match(notifications, /ClientNotificationSettings/);
 });
@@ -282,7 +282,7 @@ test("payment connectivity tests require an explicit true feature switch", async
   assert.match(source, /maintenanceReason/);
 });
 
-test("maintenance connectivity tests require reasons while Payment stays read-only in Beta", async () => {
+test("maintenance connectivity tests require reasons and Udun controls use confirmation dialogs", async () => {
   for (const path of [
     "app/api/admin/agent-role-bindings/test/route.ts",
     "app/api/admin/runtime-explanation-bindings/test/route.ts",
@@ -293,8 +293,10 @@ test("maintenance connectivity tests require reasons while Payment stays read-on
   assert.match(await read("apps/maintenance/ui/models-workspace.tsx"), /kind: "test"/);
   assert.match(await read("apps/maintenance/ui/email-integration-workspace.tsx"), /ConfirmActionDialog/);
   const payment = await read("apps/maintenance/ui/payment-integration-workspace.tsx");
-  assert.match(payment, /BETA POLICY: DISABLED/);
-  assert.doesNotMatch(payment, /kind: "test"|kind: "status"|ConfirmActionDialog/);
+  assert.match(payment, /DEPOSIT ONLY/);
+  assert.match(payment, /kind: "configure" \| "test" \| "activate" \| "disable"/);
+  assert.match(payment, /ConfirmActionDialog/);
+  assert.match(payment, /idempotency-key/);
 });
 
 test("maintenance model workspaces separate read access from write controls", async () => {

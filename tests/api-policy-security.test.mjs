@@ -256,18 +256,17 @@ test("central policy declares and validates persistent idempotency contracts", (
   assert.equal(apiPolicyForRoute("/api/maintenance/integrations/catalog", "GET").idempotency, false);
 });
 
-test("payment webhook stays disabled until a provider verifier is implemented", () => {
-  assert.equal(apiPolicyForRoute("/api/integrations/payments/:provider/webhook", "POST").authentication, "disabled");
-  assert.throws(() => evaluateApiRequestPolicy(new Request(
+test("payment webhook is provider-authenticated without browser CSRF semantics", () => {
+  assert.equal(apiPolicyForRoute("/api/integrations/payments/:provider/webhook", "POST").authentication, "webhook");
+  assert.equal(evaluateApiRequestPolicy(new Request(
     "https://xm.agentnovas.com/api/integrations/payments/mock/webhook",
     {
       method: "POST",
       headers: {
         host: "xm.agentnovas.com",
-        "x-webhook-signature": "attacker-controlled-presence-only",
       },
     },
-  )), (error) => error instanceof ApiPolicyError && error.code === "ROUTE_DISABLED" && error.status === 503);
+  )).audience, "maintenance");
   assert.equal(apiPolicyForRoute("/api/integrations/resend/webhook", "POST").authentication, "webhook");
 });
 
@@ -276,7 +275,6 @@ test("commercial beta rejects legacy customer credentials, funding, and trading 
     ["GET", "/api/notifications/channels"],
     ["GET", "/api/integrations/catalog"],
     ["GET", "/api/public-pool"],
-    ["POST", "/api/wallet/deposit-orders"],
     ["POST", "/api/exchange-accounts"],
     ["PATCH", "/api/exchange-accounts/:id"],
     ["GET", "/api/risk/status"],
@@ -295,6 +293,9 @@ test("commercial beta rejects legacy customer credentials, funding, and trading 
   for (const [method, route] of disabled) {
     assert.equal(apiPolicyForRoute(route, method).authentication, "disabled", `${method} ${route}`);
   }
+  assert.equal(apiPolicyForRoute("/api/wallet/deposit-orders", "GET").authentication, "permission");
+  assert.equal(apiPolicyForRoute("/api/wallet/deposit-orders", "POST").authentication, "permission");
+  assert.equal(apiPolicyForRoute("/api/wallet/deposit-orders", "POST").idempotency, true);
   assert.throws(() => evaluateApiRequestPolicy(new Request(
     "https://agentnovas.com/api/exchange-accounts",
     { method: "POST", headers: { origin: "https://agentnovas.com" } },

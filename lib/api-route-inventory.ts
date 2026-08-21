@@ -1849,7 +1849,7 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "maintenance"
     ],
-    "authentication": "disabled",
+    "authentication": "webhook",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
     "permissionMfa": {},
@@ -2122,7 +2122,7 @@ export const API_ROUTE_INVENTORY = [
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true,
-    "idempotency": false
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -2196,6 +2196,28 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "PATCH",
+    "route": "/api/maintenance/payment-providers/:id/configuration",
+    "source": "app/api/maintenance/payment-providers/[id]/configuration/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.payment_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.payment_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "PATCH",
     "route": "/api/maintenance/payment-providers/:id/status",
     "source": "app/api/maintenance/payment-providers/[id]/status/route.ts",
     "audiences": [
@@ -2214,7 +2236,7 @@ export const API_ROUTE_INVENTORY = [
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true,
-    "idempotency": false
+    "idempotency": true
   },
   {
     "method": "POST",
@@ -2236,7 +2258,7 @@ export const API_ROUTE_INVENTORY = [
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true,
-    "idempotency": false
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -3176,7 +3198,7 @@ export const API_ROUTE_INVENTORY = [
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true,
-    "idempotency": false
+    "idempotency": true
   },
   {
     "method": "GET",
@@ -4849,14 +4871,18 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
+    "authentication": "permission",
     "sessionAuthHelpers": [],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionKeys": [
+      "client.wallet.view"
+    ],
+    "permissionMfa": {
+      "client.wallet.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": false,
     "idempotency": false
   },
@@ -4867,16 +4893,20 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
+    "authentication": "permission",
     "sessionAuthHelpers": [],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionKeys": [
+      "client.deposit.create"
+    ],
+    "permissionMfa": {
+      "client.deposit.create": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
-    "idempotency": false
+    "idempotency": true
   },
   {
     "method": "GET",

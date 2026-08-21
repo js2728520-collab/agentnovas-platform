@@ -11,11 +11,12 @@ Client Auth Gateway ┤
 Operations Web ─────┼── PostgreSQL（共享数据、逻辑隔离）
 Maintenance Web ────┘       ├─ Notification Worker
                              ├─ Paper Runtime Worker
-                             └─ Demo Execution Worker
+                             ├─ Demo Execution Worker
+                             └─ Payment Webhook（独立 DB role）
 
-Payment Worker：Beta 不部署 unit，接口与外部副作用路径 disabled
+Payment Worker：不部署 unit；优盾充值由同步地址 API + 验签 Webhook + Ops 双审完成
 Legacy Research Worker：Beta 不启动，HTTP/租约/orchestrator/systemd 均硬关闭
-真实交易/提现/自动支付：代码路径硬关闭
+真实交易/提现/划转/自动扣款：代码路径硬关闭
 ```
 
 三个 Web 进程使用相同代码但独立 `RIVERTON_APP_AUDIENCE`、域名、端口、构建目录、Session Cookie、最小 env 和数据库角色。共享数据库不是共享授权；所有入口重新解析 audience、会话、MFA、权限与 assignment-bound data scope。
@@ -36,6 +37,8 @@ Client 使用两个不可继承、不可链式放大的数据库角色。`agentn
 
 - Client：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements[/id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/notifications`、`/account/security`、`/support`、`/wallet`、`/wallet/deposits`。
 - Operations：`/`、`/customers`、`/organization`、`/team`、`/data-center`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
+
+优盾充值数据流固定为：Client 同源+RBAC+幂等请求 → Client Web 使用安全 provider 视图和运行时 secret 调用专属 `*.udun.io` 节点生成地址 → Maintenance 公网 webhook 使用独立数据库角色验签/去重并推进 `MANUAL_REVIEW` → Operations maker/checker → 同事务平衡账本、钱包版本、订单、审计和通知。配置缺失返回 503；提现、划转和自动扣款 endpoint 不存在。
 - Maintenance：`/`、`/models`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/access`、`/access/audit`、`/audit`。
 
 Beta 未完成或不在范围的旧策略市场、自动结算、团队经营分析入口 feature-gate 隐藏。
@@ -125,8 +128,9 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 - `0039_maintenance_idempotency.sql`
 - `0040_client_identity_rls.sql`
 - `0041_release_version_management.sql`
+- `0042_udun_deposit_gateway.sql`
 
-`0041` 增加 Maintenance-only 的不可变版本、验证与部署事实。版本状态和环境 current 由追加事实投影；production 要求同版本 staging 成功，失败记录不改变 current，三表禁止更新/删除。
+`0041` 增加 Maintenance-only 的不可变版本、验证与部署事实。版本状态和环境 current 由追加事实投影；production 要求同版本 staging 成功，失败记录不改变 current，三表禁止更新/删除。`0042` 增加优盾 deposit-only 配置安全视图、签名回调证据、重放/地址/开放订单唯一约束和独立 payment webhook 角色。
 
 数据库角色至少拆分为 migrator、client_web、client_auth、ops_web、maint_web、notification_worker、runtime_worker、demo_execution_worker；legacy research 和 Payment Worker 不获得 Beta 业务写权限。
 
@@ -162,7 +166,7 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 - Email 只有 domain、API key、webhook、模板、suppression、retention、allowlist 全部就绪并获显式授权才可发送；否则为 `configured_not_sent`。
 - `0033` 从唯一可信映射的历史 bounce/complaint/suppressed 事件回填收件人 SHA-256；歧义映射跳过，数据库不新增收件人明文。
 - Maintenance DTO 仅含 `hasSecret`、provider/environment、权限检查、最近验证/测试；不返回 Key、密文引用、完整端点或 raw webhook。
-- 支付始终 disabled。Payment Webhook/Worker 不构成 Beta 收费路径。
+- 优盾仅作为 Client USDT deposit-only 通道；Payment Worker 仍 disabled，Webhook 验签后只进入人工复核，不构成自动支付路径。
 - LLM endpoint 采用 provider host allowlist，拒绝私网 IPv4/IPv6、redirect 与 DNS rebinding，并配合出口控制。
 - Client AI/策略请求只使用 Maintenance 发布并绑定的平台模型 Profile，按平台费率扣减 Credits；`/api/account/llm-config` 及测试入口在 Beta 失败关闭，Client 不接受 BYOK、客户 API Key 或私有模型端点。缺少可用平台 Profile、费率或可靠 usage 时返回真实 503/422，不回退假模型结果。
 - Client 只读取 `client_ai_runtime_model_bindings` 安全投影，不读取 Profile 密文表；模型响应必须同时提供可靠 provider request ID 与 token usage。Credits 先原子预留，再按真实 usage 结算或释放；相同幂等键不得再次调用 provider。provider 已成功但进程在落库前崩溃时，平台承担无法证明的孤儿成本，客户预留释放并进入人工核对，不向客户重复扣费。

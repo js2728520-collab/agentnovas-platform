@@ -135,7 +135,7 @@ test("Maintenance Demo safe view never selects credential ciphertext", async () 
   assert.match(workspace, /canVerify|canManage|canKill/);
 });
 
-test("Maintenance distinguishes Worker gates and keeps Payment disabled", async () => {
+test("Maintenance distinguishes Worker gates and controls only Udun deposit capability", async () => {
   const health = await read("apps/maintenance/ui/system-health-workspace.tsx");
   for (const state of [
     "configured",
@@ -147,7 +147,8 @@ test("Maintenance distinguishes Worker gates and keeps Payment disabled", async 
   ]) assert.match(health, new RegExp(state));
 
   const payment = await read("apps/maintenance/ui/payment-integration-workspace.tsx");
-  assert.match(payment, /Beta.*disabled|始终禁用/s);
-  assert.doesNotMatch(payment, /切换 active|切换 sandbox/);
-  assert.doesNotMatch(payment, /kind: "status"/);
+  assert.match(payment, /DEPOSIT ONLY|deposit-only/);
+  assert.match(payment, /连通测试/);
+  assert.match(payment, /启用充值/);
+  assert.doesNotMatch(payment, /\/mch\/withdraw|withdraw\(/);
 });

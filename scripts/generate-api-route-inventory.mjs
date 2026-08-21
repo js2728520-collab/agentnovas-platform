@@ -44,7 +44,6 @@ const BETA_DISABLED_CLIENT_ROUTES = [
   "/api/strategy-marketplace",
   "/api/strategy-research/runs",
   "/api/trading/emergency-stop",
-  "/api/wallet/deposit-orders",
 ];
 const BETA_DISABLED_OPERATIONS_METHODS = new Set([
   "DELETE /api/organization/members",
@@ -161,7 +160,7 @@ function basePolicy(route, method) {
     return { audiences: ["maintenance"], authentication: "webhook", sameOrigin: false };
   }
   if (route.startsWith("/api/integrations/payments/") && route.endsWith("/webhook")) {
-    return { audiences: ["maintenance"], authentication: "disabled", sameOrigin: false };
+    return { audiences: ["maintenance"], authentication: "webhook", sameOrigin: false };
   }
   if (PUBLIC_CLIENT_METHODS.has(`${method} ${route}`)) {
     return { audiences: ["client"], authentication: "anonymous", sameOrigin: mutation };

@@ -2,7 +2,7 @@
 
 ## 1. 职责与导航
 
-Maintenance 管理模型 Profile/Agent 绑定、Email、支付禁用态、平台 Demo 账户、Worker 健康、紧急暂停、RBAC 和技术审计，不处理客户归属、会员付款或 paper 分成业务决定。
+Maintenance 管理模型 Profile/Agent 绑定、Email、优盾充值通道配置、平台 Demo 账户、Worker 健康、紧急暂停、RBAC 和技术审计，不处理客户归属、会员付款、充值入账审批或 paper 分成业务决定。
 
 核心路由：`/models`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/releases`、`/access`、`/access/audit`、`/audit`。
 
@@ -18,8 +18,8 @@ Maintenance 管理模型 Profile/Agent 绑定、Email、支付禁用态、平台
 ## 3. Email 与支付
 
 - Email 分别显示 domain、key、webhook、templates、suppression、retention、allowlist 和最近测试。任一未完成或未授权时为 `configured_not_sent`。
-- Payment 永远为 disabled；Beta 不提供连接测试成功、Webhook 入账或 Payment Worker 业务运行。
-- 页面只见 `hasSecret`、provider、安全 environment 和最近验证；不返回密钥、密文引用、完整私有 endpoint 或 raw webhook。
+- Payment 只允许优盾 deposit-only：配置、支持币种连通测试和启停；回调验签服务不自动入账，Payment Worker 不运行。
+- 页面只见 `hasSecret`、商户/节点/回调/币种映射是否配置和最近验证；不返回密钥、商户号、密文引用、完整私有 endpoint 或 raw webhook。
 
 ## 4. 平台 Demo 账户
 
@@ -33,7 +33,7 @@ Maintenance 管理模型 Profile/Agent 绑定、Email、支付禁用态、平台
 
 每个 Worker 显示：configured、enabled、liveness、health、heartbeatAt、commitSha、lastSuccessAt、lastFailureAt、safe error code、currentJob、queueDepth/oldestAge。状态推导：disabled、unconfigured、missing、alive/healthy、degraded、stale；env 开关不能证明进程存活。
 
-Database、Research、Paper Runtime、Demo Execution、Notification 和 Payment 分别建模。Payment 始终 disabled。公开 live/ready 只粗粒度，详细诊断需要 `maint.system_health.view`。
+Database、Research、Paper Runtime、Demo Execution、Notification、Payment Worker 和优盾 Webhook 分别建模。Payment Worker 始终 disabled；优盾 Webhook 为独立最小权限服务。公开 live/ready 只粗粒度，详细诊断需要 `maint.system_health.view`。
 
 ## 6. 安全、RBAC 与审计
 
@@ -49,7 +49,7 @@ Database、Research、Paper Runtime、Demo Execution、Notification 和 Payment 
 - 停止 Worker 后 60 秒内 stale；configured/enabled/alive/healthy 不混淆。
 - 密钥、完整 endpoint、webhook payload 和临时 token 在网络响应/页面/日志均为零。
 - Demo 三 provider 的 fixture、未配置、失败和成功状态准确；paper 不受影响。
-- Email 未完全就绪显示 configured_not_sent；Payment 一直 disabled；不会生成假成功。
+- Email 未完全就绪显示 configured_not_sent；优盾未完整配置/测试显示 disabled 或 incomplete；不会生成假成功。
 
 ## 8. 版本发布
 
@@ -58,3 +58,6 @@ Database、Research、Paper Runtime、Demo Execution、Notification 和 Payment 
 - production 成功记录要求同版本 staging 成功；failed 不切换 current，rollback 只能指向同环境历史成功版本。
 - 页面只记录 CI/CD 或值班人员已执行操作的证据，不提供 SSH、迁移、切流、Git tag 或自动回滚按钮。
 - Client/Operations 不含该路由、权限、菜单或数据库读路径；密钥、日志正文和访问令牌不进入记录。
+# 优盾充值集成
+
+`/integrations/payments` 只显示商户号/API Key/专属节点/回调/币种映射是否存在、最近测试和有效状态，不回显值。币种映射只能在 disabled 时修改，修改清除旧测试；启用要求运行时配置完整且最近测试通过。公网回调使用 `agentnovas_payment_webhook`，Maintenance Web 角色不读取客户钱包或账本。提现、代付和划转能力不得加入页面或 API。

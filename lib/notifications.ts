@@ -1,5 +1,11 @@
 export const RESEND_SENDER_ADDRESS = "noreply@agentnovas.com";
 export const RESEND_SENDER_DOMAIN = "agentnovas.com";
+export const NOTIFICATION_CONTACT_ADDRESSES = Object.freeze({
+  support: "support@agentnovas.com",
+  security: "security@agentnovas.com",
+  billing: "billing@agentnovas.com",
+  operations: "operations@agentnovas.com",
+});
 
 export function resendSenderForCategory(category: "account" | "deposit" | "operations") {
   void category;
@@ -17,6 +23,10 @@ export function publicEmailIntegrationStatus(input: {
   workerEnabled?: boolean;
   sendAuthorized?: boolean;
   lastTestAt?: string | null;
+  lastTestStatus?: string | null;
+  lastTestErrorCode?: string | null;
+  workerHeartbeatAt?: string | null;
+  inboundMailboxesVerified?: boolean;
 }) {
   return {
     provider: "resend",
@@ -41,6 +51,11 @@ export function publicEmailIntegrationStatus(input: {
       && input.workerEnabled
       && input.sendAuthorized ? "ready" : "configured_not_sent",
     lastTestAt: input.lastTestAt ?? null,
+    lastTestStatus: input.lastTestStatus ?? null,
+    lastTestErrorCode: input.lastTestErrorCode ?? null,
+    workerHeartbeatAt: input.workerHeartbeatAt ?? null,
+    contactAddresses: NOTIFICATION_CONTACT_ADDRESSES,
+    inboundMailboxesVerified: input.inboundMailboxesVerified ?? false,
   };
 }
 
