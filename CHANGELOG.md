@@ -14,8 +14,8 @@
 
 - Production HTML smoke 将随机监听端口显式映射到 Client audience。
 - 冒烟断言与未登录根页的会话验证安全边界对齐，不再要求服务端泄露交易大厅正文。
-- 三端登录页不再启动已认证 session 数据树或预取受保护根路由；未使用字体不再阻塞登录页 LCP。
-- GitHub Actions 升级到 Node 24 runtime 的官方 action major，消除旧 Node 20 action 弃用路径。
+- 三端 audience Server Component 在导入应用树前分发登录页，不再加载已认证 session 数据树或预取受保护根路由；未使用字体不再阻塞登录页 LCP。
+- GitHub Actions 升级到 Node 24 runtime 的 checkout、setup-node 与 upload-artifact 官方 major，消除旧 Node 20 action 弃用路径。
 
 ## Planned: v1.0.0-beta.1
 

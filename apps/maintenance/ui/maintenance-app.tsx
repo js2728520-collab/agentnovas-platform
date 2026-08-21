@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
 
-import { AppLogin } from "@/packages/ui/src/app-login";
 import { ConsoleShell } from "@/packages/ui/src/console-shell";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
@@ -45,11 +44,6 @@ const navigation: ConsoleNavigationItem[] = [
 ];
 
 export default function MaintenanceApp({ segments }: { segments: string[] }) {
-  if (segments[0] === "login") return <AppLogin audience="maintenance" title="Riverton 运维端" description="模型、集成、安全、审计和系统健康工作台。" allowRegistration={false} />;
-  return <MaintenanceSessionApp segments={segments} />;
-}
-
-function MaintenanceSessionApp({ segments }: { segments: string[] }) {
   const session = useAppSession("maintenance");
   const route = segments[0] || "overview";
   useEffect(() => {

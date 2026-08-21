@@ -80,10 +80,13 @@ test("internal applications use permission-driven navigation and login without r
   const login = await read("packages/ui/src/app-login.tsx");
   const operations = await read("apps/operations/ui/operations-app.tsx");
   const maintenance = await read("apps/maintenance/ui/maintenance-app.tsx");
+  const operationsRoot = await read("app/audience/operations-root.tsx");
+  const maintenanceRoot = await read("app/audience/maintenance-root.tsx");
   assert.match(shell, /visibleNavigation\(navigation, access\.permissions\)/);
   assert.match(login, /allowRegistration/);
-  assert.match(operations, /allowRegistration=\{false\}/);
-  assert.match(maintenance, /allowRegistration=\{false\}/);
+  assert.match(operationsRoot, /allowRegistration=\{false\}/);
+  assert.match(maintenanceRoot, /allowRegistration=\{false\}/);
+  assert.doesNotMatch(operations + maintenance, /AppLogin/);
   for (const path of ["app/api/auth/register/route.ts", "app/api/auth/forgot-password/route.ts"]) {
     const endpoint = await read(path);
     assert.match(endpoint, /currentRequestAudience\(request\) !== "client"/);
@@ -99,17 +102,19 @@ test("login routes do not start authenticated session trees or prefetch protecte
   assert.match(consoleCss, /\.rc-auth\s*\{[^}]*font-family:\s*system-ui/s);
   assert.doesNotMatch(consoleCss, /\.rc-auth\s*\{[^}]*var\(--font-geist-sans\)/s);
   assert.equal((layout.match(/preload:\s*false/g) ?? []).length, 2);
-  for (const [path, sessionComponent] of [
-    ["apps/client/ui/client-portal.tsx", "ClientSessionPortal"],
-    ["apps/operations/ui/operations-app.tsx", "OperationsSessionApp"],
-    ["apps/maintenance/ui/maintenance-app.tsx", "MaintenanceSessionApp"],
+  for (const [rootPath, applicationPath, applicationName] of [
+    ["app/audience/client-portal-root.tsx", "apps/client/ui/client-portal.tsx", "ClientPortal"],
+    ["app/audience/operations-root.tsx", "apps/operations/ui/operations-app.tsx", "OperationsApp"],
+    ["app/audience/maintenance-root.tsx", "apps/maintenance/ui/maintenance-app.tsx", "MaintenanceApp"],
   ]) {
-    const source = await read(path);
-    const wrapper = source.indexOf("export default function");
-    const sessionTree = source.indexOf(`function ${sessionComponent}`);
-    const sessionHook = source.indexOf("const session = useAppSession");
-    assert.ok(wrapper >= 0 && sessionTree > wrapper && sessionHook > sessionTree, `${path} must isolate its login wrapper from session hooks`);
-    assert.match(source.slice(wrapper, sessionTree), /return <AppLogin/);
+    const root = await read(rootPath);
+    const application = await read(applicationPath);
+    const loginBranch = root.indexOf('segments[0] === "login"');
+    const authenticatedBranch = root.indexOf(`return <${applicationName}`);
+    assert.ok(loginBranch >= 0 && authenticatedBranch > loginBranch, `${rootPath} must dispatch login before the authenticated client tree`);
+    assert.match(root, /return <AppLogin/);
+    assert.doesNotMatch(application, /AppLogin|segments\[0\] === "login"/);
+    assert.match(application, /const session = useAppSession/);
   }
 });
 

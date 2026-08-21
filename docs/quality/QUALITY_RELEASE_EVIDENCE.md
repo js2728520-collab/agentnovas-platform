@@ -84,9 +84,9 @@ The implementation follows the official Playwright guidance for [web servers](ht
 ## Current release status and external boundary
 
 - CI `quality-release` job 已集成；基础设施级 egress deny、生产 DNS/TLS 和真实外部 provider smoke 仍由部署环境负责。
-- 当前三端初始 JS/CSS gzip：Client 188,792/9,399 bytes，Operations 185,351/8,717 bytes，Maintenance 185,504/8,717 bytes，均通过 200/50 KiB 预算。
+- 当前三端初始 JS/CSS gzip：Client 188,677/9,386 bytes，Operations 185,268/8,704 bytes，Maintenance 185,448/8,704 bytes，均通过 200/50 KiB 预算。
 - 12 个 Playwright 场景使用四身份与四档 viewport，覆盖 Host/Cookie audience 隔离、会员 maker-checker、Client/Operations/Maintenance 稳定路由、axe 和 console/network；全部通过。
-- 最新三次 Lighthouse performance 为 1.00/0.99/0.99，accessibility 与 best practices 均为 1.00；LCP 1,717/2,163/2,162 ms，CLS 均为 0，TBT 11.5/4.3/4.6 ms，全部满足 Gate 预算。登录路由不启动 session 数据树或根路由预取，并关闭登录页未使用字体的 preload。
+- 最新三次 Lighthouse performance 均为 0.99，accessibility 与 best practices 均为 1.00；LCP 2,221/2,163/2,162 ms，CLS 均为 0，TBT 24/4.2/3.3 ms，全部满足 Gate 预算。登录由 audience Server Component 在导入已认证应用树之前分发，不启动 session 数据树或受保护根路由预取，并关闭登录页未使用字体的 preload。
 - 本机恢复演练已在 2026-08-21 对 fresh 源库覆盖 42 个迁移和 138 张表；迁移 registry checksum、表集合与逐表行数在恢复前后完全一致，一次性源库、目标库和临时 dump 均已清理。
 - 真实 Email、Demo、Payment、交易或 DNS/TLS smoke 不属于本 runner。没有凭证时产品以 `not_configured/configured_not_sent/disabled` 安全降级；若决定启用，必须在独立 staging 记录中补充真实 provider 证据。
 

@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
 
-import { AppLogin } from "@/packages/ui/src/app-login";
 import { ConsoleShell } from "@/packages/ui/src/console-shell";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
@@ -56,11 +55,6 @@ const routePermissions: Record<string, string[] | undefined> = {
 };
 
 export default function OperationsApp({ segments }: { segments: string[] }) {
-  if (segments[0] === "login") return <AppLogin audience="operations" title="Riverton 运营端" description="客户、充值、账务、财务和审批工作台。" allowRegistration={false} />;
-  return <OperationsSessionApp segments={segments} />;
-}
-
-function OperationsSessionApp({ segments }: { segments: string[] }) {
   const session = useAppSession("operations");
   const route = segments[0] || "overview";
   useEffect(() => {

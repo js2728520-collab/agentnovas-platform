@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import dynamic from "next/dynamic";
 
 import type { CommercialLegalConsentStatus } from "@/packages/contracts/src/commercial-beta";
-import { AppLogin } from "@/packages/ui/src/app-login";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
 import { useApiData } from "@/packages/ui/src/use-api-data";
@@ -25,12 +24,7 @@ const WalletWorkspace = dynamic(() => import("./wallet-workspace").then((module)
 const AccountSecurityWorkspace = dynamic(() => import("./account-security-workspace").then((module) => module.AccountSecurityWorkspace), { loading: workspaceLoading });
 const SupportWorkspace = dynamic(() => import("./support-workspace").then((module) => module.SupportWorkspace), { loading: workspaceLoading });
 
-export default function ClientPortal({ segments, loginMode }: { segments: string[]; loginMode?: "login" | "register" | "forgot" }) {
-  if (segments[0] === "login") return <AppLogin audience="client" title="Riverton Capital" description="AI 策略研发、回测、模拟盘和会员资产中心。" allowRegistration initialMode={loginMode} />;
-  return <ClientSessionPortal segments={segments} />;
-}
-
-function ClientSessionPortal({ segments }: { segments: string[] }) {
+export default function ClientPortal({ segments }: { segments: string[] }) {
   const session = useAppSession("client");
   const route = segments[0];
   const isLegalRoute = route === "legal" && segments[1] === "consent";
