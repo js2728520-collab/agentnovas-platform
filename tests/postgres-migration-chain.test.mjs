@@ -40,26 +40,26 @@ async function copyMigrations(maximumVersion) {
   }
 }
 
-test("the real runner upgrades 0029 to 0030 and reapplies without drift", async () => {
-  await copyMigrations(29);
+test("the real runner upgrades 0031 to 0032 and reapplies without drift", async () => {
+  await copyMigrations(31);
   const before = await runPostgresMigrations(pool, {
     directory: new URL(`file://${migrationDirectory}/`),
     commitSha: "n-minus-one",
   });
-  assert.equal(before.applied.at(-1), "0029_beta_legacy_runtime_hard_close.sql");
+  assert.equal(before.applied.at(-1), "0031_credit_adjustment_workflow.sql");
 
-  await copyMigrations(30);
+  await copyMigrations(32);
   const upgraded = await runPostgresMigrations(pool, {
     directory: new URL(`file://${migrationDirectory}/`),
     commitSha: "current",
   });
-  assert.deepEqual(upgraded.applied, ["0030_commercial_disclosure_trial.sql"]);
+  assert.deepEqual(upgraded.applied, ["0032_operations_customer_org_hardening.sql"]);
   const table = await pool.query(`
     SELECT EXISTS (
       SELECT 1 FROM information_schema.columns
       WHERE table_schema=current_schema()
-        AND table_name='commercial_legal_document_versions'
-        AND column_name='content_markdown'
+        AND table_name='customer_attribution_change_requests'
+        AND column_name='proposed_assignment_json'
     ) AS present
   `);
   assert.equal(table.rows[0].present, true);
@@ -69,5 +69,5 @@ test("the real runner upgrades 0029 to 0030 and reapplies without drift", async 
     commitSha: "current",
   });
   assert.equal(rerun.applied.length, 0);
-  assert.equal(rerun.skipped.length, 31);
+  assert.equal(rerun.skipped.length, 33);
 });

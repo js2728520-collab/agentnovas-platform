@@ -1493,16 +1493,12 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.reconciliation.run"
-    ],
-    "permissionMfa": {
-      "ops.reconciliation.run": "recent"
-    },
-    "scope": "grant",
-    "mfa": "recent",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true
@@ -1514,19 +1510,15 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.ledger.view"
-    ],
-    "permissionMfa": {
-      "ops.ledger.view": "none"
-    },
-    "scope": "grant",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
   },
   {
     "method": "POST",
@@ -1535,16 +1527,12 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.finance.manage"
-    ],
-    "permissionMfa": {
-      "ops.finance.manage": "recent"
-    },
-    "scope": "grant",
-    "mfa": "recent",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true
@@ -1556,16 +1544,12 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.finance.manage"
-    ],
-    "permissionMfa": {
-      "ops.finance.manage": "recent"
-    },
-    "scope": "grant",
-    "mfa": "recent",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true
@@ -1577,19 +1561,15 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.ledger.view"
-    ],
-    "permissionMfa": {
-      "ops.ledger.view": "none"
-    },
-    "scope": "grant",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
     "mfa": "none",
     "pii": "full",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
   },
   {
     "method": "POST",
@@ -1598,16 +1578,12 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.reconciliation.run"
-    ],
-    "permissionMfa": {
-      "ops.reconciliation.run": "recent"
-    },
-    "scope": "grant",
-    "mfa": "recent",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
     "pii": "full",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true
@@ -1619,19 +1595,15 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.ledger.view"
-    ],
-    "permissionMfa": {
-      "ops.ledger.view": "none"
-    },
-    "scope": "grant",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
   },
   {
     "method": "POST",
@@ -1640,16 +1612,12 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.reconciliation.run"
-    ],
-    "permissionMfa": {
-      "ops.reconciliation.run": "recent"
-    },
-    "scope": "grant",
-    "mfa": "recent",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true
@@ -1661,16 +1629,12 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.finance.manage"
-    ],
-    "permissionMfa": {
-      "ops.finance.manage": "recent"
-    },
-    "scope": "grant",
-    "mfa": "recent",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
     "pii": "none",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true
@@ -2602,6 +2566,132 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/operations/attribution-changes",
+    "source": "app/api/operations/attribution-changes/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.attributions.manage"
+    ],
+    "permissionMfa": {
+      "ops.attributions.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/attribution-changes",
+    "source": "app/api/operations/attribution-changes/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.attributions.manage"
+    ],
+    "permissionMfa": {
+      "ops.attributions.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/attribution-changes/:id/decision",
+    "source": "app/api/operations/attribution-changes/[id]/decision/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.attributions.manage"
+    ],
+    "permissionMfa": {
+      "ops.attributions.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/operations/credit-adjustments",
+    "source": "app/api/operations/credit-adjustments/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.credits.view"
+    ],
+    "permissionMfa": {
+      "ops.credits.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/credit-adjustments",
+    "source": "app/api/operations/credit-adjustments/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.credits.adjust"
+    ],
+    "permissionMfa": {
+      "ops.credits.adjust": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/credit-adjustments/:id/decision",
+    "source": "app/api/operations/credit-adjustments/[id]/decision/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.credits.approve"
+    ],
+    "permissionMfa": {
+      "ops.credits.approve": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "GET",
     "route": "/api/operations/credits",
     "source": "app/api/operations/credits/route.ts",
     "audiences": [
@@ -2620,6 +2710,90 @@ export const API_ROUTE_INVENTORY = [
     "pii": "none",
     "sensitivity": "normal",
     "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/operations/customers",
+    "source": "app/api/operations/customers/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.customers.view"
+    ],
+    "permissionMfa": {
+      "ops.customers.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/operations/customers/:id",
+    "source": "app/api/operations/customers/[id]/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.customers.view"
+    ],
+    "permissionMfa": {
+      "ops.customers.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/customers/:id/notes",
+    "source": "app/api/operations/customers/[id]/notes/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.customers.manage"
+    ],
+    "permissionMfa": {
+      "ops.customers.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/customers/:id/status",
+    "source": "app/api/operations/customers/[id]/status/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.customers.manage"
+    ],
+    "permissionMfa": {
+      "ops.customers.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
   },
   {
     "method": "GET",
@@ -3069,16 +3243,12 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "operations"
     ],
-    "authentication": "permission",
+    "authentication": "disabled",
     "sessionAuthHelpers": [],
-    "permissionKeys": [
-      "ops.organization.manage"
-    ],
-    "permissionMfa": {
-      "ops.organization.manage": "recent"
-    },
-    "scope": "grant",
-    "mfa": "recent",
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
     "pii": "full",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true
@@ -3150,6 +3320,27 @@ export const API_ROUTE_INVENTORY = [
     "method": "POST",
     "route": "/api/organization/members/:id/activate",
     "source": "app/api/organization/members/[id]/activate/route.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.organization.manage"
+    ],
+    "permissionMfa": {
+      "ops.organization.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "PATCH",
+    "route": "/api/organization/members/:id/status",
+    "source": "app/api/organization/members/[id]/status/route.ts",
     "audiences": [
       "operations"
     ],

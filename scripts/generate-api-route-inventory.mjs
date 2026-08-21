@@ -45,6 +45,18 @@ const BETA_DISABLED_CLIENT_ROUTES = [
   "/api/trading/emergency-stop",
   "/api/wallet/deposit-orders",
 ];
+const BETA_DISABLED_OPERATIONS_METHODS = new Set([
+  "DELETE /api/organization/members",
+  "GET /api/finance/collections",
+  "GET /api/finance/payout-profiles",
+  "GET /api/finance/settlements",
+  "POST /api/finance/adjustments",
+  "POST /api/finance/collections/:id/confirm-paid",
+  "POST /api/finance/collections/refresh",
+  "POST /api/finance/payout-profiles",
+  "POST /api/finance/settlements",
+  "POST /api/finance/settlements/:id/paid",
+]);
 const SESSION_AUTH_HELPERS = new Set([
   "requireAccessPermission",
   "requireAiCustomer",
@@ -99,6 +111,9 @@ function hasPrefix(route, prefixes) {
 
 function basePolicy(route, method) {
   const mutation = !["GET", "HEAD", "OPTIONS"].includes(method);
+  if (BETA_DISABLED_OPERATIONS_METHODS.has(`${method} ${route}`)) {
+    return { audiences: ["operations"], authentication: "disabled", sameOrigin: true };
+  }
   if (BETA_DISABLED_CLIENT_ROUTES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
     || route === "/api/strategies/:strategyId/versions/:versionId/deployments"
     || (route === "/api/strategy-subscriptions/:id" && method === "PATCH")) {

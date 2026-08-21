@@ -15,6 +15,7 @@ export async function provisionInternalMember(pool: Pool, input: {
   reportsToUserId: string;
   activationTokenHash: string;
   encryptedNotificationToken: string;
+  reason?: string;
   now?: Date;
 }) {
   const assignment = legacyRoleAssignments(input.role).find((candidate) => candidate.appId === "operations");
@@ -60,8 +61,8 @@ export async function provisionInternalMember(pool: Pool, input: {
       INSERT INTO user_role_assignments (
         id, user_id, role_id, application_id, organization_id,
         scope_organization_ids_json, status, effective_at, granted_by_user_id, reason
-      ) VALUES ($1, $2, $3, 'operations', $4, jsonb_build_array($4::text), 'active', $5, $6, 'internal member invitation')
-    `, [crypto.randomUUID(), input.userId, role.id, organizationId, now, input.actorUserId]);
+      ) VALUES ($1, $2, $3, 'operations', $4, jsonb_build_array($4::text), 'active', $5, $6, $7)
+    `, [crypto.randomUUID(), input.userId, role.id, organizationId, now, input.actorUserId, input.reason?.trim().slice(0, 500) || "internal member invitation"]);
     await client.query(`
       INSERT INTO auth_tokens (id, user_id, token_hash, purpose, token_audience, expires_at)
       VALUES ($1, $2, $3, 'reset_password', 'operations', $4)
@@ -88,7 +89,7 @@ export async function provisionInternalMember(pool: Pool, input: {
       VALUES ($1, $2, 'organization.member_created', 'user', $3, $4, $5)
     `, [
       crypto.randomUUID(), input.actorUserId, input.userId,
-      JSON.stringify({ email: input.email, role: input.role, organizationId, activation: "email_set_password", explicitAssignment: true }),
+      JSON.stringify({ email: input.email, role: input.role, organizationId, activation: "email_set_password", explicitAssignment: true, reason: input.reason?.trim().slice(0, 500) || "internal member invitation" }),
       now,
     ]);
     await client.query("COMMIT");

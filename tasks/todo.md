@@ -24,21 +24,21 @@
 
 ## 2. Operations 客户、组织与团队
 
-- [ ] 2.1 客户详情聚合：身份/组织/归属、会员、Credits、Paper、订单、应收、冻结状态。
-- [ ] 2.2 客户备注历史、冻结/恢复、归档/恢复和相关 session/能力撤销。
-- [ ] 2.3 客户归属转移 maker-checker、有效期和审计。
-- [ ] 2.4 组织树、成员、邀请、激活/停用、汇报关系修改和组织范围验证。
-- [ ] 2.5 每日简报、月目标、跟进记录、服务端分页/筛选和受控 CSV 导出。
-- [ ] 2.6 数据中心真实指标与 drill-down；移除 legacy 静态/跨 scope 统计。
+- [x] 2.1 客户详情聚合：身份/组织/归属、会员、Credits、Paper、订单、应收、冻结状态。
+- [x] 2.2 客户备注历史、冻结/恢复、归档/恢复和相关 session/能力撤销。
+- [x] 2.3 客户归属转移 maker-checker、有效期和审计。
+- [x] 2.4 组织树、成员、邀请、激活/停用、汇报关系修改和组织范围验证。
+- [x] 2.5 每日简报、月目标、跟进记录、服务端分页/筛选和受控 CSV 导出。
+- [x] 2.6 数据中心真实指标与 drill-down；移除 legacy 静态/跨 scope 统计。
 
 ## 3. Operations Credits、财务与审批
 
-- [ ] 3.1 迁移 `0031_credit_adjustment_workflow.sql`：调整申请/决定/幂等/人员分离。
-- [ ] 3.2 Credits 调整 maker/checker service/API；不可为负、同事务 ledger/outbox/audit。
-- [ ] 3.3 Operations Credits 调整 UI 与客户 Credits 不可变分录详情。
-- [ ] 3.4 财务 settlements/collections/payout profiles/adjustments 接入新 RBAC、scope、游标和准确状态。
-- [ ] 3.5 统一审批 inbox 投影会员、分成、Credits、RBAC、归属、充值历史请求；无自审按钮。
-- [ ] 3.6 官方策略业务影响只读视图；社区治理保持 disabled 并从菜单清除。
+- [x] 3.1 迁移 `0031_credit_adjustment_workflow.sql`：调整申请/决定/幂等/人员分离。
+- [x] 3.2 Credits 调整 maker/checker service/API；不可为负、同事务 ledger/outbox/audit。
+- [x] 3.3 Operations Credits 调整 UI 与客户 Credits 不可变分录详情。
+- [x] 3.4 商业财务收敛到会员订单、Paper 周分成和不可变账本；legacy settlements/collections/payout/adjustment 写接口由 API Policy 硬关闭。
+- [x] 3.5 统一审批 inbox 投影会员、分成、Credits、RBAC、归属、汇报关系和充值历史请求；无自审按钮。
+- [x] 3.6 官方三卡业务影响只读视图；社区治理保持 disabled 并从菜单清除。
 
 ## 4. Maintenance 控制面
 

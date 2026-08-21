@@ -1,9 +1,10 @@
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { collectionCases, customerAttributions, memberships, monthlyTeamTargets, notificationDeliveries, targetFollowUps, trades, users } from "@/db/schema";
+import { collectionCases, customerAttributions, memberships, monthlyTeamTargets, notificationDeliveries, targetFollowUps, users } from "@/db/schema";
 import { requireAccessPermission } from "@/lib/access-control";
 import { canAccessCustomerAttribution } from "@/lib/operations-access";
 import type { DataScope } from "@/lib/rbac";
+import { getPostgresPool } from "@/lib/postgres";
 import { responseError } from "@/lib/session";
 
 async function buildBrief(actor: typeof users.$inferSelect, scope: DataScope, organizationIds: readonly string[]) {
@@ -11,13 +12,13 @@ async function buildBrief(actor: typeof users.$inferSelect, scope: DataScope, or
   const [attributions, collections, memberRows, tradeRows, targets, followUps, people] = await Promise.all([
     db.select().from(customerAttributions).where(eq(customerAttributions.status, "active")),
     db.select().from(collectionCases).where(inArray(collectionCases.status, ["payment_period", "grace", "trading_stopped"])),
-    db.select().from(memberships), db.select().from(trades), db.select().from(monthlyTeamTargets).where(eq(monthlyTeamTargets.month, month)), db.select().from(targetFollowUps).where(and(eq(targetFollowUps.month, month), eq(targetFollowUps.status, "resolved"))),
+    db.select().from(memberships), (await getPostgresPool()).query<{ customer_id: string }>(`SELECT DISTINCT portfolio.customer_id FROM official_paper_positions position JOIN official_paper_portfolios portfolio ON portfolio.id=position.portfolio_id WHERE position.quantity>0`), db.select().from(monthlyTeamTargets).where(eq(monthlyTeamTargets.month, month)), db.select().from(targetFollowUps).where(and(eq(targetFollowUps.month, month), eq(targetFollowUps.status, "resolved"))),
     db.select({ id: users.id, organizationId: users.organizationId, reportsToUserId: users.reportsToUserId, createdAt: users.createdAt }).from(users),
   ]);
   const visibleAttributions = attributions.filter(row => canAccessCustomerAttribution(scope, { userId: actor.id, organizationId: actor.organizationId }, row, organizationIds)), customerIds = new Set(visibleAttributions.map(row => row.customerId)), peopleMap = new Map(people.map(row => [row.id, row]));
   const visibleStaff = people.filter(person => { if (person.organizationId !== actor.organizationId || person.id === actor.id) return false; if (actor.role === "branch_admin") return true; let current = person, depth = 0; while (current.reportsToUserId && depth++ < 6) { if (current.reportsToUserId === actor.id) return true; const next = peopleMap.get(current.reportsToUserId); if (!next) break; current = next; } return false; });
   const targetIds = new Set(targets.map(row => row.assigneeUserId)), handled = new Set(followUps.map(row => `${row.subjectUserId}:${row.alertType}`));
-  const summary = { customers: customerIds.size, collections: collections.filter(row => customerIds.has(row.customerId)).length, stopped: collections.filter(row => customerIds.has(row.customerId) && row.status === "trading_stopped").length, expiring: memberRows.filter(row => customerIds.has(row.customerId) && !!row.expiresAt && row.expiresAt <= soon && row.expiresAt >= today).length, openTrades: tradeRows.filter(row => customerIds.has(row.customerId) && !row.closedAt).length, targetMissing: visibleStaff.filter(row => !targetIds.has(row.id) && !handled.has(`${row.id}:target_missing`)).length };
+  const summary = { customers: customerIds.size, collections: collections.filter(row => customerIds.has(row.customerId)).length, stopped: collections.filter(row => customerIds.has(row.customerId) && row.status === "trading_stopped").length, expiring: memberRows.filter(row => customerIds.has(row.customerId) && !!row.expiresAt && row.expiresAt <= soon && row.expiresAt >= today).length, openTrades: tradeRows.rows.filter(row => customerIds.has(row.customer_id)).length, targetMissing: visibleStaff.filter(row => !targetIds.has(row.id) && !handled.has(`${row.id}:target_missing`)).length };
   return { date: today, month, scope: actor.role, summary };
 }
 

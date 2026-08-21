@@ -45,12 +45,13 @@ test("operations exposes scoped action queues, normalized deposit details and im
   assert.match(ledger, /postings/);
 });
 
-test("finance workspaces render an explicit empty state for empty arrays", async () => {
+test("finance workspace uses commercial orders, Paper fee statements and immutable ledger", async () => {
   const finance = await read("apps/operations/ui/finance-workspace.tsx");
-  assert.match(finance, /empty=\{!resource\.data\?\.settlements\.length\}/);
-  assert.match(finance, /empty=\{!resource\.data\?\.collections\.length\}/);
-  assert.match(finance, /empty=\{!resource\.data\?\.profiles\.length\}/);
-  assert.match(finance, /empty \? <EmptyState/);
+  assert.match(finance, /operations\/membership-orders/);
+  assert.match(finance, /operations\/performance-statements/);
+  assert.match(finance, /operations\/ledger/);
+  assert.match(finance, /EmptyState/);
+  assert.doesNotMatch(finance, /payout-profiles|finance\/adjustments/);
 });
 
 test("RBAC viewers, assignees and reviewers are authorized independently", async () => {

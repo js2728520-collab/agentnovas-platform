@@ -10,7 +10,7 @@ type Statistics = { summary: { totalOrders: string; creditedOrders: string; tota
 
 export function OperationsOverview({ canViewDeposits, canViewCustomers, canApproveDeposits }: { canViewDeposits: boolean; canViewCustomers: boolean; canApproveDeposits: boolean }) {
   const stats = useApiData<Statistics>(canViewDeposits ? "/api/operations/deposits/statistics" : null, "充值统计读取失败");
-  const customers = useApiData<{ customers: OperationsCustomer[]; total: number }>(canViewCustomers ? "/api/organization/customers" : null, "客户统计读取失败");
+  const customers = useApiData<{ customers: OperationsCustomer[]; total: string }>(canViewCustomers ? "/api/operations/customers?limit=1" : null, "客户统计读取失败");
   const approvals = useApiData<{ actionRequests: OperationsActionRequest[] }>(canApproveDeposits ? "/api/operations/deposit-action-requests?status=pending&limit=200" : null, "待审批队列读取失败");
   const loading = stats.loading || customers.loading || approvals.loading;
   if (loading && !stats.data && !customers.data && !approvals.data) return <LoadingState label="正在汇总运营状态…" />;
