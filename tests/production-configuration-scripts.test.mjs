@@ -59,7 +59,7 @@ NOTIFICATION_TOKEN_ENCRYPTION_KEY=shared-notification-key
 RESEND_API_KEY=
 `,
   "runtime.env": `NODE_ENV=production
-DATABASE_URL=postgresql://runtime
+RESEARCH_DATABASE_URL=postgresql://runtime
 LLM_PROFILE_ENCRYPTION_KEY=shared-llm-key
 STRATEGY_RUNTIME_ENABLED=false
 `,

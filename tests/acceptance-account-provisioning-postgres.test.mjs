@@ -159,6 +159,16 @@ test("provisioning rejects weak or control-character passwords before touching t
   assert.equal((await pool.query(`
     SELECT count(*)::int AS count FROM users WHERE email='weak-client@agentnovas.com'
   `)).rows[0].count, 0);
+  await assert.rejects(provisionAcceptanceAccounts(pool, {
+    client: { email: "control-client@agentnovas.com", password: `valid-length-password\u0000rejected` },
+    operations: { email: "control-operations@agentnovas.com", password: "operations-password-long-enough" },
+    maintenance: { email: "control-maintenance@agentnovas.com", password: "maintenance-password-long-enough" },
+  }), /ACCEPTANCE_ACCOUNT_PASSWORD_INVALID:client/);
+  await assert.rejects(provisionAcceptanceAccounts(pool, {
+    client: { email: "long-client@agentnovas.com", password: "a".repeat(129) },
+    operations: { email: "long-operations@agentnovas.com", password: "operations-password-long-enough" },
+    maintenance: { email: "long-maintenance@agentnovas.com", password: "maintenance-password-long-enough" },
+  }), /ACCEPTANCE_ACCOUNT_PASSWORD_INVALID:client/);
 });
 
 test("the CLI never accepts passwords in command arguments or prints credential material", async () => {

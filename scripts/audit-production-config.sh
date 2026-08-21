@@ -90,7 +90,7 @@ if [ "$findings" -eq 0 ]; then
   for key in DATABASE_URL NOTIFICATION_WORKER_ENABLED NOTIFICATION_EMAIL_SEND_ENABLED NOTIFICATION_TOKEN_ENCRYPTION_KEY; do
     required_value "$notification" "$key" || true
   done
-  for key in DATABASE_URL LLM_PROFILE_ENCRYPTION_KEY; do required_value "$runtime" "$key" || true; done
+  for key in RESEARCH_DATABASE_URL LLM_PROFILE_ENCRYPTION_KEY; do required_value "$runtime" "$key" || true; done
   for key in DATABASE_URL INTEGRATION_CREDENTIAL_ENCRYPTION_KEY; do required_value "$demo" "$key" || true; done
   for key in DATABASE_URL POSTGRES_MIGRATION_SCHEMA GIT_COMMIT_SHA; do required_value "$migrator" "$key" || true; done
 

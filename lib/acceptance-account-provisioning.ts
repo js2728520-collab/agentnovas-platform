@@ -53,7 +53,7 @@ async function normalizedAccounts(input: AcceptanceAccountCredentials) {
       const codePoint = character.codePointAt(0)!;
       return codePoint <= 0x1f || codePoint === 0x7f;
     });
-    if (password.length < 20 || password.length > 256 || hasControlCharacter) {
+    if (password.length < 20 || password.length > 128 || hasControlCharacter) {
       throw new Error(`ACCEPTANCE_ACCOUNT_PASSWORD_INVALID:${audience}`);
     }
     return {

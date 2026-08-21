@@ -13,7 +13,7 @@
 | 配置域 | 当前状态 | 还缺什么 |
 | --- | --- | --- |
 | 三端 PostgreSQL、Cookie、MFA/通知/模型/集成加密主密钥 | 已配置，跨进程共享值一致 | 定期轮换与恢复演练 |
-| Client/Operations/Maintenance Web | 已部署并健康 | 三端验收账号和业务验收 |
+| Client/Operations/Maintenance Web | 已部署并健康；三端验收账号已创建，登录与 audience/RBAC 边界已通过 | Operations/Maintenance 首次现场绑定 TOTP；需要双审的业务使用独立 checker |
 | Notification Worker | 运行中 | 外部 Email send 仍关闭 |
 | Resend | 运行时未完整配置 | 新的 domain-scoped Sending Key、Webhook Secret、最小收件人 allowlist、readiness 证据 |
 | 优盾 | 运行时未配置、数据库 disabled | 专属 HTTPS 节点、商户号、API Key、当前商户币种编号、staging 小额验收 |
@@ -91,6 +91,8 @@ ssh an-saas 'shred -u /root/agentnovas-initial-access/<CREDENTIAL_FILE>'
 不要把 `cat` 的输出复制到工单、群聊、文档或 Git。若创建命令失败，不要改用 SQL 绕过；先检查唯一 active `hq_admin`、Headquarters、权限目录、role code 和同邮箱账号。
 
 ### 2.3 首次登录验收
+
+2026-08-22 已使用生产容器完成一次无密钥输出验收：三端正确 audience 登录均通过，Client 投影 9 项 Client-only 权限，Operations 投影 34 项 Operations-only 权限，Maintenance 投影 22 项 Maintenance-only 权限；内部端均进入首次 TOTP enrollment。验收产生的三个 session 已全部撤销。密码仍只存在服务器 root-only 凭证文件中，未写入本文或 Git。
 
 1. Client：<https://agentnovas.com/login>。确认只能看到 Client 菜单，Operations/Maintenance URL 返回 404/403。
 2. Operations：<https://zht.agentnovas.com/login>。主密码通过后必须进入 TOTP enrollment；扫描二维码、输入一次验证码并离线保存 recovery codes。

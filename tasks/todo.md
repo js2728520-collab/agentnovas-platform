@@ -111,5 +111,5 @@
 - [x] 10.3 增加 Resend readiness 审计 CLI；域名/Webhook/模板/suppression 任一未验证时不能标记 active，且不自动打开外发。
 - [x] 10.4 增加平台 Demo root-only 凭证工具；加密录入或轮换后强制关闭账户、开启全部 kill switch 并使旧验证失效。
 - [x] 10.5 写入三端账号、Resend、优盾、LLM、Demo、重启、验收与清理完整 Runbook。
-- [-] 10.6 在生产创建三端账号、验证登录边界并向授权操作者交付凭证文件读取指令。
+- [x] 10.6 在生产创建三端账号，验证正确登录、首次 TOTP、跨 audience 拒绝、9/34/22 单域 RBAC，并准备 root-only 凭证文件读取指令。
 - [!] 10.7 Resend、优盾、LLM 和三交易所 Demo 的真实 secret/商户/模型输入仍需授权人员通过仓库外 secret 渠道提供。
