@@ -6,7 +6,7 @@
 
 责任人采用角色而非个人信息：产品负责人维护 PRD 与商业披露合同，架构负责人维护 System Spec/ADR/API Policy，三端负责人维护对应 App Spec，QA/Release 负责人维护 Gate 与证据，Ops/Maint 值班角色维护 Runbook。代码与测试证据优先于无证据状态标记。
 
-实施快照（2026-08-22）：`v1.0.0-beta.2` 已以四张 `linux/amd64` 版本化容器部署到自托管目标；Client、Operations、Maintenance 和 PostgreSQL 健康，三端正式域名与 readiness 返回 200，Notification Worker 运行但 Email send 关闭。Payment、Demo、策略外部执行和优盾仍保持 disabled/unconfigured，不生成假地址、假成交或假成功。完整发布身份、CI、镜像、迁移、角色策略、TLS、回滚目标、已知缺陷和后续 Gate 见 `releases/2026-08-22-v1.0.0-beta.2-deployment.md`。
+实施快照（2026-08-22）：`v1.0.0-beta.3` 已以四张 `linux/amd64` 版本化容器部署到自托管目标；Client 根域恢复公开 Riverton Capital 着陆页且 hydration 后不再跳登录，Operations、Maintenance、PostgreSQL 健康，Notification Worker 运行但 Email send 关闭。Payment、Demo、策略外部执行和优盾仍保持 disabled/unconfigured，不生成假地址、假成交或假成功。完整发布身份、镜像、迁移、浏览器证据和 `beta.2` 回滚目标见 `releases/2026-08-22-v1.0.0-beta.3-deployment.md`。
 
 ## 阅读路径
 
@@ -40,7 +40,8 @@
 - `runbooks/commercial-beta-maintenance.md`：MFA 恢复、Demo 熔断、Email suppression、密钥与事故。
 - `runbooks/commercial-beta-release-and-rollback.md`：发布、首小时监控、回滚和数据恢复。
 - `runbooks/udun-deposit-gateway.md`：优盾商户配置、币种映射、回调、复核、停用和事故处理。
-- `releases/2026-08-22-v1.0.0-beta.2-deployment.md`：`v1.0.0-beta.2` 的真实部署过程、证据、异常、回滚目标和下一版改进项。
+- `releases/2026-08-22-v1.0.0-beta.3-deployment.md`：当前 `v1.0.0-beta.3` 的公开着陆页修复、真实部署过程、浏览器证据和 `beta.2` 回滚目标。
+- `releases/2026-08-22-v1.0.0-beta.2-deployment.md`：前一版本 `v1.0.0-beta.2` 的真实部署过程、证据、异常和历史回滚目标。
 - `../tasks/plan.md` / `../tasks/todo.md`：14 天实施顺序与唯一进度清单。
 
 ## 决策记录
