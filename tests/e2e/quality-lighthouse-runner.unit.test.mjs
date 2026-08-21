@@ -140,15 +140,23 @@ test("Lighthouse proxy forwards only read-only quality traffic to loopback", asy
   }
 });
 
-test("Lighthouse runner independently enforces every measured threshold", async () => {
+test("Lighthouse runner binds reports and gates the LHCI-computed representative run", async () => {
   const directory = await mkdtemp(join(tmpdir(), "agentnovas-quality-lhci-evidence-"));
-  const report = (lcp) => ({
+  const targetUrl = "http://127.0.0.1:3100/login";
+  const report = ({ fcp, interactive, lcp = 2_300, fetchTime } = {}) => ({
+    requestedUrl: targetUrl,
+    finalUrl: targetUrl,
+    fetchTime,
+    lighthouseVersion: "12.6.1",
+    runtimeError: null,
     categories: {
       performance: { score: 0.98 },
       accessibility: { score: 1 },
       "best-practices": { score: 1 },
     },
     audits: {
+      "first-contentful-paint": { numericValue: fcp },
+      interactive: { numericValue: interactive },
       "largest-contentful-paint": { numericValue: lcp },
       "cumulative-layout-shift": { numericValue: 0 },
       "total-blocking-time": { numericValue: 4 },
@@ -161,30 +169,141 @@ test("Lighthouse runner independently enforces every measured threshold", async 
   });
   try {
     const entries = [];
+    const measurements = [
+      { fcp: 900, interactive: 2_400, lcp: 2_300, fetchTime: "2026-08-21T15:31:13.241Z" },
+      { fcp: 920, interactive: 2_420, lcp: 2_300, fetchTime: "2026-08-21T15:31:26.040Z" },
+      { fcp: 950, interactive: 2_800, lcp: 2_501, fetchTime: "2026-08-21T15:31:37.155Z" },
+    ];
     for (let index = 0; index < 3; index += 1) {
       const path = join(directory, `report-${index}.json`);
-      await writeFile(path, JSON.stringify(report(index === 2 ? 2_500 : 2_300)));
-      entries.push({ url: "http://127.0.0.1:3100/login", jsonPath: path, isRepresentativeRun: index === 1 });
+      await writeFile(path, JSON.stringify(report(measurements[index])));
+      entries.push({
+        url: targetUrl,
+        jsonPath: path,
+        isRepresentativeRun: index === 1,
+        summary: { performance: 0.98, accessibility: 1, "best-practices": 1 },
+      });
     }
     await writeFile(join(directory, "manifest.json"), JSON.stringify(entries));
-    await verifyLighthouseRunEvidence(directory);
-    await writeFile(entries[2].jsonPath, JSON.stringify(report(2_501)));
-    await assert.rejects(() => verifyLighthouseRunEvidence(directory), /LCP threshold/);
-    const missingMetric = report(2_300);
+    await verifyLighthouseRunEvidence(directory, { expectedUrl: targetUrl });
+
+    const tamperedMarker = entries.map((entry, index) => ({
+      ...entry,
+      isRepresentativeRun: index === 0,
+    }));
+    await writeFile(join(directory, "manifest.json"), JSON.stringify(tamperedMarker));
+    await assert.rejects(
+      () => verifyLighthouseRunEvidence(directory, { expectedUrl: targetUrl }),
+      /representative run does not match LHCI computation/,
+    );
+    await writeFile(join(directory, "manifest.json"), JSON.stringify(entries));
+
+    const duplicateRun = report({ ...measurements[2], fetchTime: measurements[0].fetchTime });
+    await writeFile(entries[2].jsonPath, JSON.stringify(duplicateRun));
+    await assert.rejects(
+      () => verifyLighthouseRunEvidence(directory, { expectedUrl: targetUrl }),
+      /three distinct run identities/,
+    );
+    await writeFile(entries[2].jsonPath, JSON.stringify(report(measurements[2])));
+
+    const representativeOverBudget = report({ ...measurements[1], lcp: 2_501 });
+    await writeFile(entries[1].jsonPath, JSON.stringify(representativeOverBudget));
+    await assert.rejects(
+      () => verifyLighthouseRunEvidence(directory, { expectedUrl: targetUrl }),
+      /LCP threshold/,
+    );
+    await writeFile(entries[1].jsonPath, JSON.stringify(report(measurements[1])));
+
+    const missingMetric = report(measurements[2]);
     missingMetric.audits["total-blocking-time"].numericValue = null;
     await writeFile(entries[2].jsonPath, JSON.stringify(missingMetric));
-    await assert.rejects(() => verifyLighthouseRunEvidence(directory), /TBT is missing/);
+    await assert.rejects(
+      () => verifyLighthouseRunEvidence(directory, { expectedUrl: targetUrl }),
+      /TBT is missing/,
+    );
     for (const resourceType of ["script", "stylesheet", "image"]) {
-      const missingResource = report(2_300);
+      const missingResource = report(measurements[2]);
       missingResource.audits["resource-summary"].details.items = missingResource
         .audits["resource-summary"].details.items
         .filter((resource) => resource.resourceType !== resourceType);
       await writeFile(entries[2].jsonPath, JSON.stringify(missingResource));
       await assert.rejects(
-        () => verifyLighthouseRunEvidence(directory),
+        () => verifyLighthouseRunEvidence(directory, { expectedUrl: targetUrl }),
         new RegExp(`${resourceType} resource evidence is missing`),
       );
     }
+
+    const invalidCases = [
+      ["requested URL", (value) => { value.requestedUrl = "http://127.0.0.1:3100/other"; }],
+      ["manifest summary", (value) => { value.categories.performance.score = 0.97; }],
+      ["runtime error", (value) => { value.runtimeError = { code: "ERRORED_DOCUMENT_REQUEST" }; }],
+      ["performance score", (value) => { value.categories.performance.score = 1.1; }],
+      ["script transfer size", (value) => { value.audits["resource-summary"].details.items[0].transferSize = -1; }],
+      ["FCP", (value) => { delete value.audits["first-contentful-paint"]; }],
+      ["Interactive", (value) => { delete value.audits.interactive; }],
+    ];
+    for (const [message, mutate] of invalidCases) {
+      const invalid = report(measurements[2]);
+      mutate(invalid);
+      await writeFile(entries[2].jsonPath, JSON.stringify(invalid));
+      await assert.rejects(
+        () => verifyLighthouseRunEvidence(directory, { expectedUrl: targetUrl }),
+        new RegExp(message, "i"),
+      );
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("Lighthouse representative tie uses original fetch order before LHCI manifest reordering", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "agentnovas-quality-lhci-tie-"));
+  const targetUrl = "http://127.0.0.1:3000/login";
+  const summary = { performance: 0.98, accessibility: 1, "best-practices": 1 };
+  const report = (fetchTime) => ({
+    requestedUrl: targetUrl,
+    finalUrl: targetUrl,
+    fetchTime,
+    lighthouseVersion: "12.6.1",
+    runtimeError: null,
+    categories: {
+      performance: { score: summary.performance },
+      accessibility: { score: summary.accessibility },
+      "best-practices": { score: summary["best-practices"] },
+    },
+    audits: {
+      "first-contentful-paint": { numericValue: 920 },
+      interactive: { numericValue: 2_420 },
+      "largest-contentful-paint": { numericValue: 2_300 },
+      "cumulative-layout-shift": { numericValue: 0 },
+      "total-blocking-time": { numericValue: 10 },
+      "resource-summary": { details: { items: [
+        { resourceType: "script", transferSize: 100_000 },
+        { resourceType: "stylesheet", transferSize: 20_000 },
+        { resourceType: "image", transferSize: 50_000 },
+      ] } },
+    },
+  });
+  try {
+    const originalRuns = [
+      report("2026-08-21T15:31:13.241Z"),
+      report("2026-08-21T15:31:26.040Z"),
+      report("2026-08-21T15:31:37.155Z"),
+    ];
+    const manifestOrder = [originalRuns[1], originalRuns[2], originalRuns[0]];
+    const manifest = [];
+    for (const [index, value] of manifestOrder.entries()) {
+      const jsonPath = join(directory, `report-${index}.json`);
+      await writeFile(jsonPath, JSON.stringify(value));
+      manifest.push({
+        url: targetUrl,
+        jsonPath,
+        isRepresentativeRun: index === 2,
+        summary,
+      });
+    }
+    await writeFile(join(directory, "manifest.json"), JSON.stringify(manifest));
+    await verifyLighthouseRunEvidence(directory, { expectedUrl: targetUrl });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

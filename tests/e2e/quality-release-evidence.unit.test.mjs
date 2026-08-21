@@ -10,14 +10,26 @@ async function writeJson(path, value) {
   await writeFile(path, `${JSON.stringify(value)}\n`);
 }
 
-function lighthouseReport() {
+function lighthouseReport({
+  fcp = 920,
+  interactive = 2_420,
+  fetchTime = "2026-08-21T15:31:37.155Z",
+  url = "http://127.0.0.1:13000/login",
+} = {}) {
   return {
+    requestedUrl: url,
+    finalUrl: url,
+    fetchTime,
+    lighthouseVersion: "12.6.1",
+    runtimeError: null,
     categories: {
       performance: { score: 0.98 },
       accessibility: { score: 1 },
       "best-practices": { score: 1 },
     },
     audits: {
+      "first-contentful-paint": { numericValue: fcp },
+      interactive: { numericValue: interactive },
       "largest-contentful-paint": { numericValue: 2_300 },
       "cumulative-layout-shift": { numericValue: 0.01 },
       "total-blocking-time": { numericValue: 10 },
@@ -52,13 +64,19 @@ test("release evidence verifier hashes only complete, secret-safe outputs", asyn
       applications: [{ name: "client", passed: true }, { name: "operations", passed: true }, { name: "maintenance", passed: true }],
     });
     const lighthouseEntries = [];
+    const representativeMeasurements = [
+      { fcp: 900, interactive: 2_400, fetchTime: "2026-08-21T15:31:13.241Z" },
+      { fcp: 920, interactive: 2_420, fetchTime: "2026-08-21T15:31:26.040Z" },
+      { fcp: 950, interactive: 2_800, fetchTime: "2026-08-21T15:31:37.155Z" },
+    ];
     for (let index = 0; index < 3; index += 1) {
       const jsonPath = join(root, "quality-lighthouse", `report-${index}.json`);
-      await writeJson(jsonPath, lighthouseReport());
+      await writeJson(jsonPath, lighthouseReport(representativeMeasurements[index]));
       lighthouseEntries.push({
-        url: "http://127.0.0.1:3000/login",
+        url: "http://127.0.0.1:13000/login",
         jsonPath,
         isRepresentativeRun: index === 1,
+        summary: { performance: 0.98, accessibility: 1, "best-practices": 1 },
       });
     }
     await writeJson(join(root, "quality-lighthouse", "manifest.json"), lighthouseEntries);
@@ -66,6 +84,7 @@ test("release evidence verifier hashes only complete, secret-safe outputs", asyn
       passed: true,
       numberOfRuns: 3,
       externalWritesEnabled: false,
+      auditTargetUrl: "http://127.0.0.1:13000/login",
     });
     await writeJson(join(root, "quality-lighthouse", "fixture-cleanup.json"), {
       schemaCleanupComplete: true,
@@ -87,7 +106,7 @@ test("release evidence verifier hashes only complete, secret-safe outputs", asyn
 
     await rm(lighthouseEntries[2].jsonPath);
     await assert.rejects(() => verifyQualityReleaseEvidence(root), /Lighthouse.*report|Missing or malformed/i);
-    await writeJson(lighthouseEntries[2].jsonPath, lighthouseReport());
+    await writeJson(lighthouseEntries[2].jsonPath, lighthouseReport(representativeMeasurements[2]));
 
     await writeJson(join(root, "quality-lighthouse", "manifest.json"), [
       lighthouseEntries[0], lighthouseEntries[1], { ...lighthouseEntries[2], jsonPath: lighthouseEntries[1].jsonPath },
@@ -129,12 +148,14 @@ test("release evidence verifier hashes only complete, secret-safe outputs", asyn
       passed: false,
       numberOfRuns: 3,
       externalWritesEnabled: false,
+      auditTargetUrl: "http://127.0.0.1:13000/login",
     });
     await assert.rejects(() => verifyQualityReleaseEvidence(root), /Lighthouse gate did not pass/);
     await writeJson(join(root, "quality-lighthouse", "gate-result.json"), {
       passed: true,
       numberOfRuns: 3,
       externalWritesEnabled: false,
+      auditTargetUrl: "http://127.0.0.1:13000/login",
     });
 
     await writeFile(join(root, "quality-e2e", "results.xml"), '<testsuite><failure>rc_client_session=raw</failure></testsuite>');

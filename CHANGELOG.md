@@ -9,6 +9,7 @@
 ### Fixed
 
 - Maintenance Udun 充值页的生产 E2E 合同与已发布的“优盾充值通道”标题保持一致，恢复主分支质量发布 Gate。
+- Lighthouse 发布证据按 LHCI 0.15.1 的 FCP/Interactive 代表运行算法执行性能阈值，并绑定三次独立报告、审计目标、版本与 manifest；质量 runner 单测纳入默认测试套件。
 
 ## [1.0.0-beta.1] - 2026-08-21
 

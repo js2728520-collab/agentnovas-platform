@@ -93,7 +93,6 @@ export async function verifyQualityReleaseEvidence(value) {
   const root = resolve(value);
   await lstat(root);
   await assertEvidenceTreeSafe(root);
-  await verifyLighthouseRunEvidence(join(root, "quality-lighthouse"));
   const paths = {
     e2eCleanup: join(root, "quality-e2e", "fixture-cleanup.json"),
     e2eGate: join(root, "quality-e2e", "gate-result.json"),
@@ -103,13 +102,17 @@ export async function verifyQualityReleaseEvidence(value) {
     lighthouseGate: join(root, "quality-lighthouse", "gate-result.json"),
     lighthouseCleanup: join(root, "quality-lighthouse", "fixture-cleanup.json"),
   };
+  const lighthouseGateEvidence = await json(paths.lighthouseGate, "Lighthouse gate");
+  await verifyLighthouseRunEvidence(join(root, "quality-lighthouse"), {
+    expectedUrl: lighthouseGateEvidence?.auditTargetUrl,
+  });
   const [e2eCleanup, e2eGate, e2eXml, bundle, lighthouse, lighthouseGate, lighthouseCleanup] = await Promise.all([
     json(paths.e2eCleanup, "E2E cleanup"),
     json(paths.e2eGate, "E2E gate"),
     readFile(paths.e2eResults, "utf8"),
     json(paths.bundle, "bundle"),
     json(paths.lighthouse, "Lighthouse"),
-    json(paths.lighthouseGate, "Lighthouse gate"),
+    Promise.resolve(lighthouseGateEvidence),
     json(paths.lighthouseCleanup, "Lighthouse cleanup"),
   ]);
   assertCleanup(e2eCleanup, "E2E");
