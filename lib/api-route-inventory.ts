@@ -538,6 +538,48 @@ export const API_ROUTE_INVENTORY = [
     "requiresSameOrigin": true
   },
   {
+    "method": "DELETE",
+    "route": "/api/account/sessions",
+    "source": "app/api/account/sessions/route.ts",
+    "audiences": [
+      "client",
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireCurrentSession"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/account/sessions",
+    "source": "app/api/account/sessions/route.ts",
+    "audiences": [
+      "client",
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireCurrentSession"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
     "method": "GET",
     "route": "/api/admin/agent-role-bindings",
     "source": "app/api/admin/agent-role-bindings/route.ts",
@@ -1147,6 +1189,46 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/auth/mfa/recovery-codes",
+    "source": "app/api/auth/mfa/recovery-codes/route.ts",
+    "audiences": [
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireCurrentSession"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/auth/mfa/recovery-codes",
+    "source": "app/api/auth/mfa/recovery-codes/route.ts",
+    "audiences": [
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireRecentMfaSession"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": true
   },
   {
@@ -1763,6 +1845,69 @@ export const API_ROUTE_INVENTORY = [
     "pii": "none",
     "sensitivity": "normal",
     "requiresSameOrigin": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/maintenance/commercial-disclosures",
+    "source": "app/api/maintenance/commercial-disclosures/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.commercial_disclosures.view"
+    ],
+    "permissionMfa": {
+      "maint.commercial_disclosures.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/commercial-disclosures",
+    "source": "app/api/maintenance/commercial-disclosures/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.commercial_disclosures.submit"
+    ],
+    "permissionMfa": {
+      "maint.commercial_disclosures.submit": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/commercial-disclosures/:id/decision",
+    "source": "app/api/maintenance/commercial-disclosures/[id]/decision/route.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.commercial_disclosures.approve"
+    ],
+    "permissionMfa": {
+      "maint.commercial_disclosures.approve": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
   },
   {
     "method": "GET",

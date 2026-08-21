@@ -22,7 +22,7 @@ type ClientHomeTaskInput = {
 export function deriveClientHomeTask(input: ClientHomeTaskInput): ClientHomeTask {
   if (!input.canViewMembership) return {
     title: "当前账户使用受限",
-    description: "当前角色没有查看会员与法务状态的权限；工作台只展示已授权模块。",
+    description: "当前角色没有查看会员与商业披露状态的权限；工作台只展示已授权模块。",
     href: null,
     action: null,
     state: "LIMITED_ACCESS",
@@ -44,7 +44,7 @@ export function deriveClientHomeTask(input: ClientHomeTaskInput): ClientHomeTask
   if (!input.membership) {
     if (!input.latestOrder) return {
       title: "选择会员计划",
-      description: "当前法务版本已确认，但没有有效会员或待处理申请。可在会员中心选择计划并提交人工付款申请。",
+      description: "当前商业披露版本已确认，但没有有效会员或待处理申请。可在会员中心选择计划并提交人工付款申请。",
       href: "/membership",
       action: "进入会员中心",
       state: "ACTION_REQUIRED",

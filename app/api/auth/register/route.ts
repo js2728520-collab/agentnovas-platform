@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { auditLogs, customerAttributions, invitations, memberships, notificationDeliveries, users } from "@/db/schema";
+import { auditLogs, customerAttributions, invitations, membershipAccessEvents, memberships, notificationDeliveries, users } from "@/db/schema";
 import { hashPassword, normalizeEmail, sha256, validEmail } from "@/lib/auth";
 import { currentRequestAudience } from "@/lib/access-control";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
@@ -56,6 +56,7 @@ export async function POST(request: Request) {
     const nowDate = new Date();
     const now = nowDate.toISOString();
     const userId = crypto.randomUUID();
+    const membershipId = crypto.randomUUID();
     const accountEmail = email || `phone-${(await sha256(phone.value)).slice(0, 18)}@unverified.agentnovas.local`;
     const trialExpiresAt = new Date(nowDate.getTime() + 3 * 86400_000).toISOString();
     const trialGraceEndsAt = new Date(nowDate.getTime() + 4 * 86400_000).toISOString();
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
         reason: publicPool ? "总公司客服一次性邀请码" : "邀请码自动归因",
       }),
       db.insert(memberships).values({
-        id: crypto.randomUUID(),
+        id: membershipId,
         customerId: userId,
         planCode: "trial_monthly_equivalent",
         status: "active",
@@ -107,6 +108,15 @@ export async function POST(request: Request) {
         graceEndsAt: trialGraceEndsAt,
         maxExchangeAccounts: 1,
         maxActiveStrategies: 1,
+      }),
+      db.insert(membershipAccessEvents).values({
+        id: crypto.randomUUID(),
+        membershipId,
+        customerId: userId,
+        eventType: "trial_started",
+        effectiveAt: now,
+        stateJson: JSON.stringify({ planCode: "trial_monthly_equivalent", expiresAt: trialExpiresAt, graceEndsAt: trialGraceEndsAt }),
+        dedupeKey: `membership:${membershipId}:trial_started`,
       }),
       ...(publicPool ? [db.update(invitations).set({ status: "used", usedByUserId: userId, usedAt: now, updatedAt: now }).where(eq(invitations.id, invite.id))] : []),
       db.insert(notificationDeliveries).values({

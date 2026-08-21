@@ -102,7 +102,7 @@ async function currentLegalDocuments(client: PoolClient) {
   )
     throw new ResearchApiError(
       "LEGAL_CONFIGURATION_INCOMPLETE",
-      "当前法务文件尚未完成七项正文与审批配置",
+      "当前商业披露尚未完成七项正文与双人复核配置",
       503,
       { requiredDocumentTypes: requiredLegalDocumentTypes },
     );
@@ -163,13 +163,13 @@ export async function requireCurrentCommercialLegalConsent(pool: Pick<Pool, "que
   if (!status.configurationComplete) {
     throw new ResearchApiError(
       "LEGAL_CONFIGURATION_INCOMPLETE",
-      "当前法务文件尚未完成七项正文与审批配置",
+      "当前商业披露尚未完成七项正文与双人复核配置",
       503,
       { requiredDocumentTypes: requiredLegalDocumentTypes },
     );
   }
   if (!status.consentComplete) {
-    throw new ResearchApiError("LEGAL_CONSENT_REQUIRED", "请先阅读并确认当前七项法务文件版本", 403);
+    throw new ResearchApiError("LEGAL_CONSENT_REQUIRED", "请先阅读并确认当前七项商业披露版本", 403);
   }
   return status;
 }
@@ -191,7 +191,7 @@ export async function acceptCurrentCommercialLegalDocuments(
     if (suppliedIds.length !== currentIds.length || suppliedIds.some((id, index) => id !== currentIds[index])) {
       throw new ResearchApiError(
         "LEGAL_ACCEPTANCE_REQUIRED",
-        "必须逐项接受当前七项法务文件版本",
+        "必须逐项接受当前七项商业披露版本",
         422,
         { requiredDocumentVersionIds: currentIds },
       );
@@ -289,7 +289,7 @@ export async function createMembershipOrder(
     )
       throw new ResearchApiError(
         "LEGAL_ACCEPTANCE_REQUIRED",
-        "订单只能接受当前七项法务文件版本",
+        "订单只能接受当前七项商业披露版本",
         422,
         { requiredDocumentVersionIds: currentIds },
       );

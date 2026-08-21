@@ -18,6 +18,7 @@ import { ConsoleShell } from "@/packages/ui/src/console-shell";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
 import { hasAnyPermission, type ConsoleNavigationItem } from "@/packages/contracts/src/riverton-ui";
+import { InternalAccountSecurity } from "@/packages/ui/src/internal-account-security";
 
 const navigation: ConsoleNavigationItem[] = [
   { href: "/", label: "运营概览", icon: "⌂" },
@@ -32,6 +33,7 @@ const navigation: ConsoleNavigationItem[] = [
   { href: "/approvals", label: "审批中心", icon: "审", requiredPermissions: ["ops.deposits.action_approve", "ops.roles.approve_sensitive"] },
   { href: "/access", label: "角色权限", icon: "权", requiredPermissions: ["ops.roles.manage", "ops.roles.assign", "ops.roles.approve_sensitive"] },
   { href: "/access/audit", label: "授权审计", icon: "迹", requiredPermissions: ["ops.roles.manage", "ops.roles.approve_sensitive"] },
+  { href: "/account/security", label: "账号安全", icon: "盾" },
 ];
 
 const routePermissions: Record<string, string[] | undefined> = {
@@ -62,6 +64,7 @@ export default function OperationsApp({ segments }: { segments: string[] }) {
   const permissions = session.access.permissions;
   const overview = <OperationsOverview canViewDeposits={Boolean(permissions["ops.deposits.view"])} canViewCustomers={Boolean(permissions["ops.customers.view"])} canApproveDeposits={Boolean(permissions["ops.deposits.action_approve"])} />;
   const content = route === "overview" ? overview
+    : route === "account" ? <InternalAccountSecurity />
     : route === "customers" ? <CustomersWorkspace />
     : route === "organization" ? <OrganizationWorkspace />
     : route === "membership-orders" ? <MembershipOrdersWorkspace

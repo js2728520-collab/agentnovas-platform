@@ -12,7 +12,7 @@ import { ClientPortalShell } from "./client-portal-shell";
 import styles from "./client-home-workspace.module.css";
 
 const modules = [
-  { href: "/membership", permission: "client.membership.view", title: "会员与法务", description: "核对计划、法务快照、人工付款申请和权益状态。" },
+  { href: "/membership", permission: "client.membership.view", title: "会员与披露", description: "核对计划、商业披露快照、人工付款申请和权益状态。" },
   { href: "/credits", permission: "client.credits.view", title: "AI 积分", description: "查看与 USDT 钱包分离的可用、预留、发放和消耗。" },
   { href: "/paper", permission: "client.paper.view", title: "三卡 Paper", description: "查看服务端模拟资金、现货持仓与已实现收益。" },
   { href: "/trading-hall", permission: "client.paper.view", title: "七智能体交易大厅", description: "核对七阶段决策证据与真实订单关闭边界。" },

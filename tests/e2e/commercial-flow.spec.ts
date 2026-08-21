@@ -104,7 +104,7 @@ test("four-identity membership evidence and maker-checker activation remains sid
     ]);
     await page.goto(`${clientOrigin}/workspace`, { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(`${clientOrigin}/legal/consent?next=%2Fworkspace`);
-    await expect(page.getByRole("heading", { name: "法务正文与确认边界" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "商业披露与版本确认" })).toBeVisible();
     await expect(page.locator("article")).toHaveCount(7);
     const confirmButton = page.getByRole("button", { name: "保存当前版本确认" });
     await expect(confirmButton).toBeDisabled();

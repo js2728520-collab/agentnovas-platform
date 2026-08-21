@@ -70,6 +70,20 @@ export async function currentUser(request: Request): Promise<CurrentUser | null>
   return (await currentSession(request))?.user ?? null;
 }
 
+export async function requireCurrentSession(request: Request) {
+  const current = await currentSession(request);
+  if (!current) throw new ResearchApiError("AUTH_REQUIRED", "请先登录", 401);
+  return current;
+}
+
+export async function requireRecentMfaSession(request: Request) {
+  const current = await currentSession(request);
+  if (!current) throw new ResearchApiError("AUTH_REQUIRED", "请先登录", 401);
+  if (current.session.appAudience === "client") throw new ResearchApiError("ROUTE_NOT_AVAILABLE", "当前应用不提供内部双重验证", 404);
+  if (!current.recentMfa) throw new ResearchApiError("RECENT_MFA_REQUIRED", "请重新登录并完成双重验证后再执行此操作", 403);
+  return current;
+}
+
 export async function requirePrimarySession(request: Request) {
   const current = await currentSession(request, { allowPrimaryInternal: true });
   if (!current) throw new Response(JSON.stringify({ error: "登录验证已失效，请重新登录" }), {

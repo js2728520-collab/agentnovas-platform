@@ -195,7 +195,7 @@ test("client exposes standalone legal consent and gates every business route on 
   assert.match(portal, /route === "legal"[\s\S]*segments\[1\] === "consent"[\s\S]*LegalConsentExperience/);
   assert.match(navigation, /href: "\/legal\/consent"/);
   assert.match(legal, /\/api\/membership\/legal-consent/);
-  assert.match(legal, /法务正文与确认边界/);
+  assert.match(legal, /商业披露与版本确认/);
   assert.match(legal, /确认会独立保存/);
   assert.match(legal, /acceptedDocumentVersionIds/);
   assert.match(legal, /idempotency-key/);

@@ -35,7 +35,7 @@ test("membership experience constrains long legal content at narrow widths", asy
   assert.match(styles, /\.legalItem[^}]*overflow-wrap:anywhere/);
 });
 
-test("legal consent records the current seven-document bundle without creating an order", async () => {
+test("commercial disclosure consent records the current seven-document bundle without creating an order", async () => {
   const legal = await read("apps/client/ui/legal-consent-experience.tsx");
   assert.match(legal, /requiredLegalDocuments/);
   assert.match(legal, /contentMarkdown/);
@@ -45,7 +45,7 @@ test("legal consent records the current seven-document bundle without creating a
   assert.match(legal, /idempotency-key/);
   assert.match(legal, /acceptedDocumentVersionIds/);
   assert.match(legal, /parseLegalMarkdown/);
-  assert.match(legal, /法务接口返回不完整/);
+  assert.match(legal, /商业披露接口返回不完整/);
   assert.doesNotMatch(legal, /\/api\/membership\/orders|planCode|付款成功|会员已激活/);
 });
 

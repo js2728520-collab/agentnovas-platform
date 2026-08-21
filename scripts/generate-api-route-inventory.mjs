@@ -48,7 +48,9 @@ const BETA_DISABLED_CLIENT_ROUTES = [
 const SESSION_AUTH_HELPERS = new Set([
   "requireAccessPermission",
   "requireAiCustomer",
+  "requireCurrentSession",
   "requirePrimarySession",
+  "requireRecentMfaSession",
   "requireResearchUser",
   "requireUser",
 ]);
@@ -123,6 +125,9 @@ function basePolicy(route, method) {
   if (route.startsWith("/api/auth/mfa/enroll/")) {
     return { audiences: INTERNAL_AUDIENCES, authentication: "session", sameOrigin: true };
   }
+  if (route === "/api/auth/mfa/recovery-codes") {
+    return { audiences: INTERNAL_AUDIENCES, authentication: "session", sameOrigin: mutation };
+  }
   if (route === "/api/auth/reset-password") {
     return { audiences: ALL_AUDIENCES, authentication: "anonymous", sameOrigin: true };
   }
@@ -138,6 +143,7 @@ function basePolicy(route, method) {
     return { audiences: ["client"], authentication: "anonymous", sameOrigin: mutation };
   }
   if (route === "/api/access/me/effective") return { audiences: ALL_AUDIENCES, authentication: "session", sameOrigin: false };
+  if (route === "/api/account/sessions") return { audiences: ALL_AUDIENCES, authentication: "session", sameOrigin: mutation };
   if (route.startsWith("/api/access/")) return { audiences: INTERNAL_AUDIENCES, authentication: "permission", sameOrigin: mutation };
   if (route.startsWith("/api/maintenance/") || route.startsWith("/api/admin/")) {
     return { audiences: ["maintenance"], authentication: "permission", sameOrigin: mutation };
@@ -266,7 +272,8 @@ for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/r
     if (policy.authentication === "session" && sessionAuthHelpers.length === 0) {
       throw new Error(`${method} ${route} is session-classified but does not call an enforcing session helper`);
     }
-    const sensitive = permissionKeys.some((key) => sensitiveKeys.has(key));
+    const sensitiveSessionMfa = sessionAuthHelpers.includes("requireRecentMfaSession");
+    const sensitive = permissionKeys.some((key) => sensitiveKeys.has(key)) || sensitiveSessionMfa;
     const sensitiveLegalMutation = route === "/api/membership/legal-consent" && method === "POST";
     const permissionMfa = Object.fromEntries(permissionKeys.map((key) => [
       key,
@@ -284,7 +291,7 @@ for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/r
       permissionMfa,
       scope: policy.authentication === "permission" && policy.audiences.length === 1 && policy.audiences[0] === "maintenance" ? "platform"
         : policy.authentication === "permission" ? "grant" : "none",
-      mfa: mfaRequirements.size > 1 ? "conditional" : [...mfaRequirements][0] ?? "none",
+      mfa: sensitiveSessionMfa ? "recent" : mfaRequirements.size > 1 ? "conditional" : [...mfaRequirements][0] ?? "none",
       pii: piiForRoute(route),
       sensitivity: sensitive || sensitiveLegalMutation || policy.authentication === "webhook" || policy.authentication === "bootstrap" || policy.authentication === "disabled" ? "sensitive" : "normal",
       requiresSameOrigin: policy.sameOrigin,

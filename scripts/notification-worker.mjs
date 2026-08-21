@@ -12,6 +12,7 @@ import {
 } from "../lib/notification-email-worker.ts";
 import { businessDatabaseUrl } from "../lib/postgres.ts";
 import { createWorkerHeartbeatReporter } from "../lib/worker-observability.ts";
+import { reconcileMembershipAccessTransitions } from "../lib/membership-lifecycle.ts";
 
 const connectionString = businessDatabaseUrl();
 if (!connectionString) throw new Error("DATABASE_URL is required");
@@ -36,6 +37,7 @@ const heartbeat = createWorkerHeartbeatReporter(pool, {
 const apiKey = process.env.RESEND_API_KEY?.trim() ?? "";
 let stopping = false;
 let nextSecretCleanupAt = 0;
+let nextMembershipReconciliationAt = 0;
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => { stopping = true; });
@@ -59,6 +61,21 @@ try {
         });
       }
       nextSecretCleanupAt = now.getTime() + 5 * 60_000;
+    }
+    if (now.getTime() >= nextMembershipReconciliationAt) {
+      try {
+        const lifecycle = await reconcileMembershipAccessTransitions(pool, { now, limit: 100 });
+        if (lifecycle.transitioned > 0) {
+          await heartbeat.markSuccess(now);
+          process.stdout.write(`${JSON.stringify({ event: "membership_lifecycle_reconciled", ...lifecycle })}\n`);
+        }
+      } catch (error) {
+        await heartbeat.markFailure(error, now);
+        console.error("Membership lifecycle reconciliation failed", {
+          code: error instanceof Error ? error.name : "UNKNOWN",
+        });
+      }
+      nextMembershipReconciliationAt = now.getTime() + 30_000;
     }
     if (!sendEnabled) {
       await delay(5_000);

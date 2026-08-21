@@ -1,89 +1,102 @@
-# Riverton Capital 14 天商业 Beta 实施计划
+# Riverton Capital 商用 Paper SaaS 完整收口计划
 
 状态：执行中
 集成分支：`codex/three-app-riverton-split`
-起点：`0762fa3`
-目标：5–20 名受邀付费 Beta；未通过 Gate 不开放
+当前基线：`9e5f5e4`
+目标：完成代码可控范围内的全部 P0/P1，交付可收费、可审计、可恢复的受邀商用版本
 
-## 1. 锁定范围
+## 1. 商用产品边界
 
-- 三应用一库，audience 隔离登录、Cookie、路由、RBAC、data scope、env 和部署。
-- 三张官方 spot 策略；每用户/卡片独立 10,000 USDT paper 组合。
-- 平台 OKX Demo、Binance Spot Testnet、Bybit Demo 证据与客户 paper 完全分离。
-- 四档会员 v1、人工付款 maker-checker、AI credits、UTC 周 paper 盈利分成与高水位。
-- in-app + 真实 Email；Telegram/WhatsApp 不接入。
-- 真实支付、客户充值、客户密钥、真实现货/永续、提现、退款和生产迁移硬关闭。
+- 产品是三张官方现货策略驱动的 Paper SaaS，不托管客户交易本金，不接收客户交易所密钥。
+- 客户会费与 Paper 盈利分成使用外部人工收款、脱敏凭证和不同人员复核；系统负责订单、权益、Credits、应收、审计和通知。
+- OKX Demo、Binance Spot Testnet、Bybit Demo 是平台测试账户执行证据，与客户 Paper 资产、收益和结算彻底分离。
+- 平台自己维护七类版本化商业披露正文、发布审批和客户接受证据；不再把“等待外部法务团队”作为工程 Gate，也不把工程实现表述为法律意见。
+- 真实支付、客户充值、提现、自动退款、真实现货/永续交易和社区策略分账不是本产品的未完成功能，继续从路由、Worker、菜单和部署配置硬关闭。未来若改变商业模型，必须新建 PRD/ADR 和专项安全实施。
+- 外部 Email、Demo、DNS/TLS 等在没有真实凭证时必须显示 `not_configured/configured_not_sent`，代码可完成 readiness、验证和运行手册，但不得伪造 connected、sent、filled 或 healthy。
 
-## 2. 真源顺序
+## 2. 唯一真源与完成定义
 
-1. `docs/product/PRD.md`
-2. `docs/product/SEVEN_AGENT_TRADING_HALL.md`
-3. `packages/contracts/src/commercial-beta.ts` 与策略 snapshot
-4. `docs/specs/SYSTEM_SPEC.md` 与三端 Spec
-5. ADR、API Catalog/OpenAPI、Acceptance/Release Gates、Runbooks
-6. `tasks/todo.md` 当前证据
+真源顺序：PRD → 七智能体合同 → `packages/contracts` → System/三端 Spec → ADR/API Catalog/OpenAPI → Gate/Runbook → 本计划与 `tasks/todo.md`。
 
-附件《七智能体动态策略系统_用户说明书》是产品参考；仓库版本化合同是实现真源。历史 handoff 或页面常量不能覆盖上述顺序。
+一个功能只有同时满足以下条件才可标记完成：
 
-## 3. Git 与 Agent 边界
+1. 数据库约束/事务和迁移可 fresh、rerun、N-1；
+2. 中央 API Policy、audience、RBAC、data scope、PII 与幂等策略齐全；
+3. 页面具备 loading/empty/error/success、确认、重复提交保护和准确文案；
+4. 单元/合同/PostgreSQL/浏览器测试覆盖成功、拒绝、并发和回滚；
+5. API Catalog、Spec、Runbook、发布证据同步；
+6. 不出现假数据、假成功、跨 audience 泄露、密钥回显或不可达按钮。
 
-- 集成分支是唯一最终推送分支；子分支只本地存在。
-- 禁止 rebase/amend/reset/force push/历史重写；普通 `merge --no-ff`。
-- 主 Agent 独占 package/lock、公共 contracts、路由分发、CI、docs、合并与发布基线。
-- Wave 1 分支：`codex/beta-api-security`、`codex/beta-membership-ops`、`codex/beta-strategy-demo`。
-- Wave 2 分支：`codex/beta-client-experience`、`codex/beta-internal-consoles`、`codex/beta-quality-release`。
-- 合并前：TDD 证据、质量审查、独立反证；合并顺序为 Security → Commercial → Strategy → UI Foundation/Client/Internal → Quality/Deploy。
+## 3. 实施轨道
 
-## 4. 里程碑
+### Track 0：商业合同、试用与产品真相
 
-| 日期 | 必须形成的可验证交付 |
-| --- | --- |
-| D1 | PRD/Spec/七智能体/商业合同/权限/迁移编号冻结，worktree 建立 |
-| D2–D4 | API Policy、Argon2id、MFA、限流、audience、安全迁移器、账本/审批原子性 |
-| D3–D7 | 会员订单、付款凭证、entitlement、credits、法务同意、周分成 |
-| D3–D8 | spot 合同统一、三 paper 组合、三 provider Demo adapter/worker |
-| D5–D9 | Client/Operations/Maintenance 稳定路由与真实状态 UI |
-| D7–D10 | Worker heartbeat、日志指标、env/DB role 隔离、CI 与运行手册 |
-| D9–D11 | Wave 合并、全量回归、bundle/CSS/图片性能收口 |
-| D11–D12 | 一次性 PostgreSQL staging、Demo smoke、Email allowlist、恢复演练（需授权） |
-| D13 | 四身份内部 canary 和发布评审 |
-| D14 | Gate 通过后开放 5–20 名受邀客户 |
+- 增加平台维护的商业披露草稿、发布、历史版本和双人复核；预置不含虚构主体/地区的安全正文模板，并强制部署方补齐产品身份字段后才能发布。
+- 把 Client 的“法务 Gate”重命名为商业披露接受 Gate，统一 API 错误、页面和通知文案。
+- 完成邀请接受、3 天试用、试用到期、会员到期、只读保留和新开仓停止的确定性状态机。
+- 完成账号安全页：资料、改密、MFA 状态、会话撤销、恢复码重新生成与审计。
+- 完成支持入口与平台公告真实配置；未配置客服渠道时只显示不可用状态。
 
-## 5. 开发顺序与串行依赖
+验收：未发布完整披露时商业能力失败关闭；同一 bundle 只接受一次；新版本重新确认；试用/会员到期不再新开仓；历史 Paper 与账单只读可查。
 
-1. 产品/法务边界与公共合同冻结。
-2. 迁移器真源、advisory lock 和 checksum。
-3. API Policy、显式 assignment scope 与身份安全。
-4. 账本约束和 typed approval adapters。
-5. 会员/credits/分成事务。
-6. spot paper runtime 与 Demo 证据。
-7. 三端 UI 和真实状态。
-8. E2E、性能、部署和恢复证据。
+### Track 1：Operations 业务全生命周期
 
-不得在账本/审批之前启用商业权益副作用，不得在签名/幂等/限额/熔断/heartbeat 之前运行 staging Demo，不得因 env flag 存在而宣称外部能力已启用。
+- 客户：列表/详情、备注历史、冻结/恢复、归档、归属转移、会员/Credits/Paper/应收摘要。
+- 组织：组织树、成员、邀请、激活/停用、汇报关系和组织范围验证。
+- 团队：每日简报、月目标、跟进记录、受控 CSV 导出；全部使用服务端分页与 URL 筛选。
+- 数据中心：客户、会员、策略启动、Paper 周期、应收和通知的真实统计，不使用静态 KPI。
+- Credits 调整：maker 创建、checker 决定、同事务不可变分录、禁止负余额、自审和重复入账。
+- 财务：会员订单、周分成、应收、结算、付款资料、调整单统一状态和只读账本引用。
+- 审批：将会员、分成、Credits、RBAC、充值历史操作、归属和策略治理投影到统一审批收件箱；决定仍由各领域事务完成。
+- 策略治理：官方三卡版本/启停/发布证据和跟随策略只在 Maintenance 管理，Operations 仅查看业务影响；社区市场继续隐藏。
 
-## 6. 每次集成验证
+验收：SELF/DIRECT_REPORTS/TEAM_TREE/ORGANIZATION_SET/PLATFORM 的列表、详情、计数、导出一致；敏感操作不同人复核；冻结和撤权立即撤销会话/能力；所有副作用可审计且幂等。
 
-```text
-npm test
-npx tsc --noEmit
-npm run lint
-npm run test:apps
-git diff --check
-```
+### Track 2：Maintenance 平台控制面
 
-最终增加 PostgreSQL 集成、安全、策略全链路、adapter、migration、四身份 Playwright、axe、四断点截图、bundle budget、Lighthouse、三端 production Host smoke 和 secret scan。
+- 商业披露版本、产品身份、客服/公告、Email allowlist 和发布 readiness 工作区。
+- 模型 Profile 版本、验证、Agent 绑定、回滚和密钥不可回显。
+- 数据/新闻集成目录、enabled/healthy/stale、最近成功/失败和安全测试回执。
+- 三平台 Demo 账户控制、provider/card kill switch、限额、最近验证与净化回执。
+- Worker/API/DB/Email/Demo 的统一技术审计，关联 requestId/traceId，支持安全筛选与游标分页。
+- 公开健康只返回粗粒度；内部健康明确区分 configured/enabled/alive/healthy/stale。
 
-## 7. 外部 Gate
+验收：Maintenance 不读取 Operations 授权数据；所有 secret 只返回 `hasSecret`；回滚/测试/停控要求 recent MFA、原因和幂等键；日志和回执无完整端点、PII 或 provider payload。
 
-法务主体/地区/隐私/条款/风险披露/模拟收益分成意见/退款规则、平台 Demo 凭证、Email 域名/Webhook/allowlist、DNS/TLS、支持联系人和告警值班均由团队提供。缺任一项时工程可继续验证，但付费 Beta Gate 失败。
+### Track 3：Client 完整客户旅程
 
-## 8. 推送规则
+- 邀请设置密码 → 登录 → 商业披露确认 → 试用/会员选择 → 人工付款指引 → 订单追踪。
+- 首页与会员页显示真实试用/权益/Credits/三卡 Paper 状态、待办和失败原因。
+- Paper 详情展示组合、持仓、真实成交历史、七阶段证据、traceId 和独立平台 Demo 安全摘要。
+- Demo 区始终标注“平台测试账户，不代表客户真实成交”，provider 未配置或失败不影响 Paper 状态。
+- 独立的绩效账单、通知、账号安全、支持与公告页面；钱包保持只读，充值说明明确关闭。
+- 清理遗留永续、客户交易所连接、假验证码、假地址、静态行情/KPI 与不可达入口。
 
-完成并清除 secret/backup/log/fixture 风险后，核对分支、remotes 和 `ssh -T git@github-js2728520`。只展示：
+验收：关键旅程可用真实 API 重复执行；401 回登录、403 留在无权页、409/422 展示业务原因；四档响应式、键盘、焦点、`aria-live`、axe 与 console/network Gate 通过。
 
-```bash
-git push origin codex/three-app-riverton-split
-```
+### Track 4：平台质量、部署与发布证据
 
-等待用户明确确认后执行，不推子分支，不 force push。
+- 补齐 API inventory、OpenAPI、数据库角色脚本、最小 env、systemd/Nginx、Worker heartbeat 和结构化指标。
+- 增加 CI quality-release job：测试、类型、Lint、三端 build、Playwright、axe、bundle、Lighthouse、生产依赖审计和 secret scan。
+- 完成本地隔离 PostgreSQL 的 fresh/N-1/rerun/checksum/concurrent migration、备份/恢复、前向回滚演练。
+- 完成四身份、三 audience、试用/付费/到期、双审、七阶段、Demo failure、Email 未配置和恢复码消费浏览器验收。
+- 更新 PRD、Spec、ADR、能力矩阵、API Catalog/OpenAPI、Gate、Runbook、handoff 和发布证据。
+- 最终代码质量与独立反证审查；清理开发工具链 high/critical 或记录有负责人/日期的临时例外。
+
+验收：`npm test`、`npx tsc --noEmit`、`npm run lint`、`npm run test:apps`、Playwright、bundle/Lighthouse、audit、secret scan、`git diff --check` 全绿；恢复演练可复现且清理临时数据。
+
+## 4. 增量顺序
+
+1. Track 0 数据合同/迁移/测试 → API → UI；这是其他商业页面的共同门禁。
+2. Track 1 按“客户组织 → Credits → 团队分析 → 财务审批”纵向切片逐个完成。
+3. Track 2 与 Track 3 在共享合同稳定后逐页完成；共享热点由当前集成分支串行修改。
+4. 每个切片先写失败测试，再做最小实现、错误路径、浏览器验收和文档同步。
+5. Track 4 持续运行；最终才启动三端长期本地服务、生成一次性验收账号、提交并进入推送确认。
+
+## 5. Git 与交付规则
+
+- 继续只在 `codex/three-app-riverton-split` 工作；不 rebase/amend/reset/force push，不改写历史。
+- 保留 `github-old`，只允许最终集成分支进入 `origin`。
+- 不提交 `.env*`、密钥、密码、私钥、数据库备份、运行日志、一次性账号或 provider fixture 原文。
+- 完成功能和 Gate 后创建普通提交；推送前重新核对 status/branch/remotes/SSH/secret。
+- 推送前只展示 `git push origin codex/three-app-riverton-split` 并等待用户明确确认。

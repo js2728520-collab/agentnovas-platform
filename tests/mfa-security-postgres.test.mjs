@@ -4,7 +4,7 @@ import test from "node:test";
 
 import pg from "pg";
 
-import { encryptTotpSecret, hashRecoveryCode, totpCode, verifyAndConsumeMfa } from "../lib/mfa.ts";
+import { encryptTotpSecret, getMfaRecoveryStatus, hashRecoveryCode, rotateMfaRecoveryCodes, totpCode, verifyAndConsumeMfa } from "../lib/mfa.ts";
 
 const environment = { MFA_TOTP_ENCRYPTION_KEY: "test-only-key-that-is-longer-than-thirty-two-characters" };
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
@@ -38,6 +38,26 @@ test("a recovery code is stored as a hash and can be consumed only once", async 
   const replay = await verifyAndConsumeMfa(pool, { userId: "admin", code: "ABCDE-FGHIJ-KLMNOP", environment });
   assert.deepEqual(first, { ok: true, level: "recovery" });
   assert.deepEqual(replay, { ok: false, code: "INVALID_OR_REPLAYED" });
+});
+
+test("recovery rotation invalidates unused codes and records only hashes", async () => {
+  const before = await getMfaRecoveryStatus(pool, { userId: "admin" });
+  const rotated = await rotateMfaRecoveryCodes(pool, {
+    userId: "admin",
+    sessionId: "security-session",
+    audience: "maintenance",
+    reason: "定期轮换恢复凭证",
+  });
+  assert.equal(rotated.ok, true);
+  assert.equal(rotated.recoveryCodes.length, 8);
+  assert.ok(rotated.recoveryCodes.every((code) => /^[A-Z2-7]{5}-[A-Z2-7]{5}-[A-Z2-7]{6}$/.test(code)));
+  const old = await verifyAndConsumeMfa(pool, { userId: "admin", code: "ABCDE-FGHIJ-KLMNOP", environment });
+  assert.deepEqual(old, { ok: false, code: "INVALID_OR_REPLAYED" });
+  const after = await getMfaRecoveryStatus(pool, { userId: "admin" });
+  assert.equal(before.enrolled, true);
+  assert.equal(after.remainingRecoveryCodes, 8);
+  const rawCodes = await pool.query("SELECT code_hash FROM user_mfa_recovery_codes WHERE user_id='admin' AND used_at IS NULL");
+  assert.ok(rawCodes.rows.every((row) => !rotated.recoveryCodes.includes(row.code_hash)));
 });
 
 test.after(async () => {

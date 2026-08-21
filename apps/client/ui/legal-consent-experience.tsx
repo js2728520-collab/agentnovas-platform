@@ -19,7 +19,7 @@ const documentLabels: Record<string, string> = {
   privacy: "隐私政策",
   terms: "服务条款",
   risk_disclosure: "风险披露",
-  simulated_performance_fee_opinion: "模拟收益分成法律意见",
+  simulated_performance_fee_opinion: "模拟收益服务费说明",
   refund_policy: "退款规则",
 };
 
@@ -35,7 +35,7 @@ function LegalMarkdown({ source }: { source: string }) {
 
 export function LegalConsentExperience() {
   const params = useSearchParams();
-  const resource = useApiData<CommercialLegalConsentStatus>("/api/membership/legal-consent", "法务正文读取失败");
+  const resource = useApiData<CommercialLegalConsentStatus>("/api/membership/legal-consent", "商业披露读取失败");
   const acknowledgementId = useId();
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -45,9 +45,9 @@ export function LegalConsentExperience() {
   const documents = resource.data?.requiredLegalDocuments;
   const nextPath = safeNextPath(params.get("next"), "/");
 
-  if (resource.loading && !documents) return <LoadingState label="正在读取法务正文…" />;
+  if (resource.loading && !documents) return <LoadingState label="正在读取商业披露…" />;
   if (resource.error && !documents) return <ErrorState message={resource.error} retry={resource.refresh} />;
-  if (!resource.data || !Array.isArray(documents)) return <ErrorState message="法务接口返回不完整，付费申请保持关闭。" retry={resource.refresh} />;
+  if (!resource.data || !Array.isArray(documents)) return <ErrorState message="商业披露接口返回不完整，付费申请保持关闭。" retry={resource.refresh} />;
 
   const requiredDocuments = documents;
   const complete = resource.data.configurationComplete === true && documents.length === 7;
@@ -65,25 +65,25 @@ export function LegalConsentExperience() {
           "idempotency-key": idempotencyKey.current,
         },
         body: JSON.stringify({ acceptedDocumentVersionIds: requiredDocuments.map((document) => document.id) }),
-      }, "法务确认保存失败");
+      }, "商业披露确认保存失败");
       resource.setData(status);
       idempotencyKey.current = newIdempotencyKey();
       setAcknowledged(false);
       setResult({ kind: "success", message: "当前七份正文的版本确认已独立保存；本次操作没有创建订单、付款或激活会员。" });
       window.setTimeout(() => resultRef.current?.focus(), 0);
     } catch (error) {
-      setResult({ kind: "error", message: clientErrorMessage(error, "法务确认保存失败") });
+      setResult({ kind: "error", message: clientErrorMessage(error, "商业披露确认保存失败") });
       window.setTimeout(() => resultRef.current?.focus(), 0);
     } finally {
       setBusy(false);
     }
   }
 
-  return <section className={styles.root} aria-label="法务正文与确认">
+  return <section className={styles.root} aria-label="商业披露与确认">
     <PageHeading
-      eyebrow="CLIENT LEGAL · VERSIONED CONTRACT"
-      title="法务正文与确认边界"
-      description="逐项阅读当前有效版本。正文、版本与内容哈希来自服务端；法务未齐全时，系统会阻止付费申请。"
+      eyebrow="CLIENT DISCLOSURE · VERSIONED CONTRACT"
+      title="商业披露与版本确认"
+      description="逐项阅读当前有效版本。正文、版本与内容哈希来自服务端；披露未齐全时，系统会阻止付费申请。"
       actions={<StatusBadge value={consentComplete ? "确认已保存" : complete ? "7 / 7 已就绪" : `${documents.length} / 7 未齐全`} />}
     />
 
@@ -97,10 +97,10 @@ export function LegalConsentExperience() {
     </section>
 
     {!complete && <div className={styles.blocked} role="alert">
-      法务发布 Gate 尚未通过。缺少正文、校验或批准时不能创建付费申请；平台不会以占位内容代替正式文本。
+      商业披露发布尚未完成。缺少正文、完整性校验或双人复核时不能创建付费申请；平台不会以占位内容代替正式文本。
     </div>}
-    <section className={styles.list} aria-label="当前生效的七项法务正文">
-      {documents.length === 0 ? <div className={styles.empty}>当前没有可阅读的有效法务正文，付费申请保持关闭。</div> : documents.map((document, index) =>
+    <section className={styles.list} aria-label="当前生效的七项商业披露">
+      {documents.length === 0 ? <div className={styles.empty}>当前没有可阅读的有效商业披露，付费申请保持关闭。</div> : documents.map((document, index) =>
         <article className={styles.document} key={document.id}>
           <details open={index === 0}>
             <summary>
@@ -138,7 +138,7 @@ export function LegalConsentExperience() {
         {busy ? "正在保存确认…" : "保存当前版本确认"}
       </button>
     </section>}
-    {consentComplete && <section className={styles.completed} aria-label="法务确认已完成">
+    {consentComplete && <section className={styles.completed} aria-label="商业披露确认已完成">
       <div><strong>当前版本确认已完成</strong><span>若任一正文发布新版本，系统会再次要求确认。</span></div>
       <Link className={styles.primaryLink} href={nextPath}>{nextPath === "/" ? "进入客户工作台" : "继续访问原页面"}</Link>
     </section>}

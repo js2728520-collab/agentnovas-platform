@@ -25,3 +25,16 @@ test("sensitive RBAC permissions require MFA completed within fifteen minutes", 
   assert.match(access, /RECENT_MFA_REQUIRED/);
   assert.match(access, /maxAgeSeconds: 900/);
 });
+
+test("internal users can rotate recovery codes only from a recent MFA session", async () => {
+  const route = await readFile(new URL("../app/api/auth/mfa/recovery-codes/route.ts", import.meta.url), "utf8");
+  const session = await readFile(new URL("../lib/session.ts", import.meta.url), "utf8");
+  const workspace = await readFile(new URL("../packages/ui/src/internal-account-security.tsx", import.meta.url), "utf8");
+  assert.match(route, /requireRecentMfaSession/);
+  assert.match(route, /rotateMfaRecoveryCodes/);
+  assert.match(route, /getMfaRecoveryStatus/);
+  assert.match(session, /RECENT_MFA_REQUIRED/);
+  assert.match(workspace, /恢复码仅显示这一次/);
+  assert.match(workspace, /\/api\/auth\/mfa\/recovery-codes/);
+  assert.doesNotMatch(workspace, /localStorage|sessionStorage/);
+});

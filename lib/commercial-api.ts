@@ -10,7 +10,7 @@ export function commercialListInput(request: Request) {
   catch { throw new ResearchApiError("VALIDATION_ERROR", "cursor 无效", 422, { fields: ["cursor"] }); }
 }
 
-export async function commercialJson(request: Request) { return readResearchJson(request, 16_384); }
+export async function commercialJson(request: Request, maximumBytes = 16_384) { return readResearchJson(request, maximumBytes); }
 export function requiredString(body: Record<string, unknown>, key: string, maximum = 500) {
   const value = typeof body[key] === "string" ? body[key].trim() : "";
   if (!value || value.length > maximum) throw new ResearchApiError("VALIDATION_ERROR", `${key} 无效`, 422, { fields: [key] });

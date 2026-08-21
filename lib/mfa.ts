@@ -272,3 +272,76 @@ export async function verifyAndConsumeMfa(pool: Pool, input: {
     ? { ok: true as const, level: "recovery" as const }
     : { ok: false as const, code: "INVALID_OR_REPLAYED" as const };
 }
+
+export async function getMfaRecoveryStatus(pool: Pool, input: { userId: string }) {
+  const result = await pool.query<{
+    enabled_at: Date | string | null;
+    remaining_recovery_codes: string;
+    last_recovery_code_created_at: Date | string | null;
+  }>(`
+    SELECT credential.enabled_at,
+           count(recovery.id) FILTER (WHERE recovery.used_at IS NULL)::text AS remaining_recovery_codes,
+           max(recovery.created_at) AS last_recovery_code_created_at
+      FROM user_mfa_totp_credentials AS credential
+      LEFT JOIN user_mfa_recovery_codes AS recovery ON recovery.user_id=credential.user_id
+     WHERE credential.user_id=$1 AND credential.status='active'
+     GROUP BY credential.user_id,credential.enabled_at
+  `, [input.userId]);
+  const row = result.rows[0];
+  return {
+    enrolled: Boolean(row),
+    enabledAt: row?.enabled_at ? new Date(row.enabled_at).toISOString() : null,
+    remainingRecoveryCodes: row ? Number(row.remaining_recovery_codes) : 0,
+    lastRotatedAt: row?.last_recovery_code_created_at ? new Date(row.last_recovery_code_created_at).toISOString() : null,
+  };
+}
+
+export async function rotateMfaRecoveryCodes(pool: Pool, input: {
+  userId: string;
+  sessionId: string;
+  audience: "operations" | "maintenance";
+  reason: string;
+  now?: Date;
+}) {
+  const reason = input.reason.trim();
+  if (reason.length < 3 || reason.length > 500) return { ok: false as const, code: "REASON_INVALID" as const };
+  const now = input.now ?? new Date();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const credential = await client.query(`
+      SELECT user_id FROM user_mfa_totp_credentials
+       WHERE user_id=$1 AND status='active'
+       FOR UPDATE
+    `, [input.userId]);
+    if (!credential.rowCount) {
+      await client.query("ROLLBACK");
+      return { ok: false as const, code: "NOT_ENROLLED" as const };
+    }
+    const recoveryCodes = generateRecoveryCodes();
+    const recoveryHashes = await Promise.all(recoveryCodes.map((code) => hashRecoveryCode(code)));
+    await client.query("DELETE FROM user_mfa_recovery_codes WHERE user_id=$1 AND used_at IS NULL", [input.userId]);
+    for (const recoveryHash of recoveryHashes) {
+      await client.query(`
+        INSERT INTO user_mfa_recovery_codes(id,user_id,code_hash,created_at)
+        VALUES($1,$2,$3,$4)
+      `, [crypto.randomUUID(), input.userId, recoveryHash, now]);
+    }
+    await client.query(`
+      INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,created_at)
+      VALUES($1,$2,'auth.mfa_recovery_rotated','user',$2,$3,$4)
+    `, [crypto.randomUUID(), input.userId, JSON.stringify({
+      appAudience: input.audience,
+      sessionId: input.sessionId,
+      recoveryCodesIssued: recoveryCodes.length,
+      reason,
+    }), now]);
+    await client.query("COMMIT");
+    return { ok: true as const, recoveryCodes };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}

@@ -18,7 +18,7 @@ export default function ClientWorkspaceLoader() {
   const shouldCheckLegalConsent = session.status === "authenticated";
   const legalConsentGate = useApiData<CommercialLegalConsentStatus>(
     shouldCheckLegalConsent ? "/api/membership/legal-consent" : null,
-    "法务确认状态读取失败，策略工作区保持关闭。",
+    "商业披露确认状态读取失败，策略工作区保持关闭。",
   );
   useEffect(() => {
     if (session.status === "anonymous") {
@@ -33,9 +33,9 @@ export default function ClientWorkspaceLoader() {
   }, [legalConsentGate.data, shouldCheckLegalConsent]);
   if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证客户端会话…" />;
   if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
-  if (legalConsentGate.loading && !legalConsentGate.data) return <LoadingState label="正在核对当前法务版本…" />;
+  if (legalConsentGate.loading && !legalConsentGate.data) return <LoadingState label="正在核对当前商业披露版本…" />;
   if (legalConsentGate.error && !legalConsentGate.data) return <ErrorState message={legalConsentGate.error} retry={legalConsentGate.refresh} />;
-  if (!legalConsentGate.data?.consentComplete) return <LoadingState label="正在进入法务确认…" />;
+  if (!legalConsentGate.data?.consentComplete) return <LoadingState label="正在进入商业披露确认…" />;
   if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied message="当前账户没有访问策略与 Agent 工作区的权限。" />;
   return <ClientApp canViewMembership={hasAnyPermission(session.access.permissions, ["client.membership.view"])} />;
 }

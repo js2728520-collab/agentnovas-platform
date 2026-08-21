@@ -150,6 +150,25 @@ export function renderNotificationEmail(templateKey: string, payloadJson: unknow
         `未设置目标成员：${boundedCount(summary, "targetMissing")}`,
       ]);
     }
+    case "membership_grace_started": {
+      const planCode = boundedString(payload, "planCode", 80);
+      const graceEndsAt = isoDate(payload, "graceEndsAt");
+      return email(planCode === "trial_monthly_equivalent" ? "Riverton 体验权益即将结束" : "Riverton 会员进入宽限期", [
+        `权益计划：${planCode}`,
+        `宽限期截止：${graceEndsAt}`,
+        "宽限期结束后系统会停止新开仓；历史 Paper 组合和账单仍可只读查看。",
+      ]);
+    }
+    case "membership_read_only": {
+      const planCode = boundedString(payload, "planCode", 80);
+      const effectiveAt = isoDate(payload, "effectiveAt");
+      return email("Riverton 会员权益已转为只读", [
+        `权益计划：${planCode}`,
+        `生效时间：${effectiveAt}`,
+        "系统已停止新开仓；历史 Paper 组合、成交证据和账单仍可只读查看。",
+        "如需恢复权益，请在会员中心提交新的人工付款申请。",
+      ]);
+    }
     case "strategy_delist_notice":
     case "strategy_modify_notice": {
       const strategyName = boundedString(payload, "strategyName");

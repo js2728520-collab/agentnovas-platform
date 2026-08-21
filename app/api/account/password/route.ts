@@ -3,14 +3,17 @@ import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
 import { authConnectionBucketKey, clearSessionCookieHeaders } from "@/lib/riverton-apps";
 import { requireUser, responseError } from "@/lib/session";
+import { readResearchJson, ResearchApiError } from "@/lib/research-api";
 
 export async function POST(request: Request) {
   try {
     await ensureDatabaseSchema();
     const current = await requireUser(request);
-    const input = await request.json() as { currentPassword?: unknown; newPassword?: unknown };
+    const input = await readResearchJson(request, 4_096);
     const currentPassword = String(input.currentPassword ?? "");
     const newPassword = String(input.newPassword ?? "");
+    if (currentPassword.length < 1 || currentPassword.length > 128) throw new ResearchApiError("CURRENT_PASSWORD_INVALID", "当前密码不正确", 422);
+    if (newPassword.length < 10 || newPassword.length > 128) throw new ResearchApiError("PASSWORD_LENGTH_INVALID", "新密码须为 10–128 个字符", 422);
     const connection = authConnectionBucketKey(request);
     const result = await changeAccountPassword(await getPostgresPool(), {
       userId: current.id,
@@ -21,10 +24,10 @@ export async function POST(request: Request) {
     });
     if (!result.ok) {
       const message = result.code === "PASSWORD_REUSE" ? "新密码不能与当前密码相同" : "当前密码不正确";
-      return Response.json({ error: message }, { status: 400 });
+      throw new ResearchApiError(result.code, message, 422);
     }
     const headers = new Headers({ "content-type": "application/json", "cache-control": "no-store" });
     for (const cookie of clearSessionCookieHeaders(request)) headers.append("set-cookie", cookie);
     return new Response(JSON.stringify({ ok: true, sessionsRevoked: true }), { headers });
-  } catch (error) { return responseError(error); }
+  } catch (error) { return responseError(error, request.headers.get("x-request-id") ?? undefined); }
 }

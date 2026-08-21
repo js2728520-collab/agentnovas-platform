@@ -66,6 +66,9 @@ const ROLE_PERMISSIONS = {
     "maint.demo_exchanges.manage",
     "maint.demo_exchanges.verify",
     "maint.demo_exchanges.kill",
+    "maint.commercial_disclosures.view",
+    "maint.commercial_disclosures.submit",
+    "maint.commercial_disclosures.approve",
   ],
 };
 

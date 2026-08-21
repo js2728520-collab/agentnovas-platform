@@ -1,8 +1,8 @@
 import type { AppAudience } from "@/lib/riverton-apps";
 
-const CLIENT_ROUTES = new Set(["login", "legal", "membership", "credits", "paper", "trading-hall", "wallet", "notifications"]);
-const OPERATIONS_ROUTES = new Set(["login", "customers", "organization", "membership-orders", "performance-statements", "credits", "deposits", "ledger", "finance", "approvals", "access"]);
-const MAINTENANCE_ROUTES = new Set(["login", "models", "integrations", "health", "safety", "settings", "access", "audit"]);
+const CLIENT_ROUTES = new Set(["login", "legal", "account", "membership", "credits", "paper", "trading-hall", "wallet", "notifications", "support"]);
+const OPERATIONS_ROUTES = new Set(["login", "account", "customers", "organization", "membership-orders", "performance-statements", "credits", "deposits", "ledger", "finance", "approvals", "access"]);
+const MAINTENANCE_ROUTES = new Set(["login", "account", "models", "integrations", "health", "safety", "settings", "access", "audit"]);
 
 export function isRivertonAppRoute(audience: AppAudience, segments: string[]) {
   const root = segments[0];
@@ -10,6 +10,7 @@ export function isRivertonAppRoute(audience: AppAudience, segments: string[]) {
 
   if (audience === "client" && CLIENT_ROUTES.has(root)) {
     if (root === "legal") return segments.length === 2 && segments[1] === "consent";
+    if (root === "account") return segments.length === 2 && segments[1] === "security";
     if (root === "wallet") return segments.length === 1 || (segments.length === 2 && segments[1] === "deposits");
     if (root === "membership") return segments.length === 1 || (segments.length === 2 && segments[1] === "orders");
     if (root === "paper") return segments.length <= 2;
@@ -17,12 +18,15 @@ export function isRivertonAppRoute(audience: AppAudience, segments: string[]) {
   }
 
   if (audience === "operations" && OPERATIONS_ROUTES.has(root)) {
+    if (root === "account") return segments.length === 2 && segments[1] === "security";
     if (["deposits", "membership-orders", "performance-statements"].includes(root)) return segments.length <= 2;
     if (root === "access") return segments.length === 1 || (segments.length === 2 && segments[1] === "audit");
+    if (root === "settings") return segments.length === 1 || (segments.length === 2 && segments[1] === "disclosures");
     return segments.length === 1;
   }
 
   if (audience === "maintenance" && MAINTENANCE_ROUTES.has(root)) {
+    if (root === "account") return segments.length === 2 && segments[1] === "security";
     if (root === "integrations") {
       return segments.length === 1
         || (segments.length === 2 && ["email", "payments", "demo-exchanges"].includes(segments[1]));

@@ -1,79 +1,75 @@
-# Riverton Capital 商业 Beta 进度清单
+# Riverton Capital 商用 Paper SaaS 进度清单
 
-状态说明：`[x]` 已有本分支代码/测试证据；`[-]` 实现中或部分；`[ ]` 未完成；`[!]` 等待外部依赖/授权。
+状态：`[x]` 已有实现和证据；`[-]` 当前切片；`[ ]` 未完成；`[!]` 仅缺真实外部配置且产品安全降级可用。
 
-## A. D1 合同与工程基线
+## 0. 已完成基线
 
-- [x] 唯一目标仓库、集成分支和起点已确认；三个本地 worktree 已建立。
-- [x] PostgreSQL 迁移器具备 version/checksum/advisory lock/每文件事务；未知 legacy checksum 明确失败关闭。
-- [x] 四档会员、paper 10,000/card、UTC 周分成、三 Demo provider 公共合同已冻结。
-- [x] Argon2id 依赖锁定并完成运行时 hash/verify 冒烟。
-- [x] Worker 迁移 `0025`、真实 heartbeat 和公开/内部 health 分层完成；公开 health 不泄露内部检查。
-- [x] PRD、七智能体、System Spec、三端 Spec、ADR、API、Gate、Runbook 按 v2 更新。
+- [x] 三应用一库 audience/Cookie/路由/RBAC/data scope 隔离。
+- [x] 中央 API Policy、Argon2id、TOTP/recovery、recent MFA、显式 assignment 和撤权 tombstone。
+- [x] 四档会员、人工凭证双审、权益、Credits 核心账本、UTC 周 Paper 分成与高水位。
+- [x] 三张官方 spot 卡、每卡 10,000 USDT Paper、七阶段决策链和真实 Paper trade history。
+- [x] OKX Demo/Binance Spot Testnet/Bybit Demo allowlist、签名、幂等、限额、kill switch 与 Worker。
+- [x] Client 核心商业页面、Operations 会员/分成、Maintenance Demo/健康、12 项四身份生产浏览器 Gate。
+- [x] 真实交易、客户充值、客户密钥、自动支付/退款、社区市场和 legacy 永续运行时硬关闭。
 
-## B. API Security（Wave 1）
+## 1. 商业合同、试用与账号
 
-- [x] `0021_identity_access_hardening.sql`。
-- [x] Proxy API Policy、requestId、统一错误和 route inventory。
-- [x] 未知 Host 404、Origin/CSRF、body limit、幂等与限流。
-- [x] Argon2id 新 hash、PBKDF2 lazy rehash、dummy verify。
-- [x] TOTP/recovery/recent MFA 与内部 session TTL；首次绑定、8 枚恢复码和登录跳转已进入真实浏览器 Gate。
-- [x] CLI-only bootstrap、一次性 set-password；后端不再返回或保存明文临时密码。
-- [x] 显式 assignment、revoke tombstone、organization-set/team/direct-report scope。
-- [x] 205 个 route method inventory 零遗漏；核心 audience/scope PostgreSQL 反证通过。
+- [x] 1.1 迁移 `0030_commercial_disclosure_trial.sql`：平台产品身份、披露草稿/发布决定、试用与到期事件约束。
+- [x] 1.2 商业披露 service/API：草稿、预览、maker submit、checker publish、active bundle、历史和审计。
+- [x] 1.3 Maintenance 商业披露/产品身份/readiness UI；不允许虚构主体、地区或支持渠道。
+- [x] 1.4 Client/API 将 legal wording 收敛为商业披露接受；新版本重新确认、旧版本证据保留。
+- [x] 1.5 邀请接受、3 天试用、到期停止新开仓、会员到期只读与通知闭环。
+- [x] 1.6 账号安全页：资料、改密、MFA/recovery 状态、恢复码轮换、会话列表与撤销。
+- [x] 1.7 支持与公告页；仅显示真实已配置渠道。
 
-## C. Commercial（Wave 1）
+## 2. Operations 客户、组织与团队
 
-- [x] `0022_ledger_approval_invariants.sql`：平衡、不可变、reversal、owner/account 唯一性。
-- [x] `0023_commercial_membership_settlement.sql`：plans/orders/evidence/entitlement/legal/credits/statements。
-- [x] 会员订单 + 外部付款凭证 + maker-checker 幂等激活。
-- [x] credits grant/reserve/settle/release 与不可变 ledger。
-- [x] UTC 周分成、高水位、亏损结转、应收/付款两段复核。
-- [x] 自审、凭证语义双花、重复/并发/stale/rollback 与同事务 scope PG 反证。
+- [ ] 2.1 客户详情聚合：身份/组织/归属、会员、Credits、Paper、订单、应收、冻结状态。
+- [ ] 2.2 客户备注历史、冻结/恢复、归档/恢复和相关 session/能力撤销。
+- [ ] 2.3 客户归属转移 maker-checker、有效期和审计。
+- [ ] 2.4 组织树、成员、邀请、激活/停用、汇报关系修改和组织范围验证。
+- [ ] 2.5 每日简报、月目标、跟进记录、服务端分页/筛选和受控 CSV 导出。
+- [ ] 2.6 数据中心真实指标与 drill-down；移除 legacy 静态/跨 scope 统计。
 
-## D. Strategy + Demo（Wave 1）
+## 3. Operations Credits、财务与审批
 
-- [x] `0024_platform_demo_execution.sql`。
-- [x] 三卡 spot snapshot 与 runtime/follow/deployment/Hall 单一真源。
-- [x] 每会员/卡独立 10,000 USDT paper 组合；客户不需要 exchange account。
-- [x] paper trades/history、七阶段/traceId/decisionRoundId、到期停止新开仓。
-- [x] OKX Demo、Binance Spot Testnet、Bybit Demo allowlist/signature/receipt adapters。
-- [x] 确定性 clientOrderId、10/100 USDT 限额、provider/card kill switch。
-- [x] 全链路反证无 perpetual/leverage/short/funding/customer secret/live endpoint。
+- [ ] 3.1 迁移 `0031_credit_adjustment_workflow.sql`：调整申请/决定/幂等/人员分离。
+- [ ] 3.2 Credits 调整 maker/checker service/API；不可为负、同事务 ledger/outbox/audit。
+- [ ] 3.3 Operations Credits 调整 UI 与客户 Credits 不可变分录详情。
+- [ ] 3.4 财务 settlements/collections/payout profiles/adjustments 接入新 RBAC、scope、游标和准确状态。
+- [ ] 3.5 统一审批 inbox 投影会员、分成、Credits、RBAC、归属、充值历史请求；无自审按钮。
+- [ ] 3.6 官方策略业务影响只读视图；社区治理保持 disabled 并从菜单清除。
 
-## E. Client（Wave 2）
+## 4. Maintenance 控制面
 
-- [x] `/`、`/login`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、钱包、充值说明和通知均为稳定路由；`/workspace` 按需加载保留的策略/Agent/回测工作区。
-- [x] 四计划、会员订单、credits 安全视图与可读七正文 Gate；当前版本确认独立落库且页面/API 双层失败关闭，真实法务正文仍为外部 Gate。
-- [x] 三 paper 组合、服务端交易历史和七阶段已接；Client 暂不伪造平台 Demo 回执，公开回执 API 仍待产品决定。
-- [x] 钱包只读；充值 Route 在 Proxy 禁用且页面无创建；假地址/二维码/倒计时/监听已移除。
-- [x] Telegram/WhatsApp `not_integrated`；channels Route 在 Proxy 禁用，无演示验证码。
-- [x] 320/768/1024/1440 的 40 组 Client 路由矩阵通过；首页、法务版本确认、会员人工申请与通知成功/失败回执已走通，移动抽屉焦点、可滚动区、axe 与 console/network 均为零阻断。
-- [x] Client 法务 Gate 已下沉到 permission、AI、Research 与统一 `requireUser` 会话边界；身份资料/改密/权限启动/法务确认进入显式豁免清单，直接 API 绕过反证为 `403 LEGAL_CONSENT_REQUIRED`。
+- [ ] 4.1 模型 Profile 版本、验证、Agent 绑定和回滚；secret 永不回显。
+- [ ] 4.2 数据/新闻集成目录、配置/启用/健康/陈旧状态和安全测试回执。
+- [ ] 4.3 Demo provider/card 控制、限额、验证与安全回执全量 UI。
+- [ ] 4.4 Worker/API/DB/Email/Demo 统一技术审计、requestId/traceId、游标与筛选。
+- [ ] 4.5 平台公告、支持、Email allowlist、商业 readiness 和紧急停控统一设置。
+- [ ] 4.6 public/internal health 与 metrics/SLO 文档和告警阈值。
 
-## F. Operations / Maintenance（Wave 2）
+## 5. Client 完整旅程
 
-- [x] Ops 邀请一次性设置密码、会员订单、脱敏凭证、四阶段人员分离、credits 只读和周分成工作台。
-- [x] 商业列表服务端 pagination/URL/data scope；所有 mutation 在业务事务内再次授权。
-- [x] Maintenance Demo 安全视图、Worker 健康、模型/Email/支付/RBAC；`/audit` 已覆盖 Demo 控制/验证安全投影。
-- [x] UI 区分 configured/enabled/alive/healthy/stale；支付有效状态始终 disabled。
-- [x] Client 社区策略/永续研究/客户密钥/旧模拟订单已通过中央 Beta policy 禁用；`0029` 与 Runtime/Research Worker 又终结存量永续部署和任务，并从租约/处理器二次拒绝。完整技术审计聚合与其他旧分析进入 GA backlog。
+- [ ] 5.1 邀请 → 登录 → 披露接受 → 试用/购买 → 订单追踪完整引导与待办。
+- [ ] 5.2 首页真实试用、会员、Credits、三卡 Paper、账单和通知摘要。
+- [ ] 5.3 Paper 详情接入平台 Demo 安全摘要 API/UI，明确不代表客户成交。
+- [ ] 5.4 独立绩效账单详情与状态时间线。
+- [ ] 5.5 账号安全、支持、公告和通知偏好完整页面。
+- [ ] 5.6 遗留永续/客户交易所/假状态/静态 KPI/不可达入口与无用资源最终清理。
 
-## G. 质量、部署与 Gate
+## 6. 质量、恢复与发布
 
-- [x] Wave 1/2 独立反证审查通过；当前集成树测试、205 个 API method inventory、TypeScript/Lint 与迁移定向门禁已通过。
-- [x] Playwright 四身份 + 一次性 PG schema + axe + 320/768/1024/1440 + console/network zero；12/12 场景通过且临时 schema/凭证已清理。
-- [x] Client/Ops/Maint bundle 隔离；MFA/硬 404 收口后的重建证据为 Client 185,320/8,012 bytes、Operations 202,099/8,012 bytes、Maintenance 196,004/8,012 bytes，三端均低于 200/50KB JS/CSS gzip 预算，首屏图不超过 200KB。
-- [-] CSP nonce、security headers和生产依赖 high/critical=0 已验证；最终 secret scan 与开发工具链例外退出仍待交付前复核。
-- [-] 三端 production build、Host/audience smoke、migration fresh/N-1/rerun 已通过；并发部署与备份恢复演练仍待 staging。
-- [-] 已完成独立最小 env 示例、Demo Worker unit、旧 Web/Payment unit 与重复 Nginx 配置清理；DB roles 与回滚演练待 staging。
-- [!] 法务七项、Email 外部依赖、Demo staging 凭证、DNS/TLS、支持/值班未提供前不得付费上线。
-- [!] 不执行生产迁移、真实支付、客户充值、真实交易、真实退款或未授权外部变更。
+- [ ] 6.1 新增切片的 unit/contract/PostgreSQL/security/rollback 测试；API inventory 零遗漏。
+- [ ] 6.2 CI quality-release job：三端 build、Playwright/axe、bundle/Lighthouse、audit、secret scan。
+- [ ] 6.3 migration concurrent、独立 DB roles、备份/恢复、应用回滚本地隔离演练。
+- [ ] 6.4 四身份真实浏览器覆盖试用、到期、双审、七阶段、Demo failure、恢复码消费与焦点回收。
+- [ ] 6.5 PRD/Spec/ADR/能力矩阵/API/OpenAPI/Gate/Runbook/handoff/发布证据同步。
+- [ ] 6.6 全量自动 Gate、代码质量审查、独立反证审查、production dependency high/critical=0。
+- [!] 6.7 Email、Demo、DNS/TLS 没有真实凭证时保持明确未配置；提供真实配置后执行 staging smoke。
 
-## H. 最终提交与推送
+## 7. 最终提交、启动与推送
 
-- [x] 所有 Wave 经独立质量/反证审查并 `merge --no-ff`；最终 MFA、硬 404、质量证据和 symlink 删除边界复核为 `APPROVE`。
-- [x] 全量自动 Gate 与真实浏览器验收通过；三端本地验收服务已在 3010/3011/3012 启动。
-- [x] 已生成四类两小时一次性验收账号；密码只在仓库外 `0600` 临时文件，不进入 Git、文档或长期聊天。
-- [x] 已核对 status/branch/remotes/SSH/secret/backup/log/fixture；本地忽略文件不会进入推送。
-- [ ] 展示最终 push 命令并等待用户确认；只推集成分支。
+- [ ] 7.1 检查 status/branch/remotes/SSH 与 `.env`/secret/password/private key/dump/log/fixture。
+- [ ] 7.2 创建普通提交，不改写历史；启动 Client/Ops/Maint 三端并生成仓库外一次性验收账号。
+- [ ] 7.3 展示最终 push 命令并等待确认；只推 `codex/three-app-riverton-split`。

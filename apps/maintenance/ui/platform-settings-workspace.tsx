@@ -58,12 +58,14 @@ function PlatformSettingsEditor({ initial, refresh }: { initial: SystemSettings;
       <div className="rc-form rc-form-grid">
         <label>站点名称<input maxLength={80} value={draft.siteName} onChange={(event) => update("siteName", event.target.value)} /></label>
         <label>主域名<input maxLength={160} value={draft.primaryDomain} onChange={(event) => update("primaryDomain", event.target.value)} /></label>
+        <label>服务运营方<input maxLength={160} value={draft.serviceOperatorName} onChange={(event) => update("serviceOperatorName", event.target.value)} placeholder="必须由平台负责人明确填写" /></label>
+        <label>服务区域<input maxLength={300} value={draft.serviceRegion} onChange={(event) => update("serviceRegion", event.target.value)} placeholder="例如：仅限受邀用户所在的已开放区域" /></label>
         <label>客服邮箱<input type="email" maxLength={254} value={draft.supportEmail} onChange={(event) => update("supportEmail", event.target.value)} placeholder="未配置时客户端会明确说明" /></label>
         <label>Telegram 客服链接<input type="url" maxLength={300} value={draft.telegramSupportUrl} onChange={(event) => update("telegramSupportUrl", event.target.value)} placeholder="https://t.me/riverton_support" /></label>
         <label>版权主体<input maxLength={80} value={draft.copyrightOwner} onChange={(event) => update("copyrightOwner", event.target.value)} /></label>
         <label>默认语言<select value={draft.defaultLocale} onChange={(event) => update("defaultLocale", event.target.value as SystemSettings["defaultLocale"])}><option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option><option value="en-US">English</option><option value="ru-RU">Русский</option><option value="es-ES">Español</option><option value="ja-JP">日本語</option><option value="ko-KR">한국어</option></select></label>
         <label className="rc-wide-field">维护公告<textarea rows={4} maxLength={500} value={draft.maintenanceBanner} onChange={(event) => update("maintenanceBanner", event.target.value)} placeholder="留空时客户端不显示公告" /><small>{draft.maintenanceBanner.length}/500</small></label>
-        <p className="rc-wide-field">Telegram 客服链接仅接受 t.me、telegram.me 或 web.telegram.org 的 HTTPS 地址。保存后客户端只会获得本页公开字段。</p>
+        <p className="rc-wide-field">服务运营方、服务区域、客服邮箱和主域名会进入商业披露发布快照；任何一项为空都不能发布。Telegram 客服链接仅接受受支持域名的 HTTPS 地址。</p>
         <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={saving} onClick={() => setConfirming(true)}>{saving ? "正在保存…" : "核对并保存"}</button></div>
       </div>
     </section>

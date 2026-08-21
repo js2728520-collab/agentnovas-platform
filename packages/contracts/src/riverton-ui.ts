@@ -13,6 +13,12 @@ export type ViewerPayload = {
   email: string;
   username?: string | null;
   nickname?: string | null;
+  avatarUrl?: string | null;
+  phone?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  locale?: string | null;
+  timezone?: string | null;
   role: string;
   organizationId?: string | null;
 };

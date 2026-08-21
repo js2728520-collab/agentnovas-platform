@@ -2,6 +2,7 @@ export const CLIENT_LEGAL_GATE_EXEMPT_ROUTES = new Set([
   "/api/access/me/effective",
   "/api/account/password",
   "/api/account/profile",
+  "/api/account/sessions",
   "/api/membership/legal-consent",
 ]);
 

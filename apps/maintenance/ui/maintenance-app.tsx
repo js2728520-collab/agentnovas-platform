@@ -9,6 +9,7 @@ import { IntegrationsOverview } from "./integrations-overview";
 import { ModelsWorkspace } from "./models-workspace";
 import { PaymentIntegrationWorkspace } from "./payment-integration-workspace";
 import { PlatformSettingsWorkspace } from "./platform-settings-workspace";
+import { CommercialDisclosuresWorkspace } from "./commercial-disclosures-workspace";
 import { SystemHealthWorkspace } from "./system-health-workspace";
 import { TechnicalAuditWorkspace } from "./technical-audit-workspace";
 import { AccessCenter } from "@/packages/ui/src/access-center";
@@ -17,6 +18,7 @@ import { ConsoleShell } from "@/packages/ui/src/console-shell";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
 import { hasAnyPermission, type ConsoleNavigationItem } from "@/packages/contracts/src/riverton-ui";
+import { InternalAccountSecurity } from "@/packages/ui/src/internal-account-security";
 
 const navigation: ConsoleNavigationItem[] = [
   { href: "/", label: "系统概览", icon: "⌂", requiredPermissions: ["maint.system_health.view"] },
@@ -28,9 +30,11 @@ const navigation: ConsoleNavigationItem[] = [
   { href: "/health", label: "系统健康", icon: "康", requiredPermissions: ["maint.system_health.view"] },
   { href: "/safety", label: "紧急暂停", icon: "停", requiredPermissions: ["maint.emergency_pause.execute"] },
   { href: "/settings", label: "平台与客服", icon: "设", requiredPermissions: ["maint.feature_flags.manage"] },
+  { href: "/settings/disclosures", label: "商业披露", icon: "约", requiredPermissions: ["maint.commercial_disclosures.view"] },
   { href: "/access", label: "角色权限", icon: "权", requiredPermissions: ["maint.roles.manage", "maint.roles.approve_sensitive"] },
   { href: "/access/audit", label: "授权审计", icon: "迹", requiredPermissions: ["maint.audit.view", "maint.roles.manage"] },
   { href: "/audit", label: "技术审计", icon: "审", requiredPermissions: ["maint.audit.view"] },
+  { href: "/account/security", label: "账号安全", icon: "盾" },
 ];
 
 export default function MaintenanceApp({ segments }: { segments: string[] }) {
@@ -54,6 +58,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "integrations" && subtype === "demo-exchanges" ? ["maint.demo_exchanges.view"]
     : route === "integrations" ? ["maint.system_health.view", "maint.email_integrations.manage", "maint.payment_integrations.manage", "maint.demo_exchanges.view"]
     : route === "safety" ? ["maint.emergency_pause.execute"]
+    : route === "settings" && subtype === "disclosures" ? ["maint.commercial_disclosures.view"]
     : route === "settings" ? ["maint.feature_flags.manage"]
     : route === "access" && subtype === "audit" ? ["maint.audit.view", "maint.roles.manage"]
     : route === "audit" ? ["maint.audit.view"]
@@ -61,6 +66,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
   if (!hasAnyPermission(session.access.permissions, required)) return <AccessDenied />;
   const permissions = session.access.permissions;
   const content = route === "overview" ? <SystemHealthWorkspace overview />
+    : route === "account" ? <InternalAccountSecurity />
     : route === "health" ? <SystemHealthWorkspace />
     : route === "models" ? <ModelsWorkspace canManageProfiles={Boolean(permissions["maint.llm_profiles.manage"])} canManageBindings={Boolean(permissions["maint.agent_bindings.manage"])} />
     : route === "integrations" && subtype === "email" ? <EmailIntegrationWorkspace canManage={Boolean(permissions["maint.email_integrations.manage"])} />
@@ -76,6 +82,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
       canViewDemo={Boolean(permissions["maint.demo_exchanges.view"])}
     />
     : route === "safety" ? <EmergencyControlWorkspace />
+    : route === "settings" && subtype === "disclosures" ? <CommercialDisclosuresWorkspace currentUserId={session.viewer.id} canSubmit={Boolean(permissions["maint.commercial_disclosures.submit"])} canApprove={Boolean(permissions["maint.commercial_disclosures.approve"])} />
     : route === "settings" ? <PlatformSettingsWorkspace />
     : route === "access" ? <AccessCenter appId="maintenance" permissions={permissions} auditOnly={subtype === "audit"} />
     : route === "audit" ? <TechnicalAuditWorkspace />

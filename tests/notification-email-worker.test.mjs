@@ -41,6 +41,19 @@ test("known notification templates render bounded escaped email", () => {
   });
   assert.match(brief.text, /客户数：3/);
 
+  const grace = renderNotificationEmail("membership_grace_started", {
+    planCode: "trial_monthly_equivalent",
+    graceEndsAt: "2026-08-05T00:00:00.000Z",
+  });
+  assert.match(grace.subject, /体验权益即将结束/);
+  assert.match(grace.text, /2026-08-05/);
+
+  const readOnly = renderNotificationEmail("membership_read_only", {
+    planCode: "trial_monthly_equivalent",
+    effectiveAt: "2026-08-05T00:00:00.000Z",
+  });
+  assert.match(readOnly.text, /停止新开仓/);
+
   const delist = renderNotificationEmail("strategy_delist_notice", {
     strategyId: "strategy-1",
     strategyName: "A < B",

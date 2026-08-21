@@ -246,6 +246,17 @@ export const memberships = sqliteTable("memberships", {
   maxExchangeAccounts: integer("max_exchange_accounts").notNull().default(1), maxActiveStrategies: integer("max_active_strategies").notNull().default(1), ...timestamps,
 }, (t) => [index("idx_memberships_customer_status").on(t.customerId, t.status)]);
 
+export const membershipAccessEvents = sqliteTable("membership_access_events", {
+  id: text("id").primaryKey(),
+  membershipId: text("membership_id").notNull().references(() => memberships.id),
+  customerId: text("customer_id").notNull().references(() => users.id),
+  eventType: text("event_type", { enum: ["trial_started", "trial_grace_started", "membership_grace_started", "read_only_started", "membership_expired", "membership_restored"] }).notNull(),
+  effectiveAt: text("effective_at").notNull(),
+  stateJson: text("state_json").notNull().default("{}"),
+  dedupeKey: text("dedupe_key").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (t) => [uniqueIndex("idx_membership_access_events_dedupe").on(t.dedupeKey), index("idx_membership_access_events_customer_time").on(t.customerId, t.effectiveAt)]);
+
 export const exchangeAccounts = sqliteTable("exchange_accounts", {
   id: text("id").primaryKey(), customerId: text("customer_id").notNull().references(() => users.id), exchange: text("exchange").notNull(), label: text("label").notNull(),
   environment: text("environment", { enum: ["demo", "live"] }).notNull().default("demo"), encryptedCredentialRef: text("encrypted_credential_ref").notNull(),

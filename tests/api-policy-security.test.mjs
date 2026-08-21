@@ -172,9 +172,11 @@ test("every Client requireUser session route passes the central legal gate unles
     "/api/access/me/effective",
     "/api/account/password",
     "/api/account/profile",
+    "/api/account/sessions",
     "/api/membership/legal-consent",
   ]);
   assert.equal(clientRouteRequiresLegalConsent("/api/account/profile"), false);
+  assert.equal(clientRouteRequiresLegalConsent("/api/account/sessions"), false);
   assert.equal(clientRouteRequiresLegalConsent("/api/account/llm-config"), true);
   assert.equal(clientRouteRequiresLegalConsent("/api/market/watchlist"), true);
   assert.equal(clientRouteRequiresLegalConsent("/api/ai/conversations"), true);

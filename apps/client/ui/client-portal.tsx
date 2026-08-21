@@ -21,15 +21,17 @@ const MembershipExperience = dynamic(() => import("./membership-experience"), { 
 const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace), { loading: workspaceLoading });
 const TradingExperience = dynamic(() => import("./trading-experience"), { loading: workspaceLoading });
 const WalletWorkspace = dynamic(() => import("./wallet-workspace").then((module) => module.WalletWorkspace), { loading: workspaceLoading });
+const AccountSecurityWorkspace = dynamic(() => import("./account-security-workspace").then((module) => module.AccountSecurityWorkspace), { loading: workspaceLoading });
+const SupportWorkspace = dynamic(() => import("./support-workspace").then((module) => module.SupportWorkspace), { loading: workspaceLoading });
 
 export default function ClientPortal({ segments, loginMode }: { segments: string[]; loginMode?: "login" | "register" | "forgot" }) {
   const session = useAppSession("client");
   const route = segments[0];
   const isLegalRoute = route === "legal" && segments[1] === "consent";
-  const shouldCheckLegalConsent = session.status === "authenticated" && route !== "login" && !isLegalRoute;
+  const shouldCheckLegalConsent = session.status === "authenticated" && route !== "login" && route !== "account" && route !== "support" && !isLegalRoute;
   const legalConsentGate = useApiData<CommercialLegalConsentStatus>(
     shouldCheckLegalConsent ? "/api/membership/legal-consent" : null,
-    "法务确认状态读取失败，业务入口保持关闭。",
+    "商业披露确认状态读取失败，业务入口保持关闭。",
   );
   useEffect(() => {
     if (route !== "login" && session.status === "anonymous") {
@@ -50,9 +52,15 @@ export default function ClientPortal({ segments, loginMode }: { segments: string
       <LegalConsentExperience />
     </ClientPortalShell>;
   }
-  if (shouldCheckLegalConsent && legalConsentGate.loading && !legalConsentGate.data) return <LoadingState label="正在核对当前法务版本…" />;
+  if (route === "account" && segments[1] === "security") {
+    return <ClientPortalShell viewer={session.viewer} access={session.access}><AccountSecurityWorkspace viewer={session.viewer} /></ClientPortalShell>;
+  }
+  if (route === "support") {
+    return <ClientPortalShell viewer={session.viewer} access={session.access}><SupportWorkspace /></ClientPortalShell>;
+  }
+  if (shouldCheckLegalConsent && legalConsentGate.loading && !legalConsentGate.data) return <LoadingState label="正在核对当前商业披露版本…" />;
   if (shouldCheckLegalConsent && legalConsentGate.error && !legalConsentGate.data) return <ErrorState message={legalConsentGate.error} retry={legalConsentGate.refresh} />;
-  if (shouldCheckLegalConsent && !legalConsentGate.data?.consentComplete) return <LoadingState label="正在进入法务确认…" />;
+  if (shouldCheckLegalConsent && !legalConsentGate.data?.consentComplete) return <LoadingState label="正在进入商业披露确认…" />;
   if (!route) return <ClientHomeWorkspace viewer={session.viewer} access={session.access} />;
   if (route === "notifications") return <NotificationWorkspace viewer={session.viewer} access={session.access} />;
   if (route === "membership") {
