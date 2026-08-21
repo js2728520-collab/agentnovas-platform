@@ -8,7 +8,7 @@
 
 ## 1. 当前生产配置快照
 
-2026-08-22 的只读审计结果如下。审计只读取“是否存在/是否一致”，没有输出任何值：
+2026-08-22 `v1.0.0-beta.5` 的只读审计结果如下。审计只读取“是否存在/是否一致”，没有输出任何值：
 
 | 配置域 | 当前状态 | 还缺什么 |
 | --- | --- | --- |
@@ -25,10 +25,19 @@
 使用仓库内审计器复核：
 
 ```bash
-sudo bash scripts/audit-production-config.sh
+sudo bash /opt/agentnovas-riverton/current/source/scripts/audit-production-config.sh
 ```
 
 输出只有 `ready/incomplete/enabled/disabled` 和安全 finding，不显示数据库 URL、密钥、allowlist 或商户信息。退出码非零表示核心配置或硬关闭开关不符合要求。
+
+当前生产实际输出为：
+
+```text
+core_configuration=ready
+resend_configuration=incomplete
+udun_configuration=incomplete
+notification_email_send=disabled
+```
 
 ## 2. 三端验收账号
 
@@ -60,7 +69,7 @@ sudo bash scripts/audit-production-config.sh
 sudo install -d -m 0700 /root/agentnovas-initial-access
 ```
 
-使用与当前提交完全一致的 tools/runtime 镜像执行。`<COMMIT>` 和 `<CREDENTIAL_FILE>` 由发布人员替换，不要把密码或 Provider secret 放进 `-e`、命令历史或聊天：
+使用与当前发布完全一致的 Runtime 镜像执行。`<VERSION>` 和 `<CREDENTIAL_FILE>` 由发布人员替换；当前版本可从 `/opt/agentnovas-riverton/current/release.env` 的 `RIVERTON_RELEASE_VERSION` 读取（本记录当前为 `1.0.0-beta.5`）。不要把密码或 Provider secret 放进 `-e`、命令历史或聊天：
 
 ```bash
 sudo docker run --rm \
@@ -72,14 +81,14 @@ sudo docker run --rm \
   -e ACCEPTANCE_MAINTENANCE_EMAIL=maintenance-admin@agentnovas.com \
   -e ACCEPTANCE_CREDENTIAL_OUTPUT=/run/credentials/<CREDENTIAL_FILE> \
   -v /root/agentnovas-initial-access:/run/credentials:rw \
-  agentnovas-riverton-tools:<COMMIT> \
+  agentnovas-riverton-runtime:<VERSION> \
   node --experimental-strip-types scripts/provision-acceptance-accounts.mjs
 ```
 
 操作者在自己的终端取回一次：
 
 ```bash
-ssh an-saas 'cat /root/agentnovas-initial-access/<CREDENTIAL_FILE>'
+ssh an-saas 'sudo cat /root/agentnovas-initial-access/<CREDENTIAL_FILE>'
 ```
 
 当前生产已创建的三端验收账号使用以下 root-only 文件；文件名本身不是密码，内容不得复制到聊天：
@@ -93,7 +102,7 @@ ssh an-saas 'sudo cat /root/agentnovas-initial-access/three-app-credentials-2026
 立即存入获授权密码管理器并逐端登录；完成改密和 MFA 后删除服务器文件：
 
 ```bash
-ssh an-saas 'shred -u /root/agentnovas-initial-access/<CREDENTIAL_FILE>'
+ssh an-saas 'sudo shred -u /root/agentnovas-initial-access/<CREDENTIAL_FILE>'
 ```
 
 不要把 `cat` 的输出复制到工单、群聊、文档或 Git。若创建命令失败，不要改用 SQL 绕过；先检查唯一 active `hq_admin`、Headquarters、权限目录、role code 和同邮箱账号。
@@ -116,7 +125,7 @@ ssh an-saas 'shred -u /root/agentnovas-initial-access/<CREDENTIAL_FILE>'
 
 ```bash
 sudo install -d -m 0700 /root/agentnovas-config
-sudo cp deploy/env/production-integrations.answers.example \
+sudo cp /opt/agentnovas-riverton/current/source/deploy/env/production-integrations.answers.example \
   /root/agentnovas-config/production-integrations.answers
 sudo chmod 0600 /root/agentnovas-config/production-integrations.answers
 sudoedit /root/agentnovas-config/production-integrations.answers
@@ -137,16 +146,16 @@ UDUN_CALLBACK_URL=https://xm.agentnovas.com/api/integrations/payments/udun/webho
 检查阶段不写文件：
 
 ```bash
-sudo bash scripts/install-production-integrations.sh \
+sudo bash /opt/agentnovas-riverton/current/source/scripts/install-production-integrations.sh \
   --check /root/agentnovas-config/production-integrations.answers
 ```
 
 确认 `resend_input` / `udun_input` 后才应用：
 
 ```bash
-sudo bash scripts/install-production-integrations.sh \
+sudo bash /opt/agentnovas-riverton/current/source/scripts/install-production-integrations.sh \
   --apply /root/agentnovas-config/production-integrations.answers
-sudo bash scripts/audit-production-config.sh
+sudo bash /opt/agentnovas-riverton/current/source/scripts/audit-production-config.sh
 ```
 
 安装器不 `source` 答案文件，拒绝未知/重复/部分字段，分别通过临时文件原子替换现有 env，并确保以下开关仍为 false：
@@ -186,7 +195,7 @@ sudo bash scripts/audit-production-config.sh
 ```bash
 cd /opt/agentnovas-riverton/current
 sudo docker compose --profile workers --env-file release.env \
-  -f deploy/container/compose.yml up -d --no-deps --force-recreate \
+  -f source/deploy/container/compose.yml up -d --no-deps --force-recreate \
   maintenance notification-worker
 ```
 
@@ -208,7 +217,7 @@ sudo docker run --rm \
   -e EMAIL_TEMPLATES_VERIFIED=1 \
   -e EMAIL_SUPPRESSION_ENABLED=1 \
   -e EMAIL_INBOUND_MAILBOXES_VERIFIED=0 \
-  agentnovas-riverton-tools:<COMMIT> \
+  agentnovas-riverton-runtime:<VERSION> \
   node --experimental-strip-types scripts/record-email-provider-readiness.mjs
 ```
 
@@ -259,7 +268,7 @@ EMAIL_READINESS_ACTION=disable
 
 ```bash
 cd /opt/agentnovas-riverton/current
-sudo docker compose --env-file release.env -f deploy/container/compose.yml \
+sudo docker compose --env-file release.env -f source/deploy/container/compose.yml \
   up -d --no-deps --force-recreate client maintenance
 ```
 
@@ -302,7 +311,7 @@ Research Worker 在 Beta 仍保持关闭。官方 Paper 的确定性 Runtime 只
 
 ```bash
 sudo install -d -m 0700 /root/agentnovas-config
-sudo cp deploy/env/platform-demo-accounts.answers.example.json \
+sudo cp /opt/agentnovas-riverton/current/source/deploy/env/platform-demo-accounts.answers.example.json \
   /root/agentnovas-config/platform-demo-accounts.json
 sudo chmod 0600 /root/agentnovas-config/platform-demo-accounts.json
 sudoedit /root/agentnovas-config/platform-demo-accounts.json
@@ -317,7 +326,7 @@ sudo docker run --rm \
   -e ALLOW_PLATFORM_DEMO_CREDENTIAL_PROVISIONING=1 \
   -e PLATFORM_DEMO_CREDENTIAL_INPUT=/run/credentials/platform-demo-accounts.json \
   -v /root/agentnovas-config:/run/credentials:ro \
-  agentnovas-riverton-tools:<COMMIT> \
+  agentnovas-riverton-runtime:<VERSION> \
   node --experimental-strip-types scripts/provision-platform-demo-credentials.mjs
 ```
 
@@ -337,7 +346,7 @@ sudo shred -u /root/agentnovas-config/platform-demo-accounts.json
 2. 检查三端 `/api/health/live` 和 `/api/health/ready`。
 3. 在 Maintenance `/health` 区分 configured、enabled、alive、healthy、stale。
 4. 检查日志中没有 secret、完整 PII、Webhook body、密码或 token。
-5. 执行 `scripts/audit-production-config.sh`；保存输出，不保存答案文件内容。
+5. 执行 `/opt/agentnovas-riverton/current/source/scripts/audit-production-config.sh`；保存输出，不保存答案文件内容。
 6. 将 root-only 答案文件放入受控 secret 管理或安全销毁：
 
 ```bash

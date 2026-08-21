@@ -120,4 +120,4 @@
 - [x] 11.2 以客户交易 Shell 替换内部控制台 Shell；主导航、二级产品导航和账户菜单继续按 RBAC 过滤。
 - [x] 11.3 `/workspace` 嵌入同一 Shell，移除第二套顶栏、侧栏和登录闪烁。
 - [x] 11.4 商业披露收窄为会员订单写入条件，Paper、行情、通知和账户安全不再进入重定向循环。
-- [-] 11.5 完成真实登录浏览器回归、全量 Gate、`v1.0.0-beta.4` 镜像发布与线上复验。
+- [x] 11.5 `v1.0.0-beta.4` 被生产账号 smoke 拦截后以不可变 `v1.0.0-beta.5` 修复；776 项测试、三端构建、bundle/secret/dependency Gate、44 migration rerun、角色策略、实际进程 DB role、真实账号登录/MFA/cross-audience、Client 核心 API 和四档 Chromium 回归全部通过。生产 `current` 已切至 beta.5，`previous` 保留 beta.3，外部 Provider 继续按审计结果关闭。
