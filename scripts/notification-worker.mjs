@@ -74,8 +74,8 @@ try {
     if (now.getTime() >= nextMembershipReconciliationAt) {
       try {
         const lifecycle = await reconcileMembershipAccessTransitions(pool, { now, limit: 100 });
+        await heartbeat.markSuccess(now);
         if (lifecycle.transitioned > 0) {
-          await heartbeat.markSuccess(now);
           process.stdout.write(`${JSON.stringify({ event: "membership_lifecycle_reconciled", ...lifecycle })}\n`);
         }
       } catch (error) {

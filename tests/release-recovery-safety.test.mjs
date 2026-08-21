@@ -208,6 +208,11 @@ test("least-privilege bootstrap is database-bound and leaves Payment and legacy 
   assert.doesNotMatch(sql, /GRANT[^;]+TO agentnovas_(?:payment|research)_worker/is);
   assert.doesNotMatch(sql, /GRANT[^;]+ON ALL TABLES[^;]+agentnovas_(?:client|ops|maint)_web/is);
   assert.match(sql, /GRANT SELECT ON platform_demo_accounts_safe TO agentnovas_client_web/i);
+  assert.match(sql, /GRANT SELECT, UPDATE ON memberships, official_paper_portfolios TO agentnovas_notification_worker/i);
+  assert.match(sql, /GRANT SELECT ON official_paper_positions TO agentnovas_notification_worker/i);
+  assert.match(sql, /GRANT SELECT, INSERT ON membership_access_events TO agentnovas_notification_worker/i);
+  assert.match(sql, /GRANT SELECT, INSERT, UPDATE ON notification_deliveries TO agentnovas_notification_worker/i);
+  assert.match(sql, /GRANT INSERT ON audit_logs TO agentnovas_notification_worker/i);
   assert.match(sql, /class\.relkind\s*<>\s*'S'[\s\S]+pg_depend[\s\S]+dependency\.deptype\s+IN\s*\('a','i'\)/i);
 
   const migrator = await read("deploy/env/migrator.env.example");

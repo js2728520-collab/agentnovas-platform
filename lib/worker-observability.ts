@@ -80,6 +80,7 @@ export async function recordWorkerHeartbeat(database: Queryable, input: {
       last_failure_at = COALESCE(EXCLUDED.last_failure_at, worker_instances.last_failure_at),
       last_error_code = CASE
         WHEN EXCLUDED.last_failure_at IS NOT NULL THEN EXCLUDED.last_error_code
+        WHEN EXCLUDED.last_success_at IS NOT NULL THEN NULL
         ELSE worker_instances.last_error_code
       END,
       current_job_id = EXCLUDED.current_job_id,

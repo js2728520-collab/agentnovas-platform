@@ -101,9 +101,14 @@ const RELEASE_CONTROL_TABLES = new Set([
 
 const WORKER_TABLES = new Map([
   ["agentnovas_notification_worker", new Set([
+    "audit_logs",
+    "membership_access_events",
+    "memberships",
     "notification_deliveries",
     "notification_email_suppressions",
     "notification_provider_configs",
+    "official_paper_portfolios",
+    "official_paper_positions",
     "users",
     "worker_instances",
   ])],

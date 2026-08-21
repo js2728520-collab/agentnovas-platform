@@ -35,8 +35,10 @@ test("derives worker configuration, liveness and health without conflating them"
 
 test("worker reporter records an explicit lifecycle without logging an error body", async () => {
   const writes = [];
+  const statements = [];
   const database = {
-    async query(_text, values) {
+    async query(text, values) {
+      statements.push(text);
       writes.push(values);
       return { rows: [] };
     },
@@ -52,15 +54,18 @@ test("worker reporter records an explicit lifecycle without logging an error bod
   await reporter.start();
   reporter.setCurrentJob("delivery-1");
   await reporter.markFailure(new Error("provider secret body"), new Date("2026-08-20T12:00:00.000Z"));
+  await reporter.markSuccess(new Date("2026-08-20T12:01:00.000Z"));
   await reporter.stop();
 
-  assert.deepEqual(writes.map((values) => values[3]), ["starting", "error", "stopped"]);
+  assert.deepEqual(writes.map((values) => values[3]), ["starting", "error", "running", "stopped"]);
   assert.equal(writes[1][7], "ERROR");
-  assert.equal(writes[2][8], null);
+  assert.equal(writes[2][5], "2026-08-20T12:01:00.000Z");
+  assert.equal(writes[3][8], null);
   assert.deepEqual(JSON.parse(writes[0][9]), {
     apiKeyPresent: true,
     emailEnvironmentReady: false,
   });
+  assert.match(statements[0], /WHEN EXCLUDED\.last_success_at IS NOT NULL THEN NULL/);
 });
 
 test("worker metadata only retains bounded boolean readiness markers", async () => {

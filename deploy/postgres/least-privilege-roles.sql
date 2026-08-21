@@ -395,7 +395,11 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO
   agentnovas_maint_web;
 
 GRANT SELECT ON notification_provider_configs, notification_email_suppressions, users TO agentnovas_notification_worker;
-GRANT SELECT, UPDATE ON notification_deliveries TO agentnovas_notification_worker;
+GRANT SELECT, UPDATE ON memberships, official_paper_portfolios TO agentnovas_notification_worker;
+GRANT SELECT ON official_paper_positions TO agentnovas_notification_worker;
+GRANT SELECT, INSERT ON membership_access_events TO agentnovas_notification_worker;
+GRANT SELECT, INSERT, UPDATE ON notification_deliveries TO agentnovas_notification_worker;
+GRANT INSERT ON audit_logs TO agentnovas_notification_worker;
 GRANT SELECT, INSERT, UPDATE ON worker_instances TO agentnovas_notification_worker;
 
 GRANT SELECT, UPDATE ON platform_demo_accounts, platform_demo_card_controls TO agentnovas_demo_execution_worker;
