@@ -88,6 +88,11 @@ test("client notification settings expose unintegrated external channels without
   assert.match(preferencesPolicy, /MANDATORY_NOTIFICATION/);
   assert.match(preferencesRoute, /onConflictDoUpdate/);
   assert.doesNotMatch(preferencesRoute, /select\(\)\.from\(notificationPreferences\)/);
+  await assert.rejects(
+    read("app/notification-settings-panel.tsx"),
+    (error) => error?.code === "ENOENT",
+    "the retired notification panel must not remain as a second UI path with demo verification",
+  );
 });
 
 test("trading experience reads official paper evidence and never presents client exchange writes", async () => {
