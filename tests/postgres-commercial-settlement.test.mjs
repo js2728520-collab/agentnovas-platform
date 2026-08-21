@@ -11,11 +11,15 @@ import {
   settleAiCreditReservation,
 } from "../lib/ai-credit-service.ts";
 import {
+  acceptCurrentCommercialLegalDocuments,
   createMembershipOrder,
   decideMembershipOrder,
+  readCommercialLegalConsent,
+  requireCurrentCommercialLegalConsent,
   recordMembershipPaymentEvidence,
   submitMembershipOrder,
 } from "../lib/commercial-membership-service.ts";
+import { requireCommercialLegalConsentGate } from "../lib/commercial-legal-consent-gate.ts";
 import {
   fingerprintPaymentReference,
   PAYMENT_REFERENCE_FINGERPRINT_VERSION,
@@ -191,7 +195,8 @@ test.before(async () => {
   `)).rows[0]?.valid === true;
   await pool.query(`INSERT INTO organizations(id,type,name) VALUES('org','headquarters','Org');
     INSERT INTO users(id,email,password_hash,role,organization_id,status) VALUES
-      ('customer','customer@example.test','x','customer','org','active'),('customer2','customer2@example.test','x','customer','org','active'),
+      ('customer','customer@example.test','x','customer','org','active'),('customer2','customer2@example.test','x','customer','org','active'),('consent-customer','consent@example.test','x','customer','org','active'),
+      ('consent-concurrent','consent-concurrent@example.test','x','customer','org','active'),('consent-collision-a','consent-collision-a@example.test','x','customer','org','active'),('consent-collision-b','consent-collision-b@example.test','x','customer','org','active'),('consent-rollback','consent-rollback@example.test','x','customer','org','active'),
       ('official-customer','official-customer@example.test','x','customer','org','active'),
       ('portfolio-failure-customer','portfolio-failure@example.test','x','customer','org','active'),
       ('maker','maker@example.test','x','finance','org','active'),('checker','checker@example.test','x','admin','org','active'),('checker2','checker2@example.test','x','admin','org','active'),
@@ -209,6 +214,115 @@ test.before(async () => {
 
 test("fresh and empty unversioned N-1 fingerprint schemas migrate and reapply", () => {
   assert.equal(cleanFingerprintNMinusOneVerified, true);
+});
+
+test("standalone legal consent is current-version, atomic and idempotent", async () => {
+  const before = await readCommercialLegalConsent(pool, "consent-customer");
+  assert.equal(before.consentComplete, false);
+  assert.equal(before.requiredLegalDocuments.length, 7);
+  await assert.rejects(requireCurrentCommercialLegalConsent(pool, "consent-customer"), /请先阅读并确认/);
+  await assert.rejects(acceptCurrentCommercialLegalDocuments(pool, {
+    userId: "consent-customer",
+    acceptedDocumentVersionIds: legalIds.slice(0, 6),
+    idempotencyKey: "consent-incomplete",
+    trustedIp: "127.0.0.1",
+    userAgent: "test",
+  }), /七项法务/);
+  const accepted = await acceptCurrentCommercialLegalDocuments(pool, {
+    userId: "consent-customer",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "consent-complete",
+    trustedIp: "127.0.0.1",
+    userAgent: "test",
+  });
+  const replayed = await acceptCurrentCommercialLegalDocuments(pool, {
+    userId: "consent-customer",
+    acceptedDocumentVersionIds: [...legalIds].reverse(),
+    idempotencyKey: "consent-complete",
+    trustedIp: "127.0.0.1",
+    userAgent: "test",
+  });
+  assert.deepEqual(replayed, accepted);
+  assert.equal(accepted.consentComplete, true);
+  assert.equal((await requireCurrentCommercialLegalConsent(pool, "consent-customer")).consentComplete, true);
+  assert.equal((await readCommercialLegalConsent(pool, "consent-customer")).consentComplete, true);
+  assert.equal(Number((await pool.query("SELECT count(*) AS count FROM commercial_legal_acceptances WHERE user_id='consent-customer'")).rows[0].count), 7);
+  assert.equal(Number((await pool.query("SELECT count(*) AS count FROM audit_logs WHERE actor_user_id='consent-customer' AND action='commercial_legal.accept'")).rows[0].count), 1);
+});
+
+test("legal consent serializes concurrent confirmations and rejects cross-user key collisions", async () => {
+  const [first, second] = await Promise.all([
+    acceptCurrentCommercialLegalDocuments(pool, {
+      userId: "consent-concurrent",
+      acceptedDocumentVersionIds: legalIds,
+      idempotencyKey: "consent-concurrent-a",
+    }),
+    acceptCurrentCommercialLegalDocuments(pool, {
+      userId: "consent-concurrent",
+      acceptedDocumentVersionIds: [...legalIds].reverse(),
+      idempotencyKey: "consent-concurrent-b",
+    }),
+  ]);
+  assert.equal(first.consentComplete, true);
+  assert.equal(second.consentComplete, true);
+  assert.equal(Number((await pool.query("SELECT count(*) count FROM commercial_legal_acceptances WHERE user_id='consent-concurrent'")).rows[0].count), 7);
+  assert.equal(Number((await pool.query("SELECT count(*) count FROM audit_logs WHERE actor_user_id='consent-concurrent' AND action='commercial_legal.accept'")).rows[0].count), 1);
+
+  await acceptCurrentCommercialLegalDocuments(pool, {
+    userId: "consent-collision-a",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "consent-shared-key",
+  });
+  await assert.rejects(acceptCurrentCommercialLegalDocuments(pool, {
+    userId: "consent-collision-b",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "consent-shared-key",
+  }), (error) => error?.code === "IDEMPOTENCY_KEY_COLLISION" && error?.status === 409);
+  assert.equal(Number((await pool.query("SELECT count(*) count FROM commercial_legal_acceptances WHERE user_id='consent-collision-b'")).rows[0].count), 0);
+});
+
+test("legal consent rolls back acceptances and idempotency when its audit write fails", async () => {
+  await pool.query(`
+    CREATE FUNCTION reject_consent_rollback_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF NEW.actor_user_id='consent-rollback' AND NEW.action='commercial_legal.accept' THEN
+        RAISE EXCEPTION 'forced legal audit rollback';
+      END IF;
+      RETURN NEW;
+    END $$;
+    CREATE TRIGGER reject_consent_rollback_audit
+      BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION reject_consent_rollback_audit();
+  `);
+  try {
+    await assert.rejects(acceptCurrentCommercialLegalDocuments(pool, {
+      userId: "consent-rollback",
+      acceptedDocumentVersionIds: legalIds,
+      idempotencyKey: "consent-forced-rollback",
+    }), /forced legal audit rollback/);
+  } finally {
+    await pool.query("DROP TRIGGER reject_consent_rollback_audit ON audit_logs; DROP FUNCTION reject_consent_rollback_audit();");
+  }
+  assert.equal(Number((await pool.query("SELECT count(*) count FROM commercial_legal_acceptances WHERE user_id='consent-rollback'")).rows[0].count), 0);
+  assert.equal(Number((await pool.query("SELECT count(*) count FROM commercial_idempotency_records WHERE operation='commercial.legal.accept' AND idempotency_key='consent-forced-rollback'")).rows[0].count), 0);
+});
+
+test("a newly activated legal version re-closes the Client business gate", async () => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("UPDATE commercial_legal_document_versions SET status='retired' WHERE id='terms-v1'");
+    await client.query(`INSERT INTO commercial_legal_document_versions(
+      id,document_type,version,content_sha256,content_locale,content_markdown,status,approved_by_user_id,approved_at,effective_at
+    ) VALUES('terms-v2','terms',2,'9788d0c21820c141fe2209dd562fac1d7f8add1371aa661f4aa64324ad712514','en-US','Approved beta legal document body for automated testing only.','active','checker','2026-01-02','2026-01-02')`);
+    await assert.rejects(requireCommercialLegalConsentGate(client, "consent-customer"), (error) => error?.code === "LEGAL_CONSENT_REQUIRED" && error?.status === 403);
+    await client.query("ROLLBACK");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+  await requireCommercialLegalConsentGate(pool, "consent-customer");
 });
 test.after(async () => {
   await pool.end();

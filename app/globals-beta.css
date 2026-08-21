@@ -1813,3 +1813,5 @@ body:has(.content) .market-terminal-page{
   .client-app-shell .dash{min-height:calc(100vh - 58px)!important}
   .client-app-shell .dash>aside{top:58px!important}
 }
+.client-app-shell .landing .hero:before{right:0!important}
+@media(min-width:901px) and (max-width:1100px){.client-app-shell .landing .orbital .o2{width:350px!important;height:350px!important}}

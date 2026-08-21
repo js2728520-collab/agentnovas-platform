@@ -84,5 +84,5 @@ export default function OperationsApp({ segments }: { segments: string[] }) {
     : route === "approvals" ? <ApprovalsWorkspace canApproveDeposits={Boolean(permissions["ops.deposits.action_approve"])} canManageAccess={Boolean(permissions["ops.roles.manage"] || permissions["ops.roles.approve_sensitive"])} />
     : route === "access" ? <AccessCenter appId="operations" permissions={permissions} auditOnly={segments[1] === "audit"} />
     : overview;
-  return <ConsoleShell appName="运营端" appKind="operations" navigation={navigation} viewer={session.viewer} access={session.access}>{content}</ConsoleShell>;
+  return <ConsoleShell appName="运营端" appKind="operations" statusText="运营数据按权限范围展示" accountLabel="运营账户" navigation={navigation} viewer={session.viewer} access={session.access}>{content}</ConsoleShell>;
 }

@@ -19,9 +19,10 @@ export default function ClientNotificationSettings() {
   const [preferences, setPreferences] = useState<Preference[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<"success" | "error">("success");
   const [busyKey, setBusyKey] = useState("");
   const load = useCallback(async () => {
-    setState("loading"); setMessage("");
+    setState("loading"); setMessage(""); setMessageKind("success");
     try {
       const payload = await clientRequest<{ preferences?: Preference[] }>("/api/notifications/preferences", {}, "通知偏好读取失败");
       setPreferences(Array.isArray(payload.preferences) ? payload.preferences : []); setState("ready");
@@ -36,14 +37,15 @@ export default function ClientNotificationSettings() {
   async function change(category: string, channel: Channel, mode: Mode) {
     const key = `${category}:${channel}`;
     if (busyKey) return;
-    setBusyKey(key); setMessage("");
+    setBusyKey(key); setMessage(""); setMessageKind("success");
     try {
       await clientRequest<{ ok: boolean }>("/api/notifications/preferences", {
         method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ category, channel, mode }),
       }, "通知偏好保存失败");
       setPreferences((current) => [...current.filter((item) => !(item.category === category && item.channel === channel)), { category, channel, mode }]);
+      setMessageKind("success");
       setMessage("通知偏好已保存");
-    } catch (error) { setMessage(clientErrorMessage(error, "通知偏好保存失败，原设置保持不变")); }
+    } catch (error) { setMessageKind("error"); setMessage(clientErrorMessage(error, "通知偏好保存失败，原设置保持不变")); }
     finally { setBusyKey(""); }
   }
 
@@ -60,6 +62,6 @@ export default function ClientNotificationSettings() {
         return <span role="cell" key={channel}><select aria-label={`${label} · ${channel === "in_app" ? "站内" : "邮件"}`} value={modeFor(key, channel)} disabled={Boolean(busyKey)} onChange={(event) => void change(key, channel, event.target.value as Mode)}><option value="instant">即时</option><option value="digest">汇总</option><option value="important_only">仅重要</option>{!mandatory && <option value="disabled">关闭</option>}{busyKey === controlKey && <option value={modeFor(key, channel)}>保存中</option>}</select></span>;
       })}</div>)}
     </div>}
-    {state !== "error" && message && <p role="status" aria-live="polite">{message}</p>}
+    {state !== "error" && message && <p role={messageKind === "error" ? "alert" : "status"} aria-live={messageKind === "error" ? "assertive" : "polite"}>{message}</p>}
   </section>;
 }

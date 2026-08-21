@@ -6,7 +6,7 @@
 
 责任人采用角色而非个人信息：产品负责人维护 PRD 与法务 Gate，架构负责人维护 System Spec/ADR/API Policy，三端负责人维护对应 App Spec，QA/Release 负责人维护 Gate 与证据，Ops/Maint 值班角色维护 Runbook。代码与测试证据优先于无证据状态标记。
 
-实施快照（2026-08-21）：Wave 1 后端和 Wave 2 Client/Internal/Quality 已进入集成分支；当前机器可读 inventory 覆盖 203 个 method handler。Client 会员、credits、paper 和交易大厅稳定路由已落地，三端初始 JS/CSS 均通过 200/50KB gzip 预算。旧客户密钥、充值、外部渠道验证码、社区市场、永续部署与永续研究路径已在 HTTP、租约、Worker 和前向迁移层硬关闭。隔离 PostgreSQL 上的 8 场景 Playwright/axe/四断点已覆盖 Operations 首次 TOTP 绑定、一次性恢复码和完整内部登录跳转，三次 Lighthouse 也已通过；正式法务正文、恢复演练以及 Email/Demo/DNS/TLS 等外部 Gate 尚未完成，因此项目仍不可开放付费 Beta。
+实施快照（2026-08-21）：Wave 1 后端和 Wave 2 Client/Internal/Quality 已进入集成分支；当前机器可读 inventory 覆盖 205 个 method handler。Client 会员、credits、paper 和交易大厅稳定路由已落地，独立七正文版本确认在页面与 Client 权限 API 两层失败关闭，三端初始 JS/CSS 均通过 200/50KB gzip 预算。旧客户密钥、充值、外部渠道验证码、社区市场、永续部署与永续研究路径已在 HTTP、租约、Worker 和前向迁移层硬关闭。隔离 PostgreSQL 上的浏览器/axe/四断点验收已覆盖法务 Gate、会员人工付款申请、通知偏好、Operations 首次 TOTP 绑定、一次性恢复码和完整内部登录跳转，Lighthouse 也已通过；正式法务正文、恢复演练以及 Email/Demo/DNS/TLS 等外部 Gate 尚未完成，因此项目仍不可开放付费 Beta。
 
 ## 阅读路径
 

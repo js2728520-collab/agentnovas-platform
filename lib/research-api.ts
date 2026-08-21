@@ -1,4 +1,6 @@
 import { currentUser, type CurrentUser } from "./session.ts";
+import { requireCommercialLegalConsentGate } from "./commercial-legal-consent-gate.ts";
+import { getPostgresPool } from "./postgres.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 export { ResearchApiError } from "./research-errors.ts";
@@ -8,6 +10,7 @@ export async function requireResearchUser(request: Request, roles?: CurrentUser[
   const user = await currentUser(request);
   if (!user) throw new ResearchApiError("AUTH_REQUIRED", "请先登录", 401);
   if (roles && !roles.includes(user.role)) throw new ResearchApiError("FORBIDDEN", "无权执行此操作", 403);
+  if (user.role === "customer") await requireCommercialLegalConsentGate(await getPostgresPool(), user.id);
   return user;
 }
 

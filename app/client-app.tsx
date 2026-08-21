@@ -170,7 +170,7 @@ function SidebarAccount({
     >
       <span className="account-sidebar-avatar">
         {avatarUrl ? (
-          <img src={avatarUrl} alt="" />
+          <Image src={avatarUrl} alt="" width={40} height={40} unoptimized />
         ) : (
           preset?.emoji || displayName.slice(0, 1).toUpperCase()
         )}
@@ -437,7 +437,7 @@ const extraText: Record<Lang, Record<string, string>> = {
     settlementNav: "收益结算",
     memberOpen: "开通会员",
     tagline: "智能交易中枢",
-    trust1: "API 非托管",
+    trust1: "无需客户密钥",
     trust2: "权限隔离",
     trust3: "多层风控",
     trust4: "全程审计",
@@ -447,9 +447,9 @@ const extraText: Record<Lang, Record<string, string>> = {
     flow2s: "设定不可突破的边界",
     flow3: "AI 团队协作",
     flow3s: "生成、质疑与审核方案",
-    flow4: "自动执行管理",
-    flow4s: "下单、监控、止盈止损",
-    systemStatus: "实时系统状态",
+    flow4: "生成模拟执行证据",
+    flow4s: "Paper 回执与平台 Demo 分开记录",
+    systemStatus: "Beta 执行边界",
     systemDesc:
       "市场分析、策略研究、反方审查、风险控制和执行审计正在同步运行。",
     watch: "观看工作现场",
@@ -466,7 +466,7 @@ const extraText: Record<Lang, Record<string, string>> = {
     settlementNav: "收益結算",
     memberOpen: "開通會員",
     tagline: "智能交易中樞",
-    trust1: "API 非託管",
+    trust1: "無需客戶金鑰",
     trust2: "權限隔離",
     trust3: "多層風控",
     trust4: "全程審計",
@@ -476,9 +476,9 @@ const extraText: Record<Lang, Record<string, string>> = {
     flow2s: "設定不可突破的邊界",
     flow3: "AI 團隊協作",
     flow3s: "生成、質疑與審核方案",
-    flow4: "自動執行管理",
-    flow4s: "下單、監控、止盈止損",
-    systemStatus: "即時系統狀態",
+    flow4: "生成模擬執行證據",
+    flow4s: "Paper 回執與平台 Demo 分開記錄",
+    systemStatus: "Beta 執行邊界",
     systemDesc:
       "市場分析、策略研究、反方審查、風險控制與執行審計正在同步運行。",
     watch: "觀看工作現場",
@@ -495,7 +495,7 @@ const extraText: Record<Lang, Record<string, string>> = {
     settlementNav: "Settlement",
     memberOpen: "Join now",
     tagline: "Intelligent Trading Hub",
-    trust1: "Non-custodial API",
+    trust1: "No customer credentials",
     trust2: "Permission isolation",
     trust3: "Layered risk control",
     trust4: "Full audit trail",
@@ -505,9 +505,9 @@ const extraText: Record<Lang, Record<string, string>> = {
     flow2s: "Set hard safety boundaries",
     flow3: "AI team collaboration",
     flow3s: "Generate, challenge and review",
-    flow4: "Automated execution",
-    flow4s: "Orders, monitoring and exits",
-    systemStatus: "Live system status",
+    flow4: "Produce simulation evidence",
+    flow4s: "Paper and platform Demo receipts stay separate",
+    systemStatus: "Beta execution boundary",
     systemDesc:
       "Market analysis, strategy research, adversarial review, risk control and execution audit are running together.",
     watch: "Watch the team at work",
@@ -524,7 +524,7 @@ const extraText: Record<Lang, Record<string, string>> = {
     settlementNav: "Расчёты",
     memberOpen: "Оформить",
     tagline: "Интеллектуальный торговый центр",
-    trust1: "API без хранения средств",
+    trust1: "Без ключей клиента",
     trust2: "Изоляция прав",
     trust3: "Многоуровневый риск-контроль",
     trust4: "Полный аудит",
@@ -534,9 +534,9 @@ const extraText: Record<Lang, Record<string, string>> = {
     flow2s: "Установить жёсткие границы",
     flow3: "Работа команды ИИ",
     flow3s: "Создание, критика и проверка",
-    flow4: "Автоисполнение",
-    flow4s: "Ордера, контроль и выход",
-    systemStatus: "Состояние системы",
+    flow4: "Сформировать доказательство симуляции",
+    flow4s: "Paper и Demo платформы записываются отдельно",
+    systemStatus: "Граница исполнения Beta",
     systemDesc:
       "Анализ рынка, исследование стратегий, проверка, риск-контроль и аудит исполнения работают синхронно.",
     watch: "Смотреть работу команды",
@@ -553,7 +553,7 @@ const extraText: Record<Lang, Record<string, string>> = {
     settlementNav: "Liquidación",
     memberOpen: "Suscribirse",
     tagline: "Centro de Trading Inteligente",
-    trust1: "API sin custodia",
+    trust1: "Sin credenciales del cliente",
     trust2: "Permisos aislados",
     trust3: "Control de riesgo multicapa",
     trust4: "Auditoría completa",
@@ -563,9 +563,9 @@ const extraText: Record<Lang, Record<string, string>> = {
     flow2s: "Definir límites inviolables",
     flow3: "Colaboración del equipo IA",
     flow3s: "Generar, cuestionar y revisar",
-    flow4: "Ejecución automática",
-    flow4s: "Órdenes, control y salidas",
-    systemStatus: "Estado del sistema",
+    flow4: "Generar evidencia simulada",
+    flow4s: "Paper y Demo de plataforma se registran por separado",
+    systemStatus: "Límite de ejecución Beta",
     systemDesc:
       "El análisis, la investigación, la revisión adversarial, el riesgo y la auditoría operan de forma coordinada.",
     watch: "Ver al equipo trabajando",
@@ -582,7 +582,7 @@ const extraText: Record<Lang, Record<string, string>> = {
     settlementNav: "収益精算",
     memberOpen: "会員登録",
     tagline: "インテリジェント取引ハブ",
-    trust1: "非カストディ型API",
+    trust1: "顧客キー不要",
     trust2: "権限を分離",
     trust3: "多層リスク管理",
     trust4: "完全監査",
@@ -592,9 +592,9 @@ const extraText: Record<Lang, Record<string, string>> = {
     flow2s: "越えられない境界を設定",
     flow3: "AIチーム連携",
     flow3s: "生成・反証・審査",
-    flow4: "自動執行管理",
-    flow4s: "注文・監視・決済",
-    systemStatus: "リアルタイム稼働状況",
+    flow4: "模擬執行証跡を生成",
+    flow4s: "Paper とプラットフォーム Demo を分離記録",
+    systemStatus: "Beta 執行境界",
     systemDesc:
       "市場分析、戦略研究、反証審査、リスク管理、執行監査が連携して稼働中です。",
     watch: "稼働現場を見る",
@@ -611,7 +611,7 @@ const extraText: Record<Lang, Record<string, string>> = {
     settlementNav: "수익 정산",
     memberOpen: "회원 가입",
     tagline: "지능형 트레이딩 허브",
-    trust1: "비수탁 API",
+    trust1: "고객 거래소 키 불필요",
     trust2: "권한 분리",
     trust3: "다층 리스크 관리",
     trust4: "전체 감사",
@@ -621,9 +621,9 @@ const extraText: Record<Lang, Record<string, string>> = {
     flow2s: "넘을 수 없는 한도 설정",
     flow3: "AI 팀 협업",
     flow3s: "생성·반론·검토",
-    flow4: "자동 실행 관리",
-    flow4s: "주문·감시·청산",
-    systemStatus: "실시간 시스템 상태",
+    flow4: "모의 실행 증거 생성",
+    flow4s: "Paper와 플랫폼 Demo를 분리 기록",
+    systemStatus: "Beta 실행 경계",
     systemDesc:
       "시장 분석, 전략 연구, 반론 검토, 위험 관리와 실행 감사가 함께 작동 중입니다.",
     watch: "작업 현장 보기",
@@ -660,7 +660,7 @@ const landingMore: Record<Lang, Record<string, string>> = {
     ctaTitle: "进入AI量化团队的实时工作现场",
     ctaSub: "从三张官方现货策略开始体验 10,000 USDT 独立 paper 组合。",
     browse: "浏览AI策略",
-    footer: "AI量化交易平台产品原型 · 所有行情与绩效均为演示数据",
+    footer: "受邀 Beta · 客户 paper 与平台测试证据不代表真实或未来收益",
     legal: "风险披露　隐私政策　服务条款",
   },
   "zh-TW": {
@@ -685,7 +685,7 @@ const landingMore: Record<Lang, Record<string, string>> = {
     ctaTitle: "進入AI量化團隊的即時工作現場",
     ctaSub: "從三張官方現貨策略開始體驗獨立 paper 組合。",
     browse: "瀏覽AI策略",
-    footer: "AI量化交易平台產品原型 · 所有行情與績效均為演示資料",
+    footer: "受邀 Beta · 客戶 paper 與平台測試證據不代表真實或未來收益",
     legal: "風險披露　隱私政策　服務條款",
   },
   "en-US": {
@@ -713,7 +713,7 @@ const landingMore: Record<Lang, Record<string, string>> = {
       "Explore three official spot strategies through isolated paper portfolios.",
     browse: "Browse AI strategies",
     footer:
-      "AI quantitative trading product prototype · All market and performance data is illustrative",
+      "Invite-only Beta · Customer paper and platform test evidence are not actual or future returns",
     legal: "Risk Disclosure　Privacy　Terms",
   },
   "ru-RU": {
@@ -739,7 +739,7 @@ const landingMore: Record<Lang, Record<string, string>> = {
     ctaTitle: "Откройте рабочее пространство ИИ-команды",
     ctaSub: "Изучите три официальные spot-стратегии в paper-портфелях.",
     browse: "Стратегии ИИ",
-    footer: "Прототип ИИ-платформы · Все данные демонстрационные",
+    footer: "Закрытая Beta · Paper и тестовые доказательства не являются фактической или будущей доходностью",
     legal: "Риски　Конфиденциальность　Условия",
   },
   "es-ES": {
@@ -765,7 +765,7 @@ const landingMore: Record<Lang, Record<string, string>> = {
     ctaTitle: "Entra al espacio de trabajo del equipo IA",
     ctaSub: "Explora tres estrategias spot oficiales con portafolios paper aislados.",
     browse: "Ver estrategias IA",
-    footer: "Prototipo de trading cuantitativo IA · Datos ilustrativos",
+    footer: "Beta por invitación · Paper y pruebas de plataforma no son rendimientos reales ni futuros",
     legal: "Riesgos　Privacidad　Términos",
   },
   "ja-JP": {
@@ -790,7 +790,7 @@ const landingMore: Record<Lang, Record<string, string>> = {
     ctaTitle: "AIクオンツチームの現場へ",
     ctaSub: "3つの公式現物戦略を独立 paper で体験。",
     browse: "AI戦略を見る",
-    footer: "AI量化取引プラットフォーム試作 · すべてデモデータ",
+    footer: "招待制 Beta · Paper とプラットフォーム試験証跡は実績や将来収益ではありません",
     legal: "リスク開示　プライバシー　利用規約",
   },
   "ko-KR": {
@@ -815,7 +815,7 @@ const landingMore: Record<Lang, Record<string, string>> = {
     ctaTitle: "AI 퀀트 팀의 실시간 작업 현장",
     ctaSub: "세 가지 공식 현물 전략을 독립 paper 포트폴리오로 체험하세요.",
     browse: "AI 전략 보기",
-    footer: "AI 퀀트 거래 플랫폼 프로토타입 · 모든 데이터는 데모입니다",
+    footer: "초대 전용 Beta · Paper와 플랫폼 테스트 증거는 실제 또는 미래 수익이 아닙니다",
     legal: "위험 고지　개인정보　이용약관",
   },
 };
@@ -863,7 +863,7 @@ function membershipAction(
     : null;
 }
 
-export default function Home() {
+export default function Home({ canViewMembership = true }: { canViewMembership?: boolean }) {
   const [page, setPage] = useState<Page>(() => {
     if (typeof window === "undefined") return "home";
     const params = new URLSearchParams(window.location.search);
@@ -999,6 +999,7 @@ export default function Home() {
     };
   }, [page]);
   const navigate = (p: Page) => {
+    if (p === "membership" && !canViewMembership) return;
     const allowPostLoginTransition = page === "login" && p === "hall";
     if (p !== "home" && p !== "login" && !viewer && !allowPostLoginTransition) {
       setPage("login");
@@ -1017,7 +1018,7 @@ export default function Home() {
       0,
     );
   };
-  const memberButton = membershipAction(t, viewer?.membership);
+  const memberButton = canViewMembership ? membershipAction(t, viewer?.membership) : null;
   const visiblePage: Page = !authResolved
     ? "home"
     : page !== "home" && page !== "login" && !viewer
@@ -1092,6 +1093,7 @@ export default function Home() {
           viewer={viewer}
           selectedAgent={selectedAgent}
           setSelectedAgent={setSelectedAgent}
+          canViewMembership={canViewMembership}
           onOpenSettings={() => setAccountSettingsOpen(true)}
         />
       )}
@@ -1207,7 +1209,9 @@ function Landing({
           </div>
         </div>
       </section>
-      <section className="flow">
+      {/* This named scroll region must be keyboard-focusable at narrow widths; axe verifies the behavior. */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
+      <section className="flow" tabIndex={0} aria-label="四阶段产品流程，可横向滚动">
         <div>
           <small>01</small>
           <b>{t.flow1}</b>
@@ -1402,6 +1406,7 @@ function Dashboard({
   viewer,
   selectedAgent,
   setSelectedAgent,
+  canViewMembership,
   onOpenSettings,
 }: {
   page: Page;
@@ -1410,6 +1415,7 @@ function Dashboard({
   viewer: AccountViewer | null;
   selectedAgent: string;
   setSelectedAgent: (s: string) => void;
+  canViewMembership: boolean;
   onOpenSettings: () => void;
 }) {
   const tradingLabel =
@@ -1428,7 +1434,7 @@ function Dashboard({
     <div className="dash">
       <aside>
         <SidebarAccount viewer={viewer} t={t} onOpenSettings={onOpenSettings} />
-        {nav.slice(1).map(([p, k, icon]) => (
+        {nav.slice(1).filter(([p]) => p !== "membership" || canViewMembership).map(([p, k, icon]) => (
           <button
             key={p}
             className={page === p ? "active" : ""}
@@ -2435,8 +2441,6 @@ function Login({
     </div>
   );
 }
-// The old component is unreachable from Client routing; it remains temporarily as a migration reference while Operations owns the replacement workspace.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function NotificationCenter() {
   const [open, setOpen] = useState(false),
     [rows, setRows] = useState<Array<Record<string, unknown>>>([]),

@@ -148,7 +148,7 @@ test("quality cleanup removes runtime secrets and records a failed schema drop b
       schema: "quality_e2e_cleanup_failure",
       startedAt: new Date("2026-08-21T00:00:00.000Z"),
       fixturePrepared: true,
-      gateResult: { passed: false, expectedTests: 8, externalWritesEnabled: false },
+      gateResult: { passed: false, expectedTests: 12, externalWritesEnabled: false },
       cleanupSchema: async () => { throw new Error("DROP failed password=plaintext-must-disappear"); },
     }), /schema cleanup failed/i);
     await assert.rejects(() => access(runtimeDirectory), /ENOENT/);

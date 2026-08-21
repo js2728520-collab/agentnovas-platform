@@ -17,6 +17,7 @@ test("page routing contract accepts only the stable routes owned by each audienc
   }
 
   assert.equal(isRivertonPagePath("client", "/workspace"), true);
+  assert.equal(isRivertonPagePath("client", "/legal/consent"), true);
   assert.equal(isRivertonPagePath("client", "/membership/orders"), true);
   assert.equal(isRivertonPagePath("client", "/paper/portfolio-1"), true);
   assert.equal(isRivertonPagePath("client", "/verify-email"), true);
@@ -29,6 +30,7 @@ test("page routing contract accepts only the stable routes owned by each audienc
   assert.equal(isRivertonPagePath("operations", "/access/audit"), true);
   assert.equal(isRivertonPagePath("operations", "/membership-orders/order-1"), true);
   assert.equal(isRivertonPagePath("operations", "/workspace"), false);
+  assert.equal(isRivertonPagePath("operations", "/legal/consent"), false);
   assert.equal(isRivertonPagePath("operations", "/models"), false);
   assert.equal(isRivertonPagePath("operations", "/verify-email"), false);
 
@@ -37,6 +39,7 @@ test("page routing contract accepts only the stable routes owned by each audienc
   assert.equal(isRivertonPagePath("maintenance", "/access/audit"), true);
   assert.equal(isRivertonPagePath("maintenance", "/audit"), true);
   assert.equal(isRivertonPagePath("maintenance", "/workspace"), false);
+  assert.equal(isRivertonPagePath("maintenance", "/legal/consent"), false);
   assert.equal(isRivertonPagePath("maintenance", "/customers"), false);
   assert.equal(isRivertonPagePath("maintenance", "/integrations/email/extra"), false);
 });

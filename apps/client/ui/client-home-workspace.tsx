@@ -2,31 +2,106 @@
 
 import Link from "next/link";
 
-import { hasAnyPermission, type EffectiveAccessPayload, type ViewerPayload } from "@/packages/contracts/src/riverton-ui";
+import type { AiCreditBalance, CursorPage, MembershipEntitlement, MembershipOrder, PaperPortfolio } from "@/packages/contracts/src/commercial-beta";
+import { formatDateTime, hasAnyPermission, type EffectiveAccessPayload, type ViewerPayload } from "@/packages/contracts/src/riverton-ui";
 import { PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
+import { useApiData } from "@/packages/ui/src/use-api-data";
 
+import { deriveClientHomeTask } from "./client-home-model";
 import { ClientPortalShell } from "./client-portal-shell";
+import styles from "./client-home-workspace.module.css";
 
 const modules = [
-  { href: "/membership", permission: "client.membership.view", title: "会员与法务", description: "查看四档计划、七份法务正文、人工付款申请和会员状态。" },
-  { href: "/credits", permission: "client.credits.view", title: "AI 积分", description: "查看与 USDT 钱包分离的可用、预留、累计发放和累计消耗。" },
-  { href: "/paper", permission: "client.paper.view", title: "三卡 Paper", description: "每张官方策略独立 10,000 USDT；只展示服务端模拟持仓与成交。" },
-  { href: "/trading-hall", permission: "client.paper.view", title: "七智能体交易大厅", description: "核对七阶段决策证据、现货边界和真实订单关闭状态。" },
-  { href: "/wallet", permission: "client.wallet.view", title: "只读钱包", description: "查看平台服务余额和不可变账本；Beta 不开放客户充值。" },
+  { href: "/membership", permission: "client.membership.view", title: "会员与法务", description: "核对计划、法务快照、人工付款申请和权益状态。" },
+  { href: "/credits", permission: "client.credits.view", title: "AI 积分", description: "查看与 USDT 钱包分离的可用、预留、发放和消耗。" },
+  { href: "/paper", permission: "client.paper.view", title: "三卡 Paper", description: "查看服务端模拟资金、现货持仓与已实现收益。" },
+  { href: "/trading-hall", permission: "client.paper.view", title: "七智能体交易大厅", description: "核对七阶段决策证据与真实订单关闭边界。" },
+  { href: "/wallet", permission: "client.wallet.view", title: "只读钱包", description: "查看平台服务余额和不可变账本；Beta 不开放充值。" },
 ] as const;
 
+const membershipLabels: Record<string, string> = {
+  TRIAL: "试用中", ACTIVE: "生效中", GRACE: "宽限期", READ_ONLY: "只读", EXPIRED: "已到期", CANCELLED: "已取消",
+};
+const orderLabels: Record<string, string> = {
+  AWAITING_EVIDENCE: "等待凭证", SUBMITTED: "人工复核中", REJECTED: "审核未通过", ACTIVATED: "已激活", CANCELLED: "已取消",
+};
+
+function SummaryCard({ label, value, detail, state, retry }: { label: string; value: string; detail: string; state?: "loading" | "error"; retry?: () => void }) {
+  return <article className={styles.summaryCard} aria-busy={state === "loading" || undefined} role={state === "error" ? "alert" : undefined}>
+    <span>{label}</span>
+    <strong>{value}</strong>
+    <p>{detail}</p>
+    {state === "error" && retry && <button type="button" onClick={retry}>重新读取</button>}
+  </article>;
+}
+
 export function ClientHomeWorkspace({ viewer, access }: { viewer: ViewerPayload; access: EffectiveAccessPayload }) {
+  const canViewMembership = hasAnyPermission(access.permissions, ["client.membership.view"]);
+  const canViewCredits = hasAnyPermission(access.permissions, ["client.credits.view"]);
+  const canViewPaper = hasAnyPermission(access.permissions, ["client.paper.view"]);
+  const membership = useApiData<{ membership: MembershipEntitlement | null }>(canViewMembership ? "/api/membership/me" : null, "会员状态读取失败");
+  const orders = useApiData<CursorPage<MembershipOrder>>(canViewMembership ? "/api/membership/orders?limit=1" : null, "会员申请读取失败");
+  const credits = useApiData<{ credits: AiCreditBalance }>(canViewCredits ? "/api/credits/me" : null, "AI 积分读取失败");
+  const paper = useApiData<{ data: PaperPortfolio[] }>(canViewPaper ? "/api/trading-hall/paper/portfolio" : null, "模拟组合读取失败");
   const visible = modules.filter((module) => hasAnyPermission(access.permissions, [module.permission]));
+  const task = deriveClientHomeTask({
+    canViewMembership,
+    membership: membership.data?.membership,
+    membershipError: membership.error,
+    latestOrder: orders.data ? orders.data.data[0] ?? null : undefined,
+    latestOrderError: orders.error,
+    canViewPaper,
+    portfolios: paper.data?.data,
+    portfolioError: paper.error,
+  });
+
   return <ClientPortalShell viewer={viewer} access={access}>
-    <PageHeading eyebrow="RIVERTON CAPITAL · CONTROLLED BETA" title="客户工作台" description="官方现货策略只运行于服务端 paper 组合；平台 Demo 回执与客户收益完全分离，真实订单、客户密钥和自动支付保持关闭。" actions={<StatusBadge value="INVITE ONLY" />} />
-    <section className="rc-kpi-grid" aria-label="Beta 产品边界">
-      <article><small>官方策略</small><strong>3</strong><span>稳健 / 平衡 / 激进</span></article>
-      <article><small>单卡模拟本金</small><strong>10,000</strong><span>USDT paper，不是真实资产</span></article>
-      <article><small>客户交易所密钥</small><strong>0</strong><span>不上传、不读取、不路由</span></article>
-      <article><small>真实订单</small><strong>关闭</strong><span>现货与永续均不可达</span></article>
+    <PageHeading
+      eyebrow="RIVERTON CAPITAL · CONTROLLED BETA"
+      title="客户工作台"
+      description="从服务端状态开始下一步；模块读取彼此独立，单项失败不会被包装成成功。"
+      actions={<StatusBadge value="INVITE ONLY" />}
+    />
+
+    <section className={styles.task} aria-labelledby="next-task-title" aria-live="polite" role={task.state === "ERROR" ? "alert" : undefined}>
+      <div>
+        <span className={styles.eyebrow}>NEXT VERIFIED STEP · {task.state}</span>
+        <h2 id="next-task-title">{task.title}</h2>
+        <p>{task.description}</p>
+      </div>
+      {task.href && task.action && <Link className={styles.taskLink} href={task.href}>{task.action}</Link>}
     </section>
-    <section className="rc-panel"><header><div><small>PERMISSION-AWARE MODULES</small><h2>可用模块</h2></div><StatusBadge value={`${visible.length} 项`} /></header>
-      <div className="rc-card-grid">{visible.map((module) => <Link className="rc-card-link" href={module.href} key={module.href}><strong>{module.title}</strong><p>{module.description}</p><span>进入模块 →</span></Link>)}</div>
+
+    <section className={styles.summary} aria-label="客户实时状态摘要">
+      {canViewMembership && (membership.error || orders.error
+          ? <SummaryCard label="会员与申请" value="读取失败" detail={membership.error || orders.error} state="error" retry={() => { void membership.refresh(); void orders.refresh(); }} />
+          : membership.loading || orders.loading
+            ? <SummaryCard label="会员与申请" value="正在核对" detail="分别读取权益与最近申请" state="loading" />
+            : <SummaryCard label="会员与申请" value={membership.data?.membership ? membershipLabels[membership.data.membership.status] ?? membership.data.membership.status : "尚未激活"} detail={membership.data?.membership ? `${membership.data.membership.planCode} · ${membership.data.membership.expiresAt ? `到期 ${formatDateTime(membership.data.membership.expiresAt)}` : "长期有效"}` : orders.data?.data[0] ? `最近申请：${orderLabels[orders.data.data[0].status] ?? orders.data.data[0].status}` : "当前没有申请记录"} />)}
+      {canViewCredits && (credits.error
+          ? <SummaryCard label="AI 积分" value="读取失败" detail={credits.error} state="error" retry={credits.refresh} />
+          : credits.loading || !credits.data
+            ? <SummaryCard label="AI 积分" value="正在核对" detail="积分与钱包余额完全分离" state="loading" />
+            : <SummaryCard label="AI 积分" value={credits.data.credits.available} detail={`预留 ${credits.data.credits.reserved} · 账本版本 ${credits.data.credits.version}`} />)}
+      {canViewPaper && (paper.error
+          ? <SummaryCard label="官方模拟组合" value="读取失败" detail={paper.error} state="error" retry={paper.refresh} />
+          : paper.loading || !paper.data
+            ? <SummaryCard label="官方模拟组合" value="正在核对" detail="以服务端返回为准" state="loading" />
+            : <SummaryCard label="官方模拟组合" value={`${paper.data.data.length} / 3`} detail={`${paper.data.data.filter((item) => item.status === "ACTIVE").length} 张允许新开仓 · 不代表 Worker 正在运行`} />)}
+    </section>
+
+    <aside className={styles.boundary} role="note">
+      <strong>Beta 执行边界</strong>
+      <p>客户不上传交易所密钥；客户 paper 与平台 Demo 回执分离；真实交易、自动支付和客户充值保持关闭。这里是产品边界说明，不是收益或运行 KPI。</p>
+    </aside>
+
+    <section className={styles.modules} aria-labelledby="client-modules-title">
+      <header><div><span className={styles.eyebrow}>PERMISSION-AWARE MODULES</span><h2 id="client-modules-title">已授权模块</h2></div><StatusBadge value={`${visible.length} 项`} /></header>
+      <div className={styles.moduleList}>{visible.map((module, index) => <Link href={module.href} key={module.href}>
+        <span className={styles.moduleIndex}>{String(index + 1).padStart(2, "0")}</span>
+        <span><strong>{module.title}</strong><small>{module.description}</small></span>
+        <b aria-hidden="true">→</b>
+      </Link>)}</div>
     </section>
   </ClientPortalShell>;
 }

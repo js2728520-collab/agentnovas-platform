@@ -2187,6 +2187,44 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/membership/legal-consent",
+    "source": "app/api/membership/legal-consent/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/membership/legal-consent",
+    "source": "app/api/membership/legal-consent/route.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true
+  },
+  {
+    "method": "GET",
     "route": "/api/membership/me",
     "source": "app/api/membership/me/route.ts",
     "audiences": [
@@ -4011,13 +4049,15 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireAccessPermission"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.wallet.view"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.wallet.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
@@ -4064,13 +4104,15 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireAccessPermission"
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.wallet.view"
     ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
+    "permissionMfa": {
+      "client.wallet.view": "none"
+    },
+    "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",

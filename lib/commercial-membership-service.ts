@@ -118,6 +118,118 @@ export async function getCurrentCommercialLegalDocuments(pool: Pool) {
   }
 }
 
+type LegalConsentDocumentRow = {
+  id: string;
+  document_type: string;
+  version: number;
+  content_sha256: string;
+  content_locale: string | null;
+  content_markdown: string | null;
+  effective_at: Date | string;
+  accepted_at: Date | string | null;
+};
+
+export async function readCommercialLegalConsent(pool: Pick<Pool, "query">, userId: string) {
+  const result = await pool.query<LegalConsentDocumentRow>(
+    `SELECT d.id,d.document_type,d.version,d.content_sha256,d.content_locale,d.content_markdown,d.effective_at,a.accepted_at
+       FROM commercial_legal_document_versions d
+       LEFT JOIN commercial_legal_acceptances a ON a.document_version_id=d.id AND a.user_id=$1
+      WHERE d.status='active' AND d.effective_at<=now() AND d.approved_at IS NOT NULL
+      ORDER BY d.document_type`,
+    [userId],
+  );
+  const byType = new Map(result.rows.map((row) => [row.document_type, row]));
+  const configurationComplete = result.rows.length === requiredLegalDocumentTypes.length
+    && requiredLegalDocumentTypes.every((type) => byType.has(type))
+    && result.rows.every((row) => hasReadableCommercialLegalContent(row));
+  return {
+    requiredLegalDocuments: result.rows.map((row) => ({
+      id: row.id,
+      type: row.document_type,
+      version: row.version,
+      contentSha256: row.content_sha256,
+      locale: hasReadableCommercialLegalContent(row) ? row.content_locale : null,
+      contentMarkdown: hasReadableCommercialLegalContent(row) ? row.content_markdown : null,
+      effectiveAt: new Date(row.effective_at).toISOString(),
+      acceptedAt: row.accepted_at ? new Date(row.accepted_at).toISOString() : null,
+    })),
+    configurationComplete,
+    consentComplete: configurationComplete && result.rows.every((row) => row.accepted_at !== null),
+  };
+}
+
+export async function requireCurrentCommercialLegalConsent(pool: Pick<Pool, "query">, userId: string) {
+  const status = await readCommercialLegalConsent(pool, userId);
+  if (!status.configurationComplete) {
+    throw new ResearchApiError(
+      "LEGAL_CONFIGURATION_INCOMPLETE",
+      "当前法务文件尚未完成七项正文与审批配置",
+      503,
+      { requiredDocumentTypes: requiredLegalDocumentTypes },
+    );
+  }
+  if (!status.consentComplete) {
+    throw new ResearchApiError("LEGAL_CONSENT_REQUIRED", "请先阅读并确认当前七项法务文件版本", 403);
+  }
+  return status;
+}
+
+export async function acceptCurrentCommercialLegalDocuments(
+  pool: Pool,
+  input: {
+    userId: string;
+    acceptedDocumentVersionIds: string[];
+    idempotencyKey: string;
+    trustedIp?: string | null;
+    userAgent?: string;
+  },
+) {
+  return inTransaction(pool, async (client) => {
+    const currentLegal = await currentLegalDocuments(client);
+    const currentIds = currentLegal.map((row) => row.id).sort();
+    const suppliedIds = [...new Set(input.acceptedDocumentVersionIds)].sort();
+    if (suppliedIds.length !== currentIds.length || suppliedIds.some((id, index) => id !== currentIds[index])) {
+      throw new ResearchApiError(
+        "LEGAL_ACCEPTANCE_REQUIRED",
+        "必须逐项接受当前七项法务文件版本",
+        422,
+        { requiredDocumentVersionIds: currentIds },
+      );
+    }
+    await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [input.userId]);
+    const existing = await readCommercialLegalConsent(client, input.userId);
+    if (existing.consentComplete) return existing;
+    const claim = await claimCommercialIdempotency(client, {
+      operation: "commercial.legal.accept",
+      key: input.idempotencyKey,
+      actorUserId: input.userId,
+      subjectType: "user",
+      subjectId: input.userId,
+      resourceId: currentIds.join(","),
+      stage: "accept",
+      payload: { acceptedDocumentVersionIds: currentIds },
+      sourceType: "commercial_legal_bundle",
+      sourceId: currentIds.join(","),
+    });
+    if (claim.replayed) return claim.response as Awaited<ReturnType<typeof readCommercialLegalConsent>>;
+    for (const documentId of currentIds) {
+      await client.query(
+        `INSERT INTO commercial_legal_acceptances(id,user_id,document_version_id,ip_address,user_agent)
+         VALUES($1,$2,$3,$4,$5) ON CONFLICT(user_id,document_version_id) DO NOTHING`,
+        [randomUUID(), input.userId, documentId, input.trustedIp ?? null, input.userAgent?.slice(0, 512) ?? null],
+      );
+    }
+    await client.query(
+      `INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json)
+       VALUES($1,$2,'commercial_legal.accept','user',$2,$3,$4)`,
+      [randomUUID(), input.userId, JSON.stringify({ consentComplete: false }), JSON.stringify({ consentComplete: true, acceptedDocumentVersionIds: currentIds })],
+    );
+    const response = await readCommercialLegalConsent(client, input.userId);
+    await completeCommercialIdempotency(client, "commercial.legal.accept", input.idempotencyKey, response);
+    return response;
+  });
+}
+
 export async function createMembershipOrder(
   pool: Pool,
   input: {

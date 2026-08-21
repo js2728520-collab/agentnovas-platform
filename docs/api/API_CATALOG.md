@@ -1,7 +1,7 @@
 # API 目录与迁移状态
 
 日期：2026-08-21
-范围：当前包含 159 个 route 文件、203 个 HTTP method handler，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明。
+范围：当前包含 160 个 route 文件、205 个 HTTP method handler，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明。
 
 ## 1. 使用说明
 
@@ -174,6 +174,7 @@
 
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
+| `/api/membership/legal-consent` | GET, POST | C | KEEP；所有已登录 Client 可读取；精确确认当前七正文，写入同源、幂等、独立审计，不创建订单或付款 |
 | `/api/membership/plans` | GET | C | KEEP；四档 v1 与七份可读正文；正文缺失/哈希不符时禁止创建订单 |
 | `/api/membership/me` | GET | C | KEEP；trial/entitlement/到期状态 |
 | `/api/membership/orders` | GET, POST | C | KEEP；人工付款，无地址/二维码，稳定幂等 |

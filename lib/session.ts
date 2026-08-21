@@ -2,6 +2,10 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { sessions, users } from "@/db/schema";
 import { sha256 } from "@/lib/auth";
+import { requireCommercialLegalConsentGate } from "@/lib/commercial-legal-consent-gate";
+import { clientRouteRequiresLegalConsent } from "@/lib/commercial-legal-consent-policy";
+import { getPostgresPool } from "@/lib/postgres";
+import { ResearchApiError } from "@/lib/research-errors";
 import { cookieNameForAudience, resolveAppAudienceStrict, sessionPolicyForAudience } from "@/lib/riverton-apps";
 import { evaluateSessionAssurance } from "@/lib/session-assurance";
 
@@ -79,6 +83,10 @@ export async function requireUser(request: Request, roles?: CurrentUser["role"][
   const user = await currentUser(request);
   if (!user) throw new Response(JSON.stringify({ error: "请先登录" }), { status: 401, headers: { "content-type": "application/json" } });
   if (roles && !roles.includes(user.role)) throw new Response(JSON.stringify({ error: "无权执行此操作" }), { status: 403, headers: { "content-type": "application/json" } });
+  const audience = resolveAppAudienceStrict({ host: request.headers.get("host") ?? undefined });
+  if (audience === "client" && user.role === "customer" && clientRouteRequiresLegalConsent(new URL(request.url).pathname)) {
+    await requireCommercialLegalConsentGate(await getPostgresPool(), user.id);
+  }
   return user;
 }
 
@@ -86,9 +94,13 @@ export function responseError(error: unknown, suppliedRequestId?: string) {
   const requestId = suppliedRequestId && /^[A-Za-z0-9._:-]{8,128}$/.test(suppliedRequestId)
     ? suppliedRequestId
     : crypto.randomUUID();
-  const status = error instanceof Response && error.status >= 400 && error.status <= 599 ? error.status : 500;
-  const code = status === 401 ? "AUTH_REQUIRED" : status === 403 ? "FORBIDDEN" : status === 404 ? "NOT_FOUND" : "INTERNAL_ERROR";
-  const message = status === 401 ? "请先登录" : status === 403 ? "无权执行此操作" : status === 404 ? "请求的资源不存在" : "服务器处理失败";
+  const domainError = error instanceof ResearchApiError ? error : null;
+  const status = domainError?.status
+    ?? (error instanceof Response && error.status >= 400 && error.status <= 599 ? error.status : 500);
+  const code = domainError?.code
+    ?? (status === 401 ? "AUTH_REQUIRED" : status === 403 ? "FORBIDDEN" : status === 404 ? "NOT_FOUND" : "INTERNAL_ERROR");
+  const message = domainError?.message
+    ?? (status === 401 ? "请先登录" : status === 403 ? "无权执行此操作" : status === 404 ? "请求的资源不存在" : "服务器处理失败");
   return Response.json({ error: { code, message }, requestId }, {
     status,
     headers: { "cache-control": "no-store", "x-request-id": requestId },

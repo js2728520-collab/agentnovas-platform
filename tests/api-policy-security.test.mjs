@@ -16,6 +16,7 @@ import {
 } from "../lib/api-policy.ts";
 import { researchErrorResponse } from "../lib/research-error-response.ts";
 import { ResearchApiError } from "../lib/research-errors.ts";
+import { CLIENT_LEGAL_GATE_EXEMPT_ROUTES, clientRouteRequiresLegalConsent } from "../lib/commercial-legal-consent-policy.ts";
 import { contentSecurityPolicy } from "../lib/content-security-policy.ts";
 import { resolveAppAudienceStrict } from "../lib/riverton-apps.ts";
 import { SENSITIVE_PERMISSION_KEYS } from "../lib/rbac.ts";
@@ -138,6 +139,8 @@ test("commercial and official paper client routes declare exact RBAC permissions
   const expected = new Map([
     ["GET /api/credits/me", "client.credits.view"],
     ["GET /api/membership/me", "client.membership.view"],
+    ["GET /api/wallet/balances", "client.wallet.view"],
+    ["GET /api/wallet/ledger", "client.wallet.view"],
     ["POST /api/membership/orders", "client.membership.order"],
     ["GET /api/trading-hall", "client.paper.view"],
     ["GET /api/trading-hall/paper/portfolio", "client.paper.view"],
@@ -151,6 +154,52 @@ test("commercial and official paper client routes declare exact RBAC permissions
     assert.equal(entry?.authentication, "permission", key);
     assert.deepEqual(entry?.permissionKeys, [permission], key);
   }
+});
+
+test("client permission enforcement also requires the current legal bundle", async () => {
+  const source = await readFile(new URL("../lib/access-control.ts", import.meta.url), "utf8");
+  const ai = await readFile(new URL("../lib/ai-api.ts", import.meta.url), "utf8");
+  const research = await readFile(new URL("../lib/research-api.ts", import.meta.url), "utf8");
+  const session = await readFile(new URL("../lib/session.ts", import.meta.url), "utf8");
+  assert.match(source, /definition\.appId === "client"[\s\S]*requireCommercialLegalConsentGate\(pool, user\.id\)/);
+  assert.match(ai, /requireCommercialLegalConsentGate\(await getPostgresPool\(\), user\.id\)/);
+  assert.match(research, /user\.role === "customer"[\s\S]*requireCommercialLegalConsentGate\(await getPostgresPool\(\), user\.id\)/);
+  assert.match(session, /audience === "client"[\s\S]*clientRouteRequiresLegalConsent[\s\S]*requireCommercialLegalConsentGate/);
+});
+
+test("every Client requireUser session route passes the central legal gate unless explicitly identity-exempt", () => {
+  assert.deepEqual([...CLIENT_LEGAL_GATE_EXEMPT_ROUTES].sort(), [
+    "/api/access/me/effective",
+    "/api/account/password",
+    "/api/account/profile",
+    "/api/membership/legal-consent",
+  ]);
+  assert.equal(clientRouteRequiresLegalConsent("/api/account/profile"), false);
+  assert.equal(clientRouteRequiresLegalConsent("/api/account/llm-config"), true);
+  assert.equal(clientRouteRequiresLegalConsent("/api/market/watchlist"), true);
+  assert.equal(clientRouteRequiresLegalConsent("/api/ai/conversations"), true);
+  for (const entry of API_ROUTE_INVENTORY.filter((candidate) =>
+    candidate.authentication === "session"
+    && candidate.audiences.includes("client")
+    && candidate.sessionAuthHelpers.includes("requireUser"))) {
+    assert.equal(
+      clientRouteRequiresLegalConsent(entry.route),
+      !CLIENT_LEGAL_GATE_EXEMPT_ROUTES.has(entry.route),
+      `${entry.method} ${entry.route}`,
+    );
+  }
+});
+
+test("standalone legal consent is a client session gate with same-origin protection on writes", () => {
+  const read = apiPolicyForRoute("/api/membership/legal-consent", "GET");
+  const write = apiPolicyForRoute("/api/membership/legal-consent", "POST");
+  assert.equal(read.authentication, "session");
+  assert.deepEqual(read.audiences, ["client"]);
+  assert.equal(read.requiresSameOrigin, false);
+  assert.equal(write.authentication, "session");
+  assert.deepEqual(write.audiences, ["client"]);
+  assert.equal(write.requiresSameOrigin, true);
+  assert.equal(write.sensitivity, "sensitive");
 });
 
 test("payment webhook stays disabled until a provider verifier is implemented", () => {
@@ -321,6 +370,20 @@ test("domain error envelopes carry the bounded request id in body and headers", 
     error: { code: "VALIDATION_ERROR", message: "输入无效", details: { fields: ["planCode"] } },
     requestId: "commercial-request-123",
   });
+});
+
+test("Response-based authentication failures retain safe 401 and 403 envelopes", async () => {
+  for (const [status, code, message] of [
+    [401, "AUTH_REQUIRED", "请先登录"],
+    [403, "FORBIDDEN", "无权执行此操作"],
+  ]) {
+    const response = researchErrorResponse(new Response("do not echo this body", { status }), "auth-request-123");
+    assert.equal(response.status, status);
+    assert.deepEqual(await response.json(), {
+      error: { code, message },
+      requestId: "auth-request-123",
+    });
+  }
 });
 
 test("Route Handlers preserve the proxy request id in domain error responses", async () => {

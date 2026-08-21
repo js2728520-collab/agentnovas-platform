@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 
 import { currentSession, type CurrentUser } from "@/lib/session";
+import { requireCommercialLegalConsentGate } from "@/lib/commercial-legal-consent-gate";
 import { ResearchApiError } from "@/lib/research-errors";
 import { getPostgresPool } from "@/lib/postgres";
 import { loadEffectiveAccess, type EffectivePermissionGrant } from "@/lib/effective-access";
@@ -42,6 +43,7 @@ export async function requireAccessPermission(request: Request, permissionKey: s
   if (definition.appId === "maintenance" && grant.scope !== "PLATFORM") {
     throw new ResearchApiError("FORBIDDEN", "运维权限必须显式授予平台范围", 403, { permissionKey });
   }
+  if (definition.appId === "client") await requireCommercialLegalConsentGate(pool, user.id);
   return { user, access, scope: grant.scope, organizationIds: grant.organizationIds };
 }
 

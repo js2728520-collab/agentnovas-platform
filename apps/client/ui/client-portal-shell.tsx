@@ -6,6 +6,7 @@ import { ConsoleShell } from "@/packages/ui/src/console-shell";
 const navigation = [
   { href: "/", label: "客户工作台", icon: "⌂" },
   { href: "/workspace", label: "策略与 Agent", icon: "↗", requiredPermissions: ["client.paper.view"] },
+  { href: "/legal/consent", label: "法务文件", icon: "✓" },
   { href: "/membership", label: "会员中心", icon: "◇", requiredPermissions: ["client.membership.view"] },
   { href: "/credits", label: "AI 积分", icon: "◎", requiredPermissions: ["client.credits.view"] },
   { href: "/paper", label: "模拟组合", icon: "▥", requiredPermissions: ["client.paper.view"] },
@@ -16,5 +17,5 @@ const navigation = [
 ];
 
 export function ClientPortalShell({ viewer, access, children }: { viewer: ViewerPayload; access: EffectiveAccessPayload; children: React.ReactNode }) {
-  return <ConsoleShell appName="客户端资产中心" appKind="client" navigation={navigation} viewer={viewer} access={access}>{children}</ConsoleShell>;
+  return <ConsoleShell appName="客户端资产中心" appKind="client" statusText="客户资产与通知中心" accountLabel="客户账户" navigation={navigation} viewer={viewer} access={access}>{children}</ConsoleShell>;
 }

@@ -311,7 +311,7 @@ export async function runQualityE2e({
       fixturePrepared: Boolean(fixture),
       gateResult: {
         passed: e2ePassed,
-        expectedTests: 8,
+        expectedTests: 12,
         externalWritesEnabled: false,
       },
       cleanupSchema: () => cleanupQualityDatabaseFixture({ adminDatabaseUrl, schema }),

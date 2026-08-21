@@ -59,6 +59,7 @@ test("quality database fixture is isolated, complete, secret-safe, and disposabl
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM sessions WHERE revoked_at IS NULL")).rows[0].count), 4);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM commercial_legal_document_versions WHERE status='active'")).rows[0].count), 7);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM commercial_legal_document_versions WHERE status='active' AND content_markdown IS NOT NULL AND content_locale='en'")).rows[0].count), 7);
+      assert.equal(Number((await pool.query("SELECT count(*) AS count FROM commercial_legal_acceptances WHERE user_id=$1", [fixture.identities.client.userId])).rows[0].count), 7);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM user_role_assignments WHERE status='active'")).rows[0].count), 4);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM notification_provider_configs WHERE status <> 'disabled'")).rows[0].count), 0);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM platform_demo_accounts")).rows[0].count), 0);

@@ -9,6 +9,8 @@ import { visibleNavigation, type ConsoleNavigationItem, type EffectiveAccessPayl
 export function ConsoleShell({
   appName,
   appKind,
+  statusText,
+  accountLabel,
   navigation,
   viewer,
   access,
@@ -16,12 +18,15 @@ export function ConsoleShell({
 }: {
   appName: string;
   appKind: "operations" | "maintenance" | "client";
+  statusText: string;
+  accountLabel: string;
   navigation: ConsoleNavigationItem[];
   viewer: ViewerPayload;
   access: EffectiveAccessPayload;
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [compactNavigation, setCompactNavigation] = useState(false);
   const pathname = usePathname() || "/";
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
@@ -32,10 +37,23 @@ export function ConsoleShell({
   const displayName = viewer.nickname || viewer.username || viewer.email.split("@")[0];
 
   useEffect(() => {
-    if (!menuOpen) return;
+    const media = window.matchMedia("(max-width: 900px)");
+    const update = () => {
+      setCompactNavigation(media.matches);
+      if (!media.matches) setMenuOpen(false);
+    };
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen || !compactNavigation) return;
     const drawer = drawerRef.current;
     const returnButton = menuButtonRef.current;
     if (!drawer) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const focusable = () => Array.from(drawer.querySelectorAll<HTMLElement>(
       'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
     ));
@@ -63,9 +81,10 @@ export function ConsoleShell({
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
       returnButton?.focus();
     };
-  }, [menuOpen]);
+  }, [compactNavigation, menuOpen]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
@@ -75,11 +94,11 @@ export function ConsoleShell({
   return <main className={`rc-console rc-${appKind}`}>
     <a className="rc-skip-link" href="#rc-console-content">跳到主要内容</a>
     <header className="rc-mobile-bar">
-      <button ref={menuButtonRef} type="button" aria-expanded={menuOpen} aria-controls="rc-console-nav" onClick={() => setMenuOpen((value) => !value)}>菜单</button>
+      <button ref={menuButtonRef} type="button" aria-label={menuOpen ? "关闭导航菜单" : "打开导航菜单"} aria-expanded={menuOpen} aria-controls="rc-console-nav" onClick={() => setMenuOpen((value) => !value)}>菜单</button>
       <strong>{appName}</strong>
     </header>
     <button className={`rc-console-backdrop ${menuOpen ? "is-open" : ""}`} type="button" tabIndex={-1} aria-label="关闭导航菜单" onClick={() => setMenuOpen(false)} />
-    <aside ref={drawerRef} id="rc-console-nav" className={menuOpen ? "is-open" : ""} role={menuOpen ? "dialog" : undefined} aria-modal={menuOpen || undefined} aria-label={`${appName}菜单`}>
+    <aside ref={drawerRef} id="rc-console-nav" className={menuOpen ? "is-open" : ""} inert={compactNavigation && !menuOpen ? true : undefined} aria-hidden={compactNavigation && !menuOpen ? true : undefined} role={compactNavigation && menuOpen ? "dialog" : undefined} aria-modal={compactNavigation && menuOpen ? true : undefined} aria-label={`${appName}菜单`}>
       <Link className="rc-console-brand" href="/"><span>R</span><b>Riverton Capital<small>{appName}</small></b></Link>
       <nav aria-label={`${appName}导航`}>
         {items.map((item) => {
@@ -90,7 +109,7 @@ export function ConsoleShell({
         })}
       </nav>
       <footer>
-        <div><b>{displayName}</b><small>{viewer.role} · {access.source === "rbac" ? "RBAC" : "兼容角色"}</small></div>
+        <div><b>{displayName}</b><small>{accountLabel}</small></div>
         <button type="button" onClick={() => void logout()}>退出</button>
       </footer>
     </aside>
@@ -99,7 +118,7 @@ export function ConsoleShell({
         <nav className="rc-breadcrumb" aria-label="面包屑">
           <Link href="/">{appName}</Link><span aria-hidden="true">/</span><span aria-current="page">{currentItem?.label ?? "当前页面"}</span>
         </nav>
-        <small><i />{appKind === "operations" ? "运营数据按权限范围展示" : appKind === "maintenance" ? "配置密钥不会在浏览器回显" : "客户资产与通知中心"}</small>
+        <small><i />{statusText}</small>
       </div>
       <div id="rc-console-content" className="rc-console-content" tabIndex={-1}>{children}</div>
     </section>
