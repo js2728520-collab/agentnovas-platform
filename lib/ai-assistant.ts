@@ -6,6 +6,33 @@ import {
   type AssistantContext,
 } from "@/lib/ai-chat-protocol";
 import { boundedAiHistory, requestAiText, type AiProviderMessage } from "@/lib/ai-provider";
+import { strategyDraftFromAiMessage } from "@/lib/ai-strategy-save";
+import { StrategyDslValidationError } from "@/packages/domain/src/strategy-dsl";
+
+/**
+ * 策略 DSL 修复循环的重试次数（不含首次生成）。
+ *
+ * 定为 1 是权衡的结果：把校验错误明确回喂给模型的那一次修正拿走了绝大部分收益，
+ * 而每多一次尝试就要多预留一份 Credits——预留是临时冻结，未用部分会退回，
+ * 但余额紧张的客户会因为冻结额度变大而被判「余额不足」。
+ *
+ * 改这个常量必须同步改 app/api/ai/conversations/[id]/messages 的预留倍数，
+ * 否则结算会因为实耗超过预留而被拒（AI_CREDIT_RESERVATION_EXCEEDED）。
+ */
+export const STRATEGY_REPAIR_ATTEMPTS = 1;
+
+/** 一次回复里的策略 DSL 是否能通过保存时的那道校验。 */
+function strategyDslIssues(text: string): string[] | null {
+  try {
+    strategyDraftFromAiMessage(text);
+    return null;
+  } catch (error) {
+    if (error instanceof StrategyDslValidationError) {
+      return error.issues.map((issue) => `${issue.path}: ${issue.message}`);
+    }
+    return [error instanceof Error ? error.message : "策略 DSL 无法解析"];
+  }
+}
 
 export type AssistantHistoryMessage = { role: "user" | "assistant"; content: string };
 
@@ -51,10 +78,47 @@ export async function generateAssistantReply(options: {
     { role: "system", content: system },
     ...boundedAiHistory(options.history),
   ];
-  const response = await requestAiText(options.config, messages, { maxOutputTokens: 900, temperature: 0.15 });
+  let response = await requestAiText(options.config, messages, { maxOutputTokens: 900, temperature: 0.15 });
+  const metering = { ...response.metering };
+  const usageIds = [response.metering.usageId];
+
+  // 策略 DSL 修复循环。
+  //
+  // 校验用的是 strategyDraftFromAiMessage——**保存时的同一道闸门**。用别的校验
+  // 会「修复」出一个仍然存不进去的东西。不合格时把具体 issue 回喂给模型重来，
+  // 而不是让客户看到 422 再自己重问。
+  if (intent === "strategy_research") {
+    for (let attempt = 0; attempt < STRATEGY_REPAIR_ATTEMPTS; attempt += 1) {
+      const issues = strategyDslIssues(response.text);
+      if (!issues) break;
+      const repair = await requestAiText(options.config, [
+        ...messages,
+        { role: "assistant", content: response.text },
+        {
+          role: "user",
+          content: `上一条回复里的 JSON DSL 未通过平台校验：\n${issues.join("\n")}\n\n`
+            + "请按同样的回答结构重新输出完整回复（结论、关键证据、失效条件、下一步），"
+            + "并修正 JSON DSL 草稿使其满足平台规范。只修正被指出的问题，不要改变策略意图。",
+        },
+      ], { maxOutputTokens: 900, temperature: 0.15 });
+      usageIds.push(repair.metering.usageId);
+      metering.inputTokens += repair.metering.inputTokens;
+      metering.outputTokens += repair.metering.outputTokens;
+      metering.providerRequestId = repair.metering.providerRequestId;
+      // 只在修复结果确实能通过校验时才采用；否则保留原回复，
+      // 它至少还带着分析过程，而修复稿可能两头不着。
+      if (!strategyDslIssues(repair.text)) {
+        response = repair;
+        break;
+      }
+    }
+  }
+  // 多次调用的用量必须合并上报，否则结算会按单次记账而少扣客户的钱。
+  metering.usageId = usageIds.join("+");
+
   return {
     text: response.text,
-    metering: response.metering,
+    metering,
     mode: "ai_provider" as const,
     provider: options.config.providerName,
     model: options.config.model,

@@ -13,6 +13,10 @@ import {
   type StrategyDsl,
   type StrategyCandle,
 } from "../packages/domain/src/backtest-engine.ts";
+import {
+  evaluateStrategySmokeTest,
+  type StrategySmokeVerdict,
+} from "../packages/domain/src/strategy-smoke-test.ts";
 
 export async function loadBacktestCandles(
   specification: Pick<StrategyDsl, "symbol" | "timeframe">,
@@ -47,4 +51,37 @@ export async function runHistoricalBacktest(
   const options = normalizeBacktestOptions(rawOptions);
   const { candles, provider } = await loadBacktestCandles(specification, options.candleLimit);
   return runBacktestOnCandles(specification, candles, { ...options, provider });
+}
+
+/**
+ * 保存策略前的冒烟回测。
+ *
+ * 只回答「这条策略能不能跑起来」，不看收益。判定规则在
+ * packages/domain/src/strategy-smoke-test.ts，可脱离网络单测。
+ *
+ * 三种结局分得很清楚：
+ * - passed —— 跑完且触发过信号；
+ * - failed —— 引擎抛错、触发强平，或跑完一根信号都没有。策略本身的问题；
+ * - skipped —— 取不到行情。**不是策略的问题，但也不能当作通过**（INV-6）。
+ */
+export async function runStrategySmokeTest(rawSpecification: unknown): Promise<StrategySmokeVerdict> {
+  let specification;
+  let candles: StrategyCandle[];
+  try {
+    specification = normalizeBacktestDsl(rawSpecification);
+  } catch (error) {
+    return { status: "failed", reason: error instanceof Error ? error.message : "策略规格无法归一化", signals: 0 };
+  }
+  const options = normalizeBacktestOptions({});
+  try {
+    ({ candles } = await loadBacktestCandles(specification, options.candleLimit));
+  } catch (error) {
+    return { status: "skipped", reason: error instanceof Error ? error.message : "历史行情不可用" };
+  }
+  try {
+    const result = await runBacktestOnCandles(specification, candles, { ...options, provider: "smoke_test" });
+    return evaluateStrategySmokeTest(result);
+  } catch (error) {
+    return { status: "failed", reason: error instanceof Error ? error.message : "回测引擎执行失败", signals: 0 };
+  }
 }

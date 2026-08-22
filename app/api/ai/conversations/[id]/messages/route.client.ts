@@ -19,6 +19,8 @@ import {
   reconcileExpiredClientAiInferences,
 } from "@/lib/client-ai-inference-service";
 import { buildAssistantContext } from "@/lib/ai-context";
+import { STRATEGY_REPAIR_ATTEMPTS } from "@/lib/ai-assistant";
+import { classifyAssistantIntent } from "@/lib/ai-chat-protocol";
 import { resolveClientPlatformLlmConfig } from "@/lib/client-platform-llm";
 import { idempotencyKey } from "@/lib/commercial-request-validation";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
@@ -112,7 +114,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       idempotencyKey: key,
       payload: requestPayload,
       modelRevisionId: config.revisionId,
-      estimatedCredits: estimatedClientAiCredits(900),
+      // 策略研究意图可能触发 DSL 修复循环（见 lib/ai-assistant.ts）。
+      // 预留必须覆盖最坏情况下的全部调用，否则结算会因实耗超过预留被拒。
+      // 预留是临时冻结，未用部分在结算时原路退回。
+      estimatedCredits: estimatedClientAiCredits(900)
+        * BigInt(classifyAssistantIntent(content) === "strategy_research" ? 1 + STRATEGY_REPAIR_ATTEMPTS : 1),
       requestId: correlationRequestId,
     });
     if (claimed.state === "succeeded") return streamChatResult(storedChatResult(claimed.result));
