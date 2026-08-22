@@ -358,8 +358,11 @@
 .rc-state.rc-denied { border-color: color-mix(in oklab, var(--rv-warning) 34%, transparent); }
 
 .rc-loading {
-  min-height: 60vh;
+  /* 三个 8px 圆点只占 24px，容器却是内容区满宽。没有 justify-content 时
+     grid 默认贴左，圆点和文字会挤在左上角，下面留一大片空白。 */
+  min-height: 240px;
   align-content: center;
+  justify-content: center;
   grid-template-columns: repeat(3, 8px);
   border: 0;
   background: transparent;
@@ -375,6 +378,9 @@
 .rc-loading i:nth-child(3) { animation-delay: .4s; }
 .rc-loading span {
   grid-column: 1 / -1;
+  /* 文字比圆点宽得多，必须允许溢出栅格并自己居中，否则会被压成一列。 */
+  justify-self: center;
+  white-space: nowrap;
   color: var(--rv-muted-foreground);
   font-size: 13px;
 }

@@ -8,21 +8,20 @@ import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-s
 import { useAppSession } from "@/packages/ui/src/use-app-session";
 import { hasAnyPermission, type ConsoleNavigationGroup } from "@/packages/contracts/src/riverton-ui";
 
-const workspaceLoading = () => <LoadingState label="正在加载运维模块…" />;
-const EmailIntegrationWorkspace = dynamic(() => import("./email-integration-workspace").then((module) => module.EmailIntegrationWorkspace), { loading: workspaceLoading });
-const DemoExchangesWorkspace = dynamic(() => import("./demo-exchanges-workspace").then((module) => module.DemoExchangesWorkspace), { loading: workspaceLoading });
-const EmergencyControlWorkspace = dynamic(() => import("./emergency-control-workspace").then((module) => module.EmergencyControlWorkspace), { loading: workspaceLoading });
-const IntegrationsOverview = dynamic(() => import("./integrations-overview").then((module) => module.IntegrationsOverview), { loading: workspaceLoading });
-const ModelsWorkspace = dynamic(() => import("./models-workspace").then((module) => module.ModelsWorkspace), { loading: workspaceLoading });
-const PaymentIntegrationWorkspace = dynamic(() => import("./payment-integration-workspace").then((module) => module.PaymentIntegrationWorkspace), { loading: workspaceLoading });
-const PlatformSettingsWorkspace = dynamic(() => import("./platform-settings-workspace").then((module) => module.PlatformSettingsWorkspace), { loading: workspaceLoading });
-const CommercialDisclosuresWorkspace = dynamic(() => import("./commercial-disclosures-workspace").then((module) => module.CommercialDisclosuresWorkspace), { loading: workspaceLoading });
-const SystemHealthWorkspace = dynamic(() => import("./system-health-workspace").then((module) => module.SystemHealthWorkspace), { loading: workspaceLoading });
-const TechnicalAuditWorkspace = dynamic(() => import("./technical-audit-workspace").then((module) => module.TechnicalAuditWorkspace), { loading: workspaceLoading });
-const ReleaseManagementWorkspace = dynamic(() => import("./release-management-workspace").then((module) => module.ReleaseManagementWorkspace), { loading: workspaceLoading });
-const SourceIntegrationsWorkspace = dynamic(() => import("./source-integrations-workspace").then((module) => module.SourceIntegrationsWorkspace), { loading: workspaceLoading });
-const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter), { loading: workspaceLoading });
-const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity), { loading: workspaceLoading });
+const EmailIntegrationWorkspace = dynamic(() => import("./email-integration-workspace").then((module) => module.EmailIntegrationWorkspace));
+const DemoExchangesWorkspace = dynamic(() => import("./demo-exchanges-workspace").then((module) => module.DemoExchangesWorkspace));
+const EmergencyControlWorkspace = dynamic(() => import("./emergency-control-workspace").then((module) => module.EmergencyControlWorkspace));
+const IntegrationsOverview = dynamic(() => import("./integrations-overview").then((module) => module.IntegrationsOverview));
+const ModelsWorkspace = dynamic(() => import("./models-workspace").then((module) => module.ModelsWorkspace));
+const PaymentIntegrationWorkspace = dynamic(() => import("./payment-integration-workspace").then((module) => module.PaymentIntegrationWorkspace));
+const PlatformSettingsWorkspace = dynamic(() => import("./platform-settings-workspace").then((module) => module.PlatformSettingsWorkspace));
+const CommercialDisclosuresWorkspace = dynamic(() => import("./commercial-disclosures-workspace").then((module) => module.CommercialDisclosuresWorkspace));
+const SystemHealthWorkspace = dynamic(() => import("./system-health-workspace").then((module) => module.SystemHealthWorkspace));
+const TechnicalAuditWorkspace = dynamic(() => import("./technical-audit-workspace").then((module) => module.TechnicalAuditWorkspace));
+const ReleaseManagementWorkspace = dynamic(() => import("./release-management-workspace").then((module) => module.ReleaseManagementWorkspace));
+const SourceIntegrationsWorkspace = dynamic(() => import("./source-integrations-workspace").then((module) => module.SourceIntegrationsWorkspace));
+const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter));
+const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity));
 
 const navigation: ConsoleNavigationGroup[] = [
   { label: "概览", items: [

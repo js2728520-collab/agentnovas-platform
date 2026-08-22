@@ -8,21 +8,20 @@ import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-s
 import { useAppSession } from "@/packages/ui/src/use-app-session";
 import { hasAnyPermission, type ConsoleNavigationGroup } from "@/packages/contracts/src/riverton-ui";
 
-const workspaceLoading = () => <LoadingState label="正在加载运营模块…" />;
-const ApprovalsWorkspace = dynamic(() => import("./approvals-workspace").then((module) => module.ApprovalsWorkspace), { loading: workspaceLoading });
-const CustomersWorkspace = dynamic(() => import("./customers-workspace").then((module) => module.CustomersWorkspace), { loading: workspaceLoading });
-const CreditsWorkspace = dynamic(() => import("./credits-workspace").then((module) => module.CreditsWorkspace), { loading: workspaceLoading });
-const DepositsWorkspace = dynamic(() => import("./deposits-workspace").then((module) => module.DepositsWorkspace), { loading: workspaceLoading });
-const FinanceWorkspace = dynamic(() => import("./finance-workspace").then((module) => module.FinanceWorkspace), { loading: workspaceLoading });
-const LedgerWorkspace = dynamic(() => import("./ledger-workspace").then((module) => module.LedgerWorkspace), { loading: workspaceLoading });
-const MembershipOrdersWorkspace = dynamic(() => import("./membership-orders-workspace").then((module) => module.MembershipOrdersWorkspace), { loading: workspaceLoading });
-const OperationsOverview = dynamic(() => import("./operations-overview").then((module) => module.OperationsOverview), { loading: workspaceLoading });
-const OrganizationWorkspace = dynamic(() => import("./organization-workspace").then((module) => module.OrganizationWorkspace), { loading: workspaceLoading });
-const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace), { loading: workspaceLoading });
-const TeamWorkspace = dynamic(() => import("./team-workspace").then((module) => module.TeamWorkspace), { loading: workspaceLoading });
-const DataCenterWorkspace = dynamic(() => import("./data-center-workspace").then((module) => module.DataCenterWorkspace), { loading: workspaceLoading });
-const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter), { loading: workspaceLoading });
-const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity), { loading: workspaceLoading });
+const ApprovalsWorkspace = dynamic(() => import("./approvals-workspace").then((module) => module.ApprovalsWorkspace));
+const CustomersWorkspace = dynamic(() => import("./customers-workspace").then((module) => module.CustomersWorkspace));
+const CreditsWorkspace = dynamic(() => import("./credits-workspace").then((module) => module.CreditsWorkspace));
+const DepositsWorkspace = dynamic(() => import("./deposits-workspace").then((module) => module.DepositsWorkspace));
+const FinanceWorkspace = dynamic(() => import("./finance-workspace").then((module) => module.FinanceWorkspace));
+const LedgerWorkspace = dynamic(() => import("./ledger-workspace").then((module) => module.LedgerWorkspace));
+const MembershipOrdersWorkspace = dynamic(() => import("./membership-orders-workspace").then((module) => module.MembershipOrdersWorkspace));
+const OperationsOverview = dynamic(() => import("./operations-overview").then((module) => module.OperationsOverview));
+const OrganizationWorkspace = dynamic(() => import("./organization-workspace").then((module) => module.OrganizationWorkspace));
+const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace));
+const TeamWorkspace = dynamic(() => import("./team-workspace").then((module) => module.TeamWorkspace));
+const DataCenterWorkspace = dynamic(() => import("./data-center-workspace").then((module) => module.DataCenterWorkspace));
+const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter));
+const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity));
 
 const navigation: ConsoleNavigationGroup[] = [
   { label: "概览", items: [

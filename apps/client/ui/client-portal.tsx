@@ -10,17 +10,16 @@ import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 import { ClientPortalShell } from "./client-portal-shell";
 import { ClientHomeWorkspace } from "./client-home-workspace";
 
-const workspaceLoading = () => <LoadingState label="正在加载客户端模块…" />;
-const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module) => module.CreditWorkspace), { loading: workspaceLoading });
-const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((module) => module.DepositWorkspace), { loading: workspaceLoading });
-const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience), { loading: workspaceLoading });
-const MembershipExperience = dynamic(() => import("./membership-experience"), { loading: workspaceLoading });
-const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace), { loading: workspaceLoading });
-const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace), { loading: workspaceLoading });
-const TradingExperience = dynamic(() => import("./trading-experience"), { loading: workspaceLoading });
-const WalletWorkspace = dynamic(() => import("./wallet-workspace").then((module) => module.WalletWorkspace), { loading: workspaceLoading });
-const AccountSecurityWorkspace = dynamic(() => import("./account-security-workspace").then((module) => module.AccountSecurityWorkspace), { loading: workspaceLoading });
-const SupportWorkspace = dynamic(() => import("./support-workspace").then((module) => module.SupportWorkspace), { loading: workspaceLoading });
+const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module) => module.CreditWorkspace));
+const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((module) => module.DepositWorkspace));
+const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience));
+const MembershipExperience = dynamic(() => import("./membership-experience"));
+const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace));
+const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace));
+const TradingExperience = dynamic(() => import("./trading-experience"));
+const WalletWorkspace = dynamic(() => import("./wallet-workspace").then((module) => module.WalletWorkspace));
+const AccountSecurityWorkspace = dynamic(() => import("./account-security-workspace").then((module) => module.AccountSecurityWorkspace));
+const SupportWorkspace = dynamic(() => import("./support-workspace").then((module) => module.SupportWorkspace));
 
 export default function ClientPortal({ segments }: { segments: string[] }) {
   const session = useAppSession("client");
