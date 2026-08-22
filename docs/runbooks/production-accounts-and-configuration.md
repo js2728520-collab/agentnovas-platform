@@ -367,3 +367,93 @@ sudo shred -u /root/agentnovas-config/production-integrations.answers
 - 独立 maker/checker 与发布值班账号。
 
 这些值只进入 root-only secret 文件、加密配置服务或授权密码管理器，不进入 Git、文档、命令行、工单或聊天。
+
+## 10. 执行服务与密钥托管（ADR-0019）
+
+执行服务是**全系统唯一持有 `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY` 的进程**。三个 Web
+应用都不再需要那个变量——它们通过内网调用执行服务完成账户验证、紧急平仓、实盘下单。
+
+**不配这一节，三个 Web 应用会在客户点「验证交易所账户」和「一键平仓」时报
+「服务不可用」。** 这两个功能不会静默失败，但也不会工作。
+
+### 10.1 两把不同的密钥，分开生成、分开轮换
+
+| 变量 | 谁持有 | 泄露后果 |
+| --- | --- | --- |
+| `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY` | **只有** `execution.env` | 加数据库读权限 = 全部客户的交易所 API Key |
+| `EXECUTION_SERVICE_SHARED_SECRET` | `execution.env` + 三个 Web 的 env | 能让执行服务替他下单，但拿不到凭证 |
+
+两者必须是**不同的值**。共享密钥只是内网鉴权，不参与加密；把它设成加密密钥的值等于
+把加密密钥发给了三个 Web 进程，这一整套改造就白做了。
+
+```bash
+# 在目标机器上生成，不要经过聊天、工单或命令历史
+openssl rand -base64 48 | tr -d '\n=/+' | head -c 48
+```
+
+### 10.2 `execution.env` 需要的变量
+
+```
+DATABASE_URL=postgresql://agentnovas_execution_service:<口令>@127.0.0.1:5432/<库>
+RIVERTON_EXECUTION_SERVICE=true
+EXCHANGE_CREDENTIAL_ENCRYPTION_KEY=<与现有值一致，迁移时务必保留原值>
+EXECUTION_SERVICE_SHARED_SECRET=<48 字符随机值>
+EXECUTION_SERVICE_HOST=0.0.0.0        # 容器内监听；容器不挂 edge 网络
+EXECUTION_SERVICE_PORT=3020
+```
+
+`RIVERTON_EXECUTION_SERVICE=true` 声明进程身份，数据库角色必须是
+`agentnovas_execution_service`——角色与身份不匹配时进程拒绝启动。
+
+> `EXECUTION_SERVICE_HOST` 在**容器内**可以是 `0.0.0.0`，因为 `execution` 服务
+> **不挂 `edge` 网络**，只在 `backplane` 内可达。裸机 systemd 部署时必须改成
+> `127.0.0.1`——代码里拒绝 `0.0.0.0` 的检查只在非容器场景下才是最后一道。
+
+### 10.3 三个 Web 的 env 需要补两行
+
+`client.env` / `operations.env` / `maintenance.env` 各加：
+
+```
+EXECUTION_SERVICE_URL=http://execution:3020
+EXECUTION_SERVICE_SHARED_SECRET=<与 execution.env 相同>
+```
+
+并**删除**这三个文件里的 `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`。删掉之后可以自查：
+
+```bash
+grep -rl EXCHANGE_CREDENTIAL_ENCRYPTION_KEY .next-client/server
+# 查不到任何文件才算对；npm run quality:key-custody 会做同样的检查
+```
+
+### 10.4 集成凭证密钥不再回退
+
+`INTEGRATION_CREDENTIAL_ENCRYPTION_KEY` 现在是**必配项**。它此前会在缺失时回退到
+`EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`，那让运维端只要漏配一个变量就持有交易所凭证
+密钥——而它从不需要解密任何客户的交易凭证。
+
+*迁移*：若既有集成凭证是用交易所密钥加密的，先把**同一个值**显式配成
+`INTEGRATION_CREDENTIAL_ENCRYPTION_KEY` 保证可解密，随后用一个独立值重新加密，
+两把密钥才真正分开。
+
+### 10.5 审计锚点导出
+
+`AUDIT_ANCHOR_EXPORT_KEY`（可选但强烈建议）给导出件签名。
+
+```bash
+npm run audit:anchors:export > anchors-$(date +%F).json   # 存到数据库角色够不着的地方
+npm run audit:anchors:verify anchors-2026-08-23.json      # 回验才是这套机制的价值
+```
+
+不配密钥时导出件标注 `signed: false`，仍能发现数据库侧的删除与改写，但无法证明导出件
+自身没有被替换。**一份从没被回验过的导出件只是一个文件。**
+
+### 10.6 实盘路由默认全关
+
+真实下单需要同时满足三件事，任一不满足都只会产出一条明确的拒绝回执：
+
+1. 运营端「风控 → 实盘路由」里该 (交易所, 环境) 已 **granted**——开通走 maker/checker，
+   发起人不能批准自己；
+2. 部署 `mode = 'live'` 且绑定了状态正常、可交易的交易所账户；
+3. 无命中的熔断开关、无未决对账。
+
+关停是单人即时的，不需要复核——**让系统更安全的动作永远比让系统更危险的动作容易做**。
