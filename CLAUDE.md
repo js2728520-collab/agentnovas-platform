@@ -101,10 +101,17 @@ apps/*  →  packages/*  →  lib/
 
   ```bash
   node scripts/generate-api-route-inventory.mjs
+  node scripts/generate-nginx-api-allowlist.mjs
   ```
 
-  忘了重新生成，`npm test` 会失败（`tests/api-policy-security.test.mjs` 用 `--check`
-  检查漂移）。运行时行为是安全的（404），但你会浪费时间找为什么新接口 404。
+  忘了重新生成，`npm test` 会失败（两个生成器都有 `--check` 模式，由测试调用）。
+  运行时行为是安全的（404），但你会浪费时间找为什么新接口 404。
+
+- **边缘已有第一道边界。** `deploy/nginx/generated/*.conf` 是从 inventory 生成的
+  per-vhost `/api` 白名单，不属于本 vhost 的前缀在 Nginx 层就返回 404，不进 Node。
+  用前缀树生成：只有整棵子树都属于该 audience 时才合并，否则逐条精确匹配——
+  按 `/api/<group>/` 粗粒度合并会让公网 vhost 放行 RBAC 管理接口。
+  **部署时这三个文件要放到 `/etc/nginx/riverton/generated/`。**
 - **审计链尾可被截断。** 迁移 0044 后 `audit_logs` 有哈希链，改内容或删中间行都会被
   `verify_audit_log_chain()` 检出，但**截断链尾是链内校验无法自证的**——需要把链尾哈希
   定期外送到本库之外（备份、日志系统或运维端存档）。GA 前必须补这个运维动作。
