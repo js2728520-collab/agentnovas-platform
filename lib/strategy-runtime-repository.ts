@@ -636,6 +636,17 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
     strategyCode: "ai_conservative" | "ai_balanced" | "ai_aggressive";
     timeframe: string;
     strategyVersionId: string;
+    /**
+     * 卡级结论与卡级七阶段叙述。**必须用中性风控状态算出**，不含任何客户的
+     * 风控读数——共享轮会展示给该卡的所有客户，带上就是把一位客户的回撤、
+     * 当日亏损、熔断状态给别人看（见 ADR-0018 与 DEVELOPMENT_HANDOFF §47）。
+     */
+    decision: Record<string, unknown>;
+    orderIntent: Record<string, unknown> | null;
+    events: Array<{
+      sequence: number; role: string; conclusion: string; evidence: Record<string, unknown>;
+      durationMs: number; llmUsed: boolean; modelName?: string | null;
+    }>;
   };
 }) {
   if (input.events.length !== 7) throw new Error("每个运行周期必须保存七个 Agent 事件");
@@ -693,8 +704,8 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
         RETURNING id
       `, [decisionRoundId, input.decisionRound.strategyCode, input.symbol, input.decisionRound.timeframe,
         input.decisionRound.strategyVersionId, input.candleOpenTime, input.candleCloseTime,
-        input.marketDataSnapshotId, JSON.stringify(input.decision),
-        input.orderIntent ? JSON.stringify(input.orderIntent) : null, input.traceId]);
+        input.marketDataSnapshotId, JSON.stringify(input.decisionRound.decision),
+        input.decisionRound.orderIntent ? JSON.stringify(input.decisionRound.orderIntent) : null, input.traceId]);
       // 让数据库决定谁是这一轮的创建者：只有插入成功的那个部署写七阶段事件。
       // 其余部署（同卡的其他客户）复用同一套叙述——它不含任何客户数据。
       // 用「查一下有没有」代替这个判断会有竞态：两个 worker 可能同时查到空。
@@ -733,7 +744,9 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
     // 七阶段叙述属于共享轮：有轮时由创建者写一次，与该客户是否留痕无关。
     // 纯 hold 的那一轮同样需要叙述——那正是客户看「为什么没有动作」的地方。
     const shouldWriteEvents = decisionRoundId ? roundIsNew : persistAdmission;
-    for (const event of shouldWriteEvents ? input.events : []) {
+    // 共享轮写卡级叙述，没有轮时（永续部署）写这个部署自己的。
+    const eventsToWrite = decisionRoundId ? (input.decisionRound?.events ?? []) : input.events;
+    for (const event of shouldWriteEvents ? eventsToWrite : []) {
       await client.query(`
         INSERT INTO strategy_runtime_events (
           id, cycle_id, sequence, role, event_type, conclusion, evidence_json,

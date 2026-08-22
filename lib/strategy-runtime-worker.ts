@@ -47,7 +47,10 @@ import {
   classifyExplanationFailure,
   explanationRetryDelayMs,
 } from "../packages/domain/src/runtime/explanation-retry.ts";
-import { resolveRuntimeRiskState } from "../packages/domain/src/runtime/risk-state.ts";
+import {
+  neutralRuntimeRiskState,
+  resolveRuntimeRiskState,
+} from "../packages/domain/src/runtime/risk-state.ts";
 import {
   isMarketSnapshotReusable,
   marketCacheKey,
@@ -231,18 +234,36 @@ async function processOfficialSpotRuntimeDeployment(
     portfolioId: lease.paperPortfolioId,
     asOf: new Date(selected.closeTime),
   });
-  const evaluated = evaluateStrategyRuntimeCycle({
+  const evaluationInput = {
     deploymentId: lease.id,
     strategyVersionId: lease.strategyVersionId,
     dsl: specification,
     candles: evaluationCandles,
     mode: lease.mode,
-    position: position ? { side: "long", entryPrice: position.entryPrice, quantity: position.quantity } : null,
+    position: position
+      ? { side: "long" as const, entryPrice: position.entryPrice, quantity: position.quantity }
+      : null,
+    lastDecisionCandleCloseTime: lastClose,
+  };
+
+  // 阶段 5 有两半（ADR-0018）。
+  //
+  // 卡级：用中性风控状态算，产出的是共享决策轮——同一张卡的所有客户看同一份
+  // 七阶段叙述。**绝不能带任何一个客户的风控读数**：risk 阶段的 evidence 里有
+  // riskState，带上就等于把某位客户的回撤、当日亏损、熔断状态展示给其他所有人。
+  const cardEvaluation = evaluateStrategyRuntimeCycle({
+    ...evaluationInput,
+    riskState: neutralRuntimeRiskState(),
+  });
+
+  // 组合级：用这个客户真实的风控状态与访问状态算准入。引擎是纯函数，
+  // 跑两次的代价是亚毫秒级，换来的是共享单元里没有客户数据。
+  const evaluated = evaluateStrategyRuntimeCycle({
+    ...evaluationInput,
     riskState: {
       ...resolveRuntimeRiskState(currentRiskState),
       halted: currentRiskState.halted === true || runtimeAccess.access !== "active",
     },
-    lastDecisionCandleCloseTime: lastClose,
   });
   const completion = await completeStrategyRuntimeCycle(database, {
     cycleId,
@@ -268,6 +289,10 @@ async function processOfficialSpotRuntimeDeployment(
       strategyCode: specification.strategyCode,
       timeframe: specification.timeframe,
       strategyVersionId: lease.strategyVersionId,
+      // 共享轮存卡级结论与卡级七阶段叙述，不含任何客户的风控读数。
+      decision: cardEvaluation.decision,
+      orderIntent: cardEvaluation.orderIntent,
+      events: cardEvaluation.events,
     },
   });
   let demoIntentResults: Awaited<ReturnType<typeof enqueuePlatformDemoIntentsForRound>> = [];

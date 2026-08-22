@@ -79,3 +79,26 @@ export function resolveRuntimeRiskState(raw: Record<string, unknown>): RuntimeRi
     unavailableFields: unavailableFields.sort(),
   };
 }
+
+/**
+ * 卡级评估用的中性风控状态。
+ *
+ * 决策轮是**共享**的：同一张卡的所有客户看到同一份七阶段叙述。因此计算它时
+ * 不能带任何一个客户的风控读数——否则 risk 阶段的 evidence 里会出现某位客户的
+ * 回撤、当日亏损、连续亏损与熔断状态，然后展示给该卡的所有其他客户。
+ *
+ * 这不是理论风险：ADR-0018 第 1 步开始把事件写到共享轮之后，实际发生过
+ * （见 DEVELOPMENT_HANDOFF §47）。
+ *
+ * 中性状态的含义是「卡级阈值判定，尚未套用任何组合的实际状态」。
+ * 组合级准入用各自真实的 resolveRuntimeRiskState 结果单独算。
+ */
+export function neutralRuntimeRiskState(): RuntimeRiskState {
+  return {
+    drawdownPct: 0,
+    dailyLossPct: 0,
+    consecutiveLosses: 0,
+    halted: false,
+    unavailableFields: [],
+  };
+}

@@ -592,6 +592,29 @@ test("同一张卡的两个客户共享同一行决策轮，各自保留自己�
   // 5,000 会员 × 3 张卡下这是 105,000 行降到 7 行。
   assert.equal(events.rows[0].count, 7, "同一决策轮只应有一套七阶段事件");
 
+  // 共享轮里不得出现任何客户的风控读数。
+  //
+  // risk 阶段的 evidence 带 riskState（回撤、当日亏损、连续亏损、熔断）。
+  // 决策轮展示给该卡的所有客户——若它是用某位客户的状态算出来的，就等于把那位
+  // 客户的财务状况给别人看。卡级结论必须用中性风控状态算（ADR-0018「阶段 5 有两半」）。
+  const riskEvent = (await pool.query(`
+    SELECT evidence_json FROM strategy_runtime_events
+    WHERE decision_round_id = $1 AND role = 'risk'
+  `, [roundId])).rows[0];
+  assert.ok(riskEvent, "共享轮应当有 risk 阶段事件");
+  const sharedRiskState = riskEvent.evidence_json.riskState;
+  assert.deepEqual(
+    {
+      drawdownPct: sharedRiskState.drawdownPct,
+      dailyLossPct: sharedRiskState.dailyLossPct,
+      consecutiveLosses: sharedRiskState.consecutiveLosses,
+      halted: sharedRiskState.halted,
+      unavailableFields: sharedRiskState.unavailableFields,
+    },
+    { drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0, halted: false, unavailableFields: [] },
+    "共享轮的 risk 证据必须是中性状态，不能带某个客户的实际读数",
+  );
+
   // 行情快照同理：同卡同品种同 K 线是同一份数据。两个部署都用决策轮作为
   // sourceId，saveMarketDataSnapshot 的 ON CONFLICT (source_type, source_id)
   // 会把第二次写入折叠掉——15,000 行降到 1 行。
