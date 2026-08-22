@@ -1570,3 +1570,36 @@ tsc、lint、892 项测试（+8）、三端 build、bundle 预算、7 条边界�
 `strategy_runtime_cycles` **不在**审计哈希链里（0044 只覆盖 `audit_logs` 与 8 张
 `*_decisions` 表），所以这次改动不触碰防篡改边界。绩效结算依据是
 `official_paper_fill_receipts`，也不依赖 cycle 结构。
+
+
+## 43. 2026-08-22 解释任务按决策轮共享（ADR-0018 第 2 步）
+
+迁移 0047：`strategy_runtime_explanation_jobs` 加 `decision_round_id` 与部分唯一
+索引 `(decision_round_id, event_role)`；`strategy_runtime_events` 加
+`(decision_round_id, role)` 索引供写回使用。
+
+### 收益
+
+解释内容解释的是**卡级结论**，不含任何客户数据，因此同一张卡在同一根 K 线上的
+解释对所有订阅者完全相同。改为按轮建任务后，某张卡产生信号时的 LLM 调用从
+「每个部署一次」变成「每轮每角色一次」——5,000 会员场景下从上万次降到最多 12 次。
+
+### 两个实现细节
+
+- **`ON CONFLICT` 不指定目标。** 这里有两条唯一约束同时起作用：
+  `UNIQUE (cycle_id, event_role)` 挡同一周期重复入队，部分唯一索引挡同一轮下
+  **不同部署**重复入队——后者才是省钱的那条。指定单一目标会让另一条抛唯一冲突。
+- **`pending` 状态也按轮设置。** 否则只有第一个入队的部署显示「解释生成中」，
+  其余客户在解释返回前看到空白。
+
+### 写测试时踩到的两个坑
+
+1. **不能假设租约顺序。** `leaseNextRuntimeExplanationJob` 是全局取下一个 pending
+   任务，同一个 schema 里更早的测试会留下任务。改成排干队列再断言结果。
+2. **`explanation_status = 'not_requested'` 是正常默认值，不是缺失。**
+   断言范围要限定在真正建了任务的角色上，否则 `decision` 等角色会被误判为失败。
+
+### 验证
+
+tsc、lint、893 项测试、三端 build、bundle 预算、7 条边界通过。
+迁移在一次性库与本地开发库各验证一次，可重复执行。

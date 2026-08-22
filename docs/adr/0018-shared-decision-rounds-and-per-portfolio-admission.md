@@ -181,3 +181,20 @@ UNIQUE (strategy_code, symbol, timeframe, candle_close_time)
   验证：同一张卡的两个客户各跑一轮后，`strategy_decision_rounds` 只有一行，
   两个部署的周期都指向它（`tests/strategy-runtime-repository.test.mjs`）。
   过渡期两个部署仍各写 7 行事件（合计 14 行），第 2 步收敛为 7 行。
+
+- **第 2 步（完成）** 迁移 0047 给 `strategy_runtime_explanation_jobs` 加
+  `decision_round_id` 与部分唯一索引 `(decision_round_id, event_role)`。
+  入队改为按轮去重，完成时把结果扇出写回该轮下**所有**部署周期的同角色事件。
+
+  这是本 ADR 里最直接的成本收益：某张卡产生信号时，解释调用从「每个部署一次」
+  变成「每轮每角色一次」。5,000 会员场景下是从上万次降到最多 12 次。
+
+  两个实现细节：
+  - `ON CONFLICT` **不指定目标**。这里有两条唯一约束在起作用：
+    `UNIQUE (cycle_id, event_role)` 挡同一周期重复入队，部分唯一索引挡同一轮下
+    不同部署重复入队。指定单一目标会让另一条直接抛唯一冲突。
+  - `explanation_status = 'pending'` 也按轮设置。否则只有第一个入队的部署显示
+    「解释生成中」，其余客户在解释返回前看到空白。
+
+  验证：同卡两个客户各跑一轮后，每个 event_role 只有一个解释任务；排干任务队列
+  后，该轮下两个部署的同角色事件都拿到 `completed`。

@@ -173,6 +173,9 @@ test.before(async () => {
   const migration0046 = await readFile(new URL("../postgres/migrations/0046_shared_decision_rounds.sql", import.meta.url), "utf8");
   await pool.query(migration0046);
   await pool.query(migration0046);
+  const migration0047 = await readFile(new URL("../postgres/migrations/0047_shared_explanation_jobs.sql", import.meta.url), "utf8");
+  await pool.query(migration0047);
+  await pool.query(migration0047);
   await initializeEmergencyAccessSchema(pool);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-official', $1)`, [JSON.stringify(platformStrategyDslV3("ai_conservative", "BTCUSDT"))]);
@@ -483,6 +486,31 @@ test("同一张卡的两个客户共享同一行决策轮，各自保留自己�
   // ADR-0018 的核心：判断共享，准入按组合。5,000 会员 × 3 张卡会有 15,000 个部署，
   // 而三张卡合计只有 6 种 (品种,周期) 组合——不共享就是同一段结论和同一次 LLM
   // 解释被生成上万次。
+  // 解释任务需要模型绑定。自己种，不依赖其它测试的执行顺序。
+  await pool.query(`
+    INSERT INTO llm_profiles (
+      id, name, provider_name, base_url, model_name, encrypted_api_key,
+      enabled, current_revision_id, created_by_user_id, updated_by_user_id
+    ) VALUES ('shared-profile', 'Shared', 'Private', 'https://llm.example.com/v1',
+              'shared-model', 'encrypted', true, 'shared-revision', 'admin', 'admin')
+    ON CONFLICT (id) DO NOTHING
+  `);
+  await pool.query(`
+    INSERT INTO llm_profile_revisions (
+      id, profile_id, revision_number, name, provider_name, base_url,
+      model_name, encrypted_api_key, enabled, created_by_user_id
+    ) VALUES ('shared-revision', 'shared-profile', 1, 'Shared', 'Private',
+              'https://llm.example.com/v1', 'shared-model', 'encrypted', true, 'admin')
+    ON CONFLICT (id) DO NOTHING
+  `);
+  for (const role of ["market_summary", "adversarial_explanation", "risk_explanation"]) {
+    await pool.query(`
+      INSERT INTO runtime_explanation_bindings (id, role, llm_profile_id, enabled, updated_by_user_id)
+      VALUES ($1, $2, 'shared-profile', true, 'admin')
+      ON CONFLICT (role) DO UPDATE SET enabled = true
+    `, [`shared-binding-${role}`, role]);
+  }
+
   await pool.query(`INSERT INTO users (id, organization_id) VALUES ('owner-shared-b', NULL)`);
   await pool.query(`INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at)
                     VALUES ('membership-shared-b', 'owner-shared-b', 'active', NULL, NULL)`);
@@ -547,6 +575,59 @@ test("同一张卡的两个客户共享同一行决策轮，各自保留自己�
     SELECT count(*)::int AS count FROM strategy_runtime_events WHERE decision_round_id = $1
   `, [roundId]);
   assert.equal(events.rows[0].count, 14, "过渡期两个部署各写一套事件，均已挂到同一决策轮");
+
+  // 这才是省钱的那条：同一张卡在同一根 K 线上的解释内容完全相同（它解释的是
+  // 卡级结论，不含任何客户数据），所以每轮每角色只允许一个 LLM 任务。
+  // 不共享的话 5,000 会员就是同一段解释被生成上万次。
+  const jobs = await pool.query(`
+    SELECT event_role, count(*)::int AS count
+    FROM strategy_runtime_explanation_jobs
+    WHERE decision_round_id = $1 GROUP BY event_role
+  `, [roundId]);
+  assert.ok(jobs.rows.length > 0, "入场决策应当触发解释任务");
+  for (const row of jobs.rows) {
+    assert.equal(row.count, 1, `${row.event_role} 每轮只应有一个解释任务，实际 ${row.count}`);
+  }
+
+  // 一次调用的结果必须写回该轮下**所有**部署的事件，否则第二个客户看到空白。
+  //
+  // 不假设租约顺序：同一个 schema 里更早的测试可能留下 pending 任务，
+  // leaseNextRuntimeExplanationJob 是全局取下一个。这里排干队列再断言结果。
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const leased = await leaseNextRuntimeExplanationJob(pool, { workerId: `explain-${attempt}`, now: new Date(), leaseSeconds: 30 });
+    if (!leased) break;
+    await completeRuntimeExplanationJob(pool, {
+      jobId: leased.id,
+      workerId: `explain-${attempt}`,
+      fencingToken: leased.fencingToken,
+      output: { summary: "共享决策轮的解释", bullets: ["a"], caveats: ["b"] },
+      modelName: "fixture-model",
+      durationMs: 5,
+    });
+  }
+  // 只断言真正建了任务的角色：其余角色的 explanation_status 是
+  // 'not_requested'，那是正常默认值，不是缺失。
+  const explained = await pool.query(`
+    SELECT cycle.deployment_id, event.role, event.explanation_status
+    FROM strategy_runtime_events AS event
+    JOIN strategy_runtime_cycles AS cycle ON cycle.id = event.cycle_id
+    WHERE event.decision_round_id = $1
+      AND event.role IN (
+        SELECT event_role FROM strategy_runtime_explanation_jobs WHERE decision_round_id = $1
+      )
+  `, [roundId]);
+  assert.ok(explained.rows.length > 0, "该轮应当有事件收到解释状态");
+  const byRole = new Map();
+  for (const row of explained.rows) {
+    byRole.set(row.role, [...(byRole.get(row.role) ?? []), row]);
+  }
+  for (const [role, rows] of byRole) {
+    // 一次 LLM 调用，两个部署的同角色事件都要拿到结果。
+    assert.equal(rows.length, 2, `${role} 应当在两个部署上各有一行`);
+    for (const row of rows) {
+      assert.equal(row.explanation_status, "completed", `${row.deployment_id} 的 ${role} 事件没有收到解释`);
+    }
+  }
 });
 
 test("performance fee scope is derived server-side from the complete official three-card portfolio set", async () => {

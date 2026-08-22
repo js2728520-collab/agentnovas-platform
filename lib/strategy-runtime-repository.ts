@@ -715,6 +715,7 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
     await enqueueRuntimeExplanationJobs(client, {
       deploymentId: input.deploymentId,
       cycleId: input.cycleId,
+      decisionRoundId,
       candleCloseTime: input.candleCloseTime,
       decision: input.decision,
       events: input.events,
@@ -795,6 +796,12 @@ type RuntimeExplanationRole = keyof typeof runtimeExplanationEventRole;
 async function enqueueRuntimeExplanationJobs(client: PoolClient, input: {
   deploymentId: string;
   cycleId: string;
+  /**
+   * 有决策轮时，解释任务按轮建：同一张卡在同一根 K 线上的解释内容完全相同
+   * （它解释的是卡级结论，不含任何客户数据），每轮每角色只需要一次 LLM 调用。
+   * 否则 15,000 个部署会把同一段解释生成上万次。
+   */
+  decisionRoundId: string | null;
   candleCloseTime: Date;
   decision: Record<string, unknown>;
   events: Array<{ role: string; evidence: Record<string, unknown> }>;
@@ -851,17 +858,29 @@ async function enqueueRuntimeExplanationJobs(client: PoolClient, input: {
     const inserted = await client.query<{ id: string }>(`
       INSERT INTO strategy_runtime_explanation_jobs (
         id, cycle_id, event_role, explanation_role, profile_revision_id,
-        prompt_version, prompt_sha256
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (cycle_id, event_role) DO NOTHING
+        prompt_version, prompt_sha256, decision_round_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      -- 不指定冲突目标：这里有两条唯一约束在起作用。
+      -- UNIQUE (cycle_id, event_role) 挡同一周期重复入队；
+      -- 部分唯一索引 (decision_round_id, event_role) 挡同一决策轮下**不同部署**
+      -- 重复入队——后者才是省下上万次 LLM 调用的那条。指定单一目标会让另一条
+      -- 直接抛唯一冲突。
+      ON CONFLICT DO NOTHING
       RETURNING id
-    `, [crypto.randomUUID(), input.cycleId, eventRole, binding.role, binding.revision_id, prompt.version, prompt.hash]);
+    `, [crypto.randomUUID(), input.cycleId, eventRole, binding.role, binding.revision_id, prompt.version, prompt.hash,
+      input.decisionRoundId]);
+    // pending 状态按决策轮设置，让该轮下所有部署的事件状态一致——
+    // 否则只有第一个入队的部署显示「解释生成中」，其余客户看到的是空白。
     if (inserted.rows[0]) {
-      await client.query(`
-        UPDATE strategy_runtime_events
-        SET explanation_status = 'pending', explanation_updated_at = now()
-        WHERE cycle_id = $1 AND role = $2
-      `, [input.cycleId, eventRole]);
+      await client.query(
+        input.decisionRoundId
+          ? `UPDATE strategy_runtime_events
+             SET explanation_status = 'pending', explanation_updated_at = now()
+             WHERE decision_round_id = $1 AND role = $2`
+          : `UPDATE strategy_runtime_events
+             SET explanation_status = 'pending', explanation_updated_at = now()
+             WHERE cycle_id = $1 AND role = $2`,
+        [input.decisionRoundId ?? input.cycleId, eventRole]);
     }
   }
 }
@@ -980,24 +999,38 @@ export async function completeRuntimeExplanationJob(database: Pool, input: {
   const client = await database.connect();
   try {
     await client.query("BEGIN");
-    const updated = await client.query<{ cycle_id: string; event_role: string }>(`
+    const updated = await client.query<{ cycle_id: string; event_role: string; decision_round_id: string | null }>(`
       UPDATE strategy_runtime_explanation_jobs
       SET status = 'completed', lease_owner = NULL, lease_expires_at = NULL,
           last_error_code = NULL, last_error_message = NULL,
           completed_at = now(), updated_at = now()
       WHERE id = $1 AND lease_owner = $2 AND fencing_token = $3 AND status = 'running'
-      RETURNING cycle_id, event_role
+      RETURNING cycle_id, event_role, decision_round_id
     `, [input.jobId, input.workerId, input.fencingToken]);
     const row = updated.rows[0];
     if (!row) throw new Error("运行时解释 Worker 租约或 fencing token 已失效");
-    await client.query(`
+    // 一次 LLM 调用，扇出写回该决策轮下所有部署周期的同角色事件——
+    // 解释的是卡级结论，对同卡客户完全相同。没有决策轮的（永续部署）走原路径。
+    await client.query(
+      row.decision_round_id
+        ? `
+      UPDATE strategy_runtime_events
+      SET explanation_status = 'completed', explanation_json = $3::jsonb,
+          explanation_model_name = $4, explanation_duration_ms = $5,
+          explanation_error_code = NULL, explanation_updated_at = now(),
+          llm_used = true, model_name = $4
+      WHERE decision_round_id = $1 AND role = $2
+    `
+        : `
       UPDATE strategy_runtime_events
       SET explanation_status = 'completed', explanation_json = $3::jsonb,
           explanation_model_name = $4, explanation_duration_ms = $5,
           explanation_error_code = NULL, explanation_updated_at = now(),
           llm_used = true, model_name = $4
       WHERE cycle_id = $1 AND role = $2
-    `, [row.cycle_id, row.event_role, JSON.stringify(input.output), input.modelName.slice(0, 160), Math.max(0, Math.round(input.durationMs))]);
+    `,
+      [row.decision_round_id ?? row.cycle_id, row.event_role, JSON.stringify(input.output),
+        input.modelName.slice(0, 160), Math.max(0, Math.round(input.durationMs))]);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
