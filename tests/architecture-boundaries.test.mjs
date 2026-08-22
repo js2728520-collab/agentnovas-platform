@@ -40,7 +40,7 @@ test("当前仓库通过全部架构边界检查", async () => {
   const results = await checkArchitectureBoundaries();
   const failures = results.flatMap((rule) => rule.violations.map((v) => `[${rule.name}] ${v}`));
   assert.deepEqual(failures, []);
-  assert.ok(results.length >= 6, "规则数量不应意外减少");
+  assert.ok(results.length >= 7, "规则数量不应意外减少");
 });
 
 test("跨 audience import 会被抓到", async () => {
@@ -135,4 +135,33 @@ test("域层反向依赖 lib/ 会被抓到", async () => {
     },
   );
   assert.deepEqual(await violationsOf("域层不做 I/O"), []);
+});
+
+test("API 路由缺少 audience 后缀会被抓到", async () => {
+  await withTemporaryFile(
+    // withTemporaryFile 不建目录，探针必须落在已有目录里。
+    "app/api/health/route.ts",
+    "export async function GET() { return Response.json({}); }\n",
+    async () => {
+      const violations = await violationsOf("API 路由后缀与 audience 一致");
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /缺少 audience 后缀/);
+    },
+  );
+  assert.deepEqual(await violationsOf("API 路由后缀与 audience 一致"), []);
+});
+
+test("路由后缀与清单 audience 不一致会被抓到", async () => {
+  // 把一个 client 路由伪装成 operations 路由：构建会把它放进运营端，
+  // 而运行时 api-policy 只认清单里的 client——请求会在两层之间掉进缝里。
+  await withTemporaryFile(
+    "app/api/account/profile/route.operations.ts",
+    "export async function GET() { return Response.json({}); }\n",
+    async () => {
+      const violations = await violationsOf("API 路由后缀与 audience 一致");
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /未登记在 API inventory/);
+    },
+  );
+  assert.deepEqual(await violationsOf("API 路由后缀与 audience 一致"), []);
 });

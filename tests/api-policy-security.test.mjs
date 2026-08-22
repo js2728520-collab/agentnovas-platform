@@ -42,9 +42,12 @@ async function routeFiles(directory) {
   return rows.flat();
 }
 
+// 路由文件按 audience 归属命名（见 next.config.ts 的 pageExtensions）。
+const ROUTE_FILE = /\/route\.(client|operations|maintenance|internal|shared)\.ts$/;
+
 function routePattern(pathname) {
   const root = appApi.pathname;
-  const local = relative(root, pathname).split(sep).join("/").replace(/\/route\.ts$/, "");
+  const local = relative(root, pathname).split(sep).join("/").replace(ROUTE_FILE, "");
   return `/api/${local}`
     .replace(/\[\.\.\.([^\]]+)\]/g, ":$1*")
     .replace(/\[([^\]]+)\]/g, ":$1");
@@ -53,7 +56,7 @@ function routePattern(pathname) {
 test("the versioned inventory covers every exported API method and route", async () => {
   const discovered = [];
   for (const file of await routeFiles(appApi)) {
-    if (!file.pathname.endsWith("/route.ts")) continue;
+    if (!ROUTE_FILE.test(file.pathname)) continue;
     const source = await readFile(file, "utf8");
     for (const match of source.matchAll(/export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g)) {
       discovered.push(`${match[1]} ${routePattern(file.pathname)}`);
@@ -431,7 +434,7 @@ test("Response-based authentication failures retain safe 401 and 403 envelopes",
 
 test("Route Handlers preserve the proxy request id in domain error responses", async () => {
   for (const file of await routeFiles(appApi)) {
-    if (!file.pathname.endsWith("/route.ts")) continue;
+    if (!ROUTE_FILE.test(file.pathname)) continue;
     const source = await readFile(file, "utf8");
     if (!source.includes("researchErrorResponse")) continue;
     const sourceFile = ts.createSourceFile(file.pathname, source, ts.ScriptTarget.Latest, true);

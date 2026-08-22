@@ -5,8 +5,8 @@ import test from "node:test";
 import { evaluateApiRequestPolicy } from "../lib/api-policy.ts";
 
 test("HTTP bootstrap is permanently unavailable and bootstrap is CLI-only", async () => {
-  const bootstrap = await readFile(new URL("../app/api/system/bootstrap/route.ts", import.meta.url), "utf8");
-  const login = await readFile(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
+  const bootstrap = await readFile(new URL("../app/api/system/bootstrap/route.maintenance.ts", import.meta.url), "utf8");
+  const login = await readFile(new URL("../app/api/auth/login/route.shared.ts", import.meta.url), "utf8");
   const cli = await readFile(new URL("../scripts/bootstrap-internal-admin.mjs", import.meta.url), "utf8");
 
   assert.match(bootstrap, /status:\s*404/);

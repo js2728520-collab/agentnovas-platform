@@ -75,8 +75,8 @@ test("Client model runtime uses the safe report/proposal projection and dedicate
 
 test("both paid Client AI writes require idempotency and reserve/settle/release Credits", async () => {
   const [chatRoute, strategyRoute, chatUi] = await Promise.all([
-    source("../app/api/ai/conversations/[id]/messages/route.ts"),
-    source("../app/api/strategy-studio/generate/route.ts"),
+    source("../app/api/ai/conversations/[id]/messages/route.client.ts"),
+    source("../app/api/strategy-studio/generate/route.client.ts"),
     source("../app/agent-chat.tsx"),
   ]);
   for (const route of [chatRoute, strategyRoute]) {
@@ -121,11 +121,11 @@ test("every Client AI conversation and generation API requires the effective pap
   }
 
   for (const path of [
-    "../app/api/ai/conversations/route.ts",
-    "../app/api/ai/conversations/[id]/route.ts",
-    "../app/api/ai/conversations/[id]/messages/route.ts",
-    "../app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.ts",
-    "../app/api/strategy-studio/generate/route.ts",
+    "../app/api/ai/conversations/route.client.ts",
+    "../app/api/ai/conversations/[id]/route.client.ts",
+    "../app/api/ai/conversations/[id]/messages/route.client.ts",
+    "../app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.client.ts",
+    "../app/api/strategy-studio/generate/route.client.ts",
   ]) {
     const routeSource = await source(path);
     assert.match(routeSource, /requireAccessPermission\(request,\s*"client\.paper\.view"\)/);

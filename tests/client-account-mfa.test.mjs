@@ -27,9 +27,9 @@ test("Client MFA is optional until enrolled and mandatory after enrollment", () 
 
 test("Client pending MFA sessions cannot use normal APIs before verification", async () => {
   const session = await read("lib/session.ts");
-  const login = await read("app/api/auth/login/route.ts");
-  const verify = await read("app/api/auth/mfa/verify/route.ts");
-  const confirm = await read("app/api/auth/mfa/enroll/confirm/route.ts");
+  const login = await read("app/api/auth/login/route.shared.ts");
+  const verify = await read("app/api/auth/mfa/verify/route.shared.ts");
+  const confirm = await read("app/api/auth/mfa/enroll/confirm/route.shared.ts");
   const appLogin = await read("packages/ui/src/app-login.tsx");
   assert.match(login, /mfaLoginRequirement/);
   assert.match(login, /mfaLevel: mfaRequired \? "primary" : "none"/);
@@ -42,9 +42,9 @@ test("Client pending MFA sessions cannot use normal APIs before verification", a
 });
 
 test("Client account page exposes enrollment, status and verified recovery rotation without retaining secrets", async () => {
-  const start = await read("app/api/auth/mfa/enroll/start/route.ts");
-  const confirm = await read("app/api/auth/mfa/enroll/confirm/route.ts");
-  const recovery = await read("app/api/auth/mfa/recovery-codes/route.ts");
+  const start = await read("app/api/auth/mfa/enroll/start/route.shared.ts");
+  const confirm = await read("app/api/auth/mfa/enroll/confirm/route.shared.ts");
+  const recovery = await read("app/api/auth/mfa/recovery-codes/route.shared.ts");
   const workspace = await read("apps/client/ui/account-security-workspace.tsx");
   const panel = await read("apps/client/ui/client-mfa-panel.tsx");
   assert.doesNotMatch(start, /appAudience === "client"[\s\S]{0,120}status: 404/);

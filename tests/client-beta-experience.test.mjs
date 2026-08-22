@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("membership experience uses commercial truth sources and contains no simulated payment flow", async () => {
   const entry = await read("app/membership-center.tsx");
   const experience = await read("apps/client/ui/membership-experience.tsx");
-  const plansRoute = await read("app/api/membership/plans/route.ts");
+  const plansRoute = await read("app/api/membership/plans/route.client.ts");
   const source = `${entry}\n${experience}`;
 
   for (const endpoint of [
@@ -78,7 +78,7 @@ test("wallet remains read-only while deposits use the server-side Udun order bou
 test("client notification settings expose unintegrated external channels without demo verification", async () => {
   const workspace = await read("apps/client/ui/notification-workspace.tsx");
   const settings = await read("apps/client/ui/client-notification-settings.tsx");
-  const preferencesRoute = await read("app/api/notifications/preferences/route.ts");
+  const preferencesRoute = await read("app/api/notifications/preferences/route.client.ts");
   const preferencesPolicy = await read("lib/notification-preferences.ts");
   assert.match(workspace, /ClientNotificationSettings/);
   assert.match(settings, /not_integrated/);

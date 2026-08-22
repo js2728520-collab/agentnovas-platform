@@ -91,7 +91,7 @@ test("new deterministic runtime cycles include a final decision and keep audit o
 });
 
 test("trading hall API publishes the product boundary and structured decision rounds", async () => {
-  const route = await source("app/api/trading-hall/route.ts");
+  const route = await source("app/api/trading-hall/route.client.ts");
   assert.match(route, /tradingHallAgentCatalog/);
   assert.match(route, /officialTradingHallStrategies/);
   assert.match(route, /productBoundary/);
@@ -126,7 +126,7 @@ test("client entry surfaces share the seven-role contract and do not claim stati
 });
 
 test("trading hall evidence is allowlisted and bounded before it reaches the client", async () => {
-  const route = await source("app/api/trading-hall/route.ts");
+  const route = await source("app/api/trading-hall/route.client.ts");
   assert.match(route, /function publicScalar/);
   assert.match(route, /slice\(0, 2000\)/);
   assert.doesNotMatch(route, /evidence:\s*event\.evidence_json/);

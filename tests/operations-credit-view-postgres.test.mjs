@@ -28,7 +28,7 @@ test.after(async () => {
 });
 
 test("operations credit ordering normalizes legacy user timestamps before coalescing", async () => {
-  const route = await readFile(new URL("../app/api/operations/credits/route.ts", import.meta.url), "utf8");
+  const route = await readFile(new URL("../app/api/operations/credits/route.operations.ts", import.meta.url), "utf8");
   assert.match(route, /COALESCE\(a\.updated_at,u\.created_at::timestamptz\)/);
   assert.doesNotMatch(route, /COALESCE\(a\.updated_at,u\.created_at\)/);
   const result = await pool.query(`

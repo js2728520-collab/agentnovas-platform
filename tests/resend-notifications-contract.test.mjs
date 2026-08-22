@@ -54,7 +54,7 @@ test("Resend uses the canonical sender address and never exposes API keys", () =
 });
 
 test("Maintenance email test enqueues a real auditable delivery instead of reporting a fake send", async () => {
-  const route = await readFile(new URL("../app/api/maintenance/email/test/route.ts", import.meta.url), "utf8");
+  const route = await readFile(new URL("../app/api/maintenance/email/test/route.maintenance.ts", import.meta.url), "utf8");
   assert.match(route, /INSERT INTO notification_deliveries/);
   assert.match(route, /maintenance_email_test/);
   assert.match(route, /client\.query\("BEGIN"\)/);
@@ -67,7 +67,7 @@ test("Maintenance email test enqueues a real auditable delivery instead of repor
 });
 
 test("Maintenance email status is derived from non-secret worker readiness evidence", async () => {
-  const route = await readFile(new URL("../app/api/maintenance/email/status/route.ts", import.meta.url), "utf8");
+  const route = await readFile(new URL("../app/api/maintenance/email/status/route.maintenance.ts", import.meta.url), "utf8");
   const worker = await readFile(new URL("../scripts/notification-worker.mjs", import.meta.url), "utf8");
   assert.match(route, /metadata_json/);
   assert.match(route, /metadata\.apiKeyPresent/);
@@ -94,7 +94,7 @@ test("unconfigured channels are explicit and mandatory deposit notices cannot be
 });
 
 test("Resend webhook acknowledges synchronously applied events with HTTP 200", async () => {
-  const route = await readFile(new URL("../app/api/integrations/resend/webhook/route.ts", import.meta.url), "utf8");
+  const route = await readFile(new URL("../app/api/integrations/resend/webhook/route.maintenance.ts", import.meta.url), "utf8");
   assert.match(route, /applyResendWebhookEvent/);
   assert.match(route, /status:\s*200/);
   assert.doesNotMatch(route, /queued:\s*false\s*},\s*{\s*status:\s*202/);

@@ -29,8 +29,8 @@ test("Client BYOK endpoints are disabled by the central Beta inventory and retur
   }
 
   const [{ GET, PUT }, { POST }] = await Promise.all([
-    import("../app/api/account/llm-config/route.ts"),
-    import("../app/api/account/llm-config/test/route.ts"),
+    import("../app/api/account/llm-config/route.client.ts"),
+    import("../app/api/account/llm-config/test/route.client.ts"),
   ]);
   for (const [handler, method, path] of [
     [GET, "GET", "/api/account/llm-config"],
@@ -42,8 +42,8 @@ test("Client BYOK endpoints are disabled by the central Beta inventory and retur
     assert.equal((await response.json()).error.code, "ROUTE_DISABLED");
   }
   const routeSources = await Promise.all([
-    source("../app/api/account/llm-config/route.ts"),
-    source("../app/api/account/llm-config/test/route.ts"),
+    source("../app/api/account/llm-config/route.client.ts"),
+    source("../app/api/account/llm-config/test/route.client.ts"),
   ]);
   assert.doesNotMatch(routeSources.join("\n"), /getDb|llmConfigurations|request\.json|saveLlmConfig|testLlmConfig/);
 });
@@ -95,8 +95,8 @@ test("Client AI uses only the platform model configuration and fails closed when
   }
 
   const [conversationRoute, strategyRoute, resolver] = await Promise.all([
-    source("../app/api/ai/conversations/[id]/messages/route.ts"),
-    source("../app/api/strategy-studio/generate/route.ts"),
+    source("../app/api/ai/conversations/[id]/messages/route.client.ts"),
+    source("../app/api/strategy-studio/generate/route.client.ts"),
     source("../lib/client-platform-llm.ts"),
   ]);
   for (const route of [conversationRoute, strategyRoute]) {

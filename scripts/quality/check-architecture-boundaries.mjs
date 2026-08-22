@@ -202,6 +202,49 @@ rules.push(async function noHardcodedColors() {
   return { name: "样式层零硬编码色值", violations };
 });
 
+// 7. API 路由后缀必须与它的 audience 归属一致。
+//    后缀决定该文件进哪个构建（next.config.ts 的 pageExtensions），清单决定运行时
+//    放行哪个 audience。两者是两份真源——不一致就意味着「构建里有一条运行时拒绝的
+//    路由」（浪费），或者更糟：「运行时允许但构建里没有」（404 找半天）。
+rules.push(async function apiRouteAudienceSuffix() {
+  const { API_ROUTE_INVENTORY } = await import("../../lib/api-route-inventory.ts");
+  const SUFFIX_FOR = {
+    "client": "client",
+    "operations": "operations",
+    "maintenance": "maintenance",
+    "maintenance+operations": "internal",
+    "client+maintenance+operations": "shared",
+  };
+  const audiencesBySource = new Map();
+  for (const entry of API_ROUTE_INVENTORY) {
+    const set = audiencesBySource.get(entry.source) ?? new Set();
+    for (const audience of entry.audiences) set.add(audience);
+    audiencesBySource.set(entry.source, set);
+  }
+  const pattern = /^route\.(client|operations|maintenance|internal|shared)\.ts$/;
+  const violations = [];
+  for (const file of await walk("app/api", [".ts"])) {
+    const name = file.split("/").pop();
+    if (!name.startsWith("route.")) continue;
+    const match = pattern.exec(name);
+    if (!match) {
+      violations.push(`${file} 缺少 audience 后缀；API 路由必须显式声明归属（route.client.ts 等）`);
+      continue;
+    }
+    const audiences = audiencesBySource.get(file);
+    if (!audiences) {
+      violations.push(`${file} 未登记在 API inventory；请运行 node scripts/generate-api-route-inventory.mjs`);
+      continue;
+    }
+    const key = [...audiences].sort().join("+");
+    const expected = SUFFIX_FOR[key];
+    if (expected !== match[1]) {
+      violations.push(`${file} 后缀为 .${match[1]}，但清单里的 audience 是 ${key}，应为 route.${expected}.ts`);
+    }
+  }
+  return { name: "API 路由后缀与 audience 一致", violations };
+});
+
 // ---------------------------------------------------------------------------
 
 export async function checkArchitectureBoundaries() {

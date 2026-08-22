@@ -747,3 +747,71 @@ tsc、lint、859 项测试（+29）、三端 build、bundle 预算、6 条边界
 
 `packages/domain/src` 约 3,500 行。仍留在 `lib/` 的运行时件是编排与仓储，
 本就该在那里。P1 可以收尾，下一批进 P2（按 audience 拆 API 面）。
+
+
+## 28. 2026-08-22 P2 按 audience 物理拆分 API 面
+
+此前三个构建各自包含全部 182 个 API 路由——公网盒子上编译着运维控制面的代码，
+边界只有运行时的 fail-closed 校验和 Nginx 白名单。现在最外层是「代码不存在」。
+
+### 机制
+
+Next 的 `pageExtensions` 决定哪些文件被当作可路由文件。文档只讲了 MDX 场景，
+没说 App Router 的 `route.*` 是否也走这条解析，**所以先做了探针验证**：
+建两个探针路由（一个 `route.ts`、一个 `route.operations.ts`），分别构建 client 与
+operations，检查 `app-path-routes-manifest.json`。结果 client 只有共享探针、
+operations 两个都有——机制成立。
+
+（探针第一版目录名叫 `__p2probe__`，结果两个都没出现：**Next 把下划线开头的
+目录当私有目录，整个排除出路由**。这不是机制不работ，是探针写错了。）
+
+### 命名与归属
+
+| 文件名 | 归属 | 数量 |
+| --- | --- | --- |
+| `route.client.ts` | 客户端 | 74 |
+| `route.operations.ts` | 运营端 | 52 |
+| `route.maintenance.ts` | 运维端 | 33 |
+| `route.internal.ts` | 运营 + 运维 | 10 |
+| `route.shared.ts` | 三端 | 13 |
+
+归属不是猜的：从 `lib/api-route-inventory.ts` 已有的 `audiences` 字段推导出重命名
+映射，182 个文件一次 `git mv`。清单本身由 `scripts/generate-api-route-inventory.mjs`
+按 URL 前缀规则生成，兜底是 `throw`（未登记路由在生成期就失败），所以这份数据可信。
+
+### 结果
+
+| 构建 | 拆分前 | 拆分后 | 越界 |
+| --- | --- | --- | --- |
+| client | 182 | **87** | 0 |
+| operations | 182 | 75 | 0 |
+| maintenance | 182 | 56 | 0 |
+
+52 个运营路由 + 33 个运维路由从公网构建里**物理消失**。
+
+### 机器强制（第 7 条边界规则）
+
+「API 路由后缀与 audience 一致」：后缀决定进哪个构建，清单决定运行时放行谁。
+两者错开会产生「构建里有但运行时拒绝」（浪费）或「运行时允许但构建里没有」
+（404 查半天）。裸 `route.ts` 也是违例——新路由必须显式声明归属。
+配两条「故意制造违例能被抓到」的测试。
+
+### 连带改动
+
+- `scripts/generate-api-route-inventory.mjs`：文件识别与路由推导改用 `ROUTE_FILE` 正则。
+  nginx 生成器读的是清单不是磁盘，无需改动，生成结果逐字节相同。
+- 53 个测试文件里硬编码的 `route.ts` 路径按重命名映射批量更新（断言内容未变）。
+- `tests/commercial-release-contract.test.mjs` 的「已废弃路由不得存在」断言原本只查
+  裸 `route.ts`——重命名后全仓库已无裸 `route.ts`，那条断言会白过。改成逐后缀检查。
+- `tests/api-policy-security.test.mjs` 的路由扫描过滤器同步更新。
+
+### 一个踩到的坑（已记进 CLAUDE.md）
+
+`next dev` 与 `next build` 共用 `.next-<audience>`。本地开着 `start-local.sh`
+时跑 `npm run test:apps`，构建会随机失败，错误信息和真正的编译错误长得一样。
+跑三端构建前先 `start-local.sh stop`。
+
+### 验证
+
+tsc、lint、861 项测试（+2）、三端 build、bundle 预算、7 条边界通过。
+三端路由数经 `app-path-routes-manifest.json` 实测确认，跨 audience 越界 0 条。

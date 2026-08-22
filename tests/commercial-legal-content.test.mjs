@@ -24,7 +24,7 @@ test("commercial legal content must be readable and match its immutable digest",
 });
 
 test("membership order creation and UI fail closed until all legal bodies are readable", async () => {
-  const route = await readFile(new URL("../app/api/membership/plans/route.ts", import.meta.url), "utf8");
+  const route = await readFile(new URL("../app/api/membership/plans/route.client.ts", import.meta.url), "utf8");
   const service = await readFile(new URL("../lib/commercial-membership-service.ts", import.meta.url), "utf8");
   const ui = await readFile(new URL("../apps/client/ui/membership-experience.tsx", import.meta.url), "utf8");
   assert.match(route, /content_markdown/);

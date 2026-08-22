@@ -117,7 +117,7 @@ test("Client commercial writes use the authenticated subject without reopening u
   assert.match(acceptance, /pg_advisory_xact_lock/);
   assert.doesNotMatch(acceptance, /FROM users|UPDATE users|INTO users/i);
 
-  const deposits = await read("app/api/wallet/deposit-orders/route.ts");
+  const deposits = await read("app/api/wallet/deposit-orders/route.client.ts");
   assert.match(deposits, /user\.organizationId/);
   assert.doesNotMatch(deposits, /FROM users/i);
 });

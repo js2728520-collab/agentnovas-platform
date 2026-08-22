@@ -96,18 +96,18 @@ test("worker observability migration stores heartbeat and bounded diagnostics", 
 });
 
 test("public health is coarse while maintenance diagnostics remain permission protected", async () => {
-  const publicHealth = await readFile(new URL("../app/api/health/route.ts", import.meta.url), "utf8");
+  const publicHealth = await readFile(new URL("../app/api/health/route.shared.ts", import.meta.url), "utf8");
   assert.doesNotMatch(publicHealth, /runtimeSetting|getPostgresPool|encryptionKey|researchQueue|emergencyStop/);
   assert.match(publicHealth, /shadow-paper-only/);
 
-  const liveHealth = await readFile(new URL("../app/api/health/live/route.ts", import.meta.url), "utf8");
+  const liveHealth = await readFile(new URL("../app/api/health/live/route.shared.ts", import.meta.url), "utf8");
   assert.match(liveHealth, /status:\s*"alive"/);
 
-  const readyHealth = await readFile(new URL("../app/api/health/ready/route.ts", import.meta.url), "utf8");
+  const readyHealth = await readFile(new URL("../app/api/health/ready/route.shared.ts", import.meta.url), "utf8");
   assert.match(readyHealth, /SELECT 1/);
   assert.match(readyHealth, /status:\s*503/);
 
-  const internalHealth = await readFile(new URL("../app/api/maintenance/payment-workers/health/route.ts", import.meta.url), "utf8");
+  const internalHealth = await readFile(new URL("../app/api/maintenance/payment-workers/health/route.maintenance.ts", import.meta.url), "utf8");
   assert.match(internalHealth, /requireAccessPermission\(request, "maint\.system_health\.view"\)/);
   assert.match(internalHealth, /loadWorkerDiagnostics/);
   assert.match(internalHealth, /configured/);
@@ -117,7 +117,7 @@ test("public health is coarse while maintenance diagnostics remain permission pr
 
 test("platform Demo worker reports lifecycle health and stays explicitly gated", async () => {
   const worker = await readFile(new URL("../scripts/platform-demo-worker.mjs", import.meta.url), "utf8");
-  const health = await readFile(new URL("../app/api/maintenance/payment-workers/health/route.ts", import.meta.url), "utf8");
+  const health = await readFile(new URL("../app/api/maintenance/payment-workers/health/route.maintenance.ts", import.meta.url), "utf8");
   const demoEnvironment = await readFile(new URL("../deploy/env/demo.env.example", import.meta.url), "utf8");
   const maintenanceEnvironment = await readFile(new URL("../deploy/env/maintenance.env.example", import.meta.url), "utf8");
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));

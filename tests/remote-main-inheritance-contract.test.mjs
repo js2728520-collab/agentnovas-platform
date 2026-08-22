@@ -13,7 +13,7 @@ test("inherits scoped emergency-stop storage in the PostgreSQL migration chain",
 });
 
 test("maintenance emergency control is RBAC protected and limited to official Paper access", async () => {
-  const route = await read("app/api/maintenance/trading/emergency-stop/route.ts");
+  const route = await read("app/api/maintenance/trading/emergency-stop/route.maintenance.ts");
   const paperRepository = await read("lib/official-paper-repository.ts");
   const implementation = `${route}\n${paperRepository}`;
   assert.match(route, /maint\.emergency_pause\.execute/);
@@ -32,9 +32,9 @@ test("maintenance emergency control is RBAC protected and limited to official Pa
 
 test("platform strategy activation respects platform and organization emergency scopes", async () => {
   const { emergencyScopeForAccess } = await import("../lib/trading-emergency-scope.ts");
-  const follow = await read("app/api/platform-strategies/[code]/follow/route.ts");
-  const communityFollow = await read("app/api/strategy-marketplace/[id]/follow/route.ts");
-  const communityLifecycle = await read("app/api/strategy-subscriptions/[id]/route.ts");
+  const follow = await read("app/api/platform-strategies/[code]/follow/route.client.ts");
+  const communityFollow = await read("app/api/strategy-marketplace/[id]/follow/route.client.ts");
+  const communityLifecycle = await read("app/api/strategy-subscriptions/[id]/route.client.ts");
   const emergency = await read("lib/trading-emergency.ts");
   assert.deepEqual(emergencyScopeForAccess("PLATFORM", null), { scopeKey: "platform", scopeType: "platform", organizationId: null });
   assert.deepEqual(emergencyScopeForAccess("ORGANIZATION", "org-1"), { scopeKey: "organization:org-1", scopeType: "organization", organizationId: "org-1" });
@@ -70,8 +70,8 @@ test("support configuration only accepts allowlisted Telegram HTTPS URLs", async
 });
 
 test("maintenance owns support settings while the client receives a public safe view", async () => {
-  const maintenanceRoute = await read("app/api/maintenance/platform-settings/route.ts");
-  const publicRoute = await read("app/api/platform/settings/route.ts");
+  const maintenanceRoute = await read("app/api/maintenance/platform-settings/route.maintenance.ts");
+  const publicRoute = await read("app/api/platform/settings/route.client.ts");
   const workspace = await read("apps/maintenance/ui/platform-settings-workspace.tsx");
   assert.match(maintenanceRoute, /maint\.feature_flags\.manage/);
   assert.match(maintenanceRoute, /maintenanceReason/);

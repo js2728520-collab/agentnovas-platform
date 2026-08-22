@@ -22,7 +22,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/access/assignments",
-    "source": "app/api/access/assignments/route.ts",
+    "source": "app/api/access/assignments/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -53,7 +53,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/access/assignments",
-    "source": "app/api/access/assignments/route.ts",
+    "source": "app/api/access/assignments/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -80,7 +80,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "DELETE",
     "route": "/api/access/assignments/:id",
-    "source": "app/api/access/assignments/[id]/route.ts",
+    "source": "app/api/access/assignments/[id]/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -107,7 +107,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/access/audit",
-    "source": "app/api/access/audit/route.ts",
+    "source": "app/api/access/audit/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -136,7 +136,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/access/change-requests",
-    "source": "app/api/access/change-requests/route.ts",
+    "source": "app/api/access/change-requests/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -167,7 +167,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/access/change-requests",
-    "source": "app/api/access/change-requests/route.ts",
+    "source": "app/api/access/change-requests/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -198,7 +198,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/access/change-requests/:id/decisions",
-    "source": "app/api/access/change-requests/[id]/decisions/route.ts",
+    "source": "app/api/access/change-requests/[id]/decisions/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -227,7 +227,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/access/me/effective",
-    "source": "app/api/access/me/effective/route.ts",
+    "source": "app/api/access/me/effective/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -249,7 +249,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/access/permissions",
-    "source": "app/api/access/permissions/route.ts",
+    "source": "app/api/access/permissions/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -280,7 +280,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/access/role-templates",
-    "source": "app/api/access/role-templates/route.ts",
+    "source": "app/api/access/role-templates/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -311,7 +311,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/access/role-templates",
-    "source": "app/api/access/role-templates/route.ts",
+    "source": "app/api/access/role-templates/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -336,7 +336,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/access/roles",
-    "source": "app/api/access/roles/route.ts",
+    "source": "app/api/access/roles/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -367,7 +367,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/access/roles",
-    "source": "app/api/access/roles/route.ts",
+    "source": "app/api/access/roles/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -392,7 +392,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/access/roles/:id",
-    "source": "app/api/access/roles/[id]/route.ts",
+    "source": "app/api/access/roles/[id]/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -417,7 +417,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/access/roles/:id/publish",
-    "source": "app/api/access/roles/[id]/publish/route.ts",
+    "source": "app/api/access/roles/[id]/publish/route.internal.ts",
     "audiences": [
       "operations",
       "maintenance"
@@ -442,7 +442,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/account/llm-config",
-    "source": "app/api/account/llm-config/route.ts",
+    "source": "app/api/account/llm-config/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -460,7 +460,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PUT",
     "route": "/api/account/llm-config",
-    "source": "app/api/account/llm-config/route.ts",
+    "source": "app/api/account/llm-config/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -478,7 +478,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/account/llm-config/test",
-    "source": "app/api/account/llm-config/test/route.ts",
+    "source": "app/api/account/llm-config/test/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -496,7 +496,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/account/password",
-    "source": "app/api/account/password/route.ts",
+    "source": "app/api/account/password/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -516,7 +516,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/account/profile",
-    "source": "app/api/account/profile/route.ts",
+    "source": "app/api/account/profile/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -536,7 +536,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/account/profile",
-    "source": "app/api/account/profile/route.ts",
+    "source": "app/api/account/profile/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -556,7 +556,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "DELETE",
     "route": "/api/account/sessions",
-    "source": "app/api/account/sessions/route.ts",
+    "source": "app/api/account/sessions/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -578,7 +578,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/account/sessions",
-    "source": "app/api/account/sessions/route.ts",
+    "source": "app/api/account/sessions/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -600,7 +600,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/admin/agent-role-bindings",
-    "source": "app/api/admin/agent-role-bindings/route.ts",
+    "source": "app/api/admin/agent-role-bindings/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -624,7 +624,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PUT",
     "route": "/api/admin/agent-role-bindings",
-    "source": "app/api/admin/agent-role-bindings/route.ts",
+    "source": "app/api/admin/agent-role-bindings/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -646,7 +646,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/admin/agent-role-bindings/test",
-    "source": "app/api/admin/agent-role-bindings/test/route.ts",
+    "source": "app/api/admin/agent-role-bindings/test/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -668,7 +668,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/admin/follow-policy",
-    "source": "app/api/admin/follow-policy/route.ts",
+    "source": "app/api/admin/follow-policy/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -690,7 +690,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PUT",
     "route": "/api/admin/follow-policy",
-    "source": "app/api/admin/follow-policy/route.ts",
+    "source": "app/api/admin/follow-policy/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -712,7 +712,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/admin/llm-config",
-    "source": "app/api/admin/llm-config/route.ts",
+    "source": "app/api/admin/llm-config/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -730,7 +730,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PUT",
     "route": "/api/admin/llm-config",
-    "source": "app/api/admin/llm-config/route.ts",
+    "source": "app/api/admin/llm-config/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -748,7 +748,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/admin/llm-config/test",
-    "source": "app/api/admin/llm-config/test/route.ts",
+    "source": "app/api/admin/llm-config/test/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -766,7 +766,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/admin/llm-profiles",
-    "source": "app/api/admin/llm-profiles/route.ts",
+    "source": "app/api/admin/llm-profiles/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -790,7 +790,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/admin/llm-profiles",
-    "source": "app/api/admin/llm-profiles/route.ts",
+    "source": "app/api/admin/llm-profiles/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -812,7 +812,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/admin/llm-profiles/:id",
-    "source": "app/api/admin/llm-profiles/[id]/route.ts",
+    "source": "app/api/admin/llm-profiles/[id]/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -834,7 +834,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/admin/llm-profiles/:id/revisions",
-    "source": "app/api/admin/llm-profiles/[id]/revisions/route.ts",
+    "source": "app/api/admin/llm-profiles/[id]/revisions/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -858,7 +858,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/admin/llm-profiles/:id/revisions",
-    "source": "app/api/admin/llm-profiles/[id]/revisions/route.ts",
+    "source": "app/api/admin/llm-profiles/[id]/revisions/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -880,7 +880,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/admin/runtime-explanation-bindings",
-    "source": "app/api/admin/runtime-explanation-bindings/route.ts",
+    "source": "app/api/admin/runtime-explanation-bindings/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -904,7 +904,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PUT",
     "route": "/api/admin/runtime-explanation-bindings",
-    "source": "app/api/admin/runtime-explanation-bindings/route.ts",
+    "source": "app/api/admin/runtime-explanation-bindings/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -926,7 +926,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/admin/runtime-explanation-bindings/test",
-    "source": "app/api/admin/runtime-explanation-bindings/test/route.ts",
+    "source": "app/api/admin/runtime-explanation-bindings/test/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -948,7 +948,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/ai/conversations",
-    "source": "app/api/ai/conversations/route.ts",
+    "source": "app/api/ai/conversations/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -970,7 +970,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/ai/conversations",
-    "source": "app/api/ai/conversations/route.ts",
+    "source": "app/api/ai/conversations/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -992,7 +992,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/ai/conversations/:id",
-    "source": "app/api/ai/conversations/[id]/route.ts",
+    "source": "app/api/ai/conversations/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1014,7 +1014,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/ai/conversations/:id",
-    "source": "app/api/ai/conversations/[id]/route.ts",
+    "source": "app/api/ai/conversations/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1036,7 +1036,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/ai/conversations/:id/messages",
-    "source": "app/api/ai/conversations/[id]/messages/route.ts",
+    "source": "app/api/ai/conversations/[id]/messages/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1058,7 +1058,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/ai/conversations/:id/messages/:messageId/strategy",
-    "source": "app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.ts",
+    "source": "app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1080,7 +1080,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/approvals",
-    "source": "app/api/approvals/route.ts",
+    "source": "app/api/approvals/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1102,7 +1102,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/approvals/:id/decision",
-    "source": "app/api/approvals/[id]/decision/route.ts",
+    "source": "app/api/approvals/[id]/decision/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1124,7 +1124,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/attributions/requests",
-    "source": "app/api/attributions/requests/route.ts",
+    "source": "app/api/attributions/requests/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1146,7 +1146,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/attributions/transfers",
-    "source": "app/api/attributions/transfers/route.ts",
+    "source": "app/api/attributions/transfers/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1168,7 +1168,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/auth/forgot-password",
-    "source": "app/api/auth/forgot-password/route.ts",
+    "source": "app/api/auth/forgot-password/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1186,7 +1186,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/auth/login",
-    "source": "app/api/auth/login/route.ts",
+    "source": "app/api/auth/login/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1206,7 +1206,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/auth/logout",
-    "source": "app/api/auth/logout/route.ts",
+    "source": "app/api/auth/logout/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1226,7 +1226,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/auth/me",
-    "source": "app/api/auth/me/route.ts",
+    "source": "app/api/auth/me/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1246,7 +1246,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/auth/mfa/enroll/confirm",
-    "source": "app/api/auth/mfa/enroll/confirm/route.ts",
+    "source": "app/api/auth/mfa/enroll/confirm/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1268,7 +1268,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/auth/mfa/enroll/start",
-    "source": "app/api/auth/mfa/enroll/start/route.ts",
+    "source": "app/api/auth/mfa/enroll/start/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1290,7 +1290,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/auth/mfa/recovery-codes",
-    "source": "app/api/auth/mfa/recovery-codes/route.ts",
+    "source": "app/api/auth/mfa/recovery-codes/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1312,7 +1312,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/auth/mfa/recovery-codes",
-    "source": "app/api/auth/mfa/recovery-codes/route.ts",
+    "source": "app/api/auth/mfa/recovery-codes/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1335,7 +1335,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/auth/mfa/verify",
-    "source": "app/api/auth/mfa/verify/route.ts",
+    "source": "app/api/auth/mfa/verify/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1357,7 +1357,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/auth/register",
-    "source": "app/api/auth/register/route.ts",
+    "source": "app/api/auth/register/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1375,7 +1375,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/auth/reset-password",
-    "source": "app/api/auth/reset-password/route.ts",
+    "source": "app/api/auth/reset-password/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1395,7 +1395,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/auth/verify-email",
-    "source": "app/api/auth/verify-email/route.ts",
+    "source": "app/api/auth/verify-email/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1413,7 +1413,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/automation/demo-cycle",
-    "source": "app/api/automation/demo-cycle/route.ts",
+    "source": "app/api/automation/demo-cycle/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1431,7 +1431,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/automation/platform-ai-cycle",
-    "source": "app/api/automation/platform-ai-cycle/route.ts",
+    "source": "app/api/automation/platform-ai-cycle/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1449,7 +1449,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/credits/me",
-    "source": "app/api/credits/me/route.ts",
+    "source": "app/api/credits/me/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1471,7 +1471,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/data-center",
-    "source": "app/api/data-center/route.ts",
+    "source": "app/api/data-center/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1493,7 +1493,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/employee/tasks",
-    "source": "app/api/employee/tasks/route.ts",
+    "source": "app/api/employee/tasks/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1515,7 +1515,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/exchange-accounts",
-    "source": "app/api/exchange-accounts/route.ts",
+    "source": "app/api/exchange-accounts/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1533,7 +1533,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/exchange-accounts",
-    "source": "app/api/exchange-accounts/route.ts",
+    "source": "app/api/exchange-accounts/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1551,7 +1551,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/exchange-accounts/:id",
-    "source": "app/api/exchange-accounts/[id]/route.ts",
+    "source": "app/api/exchange-accounts/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1569,7 +1569,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/exchange-accounts/:id/perpetual-instruments",
-    "source": "app/api/exchange-accounts/[id]/perpetual-instruments/route.ts",
+    "source": "app/api/exchange-accounts/[id]/perpetual-instruments/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1587,7 +1587,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/exchange-accounts/:id/routing",
-    "source": "app/api/exchange-accounts/[id]/routing/route.ts",
+    "source": "app/api/exchange-accounts/[id]/routing/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1605,7 +1605,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/finance/adjustments",
-    "source": "app/api/finance/adjustments/route.ts",
+    "source": "app/api/finance/adjustments/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1623,7 +1623,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/finance/collections",
-    "source": "app/api/finance/collections/route.ts",
+    "source": "app/api/finance/collections/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1641,7 +1641,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/finance/collections/:id/confirm-paid",
-    "source": "app/api/finance/collections/[id]/confirm-paid/route.ts",
+    "source": "app/api/finance/collections/[id]/confirm-paid/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1659,7 +1659,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/finance/collections/refresh",
-    "source": "app/api/finance/collections/refresh/route.ts",
+    "source": "app/api/finance/collections/refresh/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1677,7 +1677,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/finance/payout-profiles",
-    "source": "app/api/finance/payout-profiles/route.ts",
+    "source": "app/api/finance/payout-profiles/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1695,7 +1695,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/finance/payout-profiles",
-    "source": "app/api/finance/payout-profiles/route.ts",
+    "source": "app/api/finance/payout-profiles/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1713,7 +1713,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/finance/settlements",
-    "source": "app/api/finance/settlements/route.ts",
+    "source": "app/api/finance/settlements/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1731,7 +1731,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/finance/settlements",
-    "source": "app/api/finance/settlements/route.ts",
+    "source": "app/api/finance/settlements/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1749,7 +1749,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/finance/settlements/:id/paid",
-    "source": "app/api/finance/settlements/[id]/paid/route.ts",
+    "source": "app/api/finance/settlements/[id]/paid/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1767,7 +1767,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/health",
-    "source": "app/api/health/route.ts",
+    "source": "app/api/health/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1787,7 +1787,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/health/live",
-    "source": "app/api/health/live/route.ts",
+    "source": "app/api/health/live/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1807,7 +1807,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/health/ready",
-    "source": "app/api/health/ready/route.ts",
+    "source": "app/api/health/ready/route.shared.ts",
     "audiences": [
       "client",
       "operations",
@@ -1827,7 +1827,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/integrations/catalog",
-    "source": "app/api/integrations/catalog/route.ts",
+    "source": "app/api/integrations/catalog/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -1845,7 +1845,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/integrations/payments/:provider/webhook",
-    "source": "app/api/integrations/payments/[provider]/webhook/route.ts",
+    "source": "app/api/integrations/payments/[provider]/webhook/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -1863,7 +1863,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/integrations/resend/webhook",
-    "source": "app/api/integrations/resend/webhook/route.ts",
+    "source": "app/api/integrations/resend/webhook/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -1881,7 +1881,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/invitations",
-    "source": "app/api/invitations/route.ts",
+    "source": "app/api/invitations/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1903,7 +1903,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/invitations",
-    "source": "app/api/invitations/route.ts",
+    "source": "app/api/invitations/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -1925,7 +1925,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/maintenance/audit",
-    "source": "app/api/maintenance/audit/route.ts",
+    "source": "app/api/maintenance/audit/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -1947,7 +1947,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/maintenance/commercial-disclosures",
-    "source": "app/api/maintenance/commercial-disclosures/route.ts",
+    "source": "app/api/maintenance/commercial-disclosures/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -1969,7 +1969,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/commercial-disclosures",
-    "source": "app/api/maintenance/commercial-disclosures/route.ts",
+    "source": "app/api/maintenance/commercial-disclosures/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -1991,7 +1991,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/commercial-disclosures/:id/decision",
-    "source": "app/api/maintenance/commercial-disclosures/[id]/decision/route.ts",
+    "source": "app/api/maintenance/commercial-disclosures/[id]/decision/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2013,7 +2013,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/maintenance/demo-exchanges",
-    "source": "app/api/maintenance/demo-exchanges/route.ts",
+    "source": "app/api/maintenance/demo-exchanges/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2035,7 +2035,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/demo-exchanges/:id/control",
-    "source": "app/api/maintenance/demo-exchanges/[id]/control/route.ts",
+    "source": "app/api/maintenance/demo-exchanges/[id]/control/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2059,7 +2059,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/demo-exchanges/:id/verify",
-    "source": "app/api/maintenance/demo-exchanges/[id]/verify/route.ts",
+    "source": "app/api/maintenance/demo-exchanges/[id]/verify/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2081,7 +2081,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/maintenance/email/status",
-    "source": "app/api/maintenance/email/status/route.ts",
+    "source": "app/api/maintenance/email/status/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2105,7 +2105,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/email/test",
-    "source": "app/api/maintenance/email/test/route.ts",
+    "source": "app/api/maintenance/email/test/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2127,7 +2127,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/integrations/:id/test",
-    "source": "app/api/maintenance/integrations/[id]/test/route.ts",
+    "source": "app/api/maintenance/integrations/[id]/test/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2149,7 +2149,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/maintenance/integrations/catalog",
-    "source": "app/api/maintenance/integrations/catalog/route.ts",
+    "source": "app/api/maintenance/integrations/catalog/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2173,7 +2173,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/maintenance/payment-providers",
-    "source": "app/api/maintenance/payment-providers/route.ts",
+    "source": "app/api/maintenance/payment-providers/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2197,7 +2197,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/maintenance/payment-providers/:id/configuration",
-    "source": "app/api/maintenance/payment-providers/[id]/configuration/route.ts",
+    "source": "app/api/maintenance/payment-providers/[id]/configuration/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2219,7 +2219,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/maintenance/payment-providers/:id/status",
-    "source": "app/api/maintenance/payment-providers/[id]/status/route.ts",
+    "source": "app/api/maintenance/payment-providers/[id]/status/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2241,7 +2241,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/payment-providers/:id/test",
-    "source": "app/api/maintenance/payment-providers/[id]/test/route.ts",
+    "source": "app/api/maintenance/payment-providers/[id]/test/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2263,7 +2263,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/maintenance/payment-workers/health",
-    "source": "app/api/maintenance/payment-workers/health/route.ts",
+    "source": "app/api/maintenance/payment-workers/health/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2285,7 +2285,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/maintenance/platform-settings",
-    "source": "app/api/maintenance/platform-settings/route.ts",
+    "source": "app/api/maintenance/platform-settings/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2307,7 +2307,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PUT",
     "route": "/api/maintenance/platform-settings",
-    "source": "app/api/maintenance/platform-settings/route.ts",
+    "source": "app/api/maintenance/platform-settings/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2329,7 +2329,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/maintenance/releases",
-    "source": "app/api/maintenance/releases/route.ts",
+    "source": "app/api/maintenance/releases/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2351,7 +2351,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/releases",
-    "source": "app/api/maintenance/releases/route.ts",
+    "source": "app/api/maintenance/releases/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2373,7 +2373,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/releases/:id/deployments",
-    "source": "app/api/maintenance/releases/[id]/deployments/route.ts",
+    "source": "app/api/maintenance/releases/[id]/deployments/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2395,7 +2395,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/releases/:id/verification",
-    "source": "app/api/maintenance/releases/[id]/verification/route.ts",
+    "source": "app/api/maintenance/releases/[id]/verification/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2417,7 +2417,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/maintenance/trading/emergency-stop",
-    "source": "app/api/maintenance/trading/emergency-stop/route.ts",
+    "source": "app/api/maintenance/trading/emergency-stop/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2439,7 +2439,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/maintenance/trading/emergency-stop",
-    "source": "app/api/maintenance/trading/emergency-stop/route.ts",
+    "source": "app/api/maintenance/trading/emergency-stop/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -2461,7 +2461,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/market/candles",
-    "source": "app/api/market/candles/route.ts",
+    "source": "app/api/market/candles/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2479,7 +2479,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/market/instruments",
-    "source": "app/api/market/instruments/route.ts",
+    "source": "app/api/market/instruments/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2497,7 +2497,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/market/news",
-    "source": "app/api/market/news/route.ts",
+    "source": "app/api/market/news/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2515,7 +2515,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/market/quote",
-    "source": "app/api/market/quote/route.ts",
+    "source": "app/api/market/quote/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2533,7 +2533,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/market/ticker",
-    "source": "app/api/market/ticker/route.ts",
+    "source": "app/api/market/ticker/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2551,7 +2551,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "DELETE",
     "route": "/api/market/watchlist",
-    "source": "app/api/market/watchlist/route.ts",
+    "source": "app/api/market/watchlist/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2571,7 +2571,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/market/watchlist",
-    "source": "app/api/market/watchlist/route.ts",
+    "source": "app/api/market/watchlist/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2591,7 +2591,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/market/watchlist",
-    "source": "app/api/market/watchlist/route.ts",
+    "source": "app/api/market/watchlist/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2611,7 +2611,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/membership/legal-consent",
-    "source": "app/api/membership/legal-consent/route.ts",
+    "source": "app/api/membership/legal-consent/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2631,7 +2631,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/membership/legal-consent",
-    "source": "app/api/membership/legal-consent/route.ts",
+    "source": "app/api/membership/legal-consent/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2651,7 +2651,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/membership/me",
-    "source": "app/api/membership/me/route.ts",
+    "source": "app/api/membership/me/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2673,7 +2673,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/membership/orders",
-    "source": "app/api/membership/orders/route.ts",
+    "source": "app/api/membership/orders/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2695,7 +2695,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/membership/orders",
-    "source": "app/api/membership/orders/route.ts",
+    "source": "app/api/membership/orders/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2717,7 +2717,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/membership/performance-statements",
-    "source": "app/api/membership/performance-statements/route.ts",
+    "source": "app/api/membership/performance-statements/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2739,7 +2739,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/membership/performance-statements/:id",
-    "source": "app/api/membership/performance-statements/[id]/route.ts",
+    "source": "app/api/membership/performance-statements/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2761,7 +2761,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/membership/plans",
-    "source": "app/api/membership/plans/route.ts",
+    "source": "app/api/membership/plans/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2783,7 +2783,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/notifications/channels",
-    "source": "app/api/notifications/channels/route.ts",
+    "source": "app/api/notifications/channels/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2801,7 +2801,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/notifications/channels",
-    "source": "app/api/notifications/channels/route.ts",
+    "source": "app/api/notifications/channels/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2819,7 +2819,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/notifications/channels",
-    "source": "app/api/notifications/channels/route.ts",
+    "source": "app/api/notifications/channels/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2837,7 +2837,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/notifications/inbox",
-    "source": "app/api/notifications/inbox/route.ts",
+    "source": "app/api/notifications/inbox/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2857,7 +2857,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/notifications/inbox",
-    "source": "app/api/notifications/inbox/route.ts",
+    "source": "app/api/notifications/inbox/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2877,7 +2877,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/notifications/preferences",
-    "source": "app/api/notifications/preferences/route.ts",
+    "source": "app/api/notifications/preferences/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2897,7 +2897,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PUT",
     "route": "/api/notifications/preferences",
-    "source": "app/api/notifications/preferences/route.ts",
+    "source": "app/api/notifications/preferences/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -2917,7 +2917,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/attribution-changes",
-    "source": "app/api/operations/attribution-changes/route.ts",
+    "source": "app/api/operations/attribution-changes/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -2939,7 +2939,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/attribution-changes",
-    "source": "app/api/operations/attribution-changes/route.ts",
+    "source": "app/api/operations/attribution-changes/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -2961,7 +2961,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/attribution-changes/:id/decision",
-    "source": "app/api/operations/attribution-changes/[id]/decision/route.ts",
+    "source": "app/api/operations/attribution-changes/[id]/decision/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -2983,7 +2983,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/credit-adjustments",
-    "source": "app/api/operations/credit-adjustments/route.ts",
+    "source": "app/api/operations/credit-adjustments/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3005,7 +3005,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/credit-adjustments",
-    "source": "app/api/operations/credit-adjustments/route.ts",
+    "source": "app/api/operations/credit-adjustments/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3027,7 +3027,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/credit-adjustments/:id/decision",
-    "source": "app/api/operations/credit-adjustments/[id]/decision/route.ts",
+    "source": "app/api/operations/credit-adjustments/[id]/decision/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3049,7 +3049,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/credits",
-    "source": "app/api/operations/credits/route.ts",
+    "source": "app/api/operations/credits/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3071,7 +3071,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/customers",
-    "source": "app/api/operations/customers/route.ts",
+    "source": "app/api/operations/customers/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3093,7 +3093,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/customers/:id",
-    "source": "app/api/operations/customers/[id]/route.ts",
+    "source": "app/api/operations/customers/[id]/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3115,7 +3115,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/customers/:id/notes",
-    "source": "app/api/operations/customers/[id]/notes/route.ts",
+    "source": "app/api/operations/customers/[id]/notes/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3137,7 +3137,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/customers/:id/status",
-    "source": "app/api/operations/customers/[id]/status/route.ts",
+    "source": "app/api/operations/customers/[id]/status/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3159,7 +3159,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/deposit-action-requests",
-    "source": "app/api/operations/deposit-action-requests/route.ts",
+    "source": "app/api/operations/deposit-action-requests/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3181,7 +3181,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/deposit-action-requests/:id/decisions",
-    "source": "app/api/operations/deposit-action-requests/[id]/decisions/route.ts",
+    "source": "app/api/operations/deposit-action-requests/[id]/decisions/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3203,7 +3203,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/deposits",
-    "source": "app/api/operations/deposits/route.ts",
+    "source": "app/api/operations/deposits/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3225,7 +3225,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/deposits/:id",
-    "source": "app/api/operations/deposits/[id]/route.ts",
+    "source": "app/api/operations/deposits/[id]/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3247,7 +3247,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/deposits/:id/action-requests",
-    "source": "app/api/operations/deposits/[id]/action-requests/route.ts",
+    "source": "app/api/operations/deposits/[id]/action-requests/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3269,7 +3269,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/deposits/statistics",
-    "source": "app/api/operations/deposits/statistics/route.ts",
+    "source": "app/api/operations/deposits/statistics/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3291,7 +3291,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/ledger",
-    "source": "app/api/operations/ledger/route.ts",
+    "source": "app/api/operations/ledger/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3313,7 +3313,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/membership-orders",
-    "source": "app/api/operations/membership-orders/route.ts",
+    "source": "app/api/operations/membership-orders/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3335,7 +3335,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/membership-orders/:id",
-    "source": "app/api/operations/membership-orders/[id]/route.ts",
+    "source": "app/api/operations/membership-orders/[id]/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3357,7 +3357,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/membership-orders/:id/decision",
-    "source": "app/api/operations/membership-orders/[id]/decision/route.ts",
+    "source": "app/api/operations/membership-orders/[id]/decision/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3379,7 +3379,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/membership-orders/:id/evidence",
-    "source": "app/api/operations/membership-orders/[id]/evidence/route.ts",
+    "source": "app/api/operations/membership-orders/[id]/evidence/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3401,7 +3401,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/membership-orders/:id/submit",
-    "source": "app/api/operations/membership-orders/[id]/submit/route.ts",
+    "source": "app/api/operations/membership-orders/[id]/submit/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3423,7 +3423,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/performance-statements",
-    "source": "app/api/operations/performance-statements/route.ts",
+    "source": "app/api/operations/performance-statements/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3445,7 +3445,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/operations/performance-statements/:id",
-    "source": "app/api/operations/performance-statements/[id]/route.ts",
+    "source": "app/api/operations/performance-statements/[id]/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3467,7 +3467,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/performance-statements/:id/decision",
-    "source": "app/api/operations/performance-statements/[id]/decision/route.ts",
+    "source": "app/api/operations/performance-statements/[id]/decision/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3489,7 +3489,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/performance-statements/:id/payment-decision",
-    "source": "app/api/operations/performance-statements/[id]/payment-decision/route.ts",
+    "source": "app/api/operations/performance-statements/[id]/payment-decision/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3511,7 +3511,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/performance-statements/:id/payment-evidence",
-    "source": "app/api/operations/performance-statements/[id]/payment-evidence/route.ts",
+    "source": "app/api/operations/performance-statements/[id]/payment-evidence/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3533,7 +3533,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/operations/performance-statements/generate",
-    "source": "app/api/operations/performance-statements/generate/route.ts",
+    "source": "app/api/operations/performance-statements/generate/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3555,7 +3555,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/organization/customers",
-    "source": "app/api/organization/customers/route.ts",
+    "source": "app/api/organization/customers/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3577,7 +3577,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/organization/customers",
-    "source": "app/api/organization/customers/route.ts",
+    "source": "app/api/organization/customers/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3599,7 +3599,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/organization/customers/:id/notes",
-    "source": "app/api/organization/customers/[id]/notes/route.ts",
+    "source": "app/api/organization/customers/[id]/notes/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3621,7 +3621,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "DELETE",
     "route": "/api/organization/members",
-    "source": "app/api/organization/members/route.ts",
+    "source": "app/api/organization/members/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3639,7 +3639,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/organization/members",
-    "source": "app/api/organization/members/route.ts",
+    "source": "app/api/organization/members/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3661,7 +3661,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/organization/members",
-    "source": "app/api/organization/members/route.ts",
+    "source": "app/api/organization/members/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3683,7 +3683,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/organization/members",
-    "source": "app/api/organization/members/route.ts",
+    "source": "app/api/organization/members/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3705,7 +3705,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/organization/members/:id/activate",
-    "source": "app/api/organization/members/[id]/activate/route.ts",
+    "source": "app/api/organization/members/[id]/activate/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3727,7 +3727,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/organization/members/:id/status",
-    "source": "app/api/organization/members/[id]/status/route.ts",
+    "source": "app/api/organization/members/[id]/status/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3749,7 +3749,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/platform-strategies/:code/follow",
-    "source": "app/api/platform-strategies/[code]/follow/route.ts",
+    "source": "app/api/platform-strategies/[code]/follow/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3771,7 +3771,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/platform-strategy-subscriptions/:id",
-    "source": "app/api/platform-strategy-subscriptions/[id]/route.ts",
+    "source": "app/api/platform-strategy-subscriptions/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3793,7 +3793,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/platform/network",
-    "source": "app/api/platform/network/route.ts",
+    "source": "app/api/platform/network/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3811,7 +3811,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/platform/settings",
-    "source": "app/api/platform/settings/route.ts",
+    "source": "app/api/platform/settings/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3829,7 +3829,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/portfolio",
-    "source": "app/api/portfolio/route.ts",
+    "source": "app/api/portfolio/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3847,7 +3847,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "DELETE",
     "route": "/api/portfolio/strategies",
-    "source": "app/api/portfolio/strategies/route.ts",
+    "source": "app/api/portfolio/strategies/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3865,7 +3865,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/portfolio/strategies",
-    "source": "app/api/portfolio/strategies/route.ts",
+    "source": "app/api/portfolio/strategies/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3883,7 +3883,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/portfolio/strategies",
-    "source": "app/api/portfolio/strategies/route.ts",
+    "source": "app/api/portfolio/strategies/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3901,7 +3901,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/public-pool",
-    "source": "app/api/public-pool/route.ts",
+    "source": "app/api/public-pool/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3919,7 +3919,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/reports/monthly",
-    "source": "app/api/reports/monthly/route.ts",
+    "source": "app/api/reports/monthly/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -3941,7 +3941,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/risk/status",
-    "source": "app/api/risk/status/route.ts",
+    "source": "app/api/risk/status/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3959,7 +3959,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/simulated-orders",
-    "source": "app/api/simulated-orders/route.ts",
+    "source": "app/api/simulated-orders/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3977,7 +3977,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/simulated-orders",
-    "source": "app/api/simulated-orders/route.ts",
+    "source": "app/api/simulated-orders/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -3995,7 +3995,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/simulated-orders/:id",
-    "source": "app/api/simulated-orders/[id]/route.ts",
+    "source": "app/api/simulated-orders/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4013,7 +4013,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategies/:strategyId/versions/:versionId/deployments",
-    "source": "app/api/strategies/[strategyId]/versions/[versionId]/deployments/route.ts",
+    "source": "app/api/strategies/[strategyId]/versions/[versionId]/deployments/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4031,7 +4031,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/strategy-deployments/:id",
-    "source": "app/api/strategy-deployments/[id]/route.ts",
+    "source": "app/api/strategy-deployments/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4049,7 +4049,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/strategy-deployments/:id/cycles",
-    "source": "app/api/strategy-deployments/[id]/cycles/route.ts",
+    "source": "app/api/strategy-deployments/[id]/cycles/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4067,7 +4067,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-deployments/:id/pause",
-    "source": "app/api/strategy-deployments/[id]/pause/route.ts",
+    "source": "app/api/strategy-deployments/[id]/pause/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4085,7 +4085,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-deployments/:id/resume",
-    "source": "app/api/strategy-deployments/[id]/resume/route.ts",
+    "source": "app/api/strategy-deployments/[id]/resume/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4103,7 +4103,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/strategy-marketplace",
-    "source": "app/api/strategy-marketplace/route.ts",
+    "source": "app/api/strategy-marketplace/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4121,7 +4121,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-marketplace",
-    "source": "app/api/strategy-marketplace/route.ts",
+    "source": "app/api/strategy-marketplace/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4139,7 +4139,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/strategy-marketplace/:id",
-    "source": "app/api/strategy-marketplace/[id]/route.ts",
+    "source": "app/api/strategy-marketplace/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4157,7 +4157,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/strategy-marketplace/:id",
-    "source": "app/api/strategy-marketplace/[id]/route.ts",
+    "source": "app/api/strategy-marketplace/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4175,7 +4175,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-marketplace/:id/backtest",
-    "source": "app/api/strategy-marketplace/[id]/backtest/route.ts",
+    "source": "app/api/strategy-marketplace/[id]/backtest/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4193,7 +4193,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/strategy-marketplace/:id/change-request",
-    "source": "app/api/strategy-marketplace/[id]/change-request/route.ts",
+    "source": "app/api/strategy-marketplace/[id]/change-request/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4211,7 +4211,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/strategy-marketplace/:id/change-request",
-    "source": "app/api/strategy-marketplace/[id]/change-request/route.ts",
+    "source": "app/api/strategy-marketplace/[id]/change-request/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4229,7 +4229,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-marketplace/:id/change-request",
-    "source": "app/api/strategy-marketplace/[id]/change-request/route.ts",
+    "source": "app/api/strategy-marketplace/[id]/change-request/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4247,7 +4247,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-marketplace/:id/follow",
-    "source": "app/api/strategy-marketplace/[id]/follow/route.ts",
+    "source": "app/api/strategy-marketplace/[id]/follow/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4265,7 +4265,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-marketplace/:id/submit",
-    "source": "app/api/strategy-marketplace/[id]/submit/route.ts",
+    "source": "app/api/strategy-marketplace/[id]/submit/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4283,7 +4283,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-marketplace/:id/versions",
-    "source": "app/api/strategy-marketplace/[id]/versions/route.ts",
+    "source": "app/api/strategy-marketplace/[id]/versions/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4301,7 +4301,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-marketplace/refresh-inactive",
-    "source": "app/api/strategy-marketplace/refresh-inactive/route.ts",
+    "source": "app/api/strategy-marketplace/refresh-inactive/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4319,7 +4319,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/strategy-research/roles",
-    "source": "app/api/strategy-research/roles/route.ts",
+    "source": "app/api/strategy-research/roles/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4339,7 +4339,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/strategy-research/runs",
-    "source": "app/api/strategy-research/runs/route.ts",
+    "source": "app/api/strategy-research/runs/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4357,7 +4357,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-research/runs",
-    "source": "app/api/strategy-research/runs/route.ts",
+    "source": "app/api/strategy-research/runs/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4375,7 +4375,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/strategy-research/runs/:id",
-    "source": "app/api/strategy-research/runs/[id]/route.ts",
+    "source": "app/api/strategy-research/runs/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4393,7 +4393,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-research/runs/:id/answer",
-    "source": "app/api/strategy-research/runs/[id]/answer/route.ts",
+    "source": "app/api/strategy-research/runs/[id]/answer/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4411,7 +4411,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-research/runs/:id/cancel",
-    "source": "app/api/strategy-research/runs/[id]/cancel/route.ts",
+    "source": "app/api/strategy-research/runs/[id]/cancel/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4429,7 +4429,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-research/runs/:id/candidates/:candidateId/save",
-    "source": "app/api/strategy-research/runs/[id]/candidates/[candidateId]/save/route.ts",
+    "source": "app/api/strategy-research/runs/[id]/candidates/[candidateId]/save/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4447,7 +4447,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/strategy-research/runs/:id/events",
-    "source": "app/api/strategy-research/runs/[id]/events/route.ts",
+    "source": "app/api/strategy-research/runs/[id]/events/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4465,7 +4465,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-studio/chat",
-    "source": "app/api/strategy-studio/chat/route.ts",
+    "source": "app/api/strategy-studio/chat/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4483,7 +4483,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/strategy-studio/generate",
-    "source": "app/api/strategy-studio/generate/route.ts",
+    "source": "app/api/strategy-studio/generate/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4505,7 +4505,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/strategy-subscriptions/:id",
-    "source": "app/api/strategy-subscriptions/[id]/route.ts",
+    "source": "app/api/strategy-subscriptions/[id]/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4523,7 +4523,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/system/bootstrap",
-    "source": "app/api/system/bootstrap/route.ts",
+    "source": "app/api/system/bootstrap/route.maintenance.ts",
     "audiences": [
       "maintenance"
     ],
@@ -4541,7 +4541,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/team/daily-brief",
-    "source": "app/api/team/daily-brief/route.ts",
+    "source": "app/api/team/daily-brief/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -4563,7 +4563,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/team/daily-brief",
-    "source": "app/api/team/daily-brief/route.ts",
+    "source": "app/api/team/daily-brief/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -4585,7 +4585,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PUT",
     "route": "/api/team/daily-brief",
-    "source": "app/api/team/daily-brief/route.ts",
+    "source": "app/api/team/daily-brief/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -4607,7 +4607,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/team/monthly-targets",
-    "source": "app/api/team/monthly-targets/route.ts",
+    "source": "app/api/team/monthly-targets/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -4629,7 +4629,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/team/monthly-targets",
-    "source": "app/api/team/monthly-targets/route.ts",
+    "source": "app/api/team/monthly-targets/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -4651,7 +4651,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/team/monthly-targets/export",
-    "source": "app/api/team/monthly-targets/export/route.ts",
+    "source": "app/api/team/monthly-targets/export/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -4673,7 +4673,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/team/monthly-targets/follow-up",
-    "source": "app/api/team/monthly-targets/follow-up/route.ts",
+    "source": "app/api/team/monthly-targets/follow-up/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -4695,7 +4695,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "PATCH",
     "route": "/api/team/monthly-targets/follow-up",
-    "source": "app/api/team/monthly-targets/follow-up/route.ts",
+    "source": "app/api/team/monthly-targets/follow-up/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -4717,7 +4717,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/team/monthly-targets/follow-up",
-    "source": "app/api/team/monthly-targets/follow-up/route.ts",
+    "source": "app/api/team/monthly-targets/follow-up/route.operations.ts",
     "audiences": [
       "operations"
     ],
@@ -4739,7 +4739,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/trading-hall",
-    "source": "app/api/trading-hall/route.ts",
+    "source": "app/api/trading-hall/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4761,7 +4761,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/trading-hall/paper/platform-demo-summary",
-    "source": "app/api/trading-hall/paper/platform-demo-summary/route.ts",
+    "source": "app/api/trading-hall/paper/platform-demo-summary/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4783,7 +4783,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/trading-hall/paper/portfolio",
-    "source": "app/api/trading-hall/paper/portfolio/route.ts",
+    "source": "app/api/trading-hall/paper/portfolio/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4805,7 +4805,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/trading-hall/paper/trades",
-    "source": "app/api/trading-hall/paper/trades/route.ts",
+    "source": "app/api/trading-hall/paper/trades/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4827,7 +4827,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/trading/emergency-stop",
-    "source": "app/api/trading/emergency-stop/route.ts",
+    "source": "app/api/trading/emergency-stop/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4845,7 +4845,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/wallet/balances",
-    "source": "app/api/wallet/balances/route.ts",
+    "source": "app/api/wallet/balances/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4867,7 +4867,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/wallet/deposit-orders",
-    "source": "app/api/wallet/deposit-orders/route.ts",
+    "source": "app/api/wallet/deposit-orders/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4889,7 +4889,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/wallet/deposit-orders",
-    "source": "app/api/wallet/deposit-orders/route.ts",
+    "source": "app/api/wallet/deposit-orders/route.client.ts",
     "audiences": [
       "client"
     ],
@@ -4911,7 +4911,7 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "GET",
     "route": "/api/wallet/ledger",
-    "source": "app/api/wallet/ledger/route.ts",
+    "source": "app/api/wallet/ledger/route.client.ts",
     "audiences": [
       "client"
     ],

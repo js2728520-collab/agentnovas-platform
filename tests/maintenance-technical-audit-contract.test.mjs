@@ -5,7 +5,7 @@ import test from "node:test";
 test("Maintenance exposes a permission guarded stable technical audit page", async () => {
   const routeContract = await readFile(new URL("../app/riverton-route-contract.ts", import.meta.url), "utf8");
   const app = await Promise.all([readFile(new URL("../apps/maintenance/ui/maintenance-app.tsx", import.meta.url), "utf8"), readFile(new URL("../apps/maintenance/ui/navigation.ts", import.meta.url), "utf8")]).then((parts) => parts.join("\n"));
-  const api = await readFile(new URL("../app/api/maintenance/audit/route.ts", import.meta.url), "utf8");
+  const api = await readFile(new URL("../app/api/maintenance/audit/route.maintenance.ts", import.meta.url), "utf8");
   const query = await readFile(new URL("../lib/maintenance-technical-audit.ts", import.meta.url), "utf8");
   assert.match(routeContract, /MAINTENANCE_ROUTES[^\n]+"audit"/);
   assert.match(app, /href: "\/audit"[^\n]+maint\.audit\.view/);

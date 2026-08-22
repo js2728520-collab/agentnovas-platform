@@ -59,7 +59,7 @@ test("client statement timeline exposes only deterministic customer-visible even
 });
 
 test("client performance statement detail is ownership scoped and privacy projected", async () => {
-  const route = await read("app/api/membership/performance-statements/[id]/route.ts");
+  const route = await read("app/api/membership/performance-statements/[id]/route.client.ts");
   assert.match(route, /requireAccessPermission\([\s\S]*client\.membership\.view/);
   assert.match(route, /s\.id=\$1\s+AND\s+s\.user_id=\$2/);
   assert.match(route, /performanceStatementTimeline/);
@@ -89,7 +89,7 @@ test("client statement workspace provides list, detail, timeline and honest paym
 
 test("client home loads the latest statement and unread count as independent summaries", async () => {
   const home = await read("apps/client/ui/client-home-workspace.tsx");
-  const inbox = await read("app/api/notifications/inbox/route.ts");
+  const inbox = await read("app/api/notifications/inbox/route.client.ts");
   assert.match(home, /\/api\/membership\/performance-statements\?limit=1/);
   assert.match(home, /\/api\/notifications\/inbox\?summary=1/);
   assert.match(home, /label="最新绩效账单"/);

@@ -4,7 +4,7 @@ import test from "node:test";
 
 test("rollback creates a new immutable version from an owned historical snapshot", async () => {
   const route = await readFile(
-    new URL("../app/api/strategy-marketplace/[id]/versions/route.ts", import.meta.url),
+    new URL("../app/api/strategy-marketplace/[id]/versions/route.client.ts", import.meta.url),
     "utf8",
   );
 
@@ -22,7 +22,7 @@ test("rollback creates a new immutable version from an owned historical snapshot
 
 test("rollback preserves protected strategy states and records its provenance", async () => {
   const [route, schema, migration, postgresMigration] = await Promise.all([
-    readFile(new URL("../app/api/strategy-marketplace/[id]/versions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/strategy-marketplace/[id]/versions/route.client.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0024_strategy_version_restore.sql", import.meta.url), "utf8"),
     readFile(new URL("../postgres/migrations/0000_business_schema.sql", import.meta.url), "utf8"),

@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("internal login creates a restricted primary session that can enter enrollment", async () => {
-  const login = await readFile(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
+  const login = await readFile(new URL("../app/api/auth/login/route.shared.ts", import.meta.url), "utf8");
   const mfa = await readFile(new URL("../lib/mfa.ts", import.meta.url), "utf8");
   assert.match(login, /user_mfa_totp_credentials/);
   assert.match(login, /mfaEnrollmentRequired/);
@@ -14,7 +14,7 @@ test("internal login creates a restricted primary session that can enter enrollm
   assert.match(mfa, /enrollmentRequired: internal && !enrolled/);
 });
 test("the MFA endpoint is rate limited and atomically upgrades the same session", async () => {
-  const verify = await readFile(new URL("../app/api/auth/mfa/verify/route.ts", import.meta.url), "utf8");
+  const verify = await readFile(new URL("../app/api/auth/mfa/verify/route.shared.ts", import.meta.url), "utf8");
   assert.match(verify, /requirePrimarySession/);
   assert.match(verify, /consumeAuthRateLimit/);
   assert.match(verify, /verifyAndConsumeMfa/);
@@ -31,7 +31,7 @@ test("sensitive RBAC permissions require MFA completed within fifteen minutes", 
 });
 
 test("internal users can rotate recovery codes only from a recent MFA session", async () => {
-  const route = await readFile(new URL("../app/api/auth/mfa/recovery-codes/route.ts", import.meta.url), "utf8");
+  const route = await readFile(new URL("../app/api/auth/mfa/recovery-codes/route.shared.ts", import.meta.url), "utf8");
   const session = await readFile(new URL("../lib/session.ts", import.meta.url), "utf8");
   const workspace = await readFile(new URL("../packages/ui/src/internal-account-security.tsx", import.meta.url), "utf8");
   assert.match(route, /requireRecentMfaSession/);

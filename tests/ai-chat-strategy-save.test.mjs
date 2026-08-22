@@ -116,9 +116,9 @@ test("agent chat exposes message-level strategy saving and model-only attributio
   const [chat, content, conversationRoute, persistence, saveRoute] = await Promise.all([
     readFile(new URL("../app/agent-chat.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/ai-message-content.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/ai/conversations/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/ai/conversations/[id]/route.client.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/ai-conversations.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.client.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(content, /保存到我的策略/);

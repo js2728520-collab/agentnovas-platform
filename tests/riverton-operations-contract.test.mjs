@@ -18,24 +18,24 @@ test("operations data scopes never widen team access to the whole organization",
 
 test("RBAC list endpoints are bound to the current application audience", async () => {
   for (const path of [
-    "app/api/access/roles/route.ts",
-    "app/api/access/role-templates/route.ts",
-    "app/api/access/assignments/route.ts",
-    "app/api/access/audit/route.ts",
+    "app/api/access/roles/route.internal.ts",
+    "app/api/access/role-templates/route.internal.ts",
+    "app/api/access/assignments/route.internal.ts",
+    "app/api/access/audit/route.internal.ts",
   ]) {
     const source = await read(path);
     assert.match(source, /applicationId|appId/);
     assert.match(source, /WHERE|where/i);
   }
-  const changes = await read("app/api/access/change-requests/route.ts");
+  const changes = await read("app/api/access/change-requests/route.internal.ts");
   assert.match(changes, /export async function GET/);
   assert.match(changes, /status/);
 });
 
 test("operations exposes scoped action queues, normalized deposit details and immutable ledger", async () => {
-  const queue = await read("app/api/operations/deposit-action-requests/route.ts");
-  const detail = await read("app/api/operations/deposits/[id]/route.ts");
-  const ledger = await read("app/api/operations/ledger/route.ts");
+  const queue = await read("app/api/operations/deposit-action-requests/route.operations.ts");
+  const detail = await read("app/api/operations/deposits/[id]/route.operations.ts");
+  const ledger = await read("app/api/operations/ledger/route.operations.ts");
   assert.match(queue, /ops\.deposits\.action_approve/);
   assert.match(queue, /customerScopePredicate/);
   assert.match(detail, /canRevealPii/);
@@ -56,8 +56,8 @@ test("finance workspace uses commercial orders, Paper fee statements and immutab
 
 test("RBAC viewers, assignees and reviewers are authorized independently", async () => {
   const access = await read("lib/access-control.ts");
-  const decisions = await read("app/api/access/change-requests/[id]/decisions/route.ts");
-  const revoke = await read("app/api/access/assignments/[id]/route.ts");
+  const decisions = await read("app/api/access/change-requests/[id]/decisions/route.internal.ts");
+  const revoke = await read("app/api/access/assignments/[id]/route.internal.ts");
   assert.match(access, /requireCurrentAccessViewer/);
   assert.match(access, /requireCurrentAccessAssignmentAdmin/);
   assert.match(access, /requireCurrentAccessReviewer/);
@@ -65,5 +65,5 @@ test("RBAC viewers, assignees and reviewers are authorized independently", async
   assert.doesNotMatch(decisions, /审批人不具备该应用的角色管理权限/);
   assert.match(revoke, /角色撤销必须提交权限变更申请/);
   assert.doesNotMatch(revoke, /UPDATE user_role_assignments/);
-  assert.match(await read("app/api/access/change-requests/route.ts"), /必须填写权限变更原因/);
+  assert.match(await read("app/api/access/change-requests/route.internal.ts"), /必须填写权限变更原因/);
 });

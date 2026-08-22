@@ -5,7 +5,7 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("Client address creation uses the safe projection, server-side runtime secret, and no static address", async () => {
-  const route = await read("app/api/wallet/deposit-orders/route.ts");
+  const route = await read("app/api/wallet/deposit-orders/route.client.ts");
   assert.match(route, /client_payment_provider_configs_safe/);
   assert.match(route, /readUdunRuntimeConfig/);
   assert.match(route, /requestUdunDepositAddress/);
@@ -19,7 +19,7 @@ test("Client address creation uses the safe projection, server-side runtime secr
 
 test("Udun webhook uses its dedicated role and persists hashes instead of raw provider payloads", async () => {
   const [route, postgres, roles] = await Promise.all([
-    read("app/api/integrations/payments/[provider]/webhook/route.ts"),
+    read("app/api/integrations/payments/[provider]/webhook/route.maintenance.ts"),
     read("lib/postgres.ts"),
     read("deploy/postgres/least-privilege-roles.sql"),
   ]);
@@ -36,7 +36,7 @@ test("Udun webhook uses its dedicated role and persists hashes instead of raw pr
 });
 
 test("APPROVE_CREDIT is the only deposit approval that atomically posts wallet and ledger state", async () => {
-  const route = await read("app/api/operations/deposit-action-requests/[id]/decisions/route.ts");
+  const route = await read("app/api/operations/deposit-action-requests/[id]/decisions/route.operations.ts");
   assert.match(route, /row\.action === "APPROVE_CREDIT"/);
   assert.match(route, /transactionType: "deposit_credit"/);
   assert.match(route, /postCommercialLedgerTransaction/);

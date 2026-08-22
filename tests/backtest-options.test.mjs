@@ -71,8 +71,8 @@ test("historical candle loading falls back after a provider abort and reports th
 
 test("strategy detail and backtest routes enforce ownership and persist parsed reports", async () => {
   const [detailRoute, backtestRoute] = await Promise.all([
-    readFile(new URL("../app/api/strategy-marketplace/[id]/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/strategy-marketplace/[id]/backtest/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/strategy-marketplace/[id]/route.client.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/strategy-marketplace/[id]/backtest/route.client.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(detailRoute, /export async function GET/);

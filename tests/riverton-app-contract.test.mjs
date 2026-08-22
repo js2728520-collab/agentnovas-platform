@@ -29,7 +29,7 @@ test("defines three independently deployed application audiences", async () => {
 });
 
 test("login route validates application access before issuing an app session", async () => {
-  const source = await readFile(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/api/auth/login/route.shared.ts", import.meta.url), "utf8");
   assert.match(source, /userCanAccessApp/);
   assert.match(source, /无权登录当前应用/);
   assert.match(source, /effectiveAccessForUser/);

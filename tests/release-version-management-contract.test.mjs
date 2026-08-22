@@ -28,9 +28,9 @@ test("release management is a Maintenance-only stable route with explicit permis
 
 test("release API routes require idempotent explicit permissions", async () => {
   const [collection, verification, deployment] = await Promise.all([
-    read("app/api/maintenance/releases/route.ts"),
-    read("app/api/maintenance/releases/[id]/verification/route.ts"),
-    read("app/api/maintenance/releases/[id]/deployments/route.ts"),
+    read("app/api/maintenance/releases/route.maintenance.ts"),
+    read("app/api/maintenance/releases/[id]/verification/route.maintenance.ts"),
+    read("app/api/maintenance/releases/[id]/deployments/route.maintenance.ts"),
   ]);
   assert.match(collection, /maint\.releases\.view/);
   assert.match(collection, /maint\.releases\.manage/);

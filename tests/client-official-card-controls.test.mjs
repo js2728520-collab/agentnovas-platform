@@ -17,7 +17,7 @@ test("Client official-card controls use paper-only routes and distinguish access
 });
 
 test("Paper trade route accepts only an owned server-side portfolio scope", async () => {
-  const route = await read("app/api/trading-hall/paper/trades/route.ts");
+  const route = await read("app/api/trading-hall/paper/trades/route.client.ts");
   assert.match(route, /portfolioId/);
   assert.match(route, /listOfficialPaperTrades/);
   assert.match(route, /customerId:\s*user\.id/);

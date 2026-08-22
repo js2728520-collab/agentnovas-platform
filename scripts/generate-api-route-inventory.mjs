@@ -8,6 +8,11 @@ const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const apiRoot = resolve(repositoryRoot, "app/api");
 const rbacPath = resolve(repositoryRoot, "lib/rbac.ts");
 
+// 路由文件按 audience 归属命名（见 next.config.ts 的 pageExtensions）。
+// 后缀决定该文件进哪个构建；这里的前缀规则决定它的 audience。两者必须一致，
+// 由 scripts/quality/check-architecture-boundaries.mjs 强制。
+const ROUTE_FILE = /\/route\.(client|operations|maintenance|internal|shared)\.ts$/;
+
 const ALL_AUDIENCES = ["client", "operations", "maintenance"];
 const INTERNAL_AUDIENCES = ["operations", "maintenance"];
 const OPERATIONS_PREFIXES = [
@@ -104,7 +109,7 @@ async function files(directory) {
 }
 
 function routePattern(filename) {
-  const local = relative(apiRoot, filename).split(sep).join("/").replace(/\/route\.ts$/, "");
+  const local = relative(apiRoot, filename).split(sep).join("/").replace(ROUTE_FILE, "");
   return `/api/${local}`
     .replace(/\[\.\.\.([^\]]+)\]/g, ":$1*")
     .replace(/\[([^\]]+)\]/g, ":$1");
@@ -294,7 +299,7 @@ function piiForRoute(route) {
 const outputPath = resolve(repositoryRoot, "lib/api-route-inventory.ts");
 const sensitiveKeys = sensitivePermissionKeys(await readFile(rbacPath, "utf8"));
 const entries = [];
-for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/route.ts")).sort()) {
+for (const filename of (await files(apiRoot)).filter((path) => ROUTE_FILE.test(path)).sort()) {
   const source = await readFile(filename, "utf8");
   const route = routePattern(filename);
   const constants = new Map([...source.matchAll(/\bconst\s+([A-Z][A-Z0-9_]*)\s*=\s*["']((?:client|ops|maint)\.[a-z0-9_.]+)["']/g)]

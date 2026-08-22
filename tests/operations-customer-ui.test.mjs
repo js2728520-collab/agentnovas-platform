@@ -5,10 +5,10 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("Operations customer detail aggregates commercial state and uses audited endpoints", async () => {
-  const detail = await read("app/api/operations/customers/[id]/route.ts");
-  const status = await read("app/api/operations/customers/[id]/status/route.ts");
-  const notes = await read("app/api/operations/customers/[id]/notes/route.ts");
-  const list = await read("app/api/operations/customers/route.ts");
+  const detail = await read("app/api/operations/customers/[id]/route.operations.ts");
+  const status = await read("app/api/operations/customers/[id]/status/route.operations.ts");
+  const notes = await read("app/api/operations/customers/[id]/notes/route.operations.ts");
+  const list = await read("app/api/operations/customers/route.operations.ts");
   const ui = await read("apps/operations/ui/customers-workspace.tsx");
   assert.match(detail, /commercial_membership_orders/);
   assert.match(detail, /performance_fee_statements/);

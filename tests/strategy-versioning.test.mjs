@@ -4,8 +4,8 @@ import test from "node:test";
 
 test("strategy create and update validate DSL and append immutable version rows", async () => {
   const [collectionRoute, itemRoute, conversationService, draftService] = await Promise.all([
-    readFile(new URL("../app/api/strategy-marketplace/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/strategy-marketplace/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/strategy-marketplace/route.client.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/strategy-marketplace/[id]/route.client.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/ai-conversations.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/strategy-drafts.ts", import.meta.url), "utf8"),
   ]);

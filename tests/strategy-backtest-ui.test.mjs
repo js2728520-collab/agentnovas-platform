@@ -36,7 +36,7 @@ test("saved strategies expose a dedicated configurable backtest and report view"
 });
 
 test("backtest API streams real phase progress while keeping JSON compatibility", async () => {
-  const route = await readFile(new URL("../app/api/strategy-marketplace/[id]/backtest/route.ts", import.meta.url), "utf8");
+  const route = await readFile(new URL("../app/api/strategy-marketplace/[id]/backtest/route.client.ts", import.meta.url), "utf8");
 
   assert.match(route, /searchParams\.get\("stream"\)/);
   assert.match(route, /application\/x-ndjson/);

@@ -138,7 +138,7 @@ test("internal applications use permission-driven navigation and login without r
   assert.match(operationsRoot, /allowRegistration=\{false\}/);
   assert.match(maintenanceRoot, /allowRegistration=\{false\}/);
   assert.doesNotMatch(operations + maintenance, /AppLogin/);
-  for (const path of ["app/api/auth/register/route.ts", "app/api/auth/forgot-password/route.ts"]) {
+  for (const path of ["app/api/auth/register/route.client.ts", "app/api/auth/forgot-password/route.client.ts"]) {
     const endpoint = await read(path);
     assert.match(endpoint, /currentRequestAudience\(request\) !== "client"/);
     assert.match(endpoint, /status: 404/);
@@ -323,7 +323,7 @@ test("client workspaces bind to real wallet, Udun deposit orders, and notificati
 
 test("access center can publish approved draft roles with an audited reason", async () => {
   const center = await read("packages/ui/src/access-center.tsx");
-  const publish = await read("app/api/access/roles/[id]/publish/route.ts");
+  const publish = await read("app/api/access/roles/[id]/publish/route.internal.ts");
   assert.match(center, /kind: "publish"/);
   assert.match(center, /role\.status === "draft"/);
   assert.match(publish, /必须填写发布原因/);
@@ -352,7 +352,7 @@ test("maintenance model response view omits full endpoints and key material", as
 });
 
 test("payment connectivity tests require an explicit true feature switch", async () => {
-  const source = await read("app/api/maintenance/payment-providers/[id]/test/route.ts");
+  const source = await read("app/api/maintenance/payment-providers/[id]/test/route.maintenance.ts");
   assert.match(source, /PAYMENT_PROVIDER_TESTS_ENABLED !== "true"/);
   assert.match(source, /503/);
   assert.match(source, /maintenanceReason/);
@@ -360,9 +360,9 @@ test("payment connectivity tests require an explicit true feature switch", async
 
 test("maintenance connectivity tests require reasons and Udun controls use confirmation dialogs", async () => {
   for (const path of [
-    "app/api/admin/agent-role-bindings/test/route.ts",
-    "app/api/admin/runtime-explanation-bindings/test/route.ts",
-    "app/api/maintenance/email/test/route.ts",
+    "app/api/admin/agent-role-bindings/test/route.maintenance.ts",
+    "app/api/admin/runtime-explanation-bindings/test/route.maintenance.ts",
+    "app/api/maintenance/email/test/route.maintenance.ts",
   ]) {
     assert.match(await read(path), /maintenanceReason/);
   }

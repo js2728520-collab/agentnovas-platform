@@ -73,9 +73,9 @@ test("even platform reviewers cannot apply an organization-specific role to anot
 
 test("assignment creation, change request, and approval all lock the canonical scoped role target", async () => {
   const sources = await Promise.all([
-    "../app/api/access/assignments/route.ts",
-    "../app/api/access/change-requests/route.ts",
-    "../app/api/access/change-requests/[id]/decisions/route.ts",
+    "../app/api/access/assignments/route.internal.ts",
+    "../app/api/access/change-requests/route.internal.ts",
+    "../app/api/access/change-requests/[id]/decisions/route.internal.ts",
   ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   for (const source of sources) {
     assert.match(source, /lockScopedRoleForTarget/);

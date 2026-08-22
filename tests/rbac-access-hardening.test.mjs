@@ -79,8 +79,8 @@ test("organization-set predicates use assignment-bound ids instead of the viewer
 });
 
 test("approved assignment changes maintain explicit revocation tombstones", async () => {
-  const decisions = await readFile(new URL("../app/api/access/change-requests/[id]/decisions/route.ts", import.meta.url), "utf8");
-  const directAssignments = await readFile(new URL("../app/api/access/assignments/route.ts", import.meta.url), "utf8");
+  const decisions = await readFile(new URL("../app/api/access/change-requests/[id]/decisions/route.internal.ts", import.meta.url), "utf8");
+  const directAssignments = await readFile(new URL("../app/api/access/assignments/route.internal.ts", import.meta.url), "utf8");
   assert.match(decisions, /INSERT INTO rbac_revocation_tombstones/);
   assert.match(decisions, /ON CONFLICT \(user_id, application_id\)/);
   assert.match(decisions, /DELETE FROM rbac_revocation_tombstones/);

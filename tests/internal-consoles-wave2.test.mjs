@@ -55,12 +55,12 @@ test("performance fee workspace separates generation, assessment, evidence and p
 });
 
 test("commercial detail APIs expose allowlisted checker actions across sessions", async () => {
-  const membership = await read("app/api/operations/membership-orders/[id]/route.ts");
+  const membership = await read("app/api/operations/membership-orders/[id]/route.operations.ts");
   assert.match(membership, /canReview/);
   assert.match(membership, /submitted_by_user_id/);
   assert.match(membership, /recorded_by_user_id/);
 
-  const performance = await read("app/api/operations/performance-statements/[id]/route.ts");
+  const performance = await read("app/api/operations/performance-statements/[id]/route.operations.ts");
   assert.match(performance, /ops\.performance_fees\.view/);
   assert.match(performance, /commercialCustomerScopePredicate/);
   assert.match(performance, /s\.id=\$1 AND/);
@@ -72,7 +72,7 @@ test("commercial detail APIs expose allowlisted checker actions across sessions"
 });
 
 test("Operations credits view is scoped and read-only", async () => {
-  const route = await read("app/api/operations/credits/route.ts");
+  const route = await read("app/api/operations/credits/route.operations.ts");
   assert.match(route, /ops\.credits\.view/);
   assert.match(route, /commercialCustomerScopePredicate/);
   assert.match(route, /organizationIds/);
@@ -105,7 +105,7 @@ test("organization activation UI only reports queued set-password delivery", asy
 });
 
 test("Maintenance Demo safe view never selects credential ciphertext", async () => {
-  const route = await read("app/api/maintenance/demo-exchanges/route.ts");
+  const route = await read("app/api/maintenance/demo-exchanges/route.maintenance.ts");
   const viewSource = await read("lib/maintenance-demo-view.ts");
   assert.match(route, /maint\.demo_exchanges\.view/);
   assert.match(viewSource, /platform_demo_accounts_safe/);
@@ -119,7 +119,7 @@ test("Maintenance Demo safe view never selects credential ciphertext", async () 
   assert.match(workspace, /lastVerifiedAt|latestReceipt|dailyNotional/);
   assert.doesNotMatch(workspace, /apiKey\s*:|ciphertext|privateEndpoint|webhookPayload/);
 
-  const control = await read("app/api/maintenance/demo-exchanges/[id]/control/route.ts");
+  const control = await read("app/api/maintenance/demo-exchanges/[id]/control/route.maintenance.ts");
   assert.match(control, /maint\.demo_exchanges\.(manage|kill)/);
   assert.match(control, /FOR UPDATE/);
   assert.match(control, /reason/);
@@ -127,7 +127,7 @@ test("Maintenance Demo safe view never selects credential ciphertext", async () 
   assert.match(control, /requireAnyAccessPermission[\s\S]*controlInput/);
   assert.doesNotMatch(control, /api_key_ciphertext|secret_ciphertext|passphrase_ciphertext/);
 
-  const verify = await read("app/api/maintenance/demo-exchanges/[id]/verify/route.ts");
+  const verify = await read("app/api/maintenance/demo-exchanges/[id]/verify/route.maintenance.ts");
   assert.match(verify, /maint\.demo_exchanges\.verify/);
   assert.match(verify, /PLATFORM_DEMO_VERIFICATION_ENABLED/);
   assert.match(verify, /verifyPlatformDemoAccount/);

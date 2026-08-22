@@ -104,10 +104,27 @@ apps/*  →  packages/*  →  lib/
 
 ### 已知缺口
 
-- **三端编译同一份 API 面。** `app/api` 下 182 个路由，三个构建全都包含——
-  公网盒子上跑着运维控制面的代码。目前靠 `lib/api-route-inventory.ts`（4933 行清单）
-  + `lib/api-policy.ts` 的 fail-closed 校验兜底：未登记的路由抛 `POLICY_NOT_REGISTERED` 404，
-  audience 不匹配抛 `ROUTE_NOT_AVAILABLE` 404。
+- **API 面已按 audience 物理拆分。** `app/api` 下的路由文件按归属命名，
+  每个构建只登记自己那几个后缀为可路由扩展名（`next.config.ts` 的 `pageExtensions`）：
+
+  | 文件名 | 归属 | 进哪些构建 |
+  | --- | --- | --- |
+  | `route.client.ts` | 客户端 | client |
+  | `route.operations.ts` | 运营端 | operations |
+  | `route.maintenance.ts` | 运维端 | maintenance |
+  | `route.internal.ts` | 内部端 | operations + maintenance |
+  | `route.shared.ts` | 三端共享 | 全部 |
+
+  实测结果：client 87 条、operations 75 条、maintenance 56 条（此前三端各 182 条）。
+  **别的 audience 的路由不是被拒绝，是根本不在这个构建里。**
+
+  **加新 API 必须带后缀**，裸 `route.ts` 会被架构边界检查拒绝。后缀与
+  `lib/api-route-inventory.ts` 的 audience 必须一致，不一致也会红——
+  后缀决定进哪个构建，清单决定运行时放行谁，两者错开就会出现
+  「构建里有但运行时拒绝」或「运行时允许但构建里没有」。
+
+  运行时的 fail-closed 校验保持不变：`lib/api-policy.ts` 对未登记路由抛
+  `POLICY_NOT_REGISTERED` 404，audience 不匹配抛 `ROUTE_NOT_AVAILABLE` 404。
 
   **inventory 是生成的，不要手改。** 加了新 API 后跑：
 
@@ -117,7 +134,6 @@ apps/*  →  packages/*  →  lib/
   ```
 
   忘了重新生成，`npm test` 会失败（两个生成器都有 `--check` 模式，由测试调用）。
-  运行时行为是安全的（404），但你会浪费时间找为什么新接口 404。
 
 - **边缘已有第一道边界。** `deploy/nginx/generated/*.conf` 是从 inventory 生成的
   per-vhost `/api` 白名单，不属于本 vhost 的前缀在 Nginx 层就返回 404，不进 Node。
@@ -203,6 +219,11 @@ Client 的 JS 预算余量只有约 160 字节（204,636 / 204,800）。
 **`color-mix(in oklch, 语义色 X%, 背景)` 在无彩色背景上会串色。** 背景 hue 为 0，
 oklch 走极坐标插值会把绿色 tint（hue 162）拉成橙色。需要混色时用 `oklab`，
 或直接为每个主题写死值。设计令牌层已经是写死值。
+
+**`next dev` 与 `next build` 抢同一个 `distDir`。** 三端的 dev server 和生产构建
+都用 `.next-<audience>`（`next.config.ts` 按 `RIVERTON_APP_AUDIENCE` 设定）。
+本地开着 `scripts/dev/start-local.sh` 时跑 `npm run test:apps`，构建会随机失败，
+而且错误信息和真正的编译错误长得一样。**跑三端构建前先 `start-local.sh stop`。**
 
 **catch-all 路由下的 layout 不跨导航保留。** 三端都挂在 `app/[...segments]` 下，
 实测（生产构建）Next 对 catch-all 段的不同取值当作不同路由匹配，会把该层的

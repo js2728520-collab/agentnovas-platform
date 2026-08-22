@@ -312,7 +312,7 @@ test("0036 resets legacy pre-disclosure trial time and restarts three days from 
 });
 
 test("Client profile route checks normalized phone ownership with a specific conflict", async () => {
-  const source = await readFile(new URL("../app/api/account/profile/route.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/api/account/profile/route.client.ts", import.meta.url), "utf8");
   const workspace = await readFile(new URL("../apps/client/ui/account-security-workspace.tsx", import.meta.url), "utf8");
   assert.match(source, /normalizeProfilePhoneUpdate/);
   assert.match(source, /PHONE_TAKEN/);
@@ -322,7 +322,7 @@ test("Client profile route checks normalized phone ownership with a specific con
 });
 
 test("registration response does not claim the trial was activated before disclosure", async () => {
-  const source = await readFile(new URL("../app/api/auth/register/route.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/api/auth/register/route.client.ts", import.meta.url), "utf8");
   assert.match(source, /等待完成商业披露确认后开通3天试用/);
   assert.doesNotMatch(source, /已开通3天/);
 });

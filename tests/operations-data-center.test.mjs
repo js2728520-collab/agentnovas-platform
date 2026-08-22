@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("Operations data center uses scoped commercial Paper metrics and excludes legacy customer trading data", async () => {
-  const route = await readFile(new URL("../app/api/data-center/route.ts", import.meta.url), "utf8");
+  const route = await readFile(new URL("../app/api/data-center/route.operations.ts", import.meta.url), "utf8");
   const ui = await readFile(new URL("../apps/operations/ui/data-center-workspace.tsx", import.meta.url), "utf8");
   assert.match(route, /commercialCustomerScopePredicate/);
   assert.match(route, /official_paper_fill_receipts/);

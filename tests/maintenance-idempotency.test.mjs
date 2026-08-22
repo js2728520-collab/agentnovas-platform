@@ -27,8 +27,8 @@ test("Maintenance idempotency accepts only the two enabled critical operations a
 
 test("source checks and emergency stop require the shared persistent idempotency command", async () => {
   const [sourceRoute, emergencyRoute, migration, grants] = await Promise.all([
-    readFile(new URL("../app/api/maintenance/integrations/[id]/test/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/maintenance/trading/emergency-stop/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/maintenance/integrations/[id]/test/route.maintenance.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/maintenance/trading/emergency-stop/route.maintenance.ts", import.meta.url), "utf8"),
     readFile(new URL("../postgres/migrations/0039_maintenance_idempotency.sql", import.meta.url), "utf8"),
     readFile(new URL("../deploy/postgres/least-privilege-roles.sql", import.meta.url), "utf8"),
   ]);

@@ -9,7 +9,7 @@ import {
   normalizeNewsPublishedAt,
   summarizeNewsFreshness,
 } from "../lib/market-content-freshness.ts";
-import { GET as readMarketNews } from "../app/api/market/news/route.ts";
+import { GET as readMarketNews } from "../app/api/market/news/route.client.ts";
 
 const observedAt = new Date("2026-08-21T12:00:00.000Z");
 
