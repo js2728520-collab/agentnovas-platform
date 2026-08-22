@@ -29,6 +29,13 @@ export type OrderIntentStatus =
 export type IntentProvenance = {
   decisionRoundId: string;
   traceId: string;
+  /**
+   * 产生这条意图的策略卡代号。
+   *
+   * 「这一单是哪张卡做的决定」属于溯源的最基本内容——没有它，客户看不懂自己的
+   * 仓位从何而来，运营也无法按策略卡熔断（ADR-0019 第 5 步）。因此是必填。
+   */
+  strategyCode: string;
   /** 策略卡合同哈希：同一 card/candle/contract 的重试必须幂等。 */
   contractHash: string;
   /** 形成结论所依据的已收盘 K 线标识。 */

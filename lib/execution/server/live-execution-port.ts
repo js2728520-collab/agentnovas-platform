@@ -23,10 +23,11 @@ import {
   classifyFill,
   type NormalizedOrderState,
 } from "../../../packages/domain/src/execution/fill-accounting.ts";
+import type { AccountReconciliationState } from "../../../packages/domain/src/execution/reconciliation.ts";
 import {
-  admitNewEntry,
-  type AccountReconciliationState,
-} from "../../../packages/domain/src/execution/reconciliation.ts";
+  admitOrder,
+  type ActiveKillSwitch,
+} from "../../../packages/domain/src/execution/kill-switch.ts";
 import type { ExchangeCredential } from "../../exchange-credentials.ts";
 import type { RateLimitPool } from "./rate-limit-pool.ts";
 
@@ -76,6 +77,8 @@ export type LiveExecutionDependencies = {
   now(): Date;
   /** 该账户的对账未决情况。开仓前要问，平仓不问。 */
   loadReconciliationState(accountId: string): Promise<AccountReconciliationState>;
+  /** 当前生效的熔断开关。同样只作用于开仓。 */
+  loadActiveKillSwitches(): Promise<readonly ActiveKillSwitch[]>;
   /** 登记一笔待对账。下单响应不是事实，必须查单确认（ADR-0019 第 4 步）。 */
   enqueueReconciliation(input: {
     clientOrderId: string;
@@ -138,19 +141,29 @@ export function createLiveExecutionPort(deps: LiveExecutionDependencies): Execut
       action: intent.side,
     });
 
-    // 对账未决时不能开新仓：我们已经不确定这个账户在交易所的真实仓位，
-    // 继续开仓是在一个未知基础上叠加（INV-7）。
+    // 熔断与对账两道闸门。判定全在 admitOrder 里，包括「平仓永不被挡」——
+    // 那条规则只允许存在于一个地方，分散在两处迟早有一处漏掉，而漏掉的后果是
+    // 客户在事故中离不了场，恰恰是熔断本该保护他免于遭遇的处境（INV-7）。
     //
-    // **平仓永远放行。** 这与引擎里 riskApproved = action === "exit" || … 是同一条
-    // 原则：退出能力不依赖任何一层在线。把平仓也挡住，等于客户在最需要离场的时候
-    // 离不了——而对账未决往往正是行情剧烈波动的时候。
+    // 卖出时不查这两张表：既然结论恒为放行，多两次查询只是在离场路径上增加故障点。
     if (intent.side === "buy") {
-      const admission = admitNewEntry(
-        await deps.loadReconciliationState(account.accountId),
-        intent.symbol,
-      );
+      const [reconciliation, killSwitches] = await Promise.all([
+        deps.loadReconciliationState(account.accountId),
+        deps.loadActiveKillSwitches(),
+      ]);
+      const admission = admitOrder({
+        side: intent.side,
+        symbol: intent.symbol,
+        context: {
+          exchange: account.exchange,
+          accountId: account.accountId,
+          strategyCode: intent.provenance.strategyCode,
+        },
+        killSwitches,
+        reconciliation,
+      });
       if (!admission.allowed) {
-        return rejectedReceipt(intent.id, admission.reason ?? "RECONCILIATION_BLOCKED", executedAt);
+        return rejectedReceipt(intent.id, admission.reason ?? "ORDER_NOT_ADMITTED", executedAt);
       }
     }
 

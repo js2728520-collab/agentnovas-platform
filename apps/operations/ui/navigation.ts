@@ -24,6 +24,9 @@ export const navigation: ConsoleNavigationGroup[] = [
     { href: "/ledger", label: "账本查询", icon: "book", requiredPermissions: ["ops.ledger.view"] },
     { href: "/finance", label: "财务结算", icon: "calculator", requiredPermissions: ["ops.ledger.view", "ops.membership_orders.view", "ops.performance_fees.view"] },
   ] },
+  { label: "风控", items: [
+    { href: "/kill-switches", label: "交易熔断", icon: "shield", requiredPermissions: ["ops.trading.manage"] },
+  ] },
   { label: "治理", items: [
     { href: "/approvals", label: "审批中心", icon: "check-square", requiredPermissions: ["ops.approvals.view", "ops.approvals.decide", "ops.deposits.action_approve", "ops.roles.approve_sensitive", "ops.credits.approve", "ops.attributions.manage", "ops.membership_orders.approve", "ops.performance_fees.approve", "ops.performance_fees.payment_approve"] },
     { href: "/access", label: "角色权限", icon: "key", requiredPermissions: ["ops.roles.manage", "ops.roles.assign", "ops.roles.approve_sensitive"] },

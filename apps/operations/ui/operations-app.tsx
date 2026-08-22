@@ -9,6 +9,7 @@ import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 const ApprovalsWorkspace = dynamic(() => import("./approvals-workspace").then((module) => module.ApprovalsWorkspace));
 const CustomersWorkspace = dynamic(() => import("./customers-workspace").then((module) => module.CustomersWorkspace));
 const CreditsWorkspace = dynamic(() => import("./credits-workspace").then((module) => module.CreditsWorkspace));
+const KillSwitchWorkspace = dynamic(() => import("./kill-switch-workspace").then((module) => module.KillSwitchWorkspace));
 const DepositsWorkspace = dynamic(() => import("./deposits-workspace").then((module) => module.DepositsWorkspace));
 const FinanceWorkspace = dynamic(() => import("./finance-workspace").then((module) => module.FinanceWorkspace));
 const LedgerWorkspace = dynamic(() => import("./ledger-workspace").then((module) => module.LedgerWorkspace));
@@ -32,6 +33,7 @@ const routePermissions: Record<string, string[] | undefined> = {
   deposits: ["ops.deposits.view"], ledger: ["ops.ledger.view"], finance: ["ops.ledger.view", "ops.membership_orders.view", "ops.performance_fees.view"],
   approvals: ["ops.approvals.view", "ops.approvals.decide", "ops.deposits.action_approve", "ops.roles.approve_sensitive", "ops.credits.approve", "ops.attributions.manage", "ops.membership_orders.approve", "ops.performance_fees.approve", "ops.performance_fees.payment_approve"],
   access: ["ops.roles.manage", "ops.roles.assign", "ops.roles.approve_sensitive"],
+  "kill-switches": ["ops.trading.manage"],
 };
 
 export default function OperationsApp({ segments }: { segments: string[] }) {
@@ -68,6 +70,7 @@ export default function OperationsApp({ segments }: { segments: string[] }) {
     : route === "ledger" ? <LedgerWorkspace />
     : route === "finance" ? <FinanceWorkspace canViewLedger={Boolean(permissions["ops.ledger.view"])} canViewMembership={Boolean(permissions["ops.membership_orders.view"])} canViewPerformance={Boolean(permissions["ops.performance_fees.view"])} />
     : route === "approvals" ? <ApprovalsWorkspace canApproveDeposits={Boolean(permissions["ops.deposits.action_approve"])} canManageAccess={Boolean(permissions["ops.roles.manage"] || permissions["ops.roles.approve_sensitive"])} canApproveCredits={Boolean(permissions["ops.credits.approve"])} canManageAttributions={Boolean(permissions["ops.attributions.manage"])} canApproveMembership={Boolean(permissions["ops.membership_orders.approve"])} canApprovePerformance={Boolean(permissions["ops.performance_fees.approve"] || permissions["ops.performance_fees.payment_approve"])} canReviewOrganization={Boolean(permissions["ops.approvals.view"] || permissions["ops.approvals.decide"])} />
+    : route === "kill-switches" ? <KillSwitchWorkspace canManage={Boolean(permissions["ops.trading.manage"])} />
     : route === "access" ? <AccessCenter appId="operations" permissions={permissions} auditOnly={segments[1] === "audit"} />
     : overview;
   return content;

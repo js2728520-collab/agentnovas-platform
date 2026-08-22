@@ -10,7 +10,7 @@ import { createRateLimitPool } from "../lib/execution/server/rate-limit-pool.ts"
 function makeIntent(overrides = {}) {
   return {
     id: "intent-1",
-    provenance: { decisionRoundId: "round-1", traceId: "t", contractHash: "c", candleId: "k" },
+    provenance: { decisionRoundId: "round-1", traceId: "t", contractHash: "c", candleId: "k", strategyCode: "trend-v1" },
     symbol: "BTC/USDT",
     side: "buy",
     targetPositionRatio: 0.5,
@@ -64,6 +64,7 @@ function makeDeps(overrides = {}) {
         return overrides.reconciliationState ?? { hasEscalated: false, pendingSymbols: [] };
       },
       async enqueueReconciliation(input) { enqueued.push(input); },
+      async loadActiveKillSwitches() { return overrides.killSwitches ?? []; },
       now: () => new Date("2026-08-22T00:00:00.000Z"),
       liveRoutingEnabled: () => overrides.enabled ?? true,
       ...overrides.deps,

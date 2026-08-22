@@ -3334,6 +3334,94 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/operations/kill-switches",
+    "source": "app/api/operations/kill-switches/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.trading.manage"
+    ],
+    "permissionMfa": {
+      "ops.trading.manage": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/kill-switches",
+    "source": "app/api/operations/kill-switches/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.trading.manage"
+    ],
+    "permissionMfa": {
+      "ops.trading.manage": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "PATCH",
+    "route": "/api/operations/kill-switches/:id/release",
+    "source": "app/api/operations/kill-switches/[id]/release/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.trading.manage"
+    ],
+    "permissionMfa": {
+      "ops.trading.manage": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/kill-switches/:id/release",
+    "source": "app/api/operations/kill-switches/[id]/release/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.trading.manage"
+    ],
+    "permissionMfa": {
+      "ops.trading.manage": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/operations/ledger",
     "source": "app/api/operations/ledger/route.operations.ts",
     "audiences": [
