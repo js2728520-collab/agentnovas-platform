@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { StrategyDsl } from "@/lib/strategy-dsl";
+import type { StrategyDsl } from "@/packages/domain/src/strategy-dsl";
 
 type CompletedTrade = {
   openedAt: number;

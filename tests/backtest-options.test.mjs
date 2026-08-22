@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { loadBacktestCandles, normalizeBacktestOptions, normalizePerpetualBacktestOptions } from "../lib/backtest-engine.ts";
+import { normalizeBacktestOptions, normalizePerpetualBacktestOptions } from "../packages/domain/src/backtest-engine.ts";
+import { loadBacktestCandles } from "../lib/backtest-engine.ts";
 
 test("normalizes live-aligned and exploration backtest presets", () => {
   assert.deepEqual(normalizeBacktestOptions(), {

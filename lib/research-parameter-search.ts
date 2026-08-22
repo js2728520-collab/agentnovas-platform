@@ -5,7 +5,7 @@ import {
   type StrategyConditionV3,
   type StrategyDslV3,
   type StrategyRule,
-} from "./strategy-dsl.ts";
+} from "../packages/domain/src/strategy-dsl.ts";
 
 function seedFrom(value: string) {
   let seed = 0x811c9dc5;

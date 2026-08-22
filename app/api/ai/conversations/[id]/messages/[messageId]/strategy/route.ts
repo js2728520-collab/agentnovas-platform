@@ -4,7 +4,7 @@ import { getOwnedAiConversation, getOwnedAiMessage } from "@/lib/ai-conversation
 import { strategyDraftFromAiMessage } from "@/lib/ai-strategy-save";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { createStrategyDraft } from "@/lib/strategy-drafts";
-import { StrategyDslValidationError } from "@/lib/strategy-dsl";
+import { StrategyDslValidationError } from "@/packages/domain/src/strategy-dsl";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

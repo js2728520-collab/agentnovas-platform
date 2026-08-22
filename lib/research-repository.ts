@@ -1,6 +1,6 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 
-import type { ResearchStrategyDsl } from "./strategy-dsl.ts";
+import type { ResearchStrategyDsl } from "../packages/domain/src/strategy-dsl.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
 

@@ -3,7 +3,7 @@ import { getPostgresPool } from "@/lib/postgres";
 import { getOwnedCandidateForSave, markCandidateSaved } from "@/lib/research-repository";
 import { requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { createStrategyDraft } from "@/lib/strategy-drafts";
-import { normalizeResearchStrategyDsl, strategyDslToRuntime } from "@/lib/strategy-dsl";
+import { normalizeResearchStrategyDsl, strategyDslToRuntime } from "@/packages/domain/src/strategy-dsl";
 
 export async function POST(request: Request, { params }: {
   params: Promise<{ id: string; candidateId: string }>;

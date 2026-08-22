@@ -33,7 +33,7 @@ import {
   settlePendingPaperOrder,
 } from "./strategy-runtime-repository.ts";
 import { evaluateStrategyRuntimeCycle } from "./strategy-runtime-engine.ts";
-import { strategyDslToRuntime } from "./strategy-dsl.ts";
+import { strategyDslToRuntime } from "../packages/domain/src/strategy-dsl.ts";
 import {
   callRuntimeExplanationAgent,
   resolveRuntimeExplanationPrompt,

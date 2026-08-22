@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { auditLogs, communityStrategies, strategyVersions } from "@/db/schema";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
-import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
+import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/packages/domain/src/strategy-dsl";
 
 const editableStatuses = ["draft", "testing", "rejected"] as const;
 

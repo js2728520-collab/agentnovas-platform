@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 
 import { assertBetaResearchRuntimeDisabled } from "./beta-legacy-runtime-guard.ts";
 import { agentRoles, resolveAgentRoleConfig, missingAgentRoles, type AgentRole } from "./agent-model-profiles.ts";
-import { runPerpetualBacktestOnCandles, type BacktestResult, type HistoricalFundingRate } from "./backtest-engine.ts";
+import { runPerpetualBacktestOnCandles, type BacktestResult, type HistoricalFundingRate } from "../packages/domain/src/backtest-engine.ts";
 import { cachePerpetualMarketData, loadCachedPerpetualMarketData } from "./postgres-market-cache.ts";
 import {
   advanceResearchRun,
@@ -46,7 +46,7 @@ import {
   type ResearchMode,
 } from "./research-validation.ts";
 import { parseStrategyResearchTarget } from "./research-target.ts";
-import { normalizeResearchStrategyDsl, strategyDslToRuntime, type StrategyCandle, type StrategyDslV3 } from "./strategy-dsl.ts";
+import { normalizeResearchStrategyDsl, strategyDslToRuntime, type StrategyCandle, type StrategyDslV3 } from "../packages/domain/src/strategy-dsl.ts";
 
 type ResearchLease = {
   id: string;

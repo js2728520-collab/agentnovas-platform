@@ -40,7 +40,7 @@ test("当前仓库通过全部架构边界检查", async () => {
   const results = await checkArchitectureBoundaries();
   const failures = results.flatMap((rule) => rule.violations.map((v) => `[${rule.name}] ${v}`));
   assert.deepEqual(failures, []);
-  assert.ok(results.length >= 5, "规则数量不应意外减少");
+  assert.ok(results.length >= 6, "规则数量不应意外减少");
 });
 
 test("跨 audience import 会被抓到", async () => {
@@ -95,4 +95,44 @@ test("新引用遗留模块会被抓到", async () => {
     },
   );
   assert.deepEqual(await violationsOf("遗留代码不扩散"), []);
+});
+
+test("域层里出现 I/O 会被抓到", async () => {
+  await withTemporaryFile(
+    "packages/domain/src/__boundary_probe__.ts",
+    'import { Pool } from "pg";\nexport const probe = Pool;\n',
+    async () => {
+      const violations = await violationsOf("域层不做 I/O");
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /__boundary_probe__/);
+      assert.match(violations[0], /pg/);
+    },
+  );
+  assert.deepEqual(await violationsOf("域层不做 I/O"), []);
+});
+
+test("域层直接调 fetch 会被抓到", async () => {
+  await withTemporaryFile(
+    "packages/domain/src/__boundary_probe__.ts",
+    'export async function probe() {\n  return fetch("https://example.com");\n}\n',
+    async () => {
+      const violations = await violationsOf("域层不做 I/O");
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /fetch/);
+    },
+  );
+  assert.deepEqual(await violationsOf("域层不做 I/O"), []);
+});
+
+test("域层反向依赖 lib/ 会被抓到", async () => {
+  await withTemporaryFile(
+    "packages/domain/src/__boundary_probe__.ts",
+    'import { getDb } from "@/lib/db";\nexport const probe = getDb;\n',
+    async () => {
+      const violations = await violationsOf("域层不做 I/O");
+      assert.ok(violations.length >= 1);
+      assert.match(violations.join(" "), /lib\//);
+    },
+  );
+  assert.deepEqual(await violationsOf("域层不做 I/O"), []);
 });

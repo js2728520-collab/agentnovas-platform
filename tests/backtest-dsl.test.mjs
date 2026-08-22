@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { runBacktestOnCandles } from "../lib/backtest-engine.ts";
+import { runBacktestOnCandles } from "../packages/domain/src/backtest-engine.ts";
 
 function candle(index, close, volume = 100) {
   return {

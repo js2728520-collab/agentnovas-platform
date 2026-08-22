@@ -22,7 +22,7 @@ import {
   generateStrategyProposal,
   normalizeStrategyBrief,
 } from "@/lib/ai-strategy-generation";
-import { StrategyDslValidationError } from "@/lib/strategy-dsl";
+import { StrategyDslValidationError } from "@/packages/domain/src/strategy-dsl";
 
 export async function POST(request: Request) {
   try {

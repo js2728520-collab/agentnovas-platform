@@ -5,12 +5,8 @@ import {
   communityStrategies,
   strategyValidations as strategyBacktestReports,
 } from "@/db/schema";
-import {
-  loadBacktestCandles,
-  normalizeBacktestOptions,
-  runBacktestOnCandles,
-  runPerpetualBacktestOnCandles,
-} from "@/lib/backtest-engine";
+import { normalizeBacktestOptions, runBacktestOnCandles, runPerpetualBacktestOnCandles } from "@/packages/domain/src/backtest-engine.ts";
+import { loadBacktestCandles } from "@/lib/backtest-engine";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import {
   assessPerpetualDataQuality,
@@ -20,7 +16,7 @@ import {
 import { getPostgresPool } from "@/lib/postgres";
 import { getOwnedResearchRun } from "@/lib/postgres-research-queue";
 import { requireUser, responseError } from "@/lib/session";
-import { normalizeResearchStrategyDsl } from "@/lib/strategy-dsl";
+import { normalizeResearchStrategyDsl } from "@/packages/domain/src/strategy-dsl";
 
 type BacktestStage = "validating" | "market_data" | "funding" | "engine" | "saving";
 type BacktestProgress = (event: {

@@ -3,7 +3,7 @@ import {
   extractStrategyDslFromText,
   strategyDslExplanation,
 } from "./ai-strategy-generation.ts";
-import { normalizeStrategyDsl, type StrategyRule } from "./strategy-dsl.ts";
+import { normalizeStrategyDsl, type StrategyRule } from "../packages/domain/src/strategy-dsl.ts";
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};

@@ -6,7 +6,7 @@ import {
   evaluateStrategyEntryAt,
   normalizeStrategyDsl,
   strategyDslFromBrief,
-} from "../lib/strategy-dsl.ts";
+} from "../packages/domain/src/strategy-dsl.ts";
 
 const validDsl = {
   schemaVersion: 1,

@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, communityStrategies, strategyVersions } from "@/db/schema";
-import { normalizeResearchStrategyDsl, type ResearchStrategyDsl } from "@/lib/strategy-dsl";
+import { normalizeResearchStrategyDsl, type ResearchStrategyDsl } from "@/packages/domain/src/strategy-dsl";
 
 type StrategyDraftSource = "manual" | "ai_provider" | "guided_rules";
 

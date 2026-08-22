@@ -1,8 +1,8 @@
 import type { Pool } from "pg";
 
-import type { HistoricalFundingRate } from "./backtest-engine.ts";
+import type { HistoricalFundingRate } from "../packages/domain/src/backtest-engine.ts";
 import type { PerpetualExchange } from "./perpetual-market-adapters.ts";
-import type { StrategyCandle } from "./strategy-dsl.ts";
+import type { StrategyCandle } from "../packages/domain/src/strategy-dsl.ts";
 
 function validateMarketKey(exchange: string, symbol: string, timeframe: string) {
   if (!["okx", "binance", "bybit"].includes(exchange)) throw new Error("不支持的交易所");

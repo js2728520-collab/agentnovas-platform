@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { evaluateFollowPolicy } from "../lib/follow-policy.ts";
+import { evaluateFollowPolicy } from "../packages/domain/src/follow-policy.ts";
 
 // 跟单准入策略。
 //

@@ -3,7 +3,7 @@ import {
   strategyDslToRuntime,
   type StrategyCandle,
   type StrategyLegV3,
-} from "./strategy-dsl.ts";
+} from "../packages/domain/src/strategy-dsl.ts";
 import { normalizeOfficialSpotStrategySpecification } from "./platform-strategy-v3.ts";
 
 export const runtimeAgentRoles = [

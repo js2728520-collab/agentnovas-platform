@@ -6,7 +6,7 @@ import {
   createStrategyLegEvaluator,
   type StrategyCandle,
   type StrategyConditionV3,
-} from "./strategy-dsl.ts";
+} from "../packages/domain/src/strategy-dsl.ts";
 import { hashResearchStepInput } from "./research-steps.ts";
 import type { OfficialTradingHallStrategy } from "../packages/contracts/src/trading-hall.ts";
 

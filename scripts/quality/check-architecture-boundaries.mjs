@@ -153,7 +153,30 @@ rules.push(async function legacyContainment() {
   return { name: "遗留代码不扩散", violations };
 });
 
-// 5. 设计令牌是唯一色彩真源。新样式层里出现写死色值，说明有人绕过了令牌，
+// 5. 域层不做 I/O。这是 packages/domain 存在的全部意义：核心业务逻辑必须能在
+//    没有数据库、没有网络、没有框架的环境里跑起来并被验证。一旦某个域模块开始
+//    import pg 或 fetch，它就退回成了普通的 lib 文件。
+rules.push(async function domainPurity() {
+  const forbidden = [
+    { pattern: /from\s+["']next(\/|["'])/, reason: "import 了 next" },
+    { pattern: /from\s+["']pg["']/, reason: "import 了 pg" },
+    { pattern: /from\s+["']drizzle-orm/, reason: "import 了 drizzle-orm" },
+    { pattern: /from\s+["']node:(fs|net|http|https|dns|child_process)/, reason: "import 了 Node I/O 模块" },
+    { pattern: /(^|[^.\w])fetch\s*\(/m, reason: "直接调用了 fetch" },
+    { pattern: /\.\.\/\.\.\/\.\.\/lib\//, reason: "反向依赖了 lib/" },
+    { pattern: /@\/lib\//, reason: "反向依赖了 lib/" },
+  ];
+  const violations = [];
+  for (const file of await walk("packages/domain/src", [".ts", ".tsx"])) {
+    const source = await readSource(file);
+    for (const { pattern, reason } of forbidden) {
+      if (pattern.test(source)) violations.push(`${file} ${reason}；域层需要外部数据时应定义端口，由基础设施层实现`);
+    }
+  }
+  return { name: "域层不做 I/O", violations };
+});
+
+// 6. 设计令牌是唯一色彩真源。新样式层里出现写死色值，说明有人绕过了令牌，
 //    浅色/暗色双主题会在那个位置失效。
 rules.push(async function noHardcodedColors() {
   const guarded = [

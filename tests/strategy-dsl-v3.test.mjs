@@ -5,7 +5,7 @@ import {
   createStrategyLegEvaluator,
   normalizeStrategyDslV3,
   strategyDslToRuntime,
-} from "../lib/strategy-dsl.ts";
+} from "../packages/domain/src/strategy-dsl.ts";
 
 const validV3 = {
   schemaVersion: 3,

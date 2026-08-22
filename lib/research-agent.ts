@@ -1,7 +1,7 @@
 import type { ResolvedAgentRoleConfig } from "./research-types.ts";
 import { assertPublicLlmEndpoint } from "./llm-profile-connection.ts";
 import { resolveResearchPrompt } from "./research-prompt-registry.ts";
-import { normalizeStrategyDslV3 } from "./strategy-dsl.ts";
+import { normalizeStrategyDslV3 } from "../packages/domain/src/strategy-dsl.ts";
 
 type ResearchAgentRole = ResolvedAgentRoleConfig["role"];
 

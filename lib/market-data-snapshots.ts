@@ -1,8 +1,8 @@
 import type { Pool, PoolClient } from "pg";
 
-import type { HistoricalFundingRate } from "./backtest-engine.ts";
+import type { HistoricalFundingRate } from "../packages/domain/src/backtest-engine.ts";
 import type { PerpetualExchange } from "./perpetual-market-adapters.ts";
-import type { StrategyCandle } from "./strategy-dsl.ts";
+import type { StrategyCandle } from "../packages/domain/src/strategy-dsl.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
 

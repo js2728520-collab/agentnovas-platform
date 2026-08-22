@@ -11,7 +11,7 @@ import { getOwnedAiConversation, resolveStrategyVersionSource } from "@/lib/ai-c
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { currentUser, requireUser, responseError } from "@/lib/session";
 import { createStrategyDraft } from "@/lib/strategy-drafts";
-import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
+import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/packages/domain/src/strategy-dsl";
 
 function parseArray(value: string) {
   try {

@@ -1,7 +1,7 @@
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
-import { strategyDslToRuntime } from "@/lib/strategy-dsl";
+import { strategyDslToRuntime } from "@/packages/domain/src/strategy-dsl";
 import {
   createStrategyDeployment,
   StrategyDeploymentIdempotencyConflictError,

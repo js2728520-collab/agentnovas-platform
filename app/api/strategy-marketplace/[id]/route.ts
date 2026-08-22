@@ -10,7 +10,7 @@ import { AiApiError, aiErrorResponse } from "@/lib/ai-api";
 import { getOwnedAiConversation, resolveStrategyVersionSource } from "@/lib/ai-conversations";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
-import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
+import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/packages/domain/src/strategy-dsl";
 
 function parseJsonObject(value: string) {
   try {
