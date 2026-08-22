@@ -103,7 +103,7 @@ test("trading hall API publishes the product boundary and structured decision ro
 });
 
 test("client hall does not present static market data, fallback performance or a fake emergency stop", async () => {
-  const page = await source("app/client-app.tsx");
+  const page = await source("apps/client/ui/decision-hall.tsx");
   assert.doesNotMatch(page, /\$118,462\.40/);
   assert.doesNotMatch(page, /OKX DEMO/);
   assert.doesNotMatch(page, /className="danger">紧急停止/);
@@ -114,11 +114,11 @@ test("client hall does not present static market data, fallback performance or a
 });
 
 test("client entry surfaces share the seven-role contract and do not claim static live telemetry", async () => {
-  const [page, css] = await Promise.all([source("app/client-app.tsx"), source("app/globals.css")]);
-  const landing = page.slice(page.indexOf("const landingMore"), page.indexOf("const nav"));
-  assert.match(landing, /技术分析师/);
-  assert.match(landing, /AI 决策官/);
-  assert.doesNotMatch(landing, /审计 Agent\|对账|Audit Agent\|Reconciliation/);
+  const [page, css] = await Promise.all([source("apps/client/ui/decision-hall.tsx"), source("app/globals-beta.css")]);
+  // 原来是在遗留 SPA 的落地段落里切片断言；大厅现在是独立页面，整文件即该面。
+  assert.match(page, /技术分析师/);
+  assert.match(page, /AI 决策官/);
+  assert.doesNotMatch(page, /审计 Agent|Audit Agent|Reconciliation/);
   assert.doesNotMatch(page, /\$118,462\b|62\/100|38\/100|86ms/);
   assert.doesNotMatch(page, /预计月化（目标）|const monthlyFloor|className="fake-chart"/);
   assert.doesNotMatch(page, /\{t\.live\}|\{t\.working\}/);

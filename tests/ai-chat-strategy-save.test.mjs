@@ -138,7 +138,7 @@ test("agent chat exposes message-level strategy saving and model-only attributio
 test("agent chat renders generation progress as a new assistant reply, not button text", async () => {
   const [chat, styles] = await Promise.all([
     readFile(new URL("../apps/client/ui/ai-assistant-chat.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals-beta.css", import.meta.url), "utf8"),
   ]);
 
   assert.match(chat, /agent-chat-generating-dots/);

@@ -48,6 +48,5 @@ export function isRivertonPagePath(audience: AppAudience, pathname: string) {
   if (segments.length === 1 && segments[0] === "_not-found") return true;
   if (segments.length === 1 && segments[0] === "reset-password") return true;
   if (segments.length === 1 && segments[0] === "verify-email") return audience === "client";
-  if (segments.length === 1 && segments[0] === "workspace") return audience === "client";
   return isRivertonAppRoute(audience, segments);
 }

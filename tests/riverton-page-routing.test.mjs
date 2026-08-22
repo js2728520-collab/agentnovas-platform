@@ -16,14 +16,20 @@ test("page routing contract accepts only the stable routes owned by each audienc
     assert.equal(isRivertonPagePath(audience, "/setup"), false);
   }
 
-  assert.equal(isRivertonPagePath("client", "/workspace"), true);
+  // /workspace 已在 P4 退役，四个界面各自成了真实路由。
+  assert.equal(isRivertonPagePath("client", "/workspace"), false);
+  assert.equal(isRivertonPagePath("client", "/market"), true);
+  assert.equal(isRivertonPagePath("client", "/assistant"), true);
+  assert.equal(isRivertonPagePath("client", "/studio"), true);
+  assert.equal(isRivertonPagePath("client", "/trading-hall"), true);
+  assert.equal(isRivertonPagePath("client", "/trading-hall/meeting"), true);
+  assert.equal(isRivertonPagePath("client", "/trading-hall/other"), false);
   assert.equal(isRivertonPagePath("client", "/dashboard"), true);
   assert.equal(isRivertonPagePath("client", "/legal/consent"), true);
   assert.equal(isRivertonPagePath("client", "/membership/orders"), true);
   assert.equal(isRivertonPagePath("client", "/paper/portfolio-1"), true);
   assert.equal(isRivertonPagePath("client", "/verify-email"), true);
   assert.equal(isRivertonPagePath("client", "/customers"), false);
-  assert.equal(isRivertonPagePath("client", "/workspace/legacy"), false);
   assert.equal(isRivertonPagePath("client", "/membership/orders/extra"), false);
 
   assert.equal(isRivertonPagePath("operations", "/customers"), true);

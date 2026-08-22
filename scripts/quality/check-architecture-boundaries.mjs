@@ -130,11 +130,9 @@ rules.push(async function rootLayoutBundlePurity() {
 //    否则遗留世界会持续长大，拆除成本越来越高。
 rules.push(async function legacyContainment() {
   const legacy = {
-    "globals-beta.css": ["app/audience/client-workspace-root.tsx", "app/audience/client-landing-root.tsx"],
-    "market-terminal.css": ["app/audience/client-workspace-root.tsx"],
-    "membership-center.css": ["app/audience/client-workspace-root.tsx"],
-    "locale-guard": ["app/audience/client-workspace-root.tsx"],
-    "client-app": ["apps/client/ui/client-app.tsx", "apps/client/ui/client-workspace-loader.tsx"],
+    // client-portal-root 是 P4 迁移的临时代价：/assistant 与 /trading-hall 的
+    // 样式还只存在于 globals-beta.css。转成令牌驱动的 CSS Module 后要移除这一项。
+    "globals-beta.css": ["app/audience/client-landing-root.tsx", "app/audience/client-portal-root.tsx"],
   };
   const violations = [];
   const sources = await walk("app", [".ts", ".tsx"]);

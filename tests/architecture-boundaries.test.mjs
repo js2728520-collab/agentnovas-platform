@@ -86,12 +86,13 @@ test("样式层写死色值会被抓到", async () => {
 
 test("新引用遗留模块会被抓到", async () => {
   await withTemporaryFile(
+    // LocaleGuard 等遗留模块已在 P4 删除；现在表里只剩 globals-beta.css。
     "apps/client/ui/__boundary_probe__.tsx",
-    'import LocaleGuard from "@/app/locale-guard";\nexport default LocaleGuard;\n',
+    'import "@/app/globals-beta.css";\nexport default function Probe() { return null; }\n',
     async () => {
       const violations = await violationsOf("遗留代码不扩散");
       assert.equal(violations.length, 1);
-      assert.match(violations[0], /locale-guard/);
+      assert.match(violations[0], /globals-beta\.css/);
     },
   );
   assert.deepEqual(await violationsOf("遗留代码不扩散"), []);

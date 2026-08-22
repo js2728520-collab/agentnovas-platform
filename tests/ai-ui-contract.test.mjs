@@ -7,12 +7,10 @@ async function source(path) {
 }
 
 test("agent page uses persistent server conversations and streamed messages", async () => {
-  const [page, chat] = await Promise.all([
-    source("../app/client-app.tsx"),
-    source("../apps/client/ui/ai-assistant-chat.tsx"),
-  ]);
+  // 助手此前是遗留 SPA 里动态导入的 PersistentAgentChat，现在是真实路由 /assistant，
+  // 那个导入名不再存在。真正要守的是「服务端持久会话 + 流式消息」。
+  const chat = await source("../apps/client/ui/ai-assistant-chat.tsx");
 
-  assert.match(page, /PersistentAgentChat/);
   assert.match(chat, /\/api\/ai\/conversations/);
   assert.match(chat, /consumeAiEventStream/);
   assert.match(chat, /AiMessageContent/);
@@ -40,7 +38,7 @@ test("strategy creation uses the resumable multi-Agent pipeline without a duplic
 test("shared AI message UI exposes an accessible confirmation dialog and custom answer", async () => {
   const [content, styles] = await Promise.all([
     source("../apps/client/ui/ai-message-content.tsx"),
-    source("../app/globals.css"),
+    source("../app/globals-beta.css"),
   ]);
 
   assert.match(content, /<dialog/);
@@ -55,7 +53,7 @@ test("shared AI message UI exposes an accessible confirmation dialog and custom 
 
 test("customer AI workspaces use the platform model without exposing private LLM configuration", async () => {
   const [page, chat, studio] = await Promise.all([
-    source("../app/client-app.tsx"),
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
     source("../apps/client/ui/ai-assistant-chat.tsx"),
     source("../apps/client/ui/strategy-studio.tsx"),
   ]);

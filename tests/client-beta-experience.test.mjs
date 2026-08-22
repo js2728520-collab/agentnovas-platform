@@ -111,28 +111,19 @@ test("trading experience reads official paper evidence and never presents client
   assert.doesNotMatch(source, /连接交易所|API Key/);
 });
 
-test("the client application no longer exposes the legacy operations page", async () => {
-  const source = await read("app/client-app.tsx");
-  const css = `${await read("app/globals.css")}\n${await read("app/globals-beta.css")}`;
-  assert.doesNotMatch(source, /case\s+["']admin["']/);
-  assert.doesNotMatch(source, /\|\s*["']admin["']/);
-  assert.doesNotMatch(source, /AdminWithPolicy/);
-  assert.match(source, /ClientNotificationSettings/);
-  assert.match(source, /client-app-shell/);
-  assert.match(source, /className="flow" tabIndex=\{0\}/);
-  assert.match(css, /\.client-app-shell \.dash>aside\{[^}]*flex-direction:row!important/);
-  assert.match(css, /\.client-app-shell \.landing \.hero:before\{[^}]*right:0!important/);
-});
-
-test("the isolated strategy workspace opens live records instead of the legacy static landing", async () => {
-  const workspace = await read("app/client-app.tsx");
-  assert.match(workspace, /typeof window === "undefined"\) return "hall"/);
-  assert.match(workspace, /<Link className="logo" href="\/dashboard"/);
-  assert.doesNotMatch(workspace, /<button className="logo" onClick=\{go\("home"\)\}/);
-});
+// 已删除两条测试（P4）：
+//
+// 「the client application no longer exposes the legacy operations page」断言遗留
+// SPA 内部没有 admin 分支。SPA 已退役，而这条约束现在由 P2 的构建隔离从结构上保证：
+// 运营路由根本不在 client 构建里（架构边界规则「API 路由后缀与 audience 一致」，
+// 以及 §28 记录的 404 矩阵）。文本断言已被更强的机制取代。
+//
+// 「the isolated strategy workspace opens live records instead of the legacy static
+// landing」断言的是 SPA 的内部字符串路由（typeof window === "undefined" 时返回
+// "hall"）。四个界面已各自成为真实路由，内部路由不复存在。
 
 test("the trading hall presents server strategy state without simulated live activity", async () => {
-  const workspace = await read("app/client-app.tsx");
+  const workspace = await read("apps/client/ui/decision-hall.tsx");
   const css = await read("app/globals-beta.css");
   assert.match(workspace, /tradingHallStrategyPresentation/);
   assert.match(workspace, /tradingHallEnvironmentLabel/);
@@ -153,8 +144,8 @@ test("the trading hall presents server strategy state without simulated live act
 });
 
 test("client raster assets stay under the 200 KiB budget and the hall uses an optimized source", async () => {
-  const source = await read("app/client-app.tsx");
-  const css = await read("app/globals.css");
+  const source = await read("apps/client/ui/decision-hall.tsx");
+  const css = await read("app/globals-beta.css");
   assert.match(source, /from "next\/image"/);
   assert.match(source, /\/trading-hall\.webp/);
   assert.doesNotMatch(`${source}\n${css}`, /trading-hall-base\.png|trading-hall-operator-sprite\.png|agentnovas-logo\.png|agentnovas-mark\.png|trading-hall\.png/);

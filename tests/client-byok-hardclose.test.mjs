@@ -50,7 +50,6 @@ test("Client BYOK endpoints are disabled by the central Beta inventory and retur
 
 test("Client-reachable workspaces contain no private key, endpoint, or BYOK module entry", async () => {
   const sources = await Promise.all([
-    source("../app/client-app.tsx"),
     source("../apps/client/ui/ai-assistant-chat.tsx"),
     source("../apps/client/ui/strategy-studio.tsx"),
   ]);

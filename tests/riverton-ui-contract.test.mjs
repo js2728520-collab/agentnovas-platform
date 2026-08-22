@@ -37,8 +37,7 @@ test("client root restores the public landing before any authenticated portal gu
 });
 
 test("client surfaces and metadata use the supplied Riverton Capital brand assets", async () => {
-  const [clientApp, landing, shell, login, metadata, consoleCss, clientCss, logo, icon] = await Promise.all([
-    read("app/client-app.tsx"),
+  const [landing, shell, login, metadata, consoleCss, clientCss, logo, icon] = await Promise.all([
     read("apps/client/ui/client-public-landing.tsx"),
     read("packages/ui/src/console-shell.tsx"),
     read("packages/ui/src/app-login.tsx"),
@@ -51,7 +50,7 @@ test("client surfaces and metadata use the supplied Riverton Capital brand asset
   assert.equal(createHash("sha256").update(logo).digest("hex"), "cc15a314b6d7e8e3643a9cfcabb3b03a7a7cc8982ac911f16b1cf7022d4098d7");
   assert.ok(logo.length <= 200 * 1024, "the supplied logo must stay within the client raster budget");
   assert.ok(icon.length <= 200 * 1024, "the square favicon must stay within the client raster budget");
-  for (const source of [clientApp, landing, shell, login, metadata]) {
+  for (const source of [landing, shell, login, metadata]) {
     assert.match(source, /riverton-capital-logo\.png|riverton-capital-icon\.png/);
   }
   assert.match(consoleCss, /\.rc-client \.rc-console-brand > img/);
@@ -88,22 +87,15 @@ test("audience entries own their CSS while the root layout stays minimal", async
   assert.doesNotMatch(layout, /LocaleGuard/);
   const client = await read("app/audience/client-root.tsx");
   const clientPortal = await read("app/audience/client-portal-root.tsx");
-  const clientWorkspace = await read("app/audience/client-workspace-root.tsx");
-  const workspacePage = await read("app/workspace/page.tsx");
   const operations = await read("app/audience/operations-root.tsx");
   const maintenance = await read("app/audience/maintenance-root.tsx");
   assert.doesNotMatch(client, /\.css["']/);
   assert.match(client, /import\("\.\/client-portal-root"\)/);
   assert.doesNotMatch(client, /client-workspace-root/);
-  assert.match(workspacePage, /ClientWorkspaceRoot/);
-  assert.match(workspacePage, /resolveAppAudienceStrict/);
-  assert.match(workspacePage, /audience !== "client"/);
   assert.match(clientPortal, /riverton-console\.css/);
-  assert.match(clientWorkspace, /globals-beta\.css/);
-  assert.doesNotMatch(clientWorkspace, /["']\.\.\/globals\.css["']/);
-  assert.match(clientWorkspace, /market-terminal\.css/);
-  assert.match(clientWorkspace, /membership-center\.css/);
-  assert.match(clientWorkspace, /LocaleGuard/);
+  // P4 的临时代价：/assistant 与 /trading-hall 的样式仍只在 globals-beta.css 里。
+  // 转成令牌驱动的 CSS Module 之后，这一条要改回 doesNotMatch。
+  assert.match(clientPortal, /globals-beta\.css/);
   assert.match(operations, /riverton-console\.css/);
   assert.match(maintenance, /riverton-console\.css/);
   assert.doesNotMatch(operations + maintenance, /globals|market-terminal|membership-center/);
@@ -272,24 +264,22 @@ test("Client dashboard leads with portfolio and strategy state instead of compli
   assert.doesNotMatch(dashboard, /CONTROLLED BETA|PERMISSION-AWARE MODULES|Beta 执行边界|已授权模块/);
 });
 
-test("legacy client workspace enforces the client session and paper permission before loading", async () => {
-  const loader = await read("apps/client/ui/client-workspace-loader.tsx");
-  const app = await read("app/client-app.tsx");
-  assert.match(loader, /useAppSession\("client"\)/);
-  assert.match(loader, /client\.paper\.view/);
-  assert.doesNotMatch(loader, /\/api\/membership\/legal-consent|consentComplete|legalConsentGate/);
-  assert.match(loader, /\/login\?next=/);
-  assert.match(loader, /AccessDenied/);
-  assert.match(loader, /ClientPortalShell/);
-  assert.match(loader, /<ClientApp embedded/);
-  assert.match(app, /canViewMembership/);
-  assert.match(app, /client-workspace-embedded/);
-  assert.match(app, /client-workspace-nav/);
-  assert.match(app, /href="\/dashboard"/);
-  assert.match(app, /embedded\s*\?\s*page\s*:\s*!authResolved/);
-  assert.match(app, /const ShellElement = embedded \? "div" : "main"/);
-  assert.match(app, /<ShellElement className=/);
-  assert.match(app, /p !== "membership" \|\| canViewMembership/);
+test("客户端外壳在渲染任何工作区之前强制会话与权限", async () => {
+  // 原断言守的是 /workspace 的加载器（P4 已退役）。同一条约束现在由门户外壳
+  // ClientChrome 与 client-portal 的逐路由权限判定承担，绊线跟着搬过来。
+  const chrome = await read("apps/client/ui/client-chrome.tsx");
+  const portal = await read("apps/client/ui/client-portal.tsx");
+  assert.match(chrome, /AppSessionProvider audience="client"/);
+  assert.match(chrome, /status === "anonymous"/);
+  assert.match(chrome, /\/login\?next=/);
+  assert.match(chrome, /ClientPortalShell/);
+  assert.doesNotMatch(chrome, /\/api\/membership\/legal-consent|consentComplete|legalConsentGate/);
+  assert.match(portal, /session\.status !== "authenticated"/);
+  // 从 /workspace 迁过来的四个界面都必须自带权限判定，不能靠外壳兜底。
+  for (const guarded of ["studio", "trading-hall"]) {
+    assert.match(portal, new RegExp(`route === "${guarded}"[\\s\\S]{0,200}client\\.paper\\.view`));
+  }
+  assert.match(portal, /AccessDenied/);
 });
 
 test("client exposes standalone disclosures without blocking the trading workbench", async () => {

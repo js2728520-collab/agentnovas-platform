@@ -1180,3 +1180,63 @@ tsc、lint、873 项测试、三端 build、bundle 预算、7 条边界通过。
 
 tsc、lint、886 项测试（+13）、三端 build、bundle 预算、7 条边界、API inventory
 `--check` 全部通过。
+
+
+## 35. 2026-08-22 P4 拆除
+
+### 删除（约 8,900 行）
+
+`app/client-app.tsx`(2506)、`app/globals.css`(3871)、`app/community-strategy-center.tsx`(491)、
+`app/strategy-detail.tsx`(234)、`app/locale-guard.tsx`(103)、`app/i18n-runtime.ts`(180)、
+`app/account-settings.tsx`、`app/support-floating.tsx`、`market-terminal.css`(311)、
+`membership-center.css`、`/workspace` 路由及其外壳三件。
+
+### 拆除过程中发现的回归（P4 第 2、3 步引入，本次修复）
+
+**`/assistant` 与 `/trading-hall` 迁移后一直是没有样式的。** 第 2、3 步只搬了组件
+没搬样式：`agent-chat-*` / `hall-*` / `meeting-*` 类名只在 `globals.css` 与
+`globals-beta.css` 里有定义，而门户根 `client-portal-root.tsx` 只加载
+`riverton-console.css`。
+
+当时的验证只做到 HTTP 200，没验证渲染。**实测确认**：`/assistant` 加载的两个样式表
+共 36KB，`agent-chat` 规则 0 条。
+
+临时修复是让门户根 import `globals-beta.css`（36KB → 276KB）。这不是终态：
+正确做法是把那约 515 条规则转成令牌驱动的 CSS Module，和
+`strategy-studio.module.css` 一致。已登记进 CLAUDE.md 遗留表，并在遗留围栏规则里
+显式列出这个引用点——**不让规则静默变宽**。
+
+教训：迁移 UI 时「路由通了」不等于「页面对了」。验证要落到渲染产物上。
+
+### 契约测试：33 处断言的去留
+
+逐条判定，不整体删除：
+
+**迁到活代码（绊线继续有效）**
+- BYOK 硬关闭 → `ai-assistant-chat.tsx` + `strategy-studio.tsx`
+- 会话与权限强制 → `client-chrome.tsx` + `client-portal.tsx`（含四个迁移界面各自的权限判定）
+- 七角色契约、大厅不得展示静态行情 → `decision-hall.tsx`
+- 品牌资产、客服渠道 → `client-portal-shell.tsx` + `support-workspace.tsx`
+- 核心工作区存在性 → `client-portal.tsx` 的逐路由分发
+- `globals.css` 的样式断言 → `globals-beta.css`（规则大多两边都有）
+
+**删除（只描述已删代码，且有更强的替代机制）**
+- 「客户端不再暴露遗留运营页面」——现在由 P2 的构建隔离从结构上保证：运营路由
+  根本不在 client 构建里（第 7 条边界规则 + §28 的 404 矩阵）。文本断言被更强的
+  机制取代。
+- 「隔离工作区打开实时记录」——断言的是 SPA 内部字符串路由，已不存在。
+- `.risk-check-grid`——只存在于已删的 `globals.css`，无任何页面引用。
+
+### 未拆：回测界面
+
+`strategy-backtest-center`(283) 与 `strategy-backtest-detail`(302) 在本轮**恢复**了。
+理由：它们的后端仍在且完整（`/api/strategy-marketplace/[id]/backtest`，支持
+NDJSON 流式阶段进度），删掉等于悄悄丢一个功能。
+
+现状是它们**既没有路由也没有样式**（原样式在已删的 `globals.css` 里）。
+两条路：按 `/studio` 的做法接回真实路由并按令牌重写样式，或连同后端一起退役。
+已写进 CLAUDE.md 遗留表。
+
+### 验证
+
+tsc、lint、884 项测试、三端 build、bundle 预算、7 条边界通过。

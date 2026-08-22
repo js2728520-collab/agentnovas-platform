@@ -82,17 +82,19 @@ test("maintenance owns support settings while the client receives a public safe 
 });
 
 test("client support entry uses Riverton branding and never fakes a ticket submission", async () => {
-  const client = await read("app/client-app.tsx");
-  const support = await read("app/support-floating.tsx");
+  // 品牌断言原本落在遗留 SPA 的外壳上；外壳现在是 client-portal-shell。
+  const client = await read("apps/client/ui/client-portal-shell.tsx");
+  const support = await read("apps/client/ui/support-workspace.tsx");
   const layout = await read("app/layout.tsx");
   const metadata = await read("lib/riverton-metadata.ts");
-  assert.match(client, /\/api\/platform\/settings/);
-  assert.match(client, /telegramSupportUrl/);
   assert.match(client, /Riverton Capital/);
+  assert.match(support, /\/api\/platform\/settings/);
+  assert.match(support, /telegramSupportUrl/);
   assert.match(layout, /rivertonMetadata/);
   assert.match(metadata, /Riverton Capital 客户端/);
   assert.match(support, /supportEmail/);
-  assert.match(support, /Telegram 客服链接尚未配置/);
+  // 未配置时的措辞（活文案）：明说未配置，且不提供替代账号或验证码。
+  assert.match(support, /Telegram 尚未配置，不提供替代账号或验证码/);
   assert.doesNotMatch(support, /提交工单|Create ticket/);
 });
 
