@@ -48,7 +48,8 @@
     "worker:notification": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/notification-worker.mjs",
     "worker:demo": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/platform-demo-worker.mjs",
     "service:execution": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/execution-service.mjs",
-    "quality:key-custody": "node --experimental-strip-types scripts/quality/check-web-key-custody.mjs"
+    "quality:key-custody": "node --experimental-strip-types scripts/quality/check-web-key-custody.mjs",
+    "quality:nginx": "node --experimental-strip-types scripts/quality/check-nginx-config.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "2.1.0",
