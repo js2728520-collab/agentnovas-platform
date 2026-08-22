@@ -147,7 +147,7 @@ test("the trading hall presents server strategy state without simulated live act
 
 test("client raster assets stay under the 200 KiB budget and the hall uses an optimized source", async () => {
   const source = await read("apps/client/ui/decision-hall.tsx");
-  const css = await read("app/globals-beta.css");
+  const css = await read("apps/client/ui/client-public-landing.css");
   assert.match(source, /from "next\/image"/);
   assert.match(source, /\/trading-hall\.webp/);
   assert.doesNotMatch(`${source}\n${css}`, /trading-hall-base\.png|trading-hall-operator-sprite\.png|agentnovas-logo\.png|agentnovas-mark\.png|trading-hall\.png/);

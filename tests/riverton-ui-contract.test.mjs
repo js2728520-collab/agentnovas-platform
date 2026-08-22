@@ -26,7 +26,7 @@ test("client root restores the public landing before any authenticated portal gu
     root.indexOf("segments.length === 0") < root.indexOf('import("./client-portal-root")'),
     "the public Client root must dispatch before the authenticated portal",
   );
-  assert.match(landingRoot, /globals-beta\.css/);
+  assert.match(landingRoot, /client-public-landing\.css/);
   assert.match(landingRoot, /apps\/client\/ui\/client-public-landing/);
   assert.match(landing, /export function ClientPublicLanding/);
   assert.match(landing, /\/login\?next=/);
@@ -43,7 +43,7 @@ test("client surfaces and metadata use the supplied Riverton Capital brand asset
     read("packages/ui/src/app-login.tsx"),
     read("lib/riverton-metadata.ts"),
     read("app/riverton-console.css"),
-    read("app/globals-beta.css"),
+    read("apps/client/ui/client-public-landing.css"),
     readBytes("public/riverton-capital-logo.png"),
     readBytes("public/riverton-capital-icon.png"),
   ]);
@@ -95,7 +95,7 @@ test("audience entries own their CSS while the root layout stays minimal", async
   assert.match(clientPortal, /riverton-console\.css/);
   // 债已还清：门户下所有界面的样式都在各自的 CSS Module 里，
   // globals-beta.css 只剩公开落地页在用。
-  assert.doesNotMatch(clientPortal, /globals-beta\.css/);
+  assert.doesNotMatch(clientPortal, /client-public-landing\.css/);
   assert.match(operations, /riverton-console\.css/);
   assert.match(maintenance, /riverton-console\.css/);
   assert.doesNotMatch(operations + maintenance, /globals|market-terminal|membership-center/);

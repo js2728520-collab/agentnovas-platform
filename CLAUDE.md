@@ -245,7 +245,7 @@ oklch 走极坐标插值会把绿色 tint（hue 162）拉成橙色。需要混�
 
 | 文件 | 状态 |
 | --- | --- |
-| `app/globals-beta.css`（1922 行） | **只服务公开落地页**。门户下的所有界面已各自拥有令牌驱动的 CSS Module，不再依赖它。**不要往里加规则**，也不要在门户组件里引用它的类名——遗留围栏规则会红。 |
+| `apps/client/ui/client-public-landing.css`（1249 行） | **只服务公开落地页**，遗留围栏规则只允许 `client-landing-root.tsx` 引用它。**尚未令牌化**：含 293 种色值、其中 244 种只出现一次（三代设计层层叠加的产物）。因此它不在「样式层零硬编码色值」的受检清单里——这是刻意的例外。令牌化会改变页面观感，属于品牌决策。**不要往里加规则，也不要在别处引用它的类名。** |
 
 P4 已删除：`app/client-app.tsx`(2506)、`app/globals.css`(3871)、`app/locale-guard.tsx`、
 `app/i18n-runtime.ts`、`app/community-strategy-center.tsx`、`app/strategy-detail.tsx`、

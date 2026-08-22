@@ -1,4 +1,4 @@
-import "../globals-beta.css";
+import "@/apps/client/ui/client-public-landing.css";
 
 import { ClientPublicLanding } from "@/apps/client/ui/client-public-landing";
 

@@ -130,7 +130,8 @@ rules.push(async function rootLayoutBundlePurity() {
 //    否则遗留世界会持续长大，拆除成本越来越高。
 rules.push(async function legacyContainment() {
   const legacy = {
-    "globals-beta.css": ["app/audience/client-landing-root.tsx"],
+    // 落地页样式表尚未令牌化（293 种色值，244 种只出现一次），只允许落地页引用。
+    "client-public-landing.css": ["app/audience/client-landing-root.tsx"],
   };
   const violations = [];
   const sources = await walk("app", [".ts", ".tsx"]);

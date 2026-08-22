@@ -25,7 +25,7 @@ test("the server entry dispatches the Riverton shell without relying on generate
 
 test("keeps the Riverton Capital shell and core modules present", async () => {
   const [css, portal, layout, metadata, packageJson] = await Promise.all([
-    read("app/globals-beta.css"),
+    read("apps/client/ui/client-public-landing.css"),
     read("apps/client/ui/client-portal.tsx"),
     read("app/layout.tsx"),
     read("lib/riverton-metadata.ts"),
