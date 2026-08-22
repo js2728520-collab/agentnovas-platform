@@ -1,0 +1,42 @@
+/* 通知偏好设置。 */
+
+.settings { display: grid; gap: 1rem; }
+
+.widgetHead {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rv-border);
+  font-size: 0.875rem;
+}
+
+.channelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+
+.quietHours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  font-size: 0.8125rem;
+}
+
+.preferenceTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.preferenceTable th,
+.preferenceTable td {
+  padding: 0.45rem 0.625rem;
+  text-align: left;
+  border-bottom: 1px solid var(--rv-border);
+}
+
+.preferenceTable thead th { background: var(--rv-table-header); color: var(--rv-muted-foreground); }

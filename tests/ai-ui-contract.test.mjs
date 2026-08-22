@@ -36,9 +36,10 @@ test("strategy creation uses the resumable multi-Agent pipeline without a duplic
 });
 
 test("shared AI message UI exposes an accessible confirmation dialog and custom answer", async () => {
+  // 样式已转成组件自己的 CSS Module（P4 收尾）。
   const [content, styles] = await Promise.all([
     source("../apps/client/ui/ai-message-content.tsx"),
-    source("../app/globals-beta.css"),
+    source("../apps/client/ui/ai-message-content.module.css"),
   ]);
 
   assert.match(content, /<dialog/);
@@ -46,9 +47,13 @@ test("shared AI message UI exposes an accessible confirmation dialog and custom 
   assert.match(content, /type="radio"/);
   assert.match(content, /自定义填写/);
   assert.match(content, /确认并发送/);
-  assert.match(content, /<div[^>]*className="ai-message-question-cta"[^>]*>/);
-  assert.doesNotMatch(content, /<aside className="ai-message-question-cta">/);
-  assert.match(styles, /\.ai-answer-dialog\[open\]\{position:fixed;left:50%;top:50%;right:auto;bottom:auto;margin:0;transform:translate\(-50%,-50%\)/);
+  // 提问 CTA 必须是 div 而不是 aside：aside 是 landmark，会污染屏幕阅读器的
+  // 地标导航。
+  assert.match(content, /<div[^>]*className=\{styles\.questionCta\}[^>]*>/);
+  assert.doesNotMatch(content, /<aside[^>]*questionCta/);
+  // 原生 dialog 用 showModal() 打开时必须显式居中，否则贴在视口顶部。
+  assert.match(styles, /\.dialog\[open\][\s\S]*position:\s*fixed/);
+  assert.match(styles, /\.dialog\[open\][\s\S]*transform:\s*translate\(-50%,\s*-50%\)/);
 });
 
 test("customer AI workspaces use the platform model without exposing private LLM configuration", async () => {

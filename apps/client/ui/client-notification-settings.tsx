@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+
+import styles from "./client-notification-settings.module.css";
 import { clientErrorMessage, clientRequest } from "./client-api";
 
 const categories = [
@@ -85,19 +87,19 @@ export default function ClientNotificationSettings() {
     }
   }
 
-  return <section className="notification-settings" aria-labelledby="notification-settings-title">
-    <div className="widget-head"><b id="notification-settings-title">通知渠道与偏好</b><span>安全通知不可关闭</span></div>
-    <div className="channel-grid" aria-label="外部通知渠道状态">
+  return <section className={styles.settings} aria-labelledby="notification-settings-title">
+    <div className={styles.widgetHead}><b id="notification-settings-title">通知渠道与偏好</b><span>安全通知不可关闭</span></div>
+    <div className={styles.channelGrid} aria-label="外部通知渠道状态">
       {(["Telegram", "WhatsApp"] as const).map((name) => <article key={name}><b>{name}</b><span>当前版本未接入</span><em>not_integrated</em></article>)}
     </div>
     <p>当前仅站内与邮件偏好可配置。外部渠道不会展示连接入口、验证码或已发送状态。</p>
-    <div className="notification-quiet-hours" aria-labelledby="quiet-hours-title">
+    <div className={styles.quietHours} aria-labelledby="quiet-hours-title">
       <div><b id="quiet-hours-title">免打扰时段</b><p>使用账号时区；安全与缴费通知仍会保留站内记录，并在时段结束后按渠道策略投递。</p></div>
       <label>开始<input type="time" value={quietStart} onChange={(event) => setQuietStart(event.target.value)} /></label>
       <label>结束<input type="time" value={quietEnd} onChange={(event) => setQuietEnd(event.target.value)} /></label>
       <button type="button" disabled={Boolean(busyKey) || !quietStart || !quietEnd} onClick={() => void saveQuietHours()}>{busyKey === "quiet-hours" ? "保存中…" : "保存时段"}</button>
     </div>
-    {state === "loading" ? <p aria-live="polite">正在读取通知偏好…</p> : state === "error" ? <div role="alert"><p>{message}</p><button type="button" onClick={() => void load()}>重试</button></div> : <div className="preference-table" role="table" aria-label="通知偏好">
+    {state === "loading" ? <p aria-live="polite">正在读取通知偏好…</p> : state === "error" ? <div role="alert"><p>{message}</p><button type="button" onClick={() => void load()}>重试</button></div> : <div className={styles.preferenceTable} role="table" aria-label="通知偏好">
       <header role="row"><b role="columnheader">通知类别</b><span role="columnheader">站内</span><span role="columnheader">邮件</span></header>
       {categories.map(([key, label, mandatory]) => <div key={key} role="row"><b role="rowheader">{label}{mandatory && <small>强制</small>}</b>{channels.map((channel) => {
         const controlKey = `${key}:${channel}`;

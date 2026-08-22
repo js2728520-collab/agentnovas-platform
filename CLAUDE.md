@@ -245,7 +245,7 @@ oklch 走极坐标插值会把绿色 tint（hue 162）拉成橙色。需要混�
 
 | 文件 | 状态 |
 | --- | --- |
-| `app/globals-beta.css`（1922 行） | 服务落地页，**以及 `/assistant`、`/trading-hall`**——后两个是 P4 迁移的临时代价：它们的 `agent-chat-*` / `hall-*` / `meeting-*` 样式只在这里有定义。约 515 条规则、61KB、其中 184 条含硬编码色值待转成 `--rv-*` 令牌驱动的 CSS Module。**不要往里加规则。** |
+| `app/globals-beta.css`（1922 行） | **只服务公开落地页**。门户下的所有界面已各自拥有令牌驱动的 CSS Module，不再依赖它。**不要往里加规则**，也不要在门户组件里引用它的类名——遗留围栏规则会红。 |
 
 P4 已删除：`app/client-app.tsx`(2506)、`app/globals.css`(3871)、`app/locale-guard.tsx`、
 `app/i18n-runtime.ts`、`app/community-strategy-center.tsx`、`app/strategy-detail.tsx`、

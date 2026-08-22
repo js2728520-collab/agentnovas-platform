@@ -93,9 +93,9 @@ test("audience entries own their CSS while the root layout stays minimal", async
   assert.match(client, /import\("\.\/client-portal-root"\)/);
   assert.doesNotMatch(client, /client-workspace-root/);
   assert.match(clientPortal, /riverton-console\.css/);
-  // P4 的临时代价：/assistant 与 /trading-hall 的样式仍只在 globals-beta.css 里。
-  // 转成令牌驱动的 CSS Module 之后，这一条要改回 doesNotMatch。
-  assert.match(clientPortal, /globals-beta\.css/);
+  // 债已还清：门户下所有界面的样式都在各自的 CSS Module 里，
+  // globals-beta.css 只剩公开落地页在用。
+  assert.doesNotMatch(clientPortal, /globals-beta\.css/);
   assert.match(operations, /riverton-console\.css/);
   assert.match(maintenance, /riverton-console\.css/);
   assert.doesNotMatch(operations + maintenance, /globals|market-terminal|membership-center/);

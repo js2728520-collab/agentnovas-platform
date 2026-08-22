@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { ProductIcon } from "./coin-icon";
+import styles from "./live-market.module.css";
 import {
   deriveMarketFeedStatus,
   isRecentMarketPayload,
@@ -48,8 +49,8 @@ function NewsCard({ item }: { item: NewsItem }) {
     <footer><span>{item.source}</span><b>{item.link ? "查看原文 ↗" : "备用提示"}</b></footer>
   </>;
   return item.link
-    ? <a className="market-news-card" href={item.link} target="_blank" rel="noreferrer">{content}</a>
-    : <article className="market-news-card is-fallback">{content}</article>;
+    ? <a className={styles.newsCard} href={item.link} target="_blank" rel="noreferrer">{content}</a>
+    : <article className={`${styles.newsCard} ${styles.isFallback}`}>{content}</article>;
 }
 
 export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: () => void; locale?: string }) {
@@ -204,60 +205,60 @@ export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: ()
   const marketStreamLabel = marketFeedStatus === "live" ? "最近数据已验证" : marketFeedStatus === "stale" ? "等待新鲜数据" : marketFeedStatus === "offline" ? "数据源离线" : "连接行情源";
   const newsStatusLabel = newsFreshness === "fresh" ? "内容新鲜" : newsFreshness === "stale" ? "内容已过期" : newsFreshness === "unknown" ? "发布时间未知" : "备用模式";
 
-  return <div className="market-terminal-page"><div className="market-terminal-title"><div><h1>行情中心</h1><p>覆盖加密货币、外汇、贵金属及美股市场</p></div><div className="market-title-actions"><button type="button" onClick={() => setRefreshKey(value => value + 1)} disabled={loading}>{loading ? "更新中…" : "立即刷新"}</button><span className={marketFeedStatus === "live" ? "market-live-status" : "market-offline-status"}><i />{marketStatusLabel}{quote?.updatedAt && <time>{new Date(quote.updatedAt).toLocaleTimeString("zh-CN")}</time>}</span></div></div>
-    <nav className="market-category-tabs" aria-label="市场分类">{marketTabs.map(([key, label, code]) => <button key={key} className={market === key ? "active" : ""} onClick={() => selectMarket(key)}><span>{label}</span><small>{code}</small></button>)}</nav>
-    <section className="market-watchlist-panel">
-      <header><h2>{watchCopy.heading}</h2>{current && <button type="button" className={`market-watch-current ${watchedSymbols.has(current.symbol) ? "active" : ""}`} disabled={watchlistStatus === "loading" || pendingWatchSymbol === current.symbol} onClick={() => void toggleWatchlist(current)} title={watchedSymbols.has(current.symbol) ? watchCopy.remove : watchCopy.add}>{watchedSymbols.has(current.symbol) ? `★ ${watchCopy.watched}` : `☆ ${watchCopy.watch}`}</button>}</header>
-      <div className="market-watchlist-content">
-        {watchlistStatus === "loading" ? <div className="market-watchlist-empty"><b>{watchCopy.loading}</b></div>
-          : watchlistStatus === "signed-out" ? <div className="market-watchlist-empty"><span>{watchCopy.loginHint}</span><button type="button" onClick={onLogin}>{watchCopy.signIn}</button></div>
-            : watchlist.length ? <div className="market-watchlist-cards">{watchlist.map(item => <article key={item.symbol} className={item.symbol === symbol ? "active" : ""}><button type="button" className="market-watchlist-select" onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><b>{item.label}</b></button><button type="button" className="market-watchlist-remove" aria-label={`${watchCopy.remove} ${item.label}`} title={watchCopy.remove} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>★</button></article>)}</div>
-              : <div className="market-watchlist-empty"><span>{watchCopy.empty}</span>{current && <button type="button" onClick={() => void toggleWatchlist(current)}>☆ {watchCopy.watchCurrent}</button>}</div>}
+  return <div className={styles.page}><div className={styles.title}><div><h1>行情中心</h1><p>覆盖加密货币、外汇、贵金属及美股市场</p></div><div className={styles.titleActions}><button type="button" onClick={() => setRefreshKey(value => value + 1)} disabled={loading}>{loading ? "更新中…" : "立即刷新"}</button><span className={marketFeedStatus === "live" ? "market-live-status" : "market-offline-status"}><i />{marketStatusLabel}{quote?.updatedAt && <time>{new Date(quote.updatedAt).toLocaleTimeString("zh-CN")}</time>}</span></div></div>
+    <nav className={styles.categoryTabs} aria-label="市场分类">{marketTabs.map(([key, label, code]) => <button key={key} className={market === key ? "active" : ""} onClick={() => selectMarket(key)}><span>{label}</span><small>{code}</small></button>)}</nav>
+    <section className={styles.watchlistPanel}>
+      <header><h2>{watchCopy.heading}</h2>{current && <button type="button" className={`${styles.watchButton} ${watchedSymbols.has(current.symbol) ? styles.active : ""}`} disabled={watchlistStatus === "loading" || pendingWatchSymbol === current.symbol} onClick={() => void toggleWatchlist(current)} title={watchedSymbols.has(current.symbol) ? watchCopy.remove : watchCopy.add}>{watchedSymbols.has(current.symbol) ? `★ ${watchCopy.watched}` : `☆ ${watchCopy.watch}`}</button>}</header>
+      <div className={styles.watchlistContent}>
+        {watchlistStatus === "loading" ? <div className={styles.watchlistEmpty}><b>{watchCopy.loading}</b></div>
+          : watchlistStatus === "signed-out" ? <div className={styles.watchlistEmpty}><span>{watchCopy.loginHint}</span><button type="button" onClick={onLogin}>{watchCopy.signIn}</button></div>
+            : watchlist.length ? <div className={styles.watchlistCards}>{watchlist.map(item => <article key={item.symbol} className={item.symbol === symbol ? "active" : ""}><button type="button" className={styles.watchlistSelect} onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><b>{item.label}</b></button><button type="button" className={styles.watchlistRemove} aria-label={`${watchCopy.remove} ${item.label}`} title={watchCopy.remove} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>★</button></article>)}</div>
+              : <div className={styles.watchlistEmpty}><span>{watchCopy.empty}</span>{current && <button type="button" onClick={() => void toggleWatchlist(current)}>☆ {watchCopy.watchCurrent}</button>}</div>}
       </div>
-      {watchlistMessage && <p className="market-watchlist-message" role="status">{watchlistMessage}</p>}
+      {watchlistMessage && <p className={styles.watchlistMessage} role="status">{watchlistMessage}</p>}
     </section>
-    <section className="market-selector-panel"><label className="market-search-box"><span>⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索交易品种 / Symbol / 名称" aria-label="搜索交易品种"/><kbd>⌘ K</kbd></label>{searchResults.length > 0 && <div className="market-search-results">{searchResults.map(item => <div className="market-search-result-row" key={item.symbol}><button type="button" className="market-search-select" onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><b>{item.label}</b><span>{item.name} · {item.nameZh}</span><small>{marketTabs.find(tab => tab[0] === item.category)?.[1]}</small></button><button type="button" className={`market-search-follow ${watchedSymbols.has(item.symbol) ? "active" : ""}`} aria-label={`${watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} ${item.label}`} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>{watchedSymbols.has(item.symbol) ? "★" : "☆"}</button></div>)}</div>}<div className="market-symbol-index"><span>品种索引</span>{marketInstruments.map(item => <div className={`market-symbol-chip ${item.symbol === symbol ? "active" : ""}`} key={item.symbol}><button type="button" className="market-symbol-select" onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><span>{item.label}</span></button><button type="button" className={`market-symbol-follow ${watchedSymbols.has(item.symbol) ? "active" : ""}`} aria-label={`${watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} ${item.label}`} title={watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>{watchedSymbols.has(item.symbol) ? "★" : "☆"}</button></div>)}</div></section>
-    <section className="market-instrument-summary"><div className="market-instrument-name"><ProductIcon symbol={current?.label || "?"} category={current?.category || "crypto"} className="instrument-mark"/><div><h2>{current?.label || "—"}</h2><p>{current?.name || ""} / {current?.nameZh || ""}</p></div><div className="market-instrument-actions">{current && <button type="button" className={watchedSymbols.has(current.symbol) ? "active" : ""} disabled={pendingWatchSymbol === current.symbol} onClick={() => void toggleWatchlist(current)} title={watchedSymbols.has(current.symbol) ? watchCopy.remove : watchCopy.add}>{watchedSymbols.has(current.symbol) ? `★ ${watchCopy.watched}` : `☆ ${watchCopy.watch}`}</button>}<em className={quote && quote.changePercent < 0 ? "down" : "up"}>{quote ? `${quote.changePercent >= 0 ? "+" : ""}${quote.changePercent.toFixed(2)}%` : "—"}</em></div></div><div className="market-summary-price"><small>当前价格</small><b>{price(quote?.price || 0)}</b><span className={quote && quote.change < 0 ? "down" : "up"}>{quote ? `${quote.change >= 0 ? "+" : ""}${price(quote.change)}` : "—"}</span></div><div><small>24H最高</small><b>{price(quote?.high || 0)}</b></div><div><small>24H最低</small><b>{price(quote?.low || 0)}</b></div><div><small>24H成交量</small><b>{compact(quote?.volume || 0)}</b></div><div><small>开盘价</small><b>{price(quote?.open || 0)}</b></div></section>
-    <section className="market-terminal-chart" ref={chartRef}>
-      <header className="market-chart-toolbar">
-        <div className="period-switcher">{periods.map(item => <button key={item} className={period === item ? "active" : ""} onClick={() => selectPeriod(item)}>{item}</button>)}</div>
-        <div className="chart-tools">
-          <span className="chart-source">{quote?.source || "Public market data"}</span>
-          <span className={`chart-refresh-rate ${marketFeedStatus === "live" ? "is-streaming" : ""}`}><i />{marketStreamLabel}</span>
-          <button className="chart-history-button" disabled={loadingHistory || historyExhausted} onClick={() => void loadOlderCandles()}>{loadingHistory ? "加载中…" : historyExhausted ? "已到最早" : "← 更早"}</button>
+    <section className={styles.selectorPanel}><label className={styles.searchBox}><span>⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索交易品种 / Symbol / 名称" aria-label="搜索交易品种"/><kbd>⌘ K</kbd></label>{searchResults.length > 0 && <div className={styles.searchResults}>{searchResults.map(item => <div className={styles.searchResultRow} key={item.symbol}><button type="button" className={styles.searchSelect} onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><b>{item.label}</b><span>{item.name} · {item.nameZh}</span><small>{marketTabs.find(tab => tab[0] === item.category)?.[1]}</small></button><button type="button" className={`${styles.watchButton} ${watchedSymbols.has(item.symbol) ? styles.active : ""}`} aria-label={`${watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} ${item.label}`} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>{watchedSymbols.has(item.symbol) ? "★" : "☆"}</button></div>)}</div>}<div className={styles.symbolIndex}><span>品种索引</span>{marketInstruments.map(item => <div className={`${styles.symbolChip} ${item.symbol === symbol ? styles.active : ""}`} key={item.symbol}><button type="button" className={styles.symbolSelect} onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><span>{item.label}</span></button><button type="button" className={`${styles.watchButton} ${watchedSymbols.has(item.symbol) ? styles.active : ""}`} aria-label={`${watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} ${item.label}`} title={watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>{watchedSymbols.has(item.symbol) ? "★" : "☆"}</button></div>)}</div></section>
+    <section className={styles.instrumentSummary}><div className={styles.instrumentName}><ProductIcon symbol={current?.label || "?"} category={current?.category || "crypto"} className={styles.instrumentMark}/><div><h2>{current?.label || "—"}</h2><p>{current?.name || ""} / {current?.nameZh || ""}</p></div><div className={styles.instrumentActions}>{current && <button type="button" className={watchedSymbols.has(current.symbol) ? "active" : ""} disabled={pendingWatchSymbol === current.symbol} onClick={() => void toggleWatchlist(current)} title={watchedSymbols.has(current.symbol) ? watchCopy.remove : watchCopy.add}>{watchedSymbols.has(current.symbol) ? `★ ${watchCopy.watched}` : `☆ ${watchCopy.watch}`}</button>}<em className={quote && quote.changePercent < 0 ? "down" : "up"}>{quote ? `${quote.changePercent >= 0 ? "+" : ""}${quote.changePercent.toFixed(2)}%` : "—"}</em></div></div><div className={styles.summaryPrice}><small>当前价格</small><b>{price(quote?.price || 0)}</b><span className={quote && quote.change < 0 ? "down" : "up"}>{quote ? `${quote.change >= 0 ? "+" : ""}${price(quote.change)}` : "—"}</span></div><div><small>24H最高</small><b>{price(quote?.high || 0)}</b></div><div><small>24H最低</small><b>{price(quote?.low || 0)}</b></div><div><small>24H成交量</small><b>{compact(quote?.volume || 0)}</b></div><div><small>开盘价</small><b>{price(quote?.open || 0)}</b></div></section>
+    <section className={styles.terminalChart} ref={chartRef}>
+      <header className={styles.chartToolbar}>
+        <div className={styles.periodSwitcher}>{periods.map(item => <button key={item} className={period === item ? "active" : ""} onClick={() => selectPeriod(item)}>{item}</button>)}</div>
+        <div className={styles.chartTools}>
+          <span className={styles.chartSource}>{quote?.source || "Public market data"}</span>
+          <span className={styles.refreshRate} data-streaming={marketFeedStatus === "live" || undefined}><i />{marketStreamLabel}</span>
+          <button className={styles.historyButton} disabled={loadingHistory || historyExhausted} onClick={() => void loadOlderCandles()}>{loadingHistory ? "加载中…" : historyExhausted ? "已到最早" : "← 更早"}</button>
           <button aria-label="缩小 K 线" onClick={() => changeZoom(-.5)}>−</button>
           <button aria-label="放大 K 线" onClick={() => changeZoom(.5)}>＋</button>
           <button onClick={fullscreen}>⛶ 全屏</button>
         </div>
       </header>
-      {message && <div className="market-data-message"><i />{message}</div>}
-      <div className="market-chart-viewport" ref={chartViewportRef} onWheel={event => { event.preventDefault(); changeZoom(event.deltaY < 0 ? .25 : -.25); }} onPointerDown={beginChartDrag} onPointerMove={moveChartDrag} onPointerUp={endChartDrag} onPointerCancel={endChartDrag}>
-        {visibleCandles.length ? <div className="market-chart-canvas" style={{ width: `${Math.max(100, (visibleCandles.length / 160) * zoom * 100)}%` }}>
-          <div className="chart-grid-lines" />
-          <div className="chart-y-axis">{axis.map(value => <span key={value}>{price(value)}</span>)}</div>
-          <div className="chart-ohlc-readout">{hovered ? <><span>{new Date(hovered.time).toLocaleString("zh-CN")}</span><b>O {price(hovered.open)}</b><b>H {price(hovered.high)}</b><b>L {price(hovered.low)}</b><b>C {price(hovered.close)}</b><em className={hovered.close >= hovered.open ? "up" : "down"}>{hovered.close >= hovered.open ? "+" : "−"}{price(Math.abs(hovered.close - hovered.open))}</em></> : <><span>{current?.label} · {period}</span><b>移动鼠标查看 OHLC</b></>}</div>
-          <div className="chart-candles" style={{ gridTemplateColumns: `repeat(${visibleCandles.length}, minmax(3px, 1fr))` }}>
+      {message && <div className={styles.dataMessage}><i />{message}</div>}
+      <div className={styles.chartViewport} ref={chartViewportRef} onWheel={event => { event.preventDefault(); changeZoom(event.deltaY < 0 ? .25 : -.25); }} onPointerDown={beginChartDrag} onPointerMove={moveChartDrag} onPointerUp={endChartDrag} onPointerCancel={endChartDrag}>
+        {visibleCandles.length ? <div className={styles.chartCanvas} style={{ width: `${Math.max(100, (visibleCandles.length / 160) * zoom * 100)}%` }}>
+          <div className={styles.gridLines} />
+          <div className={styles.yAxis}>{axis.map(value => <span key={value}>{price(value)}</span>)}</div>
+          <div className={styles.ohlcReadout}>{hovered ? <><span>{new Date(hovered.time).toLocaleString("zh-CN")}</span><b>O {price(hovered.open)}</b><b>H {price(hovered.high)}</b><b>L {price(hovered.low)}</b><b>C {price(hovered.close)}</b><em className={hovered.close >= hovered.open ? styles.up : styles.down}>{hovered.close >= hovered.open ? "+" : "−"}{price(Math.abs(hovered.close - hovered.open))}</em></> : <><span>{current?.label} · {period}</span><b>移动鼠标查看 OHLC</b></>}</div>
+          <div className={styles.candles} style={{ gridTemplateColumns: `repeat(${visibleCandles.length}, minmax(3px, 1fr))` }}>
             {visibleCandles.map((item, index) => {
               const rising = item.close >= item.open;
               const bodyTop = percent(Math.max(item.open, item.close));
               const bodyHeight = Math.max(.7, Math.abs(percent(item.open) - percent(item.close)));
               const wickTop = percent(item.high);
               const wickHeight = Math.max(1, percent(item.low) - wickTop);
-              return <div className={`chart-candle ${rising ? "rising" : "falling"} ${index === visibleCandles.length - 1 ? "latest" : ""}`} key={`${item.time}-${index}`} onMouseEnter={() => setHovered(item)} onMouseLeave={() => setHovered(null)}>
-                <i className="candle-wick" style={{ top: `${wickTop}%`, height: `${wickHeight}%` }} />
-                <b className="candle-body" style={{ top: `${bodyTop}%`, height: `${bodyHeight}%` }} />
-                <i className="crosshair-v" />
-                <i className="crosshair-h" style={{ top: `${percent(item.close)}%` }} />
+              return <div className={`${styles.candle} ${rising ? "" : styles.falling}`} key={`${item.time}-${index}`} onMouseEnter={() => setHovered(item)} onMouseLeave={() => setHovered(null)}>
+                <i className={styles.wick} style={{ top: `${wickTop}%`, height: `${wickHeight}%` }} />
+                <b className={styles.body} style={{ top: `${bodyTop}%`, height: `${bodyHeight}%` }} />
+                <i className={styles.crosshairV} />
+                <i className={styles.crosshairH} style={{ top: `${percent(item.close)}%` }} />
               </div>;
             })}
           </div>
-          {quote?.price ? <div className="current-price-line" style={{ top: `${42 + percent(quote.price) * 3.1}px` }}><span>{price(quote.price)}</span></div> : null}
-          <div className="chart-volume" style={{ gridTemplateColumns: `repeat(${visibleCandles.length}, minmax(3px, 1fr))` }}>{visibleCandles.map(item => <i key={`${item.time}-volume`} className={item.close >= item.open ? "rising" : "falling"} style={{ height: `${Math.max(2, (item.volume / maxVisibleVolume) * 100)}%` }} />)}</div>
-          <div className="chart-x-axis">{visibleCandles.filter((_, index) => index % Math.max(1, Math.floor(visibleCandles.length / 7)) === 0).map(item => <span key={item.time}>{candleTimeLabel(item.time, period)}</span>)}</div>
-        </div> : <div className="market-chart-empty"><b>{loading ? "正在连接实时 K 线" : "实时 K 线暂不可用"}</b><span>{message || "行情源返回后将在此处显示 K 线与成交量"}</span></div>}
+          {quote?.price ? <div className={styles.currentPriceLine} style={{ top: `${42 + percent(quote.price) * 3.1}px` }}><span>{price(quote.price)}</span></div> : null}
+          <div className={styles.volume} style={{ gridTemplateColumns: `repeat(${visibleCandles.length}, minmax(3px, 1fr))` }}>{visibleCandles.map(item => <i key={`${item.time}-volume`} className={item.close >= item.open ? undefined : styles.falling} style={{ height: `${Math.max(2, (item.volume / maxVisibleVolume) * 100)}%` }} />)}</div>
+          <div className={styles.xAxis}>{visibleCandles.filter((_, index) => index % Math.max(1, Math.floor(visibleCandles.length / 7)) === 0).map(item => <span key={item.time}>{candleTimeLabel(item.time, period)}</span>)}</div>
+        </div> : <div className={styles.chartEmpty}><b>{loading ? "正在连接实时 K 线" : "实时 K 线暂不可用"}</b><span>{message || "行情源返回后将在此处显示 K 线与成交量"}</span></div>}
       </div>
-      <footer className="market-chart-footer"><span><i className="legend-up" />上涨</span><span><i className="legend-down" />下跌</span><small>{marketStreamLabel} · 左右拖动回看历史 · 拖到左端自动加载更早 K 线</small></footer>
+      <footer className={styles.chartFooter}><span><i className={styles.legendUp} />上涨</span><span><i className={styles.legendDown} />下跌</span><small>{marketStreamLabel} · 左右拖动回看历史 · 拖到左端自动加载更早 K 线</small></footer>
     </section>
-    <section className="market-news-feed"><header><div><span className="eyebrow">NEWS &amp; EVENTS</span><h2>新闻与事件</h2><p>聚合市场快讯、资金流向和平台公告，每 60 秒重新检查来源与内容新鲜度。</p></div><span className={newsFreshness === "fresh" ? "market-news-status is-live" : "market-news-status is-fallback"}><i />{newsStatusLabel}{newsObservedAt && <time title="最近检查时间">检查于 {new Date(newsObservedAt).toLocaleTimeString("zh-CN")}</time>}</span></header>{newsMessage && <div className="market-news-message">{newsMessage}</div>}<div className="market-news-grid">{news.length ? news.slice(0, 8).map(item => <NewsCard item={item} key={item.id} />) : <div className="market-news-empty"><b>{newsFreshness === "unavailable" ? "新闻源暂不可用" : "当前没有新闻条目"}</b><span>来源恢复或返回新内容后将在这里自动显示。</span></div>}</div></section>
+    <section className={styles.newsFeed}><header><div><span className={styles.eyebrow}>NEWS &amp; EVENTS</span><h2>新闻与事件</h2><p>聚合市场快讯、资金流向和平台公告，每 60 秒重新检查来源与内容新鲜度。</p></div><span className={newsFreshness === "fresh" ? "market-news-status is-live" : "market-news-status is-fallback"}><i />{newsStatusLabel}{newsObservedAt && <time title="最近检查时间">检查于 {new Date(newsObservedAt).toLocaleTimeString("zh-CN")}</time>}</span></header>{newsMessage && <div className={styles.newsMessage}>{newsMessage}</div>}<div className={styles.newsGrid}>{news.length ? news.slice(0, 8).map(item => <NewsCard item={item} key={item.id} />) : <div className={styles.newsEmpty}><b>{newsFreshness === "unavailable" ? "新闻源暂不可用" : "当前没有新闻条目"}</b><span>来源恢复或返回新内容后将在这里自动显示。</span></div>}</div></section>
   </div>;
 }

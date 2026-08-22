@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+import styles from "./ai-message-content.module.css";
+
 import {
   formatAiQuestionAnswers,
   hasStrategyDslCodeBlock,
@@ -75,20 +77,20 @@ export function AiMessageContent({
   return <div className={`ai-message-content${streaming ? " streaming" : ""}`}>
     {presentation.sections.map((section, index) => <section className={`ai-message-section ${section.kind}`} key={`${section.kind}-${index}`}>
       {section.title && <header><span aria-hidden="true">{sectionIcons[section.kind]}</span><h3>{section.title}</h3></header>}
-      <div className="ai-message-section-body">
+      <div className={styles.body}>
         {section.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}
         {section.items.length > 0 && <ul>{section.items.map((item, itemIndex) => <li key={itemIndex}>{item}</li>)}</ul>}
-        {section.codeBlocks.map((block, blockIndex) => <details className="ai-message-code" key={blockIndex}>
+        {section.codeBlocks.map((block, blockIndex) => <details className={styles.code} key={blockIndex}>
           <summary>查看 {block.language === "json" ? "JSON 策略草稿" : "结构化内容"}</summary>
           <pre><code>{block.code}</code></pre>
         </details>)}
       </div>
     </section>)}
-    {onAnswer && presentation.questions.length > 0 && <div aria-label="待确认问题" className="ai-message-question-cta" role="group">
+    {onAnswer && presentation.questions.length > 0 && <div aria-label="待确认问题" className={styles.questionCta} role="group">
       <div><strong>有 {presentation.questions.length} 项需要确认</strong><span>默认已选择推荐项，也可以自行填写。</span></div>
       <button type="button" onClick={() => setOpen(true)}>回答待确认问题</button>
     </div>}
-    {onSaveStrategy && hasStrategyDsl && <div aria-label="策略保存操作" className="ai-message-strategy-save" role="group">
+    {onSaveStrategy && hasStrategyDsl && <div aria-label="策略保存操作" className={styles.strategySave} role="group">
       <div><strong>已识别策略 DSL</strong><span>{strategySaveNotice || "保存时服务端会转换并校验为平台可回测规则，作为自用草稿进入“我的策略”。"}</span></div>
       <button
         disabled={strategySaveState !== "idle"}
@@ -98,7 +100,7 @@ export function AiMessageContent({
     </div>}
     {onAnswer && presentation.questions.length > 0 && <dialog
       aria-labelledby={titleId}
-      className="ai-answer-dialog"
+      className={styles.dialog}
       onCancel={() => setOpen(false)}
       onClose={() => setOpen(false)}
       ref={dialogRef}
@@ -106,10 +108,10 @@ export function AiMessageContent({
       <form onSubmit={(event) => { event.preventDefault(); confirmAnswers(); }}>
         <header>
           <div><span>QUESTION CONFIRMATION</span><h2 id={titleId}>需要你确认</h2></div>
-          <button aria-label="关闭" className="ai-answer-dialog-close" type="button" onClick={() => setOpen(false)}>×</button>
+          <button aria-label="关闭" className={styles.dialogClose} type="button" onClick={() => setOpen(false)}>×</button>
         </header>
-        <p className="ai-answer-dialog-intro">已为每个问题预选推荐答案。确认后将作为你的回复继续对话。</p>
-        <div className="ai-answer-dialog-fields">
+        <p className={styles.dialogIntro}>已为每个问题预选推荐答案。确认后将作为你的回复继续对话。</p>
+        <div className={styles.dialogFields}>
           {presentation.questions.map((question, questionIndex) => <fieldset key={question.id}>
             <legend><span>{questionIndex + 1}</span>{question.prompt}</legend>
             {question.options.map((option) => <label key={option}>
@@ -134,7 +136,7 @@ export function AiMessageContent({
             </label>
             {answers[question.id] === "__custom__" && <input
               aria-label={`${question.prompt}的自定义回答`}
-              className="ai-answer-custom-input"
+              className={styles.customInput}
               maxLength={200}
               onChange={(event) => setCustomAnswers((current) => ({ ...current, [question.id]: event.target.value }))}
               placeholder="输入你的回答"
@@ -143,11 +145,11 @@ export function AiMessageContent({
           </fieldset>)}
         </div>
         <footer>
-          <button className="secondary" type="button" onClick={() => setOpen(false)}>稍后回答</button>
-          <button className="primary" disabled={!canSubmit} type="submit">确认并发送</button>
+          <button className={styles.secondary} type="button" onClick={() => setOpen(false)}>稍后回答</button>
+          <button className={styles.primary} disabled={!canSubmit} type="submit">确认并发送</button>
         </footer>
       </form>
     </dialog>}
-    {streaming && <span className="ai-message-cursor" aria-hidden="true">▋</span>}
+    {streaming && <span className={styles.cursor} aria-hidden="true">▋</span>}
   </div>;
 }

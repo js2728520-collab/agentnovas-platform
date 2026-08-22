@@ -1278,3 +1278,54 @@ tsc、lint、884 项测试、三端 build、bundle 预算、7 条边界通过。
 
 tsc、lint、884 项测试、三端 build、bundle 预算、7 条边界通过。
 运行时实测 `/backtests` 与 `/backtests/:id` 在客户端 200、运营端 404。
+
+
+## 37. 2026-08-22 门户样式全部转成令牌驱动的 CSS Module
+
+§35 的临时债还清：`app/audience/client-portal-root.tsx` 不再 import
+`globals-beta.css`，遗留围栏规则恢复为「只允许落地页引用」。
+
+### 新增七个 CSS Module
+
+| 模块 | 覆盖 |
+| --- | --- |
+| `ai-assistant-chat.module.css` | AI 助手对话（原 111 条规则，大半是 beta 覆盖链） |
+| `decision-hall.module.css` | 交易大厅与决策会议室 |
+| `live-market.module.css` | 行情终端（K 线、成交量、十字光标、关注列表、资讯） |
+| `backtest.module.css` | 回测中心与单策略配置回测 |
+| `strategy-studio.module.css` | 策略实验室（更早一批） |
+| `ai-message-content.module.css` | 助手回复富文本与待确认问题对话框 |
+| `client-notification-settings.module.css` | 通知偏好 |
+
+全部按 `--rv-*` 令牌重写，不是逐条搬运遗留规则——那些规则里大半是 beta 改版
+叠加在旧设计上的 `!important` 覆盖链。
+
+### 拆除批次的第二个样式回归
+
+`/market` 的约 45 个类名在 `riverton-console.css` 与 `globals-beta.css` 里**都没有**：
+它们原在 `app/market-terminal.css`，而那个文件在 §35 被删（当时它唯一的引用点是
+已退役的 `client-workspace-root`）。恢复出来一看，`market-terminal.css` 只有 311 行
+字号微调，**真正的终端样式在同批删掉的 `globals.css` 里**——所以 `/market` 的样式
+是从零重写的。
+
+这是同一个教训的第二次：删样式表前要查的不是「谁 import 了它」，而是
+**「谁在用它的类名」**。
+
+### 定位数据不进样式表
+
+K 线的 top/height、成交量柱高、画布宽度、智能体的 x/y 百分比都由组件用行内
+`style` 给出——那些是价格与坐标换算的**数据**，不是样式。模块只提供定位机制
+（`position` / `transform` / grid）与配色。同理，序号与状态改用 `data-*` 属性
+（`data-seat`、`data-inactive`、`data-streaming`、`data-stage`），不编进类名，
+否则「多一个角色/状态/阶段」就得改样式表。
+
+### 顺带修掉的可访问性与合规细节
+
+- 原生 `<dialog>` 用 `showModal()` 打开必须显式居中，否则贴在视口顶部。
+- 生成中的点动画与流式光标都加了 `prefers-reduced-motion` 降级。
+- 降级资讯卡片带「非实时」标记，不能和实时内容长得一样（INV-6）。
+
+### 验证
+
+tsc、lint、884 项测试、三端 build、bundle 预算、7 条边界通过。
+构建产物实测：七个模块的 CSS chunk 全部存在且含各自的规则。
