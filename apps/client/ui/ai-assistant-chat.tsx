@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import styles from "./ai-assistant-chat.module.css";
+
 import { consumeAiEventStream } from "./ai-sse";
 import { AiMessageContent } from "./ai-message-content";
 
@@ -318,31 +320,31 @@ export default function AiAssistantChat({
   }
 
   return <>
-    <div className="page-head"><div><h1>{title}</h1><p>与你的 AI 量化团队持续对话，历史由服务端安全保存</p></div></div>
-    <div className="agent-chat-workspace">
-      <aside className="agent-chat-history">
+    <div className={styles.pageHead}><div><h1>{title}</h1><p>与你的 AI 量化团队持续对话，历史由服务端安全保存</p></div></div>
+    <div className={styles.workspace}>
+      <aside className={styles.history}>
         <header><div><b>对话记录</b><small>仅当前账号可见</small></div><button type="button" onClick={() => void newConversation()} disabled={sending}>＋ 新建对话</button></header>
-        <div className="agent-chat-history-list" aria-label="AI 对话列表">
-          {conversations.map((item) => <button key={item.id} className={item.id === activeId ? "active" : ""} type="button" onClick={() => void selectConversation(item.id)} aria-current={item.id === activeId ? "page" : undefined}><i>{item.purpose === "strategy" ? "策" : "AI"}</i><span><b>{item.title}</b><small>{formatRelative(item.lastMessageAt)} · {item.messageCount} 条消息</small></span><em>›</em></button>)}
-          {!loading && !conversations.length && <p className="agent-chat-empty">还没有对话</p>}
+        <div className={styles.historyList} aria-label="AI 对话列表">
+          {conversations.map((item) => <button key={item.id} className={item.id === activeId ? styles.active : undefined} type="button" onClick={() => void selectConversation(item.id)} aria-current={item.id === activeId ? "page" : undefined}><i>{item.purpose === "strategy" ? "策" : "AI"}</i><span><b>{item.title}</b><small>{formatRelative(item.lastMessageAt)} · {item.messageCount} 条消息</small></span><em>›</em></button>)}
+          {!loading && !conversations.length && <p className={styles.empty}>还没有对话</p>}
         </div>
         <footer><span><i />持久化对话服务</span><small>不会执行交易</small></footer>
       </aside>
-      <section className="agent-chat-main" aria-busy={loading || sending}>
-        <header className="agent-chat-page-head"><div><span className="eyebrow">AI CONSULTATION</span><h2>AI 助手</h2><p>行情分析、决策解读、平台与会员规则问答。回答只基于服务端的行情快照、决策轮记录与平台合同事实。</p></div><div className="agent-chat-header-actions"><span className="agent-chat-status"><i />{sending ? "回复生成中" : "平台模型服务"}</span></div></header>
-        <div className="agent-chat-current"><span>当前会话</span><b>{active?.title || "新对话"}</b><small>市场分析 · 风险解释 · 策略研究</small>{active && <button className="agent-chat-archive" type="button" onClick={() => void archiveConversation()}>归档</button>}</div>
-        {error && <div className="agent-chat-error" role="alert"><span>{error}</span>{retryRequest && <button type="button" disabled={sending} onClick={() => void send(undefined, retryRequest)}>{sending ? "正在查询原请求…" : "重试原请求"}</button>}</div>}
-        <div className="agent-chat-messages" aria-live="polite">
-          {loading && <div className="agent-chat-empty">正在加载对话…</div>}
-          {!loading && !messages.length && <div className="agent-chat-empty"><b>开始一段真实对话</b><span>可以咨询行情依据、持仓风险，或讨论一个待回测策略。</span></div>}
-          {messages.map((message) => <article className={message.role === "user" ? "agent-chat-message-user" : "answer"} key={message.id}><i>{message.role === "user" ? "我" : "AI"}</i><div><b>{message.role === "user" ? "我" : "AI 团队"}</b>{message.role === "assistant" ? <AiMessageContent content={message.content} autoPrompt={message.id === promptMessageId} onAnswer={(answer) => void send(answer)} onSaveStrategy={() => void saveStrategy(message.id)} strategySaveNotice={strategySaveNotices[message.id]} strategySaveState={savedStrategyMessageIds[message.id] || message.savedStrategyId ? "saved" : savingStrategyMessageId === message.id ? "saving" : "idle"} /> : <p>{message.content}</p>}<small>{message.generationMode === "guided_rules" ? "平台规则引导 · " : message.model ? `${message.model} · ` : ""}{formatRelative(message.createdAt)}</small></div></article>)}
-          {sending && <article className="answer agent-chat-streaming"><i>AI</i><div><b>AI 助手</b>{streamingText ? <AiMessageContent content={streamingText} streaming /> : <div className="agent-chat-generating-dots" role="status"><span>正在生成回复</span><i /><i /><i /></div>}<small>正在分析当前会话…</small></div></article>}
-          {suggestedAction === "strategy" && <button type="button" className="agent-chat-open-strategy" onClick={onOpenStrategies}>前往策略工作室创建可回测规则 →</button>}
+      <section className={styles.main} aria-busy={loading || sending}>
+        <header className={styles.pageHead}><div><span className={styles.eyebrow}>AI CONSULTATION</span><h2>AI 助手</h2><p>行情分析、决策解读、平台与会员规则问答。回答只基于服务端的行情快照、决策轮记录与平台合同事实。</p></div><div className={styles.headerActions}><span className={styles.status}><i />{sending ? "回复生成中" : "平台模型服务"}</span></div></header>
+        <div className={styles.current}><span>当前会话</span><b>{active?.title || "新对话"}</b><small>市场分析 · 风险解释 · 策略研究</small>{active && <button className={styles.archive} type="button" onClick={() => void archiveConversation()}>归档</button>}</div>
+        {error && <div className={styles.error} role="alert"><span>{error}</span>{retryRequest && <button type="button" disabled={sending} onClick={() => void send(undefined, retryRequest)}>{sending ? "正在查询原请求…" : "重试原请求"}</button>}</div>}
+        <div className={styles.messages} aria-live="polite">
+          {loading && <div className={styles.empty}>正在加载对话…</div>}
+          {!loading && !messages.length && <div className={styles.empty}><b>开始一段真实对话</b><span>可以咨询行情依据、持仓风险，或讨论一个待回测策略。</span></div>}
+          {messages.map((message) => <article className={message.role === "user" ? styles.messageUser : undefined} key={message.id}><i>{message.role === "user" ? "我" : "AI"}</i><div><b>{message.role === "user" ? "我" : "AI 团队"}</b>{message.role === "assistant" ? <AiMessageContent content={message.content} autoPrompt={message.id === promptMessageId} onAnswer={(answer) => void send(answer)} onSaveStrategy={() => void saveStrategy(message.id)} strategySaveNotice={strategySaveNotices[message.id]} strategySaveState={savedStrategyMessageIds[message.id] || message.savedStrategyId ? "saved" : savingStrategyMessageId === message.id ? "saving" : "idle"} /> : <p>{message.content}</p>}<small>{message.generationMode === "guided_rules" ? "平台规则引导 · " : message.model ? `${message.model} · ` : ""}{formatRelative(message.createdAt)}</small></div></article>)}
+          {sending && <article className={styles.streaming}><i>AI</i><div><b>AI 助手</b>{streamingText ? <AiMessageContent content={streamingText} streaming /> : <div className={styles.generatingDots} role="status"><span>正在生成回复</span><i /><i /><i /></div>}<small>正在分析当前会话…</small></div></article>}
+          {suggestedAction === "strategy" && <button type="button" className={styles.openStrategy} onClick={onOpenStrategies}>前往策略工作室创建可回测规则 →</button>}
           <div ref={messageEndRef} />
         </div>
-        <section className="agent-chat-prompts"><header><b>快速问题</b><span>点击填入输入框</span></header><div>{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => setQuestion(prompt)} disabled={sending}>{prompt}<i>→</i></button>)}</div></section>
-        <label className="agent-chat-composer"><textarea aria-label="AI 对话内容" maxLength={2_000} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="输入你想咨询的问题…" disabled={sending || loading} /><button type="button" onClick={() => void send()} disabled={sending || loading || !question.trim()}>发送问题 →</button></label>
-        <small className="agent-chat-disclaimer">请勿提交 API Key、密码、私钥或令牌。AI 内容仅用于信息与策略研究，不构成投资建议。</small>
+        <section className={styles.prompts}><header><b>快速问题</b><span>点击填入输入框</span></header><div>{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => setQuestion(prompt)} disabled={sending}>{prompt}<i>→</i></button>)}</div></section>
+        <label className={styles.composer}><textarea aria-label="AI 对话内容" maxLength={2_000} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="输入你想咨询的问题…" disabled={sending || loading} /><button type="button" onClick={() => void send()} disabled={sending || loading || !question.trim()}>发送问题 →</button></label>
+        <small className={styles.disclaimer}>请勿提交 API Key、密码、私钥或令牌。AI 内容仅用于信息与策略研究，不构成投资建议。</small>
       </section>
     </div>
   </>;

@@ -1,0 +1,332 @@
+/* 交易大厅与 AI 决策会议室。
+ *
+ * 原样式散在 globals.css（已删）与 globals-beta.css 里。这里按意图重写：
+ * 大厅是一张「场景图 + 按位置摆放的角色卡」，角色的 x/y 百分比由组件用行内
+ * style 给出（那是数据，不是样式），本表只负责定位机制与外观，全部走 --rv-* 令牌。 */
+
+.page {
+  display: grid;
+  gap: 1rem;
+  max-width: var(--rv-content-max);
+}
+
+.pageHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.pageHead h1 { margin: 0 0 0.35rem; font-size: 1.25rem; text-wrap: balance; }
+.pageHead p { margin: 0; max-width: 64ch; color: var(--rv-muted-foreground); font-size: 0.8125rem; line-height: 1.6; }
+
+.soft {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.soft:hover { background: var(--rv-row-hover); }
+.soft:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pulse {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  background: var(--rv-success);
+}
+
+.loadState,
+.meetingLoadState {
+  min-height: 1.25rem;
+  color: var(--rv-muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.loadState [role="alert"],
+.meetingLoadState [role="alert"] { color: var(--rv-danger); }
+
+/* 角色位置只是界面示意，这条说明不能被淡化到看不见（产品合规文案）。 */
+.illustrationNote {
+  margin: 0;
+  color: var(--rv-muted-foreground);
+  font-size: 0.75rem;
+}
+
+.hall {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(17rem, 0.5fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 68rem) {
+  .hall { grid-template-columns: 1fr; }
+}
+
+.left, .right { display: grid; gap: 0.75rem; }
+
+/* 场景：角色按百分比定位，容器保持固定宽高比避免定位随内容跳动。 */
+.scene {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  min-height: 20rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background:
+    radial-gradient(circle at 50% 45%, var(--rv-primary-soft), transparent 60%),
+    var(--rv-card);
+  overflow: hidden;
+}
+
+.roundtable {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42%;
+  aspect-ratio: 2 / 1;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--rv-border-strong);
+  border-radius: 50%;
+  background: var(--rv-background);
+}
+
+.hotspot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  width: 11rem;
+  padding: 0.5rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-card);
+  color: var(--rv-foreground);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.hotspot:hover { border-color: var(--rv-primary); }
+
+.operator {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--rv-primary-soft);
+}
+
+.hotspot b { font-size: 0.75rem; }
+
+.speech,
+.meetingSpeech {
+  display: block;
+  color: var(--rv-muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.meetingHotspot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  width: 13rem;
+  padding: 0.625rem;
+  border: 1px solid var(--rv-primary);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-primary-soft);
+  color: var(--rv-primary-ink);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* 侧栏部件 */
+.widget {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+  overflow: hidden;
+}
+
+.widgetHead {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--rv-border);
+  font-size: 0.8125rem;
+}
+
+.widgetHead b { font-size: 0.875rem; }
+
+/* 智能体发言滚动条 */
+.dialogueViewport {
+  max-height: 12rem;
+  /* 旧设计靠 CSS 动画滚动发言；这里改成可滚动容器，不做自动播放。 */
+  overflow-y: auto;
+  padding: 0 1rem 0.75rem;
+}
+
+.dialogueTrack { display: grid; gap: 0.5rem; font-size: 0.75rem; }
+.dialogueTrack b { color: var(--rv-foreground); }
+.dialogueTrack span { color: var(--rv-muted-foreground); line-height: 1.55; }
+
+/* 策略状态跑马灯 */
+.monitorTrack {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0 1rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.monitorEmpty { padding: 0 1rem 0.75rem; color: var(--rv-muted-foreground); font-size: 0.75rem; }
+
+.monitorPages { display: flex; gap: 0.3rem; align-items: center; }
+
+.monitorDot {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: var(--rv-border-strong);
+}
+
+.monitorDot.active { background: var(--rv-primary); }
+
+/* 策略状态全部静态列出，没有轮播、没有动画。
+ * 旧设计用 CSS 动画做跑马灯，于是需要一个「暂停轮播」按钮，还需要在多处强行
+ * 关掉动效来压住「看起来像实时活动」的观感。全列出来更简单，
+ * 信息也更全 —— 「不制造虚假实时感」变成由构造保证，不再依赖覆盖规则。 */
+
+/* 会议室 */
+.meetingGrid,
+.auditGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0.75rem;
+}
+
+.auditPanel,
+.meetingGrid > article,
+.auditGrid > article {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-card);
+  font-size: 0.8125rem;
+}
+
+.roundPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.8125rem;
+}
+
+.roundPicker select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-input);
+  color: var(--rv-foreground);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+/* 缺阶段必须看得出来，不能和已完成阶段长得一样（INV-8 的 partial 标注）。 */
+.warn {
+  border-color: var(--rv-warning);
+  background: var(--rv-warning-soft);
+}
+
+.finalCard {
+  border-color: var(--rv-primary);
+  background: var(--rv-primary-soft);
+}
+
+.transcript {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+}
+
+.tableCore {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tableCore th,
+.tableCore td {
+  padding: 0.4rem 0.625rem;
+  text-align: left;
+  border-bottom: 1px solid var(--rv-border);
+}
+
+.tableCore thead th { background: var(--rv-table-header); color: var(--rv-muted-foreground); }
+
+.green { color: var(--rv-success); }
+.line { border: 0; border-top: 1px solid var(--rv-border); margin: 0.5rem 0; }
+
+/* 圆桌席位。序号是数据，用 data-seat 表达而不是编进类名——
+ * 否则「多一个角色」就得改样式表。 */
+.seat {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: var(--rv-border-strong);
+  transform: translate(-50%, -50%);
+}
+
+.seat[data-seat="0"] { transform: translate(-50%, -50%) rotate(0deg) translateY(-4.5rem); }
+.seat[data-seat="1"] { transform: translate(-50%, -50%) rotate(51deg) translateY(-4.5rem); }
+.seat[data-seat="2"] { transform: translate(-50%, -50%) rotate(103deg) translateY(-4.5rem); }
+.seat[data-seat="3"] { transform: translate(-50%, -50%) rotate(154deg) translateY(-4.5rem); }
+.seat[data-seat="4"] { transform: translate(-50%, -50%) rotate(206deg) translateY(-4.5rem); }
+.seat[data-seat="5"] { transform: translate(-50%, -50%) rotate(257deg) translateY(-4.5rem); }
+.seat[data-seat="6"] { transform: translate(-50%, -50%) rotate(309deg) translateY(-4.5rem); }
+
+/* 未部署的策略要看得出来是灰的，不能和运行中的一样。 */
+.monitorDot[data-inactive] { background: var(--rv-border); }

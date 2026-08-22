@@ -13,6 +13,8 @@
  */
 
 import Image from "next/image";
+
+import styles from "./decision-hall.module.css";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -36,15 +38,15 @@ function AgentDialoguePanel({ talks = [] }: { talks?: string[][] }) {
   const rows = talks.length ? talks : waitingAgentTalks;
   return (
     <section
-      className="market-widget agent-dialogue-widget"
+      className={styles.widget}
       aria-label="Agent 工作记录"
     >
-      <div className="widget-head">
+      <div className={styles.widgetHead}>
         <b>Agent 工作记录</b>
         <span>DECISION LOG</span>
       </div>
-      <div className="agent-dialogue-viewport">
-        <div className="agent-dialogue-track">
+      <div className={styles.dialogueViewport}>
+        <div className={styles.dialogueTrack}>
           {rows.map((x, i) => (
             <article key={`${x[0]}-${i}`}>
               <b>{x[0] === "策略工作流" ? "AI Decision Officer" : x[0]}</b>
@@ -65,7 +67,6 @@ function StrategyMonitorTicker({
   strategies?: TradingHallStrategy[];
   loading?: boolean;
 }) {
-  const [paused, setPaused] = useState(false);
   const rows = strategies.map((strategy) => {
     const presentation = tradingHallStrategyPresentation(strategy);
     return {
@@ -78,20 +79,20 @@ function StrategyMonitorTicker({
     };
   });
   return (
-    <div className={`strategy-monitor-ticker${paused ? " paused" : ""}`} aria-label="三套AI策略服务端状态">
-      <div className="strategy-monitor-track">
+    <div className={styles.monitorTrack} aria-label="三套AI策略服务端状态">
+      <div className={styles.monitorTrack}>
         {rows.length === 0 && (
-          <article className="strategy-monitor-empty">
-            <span className="strategy-monitor-dot" />
+          <article className={styles.monitorEmpty}>
+            <span className={styles.monitorDot} />
             <div>
               <small>官方策略卡</small>
               <b>{loading ? "正在读取真实策略状态" : "当前没有策略部署记录"}</b>
             </div>
           </article>
         )}
-        {rows.map((row, i) => (
+        {rows.map((row) => (
           <article key={row.name} aria-label={`${row.name}：${row.state}`}>
-            <span className={`strategy-monitor-dot s${i}${row.inactive ? " inactive" : ""}`} />
+            <span className={styles.monitorDot} data-inactive={row.inactive || undefined} />
             <div>
               <small>{row.state}</small>
               <b>{row.name}</b>
@@ -111,21 +112,11 @@ function StrategyMonitorTicker({
           </article>
         ))}
       </div>
-      <div className="strategy-monitor-pages">
+      <div className={styles.monitorPages}>
         <i />
         <i />
         <i />
       </div>
-      {rows.length > 1 && (
-        <button
-          className="strategy-monitor-pause"
-          type="button"
-          aria-pressed={paused}
-          onClick={() => setPaused((value) => !value)}
-        >
-          {paused ? "继续轮播" : "暂停轮播"}
-        </button>
-      )}
     </div>
   );
 }
@@ -189,19 +180,18 @@ const agents = tradingHallAgentCatalog.flatMap((agent) => {
   }];
 });
 
+// className 参数随样式模块化一起移除：外观由 CSS Module 决定，调用方不再拼类名。
 function PageHead({
   title,
   sub,
   actions,
-  className,
 }: {
   title: string;
   sub: string;
   actions?: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <div className={`page-head${className ? ` ${className}` : ""}`}>
+    <div className={styles.pageHead}>
       <div>
         <h1>{title}</h1>
         <p>{sub}</p>
@@ -240,18 +230,18 @@ export default function DecisionHall() {
         sub="七角色顺序决策链 · 三张官方策略卡 · 每 5 秒同步"
         actions={
           <>
-            <button className="soft" onClick={() => window.location.assign("/trading-hall/meeting")}>
+            <button className={styles.soft} onClick={() => window.location.assign("/trading-hall/meeting")}>
               进入会议室
             </button>
-            <button className="soft" onClick={() => window.location.assign("/paper")}>
+            <button className={styles.soft} onClick={() => window.location.assign("/paper")}>
               风险与交易控制
             </button>
           </>
         }
       />
-      <div className="hall-stats" aria-label="交易大厅产品边界">
+      <div className={styles.stats} aria-label="交易大厅产品边界">
         <span>
-          <i className="pulse" />
+          <i className={styles.pulse} />
           真实订单关闭
         </span>
         <span>
@@ -264,18 +254,18 @@ export default function DecisionHall() {
           当前环境 <b>{executionModeLabel}</b>
         </span>
       </div>
-      <div className="hall-load-state" aria-live="polite">
+      <div className={styles.loadState} aria-live="polite">
         {loading && !data && <span>正在读取交易大厅真实记录…</span>}
         {error && <span role="alert">{error} <button type="button" onClick={retry}>重试</button></span>}
         {!loading && !error && data && data.decisionRounds.length === 0 && <span>当前没有决策轮记录；系统不会用演示数据填充。</span>}
         {data && data.legacyAuditRecords > 0 && <span>检测到 {data.legacyAuditRecords} 条旧周期审计记录；旧记录缺少独立 AI 最终决策阶段，已明确标记。</span>}
       </div>
-      <p className="hall-role-illustration-note" role="note">
+      <p className={styles.illustrationNote} role="note">
         角色位置仅为界面示意，不代表智能体正在运行；状态以服务端策略与决策记录为准。
       </p>
-      <div className="compact-hall">
-        <div className="hall-left">
-          <div className="scene compact">
+      <div className={styles.hall}>
+        <div className={styles.left}>
+          <div className={styles.scene}>
             <Image
               src="/trading-hall.webp"
               width={1672}
@@ -286,26 +276,26 @@ export default function DecisionHall() {
             {agents.map((a) => (
               <button
                 key={a.n}
-                className="hotspot hall-role-static"
+                className={styles.hotspot}
                 style={{ left: `${a.x}%`, top: `${a.y}%` }}
                 // 原来点击角色会把该角色名带进 Agent 对话；新的 AI 助手不按角色分线，
                 // 所以只做跳转。角色的最新结论就在这张卡片上，不必再带过去。
                 onClick={() => window.location.assign("/assistant")}
               >
-                <span className="hall-operator" aria-hidden="true" />
+                <span className={styles.operator} aria-hidden="true" />
                 <i />
                 <b>{a.n}</b>
                 <small>{statusFor(a.n)}</small>
-                <span className="speech">
+                <span className={styles.speech}>
                   {talkFor(a.n)}
                   <em>•••</em>
                 </span>
               </button>
             ))}
-            <button className="meeting-hotspot hall-role-static" onClick={() => window.location.assign("/trading-hall/meeting")}>
+            <button className={styles.meetingHotspot} onClick={() => window.location.assign("/trading-hall/meeting")}>
               <span>AI 决策官</span>
               <small>{data?.agents.find((agent) => agent.key === "final_decision")?.status === "reported" ? "已提交决策" : "等待记录"}</small>
-              <b className="meeting-speech">
+              <b className={styles.meetingSpeech}>
                 {meetingTalk}
                 <em>•••</em>
               </b>
@@ -313,7 +303,7 @@ export default function DecisionHall() {
           </div>
           <StrategyMonitorTicker strategies={data?.strategies || []} loading={loading} />
         </div>
-        <aside className="hall-right">
+        <aside className={styles.right}>
           <AgentDialoguePanel talks={liveTalks} />
         </aside>
       </div>
@@ -339,9 +329,9 @@ export function DecisionMeeting() {
           : "读取真实决策轮；没有记录时不会显示演示会议"}
         actions={
           <>
-            <button className="soft" onClick={() => window.location.assign("/trading-hall")}>返回交易大厅</button>
+            <button className={styles.soft} onClick={() => window.location.assign("/trading-hall")}>返回交易大厅</button>
             <button
-              className="soft"
+              className={styles.soft}
               onClick={() => setAuditOpen((open) => !open)}
               aria-expanded={auditOpen}
               disabled={!selectedRound}
@@ -351,13 +341,13 @@ export function DecisionMeeting() {
           </>
         }
       />
-      <div className="meeting-load-state" aria-live="polite">
+      <div className={styles.meetingLoadState} aria-live="polite">
         {loading && !data && <span>正在读取决策轮…</span>}
         {error && <span role="alert">{error} <button type="button" onClick={retry}>重试</button></span>}
         {!loading && !error && data?.decisionRounds.length === 0 && <span>当前没有可展示的决策轮。</span>}
       </div>
       {data && data.decisionRounds.length > 1 && (
-        <label className="meeting-round-picker">
+        <label className={styles.roundPicker}>
           选择决策轮
           <select value={selectedRound?.decisionRoundId || ""} onChange={(event) => setSelectedRoundId(event.target.value)}>
             {data.decisionRounds.map((round) => (
@@ -369,16 +359,16 @@ export function DecisionMeeting() {
         </label>
       )}
       {selectedRound && (
-        <div className="meeting-grid">
-          <section className="roundtable" aria-label="七智能体决策顺序">
-            <div className="table-core">
+        <div className={styles.meetingGrid}>
+          <section className={styles.roundtable} aria-label="七智能体决策顺序">
+            <div className={styles.tableCore}>
               <b>{selectedRound.symbol.replace("USDT", "")}</b>
               <span>{selectedRound.status}</span>
             </div>
             {tradingHallAgentCatalog.map((agent, index) => {
               const event = eventFor(agent.key);
               return (
-                <div className={`seat seat${index}`} key={agent.key}>
+                <div className={styles.seat} data-seat={index} key={agent.key}>
                   <i>{agent.sequence}</i>
                   <b>{agent.name}</b>
                   <small>{event ? "已记录" : "缺少记录"}</small>
@@ -386,15 +376,15 @@ export function DecisionMeeting() {
               );
             })}
           </section>
-          <section className="transcript">
+          <section className={styles.transcript}>
             <h3>
               七阶段公开记录 <span>{selectedRound.completeness.toUpperCase()}</span>
             </h3>
             {tradingHallAgentCatalog.map((agent) => {
               const event = eventFor(agent.key);
               return (
-                <div className="line" key={agent.key}>
-                  <i className={event ? "" : "warn"} />
+                <div className={styles.line} key={agent.key}>
+                  <i className={event ? undefined : styles.warn} />
                   <div>
                     <b>
                       {agent.sequence}. {agent.name}{" "}
@@ -409,7 +399,7 @@ export function DecisionMeeting() {
         </div>
       )}
       {auditOpen && selectedRound && (
-        <section className="meeting-audit-panel">
+        <section className={styles.auditPanel}>
           <header>
             <div>
               <small>AUDIT TRAIL</small>
@@ -417,7 +407,7 @@ export function DecisionMeeting() {
             </div>
             <span>已记录 {selectedRound.events.length} 项</span>
           </header>
-          <div className="meeting-audit-grid">
+          <div className={styles.auditGrid}>
             <div>
               <b>会议时间</b>
               <span>{selectedRound.updatedAt ? new Date(selectedRound.updatedAt).toLocaleString("zh-CN", { hour12: false }) : "未记录"}</span>
@@ -446,7 +436,7 @@ export function DecisionMeeting() {
         </section>
       )}
       {selectedRound && (
-        <section className="final-card">
+        <section className={styles.finalCard}>
           <div>
             <small>最终决策</small>
             <h2>{finalDecision?.conclusion || "该旧周期缺少独立 AI 最终决策记录"}</h2>
@@ -466,7 +456,7 @@ export function DecisionMeeting() {
             </div>
             <div>
               <dt>真实订单</dt>
-              <dd className="green">关闭</dd>
+              <dd className={styles.green}>关闭</dd>
             </div>
           </dl>
           <p>硬风控优先于任何 Agent 意见。影子/模拟订单意图不代表客户交易所真实成交。</p>

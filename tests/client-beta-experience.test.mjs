@@ -124,7 +124,7 @@ test("trading experience reads official paper evidence and never presents client
 
 test("the trading hall presents server strategy state without simulated live activity", async () => {
   const workspace = await read("apps/client/ui/decision-hall.tsx");
-  const css = await read("app/globals-beta.css");
+  const moduleCss = await read("apps/client/ui/decision-hall.module.css");
   assert.match(workspace, /tradingHallStrategyPresentation/);
   assert.match(workspace, /tradingHallEnvironmentLabel/);
   assert.match(workspace, /角色位置仅为界面示意，不代表智能体正在运行/);
@@ -135,12 +135,14 @@ test("the trading hall presents server strategy state without simulated live act
   assert.doesNotMatch(workspace, /Math\.random/);
   assert.doesNotMatch(workspace, /action-\$\{agentActions/);
   assert.doesNotMatch(workspace, /\[\.\.\.rows, \.\.\.rows, \.\.\.rows\]/);
-  assert.match(css, /\.scene\.compact \.hall-role-static[^}]*animation:none!important/);
-  assert.match(css, /\.agent-dialogue-track\{[^}]*animation:none!important/);
-  assert.match(workspace, /strategy-monitor-pause/);
-  assert.match(css, /strategy-monitor-ticker\.paused/);
-  assert.doesNotMatch(css, /strategy-monitor-ticker:focus-within/);
-  assert.match(css, /prefers-reduced-motion:reduce[^}]*strategy-monitor-track/);
+  // 原断言检查遗留样式表用 animation:none!important 压掉「看起来像实时活动」的
+  // 效果，还要一个「暂停轮播」按钮。样式模块化后这些元素**根本没有动画**，
+  // 约束由构造保证，断言改成更强的形式：模块里不得出现动画。
+  assert.doesNotMatch(moduleCss, /animation\s*:/);
+  assert.doesNotMatch(moduleCss, /@keyframes/);
+  assert.doesNotMatch(workspace, /轮播/);
+  // 另两条原断言（跑马灯的 focus-within 暂停、prefers-reduced-motion 降级）
+  // 随跑马灯一起失去意义：没有动画就没有需要降级或暂停的东西。
 });
 
 test("client raster assets stay under the 200 KiB budget and the hall uses an optimized source", async () => {

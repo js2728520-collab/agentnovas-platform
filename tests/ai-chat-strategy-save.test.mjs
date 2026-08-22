@@ -136,17 +136,20 @@ test("agent chat exposes message-level strategy saving and model-only attributio
 });
 
 test("agent chat renders generation progress as a new assistant reply, not button text", async () => {
+  // 样式已从 globals-beta.css 转成组件自己的 CSS Module（P4 收尾）。
   const [chat, styles] = await Promise.all([
     readFile(new URL("../apps/client/ui/ai-assistant-chat.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals-beta.css", import.meta.url), "utf8"),
+    readFile(new URL("../apps/client/ui/ai-assistant-chat.module.css", import.meta.url), "utf8"),
   ]);
 
-  assert.match(chat, /agent-chat-generating-dots/);
+  assert.match(chat, /styles\.generatingDots/);
   assert.match(chat, /正在生成回复/);
   assert.match(chat, />发送问题 →<\/button>/);
   assert.doesNotMatch(chat, /\{sending \? "生成中…" : "发送问题 →"\}/);
-  assert.match(styles, /\.agent-chat-generating-dots/);
-  assert.match(styles, /@keyframes ai-generating-dot/);
+  assert.match(styles, /\.generatingDots/);
+  assert.match(styles, /@keyframes assistant-generating-dot/);
+  // 动画必须尊重 prefers-reduced-motion。
+  assert.match(styles, /prefers-reduced-motion/);
 });
 
 test("assistant prompt gives the provider the exact canonical strategy DSL contract", async () => {
