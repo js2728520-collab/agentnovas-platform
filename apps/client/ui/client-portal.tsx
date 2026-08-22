@@ -14,6 +14,7 @@ const LegalConsentExperience = dynamic(() => import("./legal-consent-experience"
 const MembershipExperience = dynamic(() => import("./membership-experience"));
 const AiAssistantChat = dynamic(() => import("./ai-assistant-chat"));
 const DecisionHall = dynamic(() => import("./decision-hall"));
+const StrategyStudio = dynamic(() => import("./strategy-studio"));
 const DecisionMeeting = dynamic(() => import("./decision-hall").then((module) => module.DecisionMeeting));
 const LiveMarket = dynamic(() => import("./live-market"));
 const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace));
@@ -46,6 +47,12 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
   // 落地页的「行情」链接因此把匿名访客送进一个要求登录的页面。
   if (route === "market") return <LiveMarket onLogin={() => window.location.assign("/login")} />;
   // AI 助手：行情分析、决策解读、平台与会员规则问答。
+  // 策略实验室：多智能体研发流水线（检查点式、样本外验证、确定性准入）。
+  // 服务端一直都在，此前唯一的入口是运行时不可达的遗留页面。
+  if (route === "studio") {
+    if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
+    return <StrategyStudio />;
+  }
   if (route === "assistant") {
     return <AiAssistantChat title="AI 助手" onOpenStrategies={() => window.location.assign("/trading-hall")} />;
   }

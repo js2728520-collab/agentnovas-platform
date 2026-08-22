@@ -1,0 +1,271 @@
+/* 策略实验室（多智能体研发流水线）。
+ *
+ * 原界面的样式只存在于 app/globals.css —— 而那份样式表没有任何页面加载，
+ * 照搬过来会得到一个没有样式的页面，而且它满是硬编码色值，会直接违反
+ * 「样式层零硬编码色值」边界规则。所以这里按 --rv-* 令牌重写。 */
+
+.studio {
+  display: grid;
+  gap: 1.25rem;
+  max-width: var(--rv-content-max);
+}
+
+.brief {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.75rem 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.brief label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--rv-muted-foreground);
+}
+
+.brief input,
+.brief select,
+.launchGrid select,
+.instrumentField select {
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-input);
+  color: var(--rv-foreground);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.launchGrid {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.modeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+
+.modeGrid button {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.875rem 1rem;
+  text-align: left;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+  cursor: pointer;
+}
+
+.modeGrid button:hover { background: var(--rv-row-hover); }
+
+.modeGrid button.selected {
+  border-color: var(--rv-primary);
+  background: var(--rv-primary-soft);
+  color: var(--rv-primary-ink);
+}
+
+.modeGrid b { font-size: 0.9375rem; }
+.modeGrid small { color: var(--rv-muted-foreground); font-size: 0.75rem; line-height: 1.6; }
+
+.instrumentField {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--rv-muted-foreground);
+}
+
+.instrumentField span[role="alert"] {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  color: var(--rv-danger);
+}
+
+.launchActions,
+.deployActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  align-items: center;
+}
+
+.targetConfirmation {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--rv-warning);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-warning-soft);
+  font-size: 0.8125rem;
+}
+
+.progress {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+  font-variant-numeric: tabular-nums;
+}
+
+.roleStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--rv-muted-foreground);
+}
+
+.message {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-neutral-soft);
+  font-size: 0.875rem;
+}
+
+.inputRequest {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-info);
+  border-radius: var(--rv-radius);
+  background: var(--rv-info-soft);
+}
+
+.timeline {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 26rem;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+  font-size: 0.8125rem;
+}
+
+.candidates,
+.otherCandidates {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.candidates > article,
+.otherCandidates > article {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.runtimePanel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.runtimeSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.runtimeEvents { display: grid; gap: 0.5rem; }
+
+.runtimeCycle {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-background);
+  font-size: 0.8125rem;
+}
+
+.runtimeEmpty {
+  color: var(--rv-muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.explanation { color: var(--rv-foreground); }
+.explanationProgress { color: var(--rv-muted-foreground); }
+.explanationFailed { color: var(--rv-danger); }
+
+/* 表格化数字与宽内容不得撑破页面。 */
+.timeline,
+.runtimeEvents {
+  overflow-x: auto;
+}
+
+/* 状态与操作 */
+.primary {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--rv-primary);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-primary);
+  color: var(--rv-primary-foreground);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.selected {
+  border-color: var(--rv-primary);
+  background: var(--rv-primary-soft);
+  color: var(--rv-primary-ink);
+}
+
+.ready { color: var(--rv-success); }
+.waiting { color: var(--rv-muted-foreground); }
+
+/* 候选校验标签：STANDARD_VERIFIED 之外都不是通过。 */
+.verified { color: var(--rv-success); }
+.failed { color: var(--rv-danger); }
+
+.conclusion {
+  padding: 0.875rem 1.125rem;
+  border-radius: var(--rv-radius-md);
+  border: 1px solid var(--rv-border);
+  font-size: 0.9375rem;
+}
+
+.pass {
+  border-color: var(--rv-success);
+  background: var(--rv-success-soft);
+}
+
+/* 未通过准入必须显式标注，不能看起来像成功（INV-6）。 */
+.fail {
+  border-color: var(--rv-danger);
+  background: var(--rv-danger-soft);
+}
+
+/* BYOK 硬关闭的面向客户披露。tests/client-byok-hardclose 会检查这句在位。 */
+.disclosure {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--rv-muted-foreground);
+}

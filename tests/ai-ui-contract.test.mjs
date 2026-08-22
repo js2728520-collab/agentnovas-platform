@@ -22,12 +22,11 @@ test("agent page uses persistent server conversations and streamed messages", as
 });
 
 test("strategy creation uses the resumable multi-Agent pipeline without a duplicate chat workflow", async () => {
-  const [studio, research] = await Promise.all([
-    source("../app/community-strategy-center.tsx"),
-    source("../app/multi-agent-research.tsx"),
-  ]);
+  // 研发问卷与流水线驱动现在同在 apps/client/ui/strategy-studio.tsx（P4 迁移）。
+  const studio = await source("../apps/client/ui/strategy-studio.tsx");
+  const research = studio;
 
-  assert.match(studio, /<MultiAgentResearch/);
+  assert.match(studio, /\/api\/strategy-research\/runs/);
   assert.match(studio, /后台研发任务会继续运行/);
   assert.doesNotMatch(studio, /ensureStrategyConversation/);
   assert.doesNotMatch(studio, /\/api\/strategy-studio\/generate/);
@@ -58,7 +57,7 @@ test("customer AI workspaces use the platform model without exposing private LLM
   const [page, chat, studio] = await Promise.all([
     source("../app/client-app.tsx"),
     source("../apps/client/ui/ai-assistant-chat.tsx"),
-    source("../app/community-strategy-center.tsx"),
+    source("../apps/client/ui/strategy-studio.tsx"),
   ]);
 
   for (const reachable of [page, chat, studio]) {
@@ -76,7 +75,7 @@ test("Agent conversation history hides legacy empty strategy threads", async () 
 
 test("strategy research instrument loading exposes retry state and server proxy support", async () => {
   const [research, packageSource] = await Promise.all([
-    source("../app/multi-agent-research.tsx"),
+    source("../apps/client/ui/strategy-studio.tsx"),
     source("../package.json"),
   ]);
 

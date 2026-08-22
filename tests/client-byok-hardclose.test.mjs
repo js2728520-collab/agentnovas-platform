@@ -52,7 +52,7 @@ test("Client-reachable workspaces contain no private key, endpoint, or BYOK modu
   const sources = await Promise.all([
     source("../app/client-app.tsx"),
     source("../apps/client/ui/ai-assistant-chat.tsx"),
-    source("../app/community-strategy-center.tsx"),
+    source("../apps/client/ui/strategy-studio.tsx"),
   ]);
   const reachable = sources.join("\n");
   assert.doesNotMatch(reachable, /CustomLlmButton|account\/llm-config|\.\/llm-config/);

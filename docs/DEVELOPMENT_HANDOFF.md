@@ -1043,3 +1043,77 @@ tsc、lint、873 项测试、三端 build、bundle 预算、7 条边界通过。
 本身与 `LocaleGuard`、`globals.css`、`globals-beta.css`。
 
 拆除必须连同守着它们的契约测试断言一起做——详见 §29 与 §31 的说明。
+
+
+## 33. 2026-08-22 P4 第 4 步：把研发流水线接回来（`/studio`）
+
+### 为什么这是最高优先级
+
+平台里有**两条**策略生成路径：
+
+| 路径 | 保障 | 入口 |
+| --- | --- | --- |
+| 对话生成（AI 助手内） | 一次性 LLM 输出 + 静态校验，**无修复循环**，无回测门禁 | 有 |
+| 研发流水线 | 检查点式可续跑、训练/验证集切分、回测预算、成本乘数敏感性、确定性准入（`EXPLORATION_ONLY`/`STANDARD_FAILED`/`STANDARD_VERIFIED`）、候选排名 | **断的** |
+
+`lib/strategy-research-orchestrator.ts`(703) + 7 个 API 路由 + 专用 worker 一直都在，
+唯一的前端 `app/multi-agent-research.tsx` 运行时不可达（即 §29 里那簇「死代码」）。
+**它不该删，该接回来。**
+
+### 迁移
+
+`app/multi-agent-research.tsx` → `apps/client/ui/strategy-studio.tsx`，
+新增真实路由 `/studio`，导航「策略实验室」从 `/workspace` 改指向它。
+
+组件原本需要外部传 `brief`（问卷），问卷表单在 `app/community-strategy-center.tsx`
+里。现在 studio 自带一个紧凑问卷（策略名称、风格、风险偏好、候选指标），
+`brief` 降级为可选初始值。流水线的启动端点不做 brief 字段白名单校验，
+其余项由智能体在研发过程中确定。
+
+### 样式必须重写，不能照搬
+
+原界面的样式**只存在于 `app/globals.css`**——而那份样式表没有任何页面加载。
+照搬会得到一个没有样式的页面，且它满是硬编码色值，会直接违反「样式层零硬编码
+色值」边界规则。新建 `strategy-studio.module.css`，23 个类名全部按 `--rv-*` 令牌重写。
+
+### 契约测试：绊线移到活代码，并且立刻抓到一个疏漏
+
+BYOK 硬关闭的断言（客户可达界面不得出现自定义模型配置或 API Key 输入）原本
+指向 `app/community-strategy-center.tsx`——一个不可达页面，等于空转。现在指向
+`apps/client/ui/strategy-studio.tsx`，**保护的是活代码**。
+
+移过去之后立刻红了两次，两次都是真问题：
+
+1. 新 studio 缺少「平台模型」披露——客户看不到自己用的是平台模型服务。已补。
+2. 补的披露文案写成「不接受自定义大模型配置或 API Key」，**为了否认而提到了
+   被禁的概念，触发了纯文本匹配的绊线**。改写为「不支持客户自备模型或密钥」。
+
+### 未做的决定
+
+`app/community-strategy-center.tsx`(491) 与 `app/strategy-detail.tsx`(234) 仍是
+运行时不可达的死代码，只是保持可编译（import 指向新 studio）。删除它们要连带
+删掉 `tests/strategy-backtest-ui.test.mjs` 里若干只描述旧表单的断言
+（`查看策略`/`快速回测`/`分享到策略广场`/`studio-factor-library`）——**那是拆绊线，
+留给决策人**。
+
+### 模拟组合不移除
+
+评估结论：`/paper` 不是低价值功能，**它是绩效分成的计费依据**。
+计费基数是 `official_paper_portfolios` + `official_paper_fill_receipts`
+（`lib/official-paper-repository.ts` 的周聚合）。移除它等于移除 Beta 阶段的收入
+模型；只移除页面而保留记账，则变成「按客户看不到的结果收费」。
+
+### 验证
+
+tsc、lint、873 项测试、三端 build、bundle 预算、7 条边界通过。
+运行时实测：`/studio` 在客户端 200、运营端 404。
+
+### 策略生成的后续建议（未实施）
+
+1. **DSL 修复循环**：对话路径校验失败时把 `StrategyDslValidationError.issues`
+   回喂给模型再生成（上限 2 次），是「稳定生成」最直接的杠杆。
+2. **保存时冒烟回测**：现在保存草稿只做静态转换，不跑任何回测。
+   「能正常运行」的定义应是「放进运行时不炸」，建议跑短窗口回测，
+   只断言能跑完 + 至少 N 笔信号，不看收益；不达标标 `NOT_QUALIFIED`（INV-6）。
+3. **随机化测试**：`strategy-dsl.ts`(949) + `backtest-engine.ts`(662) 都在域层、
+   纯函数、零 I/O，是属性测试的理想条件，但目前只有 10 个举例式测试、零随机化。

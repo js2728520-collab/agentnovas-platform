@@ -29,7 +29,7 @@ const navigationGroups: ConsoleNavigationGroup[] = [
     { href: "/assistant", label: "AI 助手", icon: "activity" },
   ] },
   { label: "策略实验室", items: [
-    { href: "/workspace", label: "策略实验室", icon: "lab", requiredPermissions: ["client.paper.view"] },
+    { href: "/studio", label: "策略实验室", icon: "lab", requiredPermissions: ["client.paper.view"] },
   ] },
   { label: "账户", items: [
     { href: "/membership", label: "会员中心", icon: "crown", requiredPermissions: ["client.membership.view"] },

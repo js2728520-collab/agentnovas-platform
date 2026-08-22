@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import styles from "./strategy-studio.module.css";
+
 type Mode = "quick" | "standard" | "deep";
 type Timeframe = "5m" | "15m" | "1h" | "4h" | "1d";
 type Direction = "long_only" | "short_only" | "both";
@@ -68,7 +70,34 @@ function errorMessage(value: unknown, fallback: string) {
   return fallback;
 }
 
-export function MultiAgentResearch({ brief }: { brief: Record<string, unknown> }) {
+/**
+ * 研发问卷的默认值。
+ *
+ * 研发流水线的启动端点不做 brief 字段白名单校验（它只是原样透传给编排器），
+ * 所以这里只收流水线真正会用到的几项，其余由智能体在研发过程中自行确定。
+ */
+const defaultBrief = {
+  name: "多智能体策略研究",
+  style: "trend",
+  risk: "balanced",
+  goal: "steady_growth",
+  frequency: "medium",
+  indicators: "EMA20, EMA60, RSI14, ATR14",
+};
+
+const styleOptions = [
+  ["trend", "趋势跟随"],
+  ["reversal", "均值回归"],
+  ["breakout", "突破"],
+] as const;
+const riskOptions = [
+  ["conservative", "保守"],
+  ["balanced", "平衡"],
+  ["aggressive", "激进"],
+] as const;
+
+export default function StrategyStudio({ brief: seed }: { brief?: Record<string, unknown> } = {}) {
+  const [brief, setBrief] = useState<Record<string, unknown>>({ ...defaultBrief, ...seed });
   const [mode, setMode] = useState<Mode>("standard");
   const [accounts, setAccounts] = useState<Array<{ id: string; label: string; exchange: string; canRead: boolean; withdrawalAuthorized?: boolean; status: string }>>([]);
   const [accountId, setAccountId] = useState("");
@@ -362,73 +391,102 @@ export function MultiAgentResearch({ brief }: { brief: Record<string, unknown> }
     setMessage("研发条件已补充，需求 Agent 将重新核对后自动继续。");
   }
 
-  return <section className="multi-agent-research">
-    <header><div><small>MULTI-AGENT RESEARCH</small><h3>多 Agent 策略研发与验证</h3><p>模型负责提出与审查，参数搜索、真实历史回测、评分和准入由确定性引擎完成。切换页面后，后台研发任务会继续运行。</p></div><span className={ready ? "ready" : "waiting"}>{ready ? "7 个角色已配置" : "等待角色配置"}</span></header>
-    <div className="research-role-strip">{roles.map(role => <span key={role.role}><b>{roleNames[role.role] || role.role}</b><small>{role.modelName}</small></span>)}</div>
-    <div className="research-launch-grid">
-      <div className="research-mode-grid">{modes.map(item => <button type="button" className={mode === item.id ? "selected" : ""} key={item.id} onClick={() => { setMode(item.id); setTargetConfirmed(false); }}><b>{item.name}</b><small>{item.detail}</small></button>)}</div>
+  const briefField = (key: string, label: string) => (
+    <label key={key}>
+      {label}
+      <input
+        value={String(brief[key] ?? "")}
+        onChange={(event) => setBrief({ ...brief, [key]: event.target.value })}
+      />
+    </label>
+  );
+
+  return <section className={styles.studio}>
+    <div className={styles.brief}>
+      <p className={styles.disclosure}>
+        研发全程使用平台模型服务，不支持客户自备模型或密钥。
+      </p>
+      {briefField("name", "策略名称")}
+      <label>
+        风格
+        <select value={String(brief.style ?? "")} onChange={(event) => setBrief({ ...brief, style: event.target.value })}>
+          {styleOptions.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+        </select>
+      </label>
+      <label>
+        风险偏好
+        <select value={String(brief.risk ?? "")} onChange={(event) => setBrief({ ...brief, risk: event.target.value })}>
+          {riskOptions.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+        </select>
+      </label>
+      {briefField("indicators", "候选指标")}
+    </div>
+    <header><div><small>MULTI-AGENT RESEARCH</small><h3>多 Agent 策略研发与验证</h3><p>模型负责提出与审查，参数搜索、真实历史回测、评分和准入由确定性引擎完成。切换页面后，后台研发任务会继续运行。</p></div><span className={ready ? styles.ready : styles.waiting}>{ready ? "7 个角色已配置" : "等待角色配置"}</span></header>
+    <div className={styles.roleStrip}>{roles.map(role => <span key={role.role}><b>{roleNames[role.role] || role.role}</b><small>{role.modelName}</small></span>)}</div>
+    <div className={styles.launchGrid}>
+      <div className={styles.modeGrid}>{modes.map(item => <button type="button" className={mode === item.id ? styles.selected : undefined} key={item.id} onClick={() => { setMode(item.id); setTargetConfirmed(false); }}><b>{item.name}</b><small>{item.detail}</small></button>)}</div>
       <label>交易所与数据账户<select value={accountId} onChange={event => { const value = event.target.value; setAccountId(value); setInstruments([]); setInstrumentId(""); setInstrumentBusy(Boolean(value)); setInstrumentError(""); setTargetConfirmed(false); }}><option value="">请选择只读交易所账户</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.label} · {account.exchange}</option>)}</select></label>
-      <label className="research-instrument-field">USDT 永续合约<select value={instrumentId} disabled={!accountId || instrumentBusy || Boolean(instrumentError)} onChange={event => { setInstrumentId(event.target.value); setTargetConfirmed(false); }}><option value="">{instrumentBusy ? "正在读取真实合约…" : instrumentError ? "合约读取失败" : "请选择永续合约"}</option>{instruments.map(instrument => <option key={instrument.exchangeSymbol} value={instrument.exchangeSymbol}>{instrument.symbol} · tick {instrument.tickSize}</option>)}</select>{instrumentError && <span role="alert">{instrumentError}<button type="button" onClick={() => { setInstrumentBusy(true); setInstrumentError(""); setInstrumentRetry(value => value + 1); }}>重新读取合约</button></span>}</label>
+      <label className={styles.instrumentField}>USDT 永续合约<select value={instrumentId} disabled={!accountId || instrumentBusy || Boolean(instrumentError)} onChange={event => { setInstrumentId(event.target.value); setTargetConfirmed(false); }}><option value="">{instrumentBusy ? "正在读取真实合约…" : instrumentError ? "合约读取失败" : "请选择永续合约"}</option>{instruments.map(instrument => <option key={instrument.exchangeSymbol} value={instrument.exchangeSymbol}>{instrument.symbol} · tick {instrument.tickSize}</option>)}</select>{instrumentError && <span role="alert">{instrumentError}<button type="button" onClick={() => { setInstrumentBusy(true); setInstrumentError(""); setInstrumentRetry(value => value + 1); }}>重新读取合约</button></span>}</label>
       <label>K 线周期<select value={timeframe} onChange={event => { setTimeframe(event.target.value as Timeframe); setTargetConfirmed(false); }}><option value="">请选择周期</option>{timeframes.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
       <label>交易方向<select value={direction} onChange={event => { setDirection(event.target.value as Direction); setTargetConfirmed(false); }}><option value="">请选择交易方向</option>{directions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-      <section className="research-target-confirmation" aria-label="研发条件确认">
+      <section className={styles.targetConfirmation} aria-label="研发条件确认">
         <div><small>本次研发条件</small><b>{selectedAccount?.exchange || "未选平台"} · {selectedInstrument?.symbol || "未选合约"} · {timeframe || "未选周期"} · {directions.find(item => item.id === direction)?.label || "未选方向"} · {modes.find(item => item.id === mode)?.name}</b></div>
         <label><input type="checkbox" checked={targetConfirmed} disabled={!selectedAccount || !selectedInstrument || !timeframe || !direction} onChange={event => setTargetConfirmed(event.target.checked)} />我已核对平台、账户、合约、周期、方向和模式</label>
       </section>
-      <div className="research-launch-actions"><button className="primary" disabled={busy || restoringRun || !ready || !targetReady} onClick={() => void start()}>{restoringRun ? "正在恢复最近的研发任务…" : busy ? "后台研发中…" : "启动多 Agent 研发"}</button>{busy && <button onClick={() => void cancel()}>取消任务</button>}</div>
+      <div className={styles.launchActions}><button className={styles.primary} disabled={busy || restoringRun || !ready || !targetReady} onClick={() => void start()}>{restoringRun ? "正在恢复最近的研发任务…" : busy ? "后台研发中…" : "启动多 Agent 研发"}</button>{busy && <button onClick={() => void cancel()}>取消任务</button>}</div>
     </div>
-    {message && <p className="research-message">{message}</p>}
-    {activeDeployment && <section className="research-runtime-panel" aria-label="策略运行周期">
+    {message && <p className={styles.message}>{message}</p>}
+    {activeDeployment && <section className={styles.runtimePanel} aria-label="策略运行周期">
       <header>
         <div><small>DETERMINISTIC RUNTIME</small><b>{activeDeployment.mode === "shadow" ? "影子运行" : "模拟盘"} · {activeDeployment.status}</b><p>版本 {activeDeployment.strategyVersionId.slice(0, 12)} · 真实订单路由关闭</p></div>
         {activeDeployment.status === "active"
           ? <button type="button" onClick={() => void controlDeployment("pause")}>暂停运行</button>
           : activeDeployment.status === "paused" && <button type="button" onClick={() => void controlDeployment("resume")}>恢复运行</button>}
       </header>
-      {runtimeCycles.length === 0 ? <p className="research-runtime-empty">等待 Runtime Worker 处理下一根已完成 K 线；信号确认后在下一根开盘模拟成交。</p> : (() => {
+      {runtimeCycles.length === 0 ? <p className={styles.runtimeEmpty}>等待 Runtime Worker 处理下一根已完成 K 线；信号确认后在下一根开盘模拟成交。</p> : (() => {
         const latest = runtimeCycles.at(-1);
-        return latest ? <div className="research-runtime-cycle">
-          <div className="research-runtime-summary"><span>周期 #{latest.sequence}</span><b>{latest.decision.action || "hold"}</b><small>{new Date(latest.candleCloseTime).toLocaleString("zh-CN")}</small><code>{latest.traceId}</code></div>
-          <div className="research-runtime-events">{latest.events.map(event => <article key={`${latest.id}:${event.sequence}`}>
+        return latest ? <div className={styles.runtimeCycle}>
+          <div className={styles.runtimeSummary}><span>周期 #{latest.sequence}</span><b>{latest.decision.action || "hold"}</b><small>{new Date(latest.candleCloseTime).toLocaleString("zh-CN")}</small><code>{latest.traceId}</code></div>
+          <div className={styles.runtimeEvents}>{latest.events.map(event => <article key={`${latest.id}:${event.sequence}`}>
             <i>{event.sequence}</i><div><span>{roleNames[event.role] || event.role}</span><b>{event.conclusion}</b><small>确定性模块 · {event.durationMs}ms</small>
-              {event.explanationStatus === "completed" && event.explanation && <section className="runtime-explanation"><em>异步解释 · {event.explanationModelName || event.modelName} · {event.explanationDurationMs ?? 0}ms</em><p>{event.explanation.summary}</p>{event.explanation.cautions.length > 0 && <small>{event.explanation.cautions.join("；")}</small>}</section>}
-              {["pending", "running", "retry_wait"].includes(event.explanationStatus) && <em className="runtime-explanation-progress">异步解释 {event.explanationStatus === "retry_wait" ? "等待重试" : "生成中"}<i>•••</i></em>}
-              {event.explanationStatus === "failed" && <em className="runtime-explanation-failed">异步解释失败（{event.explanationErrorCode}），不影响本周期结论</em>}
+              {event.explanationStatus === "completed" && event.explanation && <section className={styles.explanation}><em>异步解释 · {event.explanationModelName || event.modelName} · {event.explanationDurationMs ?? 0}ms</em><p>{event.explanation.summary}</p>{event.explanation.cautions.length > 0 && <small>{event.explanation.cautions.join("；")}</small>}</section>}
+              {["pending", "running", "retry_wait"].includes(event.explanationStatus) && <em className={styles.explanationProgress}>异步解释 {event.explanationStatus === "retry_wait" ? "等待重试" : "生成中"}<i>•••</i></em>}
+              {event.explanationStatus === "failed" && <em className={styles.explanationFailed}>异步解释失败（{event.explanationErrorCode}），不影响本周期结论</em>}
             </div>
           </article>)}</div>
         </div> : null;
       })()}
     </section>}
     {payload && <>
-      <div className="research-progress"><span><i style={{ width: `${payload.run.progress}%` }} /></span><b>{payload.run.progress}%</b><em>{payload.run.stage} · {payload.run.status}</em></div>
-      {payload.run.status === "awaiting_user_input" && (payload.run.result?.requirements?.missingFields || []).length > 0 && <section className="research-input-request">
+      <div className={styles.progress}><span><i style={{ width: `${payload.run.progress}%` }} /></span><b>{payload.run.progress}%</b><em>{payload.run.stage} · {payload.run.status}</em></div>
+      {payload.run.status === "awaiting_user_input" && (payload.run.result?.requirements?.missingFields || []).length > 0 && <section className={styles.inputRequest}>
         <header><b>需要你补充几个关键条件</b><p>这里只追问会改变策略和回测结论的条件。</p></header>
         {(payload.run.result?.requirements?.missingFields || []).map(field => <label key={field.key}>
           <span>{field.question}</span>
-          {field.options.length > 0 && <div>{field.options.map(option => <button type="button" className={inputAnswers[field.key] === option ? "selected" : ""} key={String(option)} onClick={() => setInputAnswers(current => ({ ...current, [field.key]: option }))}>{String(option)}</button>)}</div>}
+          {field.options.length > 0 && <div>{field.options.map(option => <button type="button" className={inputAnswers[field.key] === option ? styles.selected : undefined} key={String(option)} onClick={() => setInputAnswers(current => ({ ...current, [field.key]: option }))}>{String(option)}</button>)}</div>}
           <input value={String(inputAnswers[field.key] ?? "")} onChange={event => setInputAnswers(current => ({ ...current, [field.key]: event.target.value }))} />
         </label>)}
-        <button className="primary" disabled={answerBusy} onClick={() => void answerRequirements()}>{answerBusy ? "正在提交…" : "确认条件并继续研发"}</button>
+        <button className={styles.primary} disabled={answerBusy} onClick={() => void answerRequirements()}>{answerBusy ? "正在提交…" : "确认条件并继续研发"}</button>
       </section>}
-      <div className="research-timeline">{payload.events.map(event => <article key={event.id}><i>{event.sequence}</i><div><small>{roleNames[event.role] || event.role}</small><b>{event.title}</b><p>{String(event.content.conclusion || event.content.summary || "阶段结果已结构化保存")}</p></div></article>)}</div>
-      {payload.candidates.length > 0 && <div className="research-candidates">{payload.candidates.filter(candidate => candidate.rank != null).slice(0, 3).map(candidate => {
+      <div className={styles.timeline}>{payload.events.map(event => <article key={event.id}><i>{event.sequence}</i><div><small>{roleNames[event.role] || event.role}</small><b>{event.title}</b><p>{String(event.content.conclusion || event.content.summary || "阶段结果已结构化保存")}</p></div></article>)}</div>
+      {payload.candidates.length > 0 && <div className={styles.candidates}>{payload.candidates.filter(candidate => candidate.rank != null).slice(0, 3).map(candidate => {
         const evaluation = evaluationByCandidate.get(candidate.id);
-        return <article key={candidate.id} className={candidate.validationLabel === "STANDARD_VERIFIED" ? "verified" : "failed"}>
+        return <article key={candidate.id} className={candidate.validationLabel === "STANDARD_VERIFIED" ? styles.verified : styles.failed}>
           <header><b>#{candidate.rank} {candidate.strategyFamily}</b><span>{candidate.validationLabel}</span></header>
           <div><span>评分<b>{candidate.score?.toFixed(2) ?? "—"}</b></span><span>样本外收益<b>{evaluation?.metrics.netReturnPct == null ? "—" : `${evaluation.metrics.netReturnPct > 0 ? "+" : ""}${evaluation.metrics.netReturnPct.toFixed(2)}%`}</b></span><span>最大回撤<b>{evaluation?.metrics.maxDrawdownPct == null ? "—" : `${evaluation.metrics.maxDrawdownPct.toFixed(2)}%`}</b></span><span>交易数<b>{evaluation?.metrics.sampleSize ?? "—"}</b></span></div>
           {candidate.rejectionReasons.length > 0 && <ul>{candidate.rejectionReasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}
           <button disabled={Boolean(candidate.savedStrategyId)} onClick={() => void save(candidate)}>{candidate.savedStrategyId ? "已保存到我的策略" : "保存到我的策略"}</button>
-          {candidate.savedStrategyId && <div className="research-deploy-actions"><button disabled={Boolean(deployBusy)} onClick={() => void deploy(candidate, "shadow")}>{deployBusy === `${candidate.id}:shadow` ? "启动中…" : "启动影子运行"}</button><button disabled={Boolean(deployBusy)} onClick={() => void deploy(candidate, "paper")}>{deployBusy === `${candidate.id}:paper` ? "启动中…" : "启动模拟盘"}</button></div>}
+          {candidate.savedStrategyId && <div className={styles.deployActions}><button disabled={Boolean(deployBusy)} onClick={() => void deploy(candidate, "shadow")}>{deployBusy === `${candidate.id}:shadow` ? "启动中…" : "启动影子运行"}</button><button disabled={Boolean(deployBusy)} onClick={() => void deploy(candidate, "paper")}>{deployBusy === `${candidate.id}:paper` ? "启动中…" : "启动模拟盘"}</button></div>}
         </article>;
       })}</div>}
-      {payload.candidates.some(candidate => candidate.rank == null) && <details className="research-other-candidates">
+      {payload.candidates.some(candidate => candidate.rank == null) && <details className={styles.otherCandidates}>
         <summary>查看其他研究候选（{payload.candidates.filter(candidate => candidate.rank == null).length}）</summary>
         <div>{payload.candidates.filter(candidate => candidate.rank == null).map(candidate => <article key={candidate.id}>
           <span><b>{candidate.strategyFamily}</b><small>{candidate.validationLabel} · {candidate.score?.toFixed(2) ?? "未评分"}</small></span>
           <button disabled={Boolean(candidate.savedStrategyId)} onClick={() => void save(candidate)}>{candidate.savedStrategyId ? "已保存" : "保存为研究草稿"}</button>
         </article>)}</div>
       </details>}
-      {payload.run.finalConclusion && <div className={`research-conclusion ${payload.run.finalConclusion === "QUALIFIED" ? "pass" : "fail"}`}><b>{payload.run.finalConclusion === "QUALIFIED" ? "存在通过标准验证的候选" : "本轮没有候选通过标准验证"}</b><p>历史回测是研究证据，不代表未来收益。未通过候选不会被包装为已验证。</p></div>}
+      {payload.run.finalConclusion && <div className={`${styles.conclusion} ${payload.run.finalConclusion === "QUALIFIED" ? styles.pass : styles.fail}`}><b>{payload.run.finalConclusion === "QUALIFIED" ? "存在通过标准验证的候选" : "本轮没有候选通过标准验证"}</b><p>历史回测是研究证据，不代表未来收益。未通过候选不会被包装为已验证。</p></div>}
     </>}
   </section>;
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { StrategyDetailData } from "./strategy-detail";
 import { StrategyBacktestCenter, type StrategyBacktestSummary } from "./strategy-backtest-center";
 import { StrategyBacktestDetail } from "./strategy-backtest-detail";
-import { MultiAgentResearch } from "./multi-agent-research";
+import MultiAgentResearch from "@/apps/client/ui/strategy-studio";
 
 type Row = Record<string, unknown>;
 type Studio = {
