@@ -873,3 +873,50 @@ P3（拆成三个独立 Next 应用）的勘察结果不支持现在就做。三
 **P4 先于 P3。** P4 退役遗留 SPA（`client-app.tsx`、`globals.css`、`globals-beta.css`、
 `LocaleGuard`）之后，`app/` 根目录基本只剩路由约定文件，那时 P3 才是机械操作——
 甚至可能不再必要。
+
+
+## 30. 2026-08-22 P4 第 1 步：行情页迁成真实路由 `/market`
+
+### 决策记录
+
+P4 的阻塞不是技术，是产品决策：`/workspace` 里有四个界面没有新等价物。
+已确认**四个全部保留**，迁成真实路由；「Agent 对话」改名为「AI 助手」。
+
+| 界面 | 目标路由 | 状态 |
+| --- | --- | --- |
+| 行情页 LiveMarket | `/market` | ✅ 本步完成 |
+| AI 助手（原 Agent 对话） | 待定 | 未开始 |
+| 七智能体大厅可视化 | 待定 | 未开始 |
+| AI 决策会议室 | 待定 | 未开始 |
+
+### 本步改动
+
+`app/live-market.tsx`(263) 与 `app/coin-icon.tsx`(32) 迁到 `apps/client/ui/`，
+`market` 加入客户端路由白名单，门户新增「行情」导航项（`chart` 图标）。
+
+**顺带修掉一个真实缺陷**：落地页的「行情」链接原本指向 `/workspace?page=market`，
+而 `/workspace` 要求登录 + `client.paper.view`——匿名访客点进去被踢到登录页。
+现在指向 `/market`，`ClientChrome` 会带 `?next=/market` 跳登录，登录后落在行情页。
+
+### 一个值得记住的发现
+
+同一个文件在 `app/` 下 lint 干净，搬到 `apps/` 下就报
+`@next/next/no-img-element`——Next 的 lint 插件对 `app/` 目录有特殊处理。
+**把文件搬出 `app/` 会暴露此前被静默的规则。** 剩下三步还要搬更多文件，
+预期会再遇到。
+
+`coin-icon.tsx` 这条是本地静态 SVG + `onError` 降级，`next/image` 帮不上忙，
+加了带原因的 `eslint-disable-next-line`。
+
+### 遗留世界现状
+
+`/workspace` 及其依赖仍是 11,275 行，被 33 处契约测试断言守着。其中
+`app/globals.css`（3,871 行）**没有任何页面加载它**，却有 6 个测试文件在断言它——
+这些断言抓不住任何回归。删代码必须连测试一起删，所以要等四个界面全部迁完。
+
+（本轮曾尝试直接删 `app/globals.css`，7 个测试立刻失败，已还原。）
+
+### 验证
+
+tsc、lint、861 项测试、三端 build、bundle 预算、7 条边界通过。
+运行时实测：`/market` 在客户端 200，在运营端 404（只在客户端白名单里）。

@@ -1,6 +1,6 @@
 import type { AppAudience } from "@/lib/riverton-apps";
 
-const CLIENT_ROUTES = new Set(["login", "dashboard", "legal", "account", "membership", "credits", "performance-statements", "paper", "trading-hall", "wallet", "notifications", "support"]);
+const CLIENT_ROUTES = new Set(["login", "dashboard", "legal", "account", "membership", "credits", "performance-statements", "paper", "trading-hall", "market", "wallet", "notifications", "support"]);
 const OPERATIONS_ROUTES = new Set(["login", "account", "customers", "organization", "team", "data-center", "membership-orders", "performance-statements", "credits", "deposits", "ledger", "finance", "approvals", "access"]);
 const MAINTENANCE_ROUTES = new Set(["login", "account", "models", "integrations", "health", "safety", "settings", "releases", "access", "audit"]);
 

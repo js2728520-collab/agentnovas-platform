@@ -20,7 +20,7 @@ import {
 
 const pageModuleLoading = () => <div className="notice" role="status" aria-live="polite">正在加载工作区…</div>;
 const AccountSettings = dynamic(() => import("./account-settings"), { loading: pageModuleLoading });
-const LiveMarket = dynamic(() => import("./live-market"), { loading: pageModuleLoading });
+const LiveMarket = dynamic(() => import("@/apps/client/ui/live-market"), { loading: pageModuleLoading });
 const ClientNotificationSettings = dynamic(() => import("@/apps/client/ui/client-notification-settings"), { loading: pageModuleLoading });
 const TradingCenterV2 = dynamic(() => import("./trading-center"), { loading: pageModuleLoading });
 const MembershipCenter = dynamic(() => import("./membership-center"), { loading: pageModuleLoading });

@@ -23,6 +23,10 @@ export function ProductIcon({ symbol, category, className = "" }: { symbol: stri
   const failed = failedKey === iconKey;
   const source = `/product-icons/${category}/${encodeURIComponent(normalized)}.svg`;
   return <i className={`product-icon coin-icon product-icon-${category} coin-icon-${normalized.toLowerCase()}${className ? ` ${className}` : ""}`} role="img" aria-label={`${normalized} icon`}>
+    {/* 本地静态 SVG 图标，不走 next/image：SVG 默认不被优化，而 onError 降级到
+        文字缩写的模式用 <img> 最直接。这条规则在文件位于 app/ 时不触发，
+        搬到 apps/ 后才暴露出来。 */}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
     {!failed ? <img src={source} alt="" aria-hidden="true" onError={() => setFailedKey(iconKey)} /> : <b>{normalized.slice(0, 2)}</b>}
   </i>;
 }

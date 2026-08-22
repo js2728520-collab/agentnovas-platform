@@ -79,7 +79,7 @@ test("news API exposes observation and content freshness without inventing bad d
 });
 
 test("Client market UI consumes freshness states and does not advertise socket-open throughput", async () => {
-  const source = await readFile(new URL("../app/live-market.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../apps/client/ui/live-market.tsx", import.meta.url), "utf8");
   assert.match(source, /deriveMarketFeedStatus/);
   assert.match(source, /contentFreshness/);
   assert.match(source, /行情数据已过期/);

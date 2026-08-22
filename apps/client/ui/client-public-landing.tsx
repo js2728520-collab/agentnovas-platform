@@ -174,7 +174,7 @@ export function ClientPublicLanding() {
   const navigate = (page: Page) => {
     const nextPath =
       page === "market"
-        ? "/workspace?page=market"
+        ? "/market"
         : page === "trading"
           ? "/paper"
           : "/trading-hall";
