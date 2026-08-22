@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   allowedDevOrigins: ["127.0.0.1"],
   poweredByHeader: false,
+  // 开发指示器的宿主元素落在左上角，路由切换时应用外壳短暂卸载，它就暴露成一个
+  // 来路不明的占位块。关掉不影响编译与运行时错误上报。
+  devIndicators: false,
   ...(deploymentId ? { deploymentId } : {}),
   ...(immutableBuildId ? { generateBuildId: async () => immutableBuildId } : {}),
   headers: async () => [{
