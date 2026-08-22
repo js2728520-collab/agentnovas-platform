@@ -26,6 +26,7 @@ const navigationGroups: ConsoleNavigationGroup[] = [
     { href: "/trading-hall", label: "交易大厅", icon: "hall", requiredPermissions: ["client.paper.view"] },
     { href: "/paper", label: "模拟组合", icon: "paper", requiredPermissions: ["client.paper.view"] },
     { href: "/market", label: "行情", icon: "chart" },
+    { href: "/assistant", label: "AI 助手", icon: "activity" },
   ] },
   { label: "策略实验室", items: [
     { href: "/workspace", label: "策略实验室", icon: "lab", requiredPermissions: ["client.paper.view"] },

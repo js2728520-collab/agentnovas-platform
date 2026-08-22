@@ -77,7 +77,7 @@ test("both paid Client AI writes require idempotency and reserve/settle/release 
   const [chatRoute, strategyRoute, chatUi] = await Promise.all([
     source("../app/api/ai/conversations/[id]/messages/route.client.ts"),
     source("../app/api/strategy-studio/generate/route.client.ts"),
-    source("../app/agent-chat.tsx"),
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
   ]);
   for (const route of [chatRoute, strategyRoute]) {
     assert.match(route, /idempotencyKey\(request\)/);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { consumeAiEventStream } from "../app/ai-sse.ts";
+import { consumeAiEventStream } from "../apps/client/ui/ai-sse.ts";
 
 test("consumes split SSE frames without losing streamed text", async () => {
   const encoder = new TextEncoder();

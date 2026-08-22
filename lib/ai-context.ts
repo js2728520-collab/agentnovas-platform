@@ -7,7 +7,15 @@ import {
   strategySubscriptions,
   trades,
 } from "@/db/schema";
-import type { AssistantContext } from "@/lib/ai-chat-protocol";
+import {
+  classifyAssistantIntent,
+  intentNeedsDecisions,
+  intentNeedsPlatformFacts,
+  type AssistantContext,
+} from "@/lib/ai-chat-protocol";
+import { getPostgresPool } from "@/lib/postgres";
+import { buildPlatformFactSnapshot } from "@/packages/contracts/src/platform-facts";
+import { officialTradingHallStrategies } from "@/packages/contracts/src/trading-hall";
 import { summarizeResearchCandles, type ResearchCandle } from "@/lib/ai-research";
 import { fetchPublicMarketJson, publicMarketProviderName } from "@/lib/public-market-source";
 
@@ -15,11 +23,9 @@ const allowedMarketSymbols = new Set([
   "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "TRX",
   "DOT", "LTC", "BCH", "TON", "SUI", "APT", "NEAR", "ARB", "OP", "UNI",
 ]);
-const platformStrategyNames: Record<string, string> = {
-  ai_conservative: "AI 稳健型",
-  ai_balanced: "AI 平衡型",
-  ai_aggressive: "AI 激进型",
-};
+// 策略卡名称的唯一真源是 packages/contracts，这里不留第二份常量。
+const platformStrategyName = (code: string) =>
+  officialTradingHallStrategies.find((strategy) => strategy.code === code)?.name ?? code;
 
 function requestedSymbol(message: string) {
   const normalized = message.toUpperCase();
@@ -77,9 +83,71 @@ async function marketContext(message: string): Promise<AssistantContext["market"
   }
 }
 
+type DecisionRow = {
+  strategy_code: string;
+  symbol: string;
+  cycle_id: string | null;
+  candle_close_time: Date | null;
+  decision_json: { action?: string; riskApproved?: boolean; rejectionReasons?: string[] } | null;
+};
+
+/**
+ * 该客户最近的决策轮摘要。
+ *
+ * 只取每张策略卡最新的一轮，够回答「这一轮为什么没开仓」。完整视图在
+ * /api/trading-hall；这里刻意做成轻量查询，因为它进的是提示词，不是页面。
+ */
+async function decisionContext(userId: string): Promise<AssistantContext["decisions"]> {
+  const pool = await getPostgresPool();
+  const rounds = await pool.query<DecisionRow>(`
+    SELECT DISTINCT ON (mapping.strategy_code)
+      mapping.strategy_code, mapping.symbol,
+      cycle.id AS cycle_id, cycle.candle_close_time, cycle.decision_json
+    FROM strategy_deployments AS deployment
+    JOIN platform_strategy_migration_map AS mapping
+      ON mapping.strategy_id = deployment.strategy_id
+     AND mapping.strategy_version_id = deployment.strategy_version_id
+    LEFT JOIN LATERAL (
+      SELECT * FROM strategy_runtime_cycles
+      WHERE deployment_id = deployment.id
+      ORDER BY sequence DESC LIMIT 1
+    ) AS cycle ON true
+    WHERE deployment.owner_user_id = $1
+    ORDER BY mapping.strategy_code, deployment.updated_at DESC, deployment.id DESC
+  `, [userId]);
+
+  const cycleIds = rounds.rows.flatMap((row) => row.cycle_id ? [row.cycle_id] : []);
+  if (cycleIds.length === 0) return [];
+  const events = await pool.query<{ cycle_id: string; role: string; conclusion: string }>(`
+    SELECT cycle_id, role, conclusion
+    FROM strategy_runtime_events
+    WHERE cycle_id = ANY($1::text[])
+    ORDER BY cycle_id, sequence
+  `, [cycleIds]);
+  const stagesByCycle = new Map<string, Array<{ role: string; conclusion: string }>>();
+  for (const event of events.rows) {
+    stagesByCycle.set(event.cycle_id, [
+      ...(stagesByCycle.get(event.cycle_id) ?? []),
+      { role: event.role, conclusion: event.conclusion },
+    ]);
+  }
+
+  return rounds.rows.flatMap((row) => row.cycle_id ? [{
+    decisionRoundId: row.cycle_id,
+    strategyName: platformStrategyName(row.strategy_code),
+    symbol: row.symbol,
+    action: row.decision_json?.action ?? "monitoring",
+    riskApproved: row.decision_json?.riskApproved !== false,
+    rejectionReasons: row.decision_json?.rejectionReasons ?? [],
+    decidedAt: row.candle_close_time?.toISOString() ?? null,
+    stages: stagesByCycle.get(row.cycle_id) ?? [],
+  }] : []);
+}
+
 export async function buildAssistantContext(userId: string, message: string): Promise<AssistantContext> {
   const db = getDb();
-  const [tradeRows, communityFollowing, platformFollowing, market] = await Promise.all([
+  const intent = classifyAssistantIntent(message);
+  const [tradeRows, communityFollowing, platformFollowing, market, decisions] = await Promise.all([
     db.select({ symbol: trades.symbol })
       .from(trades)
       .where(and(eq(trades.customerId, userId), isNull(trades.closedAt)))
@@ -94,16 +162,20 @@ export async function buildAssistantContext(userId: string, message: string): Pr
       .where(and(eq(platformStrategySubscriptions.customerId, userId), eq(platformStrategySubscriptions.status, "active")))
       .limit(20),
     marketContext(message),
+    intentNeedsDecisions(intent) ? decisionContext(userId).catch(() => []) : Promise.resolve(undefined),
   ]);
   return {
     generatedAt: new Date().toISOString(),
     market,
+    // 平台事实是静态的，从合同常量派生，没有 I/O。
+    ...(intentNeedsPlatformFacts(intent) ? { platform: buildPlatformFactSnapshot() } : {}),
+    ...(decisions ? { decisions } : {}),
     portfolio: {
       openPositions: tradeRows.length,
       positionSymbols: [...new Set(tradeRows.map((row) => row.symbol))].slice(0, 20),
       followedStrategies: [
         ...communityFollowing.map((row) => row.name),
-        ...platformFollowing.map((row) => platformStrategyNames[row.strategyCode] || row.strategyCode),
+        ...platformFollowing.map((row) => platformStrategyName(row.strategyCode)),
       ].slice(0, 20),
     },
   };

@@ -24,7 +24,7 @@ const LiveMarket = dynamic(() => import("@/apps/client/ui/live-market"), { loadi
 const ClientNotificationSettings = dynamic(() => import("@/apps/client/ui/client-notification-settings"), { loading: pageModuleLoading });
 const TradingCenterV2 = dynamic(() => import("./trading-center"), { loading: pageModuleLoading });
 const MembershipCenter = dynamic(() => import("./membership-center"), { loading: pageModuleLoading });
-const PersistentAgentChat = dynamic(() => import("./agent-chat"), { loading: pageModuleLoading });
+const PersistentAgentChat = dynamic(() => import("@/apps/client/ui/ai-assistant-chat"), { loading: pageModuleLoading });
 
 type Page =
   | "home"

@@ -114,8 +114,8 @@ test("does not silently turn a provider short strategy into a long-only draft", 
 
 test("agent chat exposes message-level strategy saving and model-only attribution", async () => {
   const [chat, content, conversationRoute, persistence, saveRoute] = await Promise.all([
-    readFile(new URL("../app/agent-chat.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/ai-message-content.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../apps/client/ui/ai-assistant-chat.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../apps/client/ui/ai-message-content.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/ai/conversations/[id]/route.client.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/ai-conversations.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.client.ts", import.meta.url), "utf8"),
@@ -137,7 +137,7 @@ test("agent chat exposes message-level strategy saving and model-only attributio
 
 test("agent chat renders generation progress as a new assistant reply, not button text", async () => {
   const [chat, styles] = await Promise.all([
-    readFile(new URL("../app/agent-chat.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../apps/client/ui/ai-assistant-chat.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 

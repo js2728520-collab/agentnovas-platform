@@ -9,7 +9,7 @@ async function source(path) {
 test("agent page uses persistent server conversations and streamed messages", async () => {
   const [page, chat] = await Promise.all([
     source("../app/client-app.tsx"),
-    source("../app/agent-chat.tsx"),
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
   ]);
 
   assert.match(page, /PersistentAgentChat/);
@@ -40,7 +40,7 @@ test("strategy creation uses the resumable multi-Agent pipeline without a duplic
 
 test("shared AI message UI exposes an accessible confirmation dialog and custom answer", async () => {
   const [content, styles] = await Promise.all([
-    source("../app/ai-message-content.tsx"),
+    source("../apps/client/ui/ai-message-content.tsx"),
     source("../app/globals.css"),
   ]);
 
@@ -57,7 +57,7 @@ test("shared AI message UI exposes an accessible confirmation dialog and custom 
 test("customer AI workspaces use the platform model without exposing private LLM configuration", async () => {
   const [page, chat, studio] = await Promise.all([
     source("../app/client-app.tsx"),
-    source("../app/agent-chat.tsx"),
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
     source("../app/community-strategy-center.tsx"),
   ]);
 

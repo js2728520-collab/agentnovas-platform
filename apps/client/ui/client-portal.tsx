@@ -12,6 +12,7 @@ const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module)
 const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((module) => module.DepositWorkspace));
 const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience));
 const MembershipExperience = dynamic(() => import("./membership-experience"));
+const AiAssistantChat = dynamic(() => import("./ai-assistant-chat"));
 const LiveMarket = dynamic(() => import("./live-market"));
 const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace));
 const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace));
@@ -42,6 +43,10 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
   // 行情页此前只存在于遗留 /workspace 的内部字符串路由（?page=market），
   // 落地页的「行情」链接因此把匿名访客送进一个要求登录的页面。
   if (route === "market") return <LiveMarket onLogin={() => window.location.assign("/login")} />;
+  // AI 助手：行情分析、决策解读、平台与会员规则问答。
+  if (route === "assistant") {
+    return <AiAssistantChat title="AI 助手" onOpenStrategies={() => window.location.assign("/trading-hall")} />;
+  }
   if (route === "membership") {
     if (!hasAnyPermission(session.access.permissions, ["client.membership.view"])) return <AccessDenied />;
     return <>

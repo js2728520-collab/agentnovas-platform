@@ -1,3 +1,5 @@
+import type { PlatformFactSnapshot } from "../packages/contracts/src/platform-facts.ts";
+
 export type AssistantContext = {
   generatedAt: string;
   market: null | {
@@ -22,14 +24,43 @@ export type AssistantContext = {
     positionSymbols: string[];
     followedStrategies: string[];
   };
+  /**
+   * 平台事实快照（价格、费率、权限边界、策略卡参数、七智能体流程）。
+   * 只在需要时装载——它有 2KB 左右，每次都塞进提示词是浪费。
+   * 数字全部来自 packages/contracts，助手不得自行编造。
+   */
+  platform?: PlatformFactSnapshot;
+  /** 该客户最近的决策轮摘要，用于回答「这一轮为什么没开仓」。 */
+  decisions?: Array<{
+    decisionRoundId: string;
+    strategyName: string;
+    symbol: string;
+    action: string;
+    riskApproved: boolean;
+    rejectionReasons: string[];
+    decidedAt: string | null;
+    stages: Array<{ role: string; conclusion: string; explanation?: string }>;
+  }>;
 };
 
 export type AssistantIntent =
+  | "platform_info"
+  | "decision_analysis"
   | "market_analysis"
   | "portfolio_risk"
   | "strategy_research"
   | "backtest_help"
   | "general";
+
+/** 需要平台事实快照的意图。其余意图不装载，省提示词预算。 */
+export function intentNeedsPlatformFacts(intent: AssistantIntent) {
+  return intent === "platform_info" || intent === "general";
+}
+
+/** 需要决策轮摘要的意图。 */
+export function intentNeedsDecisions(intent: AssistantIntent) {
+  return intent === "decision_analysis" || intent === "portfolio_risk";
+}
 
 export type SessionWorkingMemory = {
   knownFields: {
@@ -65,6 +96,16 @@ export function splitStreamingText(value: string, size = 18) {
 }
 
 export function classifyAssistantIntent(message: string): AssistantIntent {
+  // 顺序有意义：平台事实与决策分析必须排在前面。
+  // 「会员多少钱」含「员」不含策略词但含「多少钱」；若排在 strategy_research 之后，
+  // 「策略卡收费吗」会因为含「策略」被判成策略研究。
+  // 「这一轮为什么没开仓」含「仓」，排在 portfolio_risk 之后会被判成持仓风险。
+  if (/会员|套餐|月卡|季卡|年卡|终身|价格|多少钱|收费|费用|费率|分成|积分|充值|提现|托管|平台介绍|网站|你们是|这个平台|怎么收/.test(message)) {
+    return "platform_info";
+  }
+  if (/决策轮|决策链|七智能体|智能体|风控拒绝|为什么没开|为什么不开|为什么拒绝|决策记录|审计记录|大厅/.test(message)) {
+    return "decision_analysis";
+  }
   if (/回测|收益曲线|夏普|胜率|盈亏比|过拟合/.test(message)) return "backtest_help";
   if (/持仓|仓位|账户|组合|敞口|回撤|亏损/.test(message)) return "portfolio_risk";
   if (/生成|创建|编写|策略|入场|出场|止损|止盈/.test(message)) return "strategy_research";
@@ -123,6 +164,38 @@ export function guidedAssistantReply(
   memory?: SessionWorkingMemory,
 ): GuidedAssistantResult {
   const intent = classifyAssistantIntent(message);
+
+  // 无 LLM 配置时的确定性回答。平台事实本来就来自合同常量，
+  // 这条路径反而是最不会出错的——它逐字引用服务端快照。
+  if (intent === "platform_info" && context.platform) {
+    const facts = context.platform;
+    const plans = facts.membership.plans
+      .map((plan) => `${plan.name} ${plan.priceUsd} USD／${plan.durationDays === null ? "终身" : `${plan.durationDays} 天`}／${plan.aiCredits} AI 积分／绩效分成 ${(Number(plan.performanceFeeRate) * 100).toFixed(0)}%`)
+      .join("；");
+    return {
+      text: `结论：${facts.product.name} 是${facts.product.positioning}当前处于${facts.product.stage}。\n\n关键事实：会员档位为 ${plans}。绩效分成按 ${facts.membership.performanceFee.timezone} 自然周以 ${facts.membership.performanceFee.currency} 结算，${facts.membership.performanceFee.rule}\n\n资金边界：${facts.policies.slice(0, 3).join(" ")}\n\n下一步：想了解具体某一项（会员权益、策略卡风控参数、七阶段决策流程）可以直接追问。`,
+      mode: "guided_rules",
+    };
+  }
+
+  if (intent === "decision_analysis") {
+    const rounds = context.decisions ?? [];
+    if (rounds.length === 0) {
+      return {
+        text: "结论：当前没有可展示的决策轮，无法解释具体判断。\n\n关键证据与失效条件：决策记录只在策略卡实际运行并产生完整决策轮后才存在；平台不会用演示数据补齐。\n\n下一步：确认已订阅官方策略卡且运行已启用，出现第一轮决策后再来问。",
+        mode: "guided_rules",
+      };
+    }
+    const latest = rounds[0];
+    const why = latest.riskApproved
+      ? "确定性风控允许了该结论。"
+      : `确定性风控拒绝了新开仓，理由：${latest.rejectionReasons.join("；") || "未记录"}。`;
+    return {
+      text: `结论：最近一轮是 ${latest.strategyName} 在 ${latest.symbol} 上的决策，动作为 ${latest.action}。${why}\n\n关键证据：决策轮 ${latest.decisionRoundId}，时间 ${latest.decidedAt || "未记录"}；七阶段结论共 ${latest.stages.length} 条。\n\n失效条件：这是快照，行情与风控状态随时可能变化。\n\n下一步：到交易大厅打开该决策轮可以看到每一阶段的完整结论与审计记录。`,
+      mode: "guided_rules",
+    };
+  }
+
   if (intent === "strategy_research") {
     const known = memory?.knownFields || buildSessionWorkingMemory([], message).knownFields;
     const knownSummary = [known.symbol, known.timeframe].filter(Boolean).join(" / ");

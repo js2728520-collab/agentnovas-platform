@@ -57,7 +57,7 @@ function formatRelative(value: string) {
   return `${Math.floor(minutes / 1_440)} 天前`;
 }
 
-export default function AgentChat({
+export default function AiAssistantChat({
   title,
   onOpenStrategies,
 }: {
@@ -329,14 +329,14 @@ export default function AgentChat({
         <footer><span><i />持久化对话服务</span><small>不会执行交易</small></footer>
       </aside>
       <section className="agent-chat-main" aria-busy={loading || sending}>
-        <header className="agent-chat-page-head"><div><span className="eyebrow">AI CONSULTATION</span><h2>与 Agent 团队对话</h2><p>服务端结合当前账号的行情、持仓摘要和策略关系回答。</p></div><div className="agent-chat-header-actions"><span className="agent-chat-status"><i />{sending ? "回复生成中" : "平台模型服务"}</span></div></header>
+        <header className="agent-chat-page-head"><div><span className="eyebrow">AI CONSULTATION</span><h2>AI 助手</h2><p>行情分析、决策解读、平台与会员规则问答。回答只基于服务端的行情快照、决策轮记录与平台合同事实。</p></div><div className="agent-chat-header-actions"><span className="agent-chat-status"><i />{sending ? "回复生成中" : "平台模型服务"}</span></div></header>
         <div className="agent-chat-current"><span>当前会话</span><b>{active?.title || "新对话"}</b><small>市场分析 · 风险解释 · 策略研究</small>{active && <button className="agent-chat-archive" type="button" onClick={() => void archiveConversation()}>归档</button>}</div>
         {error && <div className="agent-chat-error" role="alert"><span>{error}</span>{retryRequest && <button type="button" disabled={sending} onClick={() => void send(undefined, retryRequest)}>{sending ? "正在查询原请求…" : "重试原请求"}</button>}</div>}
         <div className="agent-chat-messages" aria-live="polite">
           {loading && <div className="agent-chat-empty">正在加载对话…</div>}
           {!loading && !messages.length && <div className="agent-chat-empty"><b>开始一段真实对话</b><span>可以咨询行情依据、持仓风险，或讨论一个待回测策略。</span></div>}
           {messages.map((message) => <article className={message.role === "user" ? "agent-chat-message-user" : "answer"} key={message.id}><i>{message.role === "user" ? "我" : "AI"}</i><div><b>{message.role === "user" ? "我" : "AI 团队"}</b>{message.role === "assistant" ? <AiMessageContent content={message.content} autoPrompt={message.id === promptMessageId} onAnswer={(answer) => void send(answer)} onSaveStrategy={() => void saveStrategy(message.id)} strategySaveNotice={strategySaveNotices[message.id]} strategySaveState={savedStrategyMessageIds[message.id] || message.savedStrategyId ? "saved" : savingStrategyMessageId === message.id ? "saving" : "idle"} /> : <p>{message.content}</p>}<small>{message.generationMode === "guided_rules" ? "平台规则引导 · " : message.model ? `${message.model} · ` : ""}{formatRelative(message.createdAt)}</small></div></article>)}
-          {sending && <article className="answer agent-chat-streaming"><i>AI</i><div><b>AI 团队</b>{streamingText ? <AiMessageContent content={streamingText} streaming /> : <div className="agent-chat-generating-dots" role="status"><span>正在生成回复</span><i /><i /><i /></div>}<small>Agent 正在分析当前会话…</small></div></article>}
+          {sending && <article className="answer agent-chat-streaming"><i>AI</i><div><b>AI 助手</b>{streamingText ? <AiMessageContent content={streamingText} streaming /> : <div className="agent-chat-generating-dots" role="status"><span>正在生成回复</span><i /><i /><i /></div>}<small>正在分析当前会话…</small></div></article>}
           {suggestedAction === "strategy" && <button type="button" className="agent-chat-open-strategy" onClick={onOpenStrategies}>前往策略工作室创建可回测规则 →</button>}
           <div ref={messageEndRef} />
         </div>
