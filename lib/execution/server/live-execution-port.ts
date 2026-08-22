@@ -23,6 +23,10 @@ import {
   classifyFill,
   type NormalizedOrderState,
 } from "../../../packages/domain/src/execution/fill-accounting.ts";
+import {
+  admitNewEntry,
+  type AccountReconciliationState,
+} from "../../../packages/domain/src/execution/reconciliation.ts";
 import type { ExchangeCredential } from "../../exchange-credentials.ts";
 import type { RateLimitPool } from "./rate-limit-pool.ts";
 
@@ -70,6 +74,21 @@ export type LiveExecutionDependencies = {
   adapterFor(exchange: string): LiveOrderAdapter | null;
   rateLimiter: RateLimitPool;
   now(): Date;
+  /** 该账户的对账未决情况。开仓前要问，平仓不问。 */
+  loadReconciliationState(accountId: string): Promise<AccountReconciliationState>;
+  /** 登记一笔待对账。下单响应不是事实，必须查单确认（ADR-0019 第 4 步）。 */
+  enqueueReconciliation(input: {
+    clientOrderId: string;
+    accountId: string;
+    customerId: string;
+    exchange: string;
+    symbol: string;
+    requestedQuantity: number;
+    decisionRoundId: string;
+    portfolioId: string;
+    intentId: string;
+    externalOrderId: string | null;
+  }): Promise<void>;
   /** 默认读环境变量；注入是为了让单测能同时覆盖开与关两种状态。 */
   liveRoutingEnabled?(): boolean;
 };
@@ -119,6 +138,22 @@ export function createLiveExecutionPort(deps: LiveExecutionDependencies): Execut
       action: intent.side,
     });
 
+    // 对账未决时不能开新仓：我们已经不确定这个账户在交易所的真实仓位，
+    // 继续开仓是在一个未知基础上叠加（INV-7）。
+    //
+    // **平仓永远放行。** 这与引擎里 riskApproved = action === "exit" || … 是同一条
+    // 原则：退出能力不依赖任何一层在线。把平仓也挡住，等于客户在最需要离场的时候
+    // 离不了——而对账未决往往正是行情剧烈波动的时候。
+    if (intent.side === "buy") {
+      const admission = admitNewEntry(
+        await deps.loadReconciliationState(account.accountId),
+        intent.symbol,
+      );
+      if (!admission.allowed) {
+        return rejectedReceipt(intent.id, admission.reason ?? "RECONCILIATION_BLOCKED", executedAt);
+      }
+    }
+
     if (!liveRoutingEnabled()) {
       // 默认路径。不是错误状态，但必须留下一条明确的回执——静默跳过会让上层
       // 以为下单成功了（INV-6）。
@@ -150,10 +185,41 @@ export function createLiveExecutionPort(deps: LiveExecutionDependencies): Execut
         order = recovered;
       } catch {
         // 查也查不到。**不能当作没下单**——那会导致重试时重复下单。
-        // 交给第 4 步的对账任务，并显式标注状态未知（INV-7）。
+        //
+        // 必须在这里登记待对账：一个只出现在回执文字里的 RECONCILE_WAIT 没有任何
+        // 作用，没人会去查它。登记之后对账任务才会反复查单，最终结案或升级人工，
+        // 并在此期间挡住该账户/该品种的新开仓（INV-7）。
+        await deps.enqueueReconciliation({
+          clientOrderId,
+          accountId: account.accountId,
+          customerId: account.customerId,
+          exchange: account.exchange,
+          symbol: intent.symbol,
+          requestedQuantity: quantity,
+          decisionRoundId: intent.provenance.decisionRoundId,
+          portfolioId: request.portfolioId,
+          intentId: intent.id,
+          externalOrderId: null,
+        });
         return rejectedReceipt(intent.id, "RECONCILE_WAIT", executedAt);
       }
     }
+
+    // 先登记待对账，再分类。即使这一刻看起来是终态，下单响应也不是事实——
+    // 市价单可能在响应之后才成交，回执要以查单为准。登记是幂等的
+    // （client_order_id 唯一），重复登记不会产生第二条。
+    await deps.enqueueReconciliation({
+      clientOrderId,
+      accountId: account.accountId,
+      customerId: account.customerId,
+      exchange: account.exchange,
+      symbol: intent.symbol,
+      requestedQuantity: quantity,
+      decisionRoundId: intent.provenance.decisionRoundId,
+      portfolioId: request.portfolioId,
+      intentId: intent.id,
+      externalOrderId: order.externalOrderId,
+    });
 
     const classification = classifyFill({
       requestedQuantity: quantity,

@@ -35,6 +35,7 @@ function makeRequest(overrides = {}) {
 
 function makeDeps(overrides = {}) {
   const placed = [];
+  const enqueued = [];
   const adapter = {
     exchange: "okx",
     async placeMarketOrder(input) {
@@ -49,6 +50,7 @@ function makeDeps(overrides = {}) {
   };
   return {
     placed,
+    enqueued,
     adapter,
     deps: {
       async resolveAccount(portfolioId) {
@@ -58,6 +60,10 @@ function makeDeps(overrides = {}) {
       async loadCredential() { return { credentials: { apiKey: "k", secretKey: "s" } }; },
       adapterFor: (exchange) => (exchange === "okx" ? adapter : null),
       rateLimiter: { async acquire() { return 0; } },
+      async loadReconciliationState() {
+        return overrides.reconciliationState ?? { hasEscalated: false, pendingSymbols: [] };
+      },
+      async enqueueReconciliation(input) { enqueued.push(input); },
       now: () => new Date("2026-08-22T00:00:00.000Z"),
       liveRoutingEnabled: () => overrides.enabled ?? true,
       ...overrides.deps,
@@ -242,4 +248,67 @@ test("未知交易所走最保守的一档，而不是不限流", async () => {
   await pool.acquire({ exchange: "unknown-exchange", accountId: "a" });
   await pool.acquire({ exchange: "unknown-exchange", accountId: "a" });
   assert.ok(slept.length >= 1, "第 3 笔必须被限住");
+});
+
+// --- 对账未决时的开仓准入 -------------------------------------------------
+
+test("对账升级人工后挡住开仓", async () => {
+  const { deps, placed } = makeDeps({ reconciliationState: { hasEscalated: true, pendingSymbols: [] } });
+  const [receipt] = await createLiveExecutionPort(deps).execute([makeRequest()]);
+  assert.equal(receipt.rejectionReason, "RECONCILIATION_ESCALATED");
+  assert.equal(placed.length, 0);
+});
+
+test("同品种待对账时挡住该品种开仓，其它品种不受影响", async () => {
+  const blocked = makeDeps({ reconciliationState: { hasEscalated: false, pendingSymbols: ["BTC/USDT"] } });
+  const [a] = await createLiveExecutionPort(blocked.deps).execute([makeRequest()]);
+  assert.equal(a.rejectionReason, "RECONCILIATION_PENDING_FOR_SYMBOL");
+
+  const other = makeDeps({ reconciliationState: { hasEscalated: false, pendingSymbols: ["ETH/USDT"] } });
+  const [b] = await createLiveExecutionPort(other.deps).execute([makeRequest()]);
+  assert.equal(b.outcome, "filled");
+});
+
+test("平仓永远放行——哪怕该账户已升级人工", async () => {
+  // 退出能力不依赖任何一层在线。把平仓也挡住，等于客户在最需要离场的时候离不了，
+  // 而对账未决往往正是行情剧烈波动的时候。
+  const { deps, placed } = makeDeps({ reconciliationState: { hasEscalated: true, pendingSymbols: ["BTC/USDT"] } });
+  const [receipt] = await createLiveExecutionPort(deps).execute([makeRequest({
+    intent: { side: "sell", entryPriceRange: { min: 100, max: 100 }, stopLossPrice: 110, takeProfitPrice: 80 },
+  })]);
+  assert.equal(receipt.outcome, "filled");
+  assert.equal(placed.length, 1, "平仓必须真的发出去");
+});
+
+test("下单成功也要登记待对账——下单响应不是事实", async () => {
+  const { deps, enqueued } = makeDeps();
+  await createLiveExecutionPort(deps).execute([makeRequest()]);
+  assert.equal(enqueued.length, 1);
+  assert.equal(enqueued[0].symbol, "BTC/USDT");
+  assert.equal(enqueued[0].requestedQuantity, 5);
+});
+
+test("RECONCILE_WAIT 必须真的登记，而不只是回执上的一句话", async () => {
+  // 只出现在回执文字里的 RECONCILE_WAIT 没人会去查，等于没有。
+  const { deps, enqueued } = makeDeps({
+    adapter: {
+      async placeMarketOrder() { throw new Error("timeout"); },
+      async getOrderByClientOrderId() { throw new Error("exchange down"); },
+    },
+  });
+  const [receipt] = await createLiveExecutionPort(deps).execute([makeRequest()]);
+  assert.equal(receipt.rejectionReason, "RECONCILE_WAIT");
+  assert.equal(enqueued.length, 1, "必须留下一条待对账记录");
+  assert.equal(enqueued[0].externalOrderId, null);
+});
+
+test("确认下单未发生时不登记对账", async () => {
+  const { deps, enqueued } = makeDeps({
+    adapter: {
+      async placeMarketOrder() { throw new Error("rejected"); },
+      async getOrderByClientOrderId() { return null; },
+    },
+  });
+  await createLiveExecutionPort(deps).execute([makeRequest()]);
+  assert.equal(enqueued.length, 0, "交易所明确说没这单，没有什么可对的");
 });

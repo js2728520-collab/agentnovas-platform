@@ -12,6 +12,9 @@
  */
 
 import { createServer } from "node:http";
+import os from "node:os";
+
+import pg from "pg";
 
 import {
   assertExecutionSecretConfigured,
@@ -20,6 +23,9 @@ import {
   isAuthorizedExecutionRequest,
   toPublicExecutionError,
 } from "../lib/execution/server/handler.ts";
+import { loadExchangeCredential } from "../lib/execution/server/credential-access.ts";
+import { createOkxOrderAdapter } from "../lib/execution/server/okx-adapter.ts";
+import { drainReconciliations } from "../lib/execution/server/reconciliation-worker.ts";
 
 const port = Number(process.env.EXECUTION_SERVICE_PORT ?? 3020);
 const host = process.env.EXECUTION_SERVICE_HOST ?? "127.0.0.1";
@@ -79,6 +85,56 @@ server.listen(port, host, () => {
   console.log(`[execution] 执行服务已启动 http://${host}:${port}（唯一持有凭证解密能力的进程）`);
 });
 
+// ---------------------------------------------------------------------------
+// 对账循环。
+//
+// 它跑在这个进程里而不是单独的 Worker，因为查单需要客户凭证，而本进程是全系统
+// 唯一能解密凭证的地方。再开一个进程就等于再多一个持有密钥的地方，把第 2 步刚
+// 收敛好的东西又散开。
+
+const reconciliationPool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: Number(process.env.EXECUTION_RECONCILIATION_POOL_SIZE || 2),
+  application_name: "agentnovas-execution-reconciliation",
+});
+
+const adapters = new Map([["okx", createOkxOrderAdapter()]]);
+const reconciliationDeps = {
+  workerId: `${os.hostname().replace(/[^a-z0-9.-]/gi, "-").slice(0, 60)}-${process.pid}`,
+  now: () => new Date(),
+  loadCredential: (input) => loadExchangeCredential(input),
+  adapterFor: (exchange) => adapters.get(exchange.toLowerCase()) ?? null,
+};
+
+const RECONCILIATION_INTERVAL_MS = Number(process.env.EXECUTION_RECONCILIATION_INTERVAL_MS || 15_000);
+let reconciliationTimer = null;
+let stopping = false;
+
+async function runReconciliationSweep() {
+  if (stopping) return;
+  try {
+    const processed = await drainReconciliations(reconciliationPool, reconciliationDeps);
+    if (processed > 0) console.log(`[execution] 对账处理 ${processed} 条`);
+  } catch (error) {
+    // 对账失败不能让进程退出——下单接口还要继续服务。
+    console.error("[execution] 对账循环出错:", error instanceof Error ? error.message : error);
+  } finally {
+    if (!stopping) reconciliationTimer = setTimeout(runReconciliationSweep, RECONCILIATION_INTERVAL_MS);
+  }
+}
+
+if (process.env.EXECUTION_RECONCILIATION_ENABLED !== "false") {
+  reconciliationTimer = setTimeout(runReconciliationSweep, RECONCILIATION_INTERVAL_MS);
+  console.log(`[execution] 对账循环已启用，每 ${RECONCILIATION_INTERVAL_MS}ms 扫一次`);
+}
+
 for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.on(signal, () => server.close(() => process.exit(0)));
+  process.on(signal, () => {
+    stopping = true;
+    if (reconciliationTimer) clearTimeout(reconciliationTimer);
+    server.close(async () => {
+      await reconciliationPool.end().catch(() => {});
+      process.exit(0);
+    });
+  });
 }
