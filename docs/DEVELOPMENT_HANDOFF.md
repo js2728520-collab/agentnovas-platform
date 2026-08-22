@@ -1908,3 +1908,23 @@ docker stop <占用端口的容器>
 # 或者绕开 TCP 走 unix socket
 TEST_DATABASE_URL="postgresql:///postgres?host=/tmp" npm run test:all
 ```
+
+
+## 本地环境：next-env.d.ts 会被并发重写，别把半截文件提交进去
+
+`next dev` 与 `next build` 都会重写 `next-env.d.ts`，且内容随 audience 变化
+（`.next-client/` vs `.next-maintenance/`）。在开发服务器运行时执行 `git add -A`，
+有概率抓到写了一半的文件——曾经就这样提交过一个被截断的版本。
+
+它的表现很隐蔽：`next build` 会重新生成这个文件，所以**三端构建全绿**，
+只有 `tsc --noEmit` 会报 `TS1003: Identifier expected`。
+
+两条纪律：
+
+```bash
+bash scripts/dev/start-local.sh stop   # 提交前先停开发服务器
+npx tsc --noEmit; echo $?             # 直接看退出码
+```
+
+第二条尤其重要：`npx tsc --noEmit | grep ... | head` 读到的是 **grep 的退出码**，
+那样的类型检查永远是绿的。
