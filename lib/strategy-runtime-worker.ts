@@ -48,6 +48,10 @@ import {
 } from "../packages/domain/src/runtime/explanation-retry.ts";
 import { resolveRuntimeRiskState } from "../packages/domain/src/runtime/risk-state.ts";
 import {
+  isMarketSnapshotReusable,
+  marketCacheKey,
+} from "../packages/domain/src/runtime/market-cache.ts";
+import {
   callRuntimeExplanationAgent,
   resolveRuntimeExplanationPrompt,
   validateRuntimeExplanationOutput,
@@ -85,11 +89,47 @@ function asExchange(value: string): PerpetualExchange {
   throw new Error("运行部署绑定了不支持的永续交易所");
 }
 
-function createPublicSpotRuntimeAdapter(): RuntimeSpotMarketAdapter {
+type SpotCandlePayload = Awaited<ReturnType<RuntimeSpotMarketAdapter["getCandles"]>>;
+
+/**
+ * 进程内的行情复用缓存。
+ *
+ * 官方现货是「每个 (客户, 策略卡) 一个部署」，各自跑决策周期。5,000 会员 × 3 张卡
+ * = 15,000 个部署，而三张卡合计只有 6 种 (品种, 周期) 组合——同一份 K 线会被
+ * 重复拉 2,500 次，打公开行情接口必然触发限流。
+ *
+ * 复用是否还有效由 packages/domain/src/runtime/market-cache.ts 判定（纯函数）：
+ * 以「归属的 K 线桶」为准，新 K 线一收盘立即失效——INV-8 要求决策绑定具体的
+ * 已收盘 K 线，用固定 TTL 会让决策落在上一根上。
+ *
+ * 同一个 key 的并发请求共享同一个 Promise，避免 15,000 个部署同时穿透缓存。
+ */
+const spotCandleCache = new Map<string, { fetchedAt: number; payload: Promise<SpotCandlePayload> }>();
+
+/** 供测试与运维重置。缓存只有 6 个 key，不会无限增长。 */
+export function clearSpotCandleCache() {
+  spotCandleCache.clear();
+}
+
+function createPublicSpotRuntimeAdapter(now: () => Date): RuntimeSpotMarketAdapter {
   return {
     async getCandles(input) {
-      const result = await getSpotCandles(input.symbol, input.timeframe, input.limit);
-      return { items: result.candles, provider: result.provider };
+      const key = marketCacheKey(input.symbol, input.timeframe, input.limit);
+      const current = now().getTime();
+      const cached = spotCandleCache.get(key);
+      if (cached && isMarketSnapshotReusable({ fetchedAt: cached.fetchedAt, now: current, timeframe: input.timeframe })) {
+        return cached.payload;
+      }
+      const payload = (async () => {
+        const result = await getSpotCandles(input.symbol, input.timeframe, input.limit);
+        return { items: result.candles, provider: result.provider };
+      })();
+      spotCandleCache.set(key, { fetchedAt: current, payload });
+      // 请求失败不能留下一个会被反复复用的坏条目。
+      payload.catch(() => {
+        if (spotCandleCache.get(key)?.payload === payload) spotCandleCache.delete(key);
+      });
+      return payload;
     },
     async getFeeSchedule() {
       return { makerRate: 0.001, takerRate: 0.001, source: "conservative_public_spot_default" };
@@ -109,7 +149,7 @@ async function processOfficialSpotRuntimeDeployment(
   if (lease.platformStrategyCode !== specification.strategyCode || !lease.paperPortfolioId || lease.exchangeAccountId !== null) {
     throw new Error("官方现货部署边界不一致");
   }
-  const adapter = dependencies.createSpotAdapter?.() ?? createPublicSpotRuntimeAdapter();
+  const adapter = dependencies.createSpotAdapter?.() ?? createPublicSpotRuntimeAdapter(dependencies.now ?? (() => new Date()));
   const [market, feeSchedule] = await Promise.all([
     adapter.getCandles({ symbol: specification.symbol, timeframe: specification.timeframe, limit: 500 }),
     adapter.getFeeSchedule(),
