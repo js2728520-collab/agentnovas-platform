@@ -200,8 +200,15 @@ apps/*  →  packages/*  →  lib/
   **实盘路由的现状（ADR-0019 第 6 步）**：授权机制已就位——`execution_live_routing`
   按 (交易所, 环境) 逐条批准，开通走 maker/checker、关停单人即时，运维端有界面。
   但 `createLiveExecutionPort` **仍然没有调用方**，决策扇出到真实下单那一段没接上。
-  执行端已接通（见 ADR-0019 续作）：Worker 产出决策 → 域层翻译成订单意图 →
-  内网调用执行服务下单 → 回执写入 `live_execution_receipts`。Worker 全程不接触凭证。
+  **实盘链路仍未接通**，见 ADR-0019 文末的更正。接线写完了（Worker → 域层翻译 →
+  执行服务 → 回执），但被五处互相独立的检查各自挡住，一条真实订单都发不出去。
+
+  更重要的是记账缺口：实盘成交不写仓位表、不进风控读数、不进分成口径，且引擎在
+  live 模式下 `position` 恒为 null ⇒ 永远不产出平仓意图。**这些缺口不阻止下单，
+  它们让下单之后的一切都是错的。**
+
+  想开实盘先读 `packages/domain/src/execution/live-readiness.ts` 的
+  `LIVE_EXECUTION_BLOCKERS`——那五处阻断逐个看都像 bug，逐个修都像在修 bug。
 
   **默认仍然不会产生任何真实订单**，需同时满足三件事：`execution_live_routing`
   有 granted 授权、部署 `mode = 'live'` 且绑定可交易账户、无命中熔断且无未决对账。

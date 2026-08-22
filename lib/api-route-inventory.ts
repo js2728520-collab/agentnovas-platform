@@ -3345,12 +3345,12 @@ export const API_ROUTE_INVENTORY = [
       "ops.trading.manage"
     ],
     "permissionMfa": {
-      "ops.trading.manage": "none"
+      "ops.trading.manage": "recent"
     },
     "scope": "grant",
-    "mfa": "none",
+    "mfa": "recent",
     "pii": "none",
-    "sensitivity": "normal",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": false,
     "idempotency": false
   },
@@ -3367,12 +3367,12 @@ export const API_ROUTE_INVENTORY = [
       "ops.trading.manage"
     ],
     "permissionMfa": {
-      "ops.trading.manage": "none"
+      "ops.trading.manage": "recent"
     },
     "scope": "grant",
-    "mfa": "none",
+    "mfa": "recent",
     "pii": "none",
-    "sensitivity": "normal",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -3389,12 +3389,12 @@ export const API_ROUTE_INVENTORY = [
       "ops.trading.manage"
     ],
     "permissionMfa": {
-      "ops.trading.manage": "none"
+      "ops.trading.manage": "recent"
     },
     "scope": "grant",
-    "mfa": "none",
+    "mfa": "recent",
     "pii": "none",
-    "sensitivity": "normal",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -3411,12 +3411,12 @@ export const API_ROUTE_INVENTORY = [
       "ops.trading.manage"
     ],
     "permissionMfa": {
-      "ops.trading.manage": "none"
+      "ops.trading.manage": "recent"
     },
     "scope": "grant",
-    "mfa": "none",
+    "mfa": "recent",
     "pii": "none",
-    "sensitivity": "normal",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -3455,12 +3455,12 @@ export const API_ROUTE_INVENTORY = [
       "ops.trading.manage"
     ],
     "permissionMfa": {
-      "ops.trading.manage": "none"
+      "ops.trading.manage": "recent"
     },
     "scope": "grant",
-    "mfa": "none",
+    "mfa": "recent",
     "pii": "none",
-    "sensitivity": "normal",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": false,
     "idempotency": false
   },
@@ -3477,12 +3477,12 @@ export const API_ROUTE_INVENTORY = [
       "ops.trading.manage"
     ],
     "permissionMfa": {
-      "ops.trading.manage": "none"
+      "ops.trading.manage": "recent"
     },
     "scope": "grant",
-    "mfa": "none",
+    "mfa": "recent",
     "pii": "none",
-    "sensitivity": "normal",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -3499,12 +3499,12 @@ export const API_ROUTE_INVENTORY = [
       "ops.trading.manage"
     ],
     "permissionMfa": {
-      "ops.trading.manage": "none"
+      "ops.trading.manage": "recent"
     },
     "scope": "grant",
-    "mfa": "none",
+    "mfa": "recent",
     "pii": "none",
-    "sensitivity": "normal",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -3521,12 +3521,12 @@ export const API_ROUTE_INVENTORY = [
       "ops.trading.manage"
     ],
     "permissionMfa": {
-      "ops.trading.manage": "none"
+      "ops.trading.manage": "recent"
     },
     "scope": "grant",
-    "mfa": "none",
+    "mfa": "recent",
     "pii": "none",
-    "sensitivity": "normal",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": false
   },

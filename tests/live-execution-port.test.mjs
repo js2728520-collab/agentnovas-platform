@@ -40,9 +40,13 @@ function makeDeps(overrides = {}) {
     exchange: "okx",
     async placeMarketOrder(input) {
       placed.push(input);
+      // 假适配器按真实语义返回：买入用计价金额换算出基础币成交量，卖出直接用数量。
+      // 从前这里写 `filledQuantity: input.quantity`，恰好把单位错配抹平了——
+      // 那正是 A1 那个 bug 能躲过测试的原因。
+      const filled = input.size.side === "buy" ? input.size.quoteAmount / 100 : input.size.baseQuantity;
       return overrides.orderResult ?? {
         externalOrderId: "ex-1", state: "filled",
-        filledQuantity: input.quantity, averagePrice: 100, feeAmount: 0.5,
+        filledQuantity: filled, averagePrice: 100, feeAmount: 0.5,
       };
     },
     async getOrderByClientOrderId() { return overrides.recovered ?? null; },
@@ -188,7 +192,8 @@ test("单个账户失败不影响同一轮的其他账户", async () => {
       async placeMarketOrder(input) {
         calls += 1;
         if (calls === 2) throw new Error("boom");
-        return { externalOrderId: `ex-${calls}`, state: "filled", filledQuantity: input.quantity, averagePrice: 100, feeAmount: 0 };
+        const filled = input.size.side === "buy" ? input.size.quoteAmount / 100 : input.size.baseQuantity;
+        return { externalOrderId: `ex-${calls}`, state: "filled", filledQuantity: filled, averagePrice: 100, feeAmount: 0 };
       },
       async getOrderByClientOrderId() { return null; },
     },
@@ -219,8 +224,9 @@ test("客户设定的资金上限压过策略意图", async () => {
   await createLiveExecutionPort(deps).execute([
     makeRequest({ availableCapital: 1000, capitalCapRatio: 0.1 }),
   ]);
-  // 意图想要 50%，客户上限 10% —— 取更严格的：1000 * 0.1 / 100 = 1
-  assert.equal(placed[0].quantity, 1);
+  // 意图想要 50%，客户上限 10%——取更严格的：1000 * 0.1 = 100 USDT。
+  // 买单必须以**计价金额**下达，而不是 100/价格 得到的基础币数量。
+  assert.deepEqual(placed[0].size, { side: "buy", quoteAmount: 100 });
 });
 
 // --- 限流池 ---------------------------------------------------------------
@@ -325,4 +331,77 @@ test("确认下单未发生时不登记对账", async () => {
   });
   await createLiveExecutionPort(deps).execute([makeRequest()]);
   assert.equal(enqueued.length, 0, "交易所明确说没这单，没有什么可对的");
+});
+
+// --- 下单量的单位 -----------------------------------------------------------
+
+test("买单以计价金额下达，卖单以基础币数量下达", async () => {
+  // 这是资金安全评审抓到的最严重缺陷（A1）：编排层算出的是基础币数量，
+  // 而两个交易所适配器买入时都当成计价金额用。价格 >1 时表现为买得太少，
+  // 价格 <1 时是**成倍超买**——价 0.20 的币要买 1000 USDT，实际会下 5000 USDT。
+  const buy = makeDeps();
+  await createLiveExecutionPort(buy.deps).execute([makeRequest({ availableCapital: 1000, capitalCapRatio: 0.2 })]);
+  assert.deepEqual(buy.placed[0].size, { side: "buy", quoteAmount: 200 },
+    "买单必须是 1000×0.2=200 USDT，不是 200/价格 得到的基础币数量");
+
+  const sell = makeDeps();
+  await createLiveExecutionPort(sell.deps).execute([makeRequest({
+    availableCapital: 1000, capitalCapRatio: 0.2,
+    intent: { side: "sell", entryPriceRange: { min: 100, max: 100 }, stopLossPrice: 110, takeProfitPrice: 80 },
+  })]);
+  assert.deepEqual(sell.placed[0].size, { side: "sell", baseQuantity: 2 },
+    "卖单必须是 200/100=2 个基础币");
+});
+
+test("买单金额与品种价格无关——低价品种不会被放大", async () => {
+  // 单位错配的危险正在于它随价格缩放：价 0.20 时，错误实现会把 500 USDT 的意图
+  // 变成 2500 USDT 的买单（500/0.2）。正确实现下，两个差 500 倍的价格必须得到
+  // 完全相同的买单金额。
+  async function quoteAmountAtPrice(price) {
+    const { deps, placed } = makeDeps();
+    await createLiveExecutionPort(deps).execute([makeRequest({
+      availableCapital: 1000,
+      intent: { entryPriceRange: { min: price, max: price }, stopLossPrice: price / 2, takeProfitPrice: price * 2 },
+    })]);
+    return placed[0].size.quoteAmount;
+  }
+  const cheap = await quoteAmountAtPrice(0.2);
+  const expensive = await quoteAmountAtPrice(100);
+  assert.equal(cheap, expensive, "买单金额不得随价格变化");
+  assert.equal(cheap, 500, "1000 资金 × 意图比例 0.5 = 500 USDT");
+});
+
+test("撤销实盘路由授权不得挡住卖单", async () => {
+  // live-routing.ts 开头写着「平仓永不受限」，但 resolveLiveRouting 曾经根本没有
+  // side 参数——运维一按关停，所有客户的卖单也被拒，正是熔断本该保护他们免于
+  // 遭遇的处境：事故中离不了场（INV-7）。
+  const { deps, placed } = makeDeps({ grants: [] });
+  const [receipt] = await createLiveExecutionPort(deps).execute([makeRequest({
+    intent: { side: "sell", entryPriceRange: { min: 100, max: 100 }, stopLossPrice: 110, takeProfitPrice: 80 },
+  })]);
+  assert.equal(receipt.outcome, "filled", "无授权时卖单仍须发出");
+  assert.equal(placed.length, 1);
+});
+
+test("买单在无授权时仍然被挡住", async () => {
+  const { deps, placed } = makeDeps({ grants: [] });
+  const [receipt] = await createLiveExecutionPort(deps).execute([makeRequest()]);
+  assert.equal(receipt.rejectionReason, "LIVE_ROUTING_NOT_GRANTED");
+  assert.equal(placed.length, 0);
+});
+
+test("适配器按 (交易所, 环境) 选择，demo 账户不会走到实盘适配器", async () => {
+  // environment 曾经断在 adapterFor 这一行：打开实盘的那天，绑定为 demo 的账户
+  // 会跟着一起上真实交易所，「demo 与 live 分别授权」那道闸门反向失效。
+  const seen = [];
+  const { deps } = makeDeps({
+    deps: {
+      async resolveAccount(portfolioId) {
+        return { accountId: `acct-${portfolioId}`, customerId: "cust-1", exchange: "okx", environment: "demo" };
+      },
+      adapterFor: (exchange, environment) => { seen.push([exchange, environment]); return null; },
+    },
+  });
+  await createLiveExecutionPort(deps).execute([makeRequest()]);
+  assert.deepEqual(seen, [["okx", "demo"]], "适配器选择必须收到账户的 environment");
 });

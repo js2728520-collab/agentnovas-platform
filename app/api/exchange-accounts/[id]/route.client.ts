@@ -35,6 +35,38 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         // Web 层不再解密：只传账户 id，拿回的结果里没有任何机密（ADR-0019）。
         // 这也是未来执行服务的接口形状——抽成独立进程时这一行换成跨进程调用即可。
         const result = await verifyExchangeAccount({ accountId: id, customerId: me.id });
+
+        // INV-11：平台永不持有提现权限。
+        //
+        // 这里原本只把 canWithdraw 记进审计和响应，然后无条件置 active——
+        // 检测能力有、拒绝动作没有。而 credential-access.ts 里那句「读取侧的第二道」
+        // 读的是数据库列 withdrawal_authorized，它被 migration 0045 的 CHECK 强制
+        // 为 0，**永远不会触发**。于是一把真带提现权限的密钥可以一路绑定成功，
+        // 平台长期持有它，而系统认为 INV-11 成立。
+        //
+        // 交易所返回的 canWithdraw 才是那把密钥的真实权限。它为真就必须拒绝。
+        if (result.canWithdraw === true) {
+          const db = getDb();
+          const now = new Date().toISOString();
+          await db.batch([
+            db.update(exchangeAccounts).set({
+              status: "disconnected", canRead: false, canTrade: false,
+              lastCheckedAt: now, updatedAt: now,
+            }).where(eq(exchangeAccounts.id, id)),
+            db.insert(auditLogs).values({
+              id: crypto.randomUUID(), actorUserId: me.id,
+              action: "exchange_account.withdrawal_authority_rejected",
+              subjectType: "exchange_account", subjectId: id,
+              afterJson: JSON.stringify({ exchange: row.exchange, permissions: result.permissions }),
+            }),
+          ]);
+          return Response.json({
+            code: "WITHDRAWAL_AUTHORITY_FORBIDDEN",
+            error: "检测到该密钥带有提现权限，平台不接受。请在交易所撤销提现权限后重新生成密钥，只勾选读取与交易。",
+            status: "disconnected",
+          }, { status: 400 });
+        }
+
         status = "active";
         canRead = result.canRead;
         canTrade = result.canTrade;

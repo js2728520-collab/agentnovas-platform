@@ -51,6 +51,21 @@ try {
           cycleId: result.cycleId,
           sequence: result.sequence,
           duplicate: result.duplicate,
+          liveOutcome: result.liveReceipt?.outcome ?? null,
+        });
+        // 实盘下发失败必须单独喊出来。
+        //
+        // 它曾经只是 Worker 内部一个没人读的变量：翻译失败、执行服务不可达、
+        // RECONCILE_WAIT、被熔断拒单——全部静默。而周期本身照常「completed」，
+        // 客户那边七阶段叙述照常产出，看起来一切正常。
+        if (result?.liveExecutionError) console.error("Live execution failed", {
+          cycleId: result.cycleId,
+          error: result.liveExecutionError,
+        });
+        // 被拒的回执同样要可见：outcome=rejected 意味着这一轮没有真实成交。
+        if (result?.liveReceipt && result.liveReceipt.outcome === "rejected") console.warn("Live order rejected", {
+          cycleId: result.cycleId,
+          reason: result.liveReceipt.rejectionReason,
         });
         if (explanation) console.info("Runtime explanation processed", {
           jobId: explanation.jobId,

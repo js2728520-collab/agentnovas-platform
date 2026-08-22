@@ -10,6 +10,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db/index.ts";
 import { auditLogs, exchangeAccounts, platformDecisions, trades } from "../../../db/schema.ts";
 import { getOkxDemoOrder, okxFeeInUsdt, placeOkxDemoMarketOrder } from "../../okx-demo-execution.ts";
+import { deriveClientOrderId } from "../../../packages/domain/src/execution/client-order-id.ts";
 
 import { loadExchangeCredential } from "./credential-access.ts";
 
@@ -57,7 +58,18 @@ async function closeOkxDemoTrade(position: OpenTrade, account: typeof exchangeAc
       symbol: position.symbol,
       side: "sell",
       quantity: position.quantity,
-      clientOrderId: `EST${Date.now().toString(36)}${crypto.randomUUID().slice(0, 8)}`,
+      // 确定性派生，不掺时间戳和随机数。
+      //
+      // 这里原本是 `EST${Date.now()}${uuid}`——请求发出去而响应丢失时（10 秒超时），
+      // 客户或运维再点一次一键平仓会得到一个**全新的** id，交易所没有任何判重依据，
+      // 于是卖出双倍数量。一键平仓恰恰是最可能被连点的操作。
+      //
+      // 见 packages/domain/src/execution/client-order-id.ts 开头那条唯一的规则。
+      clientOrderId: await deriveClientOrderId({
+        decisionRoundId: position.id,
+        portfolioId: account.id,
+        action: "emergency_exit",
+      }),
     });
     if (order.state !== "filled" || !(order.averagePrice > 0) || !(order.filledQuantity > 0)) {
       await getDb().batch([

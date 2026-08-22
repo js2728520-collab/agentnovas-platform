@@ -41,9 +41,21 @@ function rateLimiter(): RateLimitPool {
   return sharedRateLimiter;
 }
 
+/**
+ * 适配器按 (交易所, 环境) 建。
+ *
+ * OKX 目前只有模拟盘实现（`okx-demo-execution.ts` 硬写 x-simulated-trading: 1），
+ * 所以 okx/live 返回 null——**宁可明确报「该环境没有适配器」，也不要把 live 账户
+ * 静默发到模拟盘端点**，那会让客户以为自己有实盘仓位而交易所里是模拟仓位。
+ */
+function adapterKey(exchange: string, environment: "demo" | "live") {
+  return `${exchange.toLowerCase()}:${environment}`;
+}
+
 const adapters = new Map<string, LiveOrderAdapter>([
-  ["okx", createOkxOrderAdapter()],
-  ["binance", createBinanceOrderAdapter()],
+  [adapterKey("okx", "demo"), createOkxOrderAdapter()],
+  [adapterKey("binance", "demo"), createBinanceOrderAdapter({ environment: "demo" })],
+  [adapterKey("binance", "live"), createBinanceOrderAdapter({ environment: "live" })],
 ]);
 
 export async function executeOrderIntent(
@@ -68,7 +80,7 @@ export async function executeOrderIntent(
       };
     },
     loadCredential: (credentialInput) => loadExchangeCredential(credentialInput),
-    adapterFor: (exchange) => adapters.get(exchange.toLowerCase()) ?? null,
+    adapterFor: (exchange, environment) => adapters.get(adapterKey(exchange, environment)) ?? null,
     rateLimiter: rateLimiter(),
     now: () => new Date(),
     loadReconciliationState: (accountId) => loadAccountReconciliationState(database, accountId),

@@ -45,13 +45,26 @@ export type NormalizedOrder = {
   feeAmount: number;
 };
 
+/**
+ * 下单量。**单位是类型的一部分，不是约定。**
+ *
+ * 曾经这里是一个裸的 `quantity: number`，而现货市价单买卖两边的单位天然不同：
+ * 买入按计价货币金额（花多少 USDT），卖出按基础货币数量（卖多少个币）。
+ * 编排层算出的是基础币数量，两个适配器却都把它当成计价金额用——
+ * 价格 >1 时表现为「买得太少」，价格 <1 时就是**成倍超买**。
+ *
+ * 裸 number 无法阻止这种错配，判别联合可以：买单没有 baseQuantity 字段可传。
+ */
+export type MarketOrderSize =
+  | { side: "buy"; quoteAmount: number }
+  | { side: "sell"; baseQuantity: number };
+
 export type LiveOrderAdapter = {
   readonly exchange: string;
   placeMarketOrder(input: {
     credentials: ExchangeCredential;
     symbol: string;
-    side: "buy" | "sell";
-    quantity: number;
+    size: MarketOrderSize;
     clientOrderId: string;
   }): Promise<NormalizedOrder>;
   /**
@@ -79,7 +92,15 @@ export type PortfolioExecutionAccount = {
 export type LiveExecutionDependencies = {
   resolveAccount(portfolioId: string): Promise<PortfolioExecutionAccount | null>;
   loadCredential(input: { accountId: string; customerId: string }): Promise<{ credentials: ExchangeCredential }>;
-  adapterFor(exchange: string): LiveOrderAdapter | null;
+  /**
+   * 按 (交易所, 环境) 取适配器。
+   *
+   * **environment 必须参与选择。** 曾经这里只按交易所取，适配器自己默认 demo：
+   * 于是运维正确批准了 live 授权、订单却发往模拟盘端点；而将来把适配器改成 live
+   * 时，绑定为 demo 的账户会跟着一起上真实交易所——「demo 与 live 分别授权」
+   * 那道闸门会在打开实盘的那一刻反向失效。
+   */
+  adapterFor(exchange: string, environment: "demo" | "live"): LiveOrderAdapter | null;
   rateLimiter: RateLimitPool;
   now(): Date;
   /** 该账户的对账未决情况。开仓前要问，平仓不问。 */
@@ -127,14 +148,22 @@ export function createLiveExecutionPort(deps: LiveExecutionDependencies): Execut
     const account = await deps.resolveAccount(request.portfolioId);
     if (!account) return rejectedReceipt(intent.id, "PORTFOLIO_ACCOUNT_NOT_FOUND", executedAt);
 
-    const adapter = deps.adapterFor(account.exchange);
+    const adapter = deps.adapterFor(account.exchange, account.environment);
     if (!adapter) return rejectedReceipt(intent.id, "EXCHANGE_ADAPTER_NOT_AVAILABLE", executedAt);
 
     // 用入场区间中值作为换算参考价。意图本身只给「目标仓位比例」，
     // 换算成数量需要一个价格，而区间是决策当时明确认可的价格范围。
     const referencePrice = (intent.entryPriceRange.min + intent.entryPriceRange.max) / 2;
+    // 基础币数量。买单不直接用它下单（见下），但对账要拿它当请求量。
     const quantity = resolveOrderQuantity(request, referencePrice);
     if (quantity <= 0) return rejectedReceipt(intent.id, "ORDER_QUANTITY_ZERO", executedAt);
+
+    // 买入按计价货币金额，卖出按基础货币数量——现货市价单两边的单位天然不同。
+    // 把它做成判别联合而不是一个裸 number，是因为这里曾经把基础币数量当成计价金额
+    // 传了下去：价格 >1 时买得太少，价格 <1 时成倍超买。
+    const size: MarketOrderSize = intent.side === "buy"
+      ? { side: "buy", quoteAmount: quantity * referencePrice }
+      : { side: "sell", baseQuantity: quantity };
 
     // side 参与派生，于是同一轮同一组合的开仓与平仓是两个不同的 id。
     // 若共用一个，平仓会被交易所当成开仓的重复请求拒掉——客户想离场却离不了。
@@ -177,6 +206,7 @@ export function createLiveExecutionPort(deps: LiveExecutionDependencies): Execut
       environment: account.environment,
       product: deps.executionProduct,
       grants: await deps.loadLiveRoutingGrants(),
+      side: intent.side,
     });
     if (!routing.allowed) {
       return rejectedReceipt(intent.id, routing.reason ?? "LIVE_ROUTING_NOT_GRANTED", executedAt);
@@ -191,7 +221,7 @@ export function createLiveExecutionPort(deps: LiveExecutionDependencies): Execut
     let order: NormalizedOrder;
     try {
       order = await adapter.placeMarketOrder({
-        credentials, symbol: intent.symbol, side: intent.side, quantity, clientOrderId,
+        credentials, symbol: intent.symbol, size, clientOrderId,
       });
     } catch (error) {
       // 下单失败可能是「确实没下成」，也可能是「下成了但回应丢了」。

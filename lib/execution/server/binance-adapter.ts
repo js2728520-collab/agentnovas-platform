@@ -64,8 +64,10 @@ export function createBinanceOrderAdapter(options: {
         credentials: input.credentials,
         environment,
         symbol: input.symbol,
-        side: input.side,
-        quantity: input.quantity,
+        side: input.size.side,
+        // Binance 现货市价单：买入走 quoteOrderQty，卖出走 quantity。
+        // 两者的单位不同，由 MarketOrderSize 在类型层面区分。
+        quantity: input.size.side === "buy" ? input.size.quoteAmount : input.size.baseQuantity,
         clientOrderId: input.clientOrderId,
         fetchImpl: options.fetchImpl,
       }));

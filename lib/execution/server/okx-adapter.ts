@@ -46,12 +46,14 @@ export function createOkxOrderAdapter(): LiveOrderAdapter {
   return {
     exchange: "okx",
     async placeMarketOrder(input) {
+      // 单位由 MarketOrderSize 的判别联合保证，这里只做直译，不做任何换算。
       const order = await placeOkxDemoMarketOrder({
         credentials: input.credentials,
         symbol: input.symbol,
-        side: input.side,
-        // 买入按计价货币金额下单，卖出按基础货币数量——OKX 现货市价单的口径。
-        ...(input.side === "buy" ? { notionalUsdt: input.quantity } : { quantity: input.quantity }),
+        side: input.size.side,
+        ...(input.size.side === "buy"
+          ? { notionalUsdt: input.size.quoteAmount }
+          : { quantity: input.size.baseQuantity }),
         clientOrderId: input.clientOrderId,
       });
       return toNormalizedOrder(order);

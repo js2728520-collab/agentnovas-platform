@@ -40,6 +40,9 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "ops.credits.view", appId: "operations", label: "查看客户积分" },
   { key: "ops.credits.adjust", appId: "operations", label: "发起积分调整", sensitive: true },
   { key: "ops.credits.approve", appId: "operations", label: "审批积分调整", sensitive: true },
+  // 交易熔断与实盘路由授权。标 sensitive 因此强制近期 MFA——它既能停掉全平台的
+  // 新开仓，也能批准真实下单。
+  { key: "ops.trading.manage", appId: "operations", label: "管理交易熔断与实盘路由", sensitive: true },
   { key: "ops.performance_fees.view", appId: "operations", label: "查看绩效费账单" },
   { key: "ops.performance_fees.generate", appId: "operations", label: "生成绩效费账单", sensitive: true },
   { key: "ops.performance_fees.approve", appId: "operations", label: "审批绩效费账单", sensitive: true },

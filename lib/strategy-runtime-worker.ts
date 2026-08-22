@@ -29,6 +29,10 @@ import { enqueuePlatformDemoIntentsForRound } from "./platform-demo-execution.ts
 import { executeOrderIntent, ExecutionServiceError } from "./execution/client.ts";
 import { toExecutionOrderIntent } from "../packages/domain/src/execution/intent-translation.ts";
 import {
+  isLiveExecutionReady,
+  LIVE_EXECUTION_BLOCKERS,
+} from "../packages/domain/src/execution/live-readiness.ts";
+import {
   applyPaperFundingRates,
   completeRuntimeExplanationJob,
   completeStrategyRuntimeCycle,
@@ -332,6 +336,27 @@ async function processOfficialSpotRuntimeDeployment(
   let liveReceipt: Awaited<ReturnType<typeof executeOrderIntent>> | null = null;
   let liveExecutionError: string | null = null;
   if (lease.mode === "live" && !completion.duplicate && evaluated.orderIntent && lease.exchangeAccountId) {
+    // 一道有名字的闸门，挡在五处意外的 fail-closed 前面。
+    //
+    // 那五处（租约过滤、边界断言、requestedPrice 恒 null、symbol 格式、无创建入口）
+    // 逐个看都像 bug，逐个修都像在修 bug——而全部修完之后打开的是一条记账不成立的
+    // 真实交易通道：实盘成交不进仓位、不进风控、不进分成，且引擎永远不产出平仓意图。
+    //
+    // 所以先在这里说清楚缺什么，见 packages/domain/src/execution/live-readiness.ts。
+    if (!isLiveExecutionReady()) {
+      liveExecutionError = `LIVE_EXECUTION_NOT_READY:${LIVE_EXECUTION_BLOCKERS.map((b) => b.code).join(",")}`.slice(0, 160);
+      return {
+        status: "completed" as const,
+        cycleId: completion.id,
+        sequence: completion.sequence,
+        duplicate: completion.duplicate,
+        decision: evaluated.decision,
+        demoIntentResults,
+        demoIntentError,
+        liveReceipt: null,
+        liveExecutionError,
+      };
+    }
     try {
       const intent = toExecutionOrderIntent(
         evaluated.orderIntent as never,

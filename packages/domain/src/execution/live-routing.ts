@@ -33,6 +33,17 @@ export type LiveRoutingQuery = {
   environment: ExchangeEnvironment;
   product: ExecutionProduct;
   grants: readonly LiveRoutingGrant[];
+  /**
+   * 下单方向。**卖出无条件放行。**
+   *
+   * 这个参数曾经不存在，而本文件开头第 2 条规则写的就是「平仓永不受限」——
+   * 规则写在注释里、实现里却没有，结果是运维一按「关停实盘路由」，
+   * 所有客户的卖单也同时被拒。那正是熔断本该保护他们免于遭遇的处境：
+   * 事故发生时离不了场。
+   *
+   * 现在它是签名的一部分，调用方无法忘记传。
+   */
+  side: "buy" | "sell";
 };
 
 export type LiveRoutingDecision = { allowed: boolean; reason: string | null };
@@ -48,9 +59,13 @@ export function isRoutableProduct(product: ExecutionProduct): boolean {
 }
 
 export function resolveLiveRouting(query: LiveRoutingQuery): LiveRoutingDecision {
+  // 永续在任何方向、任何配置下都不可路由。这一条排在放行卖单之前：
+  // 我们从不曾开过永续仓位，所以也不存在需要放行的永续平仓。
   if (!isRoutableProduct(query.product)) {
     return { allowed: false, reason: "PERPETUAL_ROUTING_FORBIDDEN" };
   }
+  // 卖出无条件放行——退出能力不依赖任何一层在线或任何一项配置（INV-7）。
+  if (query.side === "sell") return { allowed: true, reason: null };
   const exchange = query.exchange.trim().toLowerCase();
   if (!exchange) return { allowed: false, reason: "EXCHANGE_UNKNOWN" };
 

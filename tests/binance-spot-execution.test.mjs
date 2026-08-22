@@ -166,7 +166,8 @@ test("适配器下单会归一化成执行层的形态", async () => {
     })),
   });
   const order = await adapter.placeMarketOrder({
-    credentials: CREDENTIALS, symbol: "BTC/USDT", side: "sell", quantity: 1, clientOrderId: "RV1",
+    credentials: CREDENTIALS, symbol: "BTC/USDT",
+    size: { side: "sell", baseQuantity: 1 }, clientOrderId: "RV1",
   });
   assert.deepEqual(order, {
     externalOrderId: "99", state: "partially_filled",

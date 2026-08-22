@@ -1,6 +1,6 @@
 # ADR-0019: GA 执行服务与密钥托管
 
-状态：Accepted（六步全部实施完毕；实盘授权机制已就位，但执行端尚未接入决策扇出）
+状态：Accepted（六步全部实施完毕；**实盘链路仍未接通**，见文末「更正」）
 
 日期：2026-08-22
 
@@ -594,3 +594,51 @@ Worker 只送「决定做什么」，通过内网调用走到执行服务；翻�
 三者任一不满足都会产出一条明确的拒绝回执，而不是静默跳过。
 
 根 `AGENTS.md` 的「真实订单路由必须保持关闭」仍然有效——解除它是产品决定。
+
+
+## 更正：「实盘链路完整接通」这个说法是错的
+
+提交 `0e2a41d` 的标题写着「把执行端接进决策扇出，实盘链路完整接通」。**多 agent 内测
+把这句话推翻了。** 实测：一条真实订单都发不出去，而且是被**五处互相独立**的检查各自
+挡住的。
+
+| # | 位置 | 内容 |
+| --- | --- | --- |
+| 1 | `leaseNextStrategyDeployment` | 过滤 `exchange_account_id IS NULL` —— live 部署永远租不走 |
+| 2 | `processOfficialSpotRuntimeDeployment` 开头 | `exchangeAccountId !== null` 就抛「边界不一致」 |
+| 3 | 引擎 | `requestedPrice` 只在止损/止盈两条离场分支赋值，`enter_long` 恒为 null → 翻译抛 `REQUESTED_PRICE_INVALID` |
+| 4 | 策略规格 | symbol 是 `BTCUSDT`，而订单意图要求 `BTC/USDT` → 抛 `INTENT_SYMBOL_INVALID` |
+| 5 | 全部创建入口 | 没有任何 API 能建出 `mode='live'` 的部署 |
+
+第 3、4 条我直接跑翻译函数验证过，两个都抛。
+
+**我当时凭什么以为接通了**：写完接线、`tsc` 过、1058 项测试全绿、三端构建通过。但那些
+测试全部是对翻译函数喂**手写的正确形状**（`"BTC/USDT"`、`requestedPrice: 100`），
+而 `runtime-live-execution-wiring.test.mjs` 是对源码文本做正则断言——**一行代码都不执行**。
+测试覆盖了「接线写对了没有」，没有覆盖「接上之后真的能跑通吗」。
+
+### 比「发不出单」严重得多的是记账缺口
+
+五处阻断都是 fail-closed，所以现状是安全的。真正的问题在于把它们拆掉之后会打开什么：
+
+- **实盘成交不写任何仓位表。** `position` 仅在 `mode === "paper"` 时加载，live 恒为
+  `null` ⇒ 引擎只会不断产出开仓意图，**永远不产出平仓意图**。既无限加仓，客户又无法
+  通过平台离场。
+- **回撤与日亏取自 paper 组合净值**，实盘成交不进那张表 ⇒ 两个读数恒为 0，
+  客户自己的风控预算在实盘上被静默旁路。
+- **绩效分成以 paper 的模拟成交为准**，`live_execution_receipts` 零读取方。
+- **对账结案的事实回不到回执**（回执不可改写），市价单在响应后才成交时，
+  回执永久停在 rejected 而对账记录是 filled。
+
+`migration 0053` 里写的「实盘沿用 paper 的记账路径，分成口径不分叉」—— 实盘那一支
+**根本不存在**，所以口径不是「不分叉」，是「只有一支」。
+
+### 处理方式：不强行接通，而是把「缺什么」变成代码
+
+新增 `packages/domain/src/execution/live-readiness.ts`，把上述缺口列成
+`LIVE_EXECUTION_BLOCKERS`，Worker 在下发之前先查 `isLiveExecutionReady()`。
+
+这样做的理由：那五处阻断**逐个看都像 bug，逐个修都像在修 bug**。一道有名字的闸门排在
+它们前面，任何人想开实盘时第一件事是读清单，而不是从第 1 条开始逐个拆。
+
+清单清空之前，`isLiveExecutionReady()` 恒为 false。它不是一个可以直接翻的开关。
