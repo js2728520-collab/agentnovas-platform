@@ -73,6 +73,14 @@ export async function POST(request: Request) {
     if (!body.canRead) {
       return Response.json({ error: "必须开启账户读取权限" }, { status: 400 });
     }
+    // 平台永不持有提现权限：带提现授权的凭证一律拒绝录入。绩效分成从预充服务
+    // 余额扣除，不需要也不允许从客户交易所账户直接划走。数据库还有约束兜底。
+    if (body.withdrawalAuthorized) {
+      return Response.json({
+        code: "WITHDRAWAL_AUTHORITY_FORBIDDEN",
+        error: "平台不接收带提现权限的凭证。请在交易所只勾选读取与交易权限，并限制 IP。",
+      }, { status: 400 });
+    }
     const environment = body.environment || "demo";
     if (environment === "live" && !adapter?.permissionCheckReady) {
       return Response.json({
@@ -99,7 +107,7 @@ export async function POST(request: Request) {
         encryptedCredentialRef: encrypted,
         canRead: true,
         canTrade: Boolean(body.canTrade),
-        withdrawalAuthorized: Boolean(body.withdrawalAuthorized),
+        withdrawalAuthorized: false,
         status: "pending",
         lastCheckedAt: new Date().toISOString(),
       }),

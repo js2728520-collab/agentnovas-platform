@@ -24,8 +24,11 @@ export async function GET(request: Request) {
     const policy = await readPolicy();
     return Response.json({
       policy: {
-        allowFollowWithoutWithdrawal: Boolean(policy?.allowFollowWithoutWithdrawal),
-        manualCollectionRequired: Boolean(policy?.allowFollowWithoutWithdrawal),
+        // 提现授权已不再是可选项：平台永不持有提现权限（迁移 0045）。
+        // 因此「允许未开启提现授权的账户跟随」恒为真，分成恒走人工复核收款。
+        allowFollowWithoutWithdrawal: true,
+        manualCollectionRequired: true,
+        withdrawalAuthorityAccepted: false,
         updatedAt: policy?.updatedAt || null,
       },
     });
@@ -39,7 +42,15 @@ export async function PUT(request: Request) {
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request, "maint.follow_policy.manage");
     const body = await request.json() as { allowFollowWithoutWithdrawal?: boolean };
-    const allowFollowWithoutWithdrawal = body.allowFollowWithoutWithdrawal === true;
+    // 唯一合法取值是 true。false 意味着「要求客户开通提现授权才能跟单」——
+    // 那条路径已被产品决策废止，平台不接收带提现权限的凭证（迁移 0045 有约束兜底）。
+    if (body.allowFollowWithoutWithdrawal === false) {
+      return Response.json({
+        code: "WITHDRAWAL_AUTHORITY_FORBIDDEN",
+        error: "平台永不持有提现权限，无法恢复「要求提现授权」的跟单策略。绩效分成从预充服务余额扣除。",
+      }, { status: 400 });
+    }
+    const allowFollowWithoutWithdrawal = true;
     const db = getDb();
     const before = await readPolicy();
     const now = new Date().toISOString();
@@ -68,7 +79,12 @@ export async function PUT(request: Request) {
     });
     return Response.json({
       ok: true,
-      policy: { allowFollowWithoutWithdrawal, manualCollectionRequired: allowFollowWithoutWithdrawal, updatedAt: now },
+      policy: {
+        allowFollowWithoutWithdrawal,
+        manualCollectionRequired: true,
+        withdrawalAuthorityAccepted: false,
+        updatedAt: now,
+      },
       message: "策略跟随权限规则已保存",
     });
   } catch (error) {
