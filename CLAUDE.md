@@ -43,6 +43,16 @@ LLM 负责解释、提案、质疑；**确定性代码拥有校验、回测、�
 
 **不要绕过这些写资金表。** 直接 SQL 也绕不过——触发器会拒绝。
 
+`postgres/migrations/0044_audit_tamper_evidence.sql` 补上了审计侧：
+
+- `audit_logs` 哈希链（`chain_seq` / `prev_hash` / `row_hash`），插入时由触发器自动接链
+- `audit_logs` 与 8 张 `*_decisions` 表 append-only，UPDATE/DELETE 抛 `AUDIT_APPEND_ONLY`
+- `verify_audit_log_chain(from_seq, to_seq)` 返回空集表示区间完整；
+  能检出内容改动与中间行删除，**但检不出链尾截断**（见已知缺口）
+
+`*_decisions` 表是证明双人复核确实发生过的记录。**能伪造 decision 行，maker/checker 就形同虚设**——
+这是 INV-3 的实际防线。
+
 ### GA 时会变化的一条
 
 当前 PRD 明确「客户不上传交易所密钥、不托管客户资金」。
@@ -95,8 +105,9 @@ apps/*  →  packages/*  →  lib/
 
   忘了重新生成，`npm test` 会失败（`tests/api-policy-security.test.mjs` 用 `--check`
   检查漂移）。运行时行为是安全的（404），但你会浪费时间找为什么新接口 404。
-- **审计表可篡改。** `audit_logs` 和各 `*_decisions` 表没有 append-only 保护，
-  也没有哈希链。有写权限就能改「谁批准了什么」。
+- **审计链尾可被截断。** 迁移 0044 后 `audit_logs` 有哈希链，改内容或删中间行都会被
+  `verify_audit_log_chain()` 检出，但**截断链尾是链内校验无法自证的**——需要把链尾哈希
+  定期外送到本库之外（备份、日志系统或运维端存档）。GA 前必须补这个运维动作。
 
 ---
 
