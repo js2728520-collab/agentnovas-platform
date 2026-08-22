@@ -994,3 +994,52 @@ tsc、lint、873 项测试（+12）、三端 build、bundle 预算、7 条边界
 七智能体大厅可视化与 AI 决策会议室仍嵌在 `app/client-app.tsx`(2506) 内部，
 两者共享 `useTradingHallData`，要一起迁。迁完才能删遗留世界剩余部分
 及其契约测试断言。
+
+
+## 32. 2026-08-22 P4 第 3 步：交易大厅与决策会议室迁成真实路由
+
+### 迁移
+
+从 `app/client-app.tsx` 抽出约 390 行到 `apps/client/ui/decision-hall.tsx`：
+`useTradingHallData`、`PageHead`、`AgentDialoguePanel`、`StrategyMonitorTicker`、
+`hallAgentPositions`/`agents`、`Hall` → `DecisionHall`、`Meeting` → `DecisionMeeting`。
+`app/trading-hall-status.ts` 一并迁到 `apps/client/ui/`。
+
+导航从内部字符串路由 `go("...")` 换成真实跳转。
+
+### 顺带修掉一处导航缺陷
+
+此前 `/trading-hall`（标签「交易大厅」）与 `/paper`（标签「模拟组合」）**渲染同一个
+组件** `TradingExperience`——导航上两个不同标签指向内容完全相同的页面。
+
+现在：
+
+| 路由 | 标签 | 内容 |
+| --- | --- | --- |
+| `/trading-hall` | 交易大厅 | 七智能体大厅可视化 |
+| `/trading-hall/meeting` | （大厅内跳转） | AI 决策会议室 |
+| `/paper` | 模拟组合 | 组合、成交明细、Demo 摘要 |
+
+`TradingExperience` 的全部内容仍可从 `/paper` 到达，没有功能丢失。
+这是产品可见变更，不是纯搬迁。
+
+### 一处刻意的行为收窄
+
+大厅里点击某个智能体角色，原来会把该角色名带进 Agent 对话。新的 AI 助手不按
+角色分线，所以只做跳转到 `/assistant`。角色的最新结论就显示在被点击的卡片上，
+不必再带过去。
+
+### 验证
+
+tsc、lint、873 项测试、三端 build、bundle 预算、7 条边界通过。
+运行时实测：`/trading-hall`、`/trading-hall/meeting`、`/paper` 在客户端 200，
+在运营端全部 404。
+
+### P4 剩余
+
+四个界面已全部迁完（`/market`、`/assistant`、`/trading-hall`、
+`/trading-hall/meeting`）。剩下的是拆除：`app/client-app.tsx` 里 `Hall`/`Meeting`
+的原始副本、`Security`（`/account/security` 已有新实现）、以及 `/workspace` 路由
+本身与 `LocaleGuard`、`globals.css`、`globals-beta.css`。
+
+拆除必须连同守着它们的契约测试断言一起做——详见 §29 与 §31 的说明。

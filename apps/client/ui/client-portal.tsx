@@ -13,6 +13,8 @@ const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((modul
 const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience));
 const MembershipExperience = dynamic(() => import("./membership-experience"));
 const AiAssistantChat = dynamic(() => import("./ai-assistant-chat"));
+const DecisionHall = dynamic(() => import("./decision-hall"));
+const DecisionMeeting = dynamic(() => import("./decision-hall").then((module) => module.DecisionMeeting));
 const LiveMarket = dynamic(() => import("./live-market"));
 const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace));
 const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace));
@@ -61,11 +63,17 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
     if (!hasAnyPermission(session.access.permissions, ["client.membership.view"])) return <AccessDenied />;
     return <PerformanceStatementsWorkspace statementId={segments[1]} />;
   }
-  if (route === "paper" || route === "trading-hall") {
+  // 「交易大厅」渲染七智能体大厅可视化，「模拟组合」渲染组合与成交明细。
+  // 此前两条路由渲染同一个组件，导航上两个不同标签指向同一个页面。
+  if (route === "trading-hall") {
+    if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
+    return segments[1] === "meeting" ? <DecisionMeeting /> : <DecisionHall />;
+  }
+  if (route === "paper") {
     if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
     return <>
       <TradingExperience
-        portfolioId={route === "paper" ? segments[1] : undefined}
+        portfolioId={segments[1]}
         canManage={hasAnyPermission(session.access.permissions, ["client.paper.manage"])}
       />
     </>;

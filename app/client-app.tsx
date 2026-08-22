@@ -10,7 +10,7 @@ import { dedupeAdjacentEnglish, scrubNonChineseText } from "./i18n-runtime";
 import {
   tradingHallEnvironmentLabel,
   tradingHallStrategyPresentation,
-} from "./trading-hall-status";
+} from "@/apps/client/ui/trading-hall-status";
 import { getAvatarPreset } from "@/lib/avatar-presets";
 import {
   tradingHallAgentCatalog,

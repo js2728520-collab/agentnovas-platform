@@ -15,6 +15,7 @@ export function isRivertonAppRoute(audience: AppAudience, segments: string[]) {
     if (root === "membership") return segments.length === 1 || (segments.length === 2 && segments[1] === "orders");
     if (root === "performance-statements") return segments.length <= 2;
     if (root === "paper") return segments.length <= 2;
+    if (root === "trading-hall") return segments.length === 1 || (segments.length === 2 && segments[1] === "meeting");
     return segments.length === 1;
   }
 

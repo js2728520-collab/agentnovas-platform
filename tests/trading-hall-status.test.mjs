@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   tradingHallEnvironmentLabel,
   tradingHallStrategyPresentation,
-} from "../app/trading-hall-status.ts";
+} from "../apps/client/ui/trading-hall-status.ts";
 
 test("trading hall environment labels describe configuration without claiming runtime activity", () => {
   assert.equal(tradingHallEnvironmentLabel("paper"), "Paper 模拟环境");
