@@ -14,6 +14,7 @@ import {
 
 type DeploymentRow = {
   id: string;
+  decision_round_id: string | null;
   strategy_code: string;
   symbol: string;
   mode: "shadow" | "paper";
@@ -29,6 +30,7 @@ type DeploymentRow = {
 
 type RuntimeEventRow = {
   cycle_id: string;
+  decision_round_id: string | null;
   sequence: number;
   role: string;
   conclusion: string;
@@ -151,7 +153,7 @@ export async function GET(request: Request) {
       SELECT DISTINCT ON (mapping.strategy_code)
         deployment.id, mapping.strategy_code, mapping.symbol,
         deployment.mode, deployment.status, deployment.strategy_version_id,
-        deployment.updated_at, cycle.id AS cycle_id,
+        deployment.updated_at, cycle.id AS cycle_id, cycle.decision_round_id,
         cycle.candle_close_time, cycle.decision_json, cycle.trace_id,
         CASE WHEN deployment.execution_product = 'spot_usdt' THEN
           (SELECT count(*)::text FROM official_paper_positions AS position
@@ -173,23 +175,38 @@ export async function GET(request: Request) {
       ORDER BY mapping.strategy_code, deployment.updated_at DESC, deployment.id DESC
     `, [user.id]);
 
+    // 七阶段结论从共享决策轮读（ADR-0018）：同一张卡在同一根 K 线上只判断一次。
+    // 没有决策轮的行（过渡期历史数据、永续部署）仍按周期读。
     const cycleIds = deployments.rows.flatMap((row) => row.cycle_id ? [row.cycle_id] : []);
-    const eventResult = cycleIds.length ? await pool.query<RuntimeEventRow>(`
-      SELECT cycle_id, sequence, role, conclusion, evidence_json,
+    const roundIds = [...new Set(deployments.rows.flatMap((row) => row.decision_round_id ? [row.decision_round_id] : []))];
+    const eventResult = (cycleIds.length || roundIds.length) ? await pool.query<RuntimeEventRow>(`
+      SELECT cycle_id, decision_round_id, sequence, role, conclusion, evidence_json,
              llm_used, explanation_status, explanation_json, created_at
       FROM strategy_runtime_events
-      WHERE cycle_id = ANY($1::text[])
-      ORDER BY cycle_id, sequence
-    `, [cycleIds]) : { rows: [] as RuntimeEventRow[] };
+      WHERE (decision_round_id = ANY($2::text[]))
+         OR (decision_round_id IS NULL AND cycle_id = ANY($1::text[]))
+      ORDER BY sequence
+    `, [cycleIds, roundIds]) : { rows: [] as RuntimeEventRow[] };
+
+    // 一个决策轮下有 N 个部署各写的事件（过渡期），按 role 去重后每轮只留一套。
+    const eventsByRound = new Map<string, Map<string, RuntimeEventRow>>();
     const eventsByCycle = new Map<string, RuntimeEventRow[]>();
     for (const event of eventResult.rows) {
-      eventsByCycle.set(event.cycle_id, [...(eventsByCycle.get(event.cycle_id) || []), event]);
+      if (event.decision_round_id) {
+        const roles = eventsByRound.get(event.decision_round_id) ?? new Map<string, RuntimeEventRow>();
+        if (!roles.has(event.role)) roles.set(event.role, event);
+        eventsByRound.set(event.decision_round_id, roles);
+      } else {
+        eventsByCycle.set(event.cycle_id, [...(eventsByCycle.get(event.cycle_id) || []), event]);
+      }
     }
 
     const decisionRounds = deployments.rows.flatMap((deployment) => {
       const code = strategyCode(deployment.strategy_code);
       if (!deployment.cycle_id || !code) return [];
-      const runtimeEvents = eventsByCycle.get(deployment.cycle_id) || [];
+      const runtimeEvents = deployment.decision_round_id
+        ? [...(eventsByRound.get(deployment.decision_round_id)?.values() ?? [])].sort((left, right) => left.sequence - right.sequence)
+        : eventsByCycle.get(deployment.cycle_id) || [];
       const events = runtimeEvents.flatMap((event) => {
         const view = eventView(event);
         return view ? [view] : [];
@@ -207,6 +224,7 @@ export async function GET(request: Request) {
         executionMode: deployment.mode,
         completeness: tradingHallRoundCompletenessForRuntimeRoles(runtimeEvents.map((event) => event.role)),
         traceId: deployment.trace_id,
+        sharedDecisionRoundId: deployment.decision_round_id,
         updatedAt: (deployment.candle_close_time || deployment.updated_at)?.toISOString() || null,
         events,
       }];

@@ -161,13 +161,18 @@ UNIQUE (strategy_code, symbol, timeframe, candle_close_time)
 
 ## 实施顺序
 
+原计划是「先改写入（第 3 步）、再改读取（第 4 步）」。**实施时把两者对调了**：
+写入端一旦停止为每个部署重复写事件，读取端若还按 `cycle_id` 查就会拿不到数据，
+中间存在一个数据不可见的窗口。反过来先切读取是安全的——事件从第 1 步起就同时
+挂在周期和决策轮上，读取端此刻切过去读到的是同一份数据。
+
 1. 新增 `strategy_decision_rounds` 表与写入路径，与现有 cycle 并行写（双写，不改读）；
-2. 迁移 `strategy_runtime_events` 与解释任务的外键到决策轮；
-3. 改调度：租约单元换成决策目标，扇出写准入行；
-4. 改 `/api/trading-hall` 读取路径；
+2. 解释任务改为按决策轮建，结果扇出写回该轮下所有周期的事件；
+3. 改 `/api/trading-hall` 读取路径优先走决策轮，并在界面明说这是本卡的公共轮；
+4. 改调度：租约单元换成决策目标，扇出写准入行，停止重复写事件；
 5. 停止写旧的 per-deployment cycle 的共享字段，只保留准入语义。
 
-每一步都可独立验证并回滚；第 3 步之前系统行为不变。
+每一步都可独立验证并回滚；第 4 步之前系统行为不变。
 
 
 ## 实施记录
@@ -198,3 +203,14 @@ UNIQUE (strategy_code, symbol, timeframe, candle_close_time)
 
   验证：同卡两个客户各跑一轮后，每个 event_role 只有一个解释任务；排干任务队列
   后，该轮下两个部署的同角色事件都拿到 `completed`。
+
+- **第 3 步（完成，与原计划的第 4 步对调）** `/api/trading-hall` 的事件查询改为
+  优先按 `decision_round_id` 取，没有轮的行（过渡期历史数据、永续部署）回落到
+  `cycle_id`。过渡期一个轮下有 N 个部署各写的事件，按 role 去重后每轮只呈现一套。
+
+  `TradingHallDecisionRound` 新增 `sharedDecisionRoundId`。按已定的产品决策，
+  两处展示决策轮的界面都点明：**这是该策略卡在这根 K 线上的公共决策轮，七阶段
+  结论对订阅同一张卡的所有客户完全相同，不含任何客户数据；仓位与风控准入按各自
+  组合单独判定**。后半句同样必要——只说「共享」会被理解成「大家仓位一样」。
+
+  措辞由 `tests/trading-hall-product-contract.test.mjs` 钉住。

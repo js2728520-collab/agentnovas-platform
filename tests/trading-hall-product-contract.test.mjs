@@ -131,3 +131,28 @@ test("trading hall evidence is allowlisted and bounded before it reaches the cli
   assert.match(route, /slice\(0, 2000\)/);
   assert.doesNotMatch(route, /evidence:\s*event\.evidence_json/);
 });
+
+test("七阶段结论从共享决策轮读，且界面明说这是本卡的公共轮", async () => {
+  // 同一张策略卡在同一根已收盘 K 线上只判断一次，订阅该卡的所有客户看到同一轮
+  // （ADR-0018）。七阶段内容不含任何客户数据——界面必须如实说明，
+  // 不能让客户理解为「为我单独运行」。
+  const [route, contract, meeting, paper] = await Promise.all([
+    source("app/api/trading-hall/route.client.ts"),
+    source("packages/contracts/src/trading-hall.ts"),
+    source("apps/client/ui/decision-hall.tsx"),
+    source("apps/client/ui/trading-experience.tsx"),
+  ]);
+
+  // 读取优先走决策轮，没有轮的（过渡期历史数据、永续部署）才回落到周期。
+  assert.match(route, /decision_round_id = ANY/);
+  assert.match(route, /decision_round_id IS NULL AND cycle_id = ANY/);
+  assert.match(contract, /sharedDecisionRoundId: string \| null;/);
+  assert.match(route, /sharedDecisionRoundId: deployment\.decision_round_id/);
+
+  // 措辞：两处展示决策轮的界面都必须点明共享。
+  assert.match(meeting, /本卡公共决策轮/);
+  assert.match(paper, /公共决策轮/);
+  assert.match(paper, /对订阅同一张卡的所有客户完全相同/);
+  // 同时必须说清哪一部分仍是按客户单独判定的，否则会被理解成「大家仓位一样」。
+  assert.match(paper, /你的仓位与风控准入按你的组合单独判定/);
+});

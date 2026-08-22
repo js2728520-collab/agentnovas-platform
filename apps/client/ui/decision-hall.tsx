@@ -325,7 +325,7 @@ export function DecisionMeeting() {
       <PageHead
         title="AI 决策会议室"
         sub={selectedRound
-          ? `决策轮 ${selectedRound.decisionRoundId} · ${selectedRound.strategyName} · ${selectedRound.symbol}`
+          ? `${selectedRound.sharedDecisionRoundId ? "本卡公共决策轮" : "决策轮"} ${selectedRound.decisionRoundId} · ${selectedRound.strategyName} · ${selectedRound.symbol}`
           : "读取真实决策轮；没有记录时不会显示演示会议"}
         actions={
           <>
