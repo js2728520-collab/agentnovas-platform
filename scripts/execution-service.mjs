@@ -24,6 +24,7 @@ import {
   toPublicExecutionError,
 } from "../lib/execution/server/handler.ts";
 import { loadExchangeCredential } from "../lib/execution/server/credential-access.ts";
+import { createBinanceOrderAdapter } from "../lib/execution/server/binance-adapter.ts";
 import { createOkxOrderAdapter } from "../lib/execution/server/okx-adapter.ts";
 import { drainReconciliations } from "../lib/execution/server/reconciliation-worker.ts";
 
@@ -98,7 +99,12 @@ const reconciliationPool = new pg.Pool({
   application_name: "agentnovas-execution-reconciliation",
 });
 
-const adapters = new Map([["okx", createOkxOrderAdapter()]]);
+// 适配器一律默认 demo。是否走实盘由 execution_live_routing 的显式授权决定，
+// 不由这里的默认值决定——一个默认为 live 的适配器等于把授权闸门绕过去。
+const adapters = new Map([
+  ["okx", createOkxOrderAdapter()],
+  ["binance", createBinanceOrderAdapter()],
+]);
 const reconciliationDeps = {
   workerId: `${os.hostname().replace(/[^a-z0-9.-]/gi, "-").slice(0, 60)}-${process.pid}`,
   now: () => new Date(),

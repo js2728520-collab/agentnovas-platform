@@ -138,8 +138,11 @@ Web 层现在有两处需要凭证，都改为委托：
 2. **凭证是否再上一层保管库**（如 age/sops + 启动时注入，或 Vault）。
    当前方案把密钥收敛到一个进程，已经解决了最大的敞口；引入保管库是下一层，
    不应阻塞本 ADR。
-3. **首批支持哪些交易所**。三个 Demo provider 是 OKX / Binance / Bybit，
-   但真实交易的接入顺序应按客户实际持仓分布定，不是按 Demo 顺序。
+3. ~~**首批支持哪些交易所**~~ —— 已决：OKX 优先，其次 Binance。
+
+   决策依据要说清楚：本 ADR 原本写「按客户实际持仓分布定」，但落地时库里
+   **零条已绑定账户**，这条标准无从应用。改按「客户最可能已经有账户的地方」取
+   现货量最大的 Binance 作为第二家。等真实客户进来后，第三家应回到原标准。
 
 ## 实施顺序
 
@@ -479,3 +482,45 @@ export function assertBetaSpotRuntimeLease(executionProduct: string): void {
 所以此刻即使运维在界面上批准了 OKX 实盘，也**不会有任何真实订单产生**。
 把执行端接进扇出是下一个独立项目。根 `AGENTS.md` 中「真实订单路由必须保持关闭」
 这条仍然有效，解除它是产品决定，不是工程决定。
+
+
+## 第二家交易所：Binance（已接入适配器）
+
+| 位置 | 内容 |
+| --- | --- |
+| `lib/binance-spot-execution.ts` | 现货下单与查单的签名客户端 |
+| `lib/execution/server/binance-adapter.ts` | 字段与状态名归一化 |
+
+**只做现货。** 文件里刻意不引用任何 `fapi` 端点——写进来就等于给未来某个人留了一条
+把永续接上的近路。
+
+### 与 OKX 的差异都在细节上，而细节正是会出事的地方
+
+| | OKX | Binance |
+| --- | --- | --- |
+| 品种 | `BTC-USDT` | `BTCUSDT`（无分隔符） |
+| 签名 | base64 HMAC，含 timestamp+method+path+body | query string 的 HMAC 十六进制 |
+| 幂等字段 | `clOrdId`（查单同名） | 下单 `newClientOrderId`，查单 `origClientOrderId` |
+| 均价 | 直接给 `avgPx` | 不给，需 `cummulativeQuoteQty ÷ executedQty` |
+| 手续费 | 查单响应里有 | **查单响应没有**，需另查 `myTrades` |
+
+最后一条最容易出错：查单不返回手续费，若就地填 0，绩效分成会算多。因此成交后会
+多发一次 `myTrades` 汇总佣金——多一次调用换一个真实的费用数字。未成交的订单不查。
+
+### 沿用的两条判断
+
+- **未知状态映射成 `live`，不是 `rejected`。** 把没见过的状态当成被拒会让上层结案
+  并允许重试；若它其实是已成交，就变成重复下单。
+- **只有明确的「订单不存在」（`-2013`）才返回 null。** 其它错误继续往上抛，交给对账
+  状态机。把网络故障当成订单不存在会让对账把真实成交判成未下单。
+
+### 一处刻意不做的「便利」
+
+`clientOrderId` 超长时直接抛错，不静默截断。截断会让同一次重试算出不同的 id，
+交易所就判不了重——幂等保护变成它的反面。
+
+### 适配器默认 demo
+
+`createBinanceOrderAdapter()` 与 `createOkxOrderAdapter()` 都默认模拟盘。是否走实盘由
+`execution_live_routing` 的显式授权决定——一个默认为 live 的适配器等于把第 6 步的闸门
+绕过去了。

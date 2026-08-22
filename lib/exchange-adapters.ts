@@ -121,7 +121,12 @@ async function hmac(value: string, secret: Uint8Array | string, hash: "SHA-256" 
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
 }
 
-async function hmacHex(value: string, secret: string, hash: "SHA-256" | "SHA-512" = "SHA-256") {
+/**
+ * 导出供订单适配器复用：签名逻辑只应该有一份。
+ * 权限验证与下单用同一套 HMAC，写两遍迟早会分叉，而分叉的表现是「验证通过但下单
+ * 全部 401」——最难查的那类问题。
+ */
+export async function hmacHex(value: string, secret: string, hash: "SHA-256" | "SHA-512" = "SHA-256") {
   return bytesToHex(await hmac(value, secret, hash));
 }
 
@@ -129,7 +134,7 @@ async function hmacBase64(value: string, secret: string, hash: "SHA-256" | "SHA-
   return bytesToBase64(await hmac(value, secret, hash));
 }
 
-function apiBase(exchange: string, environment: ExchangeEnvironment, explicit?: string) {
+export function apiBase(exchange: string, environment: ExchangeEnvironment, explicit?: string) {
   if (explicit) return explicit.replace(/\/$/, "");
   const key = normalizeExchange(exchange);
   const envKey = environment === "demo" ? "DEMO" : "LIVE";
