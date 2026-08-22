@@ -176,6 +176,9 @@ test.before(async () => {
   const migration0047 = await readFile(new URL("../postgres/migrations/0047_shared_explanation_jobs.sql", import.meta.url), "utf8");
   await pool.query(migration0047);
   await pool.query(migration0047);
+  const migration0048 = await readFile(new URL("../postgres/migrations/0048_events_belong_to_decision_round.sql", import.meta.url), "utf8");
+  await pool.query(migration0048);
+  await pool.query(migration0048);
   await initializeEmergencyAccessSchema(pool);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-official', $1)`, [JSON.stringify(platformStrategyDslV3("ai_conservative", "BTCUSDT"))]);
@@ -626,10 +629,10 @@ test("同一张卡的两个客户共享同一行决策轮，各自保留自己�
   }
   // 只断言真正建了任务的角色：其余角色的 explanation_status 是
   // 'not_requested'，那是正常默认值，不是缺失。
+  // 事件挂在决策轮上，cycle_id 可空（纯 hold 不写周期），因此不能用 JOIN 取。
   const explained = await pool.query(`
-    SELECT cycle.deployment_id, event.role, event.explanation_status
+    SELECT event.role, event.explanation_status
     FROM strategy_runtime_events AS event
-    JOIN strategy_runtime_cycles AS cycle ON cycle.id = event.cycle_id
     WHERE event.decision_round_id = $1
       AND event.role IN (
         SELECT event_role FROM strategy_runtime_explanation_jobs WHERE decision_round_id = $1

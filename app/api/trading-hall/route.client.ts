@@ -153,8 +153,14 @@ export async function GET(request: Request) {
       SELECT DISTINCT ON (mapping.strategy_code)
         deployment.id, mapping.strategy_code, mapping.symbol,
         deployment.mode, deployment.status, deployment.strategy_version_id,
-        deployment.updated_at, cycle.id AS cycle_id, cycle.decision_round_id,
-        cycle.candle_close_time, cycle.decision_json, cycle.trace_id,
+        deployment.updated_at, cycle.id AS cycle_id,
+        -- 决策轮直接取共享表里该卡该品种的最新一轮，而不是经由客户自己的周期。
+        -- 纯 hold 不为每个组合写周期行（ADR-0018 的已定决策），若还从周期取，
+        -- 客户在 hold 的那根 K 线上会看到上一次有动作时的旧轮。
+        round.id AS decision_round_id,
+        COALESCE(round.candle_close_time, cycle.candle_close_time) AS candle_close_time,
+        COALESCE(round.decision_json, cycle.decision_json) AS decision_json,
+        COALESCE(round.trace_id, cycle.trace_id) AS trace_id,
         CASE WHEN deployment.execution_product = 'spot_usdt' THEN
           (SELECT count(*)::text FROM official_paper_positions AS position
            WHERE position.portfolio_id = deployment.paper_portfolio_id AND position.status = 'open')
@@ -171,6 +177,11 @@ export async function GET(request: Request) {
         WHERE deployment_id = deployment.id
         ORDER BY sequence DESC LIMIT 1
       ) AS cycle ON true
+      LEFT JOIN LATERAL (
+        SELECT * FROM strategy_decision_rounds
+        WHERE strategy_code = mapping.strategy_code AND symbol = mapping.symbol
+        ORDER BY candle_close_time DESC LIMIT 1
+      ) AS round ON true
       WHERE deployment.owner_user_id = $1
       ORDER BY mapping.strategy_code, deployment.updated_at DESC, deployment.id DESC
     `, [user.id]);

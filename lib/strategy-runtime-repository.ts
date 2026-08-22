@@ -1,6 +1,7 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 
 import { deterministicDecisionRoundId } from "../packages/domain/src/runtime/cycle-planning.ts";
+import { shouldPersistAdmission } from "../packages/domain/src/runtime/admission.ts";
 
 import {
   lockOfficialPaperRuntimeAccess,
@@ -700,33 +701,52 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
       roundIsNew = insertedRound.rows.length > 0;
     }
 
-    await client.query(`
-      INSERT INTO strategy_runtime_cycles (
-        id, deployment_id, sequence, fencing_token, candle_open_time, candle_close_time,
-        market_data_snapshot_id, status, decision_json, order_intent_json,
-        trace_id, started_at, decision_round_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8::jsonb, $9::jsonb, $10, $11, $12)
-    `, [input.cycleId, input.deploymentId, sequence, input.fencingToken, input.candleOpenTime, input.candleCloseTime,
-      input.marketDataSnapshotId, JSON.stringify(input.decision), input.orderIntent ? JSON.stringify(input.orderIntent) : null,
-      input.traceId, input.startedAt, decisionRoundId]);
+    // 纯 hold 不为每个组合留痕（ADR-0018 的已定决策）：卡级结论就是本轮不动作，
+    // 客户视图从共享决策轮读到同样的信息。只要发生了对这个客户特有的事
+    // ——产生意图、风控拒绝、访问状态降级——就必须留痕，那是「为什么我没成交
+    // 而他成交了」的唯一答案。
+    //
+    // 没有决策轮的部署（永续）照旧每轮都写：它们没有可回落的共享记录。
+    const persistAdmission = !decisionRoundId || shouldPersistAdmission({
+      action: String(input.decision.action ?? "hold"),
+      riskApproved: input.decision.riskApproved !== false,
+      hasOrderIntent: Boolean(input.orderIntent),
+      rejectionReasons: Array.isArray(input.decision.rejectionReasons)
+        ? input.decision.rejectionReasons.filter((value): value is string => typeof value === "string")
+        : [],
+    });
+    if (persistAdmission) {
+      await client.query(`
+        INSERT INTO strategy_runtime_cycles (
+          id, deployment_id, sequence, fencing_token, candle_open_time, candle_close_time,
+          market_data_snapshot_id, status, decision_json, order_intent_json,
+          trace_id, started_at, decision_round_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8::jsonb, $9::jsonb, $10, $11, $12)
+      `, [input.cycleId, input.deploymentId, sequence, input.fencingToken, input.candleOpenTime, input.candleCloseTime,
+        input.marketDataSnapshotId, JSON.stringify(input.decision), input.orderIntent ? JSON.stringify(input.orderIntent) : null,
+        input.traceId, input.startedAt, decisionRoundId]);
+    }
     // 七阶段叙述属于共享单元。同一轮里只有创建者写这 7 行，其余部署不重复写——
     // 5,000 会员 × 3 张卡下这是 105,000 行降到 7 行。
     // 读取路径已优先按 decision_round_id 取（见 app/api/trading-hall），
     // 因此不写重复行不会让任何客户看不到结论。
-    const shouldWriteEvents = !decisionRoundId || roundIsNew;
+    // 七阶段叙述属于共享轮：有轮时由创建者写一次，与该客户是否留痕无关。
+    // 纯 hold 的那一轮同样需要叙述——那正是客户看「为什么没有动作」的地方。
+    const shouldWriteEvents = decisionRoundId ? roundIsNew : persistAdmission;
     for (const event of shouldWriteEvents ? input.events : []) {
       await client.query(`
         INSERT INTO strategy_runtime_events (
           id, cycle_id, sequence, role, event_type, conclusion, evidence_json,
           duration_ms, llm_used, model_name, decision_round_id
         ) VALUES ($1, $2, $3, $4, 'agent_completed', $5, $6::jsonb, $7, $8, $9, $10)
-      `, [crypto.randomUUID(), input.cycleId, event.sequence, event.role, event.conclusion,
+      `, [crypto.randomUUID(), persistAdmission ? input.cycleId : null, event.sequence, event.role, event.conclusion,
         JSON.stringify(event.evidence), event.durationMs, event.llmUsed, event.modelName ?? null, decisionRoundId]);
     }
     await enqueueRuntimeExplanationJobs(client, {
       deploymentId: input.deploymentId,
       cycleId: input.cycleId,
       decisionRoundId,
+      cycleHasRow: persistAdmission,
       candleCloseTime: input.candleCloseTime,
       decision: input.decision,
       events: input.events,
@@ -813,6 +833,8 @@ async function enqueueRuntimeExplanationJobs(client: PoolClient, input: {
    * 否则 15,000 个部署会把同一段解释生成上万次。
    */
   decisionRoundId: string | null;
+  /** 该部署这一轮是否真的写了周期行——纯 hold 不留痕时为 false。 */
+  cycleHasRow: boolean;
   candleCloseTime: Date;
   decision: Record<string, unknown>;
   events: Array<{ role: string; evidence: Record<string, unknown> }>;
