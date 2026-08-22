@@ -815,3 +815,61 @@ operations 两个都有——机制成立。
 
 tsc、lint、861 项测试（+2）、三端 build、bundle 预算、7 条边界通过。
 三端路由数经 `app-path-routes-manifest.json` 实测确认，跨 audience 越界 0 条。
+
+
+## 29. 2026-08-22 P3 勘察：结论是先做 P4
+
+P3（拆成三个独立 Next 应用）的勘察结果不支持现在就做。三条证据：
+
+### 1. 声称的收益基本不存在
+
+三端构建实测：编译 2.2–2.4 秒，TypeScript 检查 1.2–5.4 秒（Turbopack）。
+「拆开构建更快」在这个体量上省不出东西。部署独立性是真的，但三端本来就从同一个
+仓库部署到同一台自托管机器，收益有限。**安全收益已经在 P2 拿到了**——
+别的 audience 的代码物理上不在构建里。
+
+### 2. P3 的真正阻塞是 `app/` 根目录，而它大部分是待拆的东西
+
+`app/` 根目录 34 个散件、6,772 行，完全没有按 audience 组织。构成：
+
+| 部分 | 行数 | 说明 |
+| --- | --- | --- |
+| 遗留 SPA 簇 | ~3,738 | `client-app.tsx` 及其动态导入链，只服务 `/workspace`，是 P4 的目标 |
+| 死代码 | ~2,580 | 零运行时引用 |
+| 路由约定文件 + 共享件 | ~450 | `layout/page/error/loading/not-found`、`riverton-route*` |
+
+现在拆三个应用，等于把死代码和待退役的遗留 SPA 分别搬进三个新应用，然后 P4 再删。
+
+### 3. 已删除的部分（本次提交）
+
+零引用、零测试、零文档提及的 7 个文件，836 行：
+
+- `connect-live.tsx`(298) → `exchange-logo.tsx`(44)
+- `market-news-settings.tsx`(84) → `agent-role-admin.tsx`(237)、`llm-config.tsx`(11)
+- `chatgpt-auth.ts`(90)
+- `simulated-order-form.tsx`(72)
+
+删除集是闭包的：集合外没有任何模块导入它们。
+
+### 4. 剩下的死代码需要决策，未动
+
+另一簇 1,744 行运行时不可达，但**被 4 个契约测试 `readFile` 断言**：
+
+| 文件 | 行数 | 守它的测试 |
+| --- | --- | --- |
+| `community-strategy-center.tsx` | 491 | `ai-ui-contract`、`strategy-backtest-ui`、`client-byok-hardclose` |
+| `multi-agent-research.tsx` | 434 | `ai-ui-contract` |
+| `strategy-backtest-detail.tsx` | 302 | `strategy-backtest-ui`、`strategy-version-rollback` |
+| `strategy-backtest-center.tsx` | 283 | `strategy-backtest-ui` |
+| `strategy-detail.tsx` | 234 | 仅被 `community-strategy-center` 引用 |
+
+这些测试断言的是真实产品约束（例如 BYOK 密钥不得泄漏到 UI）。组件不可达意味着
+断言当前是空转的，但删组件就要一并删断言——**等于拆掉一条绊线**。
+如果这些界面还打算恢复，绊线应当保留；如果确定不恢复，组件和断言应当一起删。
+这是产品决策，留给决策人。
+
+### 建议顺序
+
+**P4 先于 P3。** P4 退役遗留 SPA（`client-app.tsx`、`globals.css`、`globals-beta.css`、
+`LocaleGuard`）之后，`app/` 根目录基本只剩路由约定文件，那时 P3 才是机械操作——
+甚至可能不再必要。
