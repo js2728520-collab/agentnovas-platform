@@ -1946,6 +1946,50 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/maintenance/audit/anchors",
+    "source": "app/api/maintenance/audit/anchors/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.audit.view"
+    ],
+    "permissionMfa": {
+      "maint.audit.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/audit/anchors",
+    "source": "app/api/maintenance/audit/anchors/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.audit.view"
+    ],
+    "permissionMfa": {
+      "maint.audit.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/maintenance/commercial-disclosures",
     "source": "app/api/maintenance/commercial-disclosures/route.maintenance.ts",
     "audiences": [
