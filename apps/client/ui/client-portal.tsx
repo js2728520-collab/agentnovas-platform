@@ -15,6 +15,7 @@ const MembershipExperience = dynamic(() => import("./membership-experience"));
 const AiAssistantChat = dynamic(() => import("./ai-assistant-chat"));
 const DecisionHall = dynamic(() => import("./decision-hall"));
 const StrategyStudio = dynamic(() => import("./strategy-studio"));
+const BacktestWorkspace = dynamic(() => import("./backtest-workspace"));
 const DecisionMeeting = dynamic(() => import("./decision-hall").then((module) => module.DecisionMeeting));
 const LiveMarket = dynamic(() => import("./live-market"));
 const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace));
@@ -52,6 +53,11 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
   if (route === "studio") {
     if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
     return <StrategyStudio />;
+  }
+  // 已保存策略的可配置历史回测。与 /studio 的分工见 backtest-workspace.tsx。
+  if (route === "backtests") {
+    if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
+    return <BacktestWorkspace strategyId={segments[1]} />;
   }
   if (route === "assistant") {
     return <AiAssistantChat title="AI 助手" onOpenStrategies={() => window.location.assign("/trading-hall")} />;

@@ -6,8 +6,8 @@ test("saved strategies expose a dedicated configurable backtest and report view"
   // 回测界面的入口（遗留问卷表单）已在 P4 删除，组件与后端仍在，等待接回真实路由。
   // 只保留对组件本身的断言；描述那张表单的断言随表单一起移除。
   const [detailSource, centerSource] = await Promise.all([
-    readFile(new URL("../app/strategy-backtest-detail.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/strategy-backtest-center.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../apps/client/ui/strategy-backtest-detail.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../apps/client/ui/strategy-backtest-center.tsx", import.meta.url), "utf8"),
   ]);
 
   for (const label of ["回测预设", "实盘对齐", "探索研究", "初始资金", "手续费", "滑点", "K线数量", "回测报告", "最近交易"]) {

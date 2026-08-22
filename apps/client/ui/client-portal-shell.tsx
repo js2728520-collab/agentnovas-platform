@@ -30,6 +30,7 @@ const navigationGroups: ConsoleNavigationGroup[] = [
   ] },
   { label: "策略实验室", items: [
     { href: "/studio", label: "策略实验室", icon: "lab", requiredPermissions: ["client.paper.view"] },
+    { href: "/backtests", label: "策略回测", icon: "calculator", requiredPermissions: ["client.paper.view"] },
   ] },
   { label: "账户", items: [
     { href: "/membership", label: "会员中心", icon: "crown", requiredPermissions: ["client.membership.view"] },

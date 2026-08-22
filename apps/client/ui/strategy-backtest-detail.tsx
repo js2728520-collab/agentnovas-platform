@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+
+import styles from "./backtest.module.css";
 import type { StrategyDsl } from "@/packages/domain/src/strategy-dsl";
 
 type CompletedTrade = {
@@ -211,25 +213,25 @@ export function StrategyBacktestDetail({
     }
   }
 
-  if (loading && !detail) return <div className="strategy-detail-page"><button onClick={onBack}>返回我的策略</button><div className="notice">正在加载策略详情…</div></div>;
-  if (!detail) return <div className="strategy-detail-page"><button onClick={onBack}>返回我的策略</button><div className="notice">{message || "策略详情不可用"}</div></div>;
+  if (loading && !detail) return <div className={styles.page}><button onClick={onBack}>返回我的策略</button><div className={styles.notice}>正在加载策略详情…</div></div>;
+  if (!detail) return <div className={styles.page}><button onClick={onBack}>返回我的策略</button><div className={styles.notice}>{message || "策略详情不可用"}</div></div>;
 
   const { strategy } = detail;
   const latest = detail.backtests[0]?.metrics;
   const canBacktest = ["draft", "testing", "rejected"].includes(strategy.status);
   const canChangeVersion = ["draft", "testing", "rejected"].includes(strategy.status);
 
-  return <div className="strategy-detail-page">
-    <header className="strategy-detail-header">
+  return <div className={styles.page}>
+    <header className={styles.header}>
       <button onClick={onBack}>返回我的策略</button>
       <div><small>STRATEGY RESEARCH RECORD</small><h2>{strategy.name}</h2><p>{strategy.summary}</p></div>
       <span>{strategy.publicationMode === "self_use" ? "自用策略" : strategy.status} · V{strategy.version}</span>
     </header>
-    {message && <div className="notice">{message}</div>}
+    {message && <div className={styles.notice}>{message}</div>}
 
-    <div className="strategy-detail-grid">
-      <section className="strategy-rule-card">
-        <div className="strategy-detail-title"><div><small>VALIDATED DSL</small><h3>策略规则</h3></div><span>{strategy.symbols.join(" · ")}</span></div>
+    <div className={styles.detailGrid}>
+      <section className={styles.ruleCard}>
+        <div className={styles.detailTitle}><div><small>VALIDATED DSL</small><h3>策略规则</h3></div><span>{strategy.symbols.join(" · ")}</span></div>
         <dl>
           <div><dt>周期</dt><dd>{strategy.specification.timeframe}</dd></div>
           <div><dt>方向</dt><dd>{strategy.specification.side === "long_only" ? "仅做多" : strategy.specification.side}</dd></div>
@@ -241,27 +243,27 @@ export function StrategyBacktestDetail({
         <details><summary>查看完整 JSON DSL</summary><pre>{JSON.stringify(strategy.specification, null, 2)}</pre></details>
       </section>
 
-      <section className="strategy-backtest-config">
-        <div className="strategy-detail-title"><div><small>BACKTEST CONFIG</small><h3>回测预设</h3></div><span>参数会写入报告</span></div>
-        <div className="backtest-preset-choice">
+      <section className={styles.config}>
+        <div className={styles.detailTitle}><div><small>BACKTEST CONFIG</small><h3>回测预设</h3></div><span>参数会写入报告</span></div>
+        <div className={styles.presetChoice}>
           <button className={options.preset === "live_aligned" ? "selected" : ""} onClick={() => selectPreset("live_aligned")}><b>实盘对齐</b><span>计入默认手续费与滑点，更接近执行成本</span></button>
           <button className={options.preset === "exploration" ? "selected" : ""} onClick={() => selectPreset("exploration")}><b>探索研究</b><span>默认不计滑点，用于观察规则敏感度</span></button>
         </div>
-        <div className="backtest-option-grid">
+        <div className={styles.optionGrid}>
           <label>初始资金（USDT）<input type="number" min="100" max="1000000" value={options.initialEquityUsdt} onChange={(event) => setOptions({ ...options, initialEquityUsdt: Number(event.target.value) })} /></label>
           <label>手续费（%）<input type="number" min="0" max="1" step="0.01" value={options.feeRate * 100} onChange={(event) => setOptions({ ...options, feeRate: Number(event.target.value) / 100 })} /></label>
           <label>滑点（%）<input type="number" min="0" max="2" step="0.01" value={options.slippageRate * 100} onChange={(event) => setOptions({ ...options, slippageRate: Number(event.target.value) / 100 })} /></label>
           <label>K线数量<input type="number" min="200" max="1000" step="100" value={options.candleLimit} onChange={(event) => setOptions({ ...options, candleLimit: Number(event.target.value) })} /></label>
         </div>
-        <button className="primary" disabled={busy || !canBacktest} onClick={() => void runBacktest()}>{busy ? "回测运行中…" : canBacktest ? "运行并保存回测" : "当前状态不可回测"}</button>
+        <button className={styles.primary} disabled={busy || !canBacktest} onClick={() => void runBacktest()}>{busy ? "回测运行中…" : canBacktest ? "运行并保存回测" : "当前状态不可回测"}</button>
         <p>回测只运行平台校验后的 JSON DSL，不执行任意代码，也不会创建真实订单。</p>
       </section>
     </div>
 
-    <section className="strategy-report-section">
-      <div className="strategy-detail-title"><div><small>SAVED RESULTS</small><h3>回测报告</h3></div><span>{detail.backtests.length} 份已保存报告</span></div>
+    <section className={styles.section}>
+      <div className={styles.detailTitle}><div><small>SAVED RESULTS</small><h3>回测报告</h3></div><span>{detail.backtests.length} 份已保存报告</span></div>
       {latest ? <>
-        <div className="strategy-report-metrics">
+        <div className={styles.metrics}>
           <span>净收益<b>{numberText(latest.netReturnPct, "%")}</b></span>
           <span>最大回撤<b>{numberText(latest.maxDrawdownPct, "%")}</b></span>
           <span>胜率<b>{numberText(latest.winRatePct, "%")}</b></span>
@@ -269,14 +271,14 @@ export function StrategyBacktestDetail({
           <span>交易样本<b>{latest.sampleSize ?? 0} 笔</b></span>
           <span>期末权益<b>{numberText(latest.finalEquityUsdt, " USDT")}</b></span>
         </div>
-        <div className="strategy-report-evidence"><span>区间：{dateText(latest.periodStart)} — {dateText(latest.periodEnd)}</span><span>行情：{latest.provider || "平台行情引擎"} · {latest.candleCount || 0} 根</span><span>成本：手续费 {numberText(latest.feesUsdt)} / 滑点 {numberText(latest.slippageUsdt)} USDT</span><code>{latest.evidenceRef || "证据哈希不可用"}</code></div>
-        {Boolean(latest.warnings?.length) && <div className="strategy-report-warnings">{latest.warnings?.map((warning) => <p key={warning}>提示：{warning}</p>)}</div>}
-        <div className="strategy-trades"><h4>最近交易</h4>{latest.trades?.length ? <div className="strategy-trade-table"><div><b>开仓</b><b>平仓</b><b>入场价</b><b>退出价</b><b>净盈亏</b><b>原因</b></div>{latest.trades.slice(-10).reverse().map((trade) => <div key={`${trade.openedAt}-${trade.closedAt}`}><span>{dateText(trade.openedAt)}</span><span>{dateText(trade.closedAt)}</span><span>{numberText(trade.entryPrice)}</span><span>{numberText(trade.exitPrice)}</span><span className={trade.netPnl >= 0 ? "up" : "down"}>{numberText(trade.netPnl, " USDT")}</span><span>{trade.reason}</span></div>)}</div> : <p>当前区间没有产生已完成交易，请检查规则触发频率和样本区间。</p>}</div>
-      </> : <div className="notice">尚未运行回测。选择预设与参数后，首份报告会保存在这里。</div>}
+        <div className={styles.evidence}><span>区间：{dateText(latest.periodStart)} — {dateText(latest.periodEnd)}</span><span>行情：{latest.provider || "平台行情引擎"} · {latest.candleCount || 0} 根</span><span>成本：手续费 {numberText(latest.feesUsdt)} / 滑点 {numberText(latest.slippageUsdt)} USDT</span><code>{latest.evidenceRef || "证据哈希不可用"}</code></div>
+        {Boolean(latest.warnings?.length) && <div className={styles.warnings}>{latest.warnings?.map((warning) => <p key={warning}>提示：{warning}</p>)}</div>}
+        <div className={styles.trades}><h4>最近交易</h4>{latest.trades?.length ? <div className={styles.tradeTable}><div><b>开仓</b><b>平仓</b><b>入场价</b><b>退出价</b><b>净盈亏</b><b>原因</b></div>{latest.trades.slice(-10).reverse().map((trade) => <div key={`${trade.openedAt}-${trade.closedAt}`}><span>{dateText(trade.openedAt)}</span><span>{dateText(trade.closedAt)}</span><span>{numberText(trade.entryPrice)}</span><span>{numberText(trade.exitPrice)}</span><span className={trade.netPnl >= 0 ? "up" : "down"}>{numberText(trade.netPnl, " USDT")}</span><span>{trade.reason}</span></div>)}</div> : <p>当前区间没有产生已完成交易，请检查规则触发频率和样本区间。</p>}</div>
+      </> : <div className={styles.notice}>尚未运行回测。选择预设与参数后，首份报告会保存在这里。</div>}
     </section>
 
-    <section className="strategy-version-section">
-      <div className="strategy-detail-title"><div><small>IMMUTABLE HISTORY</small><h3>版本记录</h3><p>每次调整自动增加版本号；回滚会复制历史规则并生成新的最新版本。</p></div><span>{detail.versions.length} 个版本</span></div>
+    <section className={styles.versionSection}>
+      <div className={styles.detailTitle}><div><small>IMMUTABLE HISTORY</small><h3>版本记录</h3><p>每次调整自动增加版本号；回滚会复制历史规则并生成新的最新版本。</p></div><span>{detail.versions.length} 个版本</span></div>
       <div>{detail.versions.map((version) => {
         const currentVersion = version.version === strategy.version;
         const sourceLabel = version.restoredFromVersion

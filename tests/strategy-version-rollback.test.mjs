@@ -37,7 +37,7 @@ test("rollback preserves protected strategy states and records its provenance", 
 });
 
 test("strategy history UI exposes an explicit version restore action", async () => {
-  const detail = await readFile(new URL("../app/strategy-backtest-detail.tsx", import.meta.url), "utf8");
+  const detail = await readFile(new URL("../apps/client/ui/strategy-backtest-detail.tsx", import.meta.url), "utf8");
 
   assert.match(detail, /restoredFromVersion/);
   assert.match(detail, /rollbackVersion/);

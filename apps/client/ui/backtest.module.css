@@ -1,0 +1,286 @@
+/* 策略回测界面（历史回测中心 + 单策略配置回测）。
+ *
+ * 原样式只存在于 app/globals.css —— 那份样式表没有任何页面加载，且已在 P4 删除。
+ * 这里按 --rv-* 令牌重写，与 strategy-studio.module.css 同一套做法。 */
+
+.page {
+  display: grid;
+  gap: 1.25rem;
+  max-width: var(--rv-content-max);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.header h1,
+.header h2 { margin: 0; font-size: 1.25rem; }
+.header p { margin: 0; color: var(--rv-muted-foreground); font-size: 0.875rem; }
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tabs button {
+  padding: 0.4rem 0.875rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.tabs button.active,
+.presetChoice.active {
+  border-color: var(--rv-primary);
+  background: var(--rv-primary-soft);
+  color: var(--rv-primary-ink);
+}
+
+.panel,
+.card,
+.section,
+.ruleCard,
+.versionSection,
+.config {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.controlDeck {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem 1rem;
+  align-items: end;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.controlActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  align-items: center;
+}
+
+.optionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.optionGrid label,
+.controlDeck label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--rv-muted-foreground);
+}
+
+.optionGrid input,
+.optionGrid select,
+.controlDeck select,
+.controlDeck input {
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-input);
+  color: var(--rv-foreground);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.presetChoice {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 0.875rem;
+  text-align: left;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* 进度：阶段列表 + 进度条 */
+.progressHeading {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.progressTrack {
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--rv-skeleton-base);
+  overflow: hidden;
+}
+
+.progressTrack > * {
+  display: block;
+  height: 100%;
+  background: var(--rv-primary);
+}
+
+.stageList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--rv-muted-foreground);
+}
+
+/* 结果 */
+.visualGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 60rem) {
+  .visualGrid { grid-template-columns: 1fr; }
+}
+
+.equityChart {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-background);
+}
+
+.equityChart polyline { fill: none; stroke: var(--rv-primary); stroke-width: 2; }
+
+.chartCaption,
+.chartEmpty {
+  color: var(--rv-muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.metrics,
+.evidence {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics > *,
+.evidence > * {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.8125rem;
+}
+
+.metrics b,
+.evidence b { font-size: 1.0625rem; }
+
+/* 回测警告绝不能看起来像装饰（INV-6：未达门槛必须显式标注）。 */
+.warnings {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--rv-warning);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-warning-soft);
+  font-size: 0.8125rem;
+}
+
+.notice {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-neutral-soft);
+  font-size: 0.875rem;
+}
+
+/* 成交明细 */
+.trades,
+.tradeFeed {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 22rem;
+  overflow: auto;
+}
+
+.tradeTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tradeTable th,
+.tradeTable td {
+  padding: 0.45rem 0.625rem;
+  text-align: right;
+  border-bottom: 1px solid var(--rv-border);
+}
+
+.tradeTable th:first-child,
+.tradeTable td:first-child { text-align: left; }
+.tradeTable thead th { background: var(--rv-table-header); color: var(--rv-muted-foreground); }
+.tradeTable tbody tr:hover { background: var(--rv-row-hover); }
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1rem;
+}
+
+.detailTitle { display: grid; gap: 0.25rem; }
+.detailTitle h1 { margin: 0; font-size: 1.25rem; }
+.detailTitle small { color: var(--rv-muted-foreground); }
+
+.primary {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--rv-primary);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-primary);
+  color: var(--rv-primary-foreground);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* 运行状态条。阶段用 data-stage 表达，而不是把状态编进类名——
+ * 后者会让「新增一个阶段」变成必须同步改样式表。 */
+.liveStatus {
+  display: flex;
+  gap: 0.625rem;
+  align-items: center;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-neutral-soft);
+  font-size: 0.8125rem;
+}
+
+.liveStatus[data-stage="failed"] {
+  border-color: var(--rv-danger);
+  background: var(--rv-danger-soft);
+}
+
+.liveStatus[data-stage="completed"] {
+  border-color: var(--rv-success);
+  background: var(--rv-success-soft);
+}

@@ -1,6 +1,6 @@
 import type { AppAudience } from "@/lib/riverton-apps";
 
-const CLIENT_ROUTES = new Set(["login", "dashboard", "legal", "account", "membership", "credits", "performance-statements", "paper", "trading-hall", "market", "assistant", "studio", "wallet", "notifications", "support"]);
+const CLIENT_ROUTES = new Set(["login", "dashboard", "legal", "account", "membership", "credits", "performance-statements", "paper", "trading-hall", "market", "assistant", "studio", "backtests", "wallet", "notifications", "support"]);
 const OPERATIONS_ROUTES = new Set(["login", "account", "customers", "organization", "team", "data-center", "membership-orders", "performance-statements", "credits", "deposits", "ledger", "finance", "approvals", "access"]);
 const MAINTENANCE_ROUTES = new Set(["login", "account", "models", "integrations", "health", "safety", "settings", "releases", "access", "audit"]);
 
@@ -15,6 +15,7 @@ export function isRivertonAppRoute(audience: AppAudience, segments: string[]) {
     if (root === "membership") return segments.length === 1 || (segments.length === 2 && segments[1] === "orders");
     if (root === "performance-statements") return segments.length <= 2;
     if (root === "paper") return segments.length <= 2;
+    if (root === "backtests") return segments.length <= 2;
     if (root === "trading-hall") return segments.length === 1 || (segments.length === 2 && segments[1] === "meeting");
     return segments.length === 1;
   }

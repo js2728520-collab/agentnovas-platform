@@ -246,7 +246,6 @@ oklch 走极坐标插值会把绿色 tint（hue 162）拉成橙色。需要混�
 | 文件 | 状态 |
 | --- | --- |
 | `app/globals-beta.css`（1922 行） | 服务落地页，**以及 `/assistant`、`/trading-hall`**——后两个是 P4 迁移的临时代价：它们的 `agent-chat-*` / `hall-*` / `meeting-*` 样式只在这里有定义。约 515 条规则、61KB、其中 184 条含硬编码色值待转成 `--rv-*` 令牌驱动的 CSS Module。**不要往里加规则。** |
-| `app/strategy-backtest-center.tsx`（283 行）<br>`app/strategy-backtest-detail.tsx`（302 行） | 已保存策略的可配置回测界面。后端仍在（`/api/strategy-marketplace/[id]/backtest`，支持流式进度），但**既没有路由也没有样式**（原样式在已删的 `globals.css` 里）。要么按 `/studio` 的做法接回真实路由并按令牌重写样式，要么连同后端一起退役——这是产品决策。 |
 
 P4 已删除：`app/client-app.tsx`(2506)、`app/globals.css`(3871)、`app/locale-guard.tsx`、
 `app/i18n-runtime.ts`、`app/community-strategy-center.tsx`、`app/strategy-detail.tsx`、

@@ -1240,3 +1240,41 @@ NDJSON 流式阶段进度），删掉等于悄悄丢一个功能。
 ### 验证
 
 tsc、lint、884 项测试、三端 build、bundle 预算、7 条边界通过。
+
+
+## 36. 2026-08-22 回测界面接回真实路由 `/backtests`
+
+### 迁移
+
+`strategy-backtest-center`(283) 与 `strategy-backtest-detail`(302) 迁到
+`apps/client/ui/`，新增包装组件 `backtest-workspace.tsx` 负责取已保存策略列表
+（`GET /api/strategy-marketplace` 的 `mine`）并按路由段分发：
+列表 `/backtests`，单策略 `/backtests/:id`。导航新增「策略回测」。
+
+与 `/studio` 的分工写进了组件注释：**studio 产生策略**（多智能体研发流水线，
+自带训练/验证集切分与确定性准入），**backtests 对已保存策略按自选参数复算**，
+用于解读与对比。
+
+### 样式按令牌重写
+
+原样式只在已删的 `globals.css` 里。新建 `backtest.module.css`，33 个类名全部按
+`--rv-*` 令牌重写。其中运行状态条改用 `data-stage` 属性表达阶段，而不是把状态
+编进类名——后者会让「新增一个阶段」变成必须同步改样式表。
+
+### 验证方法的修正
+
+上一批的教训（§35）是「路由通了不等于页面对了」。这次专门验证了样式：
+
+- 初次检查用「初始 HTML 里的 CSS 链接是否含回测规则」，结果为否——但那是
+  **检查方法错了**：组件走 `next/dynamic`，CSS 随组件 chunk 按需加载，本来就
+  不在初始 HTML 里。
+- 改为检查构建产物：dev 与生产构建里都存在含 `equityChart` / `controlDeck`
+  规则的 CSS chunk，与组件绑定。
+
+与 §35 那次回归的本质区别：那次是**类名引用的样式表没有任何页面加载**；
+这次是 CSS Module 由组件自己 import，必然随组件一起送达。
+
+### 验证
+
+tsc、lint、884 项测试、三端 build、bundle 预算、7 条边界通过。
+运行时实测 `/backtests` 与 `/backtests/:id` 在客户端 200、运营端 404。

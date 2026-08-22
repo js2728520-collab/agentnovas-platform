@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import styles from "./backtest.module.css";
+
 export type StrategyBacktestSummary = {
   id: string;
   name: string;
@@ -219,37 +221,37 @@ export function StrategyBacktestCenter({
   const curve = useMemo(() => result ? equityCurvePoints(result) : "", [result]);
   const currentStageIndex = stages.findIndex(item => item.id === stage);
 
-  return <div className="strategy-backtest-center-page">
-    <header className="strategy-workspace-header">
+  return <div className={styles.page}>
+    <header className={styles.header}>
       <button type="button" onClick={onBack}>返回策略列表</button>
       <div><small>VISUAL BACKTEST LAB</small><h2>历史回测中心</h2><p>查看真实运行阶段、资金曲线和逐笔结果；历史表现不代表未来收益。</p></div>
       <span>不会创建真实订单</span>
     </header>
 
-    <nav className="strategy-workspace-tabs" aria-label="策略工作区">
+    <nav className={styles.tabs} aria-label="策略工作区">
       <button type="button" onClick={onBack}><b>策略列表</b><small>版本、审核与分享</small></button>
-      <button type="button" className="active" aria-current="page"><b>回测与模拟</b><small>历史回测可视化</small></button>
+      <button type="button" className={styles.active} aria-current="page"><b>回测与模拟</b><small>历史回测可视化</small></button>
     </nav>
 
-    <section className="backtest-control-deck">
+    <section className={styles.controlDeck}>
       <div>
         <label>选择策略<select value={strategyId} disabled={busy} onChange={event => { setStrategyId(event.target.value); setStage("idle"); setProgress(0); }}><option value="">请选择策略</option>{strategies.map(strategy => <option key={strategy.id} value={strategy.id}>{strategy.name} · V{strategy.version}</option>)}</select></label>
         <p>{selected ? `${selected.symbols.join(" · ")} · 创建于 ${dateText(selected.createdAt)}` : "先从策略列表选择一个版本"}</p>
       </div>
-      <div className="backtest-control-actions">
+      <div className={styles.controlActions}>
         <button type="button" onClick={() => strategyId && onOpenDetail(strategyId)} disabled={!strategyId || busy}>查看规则</button>
-        <button type="button" className="primary" onClick={() => void runBacktest()} disabled={!strategyId || busy}>{busy ? "回测运行中" : "开始历史回测"}</button>
+        <button type="button" className={styles.primary} onClick={() => void runBacktest()} disabled={!strategyId || busy}>{busy ? "回测运行中" : "开始历史回测"}</button>
       </div>
     </section>
 
-    <section className={`backtest-live-status ${stage}`} aria-live="polite">
-      <div className="backtest-progress-heading"><div><small>RUN STATUS</small><b>{statusMessage}</b></div><strong>{progress}%</strong></div>
-      <div className="backtest-progress-track"><i style={{ width: `${progress}%` }} /></div>
-      <div className="backtest-stage-list">{stages.map((item, index) => <span key={item.id} className={stage === "completed" || index < currentStageIndex ? "done" : item.id === stage ? "running" : ""}><i>{stage === "completed" || index < currentStageIndex ? "✓" : index + 1}</i>{item.label}</span>)}</div>
+    <section className={styles.liveStatus} data-stage={stage} aria-live="polite">
+      <div className={styles.progressHeading}><div><small>RUN STATUS</small><b>{statusMessage}</b></div><strong>{progress}%</strong></div>
+      <div className={styles.progressTrack}><i style={{ width: `${progress}%` }} /></div>
+      <div className={styles.stageList}>{stages.map((item, index) => <span key={item.id} className={stage === "completed" || index < currentStageIndex ? "done" : item.id === stage ? "running" : ""}><i>{stage === "completed" || index < currentStageIndex ? "✓" : index + 1}</i>{item.label}</span>)}</div>
     </section>
 
-    <div className="backtest-visual-grid">
-      <section className="strategy-equity-chart">
+    <div className={styles.visualGrid}>
+      <section className={styles.equityChart}>
         <header><div><small>EQUITY CURVE</small><h3>资金曲线</h3></div><span>{result ? `${result.sampleSize || 0} 笔已完成交易` : "等待回测结果"}</span></header>
         {result ? <>
           <svg viewBox="0 0 900 260" role="img" aria-label="回测资金曲线">
@@ -257,27 +259,27 @@ export function StrategyBacktestCenter({
             <line x1="18" y1="242" x2="882" y2="242" />
             <polyline points={curve} fill="none" vectorEffect="non-scaling-stroke" />
           </svg>
-          <div className="backtest-chart-caption"><span>{dateText(result.periodStart)}</span><span>{dateText(result.periodEnd)}</span></div>
-        </> : <div className="backtest-chart-empty"><i /><p>{busy ? "回测引擎完成后将在这里绘制真实资金曲线" : "运行回测后显示逐笔权益变化，不使用演示数据"}</p></div>}
+          <div className={styles.chartCaption}><span>{dateText(result.periodStart)}</span><span>{dateText(result.periodEnd)}</span></div>
+        </> : <div className={styles.chartEmpty}><i /><p>{busy ? "回测引擎完成后将在这里绘制真实资金曲线" : "运行回测后显示逐笔权益变化，不使用演示数据"}</p></div>}
       </section>
 
-      <aside className="backtest-simulation-card">
+      <aside className={styles.card}>
         <small>PAPER RUNTIME</small><h3>模拟运行</h3><p>历史回测用于验证过去；模拟运行按新完成的 K 线持续生成信号，两者不会混成一份结果。</p>
         <ul><li>固定策略版本</li><li>七模块决策时间线</li><li>真实订单路由关闭</li></ul>
         <span>模拟盘从通过保存的研发候选启动</span>
       </aside>
     </div>
 
-    {result && <section className="backtest-result-panel">
-      <div className="backtest-result-metrics">
+    {result && <section className={styles.panel}>
+      <div className={styles.metrics}>
         <span>净收益<b className={Number(result.netReturnPct || 0) >= 0 ? "up" : "down"}>{numberText(result.netReturnPct, "%")}</b></span>
         <span>最大回撤<b>{numberText(result.maxDrawdownPct, "%")}</b></span>
         <span>胜率<b>{numberText(result.winRatePct, "%")}</b></span>
         <span>盈亏因子<b>{numberText(result.profitFactor)}</b></span>
         <span>期末权益<b>{numberText(result.finalEquityUsdt, " USDT")}</b></span>
       </div>
-      {Boolean(result.warnings?.length) && <div className="strategy-report-warnings">{result.warnings?.map(warning => <p key={warning}>提示：{warning}</p>)}</div>}
-      <div className="backtest-trade-feed"><header><h3>最近完成交易</h3><span>{result.provider || "平台行情引擎"} · {result.candleCount || 0} 根 K 线</span></header>{result.trades?.length ? result.trades.slice(-8).reverse().map(trade => <div key={`${trade.openedAt}:${trade.closedAt}`}><span>{dateText(trade.closedAt)}</span><b className={trade.netPnl >= 0 ? "up" : "down"}>{numberText(trade.netPnl, " USDT")}</b><small>{trade.reason}</small></div>) : <p>本次没有已完成交易，请检查信号触发频率与规则边界。</p>}</div>
+      {Boolean(result.warnings?.length) && <div className={styles.warnings}>{result.warnings?.map(warning => <p key={warning}>提示：{warning}</p>)}</div>}
+      <div className={styles.tradeFeed}><header><h3>最近完成交易</h3><span>{result.provider || "平台行情引擎"} · {result.candleCount || 0} 根 K 线</span></header>{result.trades?.length ? result.trades.slice(-8).reverse().map(trade => <div key={`${trade.openedAt}:${trade.closedAt}`}><span>{dateText(trade.closedAt)}</span><b className={trade.netPnl >= 0 ? "up" : "down"}>{numberText(trade.netPnl, " USDT")}</b><small>{trade.reason}</small></div>) : <p>本次没有已完成交易，请检查信号触发频率与规则边界。</p>}</div>
     </section>}
   </div>;
 }
