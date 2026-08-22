@@ -1,9 +1,17 @@
+/**
+ * OKX Demo 一键平仓。
+ *
+ * 从 lib/trading-emergency-close.ts 迁到执行边界内（ADR-0019 第 1 步）：
+ * 它需要客户凭证，因此必须与解密点住在同一个边界里，将来一起搬进独立执行服务进程。
+ */
+
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, exchangeAccounts, platformDecisions, trades } from "@/db/schema";
-import { decryptExchangeCredential } from "@/lib/exchange-credentials";
 import { getOkxDemoOrder, okxFeeInUsdt, placeOkxDemoMarketOrder } from "@/lib/okx-demo-execution";
+
+import { loadExchangeCredential } from "./credential-access.ts";
 
 type OpenTrade = typeof trades.$inferSelect;
 
@@ -17,7 +25,12 @@ export type EmergencyCloseResult = {
 export async function closeOkxDemoTrade(position: OpenTrade, account: typeof exchangeAccounts.$inferSelect, now: string): Promise<EmergencyCloseResult> {
   if (position.side !== "buy") return { tradeId: position.id, symbol: position.symbol, status: "unsupported", message: "当前仅支持 OKX Demo 现货多仓的一键平仓" };
   try {
-    const credentials = await decryptExchangeCredential(account.encryptedCredentialRef);
+    // 走凭证代理而不是直接解密：解密只允许发生在 lib/execution/credential-access.ts
+    // （ADR-0019），由架构边界规则强制。
+    const { credentials } = await loadExchangeCredential({
+      accountId: account.id,
+      customerId: account.customerId,
+    });
     if (position.status === "closing" && position.closeExchangeOrderId) {
       const order = await getOkxDemoOrder({ credentials, symbol: position.symbol, orderId: position.closeExchangeOrderId });
       if (order.state === "filled" && order.filledQuantity > 0 && order.averagePrice > 0) {

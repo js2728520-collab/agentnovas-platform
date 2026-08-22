@@ -9,7 +9,7 @@ import {
 } from "@/db/schema";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
-import { closeOkxDemoTrade, type EmergencyCloseResult as CloseResult } from "@/lib/trading-emergency-close";
+import { closeOkxDemoTrade, type EmergencyCloseResult as CloseResult } from "@/lib/execution/emergency-close";
 
 export async function POST(request: Request) {
   try {

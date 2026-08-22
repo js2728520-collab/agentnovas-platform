@@ -40,7 +40,7 @@ test("当前仓库通过全部架构边界检查", async () => {
   const results = await checkArchitectureBoundaries();
   const failures = results.flatMap((rule) => rule.violations.map((v) => `[${rule.name}] ${v}`));
   assert.deepEqual(failures, []);
-  assert.ok(results.length >= 7, "规则数量不应意外减少");
+  assert.ok(results.length >= 8, "规则数量不应意外减少");
 });
 
 test("跨 audience import 会被抓到", async () => {
@@ -163,4 +163,33 @@ test("路由后缀与清单 audience 不一致会被抓到", async () => {
     },
   );
   assert.deepEqual(await violationsOf("API 路由后缀与 audience 一致"), []);
+});
+
+test("Web 层解密交易所凭证会被抓到", async () => {
+  // GA 打开实盘后，公网盒子被攻破一次 = 全部客户交易权限被拿走（ADR-0019）。
+  await withTemporaryFile(
+    "apps/client/ui/__boundary_probe__.ts",
+    'import { decryptExchangeCredential } from "@/lib/exchange-credentials";\nexport const probe = decryptExchangeCredential;\n',
+    async () => {
+      const violations = await violationsOf("交易所凭证解密点收敛");
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /decryptExchangeCredential/);
+      assert.match(violations[0], /credential-access/);
+    },
+  );
+  assert.deepEqual(await violationsOf("交易所凭证解密点收敛"), []);
+});
+
+test("执行边界之外引用凭证访问模块会被抓到", async () => {
+  // 「收敛到一个模块」若允许任何人 import 它，等于没收敛。
+  await withTemporaryFile(
+    "lib/__boundary_probe__.ts",
+    'export const probe = "@/lib/execution/credential-access";\n',
+    async () => {
+      const violations = await violationsOf("交易所凭证解密点收敛");
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /只允许被 lib\/execution\/ 内的模块使用/);
+    },
+  );
+  assert.deepEqual(await violationsOf("交易所凭证解密点收敛"), []);
 });

@@ -3,8 +3,8 @@ import { getDb } from "@/db";
 import { auditLogs, exchangeAccounts } from "@/db/schema";
 import { EXCHANGE_ADAPTER_STATUS } from "@/lib/exchange-adapters";
 import { getExchangeCapability } from "@/lib/exchange-capabilities";
-import { decryptExchangeCredential } from "@/lib/exchange-credentials";
-import { ExchangeAdapterError, verifyExchangeConnection } from "@/lib/exchange-adapters";
+import { ExchangeAdapterError } from "@/lib/exchange-adapters";
+import { verifyExchangeAccount } from "@/lib/execution/exchange-account-verification";
 import { getExchangeOrderRoutingStatus } from "@/lib/exchange-order-routing";
 import { requireUser, responseError } from "@/lib/session";
 
@@ -32,8 +32,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (body.action === "check") {
       try {
-        const credentials = await decryptExchangeCredential(row.encryptedCredentialRef);
-        const result = await verifyExchangeConnection({ exchange: row.exchange, environment: row.environment, credentials });
+        // Web 层不再解密：只传账户 id，拿回的结果里没有任何机密（ADR-0019）。
+        // 这也是未来执行服务的接口形状——抽成独立进程时这一行换成跨进程调用即可。
+        const result = await verifyExchangeAccount({ accountId: id, customerId: me.id });
         status = "active";
         canRead = result.canRead;
         canTrade = result.canTrade;

@@ -154,4 +154,27 @@ Web 层现在有两处需要凭证，都改为委托：
 6. **打开实盘路由**（移除 `assertBetaSpotRuntimeLease` 的硬关闭），
    按交易所逐个灰度。
 
-第 1 步就能显著缩小敞口，且不依赖后面任何一步。
+### 关于第 1 步收益的更正
+
+本 ADR 初稿写的是「第 1 步就能显著缩小敞口」。**实施后实测，这句话是夸大的。**
+
+第 1 步之后，`lib/execution/credential-access.ts` 仍与 Web 应用同进程，客户端服务端
+构建里依然含解密代码并引用 `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`（实测 3 个 chunk）。
+**敞口没有变化。**
+
+第 1 步实际达成的是三件事，都不是「缩小敞口」而是「让缩小敞口成为可能」：
+
+1. 解密点从 3 处收敛到 1 处（此前是 `exchange-accounts/[id]`、
+   `trading-emergency-close`、`research-exchange-account`）；
+2. 架构边界规则第 8 条阻止新的解密点出现——包括阻止 Web 层重新直接解密；
+3. 调用形状定成了 RPC-ready：只传 id、只拿回非机密结果，第 2 步换成跨进程调用时
+   上层零改动。
+
+**敞口的实际消除在第 2 步。** 它的验收标准是可机器检查的：
+
+```bash
+# 三个 Web 构建的服务端产物里都不应再出现这个名字
+grep -rl EXCHANGE_CREDENTIAL_ENCRYPTION_KEY .next-client/server .next-operations/server .next-maintenance/server
+```
+
+在那之前，「Web 进程持有全部客户交易凭证的解密能力」这条已知缺口保持有效。

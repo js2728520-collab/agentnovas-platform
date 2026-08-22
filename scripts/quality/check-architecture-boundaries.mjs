@@ -243,6 +243,47 @@ rules.push(async function apiRouteAudienceSuffix() {
   return { name: "API 路由后缀与 audience 一致", violations };
 });
 
+// 8. 交易所凭证的解密点必须收敛。
+//    凭证是 AES-GCM 密文内联存在 exchange_accounts，密钥来自环境变量——任何同时
+//    拥有该变量与数据库读权限的进程都能解密全部客户的交易凭证。此前公网 Web 进程
+//    正是这样一个进程。GA 打开实盘后，公网盒子被攻破一次 = 全部客户交易权限被拿走。
+//    见 docs/adr/0019-ga-execution-service-and-key-custody.md。
+rules.push(async function exchangeCredentialCustody() {
+  // 允许解密的地方。research-exchange-account 跑在研发 Worker（独立进程），
+  // 只取只读凭证算手续费；ADR-0019 的后续步骤会让它也走执行服务。
+  const decryptImporters = new Set([
+    "lib/execution/credential-access.ts",
+    "lib/research-exchange-account.ts",
+  ]);
+  // 凭证访问模块只允许在执行边界内被引用——否则「收敛到一个模块」等于没收敛。
+  const credentialAccessImporters = /^lib\/execution\//;
+
+  const violations = [];
+  const sources = [
+    ...await walk("app", [".ts", ".tsx"]),
+    ...await walk("apps", [".ts", ".tsx"]),
+    ...await walk("lib", [".ts"]),
+    ...await walk("packages", [".ts", ".tsx"]),
+    ...await walk("scripts", [".ts", ".mjs"]),
+  ];
+  // 检查器与它的测试自身会提到这些名字，跳过——否则规则永远红。
+  const selfReferential = new Set([
+    "scripts/quality/check-architecture-boundaries.mjs",
+    "lib/exchange-credentials.ts",
+  ]);
+  for (const file of sources) {
+    if (selfReferential.has(file)) continue;
+    const source = await readSource(file);
+    if (/decryptExchangeCredential/.test(source) && !decryptImporters.has(file)) {
+      violations.push(`${file} 引用了 decryptExchangeCredential；解密只允许发生在 ${[...decryptImporters][0]}`);
+    }
+    if (/execution\/credential-access/.test(source) && !credentialAccessImporters.test(file)) {
+      violations.push(`${file} 引用了凭证访问模块；它只允许被 lib/execution/ 内的模块使用`);
+    }
+  }
+  return { name: "交易所凭证解密点收敛", violations };
+});
+
 // ---------------------------------------------------------------------------
 
 export async function checkArchitectureBoundaries() {

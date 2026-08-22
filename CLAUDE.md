@@ -173,6 +173,17 @@ apps/*  →  packages/*  →  lib/
   **GA 打开实盘前必须把密钥从 Web 层拿掉**，见
   `docs/adr/0019-ga-execution-service-and-key-custody.md`。
 
+  解密点已收敛到 `lib/execution/credential-access.ts` 一处，并由架构边界规则第 8 条
+  强制（Web 层不得解密、凭证访问模块只允许 `lib/execution/` 内引用）。
+  **但那只是让下一步成为可能，敞口没变**：该模块仍与 Web 同进程，客户端服务端构建
+  里依然含解密代码。验收标准是
+
+  ```bash
+  grep -rl EXCHANGE_CREDENTIAL_ENCRYPTION_KEY .next-client/server
+  ```
+
+  查不到任何文件——目前查得到。
+
 - **审计链尾锚定已就位，但归档到库外还没做。** 迁移 0044 的哈希链检不出截断链尾
   ——把最后 N 行删掉，剩下的链依然自洽。迁移 0049 增加 `audit_chain_anchors`：
   把当时的链尾（`chain_seq` + `row_hash` + 总行数）登记成锚点，
