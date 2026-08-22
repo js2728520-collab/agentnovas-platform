@@ -130,6 +130,38 @@ apps/*  →  packages/*  →  lib/
 
 ---
 
+## 本地开发环境
+
+一次性准备：
+
+```bash
+createdb agentnovas_dev
+npm run postgres:migrate
+ALLOW_LOCAL_DEV_BOOTSTRAP=1 node --env-file-if-exists=.env.local --experimental-strip-types scripts/dev/provision-local-roles.mjs
+ALLOW_LOCAL_DEV_BOOTSTRAP=1 node --env-file-if-exists=.env.local --experimental-strip-types scripts/dev/bootstrap-local-admin.mjs <邮箱> <密码>
+```
+
+日常启停：
+
+```bash
+bash scripts/dev/start-local.sh        # 3010 客户端 · 3011 运营端 · 3012 运维端
+bash scripts/dev/start-local.sh stop
+```
+
+三个必须知道的点：
+
+- **三端各用自己的数据库角色。** `lib/postgres.ts` 强制「连接串角色 == audience」，
+  迁移 0040/0043 的 RLS 也按 `current_user` 判定。用超级用户连会直接报
+  「Web DATABASE_URL 数据库角色与 RIVERTON_APP_AUDIENCE 不匹配」。
+- **`RIVERTON_APP_LOCAL_PORT` 必须与实际端口一致**，否则 audience 解析返回
+  `UNKNOWN_AUDIENCE`（Host 头解析是刻意 fail-closed 的）。
+- **zsh 陷阱**：`"$role:localdev"` 会被当成参数展开修饰符 `:l`（小写化），
+  连接串静默损坏成 `<role>ocaldev`，而且错误信息只说「角色不匹配」，很难联想到。
+  写连接串一律用 `"${role}:..."`。
+
+内部端（运营/运维）强制 MFA。`getPostgresPool` 会缓存首次失败的 Promise，
+所以连接串配错时改完必须重启进程，热重载不会恢复。
+
 ## 改完必须跑什么
 
 ```bash
