@@ -675,14 +675,75 @@ P1 只剩 `strategy-runtime-worker`(548)。它比 credits 难：credits 是「�
 tsc、lint、830 项测试（+8）、三端 build、bundle 预算、6 条边界全部通过。
 零残留引用。
 
-### 已定但未实施：`safeRiskState` 改为失败安全
+### 已实施（第 2 步）：`safeRiskState` 改为失败安全
 
 `lib/strategy-runtime-worker.ts` 的 `safeRiskState` 在风控读数非有限时静默取 0。
 回撤取 0 等于「账户从未亏损」，结果是**更容易开仓**——方向与 INV-7 相反。
 
-**已决定改为失败安全**（读不出来 → 判定风控状态不可用 → `halted: true` → 本轮不开新仓，
-并在决策记录中写明原因，而非静默跳过）。**在第 2 步随 worker 纯判定抽取一起实施。**
+**已改为失败安全**，见 §27。实施时把方案改进了一处：不复用 `halted`，
+而是单列 `unavailableFields`——熔断是风控生效，读数损坏是风控失效，
+运营端看到这两种情况要做的事不同，混在一起会显示成「已触发熔断」。
 
 安全性前提已核实：`strategy-runtime-engine.ts` 中
 `riskApproved = action === "exit" || action === "hold" || 无拒绝理由`，
 所有风控检查都只作用于开仓，平仓无条件放行。因此 `halted: true` 不会把客户困在仓位里。
+
+
+## 27. 2026-08-22 P1 运行时判定抽取 + 风控读数改为失败安全
+
+`lib/strategy-runtime-worker.ts` 548 → 494 行（净减约 70 行逻辑，另加 15 行 import）。
+租约、心跳、快照、扇出、记账留在原处；判定进 `packages/domain/src/runtime/`。
+
+### 迁入
+
+| 模块 | 内容 |
+| --- | --- |
+| `cycle-planning.ts` | 选 K 线、周期 id、轮询节奏、资金费率窗口、现货行情严格校验 |
+| `risk-state.ts` | 风控读数归一化（**行为变更，见下**） |
+| `deployment-overrides.ts` | 部署级覆盖只能收紧 |
+| `explanation-retry.ts` | 解释任务失败分类与退避 |
+
+`selectCycleCandle` 消掉了一处重复：选 K 线的逻辑此前在现货与永续两条路径里
+各写了一份，两份当时一致但没有任何机制保证继续一致。
+
+### 行为变更：风控读数失败安全（INV-7）
+
+原写法 `Number.isFinite(x) ? Math.max(x, 0) : 0`——回撤取 0 等于「账户从未亏损」，
+风控因此看到一个完美健康的账户并放行开仓。**读数越坏越容易开仓**，方向与
+失败安全相反，且悄无声息。
+
+现在损坏字段记进 `unavailableFields`，引擎据此拒绝开仓并写明是哪个字段。
+
+三个设计决定：
+
+1. **不复用 `halted`。** 熔断是风控生效，读数损坏是风控失效。合并会让运营端
+   看到「已触发熔断」而实际只是数据坏了，两者的处置动作完全不同。
+2. **缺失按 0，损坏才算不可用。** 0007 号迁移的 `risk_state_json` 默认值包含
+   全部三个字段且列是 NOT NULL，所以缺失只可能出现在从未写入的新部署上——
+   新部署的回撤确实是 0，这是真实读数不是猜的。「算出了一个值而这个值是错的」
+   才是危险情况。
+3. **不能用 `Number(value)` 判可用性。** 写测试时发现 `Number([]) === 0`
+   会让空数组被当成「没有回撤」溜过去，`false` 与 `""` 同理。改成先判类型
+   （只接受数字与非空数字字符串）再转换。
+
+**平仓不受影响。** 引擎里
+`riskApproved = action === "exit" || action === "hold" || 无拒绝理由`，
+所有风控检查都只作用于开仓。有断言钉住这条：读数全坏时平仓仍然放行且照常
+产生订单意图。改动这一行等于改动客户能不能离场。
+
+### 覆盖变化
+
+`tests/domain-runtime-cycle-planning.test.mjs`(12)、`tests/domain-runtime-risk.test.mjs`(17)，
+共 29 项，全部不需要数据库。此前这些判定只能靠起数据库跑整轮决策间接验证。
+
+### 验证
+
+tsc、lint、859 项测试（+29）、三端 build、bundle 预算、6 条边界通过。
+另跑本地 Postgres 的 `official-platform-spot-runtime` /
+`strategy-runtime-repository` / `beta-legacy-runtime-hardclose` 共 27 项确认
+端到端未变。
+
+### P1 收尾状态
+
+`packages/domain/src` 约 3,500 行。仍留在 `lib/` 的运行时件是编排与仓储，
+本就该在那里。P1 可以收尾，下一批进 P2（按 audience 拆 API 面）。
