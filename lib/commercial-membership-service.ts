@@ -18,7 +18,7 @@ import {
 import {
   compareSignedDecimalStrings,
   requiredLegalDocumentTypes,
-} from "./commercial-membership-domain.ts";
+} from "../packages/domain/src/commercial-membership-domain.ts";
 import { hasReadableCommercialLegalContent } from "./commercial-legal.ts";
 import {
   activateOfficialPaperPortfoliosAfterDisclosure,

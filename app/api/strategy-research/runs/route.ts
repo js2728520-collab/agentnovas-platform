@@ -10,7 +10,7 @@ import { createPerpetualMarketAdapter, type PerpetualExchange } from "@/lib/perp
 import { createResearchRun, listOwnedResearchRuns, pauseResearchRunForMissingRoles } from "@/lib/postgres-research-queue";
 import { readResearchJson, requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { parseStrategyResearchTarget } from "@/lib/research-target";
-import type { ResearchMode } from "@/lib/research-validation";
+import type { ResearchMode } from "@/packages/domain/src/research-validation";
 import { runtimeSetting } from "@/lib/runtime-setting";
 
 function enabled() {

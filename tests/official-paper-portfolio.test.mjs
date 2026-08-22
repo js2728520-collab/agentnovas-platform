@@ -7,7 +7,7 @@ import {
   createOfficialPaperPortfolioState,
   markOfficialPaperPortfolio,
   officialPaperPortfolioSeeds,
-} from "../lib/official-paper-portfolio.ts";
+} from "../packages/domain/src/official-paper-portfolio.ts";
 
 test("every membership receives one isolated immutable 10,000 USDT portfolio per official card", () => {
   const seeds = officialPaperPortfolioSeeds({ membershipId: "membership-a", customerId: "customer-a" });

@@ -505,3 +505,71 @@ TypeScript、ESLint、793 项测试（+17）、三端 build、bundle budget、�
 哈希链检不出「截断链尾」——这是哈希链的固有性质，不是缺陷。需要把链尾哈希定期
 外送到本库之外（备份、日志系统或运维端存档）。已在测试中显式记录为预期行为，
 GA 前需补这个运维动作。
+
+## 24. 2026-08-22 P1 纯域层抽取（第一阶段）
+
+把核心业务逻辑从 `lib/` 的框架与仓储耦合里解放出来，并为真实交易 + 策略跟单
+留出执行缝。分支 `refactor/foundation`，未推送。
+
+### 迁移判定
+
+按「是否做 I/O」逐个甄别，过程中纠正了三处误判：
+
+- `exchange-adapters` 与 `research-agent` 看似零依赖，实则用
+  `options.fetchImpl ?? fetch` 的注入式写法发真实请求，属于适配器层，不进域层。
+- `performance-fee-service` 原以为需要拆分，实际上高水位线计算早已抽到
+  `commercial-membership-domain.ts`，服务文件剩下的是编排与持久化，本就该留在 `lib/`。
+- `strategy-runtime-engine` 移入后又退回：它的依赖链
+  （`platform-strategy-v3` → `platform-ai-strategies` → `market-data` →
+  `public-market-source`）底部是 I/O，强行搬会违反边界规则或拖一条以 I/O 结尾
+  的链进来。等 `market-data` 端口化后再处理。
+
+`research-errors.ts` 刻意不迁：`ResearchApiError` 带 HTTP `status` 字段，
+是传输层语义。依赖它的 `release-version-domain` 因此一并推迟——改错误类型会
+影响状态码，属于行为变更，不该混在搬迁里做。
+
+### 已迁入（约 2,450 行）
+
+`strategy-dsl`(949)、`backtest-engine` 纯计算部分(662)、`research-validation`(237)、
+`official-paper-portfolio`(232)、`follow-policy`(65)、`commercial-membership-domain`(65)、
+`business-rules`(58)；`packages/ledger/src/ledger.ts`(51)。
+
+`backtest-engine` 按既有的缝拆开：`loadBacktestCandles`（取数）与
+`runBacktestOnCandles`（纯计算）本就分离，取数与编排 50 行留在 `lib/`。
+
+### 新增执行缝
+
+平台的目标形态是真实交易 + 策略跟单，执行层是主干而非 GA 时才接的东西。
+
+- `OrderIntent` 是纯值：不知道交易所、不知道凭证、不知道签名；带决策轮溯源
+  （`decisionRoundId` / `traceId` / `contractHash` / `candleId`）兑现 INV-8 的幂等要求。
+- 用「目标仓位比例」而非绝对数量：跟单场景下每个客户本金不同，同一条意图扇出到
+  N 个组合各自换算，换算在执行端进行，域层不知道任何客户余额。
+- `ExecutionPort.execute` 设计成批量：一轮决策扇出到该卡全部订阅组合，
+  5000 会员即 5000 次调用，限流/重试/部分失败/对账是执行端责任。
+- `resolveOrderQuantity` 取「意图目标比例」与「组合上限比例」中更严格者——
+  客户设定的上限永远不能被策略意图突破。
+
+### 机器强制
+
+新增架构边界规则「域层不做 I/O」，覆盖 `packages/domain/src` 与 `packages/ledger/src`：
+禁止 import `next` / `pg` / `drizzle-orm` / Node I/O 模块，禁止直接调 `fetch`，
+禁止反向依赖 `lib/`。配三条「故意制造违例能被抓到」的测试。
+
+### 文档
+
+`packages/domain/CLAUDE.md` 与 `packages/ledger/CLAUDE.md` 记录各自的硬规则与
+对应的 INV。其中一条来自实测：仓库用 `node --experimental-strip-types` 跑脚本与
+测试，strip-only 模式不支持 TypeScript 参数属性、enum、namespace，运行时会抛
+`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`。
+
+### 验证
+
+tsc、lint、810 项测试、三端 build、bundle 预算、6 条架构边界全部通过。
+
+### 下一步
+
+`packages/domain` 目前 4,802 行。剩余待迁的是混了 I/O 的大件，需要先端口化：
+`ai-credit-service`(497，reserve/settle/release 语义)、
+`strategy-runtime-worker`(548，决策轮调度与七阶段编排)、
+以及 `market-data` / `research-steps` 端口化之后的 `strategy-runtime-engine` 依赖链。

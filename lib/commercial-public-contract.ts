@@ -1,5 +1,5 @@
 import { PAYMENT_REFERENCE_FINGERPRINT_VERSION } from "./commercial-api-support.ts";
-import { compareSignedDecimalStrings } from "./commercial-membership-domain.ts";
+import { compareSignedDecimalStrings } from "../packages/domain/src/commercial-membership-domain.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 const membershipStatuses = {

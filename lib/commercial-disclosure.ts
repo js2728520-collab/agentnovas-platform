@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { requiredLegalDocumentTypes } from "./commercial-membership-domain.ts";
+import { requiredLegalDocumentTypes } from "../packages/domain/src/commercial-membership-domain.ts";
 import { commercialLegalContentSha256 } from "./commercial-legal.ts";
 
 export type CommercialDisclosureProductIdentity = {

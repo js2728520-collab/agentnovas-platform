@@ -5,7 +5,7 @@ import {
   applyOfficialPaperFill,
   officialPaperPortfolioSeeds,
   type OfficialPaperPortfolioState,
-} from "./official-paper-portfolio.ts";
+} from "../packages/domain/src/official-paper-portfolio.ts";
 import {
   officialTradingHallStrategies,
   type OfficialTradingHallStrategy,

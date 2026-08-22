@@ -1,7 +1,7 @@
 import {
   officialTradingHallStrategies,
   type OfficialTradingHallStrategy,
-} from "../packages/contracts/src/trading-hall.ts";
+} from "../../contracts/src/trading-hall.ts";
 
 export const OFFICIAL_PAPER_PRINCIPAL_USDT = 10_000 as const;
 

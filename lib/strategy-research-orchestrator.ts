@@ -44,7 +44,7 @@ import {
   splitResearchCandles,
   type AdmissionMetrics,
   type ResearchMode,
-} from "./research-validation.ts";
+} from "../packages/domain/src/research-validation.ts";
 import { parseStrategyResearchTarget } from "./research-target.ts";
 import { normalizeResearchStrategyDsl, strategyDslToRuntime, type StrategyCandle, type StrategyDslV3 } from "../packages/domain/src/strategy-dsl.ts";
 

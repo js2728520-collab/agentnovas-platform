@@ -1,4 +1,4 @@
-import type { ResearchMode } from "./research-validation.ts";
+import type { ResearchMode } from "../packages/domain/src/research-validation.ts";
 import {
   normalizeStrategyDslV3,
   strategyDslToRuntime,

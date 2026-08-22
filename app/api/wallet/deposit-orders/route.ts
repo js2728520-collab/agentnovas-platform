@@ -1,7 +1,7 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { idempotencyKey, requestId } from "@/lib/commercial-api";
 import { isSupportedDepositNetwork } from "@/lib/deposits";
-import { compareDecimalStrings, normalizeDecimalString } from "@/lib/ledger";
+import { compareDecimalStrings, normalizeDecimalString } from "@/packages/ledger/src/ledger";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { readUdunRuntimeConfig, requestUdunDepositAddress } from "@/lib/udun-payment";

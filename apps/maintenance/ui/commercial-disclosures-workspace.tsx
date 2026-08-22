@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import type { SystemSettings } from "@/lib/platform-settings-contract";
-import { requiredLegalDocumentTypes } from "@/lib/commercial-membership-domain";
+import { requiredLegalDocumentTypes } from "@/packages/domain/src/commercial-membership-domain";
 import { apiErrorMessage, formatDateTime } from "@/packages/contracts/src/riverton-ui";
 import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
 import { ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";

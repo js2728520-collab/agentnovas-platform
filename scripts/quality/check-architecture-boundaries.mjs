@@ -157,6 +157,7 @@ rules.push(async function legacyContainment() {
 //    没有数据库、没有网络、没有框架的环境里跑起来并被验证。一旦某个域模块开始
 //    import pg 或 fetch，它就退回成了普通的 lib 文件。
 rules.push(async function domainPurity() {
+  // packages/ledger 同样是领域层：定点小数运算与借贷平衡校验必须能脱离数据库验证。
   const forbidden = [
     { pattern: /from\s+["']next(\/|["'])/, reason: "import 了 next" },
     { pattern: /from\s+["']pg["']/, reason: "import 了 pg" },
@@ -167,10 +168,13 @@ rules.push(async function domainPurity() {
     { pattern: /@\/lib\//, reason: "反向依赖了 lib/" },
   ];
   const violations = [];
-  for (const file of await walk("packages/domain/src", [".ts", ".tsx"])) {
-    const source = await readSource(file);
-    for (const { pattern, reason } of forbidden) {
-      if (pattern.test(source)) violations.push(`${file} ${reason}；域层需要外部数据时应定义端口，由基础设施层实现`);
+  const pureRoots = ["packages/domain/src", "packages/ledger/src"];
+  for (const root of pureRoots) {
+    for (const file of await walk(root, [".ts", ".tsx"])) {
+      const source = await readSource(file);
+      for (const { pattern, reason } of forbidden) {
+        if (pattern.test(source)) violations.push(`${file} ${reason}；域层需要外部数据时应定义端口，由基础设施层实现`);
+      }
     }
   }
   return { name: "域层不做 I/O", violations };

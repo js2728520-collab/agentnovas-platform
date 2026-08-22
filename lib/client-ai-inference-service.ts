@@ -7,7 +7,7 @@ import {
   settleAiCreditReservationInTransaction,
 } from "./ai-credit-service.ts";
 import type { TrustedAiUsage } from "./ai-provider.ts";
-import { calculateTokenCost } from "./commercial-membership-domain.ts";
+import { calculateTokenCost } from "../packages/domain/src/commercial-membership-domain.ts";
 import { canonicalPayloadHash } from "./commercial-idempotency.ts";
 import { ResearchApiError } from "./research-errors.ts";
 

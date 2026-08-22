@@ -5,7 +5,7 @@ import {
   ensureUserAvailableLedgerAccount,
   postCommercialLedgerTransaction,
 } from "@/lib/commercial-ledger-service";
-import { compareDecimalStrings } from "@/lib/ledger";
+import { compareDecimalStrings } from "@/packages/ledger/src/ledger";
 import { customerScopePredicate } from "@/lib/operations-access";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
