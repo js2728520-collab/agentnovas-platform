@@ -629,3 +629,60 @@ P1 只剩 `strategy-runtime-worker`(548)。它比 credits 难：credits 是「�
 之间」，worker 是「七阶段编排夹在调度、心跳、重试之间」，切分点要先定义决策轮的
 阶段推进规则才能找。`strategy-runtime-engine` 仍被 `market-data` /
 `research-steps` 的 I/O 依赖链挡住，需要先端口化。
+
+
+## 26. 2026-08-22 P1 决策引擎迁入域层
+
+### 一处判断修正
+
+§24 写的「`strategy-runtime-engine` 被 `market-data` / `research-steps` 的 I/O
+依赖链挡住」是错的。逐文件核查后：三个模块都没有 `fetch`、没有 `.query()`、
+没有 `Date.now()`、没有随机数。挡住它们的是**两个 import 说明符**：
+
+- `platform-ai-strategies` 从 `market-data` 引的是 `import type { SpotCandle }`。
+  类型导入在运行时被擦除，根本不产生依赖。
+- `platform-strategy-v3` 从 `research-steps` 引的 `hashResearchStepInput` 是
+  `canonical()` + `crypto.subtle.digest`，纯函数，只是恰好和几个
+  `database.query` 住在同一个文件里。
+
+教训写进了 `packages/domain/CLAUDE.md`：判断一个模块该不该进域层，
+看它自己做不做 I/O，不是看它住在哪个文件里。
+
+### 迁入（+770 行，域层合计 3,279 行）
+
+| 模块 | 行数 | 内容 |
+| --- | --- | --- |
+| `canonical-hash.ts` | 50 | 规范化 JSON + SHA-256，幂等性的地基 |
+| `platform-ai-strategies.ts` | 247 | 三张官方策略卡的定义与评估 |
+| `platform-strategy-v3.ts` | 194 | 官方现货策略规格的规范化 |
+| `strategy-runtime-engine.ts` | 179 | **七阶段决策评估** |
+
+`evaluateStrategyRuntimeCycle` 现在可以脱离数据库、脱离 Next、脱离交易所直接跑。
+这是「可解释、可审计的决策过程」这句话的兑现处。
+
+### 两个命名/边界决定
+
+- `hashResearchStepInput` → `canonicalJsonSha256`。旧名字只描述了它的第一个用途，
+  实际上决策轮幂等、研发步骤检查点、DSL 合同哈希用的都是它。
+  `tests/domain-canonical-hash.test.mjs` 钉死了一个已知摘要——改算法会让所有历史
+  检查点行失效。
+- 域层不复用 `lib/market-data.ts` 的 `SpotCandle`，改用 `strategy-dsl.ts` 的
+  `StrategyCandle`。两者当前结构完全一致，但前者是公开行情源的传输形状，
+  域层不该依赖「线上格式永远不变」。
+
+### 验证
+
+tsc、lint、830 项测试（+8）、三端 build、bundle 预算、6 条边界全部通过。
+零残留引用。
+
+### 已定但未实施：`safeRiskState` 改为失败安全
+
+`lib/strategy-runtime-worker.ts` 的 `safeRiskState` 在风控读数非有限时静默取 0。
+回撤取 0 等于「账户从未亏损」，结果是**更容易开仓**——方向与 INV-7 相反。
+
+**已决定改为失败安全**（读不出来 → 判定风控状态不可用 → `halted: true` → 本轮不开新仓，
+并在决策记录中写明原因，而非静默跳过）。**在第 2 步随 worker 纯判定抽取一起实施。**
+
+安全性前提已核实：`strategy-runtime-engine.ts` 中
+`riskApproved = action === "exit" || action === "hold" || 无拒绝理由`，
+所有风控检查都只作用于开仓，平仓无条件放行。因此 `halted: true` 不会把客户困在仓位里。

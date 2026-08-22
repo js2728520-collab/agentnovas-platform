@@ -29,8 +29,8 @@ import {
   restrictOfficialPaperPortfoliosForEmergency,
   settlePendingOfficialPaperOrder,
 } from "../lib/official-paper-repository.ts";
-import { evaluatePlatformStrategy, PLATFORM_AI_STRATEGIES } from "../lib/platform-ai-strategies.ts";
-import { platformStrategyDslV3 } from "../lib/platform-strategy-v3.ts";
+import { evaluatePlatformStrategy, PLATFORM_AI_STRATEGIES } from "../packages/domain/src/platform-ai-strategies.ts";
+import { platformStrategyDslV3 } from "../packages/domain/src/platform-strategy-v3.ts";
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";

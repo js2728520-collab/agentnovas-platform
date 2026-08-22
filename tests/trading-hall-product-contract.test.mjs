@@ -6,7 +6,7 @@ import {
   officialTradingHallStrategies,
   tradingHallAgentCatalog,
 } from "../packages/contracts/src/trading-hall.ts";
-import { evaluateStrategyRuntimeCycle } from "../lib/strategy-runtime-engine.ts";
+import { evaluateStrategyRuntimeCycle } from "../packages/domain/src/strategy-runtime-engine.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 

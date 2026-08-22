@@ -1,8 +1,11 @@
-import type { SpotCandle } from "./market-data.ts";
+// 用域层自己的 K 线类型，不复用 lib/market-data.ts 的 SpotCandle：
+// 那个是公开行情源的传输形状，两者现在恰好一致，但域层不该依赖
+// 「线上格式永远不变」这个假设。
+import type { StrategyCandle } from "./strategy-dsl.ts";
 import {
   officialTradingHallStrategies,
   type OfficialTradingHallStrategy,
-} from "../packages/contracts/src/trading-hall.ts";
+} from "../../contracts/src/trading-hall.ts";
 
 export type PlatformStrategyCode = OfficialTradingHallStrategy["code"];
 export type PlatformStrategyAction = "enter" | "exit" | "hold";
@@ -108,7 +111,7 @@ function rsi(values: number[], period = 14) {
   return 100 - 100 / (1 + relativeStrength);
 }
 
-function atr(candles: SpotCandle[], period = 14) {
+function atr(candles: StrategyCandle[], period = 14) {
   const values = candles.slice(-period).map((candle, index, rows) => {
     const previousClose = index ? rows[index - 1].close : candle.open;
     return Math.max(candle.high - candle.low, Math.abs(candle.high - previousClose), Math.abs(candle.low - previousClose));
@@ -146,7 +149,7 @@ function signalMessages(
 export function evaluatePlatformStrategy(
   definition: PlatformStrategyDefinition,
   symbol: string,
-  candles: SpotCandle[],
+  candles: StrategyCandle[],
   hasOpenPosition: boolean,
 ): PlatformStrategySignal {
   if (candles.length < 90) throw new Error("平台 AI 策略至少需要 90 根完整K线");

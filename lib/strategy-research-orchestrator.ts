@@ -18,7 +18,8 @@ import {
 } from "./perpetual-market-adapters.ts";
 import { callStructuredResearchAgent } from "./research-agent.ts";
 import { buildResearchParameterVariants } from "./research-parameter-search.ts";
-import { hashResearchStepInput, runCheckpointedResearchStep } from "./research-steps.ts";
+import { runCheckpointedResearchStep } from "./research-steps.ts";
+import { canonicalJsonSha256 } from "../packages/domain/src/canonical-hash.ts";
 import { createAuthenticatedFeeFetcher, loadResearchExchangeAccount } from "./research-exchange-account.ts";
 import { saveMarketDataSnapshot } from "./market-data-snapshots.ts";
 import {
@@ -380,8 +381,8 @@ async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: 
     costScenario?: string;
   }) {
     const [parameterSetSha256, dataSliceSha256] = await Promise.all([
-      hashResearchStepInput(input.dsl),
-      hashResearchStepInput(input.candles.map(candle => [
+      canonicalJsonSha256(input.dsl),
+      canonicalJsonSha256(input.candles.map(candle => [
         candle.openTime, candle.closeTime, candle.open, candle.high, candle.low, candle.close, candle.volume,
       ])),
     ]);

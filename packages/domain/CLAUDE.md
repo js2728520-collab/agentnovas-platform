@@ -36,6 +36,12 @@ export function runBacktest(candles: Candle[], spec: StrategyDsl): BacktestResul
 `lib/` 里的 `loadBacktestCandles`、`exchange-adapters`、`research-agent` 是适配器，
 它们用注入式 fetch 发真实请求，**不属于本包**。
 
+判断一个模块该不该进来，看的是**它自己**做不做 I/O，不是它住在哪个文件里。
+`hashResearchStepInput` 曾经因为和几个 `database.query` 同住 `lib/research-steps.ts`，
+被误判成「被 I/O 链挡住」；`platform-ai-strategies` 曾经因为一条 `import type`
+被误判成依赖 `market-data`——类型导入在运行时是被擦除的，不产生依赖。
+**先看依赖是不是真的，再下结论。**
+
 **3. 纯函数优先。** 相同输入必然产出相同输出。这不是风格偏好——
 产品合同要求「相同 card/candle/contract 的重试必须返回同一决策轮或幂等结果」
 （INV-8），只有确定性代码能兑现这条。
@@ -61,6 +67,18 @@ INV-6 要求未达门槛必须显式标注，域层偷偷返回一个「差不�
 | INV-7 失败安全 | 数据不足时抛错，绝不用默认值补齐 |
 | INV-8 七阶段固定顺序、可幂等 | 决策链是纯函数，相同输入产出相同决策轮 |
 | INV-11 平台永不持有提现权限 | `OrderIntent` 不含凭证，域层无法也不应触碰密钥 |
+
+## 七阶段决策评估
+
+`strategy-runtime-engine.ts` 的 `evaluateStrategyRuntimeCycle` 是核心 IP 的落点：
+给定 K 线、策略规格、当前持仓与风控状态，产出决策、拒绝理由与订单意图。
+它连同 `platform-strategy-v3`（官方现货策略规格的规范化）与
+`platform-ai-strategies`（三张官方策略卡的定义与评估）一起在本包内，
+可以脱离数据库、脱离 Next、脱离交易所直接跑。
+
+其中一条规则值得单独记住（`strategy-runtime-engine.ts` 中 `riskApproved` 的定义）：
+**所有风控检查都只作用于开仓，平仓与观望无条件放行。** 这是 INV-7
+「退出能力不依赖 LLM 在线」的实现方式，改动这一行等于改动客户能不能离场。
 
 ## 执行层的缝
 

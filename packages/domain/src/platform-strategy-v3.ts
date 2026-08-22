@@ -6,9 +6,9 @@ import {
   createStrategyLegEvaluator,
   type StrategyCandle,
   type StrategyConditionV3,
-} from "../packages/domain/src/strategy-dsl.ts";
-import { hashResearchStepInput } from "./research-steps.ts";
-import type { OfficialTradingHallStrategy } from "../packages/contracts/src/trading-hall.ts";
+} from "./strategy-dsl.ts";
+import { canonicalJsonSha256 } from "./canonical-hash.ts";
+import type { OfficialTradingHallStrategy } from "../../contracts/src/trading-hall.ts";
 
 export type OfficialSpotStrategySpecification = {
   schemaVersion: "official_spot_v1";
@@ -190,5 +190,5 @@ export function allPlatformStrategyDslV3() {
 }
 
 export async function platformStrategyConversionContractHash() {
-  return hashResearchStepInput(allPlatformStrategyDslV3());
+  return canonicalJsonSha256(allPlatformStrategyDslV3());
 }

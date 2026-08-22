@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { auditLogs, memberships } from "@/db/schema";
 import { requireAccessPermission } from "@/lib/access-control";
-import { PLATFORM_AI_STRATEGIES, isPlatformStrategyCode } from "@/lib/platform-ai-strategies";
+import { PLATFORM_AI_STRATEGIES, isPlatformStrategyCode } from "@/packages/domain/src/platform-ai-strategies";
 import { getPostgresPool } from "@/lib/postgres";
 import {
   createStrategyDeployment,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { evaluateStrategyRuntimeCycle } from "../lib/strategy-runtime-engine.ts";
+import { evaluateStrategyRuntimeCycle } from "../packages/domain/src/strategy-runtime-engine.ts";
 
 const dsl = {
   schemaVersion: 3,

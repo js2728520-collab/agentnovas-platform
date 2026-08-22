@@ -17,7 +17,7 @@ import {
   resolveOfficialPaperRuntimeAccess,
   settlePendingOfficialPaperOrder,
 } from "./official-paper-repository.ts";
-import { normalizeOfficialSpotStrategySpecification } from "./platform-strategy-v3.ts";
+import { normalizeOfficialSpotStrategySpecification } from "../packages/domain/src/platform-strategy-v3.ts";
 import { enqueuePlatformDemoIntentsForRound } from "./platform-demo-execution.ts";
 import {
   applyPaperFundingRates,
@@ -32,7 +32,7 @@ import {
   renewStrategyRuntimeLease,
   settlePendingPaperOrder,
 } from "./strategy-runtime-repository.ts";
-import { evaluateStrategyRuntimeCycle } from "./strategy-runtime-engine.ts";
+import { evaluateStrategyRuntimeCycle } from "../packages/domain/src/strategy-runtime-engine.ts";
 import { strategyDslToRuntime } from "../packages/domain/src/strategy-dsl.ts";
 import {
   callRuntimeExplanationAgent,

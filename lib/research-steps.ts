@@ -1,5 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 
+import { canonicalJsonSha256 } from "../packages/domain/src/canonical-hash.ts";
+
 type Queryable = Pick<Pool | PoolClient, "query">;
 
 type StepRow<T> = {
@@ -7,31 +9,6 @@ type StepRow<T> = {
   input_sha256: string;
   output_json: T | null;
 };
-
-function canonical(value: unknown): string {
-  if (value === null) return "null";
-  if (typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("步骤输入包含非有限数字");
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, item]) => item !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right));
-    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
-  }
-  throw new Error("步骤输入包含不可序列化值");
-}
-
-function hex(buffer: ArrayBuffer) {
-  return [...new Uint8Array(buffer)].map(value => value.toString(16).padStart(2, "0")).join("");
-}
-
-export async function hashResearchStepInput(value: unknown) {
-  return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical(value))));
-}
 
 function publicError(error: unknown) {
   const message = error instanceof Error ? error.message : "步骤执行失败";
@@ -54,7 +31,7 @@ export async function runCheckpointedResearchStep<T extends {
   if (!options.runId || !options.stage || !options.stepKey || options.stepKey.length > 160) {
     throw new Error("研发步骤标识无效");
   }
-  const inputSha256 = await hashResearchStepInput(options.input);
+  const inputSha256 = await canonicalJsonSha256(options.input);
   const load = () => database.query<StepRow<T>>(`
     SELECT status, input_sha256, output_json
     FROM strategy_research_steps

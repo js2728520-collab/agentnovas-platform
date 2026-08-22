@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { officialTradingHallStrategies } from "../packages/contracts/src/trading-hall.ts";
-import { PLATFORM_AI_STRATEGIES } from "../lib/platform-ai-strategies.ts";
-import { platformStrategyDslV3 } from "../lib/platform-strategy-v3.ts";
-import { evaluateStrategyRuntimeCycle } from "../lib/strategy-runtime-engine.ts";
+import { PLATFORM_AI_STRATEGIES } from "../packages/domain/src/platform-ai-strategies.ts";
+import { platformStrategyDslV3 } from "../packages/domain/src/platform-strategy-v3.ts";
+import { evaluateStrategyRuntimeCycle } from "../packages/domain/src/strategy-runtime-engine.ts";
 
 function entryCandles() {
   const rows = Array.from({ length: 30 }, (_, index) => ({
