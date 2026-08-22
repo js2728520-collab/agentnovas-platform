@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { formatDateTime, type EffectiveAccessPayload, type NotificationItem, type ViewerPayload } from "@/packages/contracts/src/riverton-ui";
+import { formatDateTime, type NotificationItem } from "@/packages/contracts/src/riverton-ui";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { clientErrorMessage, clientRequest } from "./client-api";
 import ClientNotificationSettings from "./client-notification-settings";
-import { ClientPortalShell } from "./client-portal-shell";
 
-export function NotificationWorkspace({ viewer, access }: { viewer: ViewerPayload; access: EffectiveAccessPayload }) {
+export function NotificationWorkspace() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -34,12 +33,12 @@ export function NotificationWorkspace({ viewer, access }: { viewer: ViewerPayloa
     finally { setMarking(""); }
   }
 
-  return <ClientPortalShell viewer={viewer} access={access}>
+  return <>
     <PageHeading eyebrow="CLIENT NOTIFICATIONS" title="通知中心" description="安全、缴费和风控通知不可关闭；Telegram 与 WhatsApp 当前未接入。" actions={unread > 0 ? <button className="rc-button" disabled={Boolean(marking)} onClick={() => void markRead()}>{marking === "all" ? "处理中…" : "全部已读"}</button> : undefined} />
     {state !== "error" && message && <div className="rc-callout" role={messageKind === "error" ? "alert" : "status"} aria-live={messageKind === "error" ? "assertive" : "polite"}>{message}</div>}
     <section className="rc-panel"><header><div><small>INBOX</small><h2>站内通知</h2></div><StatusBadge value={`${unread} 条未读`} /></header>
       {state === "loading" ? <LoadingState /> : state === "error" ? <ErrorState message={message} retry={() => void load()} /> : !items.length ? <EmptyState title="暂无通知" description="账户安全、会员和策略生命周期消息会显示在这里。" /> : <div className="rc-notification-list">{items.map((item) => <article key={item.id} className={item.readAt ? "is-read" : ""}><div><small>{item.category} · {formatDateTime(item.createdAt)}</small><b>{item.templateKey}</b><p>{Object.entries(item.payload).slice(0, 3).map(([key, value]) => `${key}: ${String(value)}`).join(" · ") || "通知详情已安全保存"}</p></div><div><StatusBadge value={item.status} />{!item.readAt && <button type="button" disabled={Boolean(marking)} onClick={() => void markRead(item.id)}>{marking === item.id ? "处理中…" : "标为已读"}</button>}</div></article>)}</div>}
     </section>
     <ClientNotificationSettings />
-  </ClientPortalShell>;
+  </>;
 }

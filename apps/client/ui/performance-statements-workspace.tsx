@@ -9,12 +9,7 @@ import type {
   PerformanceFeeStatement,
   PerformanceStatementTimelineEvent,
 } from "@/packages/contracts/src/commercial-beta";
-import {
-  formatDateTime,
-  formatDecimal,
-  type EffectiveAccessPayload,
-  type ViewerPayload,
-} from "@/packages/contracts/src/riverton-ui";
+import { formatDateTime, formatDecimal } from "@/packages/contracts/src/riverton-ui";
 import {
   EmptyState,
   ErrorState,
@@ -24,7 +19,6 @@ import {
 } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
-import { ClientPortalShell } from "./client-portal-shell";
 import styles from "./performance-statements-workspace.module.css";
 
 const statementStatusLabels: Record<PerformanceFeeStatement["status"], string> = {
@@ -163,15 +157,11 @@ function StatementDetail({ statementId }: { statementId: string }) {
 }
 
 export function PerformanceStatementsWorkspace({
-  viewer,
-  access,
   statementId,
 }: {
-  viewer: ViewerPayload;
-  access: EffectiveAccessPayload;
   statementId?: string;
 }) {
-  return <ClientPortalShell viewer={viewer} access={access}>
+  return <>
     {statementId ? <StatementDetail statementId={statementId} /> : <StatementList />}
-  </ClientPortalShell>;
+  </>;
 }

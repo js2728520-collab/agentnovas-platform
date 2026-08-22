@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
 import dynamic from "next/dynamic";
 
-import { ConsoleShell } from "@/packages/ui/src/console-shell";
-import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
-import { useAppSession } from "@/packages/ui/src/use-app-session";
-import { hasAnyPermission, type ConsoleNavigationGroup } from "@/packages/contracts/src/riverton-ui";
+import { AccessDenied } from "@/packages/ui/src/page-state";
+import { useAppSessionContext } from "@/packages/ui/src/app-session-context";
+import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 
 const EmailIntegrationWorkspace = dynamic(() => import("./email-integration-workspace").then((module) => module.EmailIntegrationWorkspace));
 const DemoExchangesWorkspace = dynamic(() => import("./demo-exchanges-workspace").then((module) => module.DemoExchangesWorkspace));
@@ -23,44 +21,13 @@ const SourceIntegrationsWorkspace = dynamic(() => import("./source-integrations-
 const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter));
 const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity));
 
-const navigation: ConsoleNavigationGroup[] = [
-  { label: "概览", items: [
-    { href: "/", label: "系统概览", icon: "dashboard", requiredPermissions: ["maint.system_health.view"] },
-    { href: "/health", label: "系统健康", icon: "activity", requiredPermissions: ["maint.system_health.view"] },
-  ] },
-  { label: "模型与集成", items: [
-    { href: "/models", label: "模型与 Agent", icon: "cpu", requiredPermissions: ["maint.system_health.view", "maint.llm_profiles.manage", "maint.agent_bindings.manage"] },
-    { href: "/integrations", label: "服务集成", icon: "plug", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage", "maint.payment_integrations.manage", "maint.demo_exchanges.view"] },
-    { href: "/integrations/sources", label: "数据与新闻", icon: "database", requiredPermissions: ["maint.system_health.view", "maint.feature_flags.manage"] },
-    { href: "/integrations/email", label: "邮件服务", icon: "inbox", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage"] },
-    { href: "/integrations/payments", label: "支付服务", icon: "wallet", requiredPermissions: ["maint.system_health.view", "maint.payment_integrations.manage"] },
-    { href: "/integrations/demo-exchanges", label: "Demo 交易所", icon: "store", requiredPermissions: ["maint.demo_exchanges.view"] },
-  ] },
-  { label: "平台", items: [
-    { href: "/safety", label: "紧急暂停", icon: "pause", requiredPermissions: ["maint.emergency_pause.execute"] },
-    { href: "/settings", label: "平台与客服", icon: "settings", requiredPermissions: ["maint.feature_flags.manage"] },
-    { href: "/settings/disclosures", label: "商业披露", icon: "file", requiredPermissions: ["maint.commercial_disclosures.view"] },
-    { href: "/releases", label: "版本发布", icon: "tag", requiredPermissions: ["maint.releases.view"] },
-  ] },
-  { label: "账号", items: [
-    { href: "/access", label: "角色权限", icon: "key", requiredPermissions: ["maint.roles.manage", "maint.roles.approve_sensitive"] },
-    { href: "/access/audit", label: "授权审计", icon: "audit", requiredPermissions: ["maint.audit.view", "maint.roles.manage"] },
-    { href: "/audit", label: "技术审计", icon: "check-square", requiredPermissions: ["maint.audit.view"] },
-    { href: "/account/security", label: "账号安全", icon: "shield" },
-  ] },
-];
 
 export default function MaintenanceApp({ segments }: { segments: string[] }) {
-  const session = useAppSession("maintenance");
+  // 会话由根 layout 的 frame 解析一次，loading / error / 未登录跳转也在那里统一处理。
+  // 页面只做权限判定与工作区分发，因此这里可以安全地断言已认证。
+  const session = useAppSessionContext();
   const route = segments[0] || "overview";
-  useEffect(() => {
-    if (session.status === "anonymous") {
-      const next = `${window.location.pathname}${window.location.search}`;
-      window.location.replace(`/login?next=${encodeURIComponent(next)}`);
-    }
-  }, [session.status]);
-  if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证运维端会话…" />;
-  if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
+  if (session.status !== "authenticated") return null;
   const subtype = segments[1];
   const required = route === "overview" || route === "health" ? ["maint.system_health.view"]
     : route === "models" ? ["maint.system_health.view", "maint.llm_profiles.manage", "maint.agent_bindings.manage"]
@@ -102,5 +69,5 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "access" ? <AccessCenter appId="maintenance" permissions={permissions} auditOnly={subtype === "audit"} />
     : route === "audit" ? <TechnicalAuditWorkspace />
     : <SystemHealthWorkspace overview />;
-  return <ConsoleShell appName="运维端" appKind="maintenance" statusText="配置密钥不会在浏览器回显" accountLabel="运维账户" navigation={navigation} viewer={session.viewer} access={session.access}>{content}</ConsoleShell>;
+  return content;
 }

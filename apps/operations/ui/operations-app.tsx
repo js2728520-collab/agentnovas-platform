@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
 import dynamic from "next/dynamic";
 
-import { ConsoleShell } from "@/packages/ui/src/console-shell";
-import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
-import { useAppSession } from "@/packages/ui/src/use-app-session";
-import { hasAnyPermission, type ConsoleNavigationGroup } from "@/packages/contracts/src/riverton-ui";
+import { AccessDenied } from "@/packages/ui/src/page-state";
+import { useAppSessionContext } from "@/packages/ui/src/app-session-context";
+import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 
 const ApprovalsWorkspace = dynamic(() => import("./approvals-workspace").then((module) => module.ApprovalsWorkspace));
 const CustomersWorkspace = dynamic(() => import("./customers-workspace").then((module) => module.CustomersWorkspace));
@@ -23,31 +21,6 @@ const DataCenterWorkspace = dynamic(() => import("./data-center-workspace").then
 const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter));
 const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity));
 
-const navigation: ConsoleNavigationGroup[] = [
-  { label: "概览", items: [
-    { href: "/", label: "运营概览", icon: "dashboard" },
-  ] },
-  { label: "客户与组织", items: [
-    { href: "/customers", label: "客户管理", icon: "users", requiredPermissions: ["ops.customers.view"] },
-    { href: "/organization", label: "组织架构", icon: "org", requiredPermissions: ["ops.organization.view"] },
-    { href: "/team", label: "团队目标", icon: "chart", requiredPermissions: ["ops.team.view"] },
-    { href: "/data-center", label: "数据中心", icon: "database", requiredPermissions: ["ops.customers.view"] },
-  ] },
-  { label: "商业与资金", items: [
-    { href: "/membership-orders", label: "会员订单", icon: "file", requiredPermissions: ["ops.membership_orders.view"] },
-    { href: "/performance-statements", label: "周分成", icon: "percent", requiredPermissions: ["ops.performance_fees.view"] },
-    { href: "/credits", label: "Credits", icon: "coins", requiredPermissions: ["ops.credits.view"] },
-    { href: "/deposits", label: "充值订单", icon: "deposit", requiredPermissions: ["ops.deposits.view"] },
-    { href: "/ledger", label: "账本查询", icon: "book", requiredPermissions: ["ops.ledger.view"] },
-    { href: "/finance", label: "财务结算", icon: "calculator", requiredPermissions: ["ops.ledger.view", "ops.membership_orders.view", "ops.performance_fees.view"] },
-  ] },
-  { label: "治理", items: [
-    { href: "/approvals", label: "审批中心", icon: "check-square", requiredPermissions: ["ops.approvals.view", "ops.approvals.decide", "ops.deposits.action_approve", "ops.roles.approve_sensitive", "ops.credits.approve", "ops.attributions.manage", "ops.membership_orders.approve", "ops.performance_fees.approve", "ops.performance_fees.payment_approve"] },
-    { href: "/access", label: "角色权限", icon: "key", requiredPermissions: ["ops.roles.manage", "ops.roles.assign", "ops.roles.approve_sensitive"] },
-    { href: "/access/audit", label: "授权审计", icon: "audit", requiredPermissions: ["ops.roles.manage", "ops.roles.approve_sensitive"] },
-    { href: "/account/security", label: "账号安全", icon: "shield" },
-  ] },
-];
 
 const routePermissions: Record<string, string[] | undefined> = {
   customers: ["ops.customers.view"], organization: ["ops.organization.view"],
@@ -62,17 +35,12 @@ const routePermissions: Record<string, string[] | undefined> = {
 };
 
 export default function OperationsApp({ segments }: { segments: string[] }) {
-  const session = useAppSession("operations");
+  // 会话由根 layout 的 frame 解析一次，loading / error / 未登录跳转也在那里统一处理。
+  // 页面只做权限判定与工作区分发，因此这里可以安全地断言已认证。
+  const session = useAppSessionContext();
   const route = segments[0] || "overview";
-  useEffect(() => {
-    if (session.status === "anonymous") {
-      const next = `${window.location.pathname}${window.location.search}`;
-      window.location.replace(`/login?next=${encodeURIComponent(next)}`);
-    }
-  }, [session.status]);
+  if (session.status !== "authenticated") return null;
   const required = routePermissions[route];
-  if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证运营端会话…" />;
-  if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
   if (!hasAnyPermission(session.access.permissions, required)) return <AccessDenied />;
   const permissions = session.access.permissions;
   const overview = <OperationsOverview canViewDeposits={Boolean(permissions["ops.deposits.view"])} canViewCustomers={Boolean(permissions["ops.customers.view"])} canApproveDeposits={Boolean(permissions["ops.deposits.action_approve"])} />;
@@ -102,5 +70,5 @@ export default function OperationsApp({ segments }: { segments: string[] }) {
     : route === "approvals" ? <ApprovalsWorkspace canApproveDeposits={Boolean(permissions["ops.deposits.action_approve"])} canManageAccess={Boolean(permissions["ops.roles.manage"] || permissions["ops.roles.approve_sensitive"])} canApproveCredits={Boolean(permissions["ops.credits.approve"])} canManageAttributions={Boolean(permissions["ops.attributions.manage"])} canApproveMembership={Boolean(permissions["ops.membership_orders.approve"])} canApprovePerformance={Boolean(permissions["ops.performance_fees.approve"] || permissions["ops.performance_fees.payment_approve"])} canReviewOrganization={Boolean(permissions["ops.approvals.view"] || permissions["ops.approvals.decide"])} />
     : route === "access" ? <AccessCenter appId="operations" permissions={permissions} auditOnly={segments[1] === "audit"} />
     : overview;
-  return <ConsoleShell appName="运营端" appKind="operations" statusText="运营数据按权限范围展示" accountLabel="运营账户" navigation={navigation} viewer={session.viewer} access={session.access}>{content}</ConsoleShell>;
+  return content;
 }

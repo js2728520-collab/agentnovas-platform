@@ -5,7 +5,7 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("Operations navigation exposes only contracted commercial Beta workspaces", async () => {
-  const app = await read("apps/operations/ui/operations-app.tsx");
+  const app = await Promise.all([read("apps/operations/ui/operations-app.tsx"), read("apps/operations/ui/navigation.ts")]).then((parts) => parts.join("\n"));
   assert.match(app, /href: "\/membership-orders"[\s\S]*ops\.membership_orders\.view/);
   assert.match(app, /href: "\/performance-statements"[\s\S]*ops\.performance_fees\.view/);
   assert.match(app, /MembershipOrdersWorkspace/);

@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
 import dynamic from "next/dynamic";
 
-import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
-import { useAppSession } from "@/packages/ui/src/use-app-session";
+import { AccessDenied } from "@/packages/ui/src/page-state";
+import { useAppSessionContext } from "@/packages/ui/src/app-session-context";
 import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 
-import { ClientPortalShell } from "./client-portal-shell";
 import { ClientHomeWorkspace } from "./client-home-workspace";
 
 const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module) => module.CreditWorkspace));
@@ -22,53 +20,48 @@ const AccountSecurityWorkspace = dynamic(() => import("./account-security-worksp
 const SupportWorkspace = dynamic(() => import("./support-workspace").then((module) => module.SupportWorkspace));
 
 export default function ClientPortal({ segments }: { segments: string[] }) {
-  const session = useAppSession("client");
+  // 会话由根 layout 的 ClientFrame 解析一次，loading / error / 未登录跳转都在那里
+  // 统一处理。页面只做权限判定与工作区分发。
+  const session = useAppSessionContext();
   const route = segments[0];
-  useEffect(() => {
-    if (session.status === "anonymous") {
-      const next = `${window.location.pathname}${window.location.search}`;
-      window.location.replace(`/login?next=${encodeURIComponent(next)}`);
-    }
-  }, [route, session.status]);
-  if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证客户端会话…" />;
-  if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
+  if (session.status !== "authenticated") return null;
   if (route === "legal" && segments[1] === "consent") {
-    return <ClientPortalShell viewer={session.viewer} access={session.access}>
+    return <>
       <LegalConsentExperience />
-    </ClientPortalShell>;
+    </>;
   }
   if (route === "account" && segments[1] === "security") {
-    return <ClientPortalShell viewer={session.viewer} access={session.access}><AccountSecurityWorkspace viewer={session.viewer} /></ClientPortalShell>;
+    return <><AccountSecurityWorkspace viewer={session.viewer} /></>;
   }
   if (route === "support") {
-    return <ClientPortalShell viewer={session.viewer} access={session.access}><SupportWorkspace /></ClientPortalShell>;
+    return <><SupportWorkspace /></>;
   }
   if (route === "dashboard") return <ClientHomeWorkspace viewer={session.viewer} access={session.access} />;
-  if (route === "notifications") return <NotificationWorkspace viewer={session.viewer} access={session.access} />;
+  if (route === "notifications") return <NotificationWorkspace />;
   if (route === "membership") {
     if (!hasAnyPermission(session.access.permissions, ["client.membership.view"])) return <AccessDenied />;
-    return <ClientPortalShell viewer={session.viewer} access={session.access}>
+    return <>
       <MembershipExperience canCreateOrder={hasAnyPermission(session.access.permissions, ["client.membership.order"])} />
-    </ClientPortalShell>;
+    </>;
   }
   if (route === "credits") {
     if (!hasAnyPermission(session.access.permissions, ["client.credits.view"])) return <AccessDenied />;
-    return <CreditWorkspace viewer={session.viewer} access={session.access} />;
+    return <CreditWorkspace />;
   }
   if (route === "performance-statements") {
     if (!hasAnyPermission(session.access.permissions, ["client.membership.view"])) return <AccessDenied />;
-    return <PerformanceStatementsWorkspace viewer={session.viewer} access={session.access} statementId={segments[1]} />;
+    return <PerformanceStatementsWorkspace statementId={segments[1]} />;
   }
   if (route === "paper" || route === "trading-hall") {
     if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
-    return <ClientPortalShell viewer={session.viewer} access={session.access}>
+    return <>
       <TradingExperience
         portfolioId={route === "paper" ? segments[1] : undefined}
         canManage={hasAnyPermission(session.access.permissions, ["client.paper.manage"])}
       />
-    </ClientPortalShell>;
+    </>;
   }
   if (!hasAnyPermission(session.access.permissions, ["client.wallet.view"])) return <AccessDenied />;
-  if (segments[1] === "deposits") return <DepositWorkspace viewer={session.viewer} access={session.access} />;
-  return <WalletWorkspace viewer={session.viewer} access={session.access} />;
+  if (segments[1] === "deposits") return <DepositWorkspace access={session.access} />;
+  return <WalletWorkspace />;
 }

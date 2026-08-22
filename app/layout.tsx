@@ -6,6 +6,7 @@ import "./base.css";
 import { resolveAppAudienceStrict } from "@/lib/riverton-apps";
 import { rivertonMetadata } from "@/lib/riverton-metadata";
 import { themeBootstrapScript } from "@/packages/ui/src/theme-script";
+import CurrentFrame from "@/app/audience/current-frame";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,11 +25,15 @@ export async function generateMetadata(): Promise<Metadata> {
   return rivertonMetadata(audience);
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // 应用外壳挂在根 layout：只有根 layout 跨导航保留。放在 app/[...segments] 那层
+  // 不行——实测（生产构建）Next 对 catch-all 段的不同取值当作不同路由匹配，会把该层
+  // layout 一起重挂，每次点菜单侧栏顶栏都消失约 360ms。
+  const audience = resolveAppAudienceStrict({ host: (await headers()).get("host") ?? undefined });
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
@@ -38,7 +43,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        {audience ? <CurrentFrame audience={audience}>{children}</CurrentFrame> : children}
       </body>
     </html>
   );

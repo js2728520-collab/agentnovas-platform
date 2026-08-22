@@ -8,7 +8,7 @@ test("release management is a Maintenance-only stable route with explicit permis
   const [rbac, routeContract, app, workspace, migration, grants] = await Promise.all([
     read("lib/rbac.ts"),
     read("app/riverton-route-contract.ts"),
-    read("apps/maintenance/ui/maintenance-app.tsx"),
+    Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/navigation.ts")]).then((parts) => parts.join("\n")),
     read("apps/maintenance/ui/release-management-workspace.tsx"),
     read("postgres/migrations/0041_release_version_management.sql"),
     read("deploy/postgres/least-privilege-roles.sql"),

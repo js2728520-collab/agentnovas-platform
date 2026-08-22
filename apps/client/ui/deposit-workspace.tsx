@@ -3,18 +3,17 @@
 import { useMemo, useState } from "react";
 
 import {
-  apiErrorMessage, formatDateTime, formatDecimal, type DepositOrder,
-  type EffectiveAccessPayload, type ViewerPayload,
+  apiErrorMessage, formatDateTime, formatDecimal,
+  type DepositOrder, type EffectiveAccessPayload,
 } from "@/packages/contracts/src/riverton-ui";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
-import { ClientPortalShell } from "./client-portal-shell";
 
 function requestKey() {
   return `deposit-${Date.now()}-${crypto.randomUUID()}`;
 }
 
-export function DepositWorkspace({ viewer, access }: { viewer: ViewerPayload; access: EffectiveAccessPayload }) {
+export function DepositWorkspace({ access }: { access: EffectiveAccessPayload }) {
   const orders = useApiData<{ orders: DepositOrder[] }>("/api/wallet/deposit-orders", "充值订单读取失败");
   const [network, setNetwork] = useState("TRC20");
   const [amount, setAmount] = useState("");
@@ -47,7 +46,7 @@ export function DepositWorkspace({ viewer, access }: { viewer: ViewerPayload; ac
     }
   }
 
-  return <ClientPortalShell viewer={viewer} access={access}>
+  return <>
     <PageHeading
       eyebrow="CLIENT DEPOSITS · UDUN"
       title="USDT 充值与订单"
@@ -90,5 +89,5 @@ export function DepositWorkspace({ viewer, access }: { viewer: ViewerPayload; ac
             </tr>)}</tbody></table></div>}
     </section>
     <div className="rc-live" aria-live="polite">{message}</div>
-  </ClientPortalShell>;
+  </>;
 }

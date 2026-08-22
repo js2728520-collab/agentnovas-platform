@@ -48,7 +48,7 @@ test("platform strategy activation respects platform and organization emergency 
 });
 
 test("maintenance exposes explicit emergency controls through its own navigation", async () => {
-  const app = await read("apps/maintenance/ui/maintenance-app.tsx");
+  const app = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/navigation.ts")]).then((parts) => parts.join("\n"));
   const workspace = await read("apps/maintenance/ui/emergency-control-workspace.tsx");
   assert.match(app, /href: "\/safety"/);
   assert.match(app, /maint\.emergency_pause\.execute/);

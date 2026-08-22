@@ -4,7 +4,7 @@ import test from "node:test";
 
 test("Operations Credits UI exposes maker-checker controls without claiming submission changed balance", async () => {
   const ui = await readFile(new URL("../apps/operations/ui/credits-workspace.tsx", import.meta.url), "utf8");
-  const app = await readFile(new URL("../apps/operations/ui/operations-app.tsx", import.meta.url), "utf8");
+  const app = await Promise.all([readFile(new URL("../apps/operations/ui/operations-app.tsx", import.meta.url), "utf8"), readFile(new URL("../apps/operations/ui/navigation.ts", import.meta.url), "utf8")]).then((parts) => parts.join("\n"));
   const submit = await readFile(new URL("../app/api/operations/credit-adjustments/route.ts", import.meta.url), "utf8");
   const decision = await readFile(new URL("../app/api/operations/credit-adjustments/[id]/decision/route.ts", import.meta.url), "utf8");
   assert.match(app, /ops\.credits\.adjust/);

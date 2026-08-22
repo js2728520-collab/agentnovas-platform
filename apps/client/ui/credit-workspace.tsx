@@ -1,16 +1,15 @@
 "use client";
 
 import type { AiCreditBalance } from "@/packages/contracts/src/commercial-beta";
-import { formatDateTime, type EffectiveAccessPayload, type ViewerPayload } from "@/packages/contracts/src/riverton-ui";
+import { formatDateTime } from "@/packages/contracts/src/riverton-ui";
 import { ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
-import { ClientPortalShell } from "./client-portal-shell";
 
-export function CreditWorkspace({ viewer, access }: { viewer: ViewerPayload; access: EffectiveAccessPayload }) {
+export function CreditWorkspace() {
   const resource = useApiData<{ credits: AiCreditBalance }>("/api/credits/me", "AI 积分读取失败");
   const credits = resource.data?.credits;
-  return <ClientPortalShell viewer={viewer} access={access}>
+  return <>
     <PageHeading eyebrow="CLIENT AI CREDITS · READ ONLY" title="AI 积分" description="积分与 USDT 钱包完全分离，只能由有效会员计划发放并按可计量模型用量扣减；Beta 不提供积分充值。" />
     {resource.loading && !credits ? <LoadingState label="正在读取 AI 积分…" /> : resource.error && !credits ? <ErrorState message={resource.error} retry={resource.refresh} /> : credits ? <>
       <section className="rc-kpi-grid" aria-label="AI 积分余额">
@@ -24,5 +23,5 @@ export function CreditWorkspace({ viewer, access }: { viewer: ViewerPayload; acc
         <div className="rc-callout" role="note">未配置费率、无法返回可靠 token usage 或余额不足时，付费 AI 请求会明确拒绝，不会透支或生成假扣费。</div>
       </section>
     </> : null}
-  </ClientPortalShell>;
+  </>;
 }

@@ -204,6 +204,16 @@ Client 的 JS 预算余量只有约 160 字节（204,636 / 204,800）。
 oklch 走极坐标插值会把绿色 tint（hue 162）拉成橙色。需要混色时用 `oklab`，
 或直接为每个主题写死值。设计令牌层已经是写死值。
 
+**catch-all 路由下的 layout 不跨导航保留。** 三端都挂在 `app/[...segments]` 下，
+实测（生产构建）Next 对 catch-all 段的不同取值当作不同路由匹配，会把该层的
+`layout.tsx` 一起重挂——只有**根 layout** 保留。所以应用外壳挂在 `app/layout.tsx`
+（经 `app/audience/current-frame.tsx` 按 audience 分流），不要往 `[...segments]`
+那层加 layout 指望它持久。
+
+**根 layout 里的外壳必须 `next/dynamic` 懒加载。** 根 layout 被所有页面共享，
+静态 import 会把整套外壳打进公开落地页和登录页的包。客户端 JS 预算余量只有
+约 3KB，这一条踩了直接超标（我踩过一次：+2,957 字节）。
+
 **`docs/review/SYSTEM_ASSESSMENT_2026-08-20.md` 的第 1–5 节是起点 `0762fa3` 的快照，
 不是现状。** 文档开头有说明。引用它之前先去代码或迁移里验证——
 里面列的很多缺陷（例如账本无 DB 保证）后来已经修复。

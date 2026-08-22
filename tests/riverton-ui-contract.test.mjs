@@ -129,8 +129,8 @@ test("metadata identifies each audience and keeps internal consoles out of searc
 test("internal applications use permission-driven navigation and login without registration", async () => {
   const shell = await read("packages/ui/src/console-shell.tsx");
   const login = await read("packages/ui/src/app-login.tsx");
-  const operations = await read("apps/operations/ui/operations-app.tsx");
-  const maintenance = await read("apps/maintenance/ui/maintenance-app.tsx");
+  const operations = await Promise.all([read("apps/operations/ui/operations-app.tsx"), read("apps/operations/ui/navigation.ts")]).then((parts) => parts.join("\n"));
+  const maintenance = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/navigation.ts")]).then((parts) => parts.join("\n"));
   const operationsRoot = await read("app/audience/operations-root.tsx");
   const maintenanceRoot = await read("app/audience/maintenance-root.tsx");
   assert.match(shell, /visibleNavigationGroups\(navigation, access\.permissions\)/);
@@ -376,7 +376,7 @@ test("maintenance connectivity tests require reasons and Udun controls use confi
 });
 
 test("maintenance model workspaces separate read access from write controls", async () => {
-  const source = await read("apps/maintenance/ui/maintenance-app.tsx");
+  const source = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/navigation.ts")]).then((parts) => parts.join("\n"));
   assert.match(source, /href: "\/models"[\s\S]*maint\.system_health\.view/);
   assert.match(source, /route === "models" \? \["maint\.system_health\.view"/);
   assert.match(source, /canManageProfiles/);

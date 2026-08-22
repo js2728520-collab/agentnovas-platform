@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("Operations exposes scoped team brief, targets, follow-ups and masked CSV", async () => {
-  const app = await readFile(new URL("../apps/operations/ui/operations-app.tsx", import.meta.url), "utf8");
+  const app = await Promise.all([readFile(new URL("../apps/operations/ui/operations-app.tsx", import.meta.url), "utf8"), readFile(new URL("../apps/operations/ui/navigation.ts", import.meta.url), "utf8")]).then((parts) => parts.join("\n"));
   const ui = await readFile(new URL("../apps/operations/ui/team-workspace.tsx", import.meta.url), "utf8");
   const exportRoute = await readFile(new URL("../app/api/team/monthly-targets/export/route.ts", import.meta.url), "utf8");
   const brief = await readFile(new URL("../app/api/team/daily-brief/route.ts", import.meta.url), "utf8");
