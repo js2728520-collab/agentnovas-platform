@@ -1,129 +1,95 @@
-# vinext-starter
-
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
-
-## Prerequisites
-
-- Node.js `>=22.13.0`
-
-## Quick Start
-
-```bash
-npm install
-npm run dev
-npm run build
-```
-
-This starter does not use `wrangler.jsonc`.
-
-## Included Shape
-
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
 # Riverton Capital
 
-当前版本已完成前台平台壳、组织后台、行情展示、账户连接界面、模拟盘订单、硬风控、审计链和健康检查。
+Riverton Capital 是面向数字资产策略研究、真实历史回测、模拟盘验证、会员和充值账务的平台。本仓库的运行底座是原生 Next.js/Node.js、PostgreSQL、独立 Worker 和 Nginx，目标部署环境为自有 Linux 服务器。
 
-## 运行边界
+## 技术边界
 
-- 第一阶段仅允许模拟盘下单，服务端拒绝实盘订单。
-- 行情不可用、单日亏损超限、仓位超限或全局紧急停止时，禁止新开仓。
-- 交易所凭证需要配置 `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY` 加密保存。
-- 上线真实交易前，还需要配置生产数据库、交易所适配器、WebSocket 行情源和正式密钥，并完成模拟盘与小额实盘验收。
-- `/api/health` 可用于部署后的基础配置检查。
+- Web：Next.js 16 / React 19，运行于 Node.js。客户端、运营端和运维端使用独立 audience、端口和 Cookie。
+- 数据库：PostgreSQL；Web 与 Worker 使用同一个 `DATABASE_URL`。
+- 后台任务：研究、运行时、支付和通知使用独立 Node Worker，通过 PostgreSQL 持久化状态，不依赖 Redis。
+- 反向代理：生产环境使用 Nginx，SSE 路由关闭代理缓冲。
+- 交易：本期只开放策略生成、历史回测和模拟盘闭环，真实永续订单路由保持关闭。
+- Cloudflare 仅可作为 DNS 注册商/权威 DNS；不使用 Proxy、Workers、Pages、D1 或 Tunnel。
 
-## 部署验收顺序
+## 本地启动
 
-1. 配置 `BOOTSTRAP_SECRET`、`EXCHANGE_CREDENTIAL_ENCRYPTION_KEY` 和 `PLATFORM_EMERGENCY_STOP=false`。
-2. 按 `drizzle/` 目录中的迁移顺序同步 Cloudflare D1 `DB`。
-3. 请求 `/api/health`，确认数据库和加密密钥状态为 `ready`。
-4. 先使用模拟账户完成连接、行情、风控、下单、成交、平仓和审计链验收。
-5. 只有完成模拟盘验收后，才进入交易所适配器和小额实盘的独立评审。
+要求 Node.js 22.21+ 和 PostgreSQL 16+。Node 版本要求包含环境代理支持，供交易所合约与行情请求使用。
 
-出现系统异常时，将 `PLATFORM_EMERGENCY_STOP` 设置为 `true`，系统会停止新开仓，同时保留查询、撤单和平仓能力。
+```bash
+npm ci
+npm run postgres:migrate
+npm run dev:client
+```
 
-## 三套平台 AI 策略运行链路
+三个应用本地入口：
 
-平台内置的 `AI 稳健型`、`AI 平衡型` 和 `AI 激进型` 已使用独立、可审计的确定性策略引擎。客户先在策略详情中选择已通过检测的验证账户并确认风险，随后由 Cloudflare 每 5 分钟调用：
+```bash
+npm run dev:client       # http://127.0.0.1:3000
+npm run dev:operations   # http://127.0.0.1:3001
+npm run dev:maintenance  # http://127.0.0.1:3002
+```
 
-`Cloudflare Cron（每 5 分钟）→ 内部平台 AI 周期`
+在另一个终端按需启动 Worker：
 
-每轮按策略周期读取真实完整K线，计算 EMA、RSI、ATR、成交量、通道和布林区间，经过反方审查、会员/催收、账户权限、单日亏损、总仓位和平台紧急停止检查后，保存平台决策、七角色工作记录及订单审计。定时任务与手动调用 `POST /api/automation/platform-ai-cycle` 都必须使用 Cloudflare 加密秘密 `AUTOMATION_INTERNAL_SECRET`，外部请求不能绕过验证。默认只建立站内验证仓位；仅当 `OKX_DEMO_EXECUTION_ENABLED=true` 时向 OKX 验证环境提交订单。实盘订单路由仍由服务端硬性关闭。
+```bash
+npm run worker:research
+npm run worker:runtime
+npm run worker:payment
+npm run worker:notification
+```
+
+本地环境变量放在 `.env.local`，至少配置：
+
+```dotenv
+DATABASE_URL=postgresql://agentnovas:password@127.0.0.1:5432/agentnovas
+BOOTSTRAP_SECRET=replace-me
+EXCHANGE_CREDENTIAL_ENCRYPTION_KEY=replace-with-32-byte-key
+LLM_PROFILE_ENCRYPTION_KEY=replace-with-32-byte-key
+STRATEGY_RESEARCH_ENABLED=true
+STRATEGY_RUNTIME_ENABLED=true
+PAYMENT_WORKER_ENABLED=false
+NOTIFICATION_WORKER_ENABLED=false
+STRATEGY_RUNTIME_EXPLANATION_TIMEOUT_MS=30000
+PLATFORM_EMERGENCY_STOP=false
+```
+
+模型 API Key 和交易所密钥只在服务端加密保存，禁止提交到 Git、写入浏览器或输出到日志。
+
+## 常用命令
+
+- `npm run dev:client`：启动客户端，端口 3000。
+- `npm run dev:operations`：启动运营端，端口 3001。
+- `npm run dev:maintenance`：启动运维端，端口 3002。
+- `npm run worker:research`：启动独立策略研究 Worker。
+- `npm run worker:runtime`：启动影子盘/模拟盘 Runtime Worker；不会发送真实订单。
+- `npm run worker:payment`：启动支付 Worker；默认要求 `PAYMENT_WORKER_ENABLED=true`。
+- `npm run worker:notification`：启动通知 Worker；默认要求 `NOTIFICATION_WORKER_ENABLED=true`。
+- `npm run postgres:migrate`：应用 PostgreSQL 迁移。
+- `npm run build`：生成生产构建并执行 TypeScript 检查。
+- `npm run start`：启动生产构建。
+- `npm run lint`：执行 ESLint。
+- `npm test`：运行单元、合同和 PostgreSQL 集成测试；不读取历史构建产物。
+- `npm run test:apps`：分别构建 Client、Operations 和 Maintenance。
+- `npm run test:smoke`：构建 Client、启动临时生产服务并验证真实 HTML 响应。
+
+## Linux 部署
+
+生产环境使用 `/etc/agentnovas/agentnovas.env` 保存 `0600` 权限的环境变量，通过 systemd 分别管理三个 Web 服务、Research Worker、Runtime Worker、Payment Worker 和 Notification Worker，再由 Nginx 直接为 `agentnovas.com`、`zht.agentnovas.com` 和 `xm.agentnovas.com` 提供 TLS 与反向代理。
+
+部署模板位于：
+
+- `deploy/systemd/riverton-client.service`
+- `deploy/systemd/riverton-operations.service`
+- `deploy/systemd/riverton-maintenance.service`
+- `deploy/systemd/riverton-payment-worker.service`
+- `deploy/systemd/riverton-notification-worker.service`
+- `deploy/systemd/agentnovas-research-worker.service`
+- `deploy/systemd/agentnovas-runtime-worker.service`
+- `deploy/nginx/riverton-three-apps.conf`
+- `docs/runbooks/self-hosted-strategy-research.md`
+
+发布前先迁移数据库，再启动 Web；健康检查、登录和租户隔离通过后，最后开启研究功能并启动 Worker。
+
+## 策略研发原则
+
+LLM 只负责需求结构化、市场状态解释、独立提案、反方审查、风险说明和报告。交易运行时的市场、反方与风控说明是独立异步任务；确定性周期会先提交，解释超时不会阻塞或改写信号、风控和模拟订单。DSL 白名单校验、参数搜索、回测、评分和准入全部由确定性代码执行。回测结果是历史证据，不构成未来收益承诺；没有候选达到门槛时，系统必须明确显示未通过。

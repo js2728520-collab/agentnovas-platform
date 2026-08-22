@@ -1,0 +1,23 @@
+[Unit]
+Description=AgentNovas strategy research worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+RefuseManualStart=yes
+
+[Service]
+Type=simple
+User=agentnovas
+Group=agentnovas
+WorkingDirectory=/opt/agentnovas/current
+EnvironmentFile=/etc/agentnovas/research.env
+ExecStart=/usr/bin/npm run worker:research
+Restart=no
+RestartSec=5
+TimeoutStopSec=330
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/agentnovas
+
+[Install]

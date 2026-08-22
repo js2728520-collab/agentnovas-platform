@@ -49,13 +49,6 @@ const followPolicyLabels: Array<[string, string]> = [
   ["保存中…", "Saving…"], ["正在读取规则…", "Loading policy…"], ["策略跟随权限规则已保存", "Strategy follow policy saved"],
 ];
 
-const revenueRuleLabels: Array<[string, string]> = [
-  ["充值收入先提取50%作为总公司运营成本；剩余50%网站收益按总公司20%、分公司80%分配。", "50% of top-up revenue is retained by HQ as operating cost; the remaining 50% of website revenue is split 20% HQ / 80% branch."],
-  ["会员盈利费率", "Membership performance-fee rates"], ["计费基准", "Billing basis"],
-  ["本周已实现净利润", "This week's realized net profit"], ["按本周已实现净利润计费", "Based on this week's realized net profit"],
-  ["按周仅计已实现净利润", "Weekly realized net profit only"],
-];
-
 /*
  * Several panels are rendered by independent client components and cannot
  * receive the page's `t` object directly.  Keep a small shared dictionary for
@@ -155,27 +148,6 @@ for (const locale of Object.keys(marketWatchlistLocaleOverrides) as SupportedLoc
   localeOverrides[locale] = { ...(localeOverrides[locale] || {}), ...(marketWatchlistLocaleOverrides[locale] || {}) };
 }
 
-const revenueRuleLocaleOverrides: Partial<Record<SupportedLocale, Record<string, string>>> = {
-  "zh-TW": {
-    "充值收入先提取50%作为总公司运营成本；剩余50%网站收益按总公司20%、分公司80%分配。": "充值收入先提取50%作為總公司營運成本；剩餘50%網站收益按總公司20%、分公司80%分配。", "会员盈利费率": "會員盈利費率", "计费基准": "計費基準", "本周已实现净利润": "本週已實現淨利潤", "按本周已实现净利润计费": "按本週已實現淨利潤計費", "按周仅计已实现净利润": "按週僅計已實現淨利潤"
-  },
-  "ru-RU": {
-    "充值收入先提取50%作为总公司运营成本；剩余50%网站收益按总公司20%、分公司80%分配。": "50% пополнений удерживается головной компанией как операционные расходы; оставшиеся 50% дохода сайта делятся 20% головной компании и 80% филиалу.", "会员盈利费率": "Ставки комиссии по тарифу", "计费基准": "Основа начисления", "本周已实现净利润": "Реализованная прибыль за текущую неделю", "按本周已实现净利润计费": "Расчёт по реализованной прибыли текущей недели", "按周仅计已实现净利润": "Только реализованная прибыль за неделю"
-  },
-  "es-ES": {
-    "充值收入先提取50%作为总公司运营成本；剩余50%网站收益按总公司20%、分公司80%分配。": "El 50% de las recargas se retiene como coste operativo de la central; el 50% restante de los ingresos se divide 20% para la central y 80% para la sucursal.", "会员盈利费率": "Tasas de comisión por membresía", "计费基准": "Base de cálculo", "本周已实现净利润": "Beneficio neto realizado de esta semana", "按本周已实现净利润计费": "Cálculo según el beneficio realizado de esta semana", "按周仅计已实现净利润": "Solo beneficio realizado semanal"
-  },
-  "ja-JP": {
-    "充值收入先提取50%作为总公司运营成本；剩余50%网站收益按总公司20%、分公司80%分配。": "チャージ収入の50%は本社の運営費として留保し、残り50%のサイト収益を本社20%、支社80%で分配します。", "会员盈利费率": "会員プラン別の成功報酬率", "计费基准": "課金基準", "本周已实现净利润": "今週の実現純利益", "按本周已实现净利润计费": "今週の実現純利益に基づき課金", "按周仅计已实现净利润": "週次の実現純利益のみ"
-  },
-  "ko-KR": {
-    "充值收入先提取50%作为总公司运营成本；剩余50%网站收益按总公司20%、分公司80%分配。": "충전 수익의 50%는 본사 운영 비용으로 보유하고, 나머지 50%의 사이트 수익은 본사 20%, 지사 80%로 배분합니다.", "会员盈利费率": "멤버십 수익 배분율", "计费基准": "정산 기준", "本周已实现净利润": "이번 주 실현 순이익", "按本周已实现净利润计费": "이번 주 실현 순이익 기준 정산", "按周仅计已实现净利润": "주간 실현 순이익만 반영"
-  }
-};
-for (const locale of Object.keys(revenueRuleLocaleOverrides) as SupportedLocale[]) {
-  localeOverrides[locale] = { ...(localeOverrides[locale] || {}), ...(revenueRuleLocaleOverrides[locale] || {}) };
-}
-
 export function dedupeAdjacentEnglish(value: string): string {
   return value.replace(/\b([A-Za-z][A-Za-z0-9'/-]*)\b(?:\s*[·|/:,-]\s*|\s+)\1\b/gi, "$1");
 }
@@ -191,7 +163,7 @@ export function localizeText(value: string, locale: string): string {
   let output = value;
   // Replace longer labels first. Otherwise a short label such as “市场” can
   // partially consume “市场分析师” and leave Chinese characters behind.
-  const labels = [...commonLabels, ...followPolicyLabels, ...revenueRuleLabels].sort(([left], [right]) => right.length - left.length);
+  const labels = [...commonLabels, ...followPolicyLabels].sort(([left], [right]) => right.length - left.length);
   for (const [source, english] of labels) {
     output = output.split(source).join(overrides[source] || english);
   }

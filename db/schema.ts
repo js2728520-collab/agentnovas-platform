@@ -26,7 +26,7 @@ export const users = sqliteTable("users", {
   gender: text("gender").notNull().default(""),
   passwordHash: text("password_hash").notNull(),
   emailVerifiedAt: text("email_verified_at"),
-  role: text("role", { enum: ["hq_admin", "maintenance_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "customer", "finance", "auditor"] }).notNull(),
+  role: text("role", { enum: ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "customer", "finance", "auditor"] }).notNull(),
   organizationId: text("organization_id").references(() => organizations.id),
   reportsToUserId: text("reports_to_user_id"),
   status: text("status", { enum: ["pending", "active", "frozen", "closed"] }).notNull().default("pending"),
@@ -34,6 +34,14 @@ export const users = sqliteTable("users", {
   timezone: text("timezone").notNull().default("Asia/Shanghai"),
   ...timestamps,
 }, (t) => [uniqueIndex("idx_users_email_unique").on(t.email), uniqueIndex("idx_users_phone_unique").on(t.phone), uniqueIndex("idx_users_username_unique").on(t.username), index("idx_users_org_role").on(t.organizationId, t.role)]);
+
+export const platformSettings = sqliteTable("platform_settings", {
+  id: text("id").primaryKey(),
+  section: text("section", { enum: ["system", "features", "billing", "integrations", "security"] }).notNull(),
+  payloadJson: text("payload_json").notNull().default("{}"),
+  updatedByUserId: text("updated_by_user_id").references(() => users.id),
+  ...timestamps,
+}, (t) => [uniqueIndex("idx_platform_settings_section_unique").on(t.section), index("idx_platform_settings_updated").on(t.updatedAt)]);
 
 export const tradingEmergencyStops = sqliteTable("trading_emergency_stops", {
   id: text("id").primaryKey(),
@@ -48,27 +56,6 @@ export const tradingEmergencyStops = sqliteTable("trading_emergency_stops", {
   ...timestamps,
 }, (t) => [uniqueIndex("idx_trading_emergency_scope_unique").on(t.scopeKey), index("idx_trading_emergency_active").on(t.active, t.scopeType)]);
 
-// A personal agent is an internal account with a separate commission profile.
-// Keeping the profile outside users avoids changing the existing organization
-// role hierarchy while still giving HQ its own creation and settlement flow.
-export const personalAgents = sqliteTable("personal_agents", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id),
-  organizationId: text("organization_id").references(() => organizations.id),
-  status: text("status", { enum: ["active", "suspended", "closed"] }).notNull().default("active"),
-  ...timestamps,
-}, (t) => [uniqueIndex("idx_personal_agents_user_unique").on(t.userId), index("idx_personal_agents_org_status").on(t.organizationId, t.status)]);
-
-export const personalAgentMonthlyPeriods = sqliteTable("personal_agent_monthly_periods", {
-  id: text("id").primaryKey(),
-  agentId: text("agent_id").notNull().references(() => personalAgents.id),
-  month: text("month").notNull(),
-  performanceUsdt: real("performance_usdt").notNull().default(0),
-  commissionRate: real("commission_rate").notNull().default(.2),
-  commissionUsdt: real("commission_usdt").notNull().default(0),
-  ...timestamps,
-}, (t) => [uniqueIndex("idx_personal_agent_period_unique").on(t.agentId, t.month), index("idx_personal_agent_period_month").on(t.month)]);
-
 export const llmConfigurations = sqliteTable("llm_configurations", {
   id: text("id").primaryKey(),
   scope: text("scope", { enum: ["system", "user"] }).notNull(),
@@ -82,14 +69,6 @@ export const llmConfigurations = sqliteTable("llm_configurations", {
   updatedByUserId: text("updated_by_user_id").references(() => users.id),
   ...timestamps,
 }, (t) => [uniqueIndex("idx_llm_config_scope_owner_unique").on(t.scope, t.ownerUserId), index("idx_llm_config_scope_enabled").on(t.scope, t.enabled)]);
-
-export const platformSettings = sqliteTable("platform_settings", {
-  id: text("id").primaryKey(),
-  section: text("section", { enum: ["system", "features", "billing", "integrations", "security"] }).notNull(),
-  payloadJson: text("payload_json").notNull().default("{}"),
-  updatedByUserId: text("updated_by_user_id").references(() => users.id),
-  ...timestamps,
-}, (t) => [uniqueIndex("idx_platform_settings_section_unique").on(t.section), index("idx_platform_settings_updated").on(t.updatedAt)]);
 
 export const platformFollowPolicies = sqliteTable("platform_follow_policies", {
   id: text("id").primaryKey(),
@@ -137,6 +116,7 @@ export const authTokens = sqliteTable("auth_tokens", {
   userId: text("user_id").notNull().references(() => users.id),
   tokenHash: text("token_hash").notNull(),
   purpose: text("purpose", { enum: ["verify_email", "reset_password"] }).notNull(),
+  tokenAudience: text("token_audience", { enum: ["client", "operations", "maintenance"] }).notNull().default("client"),
   expiresAt: text("expires_at").notNull(),
   usedAt: text("used_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -146,17 +126,64 @@ export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id),
   tokenHash: text("token_hash").notNull(),
+  appAudience: text("app_audience", { enum: ["client", "operations", "maintenance"] }).notNull().default("client"),
   expiresAt: text("expires_at").notNull(),
+  mfaLevel: text("mfa_level", { enum: ["none", "primary", "totp", "recovery"] }).notNull().default("none"),
+  mfaVerifiedAt: text("mfa_verified_at"),
+  lastSeenAt: text("last_seen_at"),
+  idleExpiresAt: text("idle_expires_at"),
+  absoluteExpiresAt: text("absolute_expires_at"),
+  sessionVersion: integer("session_version").notNull().default(1),
   revokedAt: text("revoked_at"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-}, (t) => [uniqueIndex("idx_sessions_token_unique").on(t.tokenHash), index("idx_sessions_user_expiry").on(t.userId, t.expiresAt)]);
+}, (t) => [uniqueIndex("idx_sessions_token_unique").on(t.tokenHash), index("idx_sessions_user_expiry").on(t.userId, t.expiresAt), index("idx_sessions_user_app_expiry").on(t.userId, t.appAudience, t.expiresAt)]);
+
+export const aiConversations = sqliteTable("ai_conversations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  title: text("title").notNull().default("新对话"),
+  purpose: text("purpose", { enum: ["consultation", "strategy"] }).notNull().default("consultation"),
+  status: text("status", { enum: ["active", "archived"] }).notNull().default("active"),
+  lastMessageAt: text("last_message_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  ...timestamps,
+}, (t) => [
+  index("idx_ai_conversations_user_status_time").on(t.userId, t.status, t.lastMessageAt),
+]);
+
+export const aiMessages = sqliteTable("ai_messages", {
+  id: text("id").primaryKey(),
+  conversationId: text("conversation_id").notNull().references(() => aiConversations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id),
+  role: text("role", { enum: ["user", "assistant"] }).notNull(),
+  content: text("content").notNull(),
+  generationMode: text("generation_mode", { enum: ["ai_provider", "guided_rules", "error"] }),
+  providerName: text("provider_name"),
+  model: text("model"),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (t) => [
+  index("idx_ai_messages_conversation_time").on(t.conversationId, t.createdAt),
+  index("idx_ai_messages_user_role_time").on(t.userId, t.role, t.createdAt),
+]);
+
+export const aiUsageDaily = sqliteTable("ai_usage_daily", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  usageDate: text("usage_date").notNull(),
+  requestCount: integer("request_count").notNull().default(0),
+  inputChars: integer("input_chars").notNull().default(0),
+  outputChars: integer("output_chars").notNull().default(0),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("idx_ai_usage_user_date_unique").on(t.userId, t.usageDate),
+]);
 
 export const invitations = sqliteTable("invitations", {
   id: text("id").primaryKey(),
   codeHash: text("code_hash").notNull(),
-  kind: text("kind", { enum: ["employee_reusable", "public_pool_single_use", "maintenance_admin_single_use"] }).notNull(),
+  kind: text("kind", { enum: ["employee_reusable", "public_pool_single_use"] }).notNull(),
   issuerUserId: text("issuer_user_id").notNull().references(() => users.id),
   ownerEmployeeId: text("owner_employee_id").references(() => users.id),
   organizationId: text("organization_id").references(() => organizations.id),
@@ -183,7 +210,7 @@ export const customerAttributions = sqliteTable("customer_attributions", {
 }, (t) => [index("idx_attribution_customer_effective").on(t.customerId, t.effectiveAt), index("idx_attribution_branch_status").on(t.branchId, t.status)]);
 
 export const customerProfiles = sqliteTable("customer_profiles", {
-  id: text("id").primaryKey(), customerId: text("customer_id").notNull().references(() => users.id), displayName: text("display_name").notNull().default(""), contactNote: text("contact_note").notNull().default(""), pointsBalance: integer("points_balance").notNull().default(0), archivedAt: text("archived_at"), archivedBy: text("archived_by").references(() => users.id), ...timestamps,
+  id: text("id").primaryKey(), customerId: text("customer_id").notNull().references(() => users.id), displayName: text("display_name").notNull().default(""), contactNote: text("contact_note").notNull().default(""), archivedAt: text("archived_at"), archivedBy: text("archived_by").references(() => users.id), ...timestamps,
 }, t => [uniqueIndex("idx_customer_profiles_customer_unique").on(t.customerId)]);
 
 export const customerHandoverNotes = sqliteTable("customer_handover_notes", {
@@ -218,6 +245,17 @@ export const memberships = sqliteTable("memberships", {
   startsAt: text("starts_at"), expiresAt: text("expires_at"), graceEndsAt: text("grace_ends_at"),
   maxExchangeAccounts: integer("max_exchange_accounts").notNull().default(1), maxActiveStrategies: integer("max_active_strategies").notNull().default(1), ...timestamps,
 }, (t) => [index("idx_memberships_customer_status").on(t.customerId, t.status)]);
+
+export const membershipAccessEvents = sqliteTable("membership_access_events", {
+  id: text("id").primaryKey(),
+  membershipId: text("membership_id").notNull().references(() => memberships.id),
+  customerId: text("customer_id").notNull().references(() => users.id),
+  eventType: text("event_type", { enum: ["trial_started", "trial_grace_started", "membership_grace_started", "read_only_started", "membership_expired", "membership_restored"] }).notNull(),
+  effectiveAt: text("effective_at").notNull(),
+  stateJson: text("state_json").notNull().default("{}"),
+  dedupeKey: text("dedupe_key").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (t) => [uniqueIndex("idx_membership_access_events_dedupe").on(t.dedupeKey), index("idx_membership_access_events_customer_time").on(t.customerId, t.effectiveAt)]);
 
 export const exchangeAccounts = sqliteTable("exchange_accounts", {
   id: text("id").primaryKey(), customerId: text("customer_id").notNull().references(() => users.id), exchange: text("exchange").notNull(), label: text("label").notNull(),
@@ -279,7 +317,7 @@ export const notificationChannels = sqliteTable("notification_channels", { id:te
 export const notificationDeliveries = sqliteTable("notification_deliveries", {
   id: text("id").primaryKey(), userId: text("user_id").notNull().references(() => users.id), channel: text("channel").notNull(), category: text("category").notNull(), templateKey: text("template_key").notNull(),
   dedupeKey: text("dedupe_key"), readAt: text("read_at"),
-  payloadJson: text("payload_json").notNull().default("{}"), status: text("status", { enum: ["queued", "sent", "delivered", "failed"] }).notNull().default("queued"), attempts: integer("attempts").notNull().default(0), providerMessageId: text("provider_message_id"), lastError: text("last_error"), scheduledAt: text("scheduled_at").notNull(), sentAt: text("sent_at"), ...timestamps,
+  payloadJson: text("payload_json").notNull().default("{}"), secretKind: text("secret_kind", { enum: ["reset_password", "internal_account_invite"] }), secretExpiresAt: text("secret_expires_at"), status: text("status", { enum: ["queued", "sent", "delivered", "failed"] }).notNull().default("queued"), attempts: integer("attempts").notNull().default(0), providerMessageId: text("provider_message_id"), providerEventType: text("provider_event_type"), providerEventAt: text("provider_event_at"), lastError: text("last_error"), scheduledAt: text("scheduled_at").notNull(), sentAt: text("sent_at"), leaseOwner: text("lease_owner"), leaseExpiresAt: text("lease_expires_at"), ...timestamps,
 }, (t) => [index("idx_notifications_status_schedule").on(t.status, t.scheduledAt), uniqueIndex("idx_notifications_dedupe_unique").on(t.dedupeKey)]);
 
 export const auditLogs = sqliteTable("audit_logs", {
@@ -297,6 +335,9 @@ export const communityStrategies = sqliteTable("community_strategies", {
   riskLevel: text("risk_level", { enum: ["low", "medium", "high"] }).notNull().default("medium"),
   status: text("status", { enum: ["draft", "testing", "submitted", "approved", "rejected", "published", "paused"] }).notNull().default("draft"),
   publicationMode: text("publication_mode", { enum: ["marketplace", "self_use"] }).notNull().default("marketplace"),
+  validationLabel: text("validation_label", { enum: ["UNVERIFIED", "EXPLORATION_ONLY", "STANDARD_FAILED", "STANDARD_VERIFIED"] }).notNull().default("UNVERIFIED"),
+  researchRunId: text("research_run_id"),
+  researchCandidateId: text("research_candidate_id"),
   conversationJson: text("conversation_json").notNull().default("[]"),
   specificationJson: text("specification_json").notNull().default("{}"),
   version: integer("version").notNull().default(1),
@@ -304,7 +345,24 @@ export const communityStrategies = sqliteTable("community_strategies", {
   rejectionReason: text("rejection_reason"),
   featuredRank: integer("featured_rank"), rankingScore: real("ranking_score").notNull().default(0),
   ...timestamps,
-}, (t) => [index("idx_community_strategies_status").on(t.status, t.publishedAt), index("idx_community_strategies_author").on(t.authorUserId, t.createdAt), uniqueIndex("idx_community_strategies_featured_unique").on(t.featuredRank), index("idx_community_strategies_ranking").on(t.status,t.rankingScore)]);
+}, (t) => [index("idx_community_strategies_status").on(t.status, t.publishedAt), index("idx_community_strategies_author").on(t.authorUserId, t.createdAt), uniqueIndex("idx_community_strategies_featured_unique").on(t.featuredRank), uniqueIndex("idx_community_strategies_research_candidate_unique").on(t.researchCandidateId), index("idx_community_strategies_ranking").on(t.status,t.rankingScore)]);
+
+export const strategyVersions = sqliteTable("strategy_versions", {
+  id: text("id").primaryKey(),
+  strategyId: text("strategy_id").notNull().references(() => communityStrategies.id),
+  version: integer("version").notNull(),
+  name: text("name").notNull().default(""),
+  summary: text("summary").notNull().default(""),
+  specificationJson: text("specification_json").notNull(),
+  conversationId: text("conversation_id").references(() => aiConversations.id),
+  source: text("source", { enum: ["manual", "ai_provider", "guided_rules"] }).notNull().default("manual"),
+  restoredFromVersion: integer("restored_from_version"),
+  createdByUserId: text("created_by_user_id").notNull().references(() => users.id),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (t) => [
+  uniqueIndex("idx_strategy_versions_strategy_version_unique").on(t.strategyId, t.version),
+  index("idx_strategy_versions_conversation").on(t.conversationId, t.createdAt),
+]);
 
 export const strategyValidations = sqliteTable("strategy_validations", {
   id: text("id").primaryKey(), strategyId: text("strategy_id").notNull().references(() => communityStrategies.id),

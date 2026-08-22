@@ -1,0 +1,92 @@
+name: Riverton commercial beta verification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      INTEGRATION_CREDENTIAL_ENCRYPTION_KEY: ci-only-encryption-key-with-32-characters
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run postgres:migrate
+      - run: npm test
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run test:apps
+      - run: npm run test:smoke:built
+      - run: npm run quality:secret-scan
+      - run: npm audit --omit=dev --audit-level=high
+
+  quality-release:
+    runs-on: ubuntu-latest
+    needs: verify
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      QUALITY_E2E_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      INTEGRATION_CREDENTIAL_ENCRYPTION_KEY: ci-only-encryption-key-with-32-characters
+      PAYMENT_WORKER_ENABLED: "false"
+      PAYMENT_PROVIDER_TESTS_ENABLED: "false"
+      NOTIFICATION_WORKER_ENABLED: "false"
+      NOTIFICATION_EMAIL_SEND_ENABLED: "false"
+      DEMO_EXECUTION_WORKER_ENABLED: "false"
+      PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED: "false"
+      PLATFORM_DEMO_VERIFICATION_ENABLED: "false"
+      STRATEGY_RESEARCH_ENABLED: "false"
+      STRATEGY_RUNTIME_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:apps
+      - run: npm run quality:bundle
+      - run: npm run test:e2e
+      - run: npm run quality:lighthouse
+      - run: npm run quality:release
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: commercial-beta-quality-evidence
+          path: outputs/
+          if-no-files-found: error
+          retention-days: 14

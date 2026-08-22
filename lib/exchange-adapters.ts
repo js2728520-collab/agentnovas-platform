@@ -1,9 +1,9 @@
-import type { ExchangeCredential } from "@/lib/exchange-credentials";
+import type { ExchangeCredential } from "./exchange-credentials.ts";
 import {
   EXCHANGE_CAPABILITIES,
   getExchangeCapability,
   normalizeExchange,
-} from "@/lib/exchange-capabilities";
+} from "./exchange-capabilities.ts";
 
 export type ExchangeEnvironment = "demo" | "live";
 type FetchLike = typeof fetch;

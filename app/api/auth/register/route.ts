@@ -1,10 +1,14 @@
-import { and, eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { auditLogs, authTokens, customerAttributions, invitations, memberships, notificationDeliveries, users } from "@/db/schema";
-import { hashPassword, normalizeEmail, randomToken, sha256, validEmail } from "@/lib/auth";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { hashPassword, normalizeEmail, sha256, validEmail } from "@/lib/auth";
+import { currentRequestAudience } from "@/lib/access-control";
+import {
+  consumeClientRegistrationRateLimit,
+  registerInvitedClient,
+} from "@/lib/client-registration-service";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
-import { getAllPlatformSettings } from "@/lib/platform-settings";
+import { getPostgresPool } from "@/lib/postgres";
+import { readResearchJson, ResearchApiError } from "@/lib/research-api";
+import { authConnectionBucketKey } from "@/lib/riverton-apps";
 
 function normalizeInvitationCode(input: string) {
   const value = input.trim();
@@ -23,125 +27,80 @@ function normalizeInvitationCode(input: string) {
   return value.toUpperCase();
 }
 
+function registrationError(error: unknown) {
+  if (error instanceof ResearchApiError) {
+    return Response.json({ error: error.message }, {
+      status: error.status,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+  console.error("Client registration failed", {
+    code: error && typeof error === "object" && "code" in error ? String(error.code) : "UNKNOWN",
+  });
+  return Response.json({ error: "注册失败，请稍后重试" }, {
+    status: 500,
+    headers: { "cache-control": "no-store" },
+  });
+}
+
 export async function POST(request: Request) {
   try {
-    await ensureD1Schema();
-    const platform = await getAllPlatformSettings();
-    if (!platform.features.inviteRegistration) return Response.json({ error: "平台当前暂停邀请码注册" }, { status: 503 });
-    const body = await request.json() as { phone?: string; email?: string; password?: string; invitationCode?: string };
-    const phone = normalizePhone(body.phone ?? "");
-    const email = normalizeEmail(body.email ?? "");
-    const password = body.password ?? "";
-    const invitationCode = normalizeInvitationCode(body.invitationCode ?? "");
+    if (currentRequestAudience(request) !== "client") {
+      return Response.json({ error: "当前应用不提供客户注册" }, { status: 404 });
+    }
+    const body = await readResearchJson(request, 4_096);
+    const phone = normalizePhone(String(body.phone ?? ""));
+    const email = normalizeEmail(String(body.email ?? ""));
+    const password = String(body.password ?? "");
+    const invitationCode = normalizeInvitationCode(String(body.invitationCode ?? ""));
 
     if (!phone) return Response.json({ error: "请输入有效手机号（可包含国际区号）" }, { status: 400 });
-    if (!email || !validEmail(email)) return Response.json({ error: "请输入有效邮箱" }, { status: 400 });
-    if (password.length < platform.security.passwordMinLength) return Response.json({ error: `密码至少需要 ${platform.security.passwordMinLength} 位字符` }, { status: 400 });
+    if (email && !validEmail(email)) return Response.json({ error: "邮箱格式不正确" }, { status: 400 });
+    if (password.length < 10) return Response.json({ error: "密码至少需要 10 位字符" }, { status: 400 });
     if (!invitationCode) return Response.json({ error: "必须填写邀请码" }, { status: 400 });
 
-    const db = getDb();
-    if ((await db.select({ id: users.id }).from(users).where(eq(users.phone, phone.value)).limit(1))[0]) {
-      return Response.json({ error: "该手机号已注册" }, { status: 409 });
-    }
-    if ((await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0]) {
-      return Response.json({ error: "该邮箱已注册" }, { status: 409 });
-    }
-
-    const codeHash = await sha256(invitationCode.toUpperCase());
-    const invite = (await db.select().from(invitations).where(and(eq(invitations.codeHash, codeHash), eq(invitations.status, "active"))).limit(1))[0];
-    if (!invite) return Response.json({ error: "邀请码无效或已使用" }, { status: 400 });
-
-    const nowDate = new Date();
-    const now = nowDate.toISOString();
-    const userId = crypto.randomUUID();
-    const trialExpiresAt = new Date(nowDate.getTime() + 3 * 86400_000).toISOString();
-    const trialGraceEndsAt = new Date(nowDate.getTime() + 4 * 86400_000).toISOString();
-    const publicPool = invite.kind === "public_pool_single_use";
-    const maintenanceInvite = invite.kind === "maintenance_admin_single_use";
-    const verificationToken = platform.security.requireEmailVerification ? randomToken() : "";
-    let managerId: string | null = null;
-    let supervisorId: string | null = null;
-    let employeeId: string | null = null;
-
-    if (!publicPool && !maintenanceInvite && invite.ownerEmployeeId) {
-      const people = await db.select({ id: users.id, role: users.role, reportsToUserId: users.reportsToUserId }).from(users);
-      const peopleById = new Map(people.map((person) => [person.id, person]));
-      let person = peopleById.get(invite.ownerEmployeeId);
-      let depth = 0;
-      while (person && depth++ < 6) {
-        if (person.role === "employee" && !employeeId) employeeId = person.id;
-        if (person.role === "supervisor" && !supervisorId) supervisorId = person.id;
-        if (person.role === "manager" && !managerId) managerId = person.id;
-        person = person.reportsToUserId ? peopleById.get(person.reportsToUserId) : undefined;
-      }
+    await ensureDatabaseSchema();
+    const connection = authConnectionBucketKey(request);
+    if (!connection) return Response.json({ error: "注册网络身份不可用" }, { status: 503 });
+    const pool = await getPostgresPool();
+    const rateLimit = await consumeClientRegistrationRateLimit(pool, {
+      phone: phone.value,
+      connectionBucketKey: connection.bucketKey,
+    });
+    if (!rateLimit.allowed) {
+      return Response.json({ error: "注册尝试过于频繁，请稍后重试" }, {
+        status: 429,
+        headers: {
+          "cache-control": "no-store",
+          "retry-after": String(rateLimit.retryAfterSeconds),
+        },
+      });
     }
 
-    await db.batch([
-      db.insert(users).values({
-        id: userId,
-        email,
-        phone: phone.value,
-        passwordHash: await hashPassword(password),
-        role: maintenanceInvite ? "maintenance_admin" : "customer",
-        organizationId: publicPool || maintenanceInvite ? null : invite.organizationId,
-        status: platform.security.requireEmailVerification ? "pending" : "active",
-      }),
-      ...(maintenanceInvite ? [] : [db.insert(customerAttributions).values({
-        id: crypto.randomUUID(),
-        customerId: userId,
-        source: publicPool ? "public_pool" : "employee_invite",
-        status: publicPool ? "public_pool_pending" : "active",
-        branchId: publicPool ? null : invite.organizationId,
-        managerId: publicPool ? null : managerId,
-        supervisorId: publicPool ? null : supervisorId,
-        employeeId: publicPool ? null : employeeId,
-        effectiveAt: publicPool ? null : now,
-        reason: publicPool ? "总公司客服一次性邀请码" : "邀请码自动归因",
-      })]),
-      ...(maintenanceInvite ? [] : [db.insert(memberships).values({
-        id: crypto.randomUUID(),
-        customerId: userId,
-        planCode: "trial_monthly_equivalent",
-        status: "active",
-        startsAt: now,
-        expiresAt: trialExpiresAt,
-        graceEndsAt: trialGraceEndsAt,
-        maxExchangeAccounts: 1,
-        maxActiveStrategies: 1,
-      })]),
-      ...((publicPool || maintenanceInvite) ? [db.update(invitations).set({ status: "used", usedByUserId: userId, usedAt: now, updatedAt: now }).where(eq(invitations.id, invite.id))] : []),
-      ...(maintenanceInvite ? [] : [db.insert(notificationDeliveries).values({
-        id: crypto.randomUUID(),
-        userId,
-        channel: "in_app",
-        category: "membership_billing",
-        templateKey: "trial_started",
-        payloadJson: JSON.stringify({ trialExpiresAt, trialGraceEndsAt, entitlement: "monthly" }),
-        scheduledAt: now,
-      })]),
-      ...(verificationToken ? [
-        db.insert(authTokens).values({ id: crypto.randomUUID(), userId, tokenHash: await sha256(verificationToken), purpose: "verify_email", expiresAt: new Date(nowDate.getTime() + 24 * 3600_000).toISOString() }),
-        db.insert(notificationDeliveries).values({ id: crypto.randomUUID(), userId, channel: "email", category: "login_security", templateKey: "verify_email", payloadJson: JSON.stringify({ token: verificationToken }), scheduledAt: now }),
-      ] : []),
-      db.insert(auditLogs).values({
-        id: crypto.randomUUID(),
-        actorUserId: userId,
-        action: maintenanceInvite ? "maintenance_admin.registered" : "customer.registered",
-        subjectType: "user",
-        subjectId: userId,
-        afterJson: JSON.stringify({ phone: phone.masked, emailProvided: Boolean(email), invitationKind: invite.kind, smsVerification: false }),
-        ipAddress: request.headers.get("cf-connecting-ip"),
-        userAgent: request.headers.get("user-agent"),
-      }),
-    ]);
+    const codeHash = await sha256(invitationCode);
+    const accountEmail = email || `phone-${(await sha256(phone.value)).slice(0, 18)}@unverified.agentnovas.local`;
+    const registered = await registerInvitedClient(pool, {
+      codeHash,
+      phone: phone.value,
+      phoneMasked: phone.masked,
+      email: accountEmail,
+      passwordHash: await hashPassword(password),
+      ipAddress: connection.ipAddress,
+      userAgent: request.headers.get("user-agent"),
+    });
 
     return Response.json({
       ok: true,
-      message: platform.security.requireEmailVerification ? (maintenanceInvite ? "运维账户注册成功，验证邮件已进入发送队列；验证后可登录" : "注册成功，验证邮件已进入发送队列；验证后可登录") : (maintenanceInvite ? "运维账户注册成功，可以登录运维后台" : "注册成功，无需短信验证码；已开通3天月卡同等权益体验"),
-      verificationRequired: platform.security.requireEmailVerification,
-      trial: maintenanceInvite ? null : { expiresAt: trialExpiresAt, graceEndsAt: trialGraceEndsAt, entitlement: "monthly" },
-    }, { status: 201 });
+      message: "注册成功，无需短信验证码；等待完成商业披露确认后开通3天试用",
+      verificationRequired: false,
+      trial: {
+        status: registered.trialStatus,
+        expiresAt: null,
+        graceEndsAt: null,
+        entitlement: "monthly",
+      },
+    }, { status: 201, headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "注册失败" }, { status: 500 });
+    return registrationError(error);
   }
 }

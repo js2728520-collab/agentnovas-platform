@@ -1,10 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { auditLogs, customerAttributions, memberships, monthlyTeamTargets, targetFollowUps, users } from "@/db/schema";
-import { canSeeCustomer } from "@/lib/permissions";
-import { requireUser, responseError } from "@/lib/session";
+import { auditLogs, customerAttributions, monthlyTeamTargets, targetFollowUps, users } from "@/db/schema";
+import { requireAccessPermission } from "@/lib/access-control";
+import { canAccessCustomerAttribution } from "@/lib/operations-access";
+import { responseError } from "@/lib/session";
+import { getPostgresPool } from "@/lib/postgres";
 
-const readRoles = ["branch_admin", "manager", "supervisor", "employee"] as const;
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const countPlan = (code: string, kind: "monthly" | "quarterly" | "annual") => {
   const value = code.toLowerCase();
@@ -26,13 +27,18 @@ function overallProgress(actual: Record<string, number>, goals: Record<string, n
 
 export async function GET(request: Request) {
   try {
-    const actor = await requireUser(request, [...readRoles]);
+    const { user: actor, scope, organizationIds } = await requireAccessPermission(request, "ops.team.view");
     const url = new URL(request.url), requested = url.searchParams.get("month") || new Date().toISOString().slice(0, 7);
     const month = monthPattern.test(requested) ? requested : new Date().toISOString().slice(0, 7), { start, end } = monthBounds(month), db = getDb();
     const [allUsers, attributions, allMemberships, allTargets, followUps] = await Promise.all([
       db.select({ id: users.id, email: users.email, role: users.role, organizationId: users.organizationId, reportsToUserId: users.reportsToUserId, createdAt: users.createdAt }).from(users),
       db.select().from(customerAttributions).where(eq(customerAttributions.status, "active")),
-      db.select().from(memberships),
+      (await getPostgresPool()).query<{ customer_id: string; starts_at: string; plan_code: string }>(`
+        SELECT orders.user_id AS customer_id,orders.activated_at AS starts_at,plan.plan_code
+          FROM commercial_membership_orders orders
+          JOIN commercial_plan_versions plan ON plan.id=orders.plan_version_id
+         WHERE orders.status='activated' AND orders.activated_at IS NOT NULL
+      `).then((result) => result.rows.map((row) => ({ customerId: row.customer_id, startsAt: new Date(row.starts_at).toISOString(), planCode: row.plan_code }))),
       db.select().from(monthlyTeamTargets).where(eq(monthlyTeamTargets.month, month)),
       db.select().from(targetFollowUps).where(eq(targetFollowUps.month, month)),
     ]);
@@ -45,17 +51,17 @@ export async function GET(request: Request) {
       return isDescendant(u.id, actor.id);
     });
     const staffRows = visibleStaff.map(staff => {
-      const customerRows = attributions.filter(a => canSeeCustomer(staff.role, staff.id, staff.organizationId, a));
+      const customerRows = attributions.filter(a => canAccessCustomerAttribution(scope, { userId: staff.id, organizationId: staff.organizationId }, a, organizationIds));
       const customerIds = new Set(customerRows.map(a => a.customerId));
       const newCustomers = [...customerIds].filter(id => { const customer = userMap.get(id); return !!customer && customer.createdAt >= start && customer.createdAt < end; }).length;
-      const opened = allMemberships.filter(m => customerIds.has(m.customerId) && !!m.startsAt && m.startsAt >= start && m.startsAt < end && ["active", "grace", "read_only", "expired"].includes(m.status));
+      const opened = allMemberships.filter(m => customerIds.has(m.customerId) && !!m.startsAt && m.startsAt >= start && m.startsAt < end);
       const actual = { newCustomers, monthlyCards: opened.filter(m => countPlan(m.planCode, "monthly")).length, quarterlyCards: opened.filter(m => countPlan(m.planCode, "quarterly")).length, annualCards: opened.filter(m => countPlan(m.planCode, "annual")).length };
       const target = allTargets.find(t => t.assigneeUserId === staff.id);
       const goals = { newCustomers: target?.newCustomersTarget || 0, monthlyCards: target?.monthlyCardsTarget || 0, quarterlyCards: target?.quarterlyCardsTarget || 0, annualCards: target?.annualCardsTarget || 0 };
       return { userId: staff.id, email: staff.email.replace(/^(.{2}).*(@.*)$/, "$1***$2"), role: staff.role, assigned: !!target, actual, goals, overallProgress: overallProgress(actual, goals), progress: { newCustomers: percent(actual.newCustomers, goals.newCustomers), monthlyCards: percent(actual.monthlyCards, goals.monthlyCards), quarterlyCards: percent(actual.quarterlyCards, goals.quarterlyCards), annualCards: percent(actual.annualCards, goals.annualCards) }, note: target?.note || "" };
     }).sort((a, b) => b.overallProgress - a.overallProgress).map((row, index) => ({ ...row, rank: index + 1 }));
-    const actorCustomers = new Set(attributions.filter(a => canSeeCustomer(actor.role, actor.id, actor.organizationId, a)).map(a => a.customerId));
-    const actorOpened = allMemberships.filter(m => actorCustomers.has(m.customerId) && !!m.startsAt && m.startsAt >= start && m.startsAt < end && ["active", "grace", "read_only", "expired"].includes(m.status));
+    const actorCustomers = new Set(attributions.filter(a => canAccessCustomerAttribution(scope, { userId: actor.id, organizationId: actor.organizationId }, a, organizationIds)).map(a => a.customerId));
+    const actorOpened = allMemberships.filter(m => actorCustomers.has(m.customerId) && !!m.startsAt && m.startsAt >= start && m.startsAt < end);
     const totals = { newCustomers: [...actorCustomers].filter(id => { const customer = userMap.get(id); return !!customer && customer.createdAt >= start && customer.createdAt < end; }).length, monthlyCards: actorOpened.filter(m => countPlan(m.planCode, "monthly")).length, quarterlyCards: actorOpened.filter(m => countPlan(m.planCode, "quarterly")).length, annualCards: actorOpened.filter(m => countPlan(m.planCode, "annual")).length };
     const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
     const timeProgress = month === new Date().toISOString().slice(0, 7) ? Math.min(100, Math.round(new Date().getDate() / daysInMonth * 100)) : month < new Date().toISOString().slice(0, 7) ? 100 : 0;
@@ -66,7 +72,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const actor = await requireUser(request, ["manager"]), body = await request.json() as { month?: string; assigneeUserId?: string; newCustomersTarget?: number; monthlyCardsTarget?: number; quarterlyCardsTarget?: number; annualCardsTarget?: number; note?: string };
+    const { user: actor } = await requireAccessPermission(request, "ops.team.manage"), body = await request.json() as { month?: string; assigneeUserId?: string; newCustomersTarget?: number; monthlyCardsTarget?: number; quarterlyCardsTarget?: number; annualCardsTarget?: number; note?: string };
     if (!body.month || !monthPattern.test(body.month) || !body.assigneeUserId) return Response.json({ error: "请选择月份和下属成员" }, { status: 400 });
     const values = [body.newCustomersTarget, body.monthlyCardsTarget, body.quarterlyCardsTarget, body.annualCardsTarget].map(v => Number(v || 0));
     if (values.some(v => !Number.isInteger(v) || v < 0 || v > 100000)) return Response.json({ error: "任务指标必须是非负整数" }, { status: 400 });

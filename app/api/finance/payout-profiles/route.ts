@@ -1,1 +1,38 @@
-import{desc,eq}from"drizzle-orm";import{getDb}from"@/db";import{approvalRequests,payoutProfiles}from"@/db/schema";import{branchApprovalRoles}from"@/lib/permissions";import{requireUser,responseError}from"@/lib/session";export async function GET(request:Request){try{const a=await requireUser(request,[...branchApprovalRoles]);return Response.json({profiles:await getDb().select().from(payoutProfiles).where(eq(payoutProfiles.ownerOrganizationId,a.organizationId)).orderBy(desc(payoutProfiles.createdAt))})}catch(e){return responseError(e)}}export async function POST(request:Request){try{const a=await requireUser(request,[...branchApprovalRoles]);const b=await request.json()as{network?:"TRC20"|"ERC20"|"BEP20",address?:string,qrCode?:string};if(!b.network||!b.address||b.address.trim().length<20)return Response.json({error:"请选择网络并填写有效地址"},{status:400});if(b.qrCode&&b.qrCode.length>3_000_000)return Response.json({error:"二维码图片不能超过 2 MB"},{status:400});const id=crypto.randomUUID(),approvalId=crypto.randomUUID(),db=getDb();await db.batch([db.insert(payoutProfiles).values({id,ownerOrganizationId:a.organizationId,network:b.network,address:b.address.trim(),status:"pending_review",approvalId}),db.insert(approvalRequests).values({id:approvalId,type:"payout_profile_change",branchId:a.organizationId,subjectType:"payout_profile",subjectId:id,payloadJson:JSON.stringify(b),requestedBy:a.id})]);return Response.json({profileId:id,approvalId,status:"pending_review"},{status:201})}catch(e){return responseError(e)}}
+import { requireAccessPermission } from "@/lib/access-control";
+import { canAccessOrganization, maskOperationsValue, organizationScopePredicate } from "@/lib/operations-access";
+import { getPostgresPool } from "@/lib/postgres";
+import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+
+export async function GET(request: Request) {
+  try {
+    const { user, scope, organizationIds } = await requireAccessPermission(request, "ops.ledger.view");
+    const scoped = organizationScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "owner_organization_id", 1, organizationIds);
+    const pool = await getPostgresPool();
+    const result = await pool.query(`SELECT id, owner_organization_id, network, address, status, approval_id, created_at FROM payout_profiles WHERE ${scoped.clause} ORDER BY created_at DESC`, scoped.values);
+    return Response.json({ profiles: result.rows.map((row) => ({ id: row.id, ownerOrganizationId: row.owner_organization_id, network: row.network, address: maskOperationsValue(row.address), status: row.status, approvalId: row.approval_id, createdAt: row.created_at })) }, { headers: { "cache-control": "no-store" } });
+  } catch (error) { return researchErrorResponse(error, request); }
+}
+
+export async function POST(request: Request) {
+  try {
+    const { user, scope, organizationIds } = await requireAccessPermission(request, "ops.reconciliation.run");
+    const body = await readResearchJson(request);
+    const network = String(body.network ?? "");
+    const address = String(body.address ?? "").trim();
+    const ownerOrganizationId = String(body.ownerOrganizationId ?? user.organizationId ?? "");
+    const reason = String(body.reason ?? "").trim().slice(0, 500);
+    if (!["TRC20", "ERC20", "BEP20"].includes(network) || address.length < 20 || !ownerOrganizationId || !reason) throw new ResearchApiError("VALIDATION_ERROR", "组织、网络、地址和原因均为必填", 422);
+    if (!canAccessOrganization(scope, { userId: user.id, organizationId: user.organizationId }, ownerOrganizationId, organizationIds)) throw new ResearchApiError("FORBIDDEN", "不能管理其他组织的付款资料", 403);
+    const pool = await getPostgresPool();
+    const profileId = crypto.randomUUID();
+    const approvalId = crypto.randomUUID();
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`INSERT INTO payout_profiles (id, owner_organization_id, network, address, status, approval_id) VALUES ($1, $2, $3, $4, 'pending_review', $5)`, [profileId, ownerOrganizationId, network, address, approvalId]);
+      await client.query(`INSERT INTO approval_requests (id, type, branch_id, subject_type, subject_id, payload_json, requested_by) VALUES ($1, 'payout_profile_change', $2, 'payout_profile', $3, $4, $5)`, [approvalId, user.organizationId, profileId, JSON.stringify({ network, address: maskOperationsValue(address), reason }), user.id]);
+      await client.query("COMMIT");
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+    return Response.json({ profileId, approvalId, status: "pending_review", paymentExecuted: false }, { status: 201 });
+  } catch (error) { return researchErrorResponse(error, request); }
+}

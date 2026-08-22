@@ -1,0 +1,986 @@
+openapi: 3.1.0
+info:
+  title: Riverton Capital Controlled Beta API
+  version: 2.2.0-beta
+  description: >-
+    三应用一库的核心浏览器接口合同。客户 paper 与平台 Demo 证据分离；
+    优盾 deposit-only 客户充值可在目标商户配置和双人复核 Gate 下启用；提现、划转、自动扣款、客户交易所密钥、真实现货/永续和其他生产外部操作不启用。
+servers:
+  - url: https://agentnovas.com
+    description: Client
+  - url: https://zht.agentnovas.com
+    description: Operations
+  - url: https://xm.agentnovas.com
+    description: Maintenance
+tags:
+  - name: Auth
+  - name: Access
+  - name: Trading Hall
+  - name: Membership
+  - name: Credits
+  - name: Paper
+  - name: Wallet
+  - name: Operations
+  - name: Maintenance
+  - name: Health
+paths:
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录当前 audience
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功并设置当前 audience Cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Viewer'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: 注销当前 audience 会话
+      responses:
+        '200':
+          description: 已注销
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: 当前会话用户
+      responses:
+        '200':
+          description: 当前用户
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Viewer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/access/me/effective:
+    get:
+      tags: [Access]
+      summary: 当前 audience 有效权限
+      responses:
+        '200':
+          description: 权限与数据范围
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffectiveAccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/trading-hall:
+    get:
+      tags: [Trading Hall]
+      summary: 官方三策略卡与最近七阶段决策轮
+      description: 当前只返回 shadow/paper 运行状态，不表示真实现货订单已启用。
+      responses:
+        '200':
+          description: 交易大厅数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TradingHall'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/membership/legal-consent:
+    get:
+      tags: [Membership]
+      summary: 查询当前七份商业披露及本账号确认状态
+      responses:
+        '200':
+          description: 当前有效正文、版本、哈希、配置与确认状态；不返回订单或付款结果
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [requiredLegalDocuments, configurationComplete, consentComplete]
+                properties:
+                  requiredLegalDocuments:
+                    type: array
+                    minItems: 0
+                    maxItems: 7
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/CommercialLegalDocument'
+                        - type: object
+                          required: [acceptedAt]
+                          properties:
+                            acceptedAt: { type: [string, 'null'], format: date-time }
+                  configurationComplete: { type: boolean }
+                  consentComplete: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Membership]
+      summary: 独立保存当前七份商业披露版本确认
+      description: 精确匹配当前七份正文并幂等保存 ID、版本、哈希、时间、可信请求 IP 与 user-agent 摘要；不创建订单、付款或会员权益。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [acceptedDocumentVersionIds]
+              properties:
+                acceptedDocumentVersionIds:
+                  type: array
+                  minItems: 7
+                  maxItems: 7
+                  uniqueItems: true
+                  items: { type: string }
+      responses:
+        '200': { description: 当前版本确认已保存或幂等重放 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { description: 七正文配置未完成，确认失败关闭 }
+  /api/membership/plans:
+    get:
+      tags: [Membership]
+      summary: 查询版本化会员计划与可读商业披露
+      responses:
+        '200':
+          description: 四档 v1 计划快照；七份正文完整且哈希一致时才允许创建订单
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [plans, requiredLegalDocuments, orderCreationAvailable]
+                properties:
+                  plans:
+                    type: array
+                    minItems: 4
+                    maxItems: 4
+                    items: { $ref: '#/components/schemas/CommercialPlan' }
+                  requiredLegalDocuments:
+                    type: array
+                    items: { $ref: '#/components/schemas/CommercialLegalDocument' }
+                  orderCreationAvailable: { type: boolean }
+  /api/membership/me:
+    get:
+      tags: [Membership]
+      summary: 查询当前 trial 与会员权益
+      responses:
+        '200': { description: 当前 entitlement 安全视图 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/membership/orders:
+    get:
+      tags: [Membership]
+      summary: 查询当前客户会员订单
+      responses:
+        '200': { description: 订单列表，不含完整外部付款凭证 }
+    post:
+      tags: [Membership]
+      summary: 创建人工付款会员订单
+      description: 需要确认当前商业披露和 Idempotency-Key；不返回链上地址或二维码。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [planCode, acceptedDocumentVersionIds]
+              properties:
+                planCode: { type: string, enum: [monthly_v1, quarterly_v1, annual_v1, lifetime_v1] }
+                acceptedDocumentVersionIds:
+                  type: array
+                  minItems: 7
+                  maxItems: 7
+                  uniqueItems: true
+                  items: { type: string }
+      responses:
+        '201': { description: 已创建订单和人工付款指引 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/membership/performance-statements:
+    get:
+      tags: [Membership]
+      summary: 查询当前客户 paper 盈利分成账单
+      responses:
+        '200': { description: paper 模拟分成安全视图 }
+  /api/membership/performance-statements/{id}:
+    get:
+      tags: [Membership]
+      summary: 查询当前客户的一张 Paper 分成账单详情与时间线
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 合同快照、计算区间、状态和净化事件时间线 }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/credits/me:
+    get:
+      tags: [Credits]
+      summary: 查询 AI credits 余额与不可变流水
+      responses:
+        '200': { description: 可用、预留和分录 }
+  /api/trading-hall/paper/portfolio:
+    get:
+      tags: [Paper]
+      summary: 查询三张官方策略独立 paper 组合
+      responses:
+        '200':
+          description: 每张卡初始 10,000 USDT，不代表真实资产
+  /api/trading-hall/paper/trades:
+    get:
+      tags: [Paper]
+      summary: 查询服务端 paper 成交历史
+      parameters:
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: portfolioId
+          schema: { type: string }
+      responses:
+        '200': { description: 当前客户三张官方组合的 cursor 分页成交 }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/trading-hall/paper/platform-demo-summary:
+    get:
+      tags: [Paper]
+      summary: 查询平台测试环境的 Client 安全摘要
+      description: 不返回账户、密钥、endpoint、订单 ID、payload 或 traceId；Demo 状态不影响客户 Paper。
+      responses:
+        '200': { description: provider/card 状态、最近测试时间与净化回执；customerImpact 固定 false }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/wallet/balances:
+    get:
+      tags: [Wallet]
+      summary: 查询平台服务余额
+      description: 余额只能用于会员和 AI 服务，不是交易所策略资金。
+      responses:
+        '200':
+          description: 余额列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WalletBalance'
+  /api/operations/membership-orders:
+    get:
+      tags: [Operations]
+      summary: 按 data scope 查询会员订单
+      responses:
+        '200': { description: cursor 分页与脱敏凭证状态 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/operations/membership-orders/{id}/decision:
+    post:
+      tags: [Operations]
+      summary: 第二人复核会员付款并幂等激活权益
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionRequest' }
+      responses:
+        '200': { description: 审批与业务事务结果；不表示外部自动收款 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/operations/performance-statements/generate:
+    post:
+      tags: [Operations]
+      summary: 幂等生成上一完整 UTC 周 paper 分成账单
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201': { description: 已生成或返回既有 statement }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/operations/performance-statements/{id}/decision:
+    post:
+      tags: [Operations]
+      summary: 业务复核分成账单并形成应收
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionRequest' }
+      responses:
+        '200': { description: 只形成应收，不标 paid 或更新高水位 }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/operations/deposits:
+    get:
+      tags: [Operations]
+      summary: 按当前数据范围查询充值
+      parameters:
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        '200':
+          description: 已按权限脱敏的充值列表
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/wallet/deposit-orders:
+    get:
+      tags: [Client]
+      summary: 查询当前客户的优盾充值订单
+      responses:
+        '200': { description: 真实地址、交易与复核状态；仅当前客户 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Client]
+      summary: 通过优盾生成 USDT 专属充值地址
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [network, amount]
+              properties:
+                network: { type: string, enum: [TRC20, ERC20, BEP20] }
+                amount: { type: string, pattern: '^\\d+(\\.\\d{1,18})?$' }
+      responses:
+        '201': { description: 优盾真实地址已生成；不表示到账 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { description: 优盾运行时、币种映射或通道未配置 }
+  /api/integrations/payments/{provider}/webhook:
+    post:
+      tags: [Machine]
+      summary: 优盾充值签名回调
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { type: string, enum: [udun] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [timestamp, nonce, sign, body]
+              properties:
+                timestamp: { type: string }
+                nonce: { type: string }
+                sign: { type: string, pattern: '^[a-fA-F0-9]{32}$' }
+                body: { type: string, description: 优盾签名覆盖的原始 JSON 字符串 }
+      responses:
+        '200': { description: 回调已幂等记录；成功充值仅进入人工复核 }
+        '401': { description: 签名无效 }
+        '409': { description: 回调过期 }
+  /api/operations/deposit-action-requests/{id}/decisions:
+    post:
+      tags: [Operations]
+      summary: 第二人审批充值人工操作
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, note]
+              properties:
+                decision: { type: string, enum: [approve, reject] }
+                note: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        '200':
+          description: APPROVE_CREDIT 批准时原子写钱包和账本，其他决定仅记录；以 fundsExecuted 为准
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/operations/ledger:
+    get:
+      tags: [Operations]
+      summary: 查询不可变账本
+      responses:
+        '200':
+          description: 当前数据范围内的交易与分录
+  /api/maintenance/email/status:
+    get:
+      tags: [Maintenance]
+      summary: 邮件集成安全状态
+      responses:
+        '200':
+          description: 不含密钥和完整端点的状态
+  /api/maintenance/integrations/catalog:
+    get:
+      tags: [Maintenance]
+      summary: 查询公共数据与新闻集成安全目录
+      responses:
+        '200': { description: configured/enabled/health/stale/lastTest，不含 Key 或完整 endpoint }
+  /api/maintenance/integrations/{id}/test:
+    post:
+      tags: [Maintenance]
+      summary: 对代码固定的公共只读目标执行安全检查
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 成功、延迟和检测时间 }
+        '502': { description: 净化错误码；不返回上游正文 }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/maintenance/trading/emergency-stop:
+    get:
+      tags: [Maintenance]
+      summary: 查询当前授权范围的官方 Paper 紧急停控
+      responses:
+        '200': { description: scope、受影响客户与组合；平台 Demo 控制保持独立 }
+    post:
+      tags: [Maintenance]
+      summary: 幂等启用或解除官方 Paper 新开仓停控
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 已提交的 Paper 访问状态变化；不改变平台 Demo 控制 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: 原因、状态或幂等键无效 }
+  /api/maintenance/commercial-disclosures:
+    get:
+      tags: [Maintenance]
+      summary: 查询产品身份、商业披露版本与 readiness
+      responses:
+        '200': { description: 草稿/已发布版本、安全元数据和当前 bundle }
+    post:
+      tags: [Maintenance]
+      summary: 创建或提交商业披露版本
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 草稿或提交结果；不自动发布 }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/maintenance/commercial-disclosures/{id}/decision:
+    post:
+      tags: [Maintenance]
+      summary: 由不同人员发布或拒绝商业披露版本
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 发布决定和当前 bundle }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/maintenance/payment-providers:
+    get:
+      tags: [Maintenance]
+      summary: 支付服务商安全状态
+      responses:
+        '200':
+          description: 不含密钥的 provider 列表
+  /api/maintenance/payment-providers/{id}/configuration:
+    patch:
+      tags: [Maintenance]
+      summary: 在停用状态配置优盾非密钥币种映射
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 映射已保存且旧测试失效 }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/maintenance/payment-providers/{id}/test:
+    post:
+      tags: [Maintenance]
+      summary: 调用优盾支持币种接口进行无资金连通测试
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 签名接口测试通过；未创建地址或交易 }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/maintenance/payment-providers/{id}/status:
+    patch:
+      tags: [Maintenance]
+      summary: 启用或停用优盾充值通道
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 状态已变更或幂等无变化 }
+        '409': { description: 启用前配置/测试 Gate 未满足 }
+  /api/maintenance/payment-workers/health:
+    get:
+      tags: [Maintenance]
+      summary: Worker、队列、数据库与迁移详细健康
+      responses:
+        '200':
+          description: configured/enabled/alive/healthy/stale、queue age 阈值、DB pool 和迁移证据
+  /api/maintenance/demo-exchanges:
+    get:
+      tags: [Maintenance]
+      summary: 查询平台 Demo 账户安全视图
+      responses:
+        '200': { description: hasSecret/environment/permission/verification，不含 secret }
+  /api/maintenance/demo-exchanges/{id}/verify:
+    post:
+      tags: [Maintenance]
+      summary: 在固定测试域名验证平台 Demo 账户
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: provider-specific 真实测试结果或明确 fixture 状态 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/maintenance/audit:
+    get:
+      tags: [Maintenance]
+      summary: 查询统一技术安全审计投影
+      description: >-
+        聚合 Demo、模型、集成、商业设置、安全停控和身份/MFA allowlist 事件；不返回
+        response payload、幂等键、payload hash、provider/client order ID、密文或完整凭证。
+      parameters:
+        - in: query
+          name: domain
+          schema: { type: string, enum: [demo, models, integrations, settings, safety, releases, identity] }
+        - in: query
+          name: action
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        '200': { description: allowlist 技术审计事件与下一游标 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/maintenance/releases:
+    get:
+      tags: [Maintenance]
+      summary: 查询不可变发布版本、验证与环境 current
+      responses:
+        '200':
+          description: 安全 runtime 元数据、版本列表、环境 current 与下一游标
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReleaseManagement' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Maintenance]
+      summary: 幂等登记不可变候选版本身份
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReleaseRegistrationRequest' }
+      responses:
+        '201': { description: draft 版本身份；尚未验证或部署 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/releases/{id}/verification:
+    post:
+      tags: [Maintenance]
+      summary: 由不同人员批准或拒绝候选版本
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReleaseVerificationRequest' }
+      responses:
+        '200': { description: 不可变验证决定；批准不代表环境已部署 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/releases/{id}/deployments:
+    post:
+      tags: [Maintenance]
+      summary: 登记已由外部发布流程执行的部署或回滚结果
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReleaseDeploymentRequest' }
+      responses:
+        '201': { description: 部署证据已登记；API 未执行 SSH、迁移或切流 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/health/live:
+    get:
+      tags: [Health]
+      summary: 粗粒度进程存活
+      responses:
+        '200': { description: alive 与时间，不含内部配置 }
+  /api/health/ready:
+    get:
+      tags: [Health]
+      summary: 粗粒度 readiness
+      responses:
+        '200': { description: ready }
+        '503': { description: not_ready，不含内部错误 }
+components:
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
+  securitySchemes:
+    clientSession:
+      type: apiKey
+      in: cookie
+      name: rc_client_session
+    operationsSession:
+      type: apiKey
+      in: cookie
+      name: rc_ops_session
+    maintenanceSession:
+      type: apiKey
+      in: cookie
+      name: rc_maint_session
+  schemas:
+    ReleaseRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [versionTag, channel, commitSha, artifactSha256, migrationVersion, releaseNotes, reason]
+      properties:
+        versionTag: { type: string, pattern: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)([-+][0-9A-Za-z.-]+)?$' }
+        channel: { type: string, enum: [beta, stable] }
+        commitSha: { type: string, pattern: '^[a-fA-F0-9]{40}$' }
+        artifactSha256: { type: string, pattern: '^[a-fA-F0-9]{64}$' }
+        migrationVersion: { type: string, pattern: '^[0-9]{4}_[a-z0-9_]{3,96}$' }
+        releaseNotes: { type: string, minLength: 10, maxLength: 10000 }
+        reason: { type: string, minLength: 8, maxLength: 500 }
+    ReleaseVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, evidenceSha256, reason]
+      properties:
+        decision: { type: string, enum: [approve, reject] }
+        evidenceSha256: { type: string, pattern: '^[a-fA-F0-9]{64}$' }
+        ciRunUrl: { type: string, format: uri, maxLength: 500 }
+        reason: { type: string, minLength: 8, maxLength: 500 }
+    ReleaseDeploymentRequest:
+      type: object
+      additionalProperties: false
+      required: [environment, action, status, evidenceSha256, reason]
+      properties:
+        environment: { type: string, enum: [staging, production] }
+        action: { type: string, enum: [deploy, rollback] }
+        status: { type: string, enum: [succeeded, failed] }
+        evidenceSha256: { type: string, pattern: '^[a-fA-F0-9]{64}$' }
+        reason: { type: string, minLength: 8, maxLength: 500 }
+    ReleaseManagement:
+      type: object
+      required: [runtime, releases, currentByEnvironment, nextCursor]
+      properties:
+        runtime:
+          type: object
+          properties:
+            versionTag: { type: [string, 'null'] }
+            commitSha: { type: [string, 'null'] }
+            artifactSha256: { type: [string, 'null'] }
+        releases:
+          type: array
+          items:
+            type: object
+            required: [id, versionTag, channel, commitSha, artifactSha256, migrationVersion, releaseNotes, createdByUserId, reason, createdAt, status, deployments, currentEnvironments]
+            properties:
+              id: { type: string }
+              versionTag: { type: string }
+              channel: { type: string, enum: [beta, stable] }
+              commitSha: { type: string }
+              artifactSha256: { type: string }
+              migrationVersion: { type: string }
+              releaseNotes: { type: string }
+              createdByUserId: { type: string }
+              reason: { type: string }
+              createdAt: { type: string, format: date-time }
+              status: { type: string, enum: [draft, verified, rejected, deployed, superseded, rolled_back] }
+              verification: { type: [object, 'null'] }
+              deployments: { type: array, items: { type: object } }
+              currentEnvironments: { type: array, items: { type: string, enum: [staging, production] } }
+        currentByEnvironment: { type: object }
+        nextCursor: { type: [string, 'null'] }
+    CommercialPlan:
+      type: object
+      additionalProperties: false
+      required: [id, version, priceUsd, durationDays, credits, performanceFeeBps]
+      properties:
+        id: { type: string, enum: [monthly_v1, quarterly_v1, annual_v1, lifetime_v1] }
+        version: { type: string, const: v1 }
+        priceUsd: { type: string, pattern: '^[0-9]+\\.[0-9]{2}$' }
+        durationDays: { type: [integer, 'null'] }
+        credits: { type: integer, minimum: 0 }
+        performanceFeeBps: { type: integer, enum: [1600, 2000] }
+    CommercialLegalDocument:
+      type: object
+      additionalProperties: false
+      required: [id, type, version, contentSha256, locale, contentMarkdown, effectiveAt]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [service_entity, service_region, privacy, terms, risk_disclosure, simulated_performance_fee_opinion, refund_policy]
+        version: { type: string }
+        contentSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        locale: { type: [string, 'null'] }
+        contentMarkdown: { type: [string, 'null'] }
+        effectiveAt: { type: string, format: date-time }
+    DecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, reason]
+      properties:
+        decision: { type: string, enum: [approve, reject] }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+    LoginRequest:
+      type: object
+      required: [account, password]
+      properties:
+        account: { type: string, minLength: 1, maxLength: 320 }
+        password: { type: string, minLength: 10, maxLength: 1024 }
+    Viewer:
+      type: object
+      required: [id, email, role]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        role: { type: string }
+        organizationId: { type: [string, 'null'] }
+    EffectiveAccess:
+      type: object
+      required: [appId, source, user, permissions]
+      properties:
+        appId: { type: string, enum: [client, operations, maintenance] }
+        source: { type: string, enum: [rbac, legacy_role] }
+        user: { $ref: '#/components/schemas/Viewer' }
+        permissions:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [SELF, DIRECT_REPORTS, TEAM_TREE, ORGANIZATION, ORGANIZATION_SET, PLATFORM]
+    TradingHall:
+      type: object
+      required: [productBoundary, strategies, agents, decisionRounds, generatedAt]
+      properties:
+        productBoundary:
+          type: object
+          required: [targetMarket, symbols, leverageEnabled, shortSellingEnabled, realOrderRoutingEnabled, localExchangeExecutionEnabled, currentExecutionMode, alignmentStatus]
+          properties:
+            targetMarket: { type: string, const: spot_usdt }
+            symbols:
+              type: array
+              items: { type: string, enum: [BTCUSDT, ETHUSDT, SOLUSDT] }
+            leverageEnabled: { type: boolean, const: false }
+            shortSellingEnabled: { type: boolean, const: false }
+            realOrderRoutingEnabled: { type: boolean, const: false }
+            localExchangeExecutionEnabled: { type: boolean, const: false }
+            currentExecutionMode: { type: string, enum: [shadow, paper, mixed_simulation, unavailable] }
+            alignmentStatus: { type: string, const: simulation_only }
+        strategies:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items: { $ref: '#/components/schemas/TradingHallStrategy' }
+        agents:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items: { $ref: '#/components/schemas/TradingAgent' }
+        decisionRounds:
+          type: array
+          items: { $ref: '#/components/schemas/DecisionRound' }
+        generatedAt: { type: string, format: date-time }
+    TradingHallStrategy:
+      type: object
+      required: [code, name, positioning, targetMarket, symbols, regimeTimeframe, decisionTimeframes, executionObservationTimeframe, typicalHoldingPeriod, normalParentOrderTarget, risk, status, executionMode, dataAvailable, openPositions]
+      properties:
+        code: { type: string, enum: [ai_conservative, ai_balanced, ai_aggressive] }
+        name: { type: string }
+        positioning: { type: string }
+        targetMarket: { type: string, const: spot_usdt }
+        symbols:
+          type: array
+          items: { type: string, enum: [BTCUSDT, ETHUSDT, SOLUSDT] }
+        regimeTimeframe: { type: string, enum: [4h, 1h] }
+        decisionTimeframes:
+          type: array
+          items: { type: string, enum: [1h, 15m] }
+        executionObservationTimeframe: { type: string, const: 5m }
+        typicalHoldingPeriod: { type: string }
+        normalParentOrderTarget:
+          type: object
+          required: [minimum, maximum]
+          properties:
+            minimum: { type: integer }
+            maximum: { type: integer }
+        risk:
+          type: object
+          required: [maxAssetAllocationPct, maxTotalAllocationPct, riskPerTradePct, dailyLossHaltPct, maxDrawdownPct, maxNewEntriesPerDay, maxConcurrentAssets]
+          properties:
+            maxAssetAllocationPct: { type: number }
+            maxTotalAllocationPct: { type: number }
+            riskPerTradePct: { type: number }
+            dailyLossHaltPct: { type: number }
+            maxDrawdownPct: { type: number }
+            maxNewEntriesPerDay: { type: integer }
+            maxConcurrentAssets: { type: integer, const: 2 }
+        status: { type: string }
+        version: { type: [string, 'null'] }
+        executionMode: { type: string, enum: [shadow, paper, mixed_simulation, unavailable] }
+        dataAvailable: { type: boolean }
+        openPositions: { type: integer, minimum: 0 }
+        lastUpdatedAt: { type: [string, 'null'], format: date-time }
+        latestDecisionRoundId: { type: [string, 'null'] }
+        latestDecisionStatus: { type: [string, 'null'] }
+    TradingAgent:
+      type: object
+      required: [key, sequence, name, question, outputName]
+      properties:
+        key:
+          type: string
+          enum: [market_analysis, technical_analysis, strategy_proposal, adversarial_review, risk_approval, final_decision, execution_receipt]
+        sequence: { type: integer, minimum: 1, maximum: 7 }
+        name: { type: string }
+        question: { type: string }
+        outputName: { type: string }
+    DecisionRound:
+      type: object
+      required: [decisionRoundId, strategyCode, strategyName, strategyVersion, symbol, status, executionMode, completeness, events]
+      properties:
+        decisionRoundId: { type: string }
+        strategyCode: { type: string }
+        strategyName: { type: string }
+        strategyVersion: { type: string }
+        symbol: { type: string }
+        status: { type: string }
+        executionMode: { type: string, enum: [shadow, paper, mixed_simulation, unavailable] }
+        completeness: { type: string, enum: [complete, partial, legacy] }
+        traceId: { type: [string, 'null'] }
+        updatedAt: { type: [string, 'null'], format: date-time }
+        events:
+          type: array
+          items:
+            type: object
+            required: [sequence, role, conclusion, createdAt]
+            properties:
+              sequence: { type: integer, minimum: 1, maximum: 7 }
+              role: { type: string }
+              conclusion: { type: string }
+              createdAt: { type: string, format: date-time }
+    WalletBalance:
+      type: object
+      required: [currency, availableAmount, frozenAmount, version, updatedAt]
+      properties:
+        currency: { type: string }
+        availableAmount: { type: string }
+        frozenAmount: { type: string }
+        version: { type: string }
+        updatedAt: { type: string, format: date-time }
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+        requestId: { type: string }
+  responses:
+    Unauthorized:
+      description: 会话缺失或已过期
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Forbidden:
+      description: 当前 audience、权限或数据范围不允许
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Conflict:
+      description: 自审、重复决定或状态冲突
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    NotFound:
+      description: 资源不存在或属于错误 audience
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Unprocessable:
+      description: 业务校验失败
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    RateLimited:
+      description: 请求过于频繁
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Unavailable:
+      description: 服务未配置、未启用、不健康或测试被关闭
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }

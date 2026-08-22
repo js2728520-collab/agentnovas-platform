@@ -2,26 +2,26 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { ProductIcon } from "./coin-icon";
-import type { MarketSourceKey } from "@/lib/market-sources";
+import {
+  deriveMarketFeedStatus,
+  isRecentMarketPayload,
+  marketPayloadTimestamp,
+  type MarketTransportState,
+  type NewsContentFreshness,
+} from "@/lib/market-content-freshness";
 
 type Market = "crypto" | "forex" | "metals" | "stocks";
 type Instrument = { symbol: string; label: string; name: string; nameZh: string; category: Market; providerSymbol: string; aliases: string[] };
-type Quote = { price: number; change: number; changePercent: number; high: number; low: number; volume: number; open: number; live: boolean; source: string; exchange?: MarketSourceKey; exchangeName?: string; selectionMode?: "manual" | "configured" | "default"; updatedAt: string; error?: string };
+type Quote = { price: number; change: number; changePercent: number; high: number; low: number; volume: number; open: number; live: boolean; source: string; updatedAt: string; error?: string };
 type Candle = { time: number; open: number; high: number; low: number; close: number; volume: number };
-type NewsItem = { id: string; title: string; summary: string; category: "快讯" | "资金流向" | "公告"; publishedAt: string; source: string; link: string; live: boolean; timeLabel: string };
+type NewsItem = { id: string; title: string; summary: string; category: "快讯" | "资金流向" | "公告"; publishedAt: string | null; source: string; link: string; live: boolean; freshness: NewsContentFreshness; timeLabel: string };
 type WatchlistItem = Instrument & { id: string; createdAt: string };
-type MarketSourceOption = { key: MarketSourceKey; displayName: string; description: string };
-type MarketSourceResolution = { selected: MarketSourceKey; selectionMode: "manual" | "configured" | "default"; configured?: Array<{ exchange: MarketSourceKey; displayName: string; label: string; status: string; environment: string }> };
 type ApiResult<T> = { ok: boolean; data: T | null; error: string };
 
 const marketTabs: Array<[Market, string, string]> = [["crypto", "加密货币", "CRYPTO"], ["forex", "外汇", "FOREX"], ["metals", "贵金属", "METALS"], ["stocks", "美股", "US EQUITIES"]];
 const periods = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"];
 const fallbackInstruments: Instrument[] = [{ symbol: "BTCUSD", label: "BTC/USD", name: "Bitcoin", nameZh: "比特币", category: "crypto", providerSymbol: "BTCUSDT", aliases: ["btc", "bitcoin", "比特币"] }];
-const fallbackMarketSources: MarketSourceOption[] = [
-  ["COINBASE", "Coinbase", "默认公开行情源 · USD 现货"], ["BINANCE", "Binance", "USDT 现货 · REST + WebSocket"], ["OKX", "OKX", "USDT 现货 · REST"], ["BYBIT", "Bybit", "USDT 现货 · REST + WebSocket"],
-  ["BITGET", "Bitget", "USDT 现货 · REST"], ["GATE.IO", "Gate.io", "USDT 现货 · REST"], ["KUCOIN", "KuCoin", "USDT 现货 · REST"], ["KRAKEN", "Kraken", "USD 现货 · REST"],
-].map(([key, displayName, description]) => ({ key: key as MarketSourceKey, displayName, description }));
-const marketSourceKeys = new Set<MarketSourceKey>(["COINBASE", "BINANCE", "OKX", "BYBIT", "BITGET", "GATE.IO", "KUCOIN", "KRAKEN"]);
+const binanceIntervals: Record<string, string> = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w" };
 const intervalDurationMs: Record<string, number> = { "1m": 60_000, "5m": 300_000, "15m": 900_000, "30m": 1_800_000, "1H": 3_600_000, "4H": 14_400_000, "1D": 86_400_000, "1W": 604_800_000 };
 const watchlistCopies: Record<string, { heading: string; description: string; refresh: string; loading: string; loginHint: string; signIn: string; empty: string; watchCurrent: string; remove: string; add: string; watched: string; watch: string; connecting: string }> = {
   "zh-CN": { heading: "关注产品", description: "实时跟踪你关注的交易品种", refresh: "每 15 秒更新", loading: "正在读取关注列表…", loginHint: "登录后可跨设备保存关注产品", signIn: "前往登录", empty: "暂无关注产品", watchCurrent: "收藏当前产品", remove: "取消收藏", add: "收藏产品", watched: "已收藏", watch: "收藏", connecting: "行情连接中" },
@@ -38,6 +38,7 @@ function compact(value: number) { if (!value) return "—"; if (value >= 1_000_0
 function candleTimeLabel(timestamp: number, interval: string) { const date = new Date(timestamp); return interval === "1D" || interval === "1W" ? date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" }) : date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }); }
 function mergeCandleRows(...groups: Candle[][]) { const rows = new Map<number, Candle>(); groups.flat().forEach(item => rows.set(item.time, item)); return [...rows.values()].sort((a, b) => a.time - b.time).slice(-1500); }
 async function apiJson<T>(url: string): Promise<ApiResult<T>> { try { const response = await fetch(url, { cache: "no-store" }); const data = await response.json().catch(() => null) as (T & { error?: string }) | null; return { ok: response.ok && Boolean(data), data, error: response.ok ? "" : data?.error || `接口返回 HTTP ${response.status}` }; } catch (error) { return { ok: false, data: null, error: error instanceof Error ? error.message : "网络连接失败" }; } }
+function isValidQuotePayload(value: Quote) { return value.live && value.price > 0 && value.high > 0 && value.low > 0 && value.open > 0 && value.volume >= 0 && [value.price, value.change, value.changePercent, value.high, value.low, value.volume, value.open].every(Number.isFinite); }
 
 function NewsCard({ item }: { item: NewsItem }) {
   const content = <>
@@ -52,37 +53,21 @@ function NewsCard({ item }: { item: NewsItem }) {
 }
 
 export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: () => void; locale?: string }) {
-  const [instruments, setInstruments] = useState<Instrument[]>(fallbackInstruments), [market, setMarket] = useState<Market>("crypto"), [symbol, setSymbol] = useState("BTCUSD"), [query, setQuery] = useState(""), [period, setPeriod] = useState("15m"), [quote, setQuote] = useState<Quote | null>(null), [candles, setCandles] = useState<Candle[]>([]), [hovered, setHovered] = useState<Candle | null>(null), [zoom, setZoom] = useState(1), [message, setMessage] = useState(""), [loading, setLoading] = useState(true), [refreshKey, setRefreshKey] = useState(0), [streamState, setStreamState] = useState<"connecting" | "live" | "fallback">("connecting"), [loadingHistory, setLoadingHistory] = useState(false), [historyExhausted, setHistoryExhausted] = useState(false), [news, setNews] = useState<NewsItem[]>([]), [newsMessage, setNewsMessage] = useState(""), [newsLive, setNewsLive] = useState(false), [newsUpdatedAt, setNewsUpdatedAt] = useState("");
-  const [marketSources, setMarketSources] = useState<MarketSourceOption[]>(fallbackMarketSources);
-  const [sourceSelection, setSourceSelection] = useState<MarketSourceKey | "auto">("auto");
-  const [sourceResolution, setSourceResolution] = useState<MarketSourceResolution>({ selected: "COINBASE", selectionMode: "default", configured: [] });
+  const [instruments, setInstruments] = useState<Instrument[]>(fallbackInstruments), [market, setMarket] = useState<Market>("crypto"), [symbol, setSymbol] = useState("BTCUSD"), [query, setQuery] = useState(""), [period, setPeriod] = useState("15m"), [quote, setQuote] = useState<Quote | null>(null), [candles, setCandles] = useState<Candle[]>([]), [hovered, setHovered] = useState<Candle | null>(null), [zoom, setZoom] = useState(1), [message, setMessage] = useState(""), [loading, setLoading] = useState(true), [refreshKey, setRefreshKey] = useState(0), [marketTransport, setMarketTransport] = useState<MarketTransportState>("connecting"), [lastMarketPayloadAt, setLastMarketPayloadAt] = useState<number | null>(null), [freshnessNow, setFreshnessNow] = useState(() => Date.now()), [loadingHistory, setLoadingHistory] = useState(false), [historyExhausted, setHistoryExhausted] = useState(false), [news, setNews] = useState<NewsItem[]>([]), [newsMessage, setNewsMessage] = useState(""), [newsFreshness, setNewsFreshness] = useState<NewsContentFreshness>("unavailable"), [newsObservedAt, setNewsObservedAt] = useState("");
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [watchlistStatus, setWatchlistStatus] = useState<"loading" | "ready" | "signed-out" | "error">("loading");
   const [watchlistMessage, setWatchlistMessage] = useState("");
   const [pendingWatchSymbol, setPendingWatchSymbol] = useState("");
   const chartRef = useRef<HTMLElement>(null), chartViewportRef = useRef<HTMLDivElement>(null), dragRef = useRef<{ x: number; scrollLeft: number } | null>(null), historyLoadingRef = useRef(false), needsInitialScrollRef = useRef(true);
   const current = instruments.find(item => item.symbol === symbol) || instruments[0];
-  const activeExchange = sourceSelection === "auto" ? sourceResolution.selected : sourceSelection;
-  const activeExchangeName = marketSources.find(item => item.key === activeExchange)?.displayName || activeExchange;
   const marketInstruments = useMemo(() => instruments.filter(item => item.category === market), [instruments, market]);
   const searchResults = useMemo(() => { const normalized = query.trim().toLowerCase(); if (!normalized) return []; return instruments.filter(item => [item.symbol, item.label, item.name, item.nameZh, ...item.aliases].join(" ").toLowerCase().includes(normalized)).slice(0, 8); }, [instruments, query]);
   const watchedSymbols = useMemo(() => new Set(watchlist.map(item => item.symbol)), [watchlist]);
   const watchCopy = watchlistCopies[locale] || watchlistCopies["en-US"];
-  function selectInstrument(item: Instrument) { setMarket(item.category); setSymbol(item.symbol); setQuery(""); setQuote(null); setCandles([]); setMessage(""); setHistoryExhausted(false); needsInitialScrollRef.current = true; if (typeof window !== "undefined") window.history.replaceState(null, "", `/?page=market&symbol=${encodeURIComponent(item.symbol)}`); }
+  const marketFeedStatus = deriveMarketFeedStatus({ transport: marketTransport, payloadAt: lastMarketPayloadAt, now: new Date(freshnessNow) });
+  function selectInstrument(item: Instrument) { setMarket(item.category); setSymbol(item.symbol); setQuery(""); setQuote(null); setCandles([]); setMessage(""); setMarketTransport("connecting"); setLastMarketPayloadAt(null); setHistoryExhausted(false); needsInitialScrollRef.current = true; if (typeof window !== "undefined") window.history.replaceState(null, "", `/?page=market&symbol=${encodeURIComponent(item.symbol)}`); }
   function selectMarket(next: Market) { const first = instruments.find(item => item.category === next); if (first) selectInstrument(first); else setMarket(next); }
   function selectPeriod(next: string) { setPeriod(next); setCandles([]); setHovered(null); setHistoryExhausted(false); needsInitialScrollRef.current = true; }
-  function selectMarketSource(next: MarketSourceKey | "auto") {
-    setSourceSelection(next);
-    setQuote(null);
-    setCandles([]);
-    setMessage("");
-    setHistoryExhausted(false);
-    needsInitialScrollRef.current = true;
-    if (typeof window !== "undefined") {
-      if (next === "auto") window.localStorage.removeItem("market-source");
-      else window.localStorage.setItem("market-source", next);
-    }
-  }
   async function loadWatchlist() {
     try {
       const response = await fetch("/api/market/watchlist", { cache: "no-store" });
@@ -115,34 +100,25 @@ export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: ()
     finally { setPendingWatchSymbol(""); }
   }
   useEffect(() => { fetch("/api/market/instruments", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(data => { const rows = Array.isArray(data?.instruments) ? data.instruments as Instrument[] : fallbackInstruments; setInstruments(rows); const urlSymbol = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("symbol")?.toUpperCase().replace("/", "") : ""; const requested = rows.find(item => item.symbol === urlSymbol); if (requested) { setMarket(requested.category); setSymbol(requested.symbol); } }).catch(() => setInstruments(fallbackInstruments)); }, []);
+  useEffect(() => { const timer = window.setTimeout(() => void loadWatchlist(), 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => { const timer = window.setInterval(() => { const now = Date.now(); setFreshnessNow(now); if (deriveMarketFeedStatus({ transport: marketTransport, payloadAt: lastMarketPayloadAt, now: new Date(now) }) !== "live") setQuote(previous => previous?.live ? { ...previous, live: false } : previous); }, 1_000); return () => window.clearInterval(timer); }, [lastMarketPayloadAt, marketTransport]);
+  useEffect(() => { if (!current) return; let active = true, inFlight = false; const load = async () => { if (inFlight) return; inFlight = true; if (active) setLoading(true); const [quoteResult, candleResult] = await Promise.all([apiJson<Quote>(`/api/market/quote?symbol=${encodeURIComponent(current.symbol)}&category=${current.category}`), apiJson<{ candles?: Candle[]; error?: string }>(`/api/market/candles?symbol=${encodeURIComponent(current.symbol)}&category=${current.category}&interval=${period}`)]); if (active) { if (quoteResult.ok && quoteResult.data && isValidQuotePayload(quoteResult.data)) { const observedAt = new Date(); const payloadAt = marketPayloadTimestamp(quoteResult.data.updatedAt, observedAt); if (payloadAt === null) { setQuote({ ...quoteResult.data, live: false }); setMarketTransport("offline"); } else { const recent = isRecentMarketPayload(payloadAt, observedAt); setQuote({ ...quoteResult.data, live: recent }); setLastMarketPayloadAt(payloadAt); setFreshnessNow(observedAt.getTime()); setMarketTransport("active"); } } else { setQuote(previous => previous ? { ...previous, live: false } : previous); setMarketTransport("offline"); } if (candleResult.ok && candleResult.data) { const incoming = candleResult.data.candles || []; setCandles(previous => previous.length ? mergeCandleRows(previous, incoming) : incoming); } setMessage([quoteResult.error, candleResult.error].filter(Boolean).join("；")); setLoading(false); } inFlight = false; }; void load(); const delay = current.category === "crypto" && marketTransport === "active" ? 15_000 : 1_000; const timer = window.setInterval(() => void load(), delay); return () => { active = false; window.clearInterval(timer); }; }, [current, period, refreshKey, marketTransport]);
   useEffect(() => {
-    let active = true;
-    fetch("/api/market/sources", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(data => {
-      if (!active) return;
-      const rows = Array.isArray(data?.sources) ? data.sources.filter((item: MarketSourceOption) => marketSourceKeys.has(item.key)) : fallbackMarketSources;
-      const selected = marketSourceKeys.has(data?.selected) ? data.selected as MarketSourceKey : "COINBASE";
-      const saved = typeof window !== "undefined" ? window.localStorage.getItem("market-source") : "";
-      const manual = marketSourceKeys.has(saved as MarketSourceKey) ? saved as MarketSourceKey : "auto";
-      setMarketSources(rows.length ? rows : fallbackMarketSources);
-      setSourceResolution({ selected, selectionMode: data?.selectionMode === "configured" ? "configured" : data?.selectionMode === "manual" ? "manual" : "default", configured: Array.isArray(data?.configured) ? data.configured : [] });
-      setSourceSelection(manual);
-    }).catch(() => undefined);
-    return () => { active = false; };
-  }, []);
-  useEffect(() => { void loadWatchlist(); }, []);
-  useEffect(() => { if (!current) return; let active = true, inFlight = false; const exchange = sourceSelection === "auto" ? "" : `&exchange=${encodeURIComponent(sourceSelection)}`; const load = async () => { if (inFlight) return; inFlight = true; if (active) setLoading(true); const [quoteResult, candleResult] = await Promise.all([apiJson<Quote>(`/api/market/quote?symbol=${encodeURIComponent(current.symbol)}&category=${current.category}${exchange}`), apiJson<{ candles?: Candle[]; error?: string }>(`/api/market/candles?symbol=${encodeURIComponent(current.symbol)}&category=${current.category}&interval=${period}${exchange}`)]); if (active) { if (quoteResult.ok && quoteResult.data) setQuote(quoteResult.data); if (candleResult.ok && candleResult.data) { const incoming = candleResult.data.candles || []; setCandles(previous => previous.length ? mergeCandleRows(previous, incoming) : incoming); } setMessage([quoteResult.error, candleResult.error].filter(Boolean).join("；")); setLoading(false); } inFlight = false; }; void load(); const timer = window.setInterval(() => void load(), 15_000); return () => { active = false; window.clearInterval(timer); }; }, [current, period, refreshKey, sourceSelection, activeExchange]);
-  useEffect(() => {
-    if (!current || current.category !== "crypto") { setStreamState("fallback"); return; }
-    if (!["COINBASE", "BINANCE", "OKX", "BYBIT"].includes(activeExchange)) { setStreamState("fallback"); return; }
+    if (!current || current.category !== "crypto") return;
     let socket: WebSocket | null = null, retryTimer: number | undefined, stopped = false;
     let latestTrade: { price: number; tradeTime: number; eventTime: number } | null = null;
-    const frame = window.requestAnimationFrame(() => setStreamState("connecting"));
-    const streamSymbol = current.providerSymbol.toUpperCase();
-    const streamInterval = ({ "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w" } as Record<string, string>)[period] || "15m";
+    const frame = window.requestAnimationFrame(() => setMarketTransport("connecting"));
+    const streamSymbol = current.providerSymbol.toLowerCase();
+    const streamInterval = binanceIntervals[period] || "15m";
     const renderTimer = window.setInterval(() => {
       const trade = latestTrade;
       if (!trade) return;
       latestTrade = null;
+      const payloadAt = marketPayloadTimestamp(trade.eventTime);
+      if (payloadAt === null || !isRecentMarketPayload(payloadAt)) return;
+      setLastMarketPayloadAt(payloadAt);
+      setFreshnessNow(Date.now());
+      setMarketTransport("active");
       setQuote(previous => previous ? { ...previous, price: trade.price, live: true, updatedAt: new Date(trade.eventTime).toISOString() } : previous);
       setCandles(previous => {
         const last = previous.at(-1);
@@ -153,48 +129,29 @@ export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: ()
     }, 100);
     const connect = () => {
       if (stopped) return;
-      const base = current.providerSymbol.replace(/USDT$/i, "");
-      const pair = activeExchange === "COINBASE" ? `${base}-USD` : activeExchange === "OKX" ? `${base}-USDT` : activeExchange === "BYBIT" ? streamSymbol : streamSymbol;
-      const url = activeExchange === "BINANCE" ? `wss://data-stream.binance.vision/stream?streams=${streamSymbol.toLowerCase()}@aggTrade/${streamSymbol.toLowerCase()}@kline_${streamInterval}` : activeExchange === "COINBASE" ? "wss://ws-feed.exchange.coinbase.com" : activeExchange === "OKX" ? "wss://ws.okx.com:8443/ws/v5/public" : "wss://stream.bybit.com/v5/public/spot";
-      socket = new WebSocket(url);
-      socket.addEventListener("open", () => {
-        if (activeExchange === "COINBASE") socket?.send(JSON.stringify({ type: "subscribe", product_ids: [pair], channels: ["ticker"] }));
-        if (activeExchange === "OKX") socket?.send(JSON.stringify({ op: "subscribe", args: [{ channel: "tickers", instId: pair }] }));
-        if (activeExchange === "BYBIT") socket?.send(JSON.stringify({ op: "subscribe", args: [`publicTrade.${streamSymbol}`] }));
-      });
-      socket.onopen = () => setStreamState("live");
+      setMarketTransport("connecting");
+      socket = new WebSocket(`wss://data-stream.binance.vision/stream?streams=${streamSymbol}@aggTrade/${streamSymbol}@kline_${streamInterval}`);
       socket.onmessage = event => {
         try {
-          const payload = JSON.parse(String(event.data)) as { type?: string; time?: string; price?: string; data?: { e?: string; E?: number; p?: string; T?: number; k?: { t: number; o: string; h: string; l: string; c: string; v: string } } | Array<{ p?: string; T?: number }>; arg?: { channel?: string }; action?: string; topic?: string; ts?: number };
-          if (activeExchange === "COINBASE" && payload.type === "ticker") {
-            const livePrice = Number(payload.price);
-            if (Number.isFinite(livePrice) && livePrice > 0) latestTrade = { price: livePrice, tradeTime: Date.now(), eventTime: Date.parse(payload.time || "") || Date.now() };
-            return;
-          }
-          if (activeExchange === "OKX" && payload.arg?.channel === "tickers") {
-            const row = Array.isArray(payload.data) ? payload.data[0] as Record<string, string> : {};
-            const livePrice = Number(row?.last);
-            if (Number.isFinite(livePrice) && livePrice > 0) latestTrade = { price: livePrice, tradeTime: Date.now(), eventTime: Number(payload.ts || Date.now()) };
-            return;
-          }
-          if (activeExchange === "BYBIT" && payload.topic?.startsWith("publicTrade.")) {
-            const row = Array.isArray(payload.data) ? payload.data[0] as { p?: string; T?: number } : {};
-            const livePrice = Number(row.p);
-            if (Number.isFinite(livePrice) && livePrice > 0) latestTrade = { price: livePrice, tradeTime: Number(row.T || Date.now()), eventTime: Number(payload.ts || Date.now()) };
-            return;
-          }
+          const payload = JSON.parse(String(event.data)) as { data?: { e?: string; E?: number; p?: string; T?: number; k?: { t: number; o: string; h: string; l: string; c: string; v: string } } };
           const data = payload.data;
-          if (activeExchange !== "BINANCE" || !data || Array.isArray(data)) return;
+          if (!data) return;
           if (data.e === "aggTrade") {
             const livePrice = Number(data.p);
-            const tradeTime = Number(data.T || data.E || Date.now());
-            if (!Number.isFinite(livePrice) || livePrice <= 0) return;
-            latestTrade = { price: livePrice, tradeTime, eventTime: Number(data.E || Date.now()) };
+            const tradeTime = Number(data.T || data.E);
+            const eventTime = Number(data.E);
+            if (!Number.isFinite(livePrice) || livePrice <= 0 || !Number.isFinite(tradeTime) || !Number.isFinite(eventTime)) return;
+            latestTrade = { price: livePrice, tradeTime, eventTime };
             return;
           }
           if (data.e === "kline" && data.k) {
+            const payloadAt = marketPayloadTimestamp(data.E);
+            if (payloadAt === null || !isRecentMarketPayload(payloadAt)) return;
             const nextCandle = { time: Number(data.k.t), open: Number(data.k.o), high: Number(data.k.h), low: Number(data.k.l), close: Number(data.k.c), volume: Number(data.k.v) };
             if (Object.values(nextCandle).some(value => !Number.isFinite(value))) return;
+            setLastMarketPayloadAt(payloadAt);
+            setFreshnessNow(Date.now());
+            setMarketTransport("active");
             setCandles(previous => {
               const existingIndex = previous.findIndex(item => item.time === nextCandle.time);
               if (existingIndex < 0) return mergeCandleRows(previous, [nextCandle]);
@@ -208,30 +165,13 @@ export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: ()
           // Ignore malformed stream frames and wait for the next market event.
         }
       };
-      socket.onerror = () => socket?.close();
-      socket.onclose = () => { if (!stopped) { setStreamState("fallback"); retryTimer = window.setTimeout(connect, 2_000); } };
+      socket.onerror = () => { latestTrade = null; setQuote(previous => previous ? { ...previous, live: false } : previous); setMarketTransport("offline"); socket?.close(); };
+      socket.onclose = () => { if (!stopped) { latestTrade = null; setQuote(previous => previous ? { ...previous, live: false } : previous); setMarketTransport("offline"); retryTimer = window.setTimeout(connect, 2_000); } };
     };
     connect();
     return () => { stopped = true; window.cancelAnimationFrame(frame); window.clearInterval(renderTimer); if (retryTimer) window.clearTimeout(retryTimer); socket?.close(); };
-  }, [current, period, activeExchange]);
-  useEffect(() => {
-    if (!current) return;
-    let active = true;
-    let timer: number | undefined;
-    const coin = current.symbol.replace(/USD$/, "");
-    const load = async () => {
-      const result = await apiJson<{ items?: NewsItem[]; live?: boolean; updatedAt?: string; refreshSeconds?: number; error?: string }>(`/api/market/news?coin=${encodeURIComponent(coin)}`);
-      if (!active) return;
-      setNews(result.data?.items || []);
-      setNewsLive(Boolean(result.data?.live));
-      setNewsUpdatedAt(result.data?.updatedAt || "");
-      setNewsMessage(result.error || (!result.data?.live ? "实时新闻源暂时不可用，当前显示备用提示。" : ""));
-      const refreshSeconds = Math.min(3600, Math.max(15, Number(result.data?.refreshSeconds || 60)));
-      timer = window.setTimeout(() => void load(), refreshSeconds * 1000);
-    };
-    void load();
-    return () => { active = false; if (timer) window.clearTimeout(timer); };
-  }, [current, refreshKey]);
+  }, [current, period]);
+  useEffect(() => { if (!current) return; let active = true; const coin = current.symbol.replace(/USD$/, ""); const load = async () => { const result = await apiJson<{ items?: NewsItem[]; observedAt?: string; contentFreshness?: NewsContentFreshness; stale?: boolean; error?: string }>(`/api/market/news?coin=${encodeURIComponent(coin)}`); if (!active) return; const freshness = result.data?.contentFreshness || "unavailable"; setNews(result.data?.items || []); setNewsFreshness(freshness); setNewsObservedAt(result.data?.observedAt || ""); setNewsMessage(result.error || (freshness === "stale" ? "新闻源已响应，但最新内容超过新鲜度阈值。" : freshness === "unknown" ? "新闻源已响应，但内容发布时间不可验证。" : freshness === "unavailable" ? "新闻源暂时不可用，当前显示明确标记的备用提示。" : "")); }; void load(); const timer = window.setInterval(() => void load(), 60_000); return () => { active = false; window.clearInterval(timer); }; }, [current, refreshKey]);
   useEffect(() => { if (!candles.length || !needsInitialScrollRef.current) return; needsInitialScrollRef.current = false; const frame = window.requestAnimationFrame(() => { const viewport = chartViewportRef.current; if (viewport) viewport.scrollLeft = viewport.scrollWidth; }); return () => window.cancelAnimationFrame(frame); }, [candles.length]);
   const visibleCandles = useMemo(() => candles.slice(-1500), [candles]);
   const bounds = useMemo(() => { const values = visibleCandles.flatMap(item => [item.high, item.low]).filter(value => value > 0); const rawMax = Math.max(...values, quote?.price || 1); const rawMin = Math.min(...values, quote?.price || rawMax); const range = rawMax === rawMin ? Math.max(rawMax * .01, 1) : rawMax - rawMin; const padding = range * .07; return { max: rawMax + padding, min: Math.max(0, rawMin - padding) }; }, [visibleCandles, quote]);
@@ -250,8 +190,7 @@ export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: ()
     const viewport = chartViewportRef.current;
     const oldScrollWidth = viewport?.scrollWidth || 0;
     const oldestTime = candles[0].time;
-    const exchange = sourceSelection === "auto" ? "" : `&exchange=${encodeURIComponent(sourceSelection)}`;
-    const result = await apiJson<{ candles?: Candle[]; hasMore?: boolean; error?: string }>(`/api/market/candles?symbol=${encodeURIComponent(current.symbol)}&category=${current.category}&interval=${period}&before=${oldestTime}&limit=500${exchange}`);
+    const result = await apiJson<{ candles?: Candle[]; hasMore?: boolean; error?: string }>(`/api/market/candles?symbol=${encodeURIComponent(current.symbol)}&category=${current.category}&interval=${period}&before=${oldestTime}&limit=500`);
     const olderRows = result.data?.candles || [];
     if (result.ok && olderRows.length) {
       setCandles(previous => mergeCandleRows(olderRows, previous));
@@ -261,18 +200,20 @@ export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: ()
     historyLoadingRef.current = false;
     setLoadingHistory(false);
   }
+  const marketStatusLabel = marketFeedStatus === "live" ? "实时行情" : marketFeedStatus === "stale" ? "行情数据已过期" : marketFeedStatus === "offline" ? "行情源离线" : "正在连接";
+  const marketStreamLabel = marketFeedStatus === "live" ? "最近数据已验证" : marketFeedStatus === "stale" ? "等待新鲜数据" : marketFeedStatus === "offline" ? "数据源离线" : "连接行情源";
+  const newsStatusLabel = newsFreshness === "fresh" ? "内容新鲜" : newsFreshness === "stale" ? "内容已过期" : newsFreshness === "unknown" ? "发布时间未知" : "备用模式";
 
-  return <div className="market-terminal-page"><div className="market-terminal-title"><div><h1>行情中心</h1><p>覆盖加密货币、外汇、贵金属及美股市场</p></div><div className="market-title-actions"><button type="button" onClick={() => setRefreshKey(value => value + 1)} disabled={loading}>{loading ? "更新中…" : "立即刷新"}</button><span className={quote?.live ? "market-live-status" : "market-offline-status"}><i />{quote?.live ? "实时行情" : loading ? "正在连接" : "行情源待连接"}{quote?.updatedAt && <time>{new Date(quote.updatedAt).toLocaleTimeString("zh-CN")}</time>}</span></div></div>
+  return <div className="market-terminal-page"><div className="market-terminal-title"><div><h1>行情中心</h1><p>覆盖加密货币、外汇、贵金属及美股市场</p></div><div className="market-title-actions"><button type="button" onClick={() => setRefreshKey(value => value + 1)} disabled={loading}>{loading ? "更新中…" : "立即刷新"}</button><span className={marketFeedStatus === "live" ? "market-live-status" : "market-offline-status"}><i />{marketStatusLabel}{quote?.updatedAt && <time>{new Date(quote.updatedAt).toLocaleTimeString("zh-CN")}</time>}</span></div></div>
     <nav className="market-category-tabs" aria-label="市场分类">{marketTabs.map(([key, label, code]) => <button key={key} className={market === key ? "active" : ""} onClick={() => selectMarket(key)}><span>{label}</span><small>{code}</small></button>)}</nav>
-    <section className="market-source-panel"><div><span className="eyebrow">MARKET DATA SOURCE</span><strong>实时行情数据源</strong><small>{sourceSelection === "auto" ? sourceResolution.selectionMode === "configured" ? `已跟随账户配置 · ${activeExchangeName}` : "未配置交易所 · 默认使用 Coinbase" : `手动选择 · ${activeExchangeName}`}<br />加密货币使用所选交易所，外汇、贵金属和美股使用对应公开市场源。</small></div><label><span>选择来源</span><select value={sourceSelection} onChange={event => selectMarketSource(event.target.value as MarketSourceKey | "auto")}><option value="auto">跟随账户配置（{activeExchangeName}）</option>{marketSources.map(source => <option value={source.key} key={source.key}>{source.displayName} · {source.description}</option>)}</select></label></section>
-    <section className={`market-watchlist-panel ${watchlistStatus === "ready" ? (watchlist.length ? "has-items" : "is-compact") : ""}`}>
+    <section className="market-watchlist-panel">
       <header><h2>{watchCopy.heading}</h2>{current && <button type="button" className={`market-watch-current ${watchedSymbols.has(current.symbol) ? "active" : ""}`} disabled={watchlistStatus === "loading" || pendingWatchSymbol === current.symbol} onClick={() => void toggleWatchlist(current)} title={watchedSymbols.has(current.symbol) ? watchCopy.remove : watchCopy.add}>{watchedSymbols.has(current.symbol) ? `★ ${watchCopy.watched}` : `☆ ${watchCopy.watch}`}</button>}</header>
-      {!(watchlistStatus === "ready" && watchlist.length === 0) && <div className="market-watchlist-content">
+      <div className="market-watchlist-content">
         {watchlistStatus === "loading" ? <div className="market-watchlist-empty"><b>{watchCopy.loading}</b></div>
           : watchlistStatus === "signed-out" ? <div className="market-watchlist-empty"><span>{watchCopy.loginHint}</span><button type="button" onClick={onLogin}>{watchCopy.signIn}</button></div>
             : watchlist.length ? <div className="market-watchlist-cards">{watchlist.map(item => <article key={item.symbol} className={item.symbol === symbol ? "active" : ""}><button type="button" className="market-watchlist-select" onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><b>{item.label}</b></button><button type="button" className="market-watchlist-remove" aria-label={`${watchCopy.remove} ${item.label}`} title={watchCopy.remove} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>★</button></article>)}</div>
               : <div className="market-watchlist-empty"><span>{watchCopy.empty}</span>{current && <button type="button" onClick={() => void toggleWatchlist(current)}>☆ {watchCopy.watchCurrent}</button>}</div>}
-      </div>}
+      </div>
       {watchlistMessage && <p className="market-watchlist-message" role="status">{watchlistMessage}</p>}
     </section>
     <section className="market-selector-panel"><label className="market-search-box"><span>⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索交易品种 / Symbol / 名称" aria-label="搜索交易品种"/><kbd>⌘ K</kbd></label>{searchResults.length > 0 && <div className="market-search-results">{searchResults.map(item => <div className="market-search-result-row" key={item.symbol}><button type="button" className="market-search-select" onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><b>{item.label}</b><span>{item.name} · {item.nameZh}</span><small>{marketTabs.find(tab => tab[0] === item.category)?.[1]}</small></button><button type="button" className={`market-search-follow ${watchedSymbols.has(item.symbol) ? "active" : ""}`} aria-label={`${watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} ${item.label}`} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>{watchedSymbols.has(item.symbol) ? "★" : "☆"}</button></div>)}</div>}<div className="market-symbol-index"><span>品种索引</span>{marketInstruments.map(item => <div className={`market-symbol-chip ${item.symbol === symbol ? "active" : ""}`} key={item.symbol}><button type="button" className="market-symbol-select" onClick={() => selectInstrument(item)}><ProductIcon symbol={item.label} category={item.category}/><span>{item.label}</span></button><button type="button" className={`market-symbol-follow ${watchedSymbols.has(item.symbol) ? "active" : ""}`} aria-label={`${watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} ${item.label}`} title={watchedSymbols.has(item.symbol) ? watchCopy.remove : watchCopy.add} disabled={pendingWatchSymbol === item.symbol} onClick={() => void toggleWatchlist(item)}>{watchedSymbols.has(item.symbol) ? "★" : "☆"}</button></div>)}</div></section>
@@ -282,7 +223,7 @@ export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: ()
         <div className="period-switcher">{periods.map(item => <button key={item} className={period === item ? "active" : ""} onClick={() => selectPeriod(item)}>{item}</button>)}</div>
         <div className="chart-tools">
           <span className="chart-source">{quote?.source || "Public market data"}</span>
-          <span className={`chart-refresh-rate ${current?.category === "crypto" && streamState === "live" ? "is-streaming" : ""}`}><i />{current?.category === "crypto" && streamState === "live" ? "0.1 秒实时" : "1 秒轮询"}</span>
+          <span className={`chart-refresh-rate ${marketFeedStatus === "live" ? "is-streaming" : ""}`}><i />{marketStreamLabel}</span>
           <button className="chart-history-button" disabled={loadingHistory || historyExhausted} onClick={() => void loadOlderCandles()}>{loadingHistory ? "加载中…" : historyExhausted ? "已到最早" : "← 更早"}</button>
           <button aria-label="缩小 K 线" onClick={() => changeZoom(-.5)}>−</button>
           <button aria-label="放大 K 线" onClick={() => changeZoom(.5)}>＋</button>
@@ -315,8 +256,8 @@ export default function LiveMarket({ onLogin, locale = "zh-CN" }: { onLogin?: ()
           <div className="chart-x-axis">{visibleCandles.filter((_, index) => index % Math.max(1, Math.floor(visibleCandles.length / 7)) === 0).map(item => <span key={item.time}>{candleTimeLabel(item.time, period)}</span>)}</div>
         </div> : <div className="market-chart-empty"><b>{loading ? "正在连接实时 K 线" : "实时 K 线暂不可用"}</b><span>{message || "行情源返回后将在此处显示 K 线与成交量"}</span></div>}
       </div>
-      <footer className="market-chart-footer"><span><i className="legend-up" />上涨</span><span><i className="legend-down" />下跌</span><small>{current?.category === "crypto" && streamState === "live" ? `${quote?.exchangeName || activeExchangeName} 成交流实时更新` : `${quote?.exchangeName || activeExchangeName} 每 15 秒同步`} · 左右拖动回看历史 · 拖到左端自动加载更早 K 线</small></footer>
+      <footer className="market-chart-footer"><span><i className="legend-up" />上涨</span><span><i className="legend-down" />下跌</span><small>{marketStreamLabel} · 左右拖动回看历史 · 拖到左端自动加载更早 K 线</small></footer>
     </section>
-    <section className="market-news-feed"><header><div><span className="eyebrow">LIVE NEWS &amp; EVENTS</span><h2>新闻与事件</h2><p>聚合市场快讯、资金流向和平台公告，每 60 秒自动更新。</p></div><span className={newsLive ? "market-news-status is-live" : "market-news-status is-fallback"}><i />{newsLive ? "实时更新" : "备用模式"}{newsUpdatedAt && <time>{new Date(newsUpdatedAt).toLocaleTimeString("zh-CN")}</time>}</span></header>{newsMessage && <div className="market-news-message">{newsMessage}</div>}<div className="market-news-grid">{news.length ? news.slice(0, 8).map(item => <NewsCard item={item} key={item.id} />) : <div className="market-news-empty"><b>正在连接新闻源</b><span>新闻与事件返回后将在这里自动显示。</span></div>}</div></section>
+    <section className="market-news-feed"><header><div><span className="eyebrow">NEWS &amp; EVENTS</span><h2>新闻与事件</h2><p>聚合市场快讯、资金流向和平台公告，每 60 秒重新检查来源与内容新鲜度。</p></div><span className={newsFreshness === "fresh" ? "market-news-status is-live" : "market-news-status is-fallback"}><i />{newsStatusLabel}{newsObservedAt && <time title="最近检查时间">检查于 {new Date(newsObservedAt).toLocaleTimeString("zh-CN")}</time>}</span></header>{newsMessage && <div className="market-news-message">{newsMessage}</div>}<div className="market-news-grid">{news.length ? news.slice(0, 8).map(item => <NewsCard item={item} key={item.id} />) : <div className="market-news-empty"><b>{newsFreshness === "unavailable" ? "新闻源暂不可用" : "当前没有新闻条目"}</b><span>来源恢复或返回新内容后将在这里自动显示。</span></div>}</div></section>
   </div>;
 }

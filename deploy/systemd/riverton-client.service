@@ -1,0 +1,25 @@
+[Unit]
+Description=Riverton Capital client web service
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agentnovas
+Group=agentnovas
+WorkingDirectory=/opt/agentnovas/current
+EnvironmentFile=/etc/agentnovas/client.env
+Environment=RIVERTON_APP_AUDIENCE=client
+Environment=PORT=3000
+ExecStart=/usr/bin/npm run start:client -- --hostname 127.0.0.1
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/agentnovas
+
+[Install]
+WantedBy=multi-user.target

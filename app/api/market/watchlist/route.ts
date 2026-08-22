@@ -1,8 +1,8 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { marketWatchlist } from "@/db/schema";
-import { marketInstruments, type MarketCategory } from "@/app/api/market/instruments/route";
-import { ensureD1Schema } from "@/lib/d1-migrations";
+import { marketInstruments, type MarketCategory } from "@/lib/market-instruments";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
 
 const WATCHLIST_LIMIT = 20;
@@ -19,7 +19,7 @@ function responseItem(row: typeof marketWatchlist.$inferSelect) {
 
 export async function GET(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireUser(request);
     const rows = await getDb().select().from(marketWatchlist).where(eq(marketWatchlist.customerId, user.id)).orderBy(desc(marketWatchlist.createdAt)).limit(WATCHLIST_LIMIT);
     return Response.json({ items: rows.map(responseItem), limit: WATCHLIST_LIMIT }, { headers: { "cache-control": "no-store" } });
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireUser(request);
     const body = await request.json() as { symbol?: string; category?: MarketCategory };
     const instrument = resolveInstrument(body.symbol, body.category);
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    await ensureD1Schema();
+    await ensureDatabaseSchema();
     const user = await requireUser(request);
     const body = await request.json() as { symbol?: string };
     const symbol = String(body.symbol || "").toUpperCase().replace(/[^A-Z0-9]/g, "");

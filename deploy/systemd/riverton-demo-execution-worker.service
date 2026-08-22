@@ -1,0 +1,23 @@
+[Unit]
+Description=Riverton Capital platform Demo execution worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agentnovas
+Group=agentnovas
+WorkingDirectory=/opt/agentnovas/current
+EnvironmentFile=/etc/agentnovas/demo.env
+ExecStart=/usr/bin/npm run worker:demo
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/agentnovas
+
+[Install]
+WantedBy=multi-user.target

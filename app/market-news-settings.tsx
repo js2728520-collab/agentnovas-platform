@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { SystemLlmConfigPanel } from "./llm-config";
+import { AgentRoleAdmin } from "./agent-role-admin";
 
 type IntegrationItem = {
   id: string;
@@ -52,12 +54,14 @@ export default function MarketNewsSettings(){
   }, [catalog]);
 
   return <section className="market-news-settings">
-    <div className="market-news-head"><div><span className="eyebrow">DATA & NEWS INTEGRATIONS</span><h2>行情与新闻 API</h2><p>这里集中查看当前数据源和备用连接器；默认来源与 RSS 地址可在本页上方保存，密钥仍只放服务端。</p></div><span className="integration-live"><i/>接口目录已连接</span></div>
+    <div className="market-news-head"><div><span className="eyebrow">DATA & NEWS INTEGRATIONS</span><h2>行情与新闻 API</h2><p>这里集中查看当前实时数据源。切换供应商时，只需在本地环境变量或 Linux 服务环境文件中更新。</p></div><span className="integration-live"><i/>当前接口可用</span></div>
     <div className="integration-grid">
-      <article className="integration-card"><span className="integration-icon">↗</span><div><b>实时行情</b><small>币种报价、涨跌幅与行情雷达</small></div><strong>Binance 默认 · 多交易所可选</strong><code>/api/market/sources · /api/market/quote</code><label>支持来源<input value="Binance · Coinbase · OKX · Bybit · Bitget · Gate.io · KuCoin · Kraken" readOnly/></label><div className="integration-status"><i/>优先使用用户已配置交易所 · 未配置时使用运维默认源</div></article>
+      <article className="integration-card"><span className="integration-icon">↗</span><div><b>实时行情</b><small>币种报价、涨跌幅与行情雷达</small></div><strong>Binance Spot REST · 自动切换</strong><code>/api/market/ticker</code><label>官方公共节点<input value="data-api → api-gcp → api.binance.com" readOnly/></label><div className="integration-status"><i/>多节点故障转移 · 无需 API Key</div></article>
       <article className="integration-card"><span className="integration-icon">✦</span><div><b>市场新闻</b><small>市场快讯与交易所公告</small></div><strong>CoinDesk + Cointelegraph RSS</strong><code>/api/market/news</code><label>新闻源<input value="CoinDesk RSS / Cointelegraph RSS" readOnly/></label><div className="integration-status"><i/>自动刷新 · 当前无需 API Key</div></article>
     </div>
-    <div className="integration-env"><span className="eyebrow">CONFIGURATION LOCATION</span><h3>更换供应商时填写这里</h3><p>本地开发：项目根目录的 <code>.env</code>；上线后：Cloudflare Worker → 设置 → 变量和机密。密钥只放服务端，浏览器和客户页面不会读取。</p><div className="env-tags"><code>MARKET_DATA_BASE_URL</code><code>MARKET_DATA_PROVIDER</code><code>MARKET_DATA_TICKER_PATH</code><code>NEWS_RSS_URLS</code><code>AI_API_URL</code><code>AI_API_KEY</code><code>AI_MODEL</code></div></div>
+    <div className="integration-env"><span className="eyebrow">CONFIGURATION LOCATION</span><h3>更换供应商时填写这里</h3><p>本地开发：项目根目录的 <code>.env.local</code>；Linux 服务器：<code>/etc/agentnovas/agentnovas.env</code>，由 systemd 只读加载。密钥只放服务端，浏览器和客户页面不会读取。</p><div className="env-tags"><code>MARKET_DATA_BASE_URL</code><code>MARKET_DATA_PROVIDER</code><code>MARKET_DATA_TICKER_PATH</code><code>NEWS_RSS_URLS</code><code>AI_API_URL</code><code>AI_API_KEY</code><code>AI_MODEL</code></div></div>
+    <SystemLlmConfigPanel/>
+    <AgentRoleAdmin/>
     {groupedCatalog.length > 0 && <div className="integration-catalog">
       <div className="integration-catalog-head"><div><span className="eyebrow">AVAILABLE CONNECTORS</span><h3>免费与可申请接口目录</h3><p>先登记供应商和用途，再由管理员把申请到的 Key 配置到服务端。免费额度不代表无限调用。</p></div><span className="catalog-count">{catalog.length} 个接口</span></div>
       <div className="integration-catalog-groups">

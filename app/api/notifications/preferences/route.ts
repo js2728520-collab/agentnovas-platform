@@ -1,1 +1,48 @@
-import{and,eq}from"drizzle-orm";import{getDb}from"@/db";import{notificationPreferences}from"@/db/schema";import{canDisableNotification}from"@/lib/business-rules";import{requireUser,responseError}from"@/lib/session";export async function GET(request:Request){try{const u=await requireUser(request);return Response.json({preferences:await getDb().select().from(notificationPreferences).where(eq(notificationPreferences.userId,u.id))})}catch(e){return responseError(e)}}export async function PUT(request:Request){try{const u=await requireUser(request);const b=await request.json()as{channel?:"email"|"telegram"|"whatsapp"|"in_app",category?:string,mode?:"instant"|"digest"|"important_only"|"disabled",quietStart?:string,quietEnd?:string};if(!b.channel||!b.category||!b.mode)return Response.json({error:"通知渠道、类别和模式均为必填"},{status:400});if(b.mode==="disabled"&&!canDisableNotification(b.category))return Response.json({error:"该安全或缴费通知不能关闭"},{status:400});const db=getDb(),existing=(await db.select().from(notificationPreferences).where(and(eq(notificationPreferences.userId,u.id),eq(notificationPreferences.channel,b.channel),eq(notificationPreferences.category,b.category))).limit(1))[0];if(existing)await db.update(notificationPreferences).set({mode:b.mode,quietStart:b.quietStart||null,quietEnd:b.quietEnd||null,updatedAt:new Date().toISOString()}).where(eq(notificationPreferences.id,existing.id));else await db.insert(notificationPreferences).values({id:crypto.randomUUID(),userId:u.id,channel:b.channel,category:b.category,mode:b.mode,quietStart:b.quietStart||null,quietEnd:b.quietEnd||null});return Response.json({ok:true})}catch(e){return responseError(e)}}
+import { eq } from "drizzle-orm";
+
+import { getDb } from "@/db";
+import { notificationPreferences } from "@/db/schema";
+import { normalizeNotificationPreferenceBatch } from "@/lib/notification-preferences";
+import { readResearchJson, researchErrorResponse } from "@/lib/research-api";
+import { requireUser } from "@/lib/session";
+
+
+async function notificationUser(request: Request) {
+  return requireUser(request, ["customer"]);
+}
+
+export async function GET(request: Request) {
+  try {
+    const user = await notificationUser(request);
+    const preferences = await getDb().select({
+      category: notificationPreferences.category,
+      channel: notificationPreferences.channel,
+      mode: notificationPreferences.mode,
+      quietStart: notificationPreferences.quietStart,
+      quietEnd: notificationPreferences.quietEnd,
+    }).from(notificationPreferences)
+      .where(eq(notificationPreferences.userId, user.id));
+    return Response.json({ preferences }, { headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    return researchErrorResponse(error, request);
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const user = await notificationUser(request);
+    const body = await readResearchJson(request, 4_096);
+    const entries = normalizeNotificationPreferenceBatch(body);
+    const db = getDb();
+    const updatedAt = new Date().toISOString();
+    await db.batch(entries.map((entry) => db.insert(notificationPreferences).values({
+      id: crypto.randomUUID(), userId: user.id, ...entry,
+    }).onConflictDoUpdate({
+      target: [notificationPreferences.userId, notificationPreferences.channel, notificationPreferences.category],
+      set: { mode: entry.mode, quietStart: entry.quietStart, quietEnd: entry.quietEnd, updatedAt },
+    })));
+    return Response.json({ ok: true, updated: entries.length }, { headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    return researchErrorResponse(error, request);
+  }
+}

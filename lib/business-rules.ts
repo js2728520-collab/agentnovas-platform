@@ -11,103 +11,38 @@ export type Allocation = { beneficiary: "headquarters" | "branch" | "manager" | 
 
 const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
-const OPERATING_COST_RATE = .5;
-const DISTRIBUTABLE_HEADQUARTERS_RATE = .2;
-const DISTRIBUTABLE_BRANCH_RATE = .8;
-
-/**
- * The department rates are percentages of the website distributable revenue
- * pool, not percentages of gross top-ups. They total 20%, which matches the
- * previously agreed headquarters share of that pool.
- */
-export const headquartersDepartmentRates = [
-  { code: "technology", label: "技术部", rate: .025 },
-  { code: "business_development", label: "招商部", rate: .025 },
-  { code: "operations", label: "运营部", rate: .15 },
-] as const;
-
-export type HeadquartersDepartmentAllocation = {
-  code: (typeof headquartersDepartmentRates)[number]["code"];
-  label: string;
-  rate: number;
-  amountUsdt: number;
-};
-
-export function allocateHeadquartersDepartments(websiteRevenueUsdt: number): HeadquartersDepartmentAllocation[] {
-  if (websiteRevenueUsdt < 0 || !Number.isFinite(websiteRevenueUsdt)) throw new Error("Invalid website revenue amount");
-  return headquartersDepartmentRates.map((department) => ({
-    ...department,
-    amountUsdt: money(websiteRevenueUsdt * department.rate),
-  }));
-}
-
-export const personalAgentCommissionTiers = [
-  { minUsdt: 0, maxUsdt: 1000, rate: .2, label: "低于 1,000 USDT" },
-  { minUsdt: 1000, maxUsdt: 5000, rate: .25, label: "1,000–4,999.99 USDT" },
-  { minUsdt: 5000, maxUsdt: 10000, rate: .3, label: "5,000–9,999.99 USDT" },
-  { minUsdt: 10000, maxUsdt: 20000, rate: .35, label: "10,000–19,999.99 USDT" },
-  { minUsdt: 20000, maxUsdt: 50000, rate: .4, label: "20,000–49,999.99 USDT" },
-  { minUsdt: 50000, maxUsdt: Number.POSITIVE_INFINITY, rate: .5, label: "50,000 USDT 及以上" },
-] as const;
-
-export function personalAgentCommissionRate(monthlyPerformanceUsdt: number): number {
-  if (monthlyPerformanceUsdt < 0 || !Number.isFinite(monthlyPerformanceUsdt)) throw new Error("Invalid personal agent monthly performance");
-  return personalAgentCommissionTiers.find((tier) => monthlyPerformanceUsdt >= tier.minUsdt && monthlyPerformanceUsdt < tier.maxUsdt)?.rate ?? .5;
-}
-
-export function calculatePersonalAgentCommission(monthlyPerformanceUsdt: number) {
-  const performanceUsdt = money(monthlyPerformanceUsdt);
-  const commissionRate = personalAgentCommissionRate(performanceUsdt);
-  return {
-    period: "monthly" as const,
-    performanceUsdt,
-    commissionRate,
-    commissionUsdt: money(performanceUsdt * commissionRate),
-    resetAtMonthEnd: true,
-  };
-}
-
 export function allocateRevenue(amountUsdt: number, confirmedAt: string, attribution: Attribution): Allocation[] {
   if (amountUsdt < 0 || !Number.isFinite(amountUsdt)) throw new Error("Invalid revenue amount");
   const active = attribution.status === "active" && attribution.effectiveAt && confirmedAt >= attribution.effectiveAt;
   if (!active) return [{ beneficiary: "headquarters", rate: 1, amountUsdt: money(amountUsdt) }];
 
-  return [
-    { beneficiary: "headquarters", rate: DISTRIBUTABLE_HEADQUARTERS_RATE, amountUsdt: money(amountUsdt * DISTRIBUTABLE_HEADQUARTERS_RATE) },
-    { beneficiary: "branch", beneficiaryId: attribution.branchId, rate: DISTRIBUTABLE_BRANCH_RATE, amountUsdt: money(amountUsdt * DISTRIBUTABLE_BRANCH_RATE) },
+  const result: Allocation[] = [
+    { beneficiary: "headquarters", rate: .1, amountUsdt: money(amountUsdt * .1) },
+    { beneficiary: "branch", beneficiaryId: attribution.branchId, rate: .8, amountUsdt: money(amountUsdt * .8) },
   ];
-}
-
-export function allocateMembershipRevenue(grossAmountUsdt: number, confirmedAt: string, attribution: Attribution): Allocation[] {
-  if (grossAmountUsdt < 0 || !Number.isFinite(grossAmountUsdt)) throw new Error("Invalid membership revenue amount");
-  const operatingCostUsdt = money(grossAmountUsdt * OPERATING_COST_RATE);
-  const distributableRevenueUsdt = money(grossAmountUsdt - operatingCostUsdt);
-  const distributableAllocations = allocateRevenue(distributableRevenueUsdt, confirmedAt, attribution);
-  if (distributableAllocations.length === 1) {
-    return [{ beneficiary: "headquarters", rate: 1, amountUsdt: money(grossAmountUsdt) }];
-  }
-  return [
-    { beneficiary: "headquarters", rate: OPERATING_COST_RATE + OPERATING_COST_RATE * DISTRIBUTABLE_HEADQUARTERS_RATE, amountUsdt: money(operatingCostUsdt + distributableRevenueUsdt * DISTRIBUTABLE_HEADQUARTERS_RATE) },
-    { beneficiary: "branch", beneficiaryId: attribution.branchId, rate: OPERATING_COST_RATE * DISTRIBUTABLE_BRANCH_RATE, amountUsdt: money(distributableRevenueUsdt * DISTRIBUTABLE_BRANCH_RATE) },
-  ];
+  if (attribution.employeeId) result.push(
+    { beneficiary: "manager", beneficiaryId: attribution.managerId, rate: .02, amountUsdt: money(amountUsdt * .02) },
+    { beneficiary: "supervisor", beneficiaryId: attribution.supervisorId, rate: .03, amountUsdt: money(amountUsdt * .03) },
+    { beneficiary: "employee", beneficiaryId: attribution.employeeId, rate: .05, amountUsdt: money(amountUsdt * .05) },
+  ); else if (attribution.supervisorId) result.push(
+    { beneficiary: "manager", beneficiaryId: attribution.managerId, rate: .02, amountUsdt: money(amountUsdt * .02) },
+    { beneficiary: "supervisor", beneficiaryId: attribution.supervisorId, rate: .08, amountUsdt: money(amountUsdt * .08) },
+  ); else result.push({ beneficiary: "manager", beneficiaryId: attribution.managerId, rate: .1, amountUsdt: money(amountUsdt * .1) });
+  return result;
 }
 
 export function calculatePerformanceFee(input: {
   weeklyRealizedNetPnlUsdt?: number;
   realizedNetPnlUsdt?: number;
   membershipPlanCode?: string;
+  // Kept as optional compatibility fields; weekly settlement intentionally ignores them.
+  previousHighWaterMarkUsdt?: number;
+  withdrawalAuthorizedAtClose?: boolean;
 }) {
   const weeklyProfitUsdt = Number(input.weeklyRealizedNetPnlUsdt ?? input.realizedNetPnlUsdt ?? 0);
   if (!Number.isFinite(weeklyProfitUsdt)) throw new Error("Invalid weekly profit amount");
   const chargeableProfitUsdt = Math.max(0, weeklyProfitUsdt);
-  const planCode = String(input.membershipPlanCode || "").toLowerCase();
-  const feeRate = planCode.includes("lifetime") || planCode.includes("终身")
-    ? .16
-    : /annual|year|年/.test(planCode)
-      ? .18
-      : /quarter|season|季/.test(planCode)
-        ? .19
-        : .2;
+  const feeRate = String(input.membershipPlanCode || "").toLowerCase().includes("lifetime") ? .16 : .2;
   return {
     period: "weekly" as const,
     feeRate,

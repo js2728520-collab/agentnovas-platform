@@ -1,95 +1,85 @@
-import { and, eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import {
-  approvalDecisions,
-  approvalRequests,
-  auditLogs,
-  collectionCases,
-  communityStrategies,
-  customerAttributions,
-  payoutProfiles,
-  revenueEvents,
-  settlements,
-  users,
-} from "@/db/schema";
-import { requireUser, responseError } from "@/lib/session";
+import { requireAccessPermission } from "@/lib/access-control";
+import { canAccessOrganization } from "@/lib/operations-access";
+import { getPostgresPool } from "@/lib/postgres";
+import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+
+const reportingHierarchy: Record<string, string> = {
+  manager: "branch_admin",
+  supervisor: "manager",
+  employee: "supervisor",
+};
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireUser(request);
+    const { user: actor, scope, organizationIds } = await requireAccessPermission(request, "ops.approvals.decide");
     const { id } = await params;
-    const body = await request.json() as { decision?: "approve" | "reject"; note?: string };
-    if (!body.decision) return Response.json({ error: "缺少审批决定" }, { status: 400 });
-    const db = getDb();
-    const approval = (await db.select().from(approvalRequests).where(and(eq(approvalRequests.id, id), eq(approvalRequests.status, "pending"))).limit(1))[0];
-    if (!approval) return Response.json({ error: "审批单不存在或已结束" }, { status: 404 });
-    if (approval.requestedBy === user.id) return Response.json({ error: "申请人不能审批自己的申请" }, { status: 403 });
+    const body = await readResearchJson(request, 4_096);
+    const decision = body.decision;
+    const note = typeof body.note === "string" ? body.note.trim() : "";
+    if (decision !== "approve" && decision !== "reject") throw new ResearchApiError("APPROVAL_DECISION_INVALID", "审批决定无效", 422);
+    if (note.length < 3 || note.length > 500) throw new ResearchApiError("APPROVAL_NOTE_INVALID", "审批说明需要 3–500 个字符", 422);
 
-    const isStrategyReview = approval.type === "strategy_listing";
-    if (isStrategyReview) {
-      if (user.role !== "maintenance_admin") return Response.json({ error: "仅运维角色可以审核策略上架" }, { status: 403 });
-    } else {
-      if (user.role !== "branch_admin") return Response.json({ error: "仅分公司账号可以审批运营申请" }, { status: 403 });
-      if (user.organizationId !== approval.branchId) return Response.json({ error: "不能审批其他分公司的申请" }, { status: 403 });
-    }
-
+    const client = await (await getPostgresPool()).connect();
     try {
-      await db.insert(approvalDecisions).values({ id: crypto.randomUUID(), requestId: id, reviewerId: user.id, decision: body.decision, note: body.note || "" });
-    } catch {
-      return Response.json({ error: "你已经处理过此审批单" }, { status: 409 });
-    }
-    const decisions = await db.select().from(approvalDecisions).where(eq(approvalDecisions.requestId, id));
-    const now = new Date().toISOString();
-    if (body.decision === "reject") {
-      const operations = [
-        db.update(approvalRequests).set({ status: "rejected", completedAt: now }).where(eq(approvalRequests.id, id)),
-        db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: `${approval.type}.rejected`, subjectType: approval.subjectType, subjectId: approval.subjectId, afterJson: JSON.stringify({ note: body.note || "未填写原因" }) }),
-      ];
-      if (isStrategyReview) operations.push(db.update(communityStrategies).set({ status: "rejected", rejectionReason: body.note || "平台审核未通过", updatedAt: now }).where(eq(communityStrategies.id, approval.subjectId)) as never);
-      await db.batch(operations as never);
-      return Response.json({ status: "rejected" });
-    }
-    const approvals = decisions.filter((row) => row.decision === "approve");
-    const requiredApprovals = 1;
-    if (approvals.length < requiredApprovals) return Response.json({ status: "pending", approvals: approvals.length, required: requiredApprovals });
+      await client.query("BEGIN");
+      const approval = (await client.query<{
+        id: string;
+        type: string;
+        branch_id: string | null;
+        subject_id: string;
+        payload_json: string;
+        status: string;
+        requested_by: string;
+      }>("SELECT id,type,branch_id,subject_id,payload_json,status,requested_by FROM approval_requests WHERE id=$1 FOR UPDATE", [id])).rows[0];
+      if (!approval) throw new ResearchApiError("APPROVAL_NOT_FOUND", "审批单不存在或不在当前范围", 404);
+      if (approval.type !== "reporting_line_change") throw new ResearchApiError("LEGACY_APPROVAL_DISABLED", "该遗留审批类型在商用 Paper 版本中已停用", 503);
+      const inScope = approval.branch_id
+        ? canAccessOrganization(scope, { userId: actor.id, organizationId: actor.organizationId }, approval.branch_id, organizationIds)
+        : scope === "PLATFORM";
+      if (!inScope) throw new ResearchApiError("APPROVAL_NOT_FOUND", "审批单不存在或不在当前范围", 404);
+      if (approval.requested_by === actor.id) throw new ResearchApiError("MAKER_CHECKER_REQUIRED", "申请人不能审批自己的申请", 403);
 
-    if (isStrategyReview) {
-      const payload = JSON.parse(approval.payloadJson) as { version?: number };
-      const strategy = (await db.select().from(communityStrategies).where(eq(communityStrategies.id, approval.subjectId)).limit(1))[0];
-      if (!strategy || strategy.status !== "submitted" || strategy.version !== Number(payload.version)) {
-        return Response.json({ error: "策略版本已变化或不再处于待审核状态，请重新提交" }, { status: 409 });
+      const existing = (await client.query<{ decision: string }>("SELECT decision FROM approval_decisions WHERE request_id=$1 AND reviewer_id=$2 FOR SHARE", [id, actor.id])).rows[0];
+      if (existing) {
+        if (existing.decision !== decision) throw new ResearchApiError("APPROVAL_ALREADY_DECIDED", "你已经以不同结论处理该申请", 409);
+        await client.query("COMMIT");
+        return Response.json({ status: approval.status, replayed: true });
       }
-      await db.batch([
-        db.update(communityStrategies).set({ status: "published", approvedAt: now, publishedAt: now, rejectionReason: null, updatedAt: now }).where(eq(communityStrategies.id, approval.subjectId)),
-        db.update(approvalRequests).set({ status: "approved", completedAt: now }).where(eq(approvalRequests.id, id)),
-        db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: "strategy_listing.approved", subjectType: "community_strategy", subjectId: approval.subjectId, afterJson: JSON.stringify({ version: payload.version, reviewers: approvals.map((row) => row.reviewerId), publishedAt: now }) }),
-      ]);
-      return Response.json({ status: "approved", effective: true, published: true });
+      if (approval.status !== "pending") throw new ResearchApiError("APPROVAL_STATE_CONFLICT", "审批单已经结束", 409, { status: approval.status });
+      await client.query("INSERT INTO approval_decisions(id,request_id,reviewer_id,decision,note) VALUES($1,$2,$3,$4,$5)", [crypto.randomUUID(), id, actor.id, decision, note]);
+      const now = new Date();
+      if (decision === "reject") {
+        await client.query("UPDATE approval_requests SET status='rejected',completed_at=$2 WHERE id=$1", [id, now]);
+        await client.query("INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,created_at) VALUES($1,$2,'reporting_line_change.rejected','user',$3,$4,$5)", [crypto.randomUUID(), actor.id, approval.subject_id, JSON.stringify({ approvalId: id, note }), now]);
+        await client.query("COMMIT");
+        return Response.json({ status: "rejected", replayed: false });
+      }
+      const approvals = Number((await client.query<{ count: string }>("SELECT count(*)::text AS count FROM approval_decisions WHERE request_id=$1 AND decision='approve'", [id])).rows[0]?.count ?? 0);
+      const payload = JSON.parse(approval.payload_json || "{}") as Record<string, unknown>;
+      const previousReportsToUserId = typeof payload.previousReportsToUserId === "string" ? payload.previousReportsToUserId : null;
+      const newReportsToUserId = typeof payload.newReportsToUserId === "string" ? payload.newReportsToUserId : "";
+      if (!newReportsToUserId || payload.newRole) throw new ResearchApiError("REPORTING_CHANGE_INVALID", "汇报关系申请快照无效", 409);
+      const members = await client.query<{ id: string; role: string; status: string; organization_id: string | null; reports_to_user_id: string | null }>("SELECT id,role,status,organization_id,reports_to_user_id FROM users WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE", [[approval.subject_id, newReportsToUserId]]);
+      const member = members.rows.find((row) => row.id === approval.subject_id);
+      const leader = members.rows.find((row) => row.id === newReportsToUserId);
+      if (!member || !leader || member.status !== "active" || leader.status !== "active" || !member.organization_id || member.organization_id !== leader.organization_id) {
+        throw new ResearchApiError("REPORTING_CHANGE_STALE", "成员或上级状态已变化，请重新提交", 409);
+      }
+      if (member.reports_to_user_id !== previousReportsToUserId || reportingHierarchy[member.role] !== leader.role) {
+        throw new ResearchApiError("REPORTING_CHANGE_STALE", "当前汇报关系或组织层级已变化，请重新提交", 409);
+      }
+      await client.query("UPDATE users SET reports_to_user_id=$2,updated_at=$3 WHERE id=$1", [member.id, leader.id, now]);
+      await client.query("UPDATE approval_requests SET status='approved',completed_at=$2 WHERE id=$1", [id, now]);
+      await client.query("INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json,created_at) VALUES($1,$2,'reporting_line_change.approved','user',$3,$4,$5,$6)", [crypto.randomUUID(), actor.id, member.id, JSON.stringify({ reportsToUserId: previousReportsToUserId }), JSON.stringify({ reportsToUserId: leader.id, approvalId: id, reviewers: approvals }), now]);
+      await client.query("COMMIT");
+      return Response.json({ status: "approved", effective: true, approvals, required: 1, replayed: false });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
     }
-
-    if (approval.type === "customer_attribution" || approval.type === "customer_transfer") {
-      const payload = JSON.parse(approval.payloadJson) as { branchId: string; managerId: string; supervisorId?: string | null; employeeId?: string | null; effectiveAt: string; reason: string };
-      await db.update(customerAttributions).set({ status: "active", source: approval.type === "customer_transfer" ? "manual_transfer" : undefined, branchId: payload.branchId, managerId: payload.managerId, supervisorId: payload.supervisorId || null, employeeId: payload.employeeId || null, effectiveAt: payload.effectiveAt, reason: payload.reason, approvalId: id, updatedAt: now }).where(eq(customerAttributions.id, approval.subjectId));
-    }
-    if (approval.type === "settlement_payment") await db.update(settlements).set({ status: "approved", updatedAt: now }).where(eq(settlements.id, approval.subjectId));
-    if (approval.type === "revenue_adjustment") {
-      const payload = JSON.parse(approval.payloadJson) as { customerId: string; sourceId: string; amountUsdt: number };
-      await db.insert(revenueEvents).values({ id: crypto.randomUUID(), customerId: payload.customerId, type: "adjustment", sourceId: payload.sourceId, amountUsdt: payload.amountUsdt, confirmedAt: now, attributionStatus: "manual_adjustment", ruleVersion: "v1", status: "confirmed" });
-    }
-    if (approval.type === "payout_profile_change") await db.update(payoutProfiles).set({ status: "active", updatedAt: now }).where(eq(payoutProfiles.id, approval.subjectId));
-    if (approval.type === "collection_paid_confirmation") await db.update(collectionCases).set({ status: "paid", newEntriesAllowed: true, paidConfirmedBy: user.id, paidConfirmedAt: now, updatedAt: now }).where(eq(collectionCases.id, approval.subjectId));
-    if (approval.type === "reporting_line_change") {
-      const payload = JSON.parse(approval.payloadJson) as { newReportsToUserId: string; newRole?: string };
-      const role = payload.newRole as "branch_admin" | "manager" | "supervisor" | "employee" | undefined;
-      if (role) await db.update(users).set({ reportsToUserId: payload.newReportsToUserId, role, updatedAt: now }).where(eq(users.id, approval.subjectId));
-      else await db.update(users).set({ reportsToUserId: payload.newReportsToUserId, updatedAt: now }).where(eq(users.id, approval.subjectId));
-    }
-    await db.batch([
-      db.update(approvalRequests).set({ status: "approved", completedAt: now }).where(eq(approvalRequests.id, id)),
-      db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: `${approval.type}.approved`, subjectType: approval.subjectType, subjectId: approval.subjectId, afterJson: approval.payloadJson }),
-    ]);
-    return Response.json({ status: "approved", effective: true });
   } catch (error) {
-    return responseError(error);
+    return researchErrorResponse(error, request);
   }
 }

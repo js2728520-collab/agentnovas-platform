@@ -1,0 +1,187 @@
+name: agentnovas-riverton
+
+x-web-security: &web-security
+  init: true
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  stop_grace_period: 30s
+
+x-worker-security: &worker-security
+  init: true
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  stop_grace_period: 45s
+
+services:
+  postgres:
+    image: postgres:16.14-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agentnovas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [backplane]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d agentnovas"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    shm_size: 256mb
+    security_opt: [no-new-privileges:true]
+
+  client:
+    <<: *web-security
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-client:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/client.env, server.js]
+    environment:
+      RIVERTON_APP_AUDIENCE: client
+      RIVERTON_RELEASE_TAG: v${RIVERTON_RELEASE_VERSION}
+      GIT_COMMIT_SHA: ${RIVERTON_COMMIT_SHA:?set RIVERTON_COMMIT_SHA}
+      RIVERTON_ARTIFACT_SHA256: ${RIVERTON_ARTIFACT_SHA256:?set RIVERTON_ARTIFACT_SHA256}
+    secrets:
+      - source: client_env
+        target: client.env
+    ports: ["127.0.0.1:${RIVERTON_CLIENT_PORT:-3100}:3000"]
+    tmpfs:
+      - /tmp:mode=1777
+      - /app/.next-client/cache:uid=1000,gid=1000,mode=0700
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks:
+      backplane: {}
+      edge: { aliases: [riverton-client] }
+
+  operations:
+    <<: *web-security
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-operations:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/operations.env, server.js]
+    environment:
+      RIVERTON_APP_AUDIENCE: operations
+      RIVERTON_RELEASE_TAG: v${RIVERTON_RELEASE_VERSION}
+      GIT_COMMIT_SHA: ${RIVERTON_COMMIT_SHA:?set RIVERTON_COMMIT_SHA}
+      RIVERTON_ARTIFACT_SHA256: ${RIVERTON_ARTIFACT_SHA256:?set RIVERTON_ARTIFACT_SHA256}
+    secrets:
+      - source: operations_env
+        target: operations.env
+    ports: ["127.0.0.1:${RIVERTON_OPERATIONS_PORT:-3101}:3000"]
+    tmpfs:
+      - /tmp:mode=1777
+      - /app/.next-operations/cache:uid=1000,gid=1000,mode=0700
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks:
+      backplane: {}
+      edge: { aliases: [riverton-operations] }
+
+  maintenance:
+    <<: *web-security
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-maintenance:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/maintenance.env, server.js]
+    environment:
+      RIVERTON_APP_AUDIENCE: maintenance
+      RIVERTON_RELEASE_TAG: v${RIVERTON_RELEASE_VERSION}
+      GIT_COMMIT_SHA: ${RIVERTON_COMMIT_SHA:?set RIVERTON_COMMIT_SHA}
+      RIVERTON_ARTIFACT_SHA256: ${RIVERTON_ARTIFACT_SHA256:?set RIVERTON_ARTIFACT_SHA256}
+    secrets:
+      - source: maintenance_env
+        target: maintenance.env
+    ports: ["127.0.0.1:${RIVERTON_MAINTENANCE_PORT:-3102}:3000"]
+    tmpfs:
+      - /tmp:mode=1777
+      - /app/.next-maintenance/cache:uid=1000,gid=1000,mode=0700
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks:
+      backplane: {}
+      edge: { aliases: [riverton-maintenance] }
+
+  notification-worker:
+    <<: *worker-security
+    profiles: [workers]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/notification.env, --experimental-strip-types, scripts/notification-worker.mjs]
+    secrets:
+      - source: notification_env
+        target: notification.env
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane, egress]
+
+  runtime-worker:
+    <<: *worker-security
+    profiles: [workers]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/runtime.env, --experimental-strip-types, scripts/strategy-runtime-worker.mjs]
+    secrets:
+      - source: runtime_env
+        target: runtime.env
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane, egress]
+
+  demo-worker:
+    <<: *worker-security
+    profiles: [workers]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/demo.env, --experimental-strip-types, scripts/platform-demo-worker.mjs]
+    secrets:
+      - source: demo_env
+        target: demo.env
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane, egress]
+
+  migrator:
+    profiles: [tools]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/migrator.env, --experimental-strip-types, scripts/apply-postgres-migrations.mjs]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    secrets:
+      - source: migrator_env
+        target: migrator.env
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane]
+
+secrets:
+  postgres_password:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/postgres-password
+  client_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/client.env
+  operations_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/operations.env
+  maintenance_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/maintenance.env
+  notification_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/notification.env
+  runtime_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/runtime.env
+  demo_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/demo.env
+  migrator_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/migrator.env
+
+volumes:
+  postgres_data:
+    name: agentnovas-riverton-postgres
+
+networks:
+  backplane:
+    name: agentnovas-riverton-backplane
+    internal: true
+  edge:
+    name: agentnovas-riverton-edge
+  egress:
+    name: agentnovas-riverton-egress

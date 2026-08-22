@@ -12,9 +12,11 @@
 
 # testing
 /coverage
+/tsconfig.tsbuildinfo
 
 # next.js
 /.next/
+/.next-*/
 /.vinext/
 /.vite/
 /out/
@@ -39,5 +41,6 @@ AgentNovas-超级管理员登录信息.md
 
 /dist/
 /.wrangler/
+/.local-backups/
 /outputs/
 /work/

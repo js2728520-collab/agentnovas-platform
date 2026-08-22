@@ -1,59 +1,44 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
-const templateRoot = new URL("../", import.meta.url);
-const previewRoot = new URL("../app/_sites-preview/", import.meta.url);
-
-async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  return worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
-}
-
-test("server-renders the Riverton Capital platform shell", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-
-  const html = await response.text();
-  assert.doesNotMatch(html, developmentPreviewMeta);
-  assert.match(html, /Riverton Capital/i);
-  assert.match(html, /AI/);
-  assert.match(html, /交易大厅|Trading Hall/i);
+test("the server entry dispatches the Riverton shell without relying on generated output", async () => {
+  const [page, dispatcher, clientRoot, workspacePage, client] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/riverton-route.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/audience/client-root.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/workspace/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/client-app.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.doesNotMatch(page, /^"use client";/);
+  assert.match(page, /resolveAppAudienceStrict/);
+  assert.match(dispatcher, /CurrentApp/);
+  assert.doesNotMatch(dispatcher, /ClientApp/);
+  assert.doesNotMatch(clientRoot, /client-workspace-root/);
+  assert.match(clientRoot, /client-portal-root/);
+  assert.match(workspacePage, /client-workspace-root/);
+  assert.match(client, /交易大厅|Trading Hall/i);
+  assert.match(client, /Riverton Capital/);
 });
 
 test("keeps the Riverton Capital shell and core modules present", async () => {
-  const [css, page, layout, packageJson] = await Promise.all([
+  const [css, page, layout, metadata, packageJson] = await Promise.all([
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/client-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/riverton-metadata.ts", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
   assert.match(css, /\.feature-split/);
   assert.match(css, /\.risk-check-grid/);
   assert.match(page, /LiveMarket/);
-  assert.match(page, /ConnectLive/);
-  assert.match(page, /CommunityStrategyCenter/);
-  assert.match(page, /StrategyDetail/);
-  assert.match(layout, /export const metadata:\s*Metadata/);
-  assert.match(layout, /Riverton Capital/);
+  assert.match(page, /TradingCenterV2/);
+  assert.match(page, /MembershipCenter/);
+  assert.doesNotMatch(page, /ConnectLive|CommunityStrategyCenter|StrategyDetail/);
+  assert.doesNotMatch(page, /function Admin\(/);
+  assert.match(layout, /generateMetadata/);
+  assert.match(layout, /rivertonMetadata/);
+  assert.match(metadata, /Riverton Capital 客户端/);
+  assert.match(metadata, /robots:/);
   assert.match(packageJson, /"build"/);
 });

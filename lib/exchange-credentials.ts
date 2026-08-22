@@ -1,4 +1,4 @@
-import { runtimeSetting } from "@/lib/runtime-setting";
+import { runtimeSetting } from "./runtime-setting.ts";
 export type ExchangeCredential={apiKey:string;secretKey:string;passphrase?:string};
 const encoder=new TextEncoder(),decoder=new TextDecoder();
 function bytesToBase64(bytes:Uint8Array){let value="";for(const byte of bytes)value+=String.fromCharCode(byte);return btoa(value)}

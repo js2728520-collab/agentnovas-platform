@@ -1,8 +1,12 @@
-import { ensureD1Schema } from "@/lib/d1-migrations";
-import { getAllPlatformSettings } from "@/lib/platform-settings";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
+import { publicPlatformSettings } from "@/lib/platform-settings";
+import { researchErrorResponse } from "@/lib/research-api";
 
-export async function GET() {
-  await ensureD1Schema();
-  const settings = await getAllPlatformSettings();
-  return Response.json({ system: settings.system, features: settings.features }, { headers: { "cache-control": "no-store" } });
+export async function GET(request: Request) {
+  try {
+    await ensureDatabaseSchema();
+    return Response.json(await publicPlatformSettings(), { headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    return researchErrorResponse(error, request);
+  }
 }

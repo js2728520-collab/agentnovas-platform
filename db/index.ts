@@ -1,13 +1,14 @@
-import { env } from "cloudflare:workers";
-import { drizzle } from "drizzle-orm/d1";
+import type { drizzle as createTypedBusinessDb } from "drizzle-orm/d1";
+import { getDeferredPostgresPool } from "@/lib/postgres";
+import { createPostgresBusinessDb } from "./postgres";
 import * as schema from "./schema";
 
-export function getDb() {
-  if (!env.DB) {
-    throw new Error(
-      "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database."
-    );
-  }
+type BusinessDatabase = Omit<ReturnType<typeof createTypedBusinessDb<typeof schema>>, "batch"> & {
+  batch: (queries: readonly unknown[]) => Promise<unknown[]>;
+};
 
-  return drizzle(env.DB, { schema });
+const postgresDatabase = createPostgresBusinessDb(getDeferredPostgresPool()) as unknown as BusinessDatabase;
+
+export function getDb() {
+  return postgresDatabase;
 }

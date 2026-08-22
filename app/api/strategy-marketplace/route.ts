@@ -1,13 +1,17 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
-  auditLogs,
   communityStrategies,
   strategySubscriptions,
   strategyValidations as strategyBacktestReports,
   users,
 } from "@/db/schema";
+import { AiApiError, aiErrorResponse } from "@/lib/ai-api";
+import { getOwnedAiConversation, resolveStrategyVersionSource } from "@/lib/ai-conversations";
+import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { currentUser, requireUser, responseError } from "@/lib/session";
+import { createStrategyDraft } from "@/lib/strategy-drafts";
+import { normalizeResearchStrategyDsl, StrategyDslValidationError } from "@/lib/strategy-dsl";
 
 function parseArray(value: string) {
   try {
@@ -29,6 +33,7 @@ function parseObject(value: string) {
 
 export async function GET(request: Request) {
   try {
+    await ensureDatabaseSchema();
     const me = await currentUser(request);
     const db = getDb();
     const fields = {
@@ -113,6 +118,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await ensureDatabaseSchema();
     const me = await requireUser(request, ["customer"]);
     const body = (await request.json()) as {
       name?: string;
@@ -120,43 +126,51 @@ export async function POST(request: Request) {
       symbols?: string[];
       riskLevel?: "low" | "medium" | "high";
       publicationMode?: "marketplace" | "self_use";
-      conversation?: unknown[];
-      specification?: Record<string, unknown>;
+      conversationId?: string;
+      generationId?: string;
+      specification?: unknown;
     };
-    const symbols = Array.isArray(body.symbols)
-      ? body.symbols.map((item) => String(item).trim()).filter(Boolean).slice(0, 20)
-      : [];
-    if (!body.name?.trim() || !body.summary?.trim() || !symbols.length) {
-      return Response.json({ error: "策略名称、说明和交易对为必填" }, { status: 400 });
+    if (!body.name?.trim() || !body.summary?.trim()) {
+      return Response.json({ error: "策略名称和说明为必填" }, { status: 400 });
+    }
+    let specification;
+    try {
+      specification = normalizeResearchStrategyDsl(body.specification);
+    } catch (error) {
+      const details = error instanceof StrategyDslValidationError ? error.issues : [];
+      return Response.json({ error: "策略规则未通过 DSL 校验", details }, { status: 422 });
+    }
+    const conversationId = String(body.conversationId || "").trim() || null;
+    if (conversationId) {
+      const conversation = await getOwnedAiConversation(me.id, conversationId);
+      if (conversation.purpose !== "strategy") {
+        return Response.json({ error: "当前对话不是策略研究对话" }, { status: 409 });
+      }
     }
     const riskLevel = ["low", "medium", "high"].includes(String(body.riskLevel))
       ? body.riskLevel!
       : "medium";
     const publicationMode = body.publicationMode === "self_use" ? "self_use" : "marketplace";
-    const id = crypto.randomUUID();
-    await getDb().batch([
-      getDb().insert(communityStrategies).values({
-        id,
-        authorUserId: me.id,
-        name: body.name.trim(),
-        summary: body.summary.trim(),
-        symbolsJson: JSON.stringify(symbols),
-        riskLevel,
-        publicationMode,
-        conversationJson: JSON.stringify(body.conversation || []),
-        specificationJson: JSON.stringify(body.specification || {}),
-      }),
-      getDb().insert(auditLogs).values({
-        id: crypto.randomUUID(),
-        actorUserId: me.id,
-        action: "strategy.draft.created",
-        subjectType: "community_strategy",
-        subjectId: id,
-        afterJson: JSON.stringify({ name: body.name.trim(), symbols, riskLevel, publicationMode, version: 1 }),
-      }),
-    ]);
-    return Response.json({ id, status: "draft", version: 1, message: "策略草稿已保存" }, { status: 201 });
+    const specificationJson = JSON.stringify(specification);
+    const source = await resolveStrategyVersionSource({
+      userId: me.id,
+      conversationId,
+      generationId: String(body.generationId || "").trim() || null,
+      specificationJson,
+    });
+    const saved = await createStrategyDraft({
+      userId: me.id,
+      name: body.name,
+      summary: body.summary,
+      riskLevel,
+      publicationMode,
+      specification,
+      conversationId,
+      source,
+    });
+    return Response.json({ id: saved.id, status: saved.status, version: saved.version, message: "策略草稿已保存" }, { status: 201 });
   } catch (error) {
+    if (error instanceof AiApiError) return aiErrorResponse(error);
     return responseError(error);
   }
 }

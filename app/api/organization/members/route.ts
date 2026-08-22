@@ -1,11 +1,15 @@
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { approvalRequests, auditLogs, authTokens, customerAttributions, customerProfiles, notificationDeliveries, organizations, sessions, users } from "@/db/schema";
+import { approvalRequests, customerAttributions, customerProfiles, organizations, users } from "@/db/schema";
+import { requireAccessPermission } from "@/lib/access-control";
 import { hashPassword, normalizeEmail, randomToken, sha256, validEmail } from "@/lib/auth";
-import { canDeactivateMember, canManuallyActivateMember, canRestoreClosedMember, canRestoreFrozenMember, canSeeCustomer, childRole, roleLabels } from "@/lib/permissions";
-import { requireUser, responseError } from "@/lib/session";
-
-const creators = ["hq_admin","branch_admin","manager","supervisor"] as const;
+import { canAccessCustomerAttribution, canAccessOrganization } from "@/lib/operations-access";
+import { encryptNotificationToken } from "@/lib/notification-secrets";
+import { provisionInternalMember } from "@/lib/internal-member-provisioning";
+import { canManuallyActivateMember, childRole, roleLabels } from "@/lib/permissions";
+import { getPostgresPool } from "@/lib/postgres";
+import { readResearchJson, ResearchApiError } from "@/lib/research-api";
+import { responseError } from "@/lib/session";
 
 type RelationshipNode = {
   id: string;
@@ -24,16 +28,13 @@ type RelationshipNode = {
   attributionSource?: string;
   effectiveAt?: string | null;
   canManuallyActivate?: boolean;
-  canRestoreClosed?: boolean;
-  canRestoreFrozen?: boolean;
-  canDeactivate?: boolean;
 };
 
 const customerStatusPriority: Record<string, number> = { active: 5, review_pending: 4, public_pool_pending: 3, rejected: 2, ended: 1 };
 const maskEmail = (email: string) => email.replace(/^(.{2}).*(@.*)$/, "$1***$2");
 
 async function relationshipTree(request: Request) {
-  const actor = await requireUser(request, [...creators]);
+  const { user: actor, scope, organizationIds } = await requireAccessPermission(request, "ops.organization.view");
   const db = getDb();
   const [allUsers, allOrganizations, attributionRows] = await Promise.all([
     db.select({
@@ -76,10 +77,10 @@ async function relationshipTree(request: Request) {
   const internal = allUsers.filter(row => row.role !== "customer");
   const visibleMemberIds = new Set<string>([actor.id]);
 
-  if (actor.role === "hq_admin") {
+  if (scope === "PLATFORM") {
     internal.forEach(row => visibleMemberIds.add(row.id));
-  } else if (actor.role === "branch_admin") {
-    internal.filter(row => Boolean(actor.organizationId) && row.organizationId === actor.organizationId).forEach(row => visibleMemberIds.add(row.id));
+  } else if (scope === "ORGANIZATION" || scope === "ORGANIZATION_SET") {
+    internal.filter(row => Boolean(row.organizationId) && canAccessOrganization(scope, { userId: actor.id, organizationId: actor.organizationId }, row.organizationId!, organizationIds)).forEach(row => visibleMemberIds.add(row.id));
   } else {
     let changed = true;
     while (changed) {
@@ -120,9 +121,6 @@ async function relationshipTree(request: Request) {
       organizationName: row.organizationId ? organizationNames.get(row.organizationId) || "未命名组织" : row.role === "hq_admin" ? "Riverton Capital 总公司" : "总公司职能部门",
       createdAt: row.createdAt,
       canManuallyActivate: canManuallyActivateMember(actor, row),
-      canRestoreClosed: canRestoreClosedMember(actor, row),
-      canRestoreFrozen: canRestoreFrozenMember(actor, row),
-      canDeactivate: canDeactivateMember(actor, row),
     };
   });
 
@@ -151,7 +149,7 @@ async function relationshipTree(request: Request) {
   }
 
   for (const row of preferredAttributions.values()) {
-    if (!canSeeCustomer(actor.role, actor.id, actor.organizationId, row)) continue;
+    if (!canAccessCustomerAttribution(scope, { userId: actor.id, organizationId: actor.organizationId }, row, organizationIds)) continue;
     const preferredParentIds = [row.employeeId, row.supervisorId, row.managerId, row.branchId ? branchAdminByOrganization.get(row.branchId) : null];
     const parentId = preferredParentIds.find(id => id && memberIds.has(id)) || rootId;
     nodes.push({
@@ -186,8 +184,101 @@ async function relationshipTree(request: Request) {
   });
 }
 
-export async function GET(request:Request){try{if(new URL(request.url).searchParams.get("view")==="tree")return await relationshipTree(request);const user=await requireUser(request,[...creators]);const target=childRole[user.role];if(!target)return Response.json({members:[]});const db=getDb();let rows;if(user.role==="hq_admin")rows=await db.select({id:users.id,email:users.email,role:users.role,status:users.status,organizationId:users.organizationId,createdAt:users.createdAt}).from(users).where(eq(users.role,"branch_admin")).orderBy(desc(users.createdAt)).limit(200);else rows=await db.select({id:users.id,email:users.email,role:users.role,status:users.status,organizationId:users.organizationId,createdAt:users.createdAt}).from(users).where(and(eq(users.role,target as typeof users.$inferSelect.role),eq(users.organizationId,user.organizationId!))).orderBy(desc(users.createdAt)).limit(200);return Response.json({members:rows,nextRole:target});}catch(e){return responseError(e)}}
+export async function GET(request:Request){try{if(new URL(request.url).searchParams.get("view")==="tree")return await relationshipTree(request);const{user,scope,organizationIds}=await requireAccessPermission(request,"ops.organization.view");const target=childRole[user.role];if(!target)return Response.json({members:[]});const db=getDb();const candidates=await db.select({id:users.id,email:users.email,role:users.role,status:users.status,organizationId:users.organizationId,createdAt:users.createdAt}).from(users).where(eq(users.role,target as typeof users.$inferSelect.role)).orderBy(desc(users.createdAt)).limit(200);const rows=candidates.filter(row=>row.organizationId?canAccessOrganization(scope,{userId:user.id,organizationId:user.organizationId},row.organizationId,organizationIds):scope==="PLATFORM");return Response.json({members:rows,nextRole:target});}catch(e){return responseError(e)}}
 
-export async function POST(request:Request){try{const actor=await requireUser(request,[...creators]);const body=await request.json() as {email?:string,name?:string};const email=normalizeEmail(body.email??"");if(!validEmail(email))return Response.json({error:"请输入有效邮箱"},{status:400});const role=childRole[actor.role] as typeof users.$inferInsert.role|undefined;if(!role||role==="customer")return Response.json({error:"该角色不能创建内部成员"},{status:403});const db=getDb();if((await db.select({id:users.id}).from(users).where(eq(users.email,email)).limit(1))[0])return Response.json({error:"邮箱已存在"},{status:409});let organizationId=actor.organizationId;const userId=crypto.randomUUID();const now=new Date().toISOString();if(role==="branch_admin"){organizationId=crypto.randomUUID();await db.insert(organizations).values({id:organizationId,type:"branch",name:body.name?.trim()||email.split("@")[0]});}const temporaryPassword=randomToken(8);const verifyToken=randomToken();await db.batch([db.insert(users).values({id:userId,email,passwordHash:await hashPassword(temporaryPassword),role,organizationId,reportsToUserId:actor.id,status:"pending"}),db.insert(authTokens).values({id:crypto.randomUUID(),userId,tokenHash:await sha256(verifyToken),purpose:"verify_email",expiresAt:new Date(Date.now()+48*3600_000).toISOString()}),db.insert(notificationDeliveries).values({id:crypto.randomUUID(),userId,channel:"email",category:"login_security",templateKey:"internal_account_invite",payloadJson:JSON.stringify({verifyToken,temporaryPassword,role}),scheduledAt:now}),db.insert(auditLogs).values({id:crypto.randomUUID(),actorUserId:actor.id,action:"organization.member_created",subjectType:"user",subjectId:userId,afterJson:JSON.stringify({email,role,organizationId})})]);return Response.json({member:{id:userId,email,role,status:"pending"},message:"成员已创建，请在组织关系树中选择该成员并手动激活"},{status:201});}catch(e){return responseError(e)}}
-export async function DELETE(request:Request){try{const actor=await requireUser(request,["hq_admin"]);const body=await request.json() as {memberId?:string};if(!body.memberId)return Response.json({error:"请选择要删除的成员账户"},{status:400});if(body.memberId===actor.id)return Response.json({error:"不能删除当前超级管理员账户"},{status:400});const db=getDb(),member=(await db.select({id:users.id,email:users.email,role:users.role,status:users.status,organizationId:users.organizationId}).from(users).where(eq(users.id,body.memberId)).limit(1))[0];if(!member||member.role!=="branch_admin")return Response.json({error:"只能删除超级管理员创建的下级管理员账户"},{status:403});if(member.status==="closed")return Response.json({error:"该账户已经删除"},{status:409});const now=new Date().toISOString();await db.batch([db.update(users).set({status:"closed",updatedAt:now}).where(eq(users.id,member.id)),db.update(sessions).set({revokedAt:now}).where(eq(sessions.userId,member.id)),db.update(authTokens).set({usedAt:now}).where(eq(authTokens.userId,member.id)),db.insert(auditLogs).values({id:crypto.randomUUID(),actorUserId:actor.id,action:"organization.member_deleted",subjectType:"user",subjectId:member.id,beforeJson:JSON.stringify(member),afterJson:JSON.stringify({status:"closed",deletedAt:now})})]);return Response.json({message:"成员账户已删除，历史记录已保留"});}catch(e){return responseError(e)}}
-export async function PATCH(request:Request){try{const actor=await requireUser(request,["branch_admin"]),body=await request.json()as{memberId?:string,newReportsToUserId?:string,newRole?:string,reason?:string};if(!body.memberId||!body.newReportsToUserId||!body.reason?.trim())return Response.json({error:"成员、新上级和调整原因均为必填"},{status:400});const allowedRoles=["branch_admin","manager","supervisor","employee"] as const;if(body.newRole&&!allowedRoles.includes(body.newRole as typeof allowedRoles[number]))return Response.json({error:"职位必须从下拉选项中选择"},{status:400});const db=getDb(),member=(await db.select().from(users).where(eq(users.id,body.memberId)).limit(1))[0],leader=(await db.select().from(users).where(eq(users.id,body.newReportsToUserId)).limit(1))[0];if(!member||!leader||member.organizationId!==actor.organizationId||leader.organizationId!==actor.organizationId)return Response.json({error:"成员或上级不属于当前分公司"},{status:403});const allowed=(member.role==="manager"&&leader.role==="branch_admin")||(member.role==="supervisor"&&leader.role==="manager")||(member.role==="employee"&&leader.role==="supervisor");if(!allowed)return Response.json({error:"上下级角色关系不符合组织层级"},{status:400});const id=crypto.randomUUID();await db.insert(approvalRequests).values({id,type:"reporting_line_change",branchId:actor.organizationId,subjectType:"user",subjectId:member.id,payloadJson:JSON.stringify({previousReportsToUserId:member.reportsToUserId,newReportsToUserId:leader.id,newRole:body.newRole||undefined,reason:body.reason.trim()}),requestedBy:actor.id});return Response.json({approvalId:id,status:"pending",message:"上下级与职位调整已提交双人审批"},{status:201})}catch(e){return responseError(e)}}
+export async function POST(request: Request) {
+  try {
+    const { user: actor, scope, organizationIds } = await requireAccessPermission(request, "ops.organization.manage");
+    const body = await readResearchJson(request, 4_096);
+    const email = normalizeEmail(typeof body.email === "string" ? body.email : "");
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    if (reason.length < 3 || reason.length > 500) throw new ResearchApiError("ORGANIZATION_REASON_INVALID", "邀请原因需要 3–500 个字符", 422);
+    if (!validEmail(email)) return Response.json({ error: "请输入有效邮箱" }, { status: 400 });
+    const role = childRole[actor.role] as typeof users.$inferInsert.role | undefined;
+    if (!role || role === "customer") return Response.json({ error: "该角色不能创建内部成员" }, { status: 403 });
+    if (!["branch_admin", "manager", "supervisor", "employee", "finance", "auditor", "hq_support"].includes(role)) {
+      return Response.json({ error: "目标内部角色不受支持" }, { status: 403 });
+    }
+    const db = getDb();
+    if ((await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0]) {
+      return Response.json({ error: "邮箱已存在" }, { status: 409 });
+    }
+    let organizationId = actor.organizationId;
+    const userId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    if (role === "branch_admin") {
+      if (scope !== "PLATFORM") return Response.json({ error: "仅平台范围授权可创建分公司管理员" }, { status: 403 });
+      organizationId = null;
+    }
+    if (role !== "branch_admin" && (!organizationId || !canAccessOrganization(scope, { userId: actor.id, organizationId: actor.organizationId }, organizationId, organizationIds))) {
+      return Response.json({ error: "无权在该组织创建成员" }, { status: 403 });
+    }
+    const disabledCredential = randomToken(32);
+    const activationToken = randomToken();
+    const encryptedToken = await encryptNotificationToken(activationToken);
+    const provisioned = await provisionInternalMember(await getPostgresPool(), {
+      actorUserId: actor.id,
+      userId,
+      email,
+      passwordHash: await hashPassword(disabledCredential),
+      role: role as Parameters<typeof provisionInternalMember>[1]["role"],
+      organizationId,
+      organizationName: typeof body.name === "string" ? body.name : undefined,
+      reportsToUserId: actor.id,
+      activationTokenHash: await sha256(activationToken),
+      encryptedNotificationToken: encryptedToken,
+      reason,
+      now: new Date(now),
+    });
+    return Response.json({
+      member: { id: userId, email, role, organizationId: provisioned.organizationId, status: "pending" },
+      deliveryStatus: "queued",
+      message: "成员已创建；邀请邮件进入发送队列，未发送前账户保持待激活",
+    }, { status: 201 });
+  } catch (error) {
+    return responseError(error);
+  }
+}
+export async function DELETE() {
+  return Response.json({ error: { code: "MEMBER_DELETE_DISABLED", message: "内部成员删除已停用；请使用可审计的停用操作" } }, { status: 503 });
+}
+export async function PATCH(request: Request) {
+  try {
+    const { user: actor, scope, organizationIds } = await requireAccessPermission(request, "ops.organization.manage");
+    const body = await readResearchJson(request, 4_096);
+    const memberId = typeof body.memberId === "string" ? body.memberId : "";
+    const newReportsToUserId = typeof body.newReportsToUserId === "string" ? body.newReportsToUserId : "";
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    if (!memberId || !newReportsToUserId) throw new ResearchApiError("REPORTING_CHANGE_INVALID", "成员和新上级均为必填", 422);
+    if (reason.length < 3 || reason.length > 500) throw new ResearchApiError("REPORTING_REASON_INVALID", "调整原因需要 3–500 个字符", 422);
+    if (memberId === actor.id || memberId === newReportsToUserId) throw new ResearchApiError("REPORTING_CHANGE_INVALID", "不能调整当前账户或将成员设为自己的上级", 422);
+    const db = getDb();
+    const member = (await db.select().from(users).where(eq(users.id, memberId)).limit(1))[0];
+    const leader = (await db.select().from(users).where(eq(users.id, newReportsToUserId)).limit(1))[0];
+    if (!member || !leader || member.status !== "active" || leader.status !== "active" || member.organizationId !== leader.organizationId || !member.organizationId || !canAccessOrganization(scope, { userId: actor.id, organizationId: actor.organizationId }, member.organizationId, organizationIds)) {
+      throw new ResearchApiError("REPORTING_TARGET_NOT_FOUND", "成员或上级不存在、不在授权范围或状态不可用", 404);
+    }
+    const allowed = (member.role === "manager" && leader.role === "branch_admin")
+      || (member.role === "supervisor" && leader.role === "manager")
+      || (member.role === "employee" && leader.role === "supervisor");
+    if (!allowed) throw new ResearchApiError("REPORTING_HIERARCHY_INVALID", "上下级角色关系不符合组织层级", 422);
+    const pending = await (await getPostgresPool()).query(
+      "SELECT id FROM approval_requests WHERE type='reporting_line_change' AND subject_id=$1 AND status='pending' LIMIT 1",
+      [member.id],
+    );
+    if (pending.rowCount) throw new ResearchApiError("REPORTING_CHANGE_PENDING", "该成员已有待审批的汇报关系调整", 409);
+    const id = crypto.randomUUID();
+    await db.insert(approvalRequests).values({
+      id,
+      type: "reporting_line_change",
+      branchId: member.organizationId,
+      subjectType: "user",
+      subjectId: member.id,
+      payloadJson: JSON.stringify({ previousReportsToUserId: member.reportsToUserId, newReportsToUserId: leader.id, reason }),
+      requestedBy: actor.id,
+    });
+    return Response.json({ approvalId: id, status: "pending", message: "汇报关系调整已提交双人审批" }, { status: 201 });
+  } catch (error) {
+    return responseError(error);
+  }
+}

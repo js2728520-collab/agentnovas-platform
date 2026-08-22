@@ -14,6 +14,8 @@ export async function POST(
   try {
     const me = await requireUser(request, ["customer"]);
     const { id } = await params;
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    const shareToMarketplace = body.shareToMarketplace === true;
     const db = getDb();
     const strategy = (await db
       .select()
@@ -25,7 +27,10 @@ export async function POST(
       .limit(1))[0];
 
     if (!strategy) return Response.json({ error: "策略不存在" }, { status: 404 });
-    if (strategy.publicationMode === "self_use") return Response.json({ error: "自用策略不会进入策略广场，也无需提交平台审核" }, { status: 409 });
+    if (strategy.publicationMode === "self_use" && !shareToMarketplace) return Response.json({ error: "自用策略需要先确认分享到策略广场" }, { status: 409 });
+    if (strategy.validationLabel !== "STANDARD_VERIFIED") {
+      return Response.json({ error: "只有通过标准/深度验证的策略版本才能提交策略广场审核" }, { status: 409 });
+    }
     if (!["draft", "testing", "rejected"].includes(strategy.status)) {
       return Response.json({ error: "策略当前状态不能提交审核" }, { status: 409 });
     }
@@ -34,16 +39,19 @@ export async function POST(
     const evidence = {
       version: strategy.version,
       authorUserId: me.id,
-      strategyName: strategy.name,
-      summary: strategy.summary,
-      riskLevel: strategy.riskLevel,
       submittedAt: now,
       reviewMode: "human_review",
     };
 
     await db.batch([
       db.update(communityStrategies)
-        .set({ status: "submitted", submittedAt: now, rejectionReason: null, updatedAt: now })
+        .set({
+          status: "submitted",
+          publicationMode: "marketplace",
+          submittedAt: now,
+          rejectionReason: null,
+          updatedAt: now,
+        })
         .where(eq(communityStrategies.id, id)),
       db.insert(approvalRequests).values({
         id: approvalId,
@@ -59,15 +67,15 @@ export async function POST(
         action: "strategy.review.submitted",
         subjectType: "community_strategy",
         subjectId: id,
-        beforeJson: JSON.stringify({ status: strategy.status, version: strategy.version }),
-        afterJson: JSON.stringify({ status: "submitted", approvalId, ...evidence }),
+        beforeJson: JSON.stringify({ status: strategy.status, publicationMode: strategy.publicationMode, version: strategy.version }),
+        afterJson: JSON.stringify({ status: "submitted", publicationMode: "marketplace", approvalId, ...evidence }),
       }),
     ]);
 
     return Response.json({
       approvalId,
       status: "submitted",
-      message: "已提交运维审核",
+      message: shareToMarketplace ? "已分享到策略广场并提交平台双人审核" : "已提交平台双人审核",
     });
   } catch (error) {
     return responseError(error);

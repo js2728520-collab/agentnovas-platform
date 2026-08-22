@@ -1,5 +1,71 @@
-import{asc,desc,eq}from"drizzle-orm";import{getDb}from"@/db";import{communityStrategies,customerAttributions,customerProfiles,exchangeAccounts,memberships,sessions,strategySubscriptions,trades,users}from"@/db/schema";import{canSeeCustomer}from"@/lib/permissions";import{ensureD1Schema}from"@/lib/d1-migrations";import{requireUser,responseError}from"@/lib/session";
-const roles=["hq_admin","hq_support","branch_admin","manager","supervisor","employee","finance","auditor"]as const;
-const monthKey=(v:string|null)=>v?.slice(0,7)||"";
-function drawdown(rows:Array<{realizedNetPnlUsdt:number;closedAt:string|null}>){let equity=0,peak=0,max=0;for(const row of rows){equity+=row.realizedNetPnlUsdt;peak=Math.max(peak,equity);max=Math.max(max,peak-equity)}return max}
-export async function GET(request:Request){try{const actor=await requireUser(request,[...roles]);await ensureD1Schema();const db=getDb(),[attrs,profiles,allSessions,accounts,allTrades,subs,strategies,allMemberships]=await Promise.all([db.select({customerId:users.id,email:users.email,status:users.status,registeredAt:users.createdAt,locale:users.locale,timezone:users.timezone,emailVerifiedAt:users.emailVerifiedAt,branchId:customerAttributions.branchId,managerId:customerAttributions.managerId,supervisorId:customerAttributions.supervisorId,employeeId:customerAttributions.employeeId}).from(customerAttributions).innerJoin(users,eq(users.id,customerAttributions.customerId)).orderBy(desc(users.createdAt)),db.select().from(customerProfiles),db.select().from(sessions).orderBy(asc(sessions.createdAt)),db.select().from(exchangeAccounts),db.select().from(trades).orderBy(asc(trades.closedAt)),db.select().from(strategySubscriptions),db.select().from(communityStrategies),db.select().from(memberships)]),visible=attrs.filter(r=>canSeeCustomer(actor.role,actor.id,actor.organizationId,r)),visibleIds=new Set(visible.map(x=>x.customerId)),strategyMap=new Map(strategies.map(x=>[x.id,x.name])),customers=visible.map(row=>{const tx=allTrades.filter(x=>x.customerId===row.customerId),closed=tx.filter(x=>x.closedAt),open=tx.filter(x=>!x.closedAt),won=closed.filter(x=>x.realizedNetPnlUsdt>0).length,customerAccounts=accounts.filter(x=>x.customerId===row.customerId),following=subs.filter(x=>x.customerId===row.customerId&&["active","paused","pending"].includes(x.status)).map(x=>({id:x.strategyId,name:strategyMap.get(x.strategyId)||"未知策略",status:x.status,startedAt:x.startedAt})),profile=profiles.find(x=>x.customerId===row.customerId),firstSession=allSessions.find(x=>x.userId===row.customerId),lastSession=[...allSessions].reverse().find(x=>x.userId===row.customerId),membership=[...allMemberships].reverse().find(x=>x.customerId===row.customerId),realized=closed.reduce((n,x)=>n+x.realizedNetPnlUsdt,0),principal=open.reduce((n,x)=>n+x.entryValueUsdt,0),fees=tx.reduce((n,x)=>n+x.feesUsdt+x.fundingUsdt,0);return{...row,displayName:profile?.displayName||"",contactNote:profile?.contactNote||"",registrationIp:firstSession?.ipAddress||"暂无记录",lastActiveAt:lastSession?.createdAt||null,lastDevice:lastSession?.userAgent||"暂无记录",membership:membership?{planCode:membership.planCode,status:membership.status,expiresAt:membership.expiresAt}:null,exchanges:customerAccounts.map(x=>({id:x.id,name:x.exchange,label:x.label,environment:x.environment,status:x.status,canRead:x.canRead,canTrade:x.canTrade,withdrawalAuthorized:x.withdrawalAuthorized,lastCheckedAt:x.lastCheckedAt,apiConnectionStatus:x.status==="active"?"已连接":x.status==="pending"?"待检查":x.status==="disconnected"?"已断开":"已撤销"})),following,metrics:{principal,realizedPnl:realized,openPositions:open.length,totalTrades:tx.length,closedTrades:closed.length,winRate:closed.length?won/closed.length*100:0,maxDrawdown:drawdown(closed),fees}}}),months=Array.from({length:6},(_,i)=>{const d=new Date();d.setUTCMonth(d.getUTCMonth()-5+i);return d.toISOString().slice(0,7)}),trend=months.map(month=>{const tx=allTrades.filter(x=>visibleIds.has(x.customerId)&&monthKey(x.closedAt)===month),registered=visible.filter(x=>monthKey(x.registeredAt)===month).length;return{month,registered,trades:tx.length,pnl:Number(tx.reduce((n,x)=>n+x.realizedNetPnlUsdt,0).toFixed(2)),activeCustomers:new Set(tx.map(x=>x.customerId)).size}}),total=customers.reduce((a,c)=>({principal:a.principal+c.metrics.principal,pnl:a.pnl+c.metrics.realizedPnl,trades:a.trades+c.metrics.totalTrades,open:a.open+c.metrics.openPositions,wins:a.wins+c.metrics.winRate*c.metrics.closedTrades,closed:a.closed+c.metrics.closedTrades}),{principal:0,pnl:0,trades:0,open:0,wins:0,closed:0});return Response.json({scope:{role:actor.role,organizationId:actor.organizationId},summary:{customers:customers.length,connectedCustomers:customers.filter(x=>x.exchanges.length).length,followingCustomers:customers.filter(x=>x.following.length).length,principal:Number(total.principal.toFixed(2)),realizedPnl:Number(total.pnl.toFixed(2)),trades:total.trades,openPositions:total.open,winRate:total.closed?Number((total.wins/total.closed).toFixed(2)):0},trend,customers})}catch(e){return responseError(e)}}
+import { requireAccessPermission } from "@/lib/access-control";
+import { commercialCustomerScopePredicate } from "@/lib/commercial-operations-scope";
+import { getPostgresPool } from "@/lib/postgres";
+import { researchErrorResponse } from "@/lib/research-api";
+
+export async function GET(request: Request) {
+  try {
+    const { user, scope, organizationIds } = await requireAccessPermission(request, "ops.customers.view");
+    const scoped = commercialCustomerScopePredicate(scope, { userId: user.id, organizationId: user.organizationId }, "scope_data", "customer.id", 1, organizationIds);
+    const values = [...scoped.values];
+    const visible = `WITH visible_customers AS (
+      SELECT customer.id,customer.created_at
+        FROM users customer
+       WHERE customer.role='customer' AND ${scoped.clause}
+    )`;
+    const pool = await getPostgresPool();
+    const [summary, trend, strategies, queue] = await Promise.all([
+      pool.query(`${visible}
+        SELECT
+          (SELECT count(*) FROM visible_customers)::text AS customers,
+          (SELECT count(*) FROM memberships membership JOIN visible_customers customer ON customer.id=membership.customer_id WHERE membership.status='active' AND (membership.expires_at IS NULL OR membership.expires_at::timestamptz>now()))::text AS active_memberships,
+          (SELECT count(*) FROM commercial_membership_orders orders JOIN visible_customers customer ON customer.id=orders.user_id WHERE orders.status='activated')::text AS activated_orders,
+          (SELECT count(*) FROM commercial_membership_orders orders JOIN visible_customers customer ON customer.id=orders.user_id WHERE orders.status='pending_review')::text AS pending_membership_orders,
+          (SELECT COALESCE(sum(account.available_credits),0)::text FROM ai_credit_accounts account JOIN visible_customers customer ON customer.id=account.user_id) AS available_credits,
+          (SELECT count(*) FROM official_paper_portfolios portfolio JOIN visible_customers customer ON customer.id=portfolio.customer_id)::text AS paper_portfolios,
+          (SELECT count(*) FROM official_paper_positions position JOIN official_paper_portfolios portfolio ON portfolio.id=position.portfolio_id JOIN visible_customers customer ON customer.id=portfolio.customer_id WHERE position.status='open')::text AS open_positions,
+          (SELECT COALESCE(sum(portfolio.realized_net_pnl_usdt),0)::text FROM official_paper_portfolios portfolio JOIN visible_customers customer ON customer.id=portfolio.customer_id) AS realized_net_pnl,
+          (SELECT COALESCE(sum(statement.fee_amount),0)::text FROM performance_fee_statements statement JOIN visible_customers customer ON customer.id=statement.user_id WHERE statement.status IN('pending_review','approved','payment_pending')) AS outstanding_performance_fees
+      `, values),
+      pool.query(`${visible}, months AS (
+          SELECT generate_series(date_trunc('month',now())-interval '5 months',date_trunc('month',now()),interval '1 month') AS month
+        )
+        SELECT to_char(months.month,'YYYY-MM') AS month,
+               (SELECT count(*) FROM visible_customers customer WHERE customer.created_at::timestamptz>=months.month AND customer.created_at::timestamptz<months.month+interval '1 month')::text AS registered_customers,
+               (SELECT count(*) FROM commercial_membership_orders orders JOIN visible_customers customer ON customer.id=orders.user_id WHERE orders.status='activated' AND orders.activated_at>=months.month AND orders.activated_at<months.month+interval '1 month')::text AS activated_orders,
+               (SELECT count(*) FROM official_paper_fill_receipts receipt JOIN official_paper_portfolios portfolio ON portfolio.id=receipt.portfolio_id JOIN visible_customers customer ON customer.id=portfolio.customer_id WHERE receipt.filled_at>=months.month AND receipt.filled_at<months.month+interval '1 month')::text AS paper_fills,
+               (SELECT COALESCE(sum(receipt.realized_net_pnl_usdt),0)::text FROM official_paper_fill_receipts receipt JOIN official_paper_portfolios portfolio ON portfolio.id=receipt.portfolio_id JOIN visible_customers customer ON customer.id=portfolio.customer_id WHERE receipt.filled_at>=months.month AND receipt.filled_at<months.month+interval '1 month') AS realized_net_pnl
+          FROM months ORDER BY months.month
+      `, values),
+      pool.query(`${visible}
+        SELECT portfolio.strategy_code,
+               count(*)::text AS portfolios,
+               count(*) FILTER(WHERE portfolio.access_status='active')::text AS active_portfolios,
+               COALESCE(sum(portfolio.realized_net_pnl_usdt),0)::text AS realized_net_pnl,
+               COALESCE(sum(portfolio.fees_usdt),0)::text AS paper_fees
+          FROM official_paper_portfolios portfolio
+          JOIN visible_customers customer ON customer.id=portfolio.customer_id
+         GROUP BY portfolio.strategy_code ORDER BY portfolio.strategy_code
+      `, values),
+      pool.query(`${visible}
+        SELECT
+          (SELECT count(*) FROM ai_credit_adjustment_requests request JOIN visible_customers customer ON customer.id=request.user_id WHERE request.status='pending')::text AS credit_adjustments,
+          (SELECT count(*) FROM customer_attribution_change_requests request JOIN visible_customers customer ON customer.id=request.customer_id WHERE request.status='pending')::text AS attribution_changes,
+          (SELECT count(*) FROM performance_fee_statements statement JOIN visible_customers customer ON customer.id=statement.user_id WHERE statement.status='pending_review')::text AS performance_reviews
+      `, values),
+    ]);
+    const row = summary.rows[0];
+    return Response.json({
+      summary: {
+        customers: row.customers, activeMemberships: row.active_memberships, activatedOrders: row.activated_orders,
+        pendingMembershipOrders: row.pending_membership_orders, availableCredits: row.available_credits,
+        paperPortfolios: row.paper_portfolios, openPositions: row.open_positions,
+        realizedNetPnl: row.realized_net_pnl, outstandingPerformanceFees: row.outstanding_performance_fees,
+      },
+      trend: trend.rows.map((item) => ({ month: item.month, registeredCustomers: item.registered_customers, activatedOrders: item.activated_orders, paperFills: item.paper_fills, realizedNetPnl: item.realized_net_pnl })),
+      strategies: strategies.rows.map((item) => ({ strategyCode: item.strategy_code, portfolios: item.portfolios, activePortfolios: item.active_portfolios, realizedNetPnl: item.realized_net_pnl, paperFees: item.paper_fees })),
+      pendingQueue: { creditAdjustments: queue.rows[0].credit_adjustments, attributionChanges: queue.rows[0].attribution_changes, performanceReviews: queue.rows[0].performance_reviews },
+      scope: { grant: scope, organizationIds },
+    }, { headers: { "cache-control": "no-store" } });
+  } catch (error) { return researchErrorResponse(error, request); }
+}

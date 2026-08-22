@@ -1,12 +1,8 @@
-import { ensureD1Schema } from "@/lib/d1-migrations";
-import { testLlmConfig, type LlmConfigInput } from "@/lib/llm-config";
-import { requireUser, responseError } from "@/lib/session";
-
-export async function POST(request: Request) {
-  try {
-    await ensureD1Schema();
-    await requireUser(request, ["hq_admin", "maintenance_admin"]);
-    const input = await request.json() as LlmConfigInput;
-    return Response.json(await testLlmConfig({ id: "system-default", input }));
-  } catch (error) { return responseError(error); }
+export async function POST() {
+  return Response.json({
+    error: {
+      code: "LEGACY_LLM_CONFIG_RETIRED",
+      message: "旧系统模型测试已退役，请在模型 Profile 中执行验证。",
+    },
+  }, { status: 503 });
 }
