@@ -537,13 +537,24 @@ test("同一张卡的两个客户共享同一行决策轮，各自保留自己�
   const a = await makeDeployment("owner-shared-a", "membership-shared-a", "shared-a");
   const b = await makeDeployment("owner-shared-b", "membership-shared-b", "shared-b");
 
-  const rows = officialEntryCandles();
+  // 用自己的 K 线窗口：决策轮的身份是 (卡, 品种, 周期, K线收盘时间)，
+  // 与更早的测试共用 fixture 会撞进同一轮，那时去重生效、本测试反而看不到事件。
+  const snapshotSourceIds = [];
+  const shift = 90 * 24 * 3_600_000;
+  const rows = officialEntryCandles().map((candle) => ({
+    ...candle,
+    openTime: candle.openTime + shift,
+    closeTime: candle.closeTime + shift,
+  }));
   const dependencies = {
     createSpotAdapter: () => ({
       async getCandles() { return { items: rows, provider: "fixture" }; },
       async getFeeSchedule() { return { makerRate: 0.001, takerRate: 0.001, source: "fixture" }; },
     }),
-    saveSnapshot: async (_database, input) => ({ id: input.sourceId, candleSha256: "a", fundingSha256: "b", datasetSha256: "c" }),
+    saveSnapshot: async (_database, input) => {
+      snapshotSourceIds.push(input.sourceId);
+      return { id: input.sourceId, candleSha256: "a", fundingSha256: "b", datasetSha256: "c" };
+    },
   };
 
   for (const [index, deployment] of [a, b].entries()) {
@@ -574,7 +585,15 @@ test("同一张卡的两个客户共享同一行决策轮，各自保留自己�
   const events = await pool.query(`
     SELECT count(*)::int AS count FROM strategy_runtime_events WHERE decision_round_id = $1
   `, [roundId]);
-  assert.equal(events.rows[0].count, 14, "过渡期两个部署各写一套事件，均已挂到同一决策轮");
+  // 七阶段叙述属于共享单元：一轮只写一套，不随订阅人数增长。
+  // 5,000 会员 × 3 张卡下这是 105,000 行降到 7 行。
+  assert.equal(events.rows[0].count, 7, "同一决策轮只应有一套七阶段事件");
+
+  // 行情快照同理：同卡同品种同 K 线是同一份数据。两个部署都用决策轮作为
+  // sourceId，saveMarketDataSnapshot 的 ON CONFLICT (source_type, source_id)
+  // 会把第二次写入折叠掉——15,000 行降到 1 行。
+  assert.deepEqual([...new Set(snapshotSourceIds)], [roundId],
+    "两个部署都应当以决策轮作为快照 sourceId");
 
   // 这才是省钱的那条：同一张卡在同一根 K 线上的解释内容完全相同（它解释的是
   // 卡级结论，不含任何客户数据），所以每轮每角色只允许一个 LLM 任务。
@@ -622,11 +641,9 @@ test("同一张卡的两个客户共享同一行决策轮，各自保留自己�
     byRole.set(row.role, [...(byRole.get(row.role) ?? []), row]);
   }
   for (const [role, rows] of byRole) {
-    // 一次 LLM 调用，两个部署的同角色事件都要拿到结果。
-    assert.equal(rows.length, 2, `${role} 应当在两个部署上各有一行`);
-    for (const row of rows) {
-      assert.equal(row.explanation_status, "completed", `${row.deployment_id} 的 ${role} 事件没有收到解释`);
-    }
+    // 事件收敛后每轮每角色只有一行，一次 LLM 调用写回它即可。
+    assert.equal(rows.length, 1, `${role} 每轮只应有一行事件`);
+    assert.equal(rows[0].explanation_status, "completed", `${role} 事件没有收到解释`);
   }
 });
 

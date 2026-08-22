@@ -674,6 +674,7 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
     // 共享决策轮。同一张卡、同一品种、同一根已收盘 K 线只有一行——
     // ON CONFLICT DO NOTHING 让并发的 N 个部署里第一个写入，其余复用（INV-8）。
     let decisionRoundId: string | null = null;
+    let roundIsNew = false;
     if (input.decisionRound && input.symbol) {
       decisionRoundId = deterministicDecisionRoundId({
         strategyCode: input.decisionRound.strategyCode,
@@ -681,17 +682,22 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
         timeframe: input.decisionRound.timeframe,
         candleCloseTime: input.candleCloseTime.getTime(),
       });
-      await client.query(`
+      const insertedRound = await client.query<{ id: string }>(`
         INSERT INTO strategy_decision_rounds (
           id, strategy_code, symbol, timeframe, strategy_version_id,
           candle_open_time, candle_close_time, market_data_snapshot_id,
           decision_json, order_intent_json, trace_id
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11)
         ON CONFLICT (strategy_code, symbol, timeframe, candle_close_time) DO NOTHING
+        RETURNING id
       `, [decisionRoundId, input.decisionRound.strategyCode, input.symbol, input.decisionRound.timeframe,
         input.decisionRound.strategyVersionId, input.candleOpenTime, input.candleCloseTime,
         input.marketDataSnapshotId, JSON.stringify(input.decision),
         input.orderIntent ? JSON.stringify(input.orderIntent) : null, input.traceId]);
+      // 让数据库决定谁是这一轮的创建者：只有插入成功的那个部署写七阶段事件。
+      // 其余部署（同卡的其他客户）复用同一套叙述——它不含任何客户数据。
+      // 用「查一下有没有」代替这个判断会有竞态：两个 worker 可能同时查到空。
+      roundIsNew = insertedRound.rows.length > 0;
     }
 
     await client.query(`
@@ -703,7 +709,12 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
     `, [input.cycleId, input.deploymentId, sequence, input.fencingToken, input.candleOpenTime, input.candleCloseTime,
       input.marketDataSnapshotId, JSON.stringify(input.decision), input.orderIntent ? JSON.stringify(input.orderIntent) : null,
       input.traceId, input.startedAt, decisionRoundId]);
-    for (const event of input.events) {
+    // 七阶段叙述属于共享单元。同一轮里只有创建者写这 7 行，其余部署不重复写——
+    // 5,000 会员 × 3 张卡下这是 105,000 行降到 7 行。
+    // 读取路径已优先按 decision_round_id 取（见 app/api/trading-hall），
+    // 因此不写重复行不会让任何客户看不到结论。
+    const shouldWriteEvents = !decisionRoundId || roundIsNew;
+    for (const event of shouldWriteEvents ? input.events : []) {
       await client.query(`
         INSERT INTO strategy_runtime_events (
           id, cycle_id, sequence, role, event_type, conclusion, evidence_json,

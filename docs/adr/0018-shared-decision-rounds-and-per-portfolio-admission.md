@@ -214,3 +214,18 @@ UNIQUE (strategy_code, symbol, timeframe, candle_close_time)
   组合单独判定**。后半句同样必要——只说「共享」会被理解成「大家仓位一样」。
 
   措辞由 `tests/trading-hall-product-contract.test.mjs` 钉住。
+
+- **第 4a 步（完成）** 写入端停止重复：
+
+  - **七阶段事件**：只有创建决策轮的那个部署写这 7 行，其余部署复用同一套叙述。
+    判断依据是 upsert 的 `RETURNING id` 是否返回行——**让数据库决定谁是创建者**。
+    用「先查一下有没有」会有竞态：两个 worker 可能同时查到空。
+    5,000 会员 × 3 张卡下这是 105,000 行降到 7 行。
+  - **行情快照**：`sourceId` 从周期 id 换成决策轮 id。
+    `saveMarketDataSnapshot` 的 `ON CONFLICT (source_type, source_id)` 本来就是
+    幂等的，换个 key 即可共享，15,000 行降到 6 行。
+
+  安全前提是第 3 步已经完成：读取路径优先按 `decision_round_id` 取事件，
+  因此不写重复行不会让任何客户看不到结论。
+
+  仍未收敛的是租约与引擎评估本身（15,000 次），那是第 4b 步。

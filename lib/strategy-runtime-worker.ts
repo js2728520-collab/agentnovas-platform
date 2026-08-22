@@ -37,6 +37,7 @@ import { strategyDslToRuntime } from "../packages/domain/src/strategy-dsl.ts";
 import {
   assertRuntimeSpotCandles,
   deterministicCycleId,
+  deterministicDecisionRoundId,
   nextPollAt,
   resolveFundingWindowLimit,
   selectCycleCandle,
@@ -169,11 +170,20 @@ async function processOfficialSpotRuntimeDeployment(
   }
   const { selected, evaluationCandles } = cycle;
   const cycleId = deterministicCycleId(lease.id, selected.closeTime);
+  const decisionRoundId = deterministicDecisionRoundId({
+    strategyCode: specification.strategyCode,
+    symbol: specification.symbol,
+    timeframe: specification.timeframe,
+    candleCloseTime: selected.closeTime,
+  });
   const traceId = crypto.randomUUID();
   const saveSnapshot = dependencies.saveSnapshot ?? saveMarketDataSnapshot;
+  // 行情快照按决策轮存：同一张卡、同一品种、同一根 K 线是同一份数据，
+  // 15,000 个部署没必要各存一行。saveMarketDataSnapshot 的
+  // ON CONFLICT (source_type, source_id) 本来就是幂等的，换个 sourceId 即可共享。
   const snapshot = await saveSnapshot(database, {
     sourceType: "runtime_cycle",
-    sourceId: cycleId,
+    sourceId: decisionRoundId,
     exchangeAccountId: null,
     exchange: "binance",
     instrumentId: specification.symbol,
