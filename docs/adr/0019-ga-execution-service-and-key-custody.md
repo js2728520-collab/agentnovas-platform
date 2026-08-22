@@ -257,3 +257,54 @@ npm run quality:key-custody
 - 与 Web 分开的 systemd unit、分开的 `.env`、分开的文件权限。
 - 三个 Web 的 `.env` 里**删除** `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`。本地
   `start-local.sh` 已经主动 `unset` 它——只有本地同样拿不到，回归才会在开发时就炸掉。
+
+
+## 第 3 步实施记录（已完成）
+
+判定放域层（纯函数、可毫秒级单测），编排放执行服务：
+
+| 位置 | 内容 |
+| --- | --- |
+| `packages/domain/src/execution/client-order-id.ts` | 幂等标识的确定性派生 |
+| `packages/domain/src/execution/rate-limit.ts` | 两级令牌桶的排队时刻计算 |
+| `packages/domain/src/execution/fill-accounting.ts` | 成交回执分类 |
+| `lib/execution/server/rate-limit-pool.ts` | 桶状态保存与真实等待 |
+| `lib/execution/server/live-execution-port.ts` | real `ExecutionPort` |
+
+### 实盘仍然关闭
+
+`LIVE_EXECUTION_ENABLED` 默认为假，此时**不向交易所发出任何请求**，但仍产出一条
+`LIVE_ROUTING_DISABLED` 的回执——静默跳过会让上层以为下单成功了（INV-6）。
+第 6 步才按交易所逐个灰度。现在把实现和单测做完，是为了让第 6 步只剩「打开开关」
+一个动作，而不是在开实盘当天才第一次写这段代码。
+
+### 三件实施中才发现的事
+
+**一、`getOkxDemoOrder` 只能按 `ordId` 查，而超时场景永远拿不到 `ordId`。**
+确定性 `clientOrderId` 的价值有两半：防重复下单，以及回答「那一单到底成没成」。
+第二半需要按 `clOrdId` 查单——没有它，超时后只能人工去交易所后台核对。已补上
+`clOrdId` 查询路径。
+
+**二、单测抓到限流会在扇出场景失效。** 桶的时间线原本会被调用方的 `now` 拨回去。
+扇出正是「在同一个 `now` 上一次性规划上千笔」，于是第 N 笔的等待从一个早已过去的
+时刻起算，排队全被压缩到前面——限流恰好在它唯一存在的理由上失效。修法是桶的时间
+线只能前进。
+
+**三、`1 - 0.7 = 0.30000000000000004`。** 这个数会作为撤单/补单数量发给交易所，
+而交易所按品种精度校验，多出来的尾数会让整笔请求被拒。剩余量收敛到 8 位小数。
+
+### 一处需要更正的旧说法
+
+`packages/domain/CLAUDE.md` 一度写着「`ExecutionPort` 的 paper 实现已存在」。
+**实际上没有**：paper 记账走 `lib/official-paper-repository.ts`，从未经过这个端口。
+于是 `resolveOrderQuantity` 注释里「好让 paper 与 real 用同一套换算」目前是意图而非
+事实。把 paper 接到端口上是一次独立改造，不在本 ADR 范围内，已在域层文档里写明。
+
+### 失败方向的取舍
+
+下单抛错后先用 `clientOrderId` 查一次：
+
+- 查到 → 用真实结果，超时被自动恢复；
+- 查到「不存在」→ 判为未下单（`PLACE_FAILED`），可安全重试；
+- 查询本身也失败 → `RECONCILE_WAIT`，**不当作没下单**。当作没下单会让重试重复
+  下单，这是最危险的方向（INV-7）。该状态由第 4 步的对账任务接手。

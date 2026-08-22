@@ -113,19 +113,34 @@ async function okxDemoPrivateRequest<T>(options: {
   }
 }
 
+/**
+ * 查单。可以用交易所订单号，也可以用我们自己派生的 clientOrderId。
+ *
+ * 后者是超时恢复的**唯一**入口：请求发出去、回应没回来时，我们从来没拿到过
+ * ordId，只有自己算出来的 clOrdId。没有这条路径，确定性 clientOrderId 就只能防
+ * 重复下单，不能回答「那一单到底成没成」——而后者才是超时最难受的地方
+ * （ADR-0019 第 3 步）。
+ */
 export async function getOkxDemoOrder(options: {
   credentials: ExchangeCredential;
   symbol: string;
-  orderId: string;
+  orderId?: string;
+  clientOrderId?: string;
   fetchImpl?: FetchLike;
   now?: () => Date;
   baseUrl?: string;
 }) {
   const instrumentId = okxInstrumentId(options.symbol);
-  const requestPath = `/api/v5/trade/order?instId=${encodeURIComponent(instrumentId)}&ordId=${encodeURIComponent(options.orderId)}`;
+  const selector = options.orderId
+    ? `ordId=${encodeURIComponent(options.orderId)}`
+    : options.clientOrderId
+      ? `clOrdId=${encodeURIComponent(options.clientOrderId)}`
+      : null;
+  if (!selector) throw new ExchangeAdapterError("OKX Demo 查单必须给出 orderId 或 clientOrderId", 400);
+  const requestPath = `/api/v5/trade/order?instId=${encodeURIComponent(instrumentId)}&${selector}`;
   const rows = await okxDemoPrivateRequest<RawOrder>({ credentials: options.credentials, fetchImpl: options.fetchImpl, now: options.now, baseUrl: options.baseUrl, method: "GET", requestPath });
   if (!rows[0]) throw new ExchangeAdapterError("OKX Demo 查询不到该订单");
-  return parseOrder(rows[0], { orderId: options.orderId, instrumentId });
+  return parseOrder(rows[0], { orderId: options.orderId, clientOrderId: options.clientOrderId, instrumentId });
 }
 
 export async function placeOkxDemoMarketOrder(options: {

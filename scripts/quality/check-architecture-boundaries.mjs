@@ -269,6 +269,8 @@ rules.push(async function exchangeCredentialCustody() {
   // 检查器与它的测试自身会提到这些名字，跳过——否则规则永远红。
   const selfReferential = new Set([
     "scripts/quality/check-architecture-boundaries.mjs",
+    // 这个检查器同样要提到被禁的函数名才能去构建产物里找它们。
+    "scripts/quality/check-web-key-custody.mjs",
     "lib/exchange-credentials.ts",
   ]);
   const webLayer = /^apps?\//;
