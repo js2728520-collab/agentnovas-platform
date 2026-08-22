@@ -126,7 +126,11 @@ npm run lint              # ESLint
 npm test                  # 776 项，node --test，不需要数据库
 npm run test:apps         # 三端 production build
 npm run quality:bundle    # 包体预算（见下，余量极小）
+npm run quality:boundaries # 架构边界（跨端 import、资金写入口、遗留扩散、硬编码色值）
 ```
+
+架构边界检查也在 `npm test` 里跑。**它变红时先问为什么跨过了那条线，不要直接把规则改宽**——
+这些边界是替代 code review 的，单人 + AI 协作没有第二双眼睛。
 
 **动了任何客户端代码，`npm run quality:bundle` 是必跑的。**
 Client 的 JS 预算余量只有约 160 字节（204,636 / 204,800）。
