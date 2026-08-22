@@ -55,7 +55,7 @@ function makeDeps(overrides = {}) {
     deps: {
       async resolveAccount(portfolioId) {
         if (overrides.noAccount) return null;
-        return { accountId: `acct-${portfolioId}`, customerId: "cust-1", exchange: "okx" };
+        return { accountId: `acct-${portfolioId}`, customerId: "cust-1", exchange: "okx", environment: "live" };
       },
       async loadCredential() { return { credentials: { apiKey: "k", secretKey: "s" } }; },
       adapterFor: (exchange) => (exchange === "okx" ? adapter : null),
@@ -66,34 +66,47 @@ function makeDeps(overrides = {}) {
       async enqueueReconciliation(input) { enqueued.push(input); },
       async loadActiveKillSwitches() { return overrides.killSwitches ?? []; },
       now: () => new Date("2026-08-22T00:00:00.000Z"),
-      liveRoutingEnabled: () => overrides.enabled ?? true,
+      executionProduct: overrides.product ?? "spot_usdt",
+      async loadLiveRoutingGrants() {
+        if (overrides.grants) return overrides.grants;
+        return (overrides.enabled ?? true) ? [{ exchange: "okx", environment: "live" }] : [];
+      },
       ...overrides.deps,
     },
   };
 }
 
-test("实盘路由默认关闭，且留下明确回执而不是静默跳过", async () => {
-  // AGENTS.md：真实订单路由必须保持关闭，第 6 步才逐个交易所灰度。
-  // 静默跳过会让上层以为下单成功了（INV-6）。
+test("没有授权时不路由，且留下明确回执而不是静默跳过", async () => {
   const { deps, placed } = makeDeps({ enabled: false });
   const [receipt] = await createLiveExecutionPort(deps).execute([makeRequest()]);
   assert.equal(receipt.outcome, "rejected");
-  assert.equal(receipt.rejectionReason, "LIVE_ROUTING_DISABLED");
-  assert.equal(placed.length, 0, "关闭时不得向交易所发出任何请求");
+  assert.equal(receipt.rejectionReason, "LIVE_ROUTING_NOT_GRANTED");
+  assert.equal(placed.length, 0, "未授权时不得向交易所发出任何请求");
 });
 
-test("环境变量未设置时默认就是关闭", async () => {
-  const { deps, placed } = makeDeps();
-  delete deps.liveRoutingEnabled;
-  const previous = process.env.LIVE_EXECUTION_ENABLED;
-  delete process.env.LIVE_EXECUTION_ENABLED;
-  try {
-    const [receipt] = await createLiveExecutionPort(deps).execute([makeRequest()]);
-    assert.equal(receipt.rejectionReason, "LIVE_ROUTING_DISABLED");
-    assert.equal(placed.length, 0);
-  } finally {
-    if (previous !== undefined) process.env.LIVE_EXECUTION_ENABLED = previous;
-  }
+test("永续在任何授权下都不路由", async () => {
+  // AGENTS.md：真实永续订单路由必须保持关闭。它不是一个可配置项。
+  const { deps, placed } = makeDeps({
+    product: "usdt_perpetual",
+    grants: [{ exchange: "okx", environment: "live" }],
+  });
+  const [receipt] = await createLiveExecutionPort(deps).execute([makeRequest()]);
+  assert.equal(receipt.rejectionReason, "PERPETUAL_ROUTING_FORBIDDEN");
+  assert.equal(placed.length, 0);
+});
+
+test("开通 demo 不等于开通实盘", async () => {
+  const { deps, placed } = makeDeps({ grants: [{ exchange: "okx", environment: "demo" }] });
+  const [receipt] = await createLiveExecutionPort(deps).execute([makeRequest()]);
+  assert.equal(receipt.rejectionReason, "LIVE_ROUTING_NOT_GRANTED");
+  assert.equal(placed.length, 0);
+});
+
+test("授权另一家交易所不会打开 OKX", async () => {
+  const { deps, placed } = makeDeps({ grants: [{ exchange: "binance", environment: "live" }] });
+  const [receipt] = await createLiveExecutionPort(deps).execute([makeRequest()]);
+  assert.equal(receipt.rejectionReason, "LIVE_ROUTING_NOT_GRANTED");
+  assert.equal(placed.length, 0);
 });
 
 test("同一轮同一组合的重试落在同一个 clientOrderId 上", async () => {

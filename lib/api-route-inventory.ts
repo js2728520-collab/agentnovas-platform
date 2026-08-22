@@ -3444,6 +3444,94 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/operations/live-routing",
+    "source": "app/api/operations/live-routing/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.trading.manage"
+    ],
+    "permissionMfa": {
+      "ops.trading.manage": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/live-routing",
+    "source": "app/api/operations/live-routing/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.trading.manage"
+    ],
+    "permissionMfa": {
+      "ops.trading.manage": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/operations/live-routing/:id",
+    "source": "app/api/operations/live-routing/[id]/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.trading.manage"
+    ],
+    "permissionMfa": {
+      "ops.trading.manage": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "PATCH",
+    "route": "/api/operations/live-routing/:id",
+    "source": "app/api/operations/live-routing/[id]/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.trading.manage"
+    ],
+    "permissionMfa": {
+      "ops.trading.manage": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/operations/membership-orders",
     "source": "app/api/operations/membership-orders/route.operations.ts",
     "audiences": [

@@ -26,6 +26,7 @@ export const navigation: ConsoleNavigationGroup[] = [
   ] },
   { label: "风控", items: [
     { href: "/kill-switches", label: "交易熔断", icon: "shield", requiredPermissions: ["ops.trading.manage"] },
+    { href: "/live-routing", label: "实盘路由", icon: "shield", requiredPermissions: ["ops.trading.manage"] },
   ] },
   { label: "治理", items: [
     { href: "/approvals", label: "审批中心", icon: "check-square", requiredPermissions: ["ops.approvals.view", "ops.approvals.decide", "ops.deposits.action_approve", "ops.roles.approve_sensitive", "ops.credits.approve", "ops.attributions.manage", "ops.membership_orders.approve", "ops.performance_fees.approve", "ops.performance_fees.payment_approve"] },

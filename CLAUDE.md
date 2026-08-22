@@ -197,6 +197,14 @@ apps/*  →  packages/*  →  lib/
   npm run quality:key-custody
   ```
 
+  **实盘路由的现状（ADR-0019 第 6 步）**：授权机制已就位——`execution_live_routing`
+  按 (交易所, 环境) 逐条批准，开通走 maker/checker、关停单人即时，运维端有界面。
+  但 `createLiveExecutionPort` **仍然没有调用方**，决策扇出到真实下单那一段没接上。
+  因此即使批准了 OKX 实盘，也不会有任何真实订单产生。接上执行端是独立项目。
+
+  两条不许做成配置项的规则：**只有现货可路由**、**平仓不受任何限制**。
+  `lib/beta-legacy-runtime-guard.ts` 挡的是永续不是实盘，不要因为要开实盘而移除它。
+
 - **审计链尾锚定已就位，但归档到库外还没做。** 迁移 0044 的哈希链检不出截断链尾
   ——把最后 N 行删掉，剩下的链依然自洽。迁移 0049 增加 `audit_chain_anchors`：
   把当时的链尾（`chain_seq` + `row_hash` + 总行数）登记成锚点，

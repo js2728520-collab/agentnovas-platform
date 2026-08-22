@@ -28,6 +28,11 @@ import {
   admitOrder,
   type ActiveKillSwitch,
 } from "../../../packages/domain/src/execution/kill-switch.ts";
+import {
+  resolveLiveRouting,
+  type ExecutionProduct,
+  type LiveRoutingGrant,
+} from "../../../packages/domain/src/execution/live-routing.ts";
 import type { ExchangeCredential } from "../../exchange-credentials.ts";
 import type { RateLimitPool } from "./rate-limit-pool.ts";
 
@@ -67,6 +72,8 @@ export type PortfolioExecutionAccount = {
   accountId: string;
   customerId: string;
   exchange: string;
+  /** 该账户绑定的是模拟盘还是实盘。两者分别授权，开通 demo 不等于开通实盘。 */
+  environment: "demo" | "live";
 };
 
 export type LiveExecutionDependencies = {
@@ -79,6 +86,10 @@ export type LiveExecutionDependencies = {
   loadReconciliationState(accountId: string): Promise<AccountReconciliationState>;
   /** 当前生效的熔断开关。同样只作用于开仓。 */
   loadActiveKillSwitches(): Promise<readonly ActiveKillSwitch[]>;
+  /** 已批准的实盘路由授权，按 (交易所, 环境) 逐条灰度。默认空 = 全关。 */
+  loadLiveRoutingGrants(): Promise<readonly LiveRoutingGrant[]>;
+  /** 本次执行的标的。永续在任何配置下都不可路由。 */
+  executionProduct: ExecutionProduct;
   /** 登记一笔待对账。下单响应不是事实，必须查单确认（ADR-0019 第 4 步）。 */
   enqueueReconciliation(input: {
     clientOrderId: string;
@@ -92,13 +103,7 @@ export type LiveExecutionDependencies = {
     intentId: string;
     externalOrderId: string | null;
   }): Promise<void>;
-  /** 默认读环境变量；注入是为了让单测能同时覆盖开与关两种状态。 */
-  liveRoutingEnabled?(): boolean;
 };
-
-function defaultLiveRoutingEnabled(): boolean {
-  return process.env.LIVE_EXECUTION_ENABLED === "true";
-}
 
 function rejectedReceipt(intentId: string, reason: string, executedAt: string): ExecutionReceipt {
   return {
@@ -115,8 +120,6 @@ function rejectedReceipt(intentId: string, reason: string, executedAt: string): 
 }
 
 export function createLiveExecutionPort(deps: LiveExecutionDependencies): ExecutionPort {
-  const liveRoutingEnabled = deps.liveRoutingEnabled ?? defaultLiveRoutingEnabled;
-
   async function executeOne(request: ExecutionRequest): Promise<ExecutionReceipt> {
     const executedAt = deps.now().toISOString();
     const { intent } = request;
@@ -167,10 +170,16 @@ export function createLiveExecutionPort(deps: LiveExecutionDependencies): Execut
       }
     }
 
-    if (!liveRoutingEnabled()) {
-      // 默认路径。不是错误状态，但必须留下一条明确的回执——静默跳过会让上层
-      // 以为下单成功了（INV-6）。
-      return rejectedReceipt(intent.id, "LIVE_ROUTING_DISABLED", executedAt);
+    // 实盘路由按 (交易所, 环境) 逐条授权，默认全关；永续在任何配置下都不可路由。
+    // 拒绝时必须留下明确回执——静默跳过会让上层以为下单成功了（INV-6）。
+    const routing = resolveLiveRouting({
+      exchange: account.exchange,
+      environment: account.environment,
+      product: deps.executionProduct,
+      grants: await deps.loadLiveRoutingGrants(),
+    });
+    if (!routing.allowed) {
+      return rejectedReceipt(intent.id, routing.reason ?? "LIVE_ROUTING_NOT_GRANTED", executedAt);
     }
 
     await deps.rateLimiter.acquire({ exchange: account.exchange, accountId: account.accountId });
