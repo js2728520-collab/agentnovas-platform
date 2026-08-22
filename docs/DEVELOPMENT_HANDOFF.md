@@ -1886,3 +1886,25 @@ INV-11 由数据库约束强制（密钥不得有提现权限）。决策轮已�
 
 第 1 步「把密钥从 Web 层拿掉」不依赖后面任何一步，且立刻显著缩小敞口。
 委托目标可以先是同进程的内部模块，把调用形状定下来，之后再抽成独立进程。
+
+
+## 本地环境：Postgres 测试突然全部 SASL 报错
+
+现象：`tests/*-postgres.test.mjs` 集体失败，报
+`SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string`。
+
+原因不在代码：**另一个项目的容器占用了 `127.0.0.1:5432`**。本机 postgres 监听
+`*:5432`，容器的端口转发绑在 `127.0.0.1:5432` 上并优先，于是测试连到了容器里的
+另一个 postgres。
+
+```bash
+lsof -nP -iTCP:5432 -sTCP:LISTEN     # 看是谁占着
+```
+
+两条出路，任选：
+
+```bash
+docker stop <占用端口的容器>
+# 或者绕开 TCP 走 unix socket
+TEST_DATABASE_URL="postgresql:///postgres?host=/tmp" npm run test:all
+```

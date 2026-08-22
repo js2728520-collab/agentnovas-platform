@@ -49,7 +49,9 @@
     "worker:demo": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/platform-demo-worker.mjs",
     "service:execution": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/execution-service.mjs",
     "quality:key-custody": "node --experimental-strip-types scripts/quality/check-web-key-custody.mjs",
-    "quality:nginx": "node --experimental-strip-types scripts/quality/check-nginx-config.mjs"
+    "quality:nginx": "node --experimental-strip-types scripts/quality/check-nginx-config.mjs",
+    "audit:anchors:export": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/export-audit-anchors.mjs export",
+    "audit:anchors:verify": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/export-audit-anchors.mjs verify"
   },
   "dependencies": {
     "@node-rs/argon2": "2.1.0",

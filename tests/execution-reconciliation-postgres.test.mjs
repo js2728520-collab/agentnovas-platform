@@ -164,7 +164,14 @@ test("适配器缺失不得被当成订单不存在", async () => {
 });
 
 test("租约让并发的两个 Worker 不会取到同一条", async () => {
-  await pool.query("UPDATE execution_reconciliations SET next_attempt_at = now() WHERE client_order_id = 'RV0005'");
+  // 到期时间必须用测试自己的时钟，不能用数据库的 now()。
+  // 用 now() 会让这条测试依赖「真实时间还没走到假时钟前面」——跨过一次午夜就失败，
+  // 而失败原因看起来像并发问题。这正是 enqueueReconciliation 当初要求显式传入时刻
+  // 的同一个理由：判定与记录必须用同一个时钟。
+  await pool.query(
+    "UPDATE execution_reconciliations SET next_attempt_at = $1 WHERE client_order_id = 'RV0005'",
+    [now().toISOString()],
+  );
   const slow = {
     ...deps({ async getOrderByClientOrderId() {
       await new Promise((resolve) => setTimeout(resolve, 30));

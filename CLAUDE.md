@@ -212,6 +212,19 @@ apps/*  →  packages/*  →  lib/
   npm run quality:nginx
   ```
 
+- **审计锚点必须导出到库外。** 0049 的锚点让「链尾被截断」在库内可被发现，但
+  `verify_audit_chain_anchors()` **只遍历库里还存在的锚点**——把审计行和对应锚点
+  一起删掉，它会返回「干净」。被删掉的锚点不会替自己发声。
+
+  ```bash
+  npm run audit:anchors:export > anchors.json   # 存到数据库角色够不着的地方
+  npm run audit:anchors:verify anchors.json     # 回验才是这套机制的价值
+  ```
+
+  一份从没被回验过的导出件只是一个文件。配 `AUDIT_ANCHOR_EXPORT_KEY` 后导出件带
+  HMAC 签名；不配时导出件明确标注 `signed: false`，回验会说明它只证明了数据库侧
+  未被篡改。
+
   需要 Docker。Docker 不可用时它 **exit 2 并明说「这不是通过」**——一个「查不了就
   算过」的闸门等于没有闸门。
 
