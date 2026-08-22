@@ -169,12 +169,18 @@ test.before(async () => {
   const migration0024 = await readFile(new URL("../postgres/migrations/0024_platform_demo_execution.sql", import.meta.url), "utf8");
   await pool.query(migration0024);
   await pool.query(migration0024);
+  // 共享决策轮（ADR-0018）。跟 0024 一样跑两遍，验证迁移可重复执行。
+  const migration0046 = await readFile(new URL("../postgres/migrations/0046_shared_decision_rounds.sql", import.meta.url), "utf8");
+  await pool.query(migration0046);
+  await pool.query(migration0046);
   await initializeEmergencyAccessSchema(pool);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-official', $1)`, [JSON.stringify(platformStrategyDslV3("ai_conservative", "BTCUSDT"))]);
   await pool.query(`INSERT INTO exchange_accounts (id, exchange) VALUES ('account-a', 'binance')`);
   await pool.query(`INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at) VALUES ('membership-official', 'owner-official', 'active', NULL, NULL)`);
   await pool.query(`INSERT INTO users (id, organization_id) VALUES ('owner-official', NULL)`);
+  await pool.query(`INSERT INTO users (id, organization_id) VALUES ('owner-shared-a', NULL)`);
+  await pool.query(`INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at) VALUES ('membership-shared-a', 'owner-shared-a', 'active', NULL, NULL)`);
 });
 
 test.beforeEach(async () => {
@@ -471,6 +477,76 @@ test("official contract follows through account-free spot runtime into its isola
   const riskState = (await pool.query("SELECT risk_state_json FROM strategy_deployments WHERE id = $1", [deployment.id])).rows[0].risk_state_json;
   assert.ok(riskState.dailyLossPct > 0);
   assert.ok(riskState.maxDrawdownPct >= riskState.drawdownPct && riskState.maxDrawdownPct > 0);
+});
+
+test("同一张卡的两个客户共享同一行决策轮，各自保留自己的周期", async () => {
+  // ADR-0018 的核心：判断共享，准入按组合。5,000 会员 × 3 张卡会有 15,000 个部署，
+  // 而三张卡合计只有 6 种 (品种,周期) 组合——不共享就是同一段结论和同一次 LLM
+  // 解释被生成上万次。
+  await pool.query(`INSERT INTO users (id, organization_id) VALUES ('owner-shared-b', NULL)`);
+  await pool.query(`INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at)
+                    VALUES ('membership-shared-b', 'owner-shared-b', 'active', NULL, NULL)`);
+
+  const makeDeployment = async (owner, membership, key) => {
+    const portfolios = await ensureOfficialPaperPortfolios(pool, { membershipId: membership, customerId: owner });
+    const portfolio = portfolios.find((item) => item.strategyCode === "ai_conservative");
+    return createStrategyDeployment(pool, {
+      ownerUserId: owner,
+      strategyId: "strategy-official",
+      strategyVersionId: "version-official",
+      exchangeAccountId: null,
+      mode: "paper",
+      validationLabel: "UNVERIFIED",
+      idempotencyKey: key,
+      riskAcknowledged: true,
+      executionProduct: "spot_usdt",
+      platformStrategyCode: "ai_conservative",
+      membershipId: membership,
+      paperPortfolioId: portfolio.id,
+    });
+  };
+
+  const a = await makeDeployment("owner-shared-a", "membership-shared-a", "shared-a");
+  const b = await makeDeployment("owner-shared-b", "membership-shared-b", "shared-b");
+
+  const rows = officialEntryCandles();
+  const dependencies = {
+    createSpotAdapter: () => ({
+      async getCandles() { return { items: rows, provider: "fixture" }; },
+      async getFeeSchedule() { return { makerRate: 0.001, takerRate: 0.001, source: "fixture" }; },
+    }),
+    saveSnapshot: async (_database, input) => ({ id: input.sourceId, candleSha256: "a", fundingSha256: "b", datasetSha256: "c" }),
+  };
+
+  for (const [index, deployment] of [a, b].entries()) {
+    const now = new Date(Date.now() + 60_000 + index * 20_000);
+    const lease = await leaseNextStrategyDeployment(pool, { workerId: `shared-${index}`, now, leaseSeconds: 30 });
+    assert.equal(lease.id, deployment.id, "本测试假定两个部署按顺序被租走");
+    await processLeasedStrategyRuntimeDeployment(pool, lease, `shared-${index}`, { ...dependencies, now: () => now });
+  }
+
+  const candleClose = rows.at(-1).closeTime;
+  const rounds = await pool.query(`
+    SELECT id, strategy_code, symbol, timeframe, decision_json
+    FROM strategy_decision_rounds
+    WHERE strategy_code = 'ai_conservative' AND candle_close_time = to_timestamp($1 / 1000.0)
+  `, [candleClose]);
+  assert.equal(rounds.rows.length, 1, "同一张卡在同一根 K 线上只应有一行决策轮");
+  const roundId = rounds.rows[0].id;
+  assert.equal(rounds.rows[0].symbol, "BTCUSDT");
+
+  // 两个部署各自的周期都挂在这一行上。
+  const cycles = await pool.query(`
+    SELECT deployment_id FROM strategy_runtime_cycles
+    WHERE decision_round_id = $1 ORDER BY deployment_id
+  `, [roundId]);
+  assert.deepEqual(cycles.rows.map((row) => row.deployment_id).sort(), [a.id, b.id].sort());
+
+  // 七阶段事件也挂上了——它们属于共享单元，不该逐客户复制一份叙述。
+  const events = await pool.query(`
+    SELECT count(*)::int AS count FROM strategy_runtime_events WHERE decision_round_id = $1
+  `, [roundId]);
+  assert.equal(events.rows[0].count, 14, "过渡期两个部署各写一套事件，均已挂到同一决策轮");
 });
 
 test("performance fee scope is derived server-side from the complete official three-card portfolio set", async () => {

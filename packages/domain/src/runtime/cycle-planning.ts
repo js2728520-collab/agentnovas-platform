@@ -51,6 +51,24 @@ export function deterministicCycleId(deploymentId: string, candleCloseTime: numb
   return `runtime:${deploymentId}:${candleCloseTime}`;
 }
 
+/**
+ * 共享决策轮的幂等键。
+ *
+ * 与 deterministicCycleId 的区别是身份不同：周期 id 认「哪个部署」，
+ * 决策轮 id 认「哪张卡在哪根 K 线上的判断」。同一张卡的所有订阅者共享同一轮——
+ * 判断本来就相同，重复算 N 次只是把同一段结论和同一次 LLM 解释生成 N 遍。
+ *
+ * 见 docs/adr/0018-shared-decision-rounds-and-per-portfolio-admission.md。
+ */
+export function deterministicDecisionRoundId(input: {
+  strategyCode: string;
+  symbol: string;
+  timeframe: string;
+  candleCloseTime: number;
+}) {
+  return `round:${input.strategyCode}:${input.symbol}:${input.timeframe}:${input.candleCloseTime}`;
+}
+
 /** 落后时 1 秒后重试追赶，跟上了就按 15 秒轮询。 */
 export function nextPollAt(now: Date, hasBacklog: boolean) {
   return new Date(now.getTime() + (hasBacklog ? 1_000 : 15_000));

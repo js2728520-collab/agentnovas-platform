@@ -1,5 +1,7 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 
+import { deterministicDecisionRoundId } from "../packages/domain/src/runtime/cycle-planning.ts";
+
 import {
   lockOfficialPaperRuntimeAccess,
   OFFICIAL_PAPER_EMERGENCY_REJECTION_CODE,
@@ -625,6 +627,15 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
   takerFeeRate?: number;
   symbol?: "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
   riskPerTradePct?: number;
+  /**
+   * 官方策略卡的身份。给了就同时写一行共享决策轮并把周期与事件挂上去
+   * （ADR-0018 第 1 步：双写，不改读取）。永续部署没有卡，不传。
+   */
+  decisionRound?: {
+    strategyCode: "ai_conservative" | "ai_balanced" | "ai_aggressive";
+    timeframe: string;
+    strategyVersionId: string;
+  };
 }) {
   if (input.events.length !== 7) throw new Error("每个运行周期必须保存七个 Agent 事件");
   const client = await database.connect();
@@ -659,23 +670,47 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
     `, [input.deploymentId, input.workerId, input.fencingToken, input.candleCloseTime, input.nextCycleAt]);
     if (!deployment.rows[0]) throw new Error("Runtime Worker 租约或 fencing token 已失效");
     const sequence = Number(deployment.rows[0].last_cycle_sequence);
+
+    // 共享决策轮。同一张卡、同一品种、同一根已收盘 K 线只有一行——
+    // ON CONFLICT DO NOTHING 让并发的 N 个部署里第一个写入，其余复用（INV-8）。
+    let decisionRoundId: string | null = null;
+    if (input.decisionRound && input.symbol) {
+      decisionRoundId = deterministicDecisionRoundId({
+        strategyCode: input.decisionRound.strategyCode,
+        symbol: input.symbol,
+        timeframe: input.decisionRound.timeframe,
+        candleCloseTime: input.candleCloseTime.getTime(),
+      });
+      await client.query(`
+        INSERT INTO strategy_decision_rounds (
+          id, strategy_code, symbol, timeframe, strategy_version_id,
+          candle_open_time, candle_close_time, market_data_snapshot_id,
+          decision_json, order_intent_json, trace_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11)
+        ON CONFLICT (strategy_code, symbol, timeframe, candle_close_time) DO NOTHING
+      `, [decisionRoundId, input.decisionRound.strategyCode, input.symbol, input.decisionRound.timeframe,
+        input.decisionRound.strategyVersionId, input.candleOpenTime, input.candleCloseTime,
+        input.marketDataSnapshotId, JSON.stringify(input.decision),
+        input.orderIntent ? JSON.stringify(input.orderIntent) : null, input.traceId]);
+    }
+
     await client.query(`
       INSERT INTO strategy_runtime_cycles (
         id, deployment_id, sequence, fencing_token, candle_open_time, candle_close_time,
         market_data_snapshot_id, status, decision_json, order_intent_json,
-        trace_id, started_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8::jsonb, $9::jsonb, $10, $11)
+        trace_id, started_at, decision_round_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8::jsonb, $9::jsonb, $10, $11, $12)
     `, [input.cycleId, input.deploymentId, sequence, input.fencingToken, input.candleOpenTime, input.candleCloseTime,
       input.marketDataSnapshotId, JSON.stringify(input.decision), input.orderIntent ? JSON.stringify(input.orderIntent) : null,
-      input.traceId, input.startedAt]);
+      input.traceId, input.startedAt, decisionRoundId]);
     for (const event of input.events) {
       await client.query(`
         INSERT INTO strategy_runtime_events (
           id, cycle_id, sequence, role, event_type, conclusion, evidence_json,
-          duration_ms, llm_used, model_name
-        ) VALUES ($1, $2, $3, $4, 'agent_completed', $5, $6::jsonb, $7, $8, $9)
+          duration_ms, llm_used, model_name, decision_round_id
+        ) VALUES ($1, $2, $3, $4, 'agent_completed', $5, $6::jsonb, $7, $8, $9, $10)
       `, [crypto.randomUUID(), input.cycleId, event.sequence, event.role, event.conclusion,
-        JSON.stringify(event.evidence), event.durationMs, event.llmUsed, event.modelName ?? null]);
+        JSON.stringify(event.evidence), event.durationMs, event.llmUsed, event.modelName ?? null, decisionRoundId]);
     }
     await enqueueRuntimeExplanationJobs(client, {
       deploymentId: input.deploymentId,

@@ -1,6 +1,6 @@
 # ADR-0018: 决策轮共享化，准入按组合分离
 
-状态：Proposed
+状态：Accepted（实施中）
 
 日期：2026-08-22
 
@@ -151,12 +151,13 @@ UNIQUE (strategy_code, symbol, timeframe, candle_close_time)
 - **`strategy_runtime_cycles` 不在审计哈希链里**（迁移 0044 只覆盖 `audit_logs`
   与 8 张 `*_decisions` 表），因此这次改动不触碰防篡改边界。
 
-### 需要产品决定的两点
+### 已定的两点
 
-1. **客户视图措辞。** 七阶段内容对同卡客户完全相同。是明说「本卡的公共决策轮」，
-   还是保持现有措辞？前者更诚实，也符合「可解释、可审计」的定位。
-2. **纯 hold 是否留痕。** 本 ADR 提议不为 hold 写准入行。若合规上要求「每个客户
-   每根 K 线都有一条可查记录」，则需要写，代价是每天百万行级别与分区维护。
+1. **客户视图明说「本卡的公共决策轮」。** 七阶段内容对同卡客户完全相同，
+   界面必须如实说明，不得让客户理解为「为我单独运行」。
+2. **纯 hold 不为每个组合留痕。** 只在产生订单意图、组合级风控拒绝或访问状态
+   降级时写准入行。客户视图从共享决策轮读到「本轮无动作」——卡级结论就是
+   本轮不动作，这不是信息缺失。
 
 ## 实施顺序
 
@@ -167,3 +168,16 @@ UNIQUE (strategy_code, symbol, timeframe, candle_close_time)
 5. 停止写旧的 per-deployment cycle 的共享字段，只保留准入语义。
 
 每一步都可独立验证并回滚；第 3 步之前系统行为不变。
+
+
+## 实施记录
+
+- **第 1 步（完成）** 迁移 0046 建 `strategy_decision_rounds`，
+  `strategy_runtime_cycles` 与 `strategy_runtime_events` 加可空
+  `decision_round_id`。`completeStrategyRuntimeCycle` 双写：官方现货部署在写周期
+  前先 upsert 决策轮（`ON CONFLICT DO NOTHING`），周期与事件都挂上去。
+  读取路径未改，系统行为不变。
+
+  验证：同一张卡的两个客户各跑一轮后，`strategy_decision_rounds` 只有一行，
+  两个部署的周期都指向它（`tests/strategy-runtime-repository.test.mjs`）。
+  过渡期两个部署仍各写 7 行事件（合计 14 行），第 2 步收敛为 7 行。

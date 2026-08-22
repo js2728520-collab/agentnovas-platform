@@ -252,6 +252,13 @@ async function processOfficialSpotRuntimeDeployment(
     riskPerTradePct: specification.risk.riskPerTradePct,
     symbol: specification.symbol,
     takerFeeRate: feeSchedule.takerRate,
+    // 共享决策轮（ADR-0018 第 1 步：双写）。同一张卡、同一品种、同一根已收盘
+    // K 线只算一次；这里先把身份传下去，读取路径仍走各部署自己的周期。
+    decisionRound: {
+      strategyCode: specification.strategyCode,
+      timeframe: specification.timeframe,
+      strategyVersionId: lease.strategyVersionId,
+    },
   });
   let demoIntentResults: Awaited<ReturnType<typeof enqueuePlatformDemoIntentsForRound>> = [];
   let demoIntentError: string | null = null;
