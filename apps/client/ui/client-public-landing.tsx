@@ -8,57 +8,6 @@ import Link from "next/link";
 
 type Page = "home" | "login" | "hall" | "market" | "trading";
 
-function RoleIcon({ index }: { index: number }) {
-  const icon = index % 6;
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      {icon === 0 && (
-        <>
-          <path d="M4 19V5M4 19h16" />
-          <path d="m7 15 3-4 3 2 5-7" />
-          <circle cx="7" cy="15" r="1" />
-          <circle cx="10" cy="11" r="1" />
-          <circle cx="13" cy="13" r="1" />
-          <circle cx="18" cy="6" r="1" />
-        </>
-      )}
-      {icon === 1 && (
-        <>
-          <circle cx="12" cy="5" r="2.2" />
-          <circle cx="6" cy="16" r="2.2" />
-          <circle cx="18" cy="16" r="2.2" />
-          <path d="m10.7 6.8-3.4 7.3m6-7.3 3.4 7.3M8.2 16h7.6" />
-        </>
-      )}
-      {icon === 2 && (
-        <>
-          <path d="M12 3 5.5 6v5.2c0 4.3 2.7 7.7 6.5 9.8 3.8-2.1 6.5-5.5 6.5-9.8V6L12 3Z" />
-          <path d="m9 14 6-6m-6 0 6 6" />
-        </>
-      )}
-      {icon === 3 && (
-        <>
-          <path d="M4.2 17a8 8 0 1 1 15.6 0" />
-          <path d="m7.2 14-2-1m11.6 1 2-1M12 8V5" />
-          <path d="m12 16 3.4-5.1" />
-          <circle cx="12" cy="16" r="1.2" />
-        </>
-      )}
-      {icon === 4 && (
-        <>
-          <path d="M5 7h13m0 0-3-3m3 3-3 3M19 17H6m0 0 3 3m-3-3 3-3" />
-          <path d="M12 11v2" />
-        </>
-      )}
-      {icon === 5 && (
-        <>
-          <path d="M7 4h10a2 2 0 0 1 2 2v14H5V6a2 2 0 0 1 2-2Z" />
-          <path d="M9 4.2V3h6v1.2M8.5 9h7M8.5 13H12m-3.5 4 1.5 1.5 3-3" />
-        </>
-      )}
-    </svg>
-  );
-}
 type Lang = "zh-CN" | "zh-TW" | "en-US" | "ru-RU" | "es-ES" | "ja-JP" | "ko-KR";
 
 const languageNames: Record<Lang, string> = {
@@ -307,6 +256,7 @@ function Landing({
             <b>{m.teamTitle}</b>
             <span>7 STAGES</span>
           </div>
+          <p className={styles.chainSub}>{m.teamSub}</p>
           <div className={styles.pulse} aria-hidden="true" />
           {roles.map((role, index) => {
             const isGate = index === 4;
@@ -357,24 +307,6 @@ function Landing({
             <span>NON-CUSTODIAL</span>
             <em>REAL ORDERS OFF</em>
           </div>
-        </div>
-      </section>
-
-      <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <div className={styles.eyebrow}>AI QUANT TEAM</div>
-          <h2>{t.teamTitle}</h2>
-          <p>{t.teamSub}</p>
-        </div>
-        <div className={styles.cardGrid}>
-          {roles.map((x, i) => (
-            <article className={styles.card} key={x[1]}>
-              <i><RoleIcon index={i} /></i>
-              <h3>{x[1]}</h3>
-              <p>{x[2]}</p>
-              <span>{`ROLE CONTRACT · 0${i + 1}`}</span>
-            </article>
-          ))}
         </div>
       </section>
 
