@@ -62,6 +62,12 @@ export function evaluateStrategyRuntimeCycle(input: {
     dailyLossPct: number;
     consecutiveLosses: number;
     halted: boolean;
+    /**
+     * 读数损坏的字段名（见 runtime/risk-state.ts）。非空表示风控状态不可信，
+     * 本轮拒绝开仓。与 halted 分开表达：熔断是风控生效，读数损坏是风控失效，
+     * 运营端需要能区分这两件事。
+     */
+    unavailableFields?: readonly string[];
   };
   lastDecisionCandleCloseTime?: number | null;
 }) {
@@ -142,6 +148,11 @@ export function evaluateStrategyRuntimeCycle(input: {
   const rejectionReasons: string[] = [];
   const isEntry = action === "enter_long" || action === "enter_short";
   if (isEntry && input.riskState.halted) rejectionReasons.push("运行部署已触发熔断");
+  // 失败安全（INV-7）：风控读数不可信时不开新仓。放在阈值判定之前——
+  // 读数坏了就没有阈值可比，拿一个猜出来的 0 去比等于把风控关掉。
+  if (isEntry && input.riskState.unavailableFields?.length) {
+    rejectionReasons.push(`风控读数不可用：${input.riskState.unavailableFields.join("、")}`);
+  }
   const maxDrawdownPct = specification.risk.maxDrawdownPct;
   const maxDailyLossPct = officialSpot ? officialSpot.risk.dailyLossHaltPct : perpetualSpecification!.risk.maxDailyLossPct;
   const maxConsecutiveLosses = officialSpot ? null : perpetualSpecification!.risk.maxConsecutiveLosses;

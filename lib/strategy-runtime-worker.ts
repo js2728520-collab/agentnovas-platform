@@ -35,6 +35,19 @@ import {
 import { evaluateStrategyRuntimeCycle } from "../packages/domain/src/strategy-runtime-engine.ts";
 import { strategyDslToRuntime } from "../packages/domain/src/strategy-dsl.ts";
 import {
+  assertRuntimeSpotCandles,
+  deterministicCycleId,
+  nextPollAt,
+  resolveFundingWindowLimit,
+  selectCycleCandle,
+} from "../packages/domain/src/runtime/cycle-planning.ts";
+import { applyDeploymentRiskOverrides } from "../packages/domain/src/runtime/deployment-overrides.ts";
+import {
+  classifyExplanationFailure,
+  explanationRetryDelayMs,
+} from "../packages/domain/src/runtime/explanation-retry.ts";
+import { resolveRuntimeRiskState } from "../packages/domain/src/runtime/risk-state.ts";
+import {
   callRuntimeExplanationAgent,
   resolveRuntimeExplanationPrompt,
   validateRuntimeExplanationOutput,
@@ -72,26 +85,6 @@ function asExchange(value: string): PerpetualExchange {
   throw new Error("运行部署绑定了不支持的永续交易所");
 }
 
-function safeRiskState(value: Record<string, unknown>) {
-  const drawdownPct = Number(value.drawdownPct || 0);
-  const dailyLossPct = Number(value.dailyLossPct || 0);
-  const consecutiveLosses = Number(value.consecutiveLosses || 0);
-  return {
-    drawdownPct: Number.isFinite(drawdownPct) ? Math.max(drawdownPct, 0) : 0,
-    dailyLossPct: Number.isFinite(dailyLossPct) ? Math.max(dailyLossPct, 0) : 0,
-    consecutiveLosses: Number.isInteger(consecutiveLosses) ? Math.max(consecutiveLosses, 0) : 0,
-    halted: value.halted === true,
-  };
-}
-
-function deterministicCycleId(deploymentId: string, candleCloseTime: number) {
-  return `runtime:${deploymentId}:${candleCloseTime}`;
-}
-
-function nextPollAt(now: Date, hasBacklog: boolean) {
-  return new Date(now.getTime() + (hasBacklog ? 1_000 : 15_000));
-}
-
 function createPublicSpotRuntimeAdapter(): RuntimeSpotMarketAdapter {
   return {
     async getCandles(input) {
@@ -102,19 +95,6 @@ function createPublicSpotRuntimeAdapter(): RuntimeSpotMarketAdapter {
       return { makerRate: 0.001, takerRate: 0.001, source: "conservative_public_spot_default" };
     },
   };
-}
-
-function assertSpotCandles(candles: Awaited<ReturnType<RuntimeSpotMarketAdapter["getCandles"]>>["items"]) {
-  if (candles.length < 2) throw new Error("官方现货运行周期缺少足够的完整 K 线");
-  for (let index = 0; index < candles.length; index += 1) {
-    const candle = candles[index];
-    if (!Object.values(candle).every(Number.isFinite)
-      || candle.open <= 0 || candle.high <= 0 || candle.low <= 0 || candle.close <= 0 || candle.volume < 0
-      || candle.openTime >= candle.closeTime
-      || (index > 0 && candle.openTime <= candles[index - 1].openTime)) {
-      throw new Error("官方现货行情响应未通过严格校验");
-    }
-  }
 }
 
 async function processOfficialSpotRuntimeDeployment(
@@ -134,23 +114,20 @@ async function processOfficialSpotRuntimeDeployment(
     adapter.getCandles({ symbol: specification.symbol, timeframe: specification.timeframe, limit: 500 }),
     adapter.getFeeSchedule(),
   ]);
-  assertSpotCandles(market.items);
+  assertRuntimeSpotCandles(market.items);
   if (!Number.isFinite(feeSchedule.takerRate) || feeSchedule.takerRate < 0 || feeSchedule.takerRate > 0.01) {
     throw new Error("官方现货手续费响应未通过严格校验");
   }
   const lastClose = lease.lastCandleCloseAt?.getTime() ?? null;
-  const selected = lastClose === null
-    ? market.items.at(-1)
-    : market.items.find((candle) => candle.closeTime > lastClose);
-  if (!selected) {
+  const cycle = selectCycleCandle(market.items, lastClose);
+  if (!cycle) {
     await deferStrategyRuntimeLease(database, {
       deploymentId: lease.id, workerId, fencingToken: lease.fencingToken,
       nextCycleAt: nextPollAt(now, false),
     });
     return { status: "waiting_for_candle" as const };
   }
-  const selectedIndex = market.items.findIndex((candle) => candle.closeTime === selected.closeTime);
-  const evaluationCandles = market.items.slice(0, selectedIndex + 1);
+  const { selected, evaluationCandles } = cycle;
   const cycleId = deterministicCycleId(lease.id, selected.closeTime);
   const traceId = crypto.randomUUID();
   const saveSnapshot = dependencies.saveSnapshot ?? saveMarketDataSnapshot;
@@ -212,12 +189,11 @@ async function processOfficialSpotRuntimeDeployment(
     mode: lease.mode,
     position: position ? { side: "long", entryPrice: position.entryPrice, quantity: position.quantity } : null,
     riskState: {
-      ...safeRiskState(currentRiskState),
+      ...resolveRuntimeRiskState(currentRiskState),
       halted: currentRiskState.halted === true || runtimeAccess.access !== "active",
     },
     lastDecisionCandleCloseTime: lastClose,
   });
-  const hasBacklog = selected.closeTime < market.items.at(-1)!.closeTime;
   const completion = await completeStrategyRuntimeCycle(database, {
     cycleId,
     deploymentId: lease.id,
@@ -231,7 +207,7 @@ async function processOfficialSpotRuntimeDeployment(
     events: evaluated.events,
     traceId,
     startedAt: now,
-    nextCycleAt: nextPollAt(now, hasBacklog),
+    nextCycleAt: nextPollAt(now, cycle.hasBacklog),
     positionSizePct: specification.risk.maxAssetAllocationPct,
     riskPerTradePct: specification.risk.riskPerTradePct,
     symbol: specification.symbol,
@@ -285,33 +261,11 @@ export async function processLeasedStrategyRuntimeDeployment(
     return processOfficialSpotRuntimeDeployment(database, lease, workerId, dependencies);
   }
   const exchange = asExchange(lease.exchange || "");
-  const baseSpecification = strategyDslToRuntime(lease.specification);
-  const positionSizePct = lease.positionSizePct === null
-    ? baseSpecification.risk.positionSizePct
-    : Math.min(baseSpecification.risk.positionSizePct, lease.positionSizePct);
-  const stopLossOverride = lease.stopLossPctOverride;
-  const specification = {
-    ...baseSpecification,
-    legs: {
-      ...(baseSpecification.legs.long ? {
-        long: {
-          ...baseSpecification.legs.long,
-          stopLossPct: stopLossOverride === null
-            ? baseSpecification.legs.long.stopLossPct
-            : Math.min(baseSpecification.legs.long.stopLossPct, stopLossOverride),
-        },
-      } : {}),
-      ...(baseSpecification.legs.short ? {
-        short: {
-          ...baseSpecification.legs.short,
-          stopLossPct: stopLossOverride === null
-            ? baseSpecification.legs.short.stopLossPct
-            : Math.min(baseSpecification.legs.short.stopLossPct, stopLossOverride),
-        },
-      } : {}),
-    },
-    risk: { ...baseSpecification.risk, positionSizePct },
-  };
+  // 部署级覆盖只能收紧，不能放宽（INV-1）。
+  const specification = applyDeploymentRiskOverrides(strategyDslToRuntime(lease.specification), {
+    positionSizePct: lease.positionSizePct,
+    stopLossPct: lease.stopLossPctOverride,
+  });
   const adapter = dependencies.createAdapter?.(exchange) ?? createPerpetualMarketAdapter(exchange);
   const [instrument, candles, feeSchedule] = await Promise.all([
     adapter.getInstrument({ symbol: specification.symbol }),
@@ -322,10 +276,8 @@ export async function processLeasedStrategyRuntimeDeployment(
   if (candles.items.length < 2) throw new Error("运行周期缺少足够的完整 K 线");
 
   const lastClose = lease.lastCandleCloseAt?.getTime() ?? null;
-  const selected = lastClose === null
-    ? candles.items.at(-1)
-    : candles.items.find(candle => candle.closeTime > lastClose);
-  if (!selected) {
+  const cycle = selectCycleCandle(candles.items, lastClose);
+  if (!cycle) {
     await deferStrategyRuntimeLease(database, {
       deploymentId: lease.id,
       workerId,
@@ -335,18 +287,17 @@ export async function processLeasedStrategyRuntimeDeployment(
     return { status: "waiting_for_candle" as const };
   }
 
-  const selectedIndex = candles.items.findIndex(candle => candle.closeTime === selected.closeTime);
-  const evaluationCandles = candles.items.slice(0, selectedIndex + 1);
+  const { selected, evaluationCandles } = cycle;
   const startTime = evaluationCandles[0].openTime;
-  const fundingLimit = Math.min(
-    Math.ceil((selected.closeTime - startTime) / (instrument.fundingIntervalHours * 3_600_000)) + 10,
-    10_000,
-  );
   const funding = await adapter.getFundingRates({
     symbol: specification.symbol,
     startTime,
     endTime: selected.closeTime,
-    limit: Math.max(fundingLimit, 1),
+    limit: resolveFundingWindowLimit({
+      startTime,
+      endTime: selected.closeTime,
+      fundingIntervalHours: instrument.fundingIntervalHours,
+    }),
   });
   const dataQuality = assessPerpetualDataQuality({
     candles: { ...candles, items: evaluationCandles },
@@ -398,10 +349,9 @@ export async function processLeasedStrategyRuntimeDeployment(
     candles: evaluationCandles,
     mode: lease.mode,
     position: position ? { side: position.side, entryPrice: position.entryPrice, quantity: position.quantity } : null,
-    riskState: safeRiskState(lease.riskState),
+    riskState: resolveRuntimeRiskState(lease.riskState),
     lastDecisionCandleCloseTime: lastClose,
   });
-  const hasBacklog = selected.closeTime < candles.items.at(-1)!.closeTime;
   const completion = await completeStrategyRuntimeCycle(database, {
     cycleId,
     deploymentId: lease.id,
@@ -415,7 +365,7 @@ export async function processLeasedStrategyRuntimeDeployment(
     events: evaluated.events,
     traceId: crypto.randomUUID(),
     startedAt: now,
-    nextCycleAt: nextPollAt(now, hasBacklog),
+    nextCycleAt: nextPollAt(now, cycle.hasBacklog),
     positionSizePct: "positionSizePct" in evaluated.specification.risk
       ? evaluated.specification.risk.positionSizePct
       : evaluated.specification.risk.maxAssetAllocationPct,
@@ -524,18 +474,14 @@ export async function processNextRuntimeExplanation(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "运行时解释处理失败";
-    const code = /超时/.test(message)
-      ? "RUNTIME_EXPLANATION_TIMEOUT"
-      : /Prompt 版本/.test(message)
-        ? "RUNTIME_EXPLANATION_PROMPT_MISMATCH"
-        : "RUNTIME_EXPLANATION_FAILED";
+    const code = classifyExplanationFailure(message);
     const failure = await failRuntimeExplanationJob(database, {
       jobId: job.id,
       workerId: input.workerId,
       fencingToken: job.fencingToken,
       code,
       message,
-      retryAt: new Date(now.getTime() + Math.min(5 * 60_000, 15_000 * 2 ** Math.max(job.attemptCount - 1, 0))),
+      retryAt: new Date(now.getTime() + explanationRetryDelayMs(job.attemptCount)),
     });
     return {
       status: failure.status,
