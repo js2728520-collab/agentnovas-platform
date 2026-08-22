@@ -164,6 +164,15 @@ apps/*  →  packages/*  →  lib/
   行上。引擎是纯函数，跑两次的代价是亚毫秒级。
   由 `tests/strategy-runtime-repository.test.mjs` 断言共享轮的 risk 证据是中性状态。
 
+- **公网 Web 进程当前能解密客户交易所凭证。** 凭证是 AES-GCM 密文内联存在
+  `exchange_accounts.encrypted_credential_ref`（字段名有误导性，不是外部保管库的
+  引用），密钥来自环境变量 `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`。
+  `app/api/exchange-accounts/[id]` 的 `check` 动作会解密——该路由在 client 构建里。
+
+  Beta 只跑 paper 时风险被限制在「凭证泄露但平台不下单」。
+  **GA 打开实盘前必须把密钥从 Web 层拿掉**，见
+  `docs/adr/0019-ga-execution-service-and-key-custody.md`。
+
 - **审计链尾锚定已就位，但归档到库外还没做。** 迁移 0044 的哈希链检不出截断链尾
   ——把最后 N 行删掉，剩下的链依然自洽。迁移 0049 增加 `audit_chain_anchors`：
   把当时的链尾（`chain_seq` + `row_hash` + 总行数）登记成锚点，
