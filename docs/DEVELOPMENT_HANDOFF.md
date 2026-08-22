@@ -569,7 +569,63 @@ tsc、lint、810 项测试、三端 build、bundle 预算、6 条架构边界全
 
 ### 下一步
 
-`packages/domain` 目前 4,802 行。剩余待迁的是混了 I/O 的大件，需要先端口化：
+`packages/domain/src` 迁完这批是 2,483 行（`packages/ledger/src` 另 51 行）。
+剩余待迁的是混了 I/O 的大件，需要先端口化：
 `ai-credit-service`(497，reserve/settle/release 语义)、
 `strategy-runtime-worker`(548，决策轮调度与七阶段编排)、
 以及 `market-data` / `research-steps` 端口化之后的 `strategy-runtime-engine` 依赖链。
+
+
+## 25. 2026-08-22 P1 AI Credits 账本规则抽取
+
+`lib/ai-credit-service.ts` 是 I/O 混合件的第一个：算术与状态判定夹在 SQL 之间。
+搬迁的是判定，不是查询——事务、锁、幂等行比对留在服务层。
+
+### 迁入 `packages/domain/src/credits/credit-ledger.ts`（126 行）
+
+| 函数 | 规则 |
+| --- | --- |
+| `isValidCreditMutation` | 五种变更各自允许的资金流向，credits 版的「借贷必平」 |
+| `applyCreditDelta` | 余额应用；任一余额变负返回 `null`，不夹到 0 |
+| `resolveReservationTransition` | 预留状态机：终态重放 / 活动态执行 / 跨终态冲突 |
+| `planReservationSettlement` | 按实耗退回未用部分；超预留拒绝，不自动补扣 |
+| `planReservationRelease` | 整笔原路退回 |
+
+### 域层返回决策，服务层抛错误
+
+这批刻意没让域层抛业务错误。`lib/client-ai-inference-service.ts` 靠
+`error.message === "AI_CREDIT_INSUFFICIENT"` 把余额不足映射成 HTTP 402——
+错误身份是既有的对外契约。域层不该知道 402，也不该沿用一个为 HTTP 映射服务的
+message 约定。分工写进了 `packages/domain/CLAUDE.md`：
+**域层判定「合不合法」，服务层决定「客户看到什么」。** 结果是零行为变更。
+
+返回 `null` / `{ ok: false, reason }` 与硬规则 6「不 catch 后静默降级」不矛盾：
+规则 6 禁止的是悄悄返回一个差不多的值，而显式失败结果调用方无法忽略。
+
+### 一处判断修正
+
+原打算在 `planReservationSettlement` 里挡负成本，去掉了：负成本产生的 delta 会让
+credits 总量增加，本来就会被 settle 形状规则拒绝（`AI_CREDIT_MUTATION_INVALID`）。
+多加一道会改掉错误码，也让同一条规则有两处真源。
+
+### 覆盖变化
+
+`tests/domain-credit-ledger.test.mjs` 12 项，不需要数据库。
+
+此前这套算术只能通过 `*-postgres` 测试间接验证。那些测试确实会跑（连本地库、
+建临时 schema），但每验一条规则要付出建表 + 事务的代价，于是实际只覆盖主干路径：
+「settle 退回额超过预留」「adjust 动了预留」这类形状违例从没被直接测过，
+而它们正是扣错钱的方式。
+
+### 验证
+
+tsc、lint、822 项测试、三端 build、bundle 预算、6 条边界通过。
+另用本地 Postgres 单独跑 `tests/postgres-commercial-settlement.test.mjs`（20 项，
+含 credits settle 与 `AI_CREDIT_INSUFFICIENT` 断言）确认端到端行为未变。
+
+### 下一步
+
+P1 只剩 `strategy-runtime-worker`(548)。它比 credits 难：credits 是「算术夹在 SQL
+之间」，worker 是「七阶段编排夹在调度、心跳、重试之间」，切分点要先定义决策轮的
+阶段推进规则才能找。`strategy-runtime-engine` 仍被 `market-data` /
+`research-steps` 的 I/O 依赖链挡住，需要先端口化。
