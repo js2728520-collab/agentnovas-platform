@@ -178,3 +178,82 @@ grep -rl EXCHANGE_CREDENTIAL_ENCRYPTION_KEY .next-client/server .next-operations
 ```
 
 在那之前，「Web 进程持有全部客户交易凭证的解密能力」这条已知缺口保持有效。
+
+
+## 第 2 步实施记录（已完成）
+
+### 内网认证：共享密钥
+
+`EXECUTION_SERVICE_SHARED_SECRET`，请求头 `x-riverton-execution-auth`，
+用 `timingSafeEqual` 等长时间比较。密钥缺失或短于 32 字符时**执行服务拒绝启动**，
+而不是「没配就不鉴权」——后者在部署漏配时会静默变成任何人都能调用的下单接口。
+
+它与 `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY` 是两把不同的密钥，做两件不同的事：
+
+| | 凭证加密密钥 | 共享密钥 |
+| --- | --- | --- |
+| 作用 | 加密/解密客户交易所凭证 | 证明请求来自我们自己的进程 |
+| 泄露后果 | 加数据库读权限 = 全部客户的 API Key | 能让服务替他下单，但拿不到凭证 |
+
+执行服务是全系统唯一能解密的地方；若内网上任何东西都能调它，把加密密钥搬过去就
+没有意义。爆炸半径不同，所以分开存放、分开轮换。
+
+### 三件实施中才暴露的事
+
+**一、只搬解密是不够的——加密也得搬。** 第一次构建后 `decryptExchangeCredential`
+确实消失了，但客户端产物里仍然引用凭证密钥：绑定交易所账户时 Web 层要**加密**
+凭证。AES-GCM 是对称的，**能加密就能解密**——解密代码不在构建里没有用，密钥在
+就够了。绑定流程因此也进了执行服务（`bind_exchange_account`）。
+
+需要诚实说清这一步换来了什么：明文凭证仍然流经 Web 进程，因为它是客户从公网提交
+上来的，无法避免。变化的是**一次一个账户的短暂明文**与**一把能解开全部账户、
+长期有效的密钥**之间的差别。
+
+**二、运维端有一条回退路径直通交易所密钥。** `lib/integration-credentials.ts`
+原本写 `INTEGRATION_CREDENTIAL_ENCRYPTION_KEY || EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`。
+只要前者漏配，运维端就持有交易所凭证密钥——而它从不需要解密任何客户的交易凭证。
+回退已删除，该密钥现在是必配项。
+
+*迁移*：若既有集成凭证是用交易所密钥加密的，把同一个值显式配成
+`INTEGRATION_CREDENTIAL_ENCRYPTION_KEY` 即可继续解密。但这只是让两把密钥**可以**
+分开，不等于已经分开——应尽快用一个独立值重新加密。
+
+**三、错误消息是对外表面。** 首次跑通时服务把 `error.message` 原样回给 Web 层，
+而 Drizzle 的失败消息带着完整 SQL 与参数——库表结构和客户/账户 id 就这样从一个
+面向公网进程的接口吐了出去。改成白名单：只有列明的错误身份原样回传，其余折叠成
+`INTERNAL_ERROR`，详细原因只进本进程日志。
+
+### 数据库身份
+
+执行服务拿到独立角色 `agentnovas_execution_service`，由
+`RIVERTON_EXECUTION_SERVICE=true` 声明，仍走既有的「角色必须匹配进程身份」校验。
+让它冒用 client 角色会使数据库层面再也分不清「客户端 Web 读了凭证密文」和
+「执行服务读了凭证密文」。
+
+**下一步的自然延伸**：把 `exchange_accounts.encrypted_credential_ref` 的列权限从
+三个 Web 角色上收回。那之后 Web 层连密文都取不到，「拿不到凭证」将由数据库强制，
+而不再依赖构建产物的洁净。
+
+### 验收（已通过，且是机器检查）
+
+```bash
+npm run quality:key-custody
+```
+
+扫描三个 Web 构建产物的全部 `.js`，出现凭证密钥名、解密函数名或**加密函数名**
+即失败。查产物而不只查源码，是因为把解密拉回 Web 层的方式不止直接 import 一种——
+多一条间接依赖、一次 re-export 都能让打包器把整条链塞回公网进程，而源码规则不会红。
+
+当前结果：client 537 个 .js、operations 467 个、maintenance 377 个，**零命中**。
+探针验证过这个检查器确实会报警（注入一处即 exit 1）。
+
+架构边界规则第 8 条同步扩到三条子规则：不得解密、不得加密、Web 层不得引用
+`lib/execution/server/**`。
+
+### 部署要求
+
+- 执行服务只监听回环或内网地址；代码里**拒绝**绑 `0.0.0.0` 和 `::`。Nginx 不为它
+  配 server 块。
+- 与 Web 分开的 systemd unit、分开的 `.env`、分开的文件权限。
+- 三个 Web 的 `.env` 里**删除** `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`。本地
+  `start-local.sh` 已经主动 `unset` 它——只有本地同样拿不到，回归才会在开发时就炸掉。

@@ -35,7 +35,9 @@ if (!["127.0.0.1", "localhost", "::1"].includes(url.hostname)) {
 // 本地开发口令。生产口令由运维单独下发，不在代码或脚本里出现。
 const LOCAL_PASSWORD = process.env.LOCAL_DB_ROLE_PASSWORD?.trim() || "localdev";
 
-const WEB_ROLES = ["agentnovas_client_web", "agentnovas_client_auth", "agentnovas_ops_web", "agentnovas_maint_web"];
+// agentnovas_execution_service 不是 Web 角色，但本地授权形状与它们相同，
+// 一起建最省事。生产环境的最小权限见 postgres-role-policy.mjs。
+const WEB_ROLES = ["agentnovas_client_web", "agentnovas_client_auth", "agentnovas_ops_web", "agentnovas_maint_web", "agentnovas_execution_service"];
 const WORKER_ROLES = [
   "agentnovas_migrator",
   "agentnovas_runtime_worker",

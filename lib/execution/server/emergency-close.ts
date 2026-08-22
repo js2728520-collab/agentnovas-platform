@@ -5,11 +5,11 @@
  * 它需要客户凭证，因此必须与解密点住在同一个边界里，将来一起搬进独立执行服务进程。
  */
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
-import { getDb } from "@/db";
-import { auditLogs, exchangeAccounts, platformDecisions, trades } from "@/db/schema";
-import { getOkxDemoOrder, okxFeeInUsdt, placeOkxDemoMarketOrder } from "@/lib/okx-demo-execution";
+import { getDb } from "../../../db/index.ts";
+import { auditLogs, exchangeAccounts, platformDecisions, trades } from "../../../db/schema.ts";
+import { getOkxDemoOrder, okxFeeInUsdt, placeOkxDemoMarketOrder } from "../../okx-demo-execution.ts";
 
 import { loadExchangeCredential } from "./credential-access.ts";
 
@@ -22,7 +22,7 @@ export type EmergencyCloseResult = {
   message: string;
 };
 
-export async function closeOkxDemoTrade(position: OpenTrade, account: typeof exchangeAccounts.$inferSelect, now: string): Promise<EmergencyCloseResult> {
+async function closeOkxDemoTrade(position: OpenTrade, account: typeof exchangeAccounts.$inferSelect, now: string): Promise<EmergencyCloseResult> {
   if (position.side !== "buy") return { tradeId: position.id, symbol: position.symbol, status: "unsupported", message: "当前仅支持 OKX Demo 现货多仓的一键平仓" };
   try {
     // 走凭证代理而不是直接解密：解密只允许发生在 lib/execution/credential-access.ts
@@ -79,4 +79,35 @@ export async function closeOkxDemoTrade(position: OpenTrade, account: typeof exc
   } catch (error) {
     return { tradeId: position.id, symbol: position.symbol, status: "failed", message: error instanceof Error ? error.message : "OKX Demo 平仓请求失败" };
   }
+}
+
+/**
+ * 跨进程入口：只收 id，行由本进程自己读。
+ *
+ * 原来 Web 层把整行 `exchangeAccounts` 传进来——那一行里含
+ * `encryptedCredentialRef`，等于密文在进程间流动。改成只传 id 之后，Web 层连密文
+ * 都拿不到。
+ *
+ * `customerId` 是调用方的声明，本进程仍然自己校验归属：共享密钥只证明「请求来自
+ * 我们自己的 Web 进程」，不证明「这个客户拥有这笔仓位」。Web 层被攻破时这一层
+ * 仍然挡住越权平仓。
+ */
+export async function closeOkxDemoTradeById(input: {
+  tradeId: string;
+  accountId: string;
+  customerId: string;
+  now: string;
+}): Promise<EmergencyCloseResult> {
+  const db = getDb();
+  const position = (await db.select().from(trades)
+    .where(and(eq(trades.id, input.tradeId), eq(trades.customerId, input.customerId))).limit(1))[0];
+  if (!position) {
+    return { tradeId: input.tradeId, symbol: "", status: "failed", message: "仓位不存在或不属于当前账户" };
+  }
+  const account = (await db.select().from(exchangeAccounts)
+    .where(and(eq(exchangeAccounts.id, input.accountId), eq(exchangeAccounts.customerId, input.customerId))).limit(1))[0];
+  if (!account) {
+    return { tradeId: position.id, symbol: position.symbol, status: "failed", message: "绑定账户不存在" };
+  }
+  return closeOkxDemoTrade(position, account, input.now);
 }

@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 
-import { getDb } from "@/db";
-import { exchangeAccounts } from "@/db/schema";
-import { decryptExchangeCredential, type ExchangeCredential } from "@/lib/exchange-credentials";
+import { getDb } from "../../../db/index.ts";
+import { exchangeAccounts } from "../../../db/schema.ts";
+import { decryptExchangeCredential, type ExchangeCredential } from "../../exchange-credentials.ts";
 
 /**
  * 交易所凭证的唯一解密点。

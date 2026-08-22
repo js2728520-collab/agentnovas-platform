@@ -252,11 +252,11 @@ rules.push(async function exchangeCredentialCustody() {
   // 允许解密的地方。research-exchange-account 跑在研发 Worker（独立进程），
   // 只取只读凭证算手续费；ADR-0019 的后续步骤会让它也走执行服务。
   const decryptImporters = new Set([
-    "lib/execution/credential-access.ts",
+    "lib/execution/server/credential-access.ts",
     "lib/research-exchange-account.ts",
   ]);
   // 凭证访问模块只允许在执行边界内被引用——否则「收敛到一个模块」等于没收敛。
-  const credentialAccessImporters = /^lib\/execution\//;
+  const credentialAccessImporters = /^lib\/execution\/server\//;
 
   const violations = [];
   const sources = [
@@ -271,14 +271,29 @@ rules.push(async function exchangeCredentialCustody() {
     "scripts/quality/check-architecture-boundaries.mjs",
     "lib/exchange-credentials.ts",
   ]);
+  const webLayer = /^apps?\//;
+  // 加密与解密共用一把对称密钥：能加密就能解密。只挡解密而放行加密，Web 层照样
+  // 需要持有密钥，「Web 层不能还原客户凭证」就仍然不成立。
+  const encryptImporters = new Set(["lib/execution/server/account-binding.ts"]);
   for (const file of sources) {
     if (selfReferential.has(file)) continue;
     const source = await readSource(file);
+    if (/encryptExchangeCredential/.test(source) && !encryptImporters.has(file)) {
+      violations.push(`${file} 引用了 encryptExchangeCredential；加密与解密共用同一把对称密钥，只允许发生在 ${[...encryptImporters][0]}`);
+    }
     if (/decryptExchangeCredential/.test(source) && !decryptImporters.has(file)) {
       violations.push(`${file} 引用了 decryptExchangeCredential；解密只允许发生在 ${[...decryptImporters][0]}`);
     }
     if (/execution\/credential-access/.test(source) && !credentialAccessImporters.test(file)) {
-      violations.push(`${file} 引用了凭证访问模块；它只允许被 lib/execution/ 内的模块使用`);
+      violations.push(`${file} 引用了凭证访问模块；它只允许被 lib/execution/server/ 内的模块使用`);
+    }
+    // 第 2 步的核心约束：Web 层不得引用执行服务端代码。
+    //
+    // 前两条查的是「谁能解密」，这条查的是「解密代码会不会被打进 Web 构建」。
+    // 少了这条，只要有人从 app/ import 了 lib/execution/server/ 下任意模块，
+    // 打包器就会把整条依赖链——包括解密——重新塞回公网进程，而前两条一个都不会红。
+    if (webLayer.test(file) && /lib\/execution\/server\//.test(source)) {
+      violations.push(`${file} 引用了执行服务端模块；Web 层只能通过 lib/execution/client.ts 发内网请求`);
     }
   }
   return { name: "交易所凭证解密点收敛", violations };

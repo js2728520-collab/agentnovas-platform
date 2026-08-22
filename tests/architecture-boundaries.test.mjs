@@ -188,7 +188,38 @@ test("执行边界之外引用凭证访问模块会被抓到", async () => {
     async () => {
       const violations = await violationsOf("交易所凭证解密点收敛");
       assert.equal(violations.length, 1);
-      assert.match(violations[0], /只允许被 lib\/execution\/ 内的模块使用/);
+      assert.match(violations[0], /只允许被 lib\/execution\/server\/ 内的模块使用/);
+    },
+  );
+  assert.deepEqual(await violationsOf("交易所凭证解密点收敛"), []);
+});
+
+test("Web 层引用执行服务端模块会被抓到", async () => {
+  // 这条与前两条查的不是同一件事。前两条查「谁能解密」，这条查「解密代码会不会被
+  // 打进 Web 构建」——只要有人从 app/ import 了 lib/execution/server/ 下任意模块，
+  // 打包器就会把整条依赖链连同解密一起塞回公网进程，而前两条一个都不会红。
+  await withTemporaryFile(
+    "apps/client/ui/__boundary_probe__.ts",
+    'import { dispatchExecutionRequest } from "@/lib/execution/server/handler";\nexport const probe = dispatchExecutionRequest;\n',
+    async () => {
+      const violations = await violationsOf("交易所凭证解密点收敛");
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /只能通过 lib\/execution\/client\.ts 发内网请求/);
+    },
+  );
+  assert.deepEqual(await violationsOf("交易所凭证解密点收敛"), []);
+});
+
+test("Web 层加密交易所凭证会被抓到", async () => {
+  // 只挡解密是不够的：AES-GCM 对称，能加密就能解密。Web 层为了保存凭证而持有
+  // 密钥，等于它随时能还原全部客户的交易权限——解密代码不在构建里也没用。
+  await withTemporaryFile(
+    "apps/client/ui/__boundary_probe__.ts",
+    'import { encryptExchangeCredential } from "@/lib/exchange-credentials";\nexport const probe = encryptExchangeCredential;\n',
+    async () => {
+      const violations = await violationsOf("交易所凭证解密点收敛");
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /加密与解密共用同一把对称密钥/);
     },
   );
   assert.deepEqual(await violationsOf("交易所凭证解密点收敛"), []);

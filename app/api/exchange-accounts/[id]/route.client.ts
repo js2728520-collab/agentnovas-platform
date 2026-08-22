@@ -4,7 +4,7 @@ import { auditLogs, exchangeAccounts } from "@/db/schema";
 import { EXCHANGE_ADAPTER_STATUS } from "@/lib/exchange-adapters";
 import { getExchangeCapability } from "@/lib/exchange-capabilities";
 import { ExchangeAdapterError } from "@/lib/exchange-adapters";
-import { verifyExchangeAccount } from "@/lib/execution/exchange-account-verification";
+import { verifyExchangeAccount } from "@/lib/execution/client";
 import { getExchangeOrderRoutingStatus } from "@/lib/exchange-order-routing";
 import { requireUser, responseError } from "@/lib/session";
 

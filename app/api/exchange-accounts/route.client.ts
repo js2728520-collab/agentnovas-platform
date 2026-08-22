@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { auditLogs, exchangeAccounts } from "@/db/schema";
+import { exchangeAccounts } from "@/db/schema";
 import {
   EXCHANGE_CAPABILITIES,
   getExchangeCapability,
@@ -8,7 +8,7 @@ import {
   normalizeExchange,
 } from "@/lib/exchange-capabilities";
 import { EXCHANGE_ADAPTER_STATUS } from "@/lib/exchange-adapters";
-import { encryptExchangeCredential, maskedKey } from "@/lib/exchange-credentials";
+import { bindExchangeAccount, ExecutionServiceError } from "@/lib/execution/client";
 import { getExchangeOrderAdapterSummary } from "@/lib/exchange-order-adapters";
 import { getExchangeOrderRoutingStatus } from "@/lib/exchange-order-routing";
 import { requireUser, responseError } from "@/lib/session";
@@ -90,45 +90,35 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const db = getDb();
-    const id = crypto.randomUUID();
-    const encrypted = await encryptExchangeCredential({
-      apiKey: body.apiKey.trim(),
-      secretKey: walletConnection ? "wallet-connection" : body.secretKey!.trim(),
-      passphrase: body.passphrase?.trim(),
-    });
-    await db.batch([
-      db.insert(exchangeAccounts).values({
-        id,
+    // 加密与落库都在执行服务里完成：Web 层不持有凭证加密密钥。
+    // 对称加密下「能加密就能解密」，把加密留在这里等于把密钥留在这里（ADR-0019）。
+    let accountId: string;
+    try {
+      ({ accountId } = await bindExchangeAccount({
         customerId: me.id,
         exchange,
-        label: body.label?.trim() || `${capability.displayName} ${environment === "live" ? "实盘" : "模拟盘"}`,
         environment,
-        encryptedCredentialRef: encrypted,
-        canRead: true,
+        label: body.label?.trim() || `${capability.displayName} ${environment === "live" ? "实盘" : "模拟盘"}`,
+        apiKey: body.apiKey.trim(),
+        secretKey: walletConnection ? "wallet-connection" : body.secretKey!.trim(),
+        passphrase: body.passphrase?.trim(),
         canTrade: Boolean(body.canTrade),
-        withdrawalAuthorized: false,
-        status: "pending",
-        lastCheckedAt: new Date().toISOString(),
-      }),
-      db.insert(auditLogs).values({
-        id: crypto.randomUUID(),
-        actorUserId: me.id,
-        action: "exchange_account.created",
-        subjectType: "exchange_account",
-        subjectId: id,
-        afterJson: JSON.stringify({
-          exchange,
-          environment,
-          maskedApiKey: maskedKey(body.apiKey.trim()),
-          canTrade: Boolean(body.canTrade),
-          withdrawalAuthorized: Boolean(body.withdrawalAuthorized),
-        }),
-      }),
-    ]);
+        now: new Date().toISOString(),
+      }));
+    } catch (error) {
+      // 服务不可用要说「暂时无法保存」，不能说「凭证无效」——后者会让客户去交易所
+      // 重新生成一把没有问题的密钥（INV-6）。
+      if (error instanceof ExecutionServiceError && error.isUnavailable) {
+        return Response.json({
+          code: "EXECUTION_SERVICE_UNAVAILABLE",
+          error: "凭证保存服务当前不可用，凭证未被保存，请稍后重试",
+        }, { status: 503 });
+      }
+      throw error;
+    }
 
     return Response.json({
-      id,
+      id: accountId,
       status: "pending",
       capabilities: capability,
       adapterStatus: EXCHANGE_ADAPTER_STATUS.find((item) => item.key === exchange) || null,

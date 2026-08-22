@@ -1,5 +1,6 @@
-import { verifyExchangeConnection } from "@/lib/exchange-adapters";
+import { verifyExchangeConnection } from "../../exchange-adapters.ts";
 
+import type { VerifyExchangeAccountResult } from "../protocol.ts";
 import { loadExchangeCredential } from "./credential-access.ts";
 
 /**
@@ -10,17 +11,7 @@ import { loadExchangeCredential } from "./credential-access.ts";
  * 即可，上层零改动（ADR-0019 第 1 步）。
  */
 
-export type ExchangeAccountVerification = {
-  canRead: boolean;
-  canTrade: boolean;
-  canWithdraw?: boolean;
-  permissions?: string[];
-  accountMode?: string;
-  positionMode?: string;
-  verificationMode: "official" | "local-demo";
-  exchange: string;
-  environment: "demo" | "live";
-};
+export type ExchangeAccountVerification = VerifyExchangeAccountResult;
 
 export async function verifyExchangeAccount(input: {
   accountId: string;

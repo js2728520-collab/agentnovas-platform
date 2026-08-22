@@ -173,16 +173,29 @@ apps/*  →  packages/*  →  lib/
   **GA 打开实盘前必须把密钥从 Web 层拿掉**，见
   `docs/adr/0019-ga-execution-service-and-key-custody.md`。
 
-  解密点已收敛到 `lib/execution/credential-access.ts` 一处，并由架构边界规则第 8 条
-  强制（Web 层不得解密、凭证访问模块只允许 `lib/execution/` 内引用）。
-  **但那只是让下一步成为可能，敞口没变**：该模块仍与 Web 同进程，客户端服务端构建
-  里依然含解密代码。验收标准是
+  **已完成（ADR-0019 第 1、2 步）**：凭证的加解密都发生在独立的执行服务进程
+  （`scripts/execution-service.mjs`，唯一持有 `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`
+  的进程）。三个 Web 应用不再需要那个环境变量，构建产物里也不含加解密代码。
+
+  Web 层只能通过 `lib/execution/client.ts` 发内网请求，用
+  `EXECUTION_SERVICE_SHARED_SECRET` 鉴权。那是**另一把**密钥：它证明「请求来自我们
+  自己的进程」，不参与加密；泄露它能让服务替人下单，但拿不到凭证。两者分开轮换。
+
+  三条容易写错的地方：
+
+  - **只挡解密没用。** AES-GCM 对称，能加密就能解密。绑定账户时的加密也必须在执行
+    服务里做，否则 Web 层照样持有密钥。
+  - **明文凭证仍会流经 Web 进程**（客户从公网提交，无法避免）。这一步换来的是
+    「一次一个账户的短暂明文」而不是「一把能解开全部账户的长期密钥」——别把它
+    说成「Web 层再也见不到凭证」。
+  - **执行服务的错误消息是对外表面。** 只有白名单里的错误身份能原样回传，其余
+    折叠成 `INTERNAL_ERROR`；Drizzle 的原始报错带着完整 SQL 和参数。
+
+  验收是机器检查，不是文档承诺：
 
   ```bash
-  grep -rl EXCHANGE_CREDENTIAL_ENCRYPTION_KEY .next-client/server
+  npm run quality:key-custody
   ```
-
-  查不到任何文件——目前查得到。
 
 - **审计链尾锚定已就位，但归档到库外还没做。** 迁移 0044 的哈希链检不出截断链尾
   ——把最后 N 行删掉，剩下的链依然自洽。迁移 0049 增加 `audit_chain_anchors`：

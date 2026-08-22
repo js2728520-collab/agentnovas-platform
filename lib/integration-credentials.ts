@@ -13,7 +13,14 @@ function base64ToBytes(value: string) {
 }
 
 async function encryptionKey() {
-  const secret = process.env.INTEGRATION_CREDENTIAL_ENCRYPTION_KEY || process.env.EXCHANGE_CREDENTIAL_ENCRYPTION_KEY;
+  // 这里原本会在 INTEGRATION_CREDENTIAL_ENCRYPTION_KEY 缺失时回退到
+  // EXCHANGE_CREDENTIAL_ENCRYPTION_KEY。那个回退让运维端只要漏配一个变量，就必须
+  // 持有交易所凭证密钥——而运维端从不需要解密任何客户的交易凭证。回退已删除。
+  //
+  // 若既有的集成凭证是用交易所密钥加密的，把同一个值显式配成
+  // INTEGRATION_CREDENTIAL_ENCRYPTION_KEY 即可继续解密，随后应重新加密以便两把
+  // 密钥独立轮换。见 docs/adr/0019。
+  const secret = process.env.INTEGRATION_CREDENTIAL_ENCRYPTION_KEY?.trim();
   if (!secret || secret.length < 32) throw new Error("API 凭证加密密钥尚未配置");
   const digest = await crypto.subtle.digest("SHA-256", encoder.encode(secret));
   return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);

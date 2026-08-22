@@ -9,7 +9,7 @@ import {
 } from "@/db/schema";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
-import { closeOkxDemoTrade, type EmergencyCloseResult as CloseResult } from "@/lib/execution/emergency-close";
+import { closeOkxDemoTrade, ExecutionServiceError, type EmergencyCloseResult as CloseResult } from "@/lib/execution/client";
 
 export async function POST(request: Request) {
   try {
@@ -45,7 +45,19 @@ export async function POST(request: Request) {
         if (!account) {
           results.push({ tradeId: position.id, symbol: position.symbol, status: "failed", message: "绑定账户不存在" });
         } else if (position.executionVenue === "okx_demo" && account.environment === "demo" && account.status === "active" && account.canTrade) {
-          results.push(await closeOkxDemoTrade(position, account, now));
+          // 执行服务不可用时必须说「平仓服务不可用」，不能说「平仓失败」——
+          // 前者让客户知道仓位还在、稍后重试；后者会让他以为已经处理过了。
+          try {
+            results.push(await closeOkxDemoTrade({ tradeId: position.id, accountId: account.id, customerId: me.id, now }));
+          } catch (error) {
+            const unavailable = error instanceof ExecutionServiceError && error.isUnavailable;
+            results.push({
+              tradeId: position.id,
+              symbol: position.symbol,
+              status: "failed",
+              message: unavailable ? "平仓服务当前不可用，仓位未变动，请稍后重试" : "平仓请求被拒绝，仓位未变动",
+            });
+          }
         } else {
           results.push({ tradeId: position.id, symbol: position.symbol, status: "unsupported", message: "该仓位的实盘订单路由尚未接通，未标记为已平仓" });
         }

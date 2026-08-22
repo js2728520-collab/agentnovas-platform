@@ -9,6 +9,7 @@ export const EXPECTED_RELEASE_DATABASE_ROLES = Object.freeze([
   "agentnovas_client_web",
   "agentnovas_ops_web",
   "agentnovas_maint_web",
+  "agentnovas_execution_service",
   "agentnovas_payment_webhook",
   "agentnovas_notification_worker",
   "agentnovas_demo_execution_worker",
