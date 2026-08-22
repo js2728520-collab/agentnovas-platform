@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+
+import styles from "./client-public-landing.module.css";
 import Link from "next/link";
 
 type Page = "home" | "login" | "hall" | "market" | "trading";
@@ -109,6 +111,9 @@ const initialLocaleData: LocaleData = {
   },
   landingMore: {
     roles: "市|市场分析师|识别当前市场状态;技|技术分析师|验证具体交易信号;策|策略研究员|生成候选策略方案;反|反方审查员|寻找漏洞与反向证据;险|首席风控官|执行硬风险审批;决|AI 决策官|形成最终决策单;执|交易执行员|生成影子或模拟执行回执",
+    // 注意：这是 zh-CN 内容的第二份真源（首屏内联，避免加载整个语言包）。
+    // 改文案要同时改 client-public-landing-locales.ts，否则中文与其它语言会不一致。
+    gateNote: "第 5 阶段由确定性代码执行，不是模型。它可以否决前面全部 AI 结论；数据不足或风控不可用时，不产生新开仓。",
     visibleTitle: "每一次决策，都看得见",
     visible: "实时协作|查看 Agent 的观点、异议、修正和最终决定。;动态风控|市场变化时自动降低 paper 仓位或暂停策略。;完整审计|策略信号、风控批准、paper 回执和平台 Demo 证据分开记录。",
     review: "风险复核中",
@@ -188,12 +193,12 @@ export function ClientPublicLanding() {
   };
 
   return (
-    <main className="app-shell client-app-shell" data-app-shell>
-      <a className="skip-link" href="#landing-main">跳到主要内容</a>
-      <header className="topbar">
-        <Link className="logo" href="/" aria-label="Riverton Capital 首页">
+    <main className={`${styles.page} app-shell client-app-shell`} data-app-shell>
+      <a className={styles.skipLink} href="#landing-main">跳到主要内容</a>
+      <header className={styles.topbar}>
+        <Link className={styles.logo} href="/" aria-label="Riverton Capital 首页">
           <Image
-            className="riverton-brand-logo"
+            className={styles.brandLogo}
             src="/riverton-capital-logo.png"
             width={2193}
             height={324}
@@ -202,12 +207,13 @@ export function ClientPublicLanding() {
             alt="Riverton Capital"
           />
         </Link>
-        <div className="top-actions">
-          <button type="button" className="top-login" onClick={() => navigate("login")}>
+        <div className={styles.topActions}>
+          <button type="button" className={styles.login} onClick={() => navigate("login")}>
             {t.login}
           </button>
           <select
             data-locale-static
+            className={styles.langSelect}
             aria-label="Language"
             value={lang}
             disabled={localeLoading}
@@ -217,10 +223,7 @@ export function ClientPublicLanding() {
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
-          {localeError && <span className="landing-locale-error" role="alert">{localeError}</span>}
-          <button type="button" className="top-user-guest" onClick={() => navigate("login")}>
-            用户
-          </button>
+          {localeError && <span className={styles.localeError} role="alert">{localeError}</span>}
         </div>
       </header>
       <div id="landing-main" tabIndex={-1}>
@@ -276,251 +279,213 @@ function Landing({
     body: "加密资产及自动化交易具有较高风险，请谨慎决策。",
   };
   return (
-    <div className="landing">
-      <section className="hero">
-        <div className="hero-copy">
-          <div className="eyebrow">
-            <i /> MULTI-AGENT QUANT SYSTEM
-          </div>
+    <div>
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <div className={styles.eyebrow}>MULTI-AGENT QUANT SYSTEM</div>
           <h1>{t.hero}</h1>
           <p>{t.sub}</p>
-          <div className="hero-actions">
-            <button className="primary" onClick={() => go("hall")}>
-              {t.enter} →
-            </button>
-            <button className="ghost" onClick={() => go("hall")}>
-              {t.demo}
-            </button>
+          <div className={styles.heroActions}>
+            <button className={styles.primary} onClick={() => go("hall")}>{t.enter} →</button>
+            <button className={styles.ghost} onClick={() => go("hall")}>{t.demo}</button>
           </div>
-          <div className="trust">
+          <div className={styles.trust}>
             <span>✓ {t.trust1}</span>
             <span>✓ {t.trust2}</span>
             <span>✓ {t.trust3}</span>
             <span>✓ {t.trust4}</span>
           </div>
         </div>
-        <div className="orbital">
-          <div className="orbit o1">
-            <i />
+
+        {/*
+          七阶段决策链。旧版把它画成一圈装饰性轨道，其中三个角色还是用 CSS
+          content 注入的——于是 7 种语言里有 5 种只显示英文。这里改成真实 DOM，
+          用与下方角色栅格同一份本地化数据，7 种语言都对。
+        */}
+        <div className={styles.chain} aria-label={m.teamTitle}>
+          <div className={styles.chainHead}>
+            <b>{m.teamTitle}</b>
+            <span>7 STAGES</span>
           </div>
-          <div className="orbit o2">
-            <i />
-            <i />
-          </div>
-          <div className="core">
-            AI
-            <div>
-              DECISION
-              <br />
-              CORE
-            </div>
-          </div>
-          <div className="agent-tag a1">
-            MARKET
-            <br />
-            <b>{t.market}</b>
-          </div>
-          <div className="agent-tag a2">
-            RISK
-            <br />
-            <b>{t.risk}</b>
-          </div>
-          <div className="agent-tag a3">
-            STRATEGY
-            <br />
-            <b>{t.strategy}</b>
-          </div>
-          <div className="agent-tag a4">
-            DECISION
-            <br />
-            <b>AI FINAL</b>
-          </div>
+          <div className={styles.pulse} aria-hidden="true" />
+          {roles.map((role, index) => {
+            const isGate = index === 4;
+            return (
+              <div key={role[1]} className={isGate ? `${styles.stage} ${styles.gate}` : styles.stage}>
+                <span className={styles.stageNo} aria-hidden="true">{`0${index + 1}`}</span>
+                <span className={styles.stageBody}>
+                  <b>{role[1]}</b>
+                  <span>{role[2]}</span>
+                </span>
+                {isGate && <p className={styles.gateNote}>{m.gateNote}</p>}
+              </div>
+            );
+          })}
         </div>
       </section>
-      {/* This named scroll region must be keyboard-focusable at narrow widths; axe verifies the behavior. */}
+
+      {/* 横向滚动容器在窄屏必须可键盘聚焦；axe 会校验这个行为。 */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
-      <section className="flow" tabIndex={0} aria-label="四阶段产品流程，可横向滚动">
-        <div>
-          <small>01</small>
-          <b>{t.flow1}</b>
-          <span>{t.flow1s}</span>
-        </div>
-        <em>→</em>
-        <div>
-          <small>02</small>
-          <b>{t.flow2}</b>
-          <span>{t.flow2s}</span>
-        </div>
-        <em>→</em>
-        <div>
-          <small>03</small>
-          <b>{t.flow3}</b>
-          <span>{t.flow3s}</span>
-        </div>
-        <em>→</em>
-        <div>
-          <small>04</small>
-          <b>{t.flow4}</b>
-          <span>{t.flow4s}</span>
+      <section className={styles.section} tabIndex={0} aria-label="四阶段产品流程，可横向滚动">
+        <div className={styles.flow}>
+          {[[t.flow1, t.flow1s], [t.flow2, t.flow2s], [t.flow3, t.flow3s], [t.flow4, t.flow4s]].map((step, index) => (
+            <div className={styles.card} key={step[0]}>
+              <span className={styles.cardNo}>{`0${index + 1}`}</span>
+              <h3>{step[0]}</h3>
+              <p>{step[1]}</p>
+            </div>
+          ))}
         </div>
       </section>
-      <section className="home-grid">
-        <div className="panel">
-          <label>{t.systemStatus}</label>
-          <h2>7 AGENT DECISION CHAIN</h2>
-          <p>BTC / ETH / SOL · USDT SPOT TARGET · REAL ORDERS OFF</p>
-          <button onClick={() => go("hall")}>{t.watch} →</button>
-        </div>
-        <div className="panel metric-panel">
-          <div>
-            <small>{t.market}</small>
-            <strong>BTC / ETH / SOL</strong>
+
+      <section className={styles.section}>
+        <div className={styles.ticker}>
+          {["BTC", "ETH", "SOL"].map((symbol) => (
+            <button className={styles.tickerItem} key={symbol} onClick={() => go("market")}>
+              <b>{symbol}/USDT</b>
+              <span>SPOT TARGET</span>
+              <em>NO STATIC QUOTE</em>
+            </button>
+          ))}
+          <div className={styles.tickerItem}>
+            <b>{t.riskIndex}</b>
+            <span>HARD LIMITS</span>
+            <em>{t.decision} · SIMULATION ONLY</em>
           </div>
-          <div>
-            <small>{t.riskIndex}</small>
-            <strong>HARD LIMITS</strong>
-          </div>
-          <div>
-            <small>{t.decision}</small>
-            <strong>SIMULATION ONLY</strong>
-          </div>
-          <div>
-            <small>{t.accountStatus}</small>
-            <strong className="green">NON-CUSTODIAL</strong>
+          <div className={styles.tickerItem}>
+            <b>{t.accountStatus}</b>
+            <span>NON-CUSTODIAL</span>
+            <em>REAL ORDERS OFF</em>
           </div>
         </div>
       </section>
-      <section className="home-ticker">
-        {["BTC", "ETH", "SOL"].map((symbol) => (
-          <button key={symbol} onClick={() => go("market")}>
-            <b>{symbol}/USDT</b>
-            <span>SPOT TARGET</span>
-            <em>NO STATIC QUOTE</em>
-          </button>
-        ))}
-      </section>
-      <section className="landing-section">
-        <div className="section-title">
-          <small>AI QUANT TEAM</small>
+
+      <section className={styles.section}>
+        <div className={styles.sectionHead}>
+          <div className={styles.eyebrow}>AI QUANT TEAM</div>
           <h2>{t.teamTitle}</h2>
           <p>{t.teamSub}</p>
         </div>
-        <div className="role-grid">
+        <div className={styles.cardGrid}>
           {roles.map((x, i) => (
-            <article key={x[1]}>
-              <i>
-                <RoleIcon index={i} />
-              </i>
+            <article className={styles.card} key={x[1]}>
+              <i><RoleIcon index={i} /></i>
               <h3>{x[1]}</h3>
               <p>{x[2]}</p>
-              <span>ROLE CONTRACT · 0{i + 1}</span>
+              <span>{`ROLE CONTRACT · 0${i + 1}`}</span>
             </article>
           ))}
         </div>
       </section>
-      <section className="feature-split">
-        <div className="scene-preview">
-          <Image
-            src="/trading-hall.webp"
-            width={1672}
-            height={941}
-            sizes="(max-width: 768px) 100vw, 55vw"
-            alt="AI quantitative trading operations center"
-          />
-          <div>
-            <span>
-              <i />
-              PRODUCT PREVIEW
-            </span>
-            <b>{m.review}</b>
-          </div>
-          <button onClick={() => go("hall")}>{m.enterHall} →</button>
-        </div>
-        <div className="capabilities">
-          <small>VISIBLE INTELLIGENCE</small>
-          <h2>{m.visibleTitle}</h2>
-          {visible.map((x, i) => (
-            <div key={x[0]}>
-              <i>0{i + 1}</i>
-              <span>
-                <b>{x[0]}</b>
-                <p>{x[1]}</p>
-              </span>
+
+      <section className={styles.section}>
+        <div className={styles.split}>
+          <div className={styles.preview}>
+            <Image
+              src="/trading-hall.webp"
+              width={1672}
+              height={941}
+              sizes="(max-width: 768px) 100vw, 55vw"
+              alt="AI quantitative trading operations center"
+            />
+            <div className={styles.previewCaption}>
+              <span>PRODUCT PREVIEW</span>
+              <b>{m.review}</b>
             </div>
-          ))}
+            <button className={styles.previewLink} onClick={() => go("hall")}>{m.enterHall} →</button>
+          </div>
+          <div>
+            <div className={styles.sectionHead}>
+              <div className={styles.eyebrow}>VISIBLE INTELLIGENCE</div>
+              <h2>{m.visibleTitle}</h2>
+            </div>
+            <div className={styles.capabilities}>
+              {visible.map((x, i) => (
+                <div className={styles.capability} key={x[0]}>
+                  <i>{`0${i + 1}`}</i>
+                  <span>
+                    <b>{x[0]}</b>
+                    <p>{x[1]}</p>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
-      <section className="safety-section">
-        <div className="section-title">
-          <small>SECURITY BY DESIGN</small>
+
+      <section className={`${styles.section} ${styles.safety}`}>
+        <div className={styles.sectionHead}>
+          <div className={styles.eyebrow}>SECURITY BY DESIGN</div>
           <h2>{m.safetyTitle}</h2>
         </div>
-        <div className="safety-grid">
+        <div className={styles.cardGrid}>
           {safety.map((x, i) => (
-            <article key={x[0]}>
-              <span>0{i + 1}</span>
+            <article className={styles.card} key={x[0]}>
+              <span className={styles.cardNo}>{`0${i + 1}`}</span>
               <h3>{x[0]}</h3>
               <p>{x[1]}</p>
             </article>
           ))}
         </div>
       </section>
-      <section className="exchange-band">
-        <div>
-          <small>PLATFORM DEMO EVIDENCE</small>
-          <h2>{m.exchangeTitle}</h2>
-          <p>{m.exchangeDesc}</p>
+
+      <section className={styles.section}>
+        <div className={styles.exchange}>
+          <div>
+            <div className={styles.eyebrow}>PLATFORM DEMO EVIDENCE</div>
+            <h2>{m.exchangeTitle}</h2>
+            <p>{m.exchangeDesc}</p>
+          </div>
+          <div className={styles.exchangeLogos} aria-label="平台隔离的测试环境">
+            {["OKX Demo", "Binance Spot Testnet", "Bybit Demo"].map((name) => (
+              <div className={styles.exchangeLogo} key={name}><b>{name}</b><small>平台测试账户</small></div>
+            ))}
+          </div>
+          <button className={styles.exchangeLink} onClick={() => go("trading")}>
+            {m.connectWays} →
+          </button>
         </div>
-        <div className="exchange-logos" aria-label="平台隔离的测试环境">
-          {["OKX Demo", "Binance Spot Testnet", "Bybit Demo"].map((name) => (
-            <div className="exchange-logo-card" key={name}><b>{name}</b><small>平台测试账户</small></div>
-          ))}
-        </div>
-        <button
-          className="exchange-connect-button"
-          onClick={() => go("trading")}
-        >
-          <span>{m.connectWays}</span>
-          <i aria-hidden="true">→</i>
-        </button>
       </section>
-      <section className="faq">
-        <div className="section-title">
-          <small>COMMON QUESTIONS</small>
+
+      <section className={`${styles.section} ${styles.faq}`}>
+        <div className={styles.sectionHead}>
+          <div className={styles.eyebrow}>COMMON QUESTIONS</div>
           <h2>{m.faqTitle}</h2>
         </div>
         {faq.map((x) => (
           <details key={x[0]}>
-            <summary>
-              {x[0]}
-              <span>＋</span>
-            </summary>
+            <summary>{x[0]}<span aria-hidden="true">＋</span></summary>
             <p>{x[1]}</p>
           </details>
         ))}
       </section>
-      <section className="final-cta">
-        <small>MULTI-AGENT QUANT PLATFORM</small>
-        <h2>{m.ctaTitle}</h2>
-        <p>{m.ctaSub}</p>
-        <div>
-          <button className="primary" onClick={() => go("hall")}>
-            {t.enter}
-          </button>
-          <button className="ghost" onClick={() => go("hall")}>
-            {m.browse}
-          </button>
+
+      <section className={styles.section}>
+        <div className={styles.finalCta}>
+          <div className={styles.eyebrow}>MULTI-AGENT QUANT PLATFORM</div>
+          <h2>{m.ctaTitle}</h2>
+          <p>{m.ctaSub}</p>
+          <div>
+            <button className={styles.primary} onClick={() => go("hall")}>{t.enter}</button>
+            <button className={styles.ghost} onClick={() => go("hall")}>{m.browse}</button>
+          </div>
         </div>
       </section>
-      <footer>
-        <div className="landing-footer-main">
-          <b className="landing-footer-mark"><Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="160px" alt="Riverton Capital" /></b>
+
+      {/* 风险披露独立成块并带左侧色条：它是合规文案，不能压成页脚灰色小字。 */}
+      <div className={styles.riskNotice}>
+        <b>{riskNotice.label}</b>
+        <p>{riskNotice.body}</p>
+      </div>
+
+      <footer className={styles.footer}>
+        <div className={styles.footerMain}>
+          <b className={styles.footerMark}>
+            <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="160px" alt="Riverton Capital" />
+          </b>
           <span>{m.footer}</span>
-          <div>{m.legal}</div>
-        </div>
-        <div className="landing-risk-notice">
-          <strong>{riskNotice.label}</strong>
-          <span>{riskNotice.body}</span>
+          <div className={styles.footerLinks}>{m.legal}</div>
         </div>
       </footer>
     </div>

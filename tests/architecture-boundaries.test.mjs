@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { rm, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import test from "node:test";
@@ -84,18 +84,16 @@ test("样式层写死色值会被抓到", async () => {
   assert.deepEqual(await violationsOf("样式层零硬编码色值"), []);
 });
 
-test("新引用遗留模块会被抓到", async () => {
-  await withTemporaryFile(
-    // LocaleGuard 等遗留模块已在 P4 删除；现在表里只剩落地页样式表。
-    "apps/client/ui/__boundary_probe__.tsx",
-    'import "@/apps/client/ui/client-public-landing.css";\nexport default function Probe() { return null; }\n',
-    async () => {
-      const violations = await violationsOf("遗留代码不扩散");
-      assert.equal(violations.length, 1);
-      assert.match(violations[0], /client-public-landing\.css/);
-    },
-  );
-  assert.deepEqual(await violationsOf("遗留代码不扩散"), []);
+test("遗留清单为空——P4 之后仓库里没有需要围住的遗留代码", async () => {
+  // 原来这里用「临时引用一个遗留模块，断言会被抓到」来验证机制有效。
+  // P4 把遗留代码全部删除后清单空了，那个探针无从构造。
+  //
+  // 一个永远为空的规则等于永不报警，所以这条测试改成守住结论本身：清单是空的，
+  // 且规则仍然在册。将来重新引入遗留件时，把探针加回来。
+  const violations = await violationsOf("遗留代码不扩散");
+  assert.deepEqual(violations, []);
+  const checker = await readFile(new URL("../scripts/quality/check-architecture-boundaries.mjs", import.meta.url), "utf8");
+  assert.match(checker, /const legacy = \{\}/, "清单应为空；若新增了条目，请把探针测试一并加回");
 });
 
 test("域层里出现 I/O 会被抓到", async () => {

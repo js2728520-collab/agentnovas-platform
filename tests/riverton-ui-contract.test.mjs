@@ -26,7 +26,7 @@ test("client root restores the public landing before any authenticated portal gu
     root.indexOf("segments.length === 0") < root.indexOf('import("./client-portal-root")'),
     "the public Client root must dispatch before the authenticated portal",
   );
-  assert.match(landingRoot, /client-public-landing\.css/);
+  assert.match(landingRoot, /ClientPublicLanding/);
   assert.match(landingRoot, /apps\/client\/ui\/client-public-landing/);
   assert.match(landing, /export function ClientPublicLanding/);
   assert.match(landing, /\/login\?next=/);
@@ -43,7 +43,7 @@ test("client surfaces and metadata use the supplied Riverton Capital brand asset
     read("packages/ui/src/app-login.tsx"),
     read("lib/riverton-metadata.ts"),
     read("app/riverton-console.css"),
-    read("apps/client/ui/client-public-landing.css"),
+    read("apps/client/ui/client-public-landing.module.css"),
     readBytes("public/riverton-capital-logo.png"),
     readBytes("public/riverton-capital-icon.png"),
   ]);
@@ -55,9 +55,15 @@ test("client surfaces and metadata use the supplied Riverton Capital brand asset
   }
   assert.match(consoleCss, /\.rc-client \.rc-console-brand > img/);
   assert.match(consoleCss, /\.rc-auth-client \.rc-auth-brand > a img/);
-  assert.match(clientCss, /\.client-app-shell \.topbar \.logo \.riverton-brand-logo/);
-  assert.match(clientCss, /\.client-app-shell \.top-actions>\.top-login\{display:inline-flex!important/);
-  assert.match(clientCss, /\.client-app-shell \.top-actions>\.top-user-guest\{display:none!important/);
+  // 落地页重设计后顶栏改用 CSS Module。原来三条断言分别是：品牌 logo 有尺寸约束、
+  // 登录按钮可见、「用户」按钮被 display:none 隐藏。
+  //
+  // 第三条现在更强了：那个按钮已被删除——它和「登录」调用同一个 navigate("login")，
+  // 而且标签是写死的中文「用户」，在 7 语言页面里不翻译。重复 + i18n 缺陷，两条都成立。
+  assert.match(clientCss, /\.brandLogo \{[^}]*width:/);
+  assert.match(clientCss, /\.login,/);
+  const landingSource = await read("apps/client/ui/client-public-landing.tsx");
+  assert.doesNotMatch(landingSource, /top-user-guest|>用户</);
   const { rivertonMetadata } = await import("../lib/riverton-metadata.ts");
   assert.match(JSON.stringify(rivertonMetadata("client").icons), /riverton-capital-icon\.png/);
   assert.doesNotMatch(JSON.stringify(rivertonMetadata("operations").icons), /riverton-capital/);
@@ -95,7 +101,7 @@ test("audience entries own their CSS while the root layout stays minimal", async
   assert.match(clientPortal, /riverton-console\.css/);
   // 债已还清：门户下所有界面的样式都在各自的 CSS Module 里，
   // globals-beta.css 只剩公开落地页在用。
-  assert.doesNotMatch(clientPortal, /client-public-landing\.css/);
+  assert.doesNotMatch(clientPortal, /client-public-landing/);
   assert.match(operations, /riverton-console\.css/);
   assert.match(maintenance, /riverton-console\.css/);
   assert.doesNotMatch(operations + maintenance, /globals|market-terminal|membership-center/);

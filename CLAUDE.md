@@ -241,15 +241,20 @@ oklch 走极坐标插值会把绿色 tint（hue 162）拉成橙色。需要混�
 
 ---
 
-## 遗留代码：不要扩展
+## 遗留代码：已清零
 
-| 文件 | 状态 |
-| --- | --- |
-| `apps/client/ui/client-public-landing.css`（1249 行） | **只服务公开落地页**，遗留围栏规则只允许 `client-landing-root.tsx` 引用它。**尚未令牌化**：含 293 种色值、其中 244 种只出现一次（三代设计层层叠加的产物）。因此它不在「样式层零硬编码色值」的受检清单里——这是刻意的例外。令牌化会改变页面观感，属于品牌决策。**不要往里加规则，也不要在别处引用它的类名。** |
+P4 之后仓库里没有需要围住的遗留件了。已删除：`app/client-app.tsx`(2506)、
+`app/globals.css`(3871)、`app/globals-beta.css`(1922)、`app/locale-guard.tsx`、
+`app/i18n-runtime.ts`、`app/market-terminal.css`、`app/agent-role-admin.css`、
+`app/community-strategy-center.tsx`、`app/strategy-detail.tsx`、`/workspace` 路由及其外壳。
 
-P4 已删除：`app/client-app.tsx`(2506)、`app/globals.css`(3871)、`app/locale-guard.tsx`、
-`app/i18n-runtime.ts`、`app/community-strategy-center.tsx`、`app/strategy-detail.tsx`、
-`/workspace` 路由及其外壳、`market-terminal.css`、`membership-center.css`。
+架构边界规则「遗留代码不扩散」的清单因此是空的——**机制保留**，将来若再引入需要
+围住的遗留件，在 `scripts/quality/check-architecture-boundaries.mjs` 的 `legacy`
+表里加一条并把探针测试加回来。
+
+**落地页有两处 zh-CN 真源。** `client-public-landing.tsx` 里的 `initialLocaleData`
+是首屏内联副本（避免加载整个语言包），`client-public-landing-locales.ts` 是其余
+6 种语言。**改中文文案要同时改两处**，否则中文与其它语言会不一致。
 
 新的样式一律走 `app/design-tokens.css` 的 `--rv-*` 令牌 + `app/riverton-console.css`
 或 CSS Module。**新代码里出现硬编码色值就是错的。**

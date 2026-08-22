@@ -25,15 +25,15 @@ test("the server entry dispatches the Riverton shell without relying on generate
 
 test("keeps the Riverton Capital shell and core modules present", async () => {
   const [css, portal, layout, metadata, packageJson] = await Promise.all([
-    read("apps/client/ui/client-public-landing.css"),
+    read("apps/client/ui/client-public-landing.module.css"),
     read("apps/client/ui/client-portal.tsx"),
     read("app/layout.tsx"),
     read("lib/riverton-metadata.ts"),
     read("package.json"),
   ]);
-  // .feature-split 仍被落地页使用；.risk-check-grid 只存在于已删除的 globals.css，
-  // 没有任何页面引用，断言随之移除。
-  assert.match(css, /\.feature-split/);
+  // 落地页重设计后类名变了：.feature-split → .split（图文分栏）。
+  // 断言的意图不变：落地页有图文分栏这一节。
+  assert.match(css, /\.split \{/);
   // 核心工作区此前是遗留 SPA 里的动态导入，现在是门户的逐路由分发。
   assert.match(portal, /LiveMarket/);
   assert.match(portal, /TradingExperience/);

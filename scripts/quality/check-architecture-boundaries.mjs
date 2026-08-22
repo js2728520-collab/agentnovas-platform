@@ -129,10 +129,11 @@ rules.push(async function rootLayoutBundlePurity() {
 // 4. 遗留代码不得扩散。这些文件在 P4 之前不会消失，但引用点必须钉死，
 //    否则遗留世界会持续长大，拆除成本越来越高。
 rules.push(async function legacyContainment() {
-  const legacy = {
-    // 落地页样式表尚未令牌化（293 种色值，244 种只出现一次），只允许落地页引用。
-    "client-public-landing.css": ["app/audience/client-landing-root.tsx"],
-  };
+  // P4 之后仓库里没有遗留代码了：client-app.tsx、globals.css、globals-beta.css、
+  // LocaleGuard、market-terminal.css 全部删除，落地页样式也重写成了令牌驱动的
+  // CSS Module。这张表因此是空的——机制保留，将来若再引入需要围住的遗留件，
+  // 加一条 { "文件名": ["允许引用它的文件"] } 即可。
+  const legacy = {};
   const violations = [];
   const sources = await walk("app", [".ts", ".tsx"]);
   sources.push(...await walk("apps", [".ts", ".tsx"]));

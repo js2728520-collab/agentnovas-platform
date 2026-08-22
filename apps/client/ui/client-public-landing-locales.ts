@@ -405,6 +405,7 @@ export const landingMore: Record<Lang, Record<string, string>> = {
   "zh-CN": {
     roles:
       "市|市场分析师|识别当前市场状态;技|技术分析师|验证具体交易信号;策|策略研究员|生成候选策略方案;反|反方审查员|寻找漏洞与反向证据;险|首席风控官|执行硬风险审批;决|AI 决策官|形成最终决策单;执|交易执行员|生成影子或模拟执行回执",
+    gateNote: "第 5 阶段由确定性代码执行，不是模型。它可以否决前面全部 AI 结论；数据不足或风控不可用时，不产生新开仓。",
     visibleTitle: "每一次决策，都看得见",
     visible:
       "实时协作|查看 Agent 的观点、异议、修正和最终决定。;动态风控|市场变化时自动降低 paper 仓位或暂停策略。;完整审计|策略信号、风控批准、paper 回执和平台 Demo 证据分开记录。",
@@ -431,6 +432,7 @@ export const landingMore: Record<Lang, Record<string, string>> = {
   "zh-TW": {
     roles:
       "市|市場分析師|識別當前市場狀態;技|技術分析師|驗證具體交易訊號;策|策略研究員|生成候選策略方案;反|反方審查員|尋找漏洞與反向證據;險|首席風控官|執行硬風險審批;決|AI 決策官|形成最終決策單;執|交易執行員|生成影子或模擬執行回執",
+    gateNote: "第 5 階段由確定性程式碼執行，不是模型。它可以否決前面全部 AI 結論；資料不足或風控不可用時，不產生新開倉。",
     visibleTitle: "每一次決策，都看得見",
     visible:
       "即時協作|查看 Agent 的觀點、異議、修正與最終決定。;動態風控|市場變化時降低 paper 倉位或暫停策略。;完整審計|策略訊號、paper 回執與平台 Demo 證據分開記錄。",
@@ -456,6 +458,7 @@ export const landingMore: Record<Lang, Record<string, string>> = {
   "en-US": {
     roles:
       "M|Market Analyst|Classifies the current market;T|Technical Analyst|Validates concrete signals;S|Strategy Researcher|Builds a candidate plan;C|Adversarial Reviewer|Finds flaws and contrary evidence;R|Chief Risk Officer|Applies hard risk approval;D|AI Decision Officer|Issues the final decision;E|Execution Agent|Produces a shadow or paper receipt",
+    gateNote: "Stage 5 runs on deterministic code, not a model. It can veto every AI conclusion above it, and no new position opens when data is thin or risk checks are unavailable.",
     visibleTitle: "Every decision is visible",
     visible:
       "Live collaboration|See Agent views, objections, revisions and final decisions.;Dynamic risk control|Reduce paper exposure or pause as markets change.;Complete audit|Keep paper receipts separate from platform Demo evidence.",
@@ -484,6 +487,7 @@ export const landingMore: Record<Lang, Record<string, string>> = {
   "ru-RU": {
     roles:
       "Р|Рыночный аналитик|Определяет состояние рынка;Т|Технический аналитик|Проверяет конкретные сигналы;С|Исследователь стратегий|Формирует кандидатный план;О|Оппонент|Ищет ошибки и обратные доказательства;Р|Риск-директор|Применяет жёсткие лимиты;Д|AI-директор решений|Принимает итоговое решение;И|Агент исполнения|Формирует квитанцию симуляции",
+    gateNote: "Этап 5 выполняется детерминированным кодом, а не моделью. Он может отклонить любые выводы ИИ выше; при нехватке данных новые позиции не открываются.",
     visibleTitle: "Каждое решение прозрачно",
     visible:
       "Совместная работа|Мнения, возражения, правки и итог агентов.;Динамический риск|Снижение paper-позиции или остановка стратегии.;Полный аудит|Paper-квитанции отделены от доказательств платформы Demo.",
@@ -510,6 +514,7 @@ export const landingMore: Record<Lang, Record<string, string>> = {
   "es-ES": {
     roles:
       "M|Analista de mercado|Clasifica el estado del mercado;T|Analista técnico|Valida señales concretas;E|Investigador de estrategias|Formula un plan candidato;C|Revisor adversarial|Busca fallos y evidencia contraria;R|Director de riesgo|Aplica límites estrictos;D|Director de decisión IA|Emite la decisión final;E|Agente de ejecución|Genera un recibo simulado",
+    gateNote: "La etapa 5 la ejecuta código determinista, no un modelo. Puede vetar todas las conclusiones de IA anteriores; sin datos suficientes no se abre ninguna posición.",
     visibleTitle: "Cada decisión es visible",
     visible:
       "Colaboración en vivo|Consulta opiniones, objeciones, cambios y decisiones.;Riesgo dinámico|Reduce exposición paper o pausa estrategias.;Auditoría completa|Separa recibos paper de la evidencia Demo de la plataforma.",
@@ -536,6 +541,7 @@ export const landingMore: Record<Lang, Record<string, string>> = {
   "ja-JP": {
     roles:
       "市|市場アナリスト|現在の市場状態を分類;技|テクニカルアナリスト|具体的なシグナルを検証;策|戦略研究員|候補戦略を作成;反|反証審査員|欠陥と反対証拠を探索;リ|最高リスク責任者|ハードリスクを審査;決|AI意思決定官|最終判断を作成;執|執行Agent|シャドーまたは模擬回执を生成",
+    gateNote: "第5段階はモデルではなく決定論的コードが実行します。上位のAI判断をすべて拒否でき、データ不足時は新規建玉を行いません。",
     visibleTitle: "すべての意思決定を可視化",
     visible:
       "リアルタイム連携|Agentの見解・異議・修正・最終判断を表示。;動的リスク管理|市場変化に応じて paper ポジションを削減。;完全監査|paper 回执とプラットフォーム Demo 証跡を分離。",
@@ -561,6 +567,7 @@ export const landingMore: Record<Lang, Record<string, string>> = {
   "ko-KR": {
     roles:
       "시|시장 분석가|현재 시장 상태 분류;기|기술 분석가|구체적 신호 검증;전|전략 연구원|후보 전략 수립;반|반론 검토자|허점과 반대 증거 탐색;리|최고 리스크 책임자|하드 리스크 승인;결|AI 의사결정관|최종 결정 작성;실|거래 실행 Agent|섀도 또는 모의 실행 영수증 생성",
+    gateNote: "5단계는 모델이 아니라 결정론적 코드가 실행합니다. 상위 AI 결론을 모두 거부할 수 있으며, 데이터가 부족하면 신규 진입하지 않습니다.",
     visibleTitle: "모든 의사결정을 투명하게",
     visible:
       "실시간 협업|Agent 의견·이의·수정·최종 결정을 확인합니다.;동적 위험 관리|시장 변화 시 paper 포지션을 축소합니다.;완전한 감사|paper 영수증과 플랫폼 Demo 증거를 분리합니다.",

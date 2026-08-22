@@ -114,7 +114,7 @@ test("client hall does not present static market data, fallback performance or a
 });
 
 test("client entry surfaces share the seven-role contract and do not claim static live telemetry", async () => {
-  const [page, css] = await Promise.all([source("apps/client/ui/decision-hall.tsx"), source("apps/client/ui/client-public-landing.css")]);
+  const [page, css] = await Promise.all([source("apps/client/ui/decision-hall.tsx"), source("apps/client/ui/client-public-landing.module.css")]);
   // 原来是在遗留 SPA 的落地段落里切片断言；大厅现在是独立页面，整文件即该面。
   assert.match(page, /技术分析师/);
   assert.match(page, /AI 决策官/);
