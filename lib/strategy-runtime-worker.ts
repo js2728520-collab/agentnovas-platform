@@ -1,5 +1,12 @@
 import type { Pool } from "pg";
 
+/**
+ * 市价单可接受的滑点带宽。超出这个范围就不该成交——行情已经不是决策时的行情了。
+ * 与意图有效期一起，构成「决策依据仍然成立」的两个边界。
+ */
+const RUNTIME_SLIPPAGE_TOLERANCE_PCT = Number(process.env.RUNTIME_SLIPPAGE_TOLERANCE_PCT || 0.5);
+const RUNTIME_INTENT_VALID_FOR_MS = Number(process.env.RUNTIME_INTENT_VALID_FOR_MS || 60_000);
+
 import { assertBetaSpotRuntimeLease } from "./beta-legacy-runtime-guard.ts";
 import { resolveRuntimeExplanationRoleConfig } from "./agent-model-profiles.ts";
 import {
@@ -19,6 +26,8 @@ import {
 } from "./official-paper-repository.ts";
 import { normalizeOfficialSpotStrategySpecification } from "../packages/domain/src/platform-strategy-v3.ts";
 import { enqueuePlatformDemoIntentsForRound } from "./platform-demo-execution.ts";
+import { executeOrderIntent, ExecutionServiceError } from "./execution/client.ts";
+import { toExecutionOrderIntent } from "../packages/domain/src/execution/intent-translation.ts";
 import {
   applyPaperFundingRates,
   completeRuntimeExplanationJob,
@@ -312,6 +321,64 @@ async function processOfficialSpotRuntimeDeployment(
       demoIntentError = error instanceof Error ? error.message.slice(0, 160) : "Demo intent enqueue failed";
     }
   }
+  // 实盘下发。
+  //
+  // 这是决策扇出接上真实执行的那一环：Worker 只送「决定做什么」，翻译在域层
+  // （intent-translation.ts），凭证解密、限流、熔断、对账登记全部发生在执行服务
+  // 进程内——Worker 从头到尾不接触任何客户凭证（ADR-0019）。
+  //
+  // 三层闸门仍然全部在上游生效：实盘路由授权、三维度熔断、对账未决准入。
+  // 这里不重复判断，只负责把意图送过去并如实记录结果。
+  let liveReceipt: Awaited<ReturnType<typeof executeOrderIntent>> | null = null;
+  let liveExecutionError: string | null = null;
+  if (lease.mode === "live" && !completion.duplicate && evaluated.orderIntent && lease.exchangeAccountId) {
+    try {
+      const intent = toExecutionOrderIntent(
+        evaluated.orderIntent as never,
+        {
+          symbol: specification.symbol,
+          strategyCode: specification.strategyCode,
+          decisionRoundId: cycleId,
+          traceId,
+          contractHash: lease.strategyVersionId,
+          targetPositionRatio: specification.risk.maxAssetAllocationPct / 100,
+          // 官方现货卡没有固定止损价——它们的退出由 DSL 条件驱动。
+          // 但真实下单必须带一个保护性止损，否则交易所侧没有任何兜底。
+          //
+          // 从既有的风控预算推导：愿意为单笔承担 riskPerTradePct 的本金风险，
+          // 而这笔仓位占本金 maxAssetAllocationPct，那么仓位上可承受的逆向幅度就是
+          // riskPerTradePct / maxAssetAllocationPct。这不是新增一条风控规则，
+          // 是把已有的那条换算到价格上。
+          stopLossPct: protectiveStopLossPct(specification.risk),
+          // 止盈留空：这些卡按条件离场，编一个固定止盈会在条件尚未满足时提前平仓，
+          // 等于悄悄改变了策略（INV-1：风控与策略不可被旁路）。
+          takeProfitPct: null,
+          slippageTolerancePct: RUNTIME_SLIPPAGE_TOLERANCE_PCT,
+          validForMs: RUNTIME_INTENT_VALID_FOR_MS,
+        },
+        now,
+      );
+      liveReceipt = await executeOrderIntent({
+        deploymentId: lease.id,
+        customerId: lease.ownerUserId,
+        accountId: lease.exchangeAccountId,
+        portfolioId: lease.paperPortfolioId,
+        intent,
+        availableCapital: await loadLivePortfolioCapital(database, lease.paperPortfolioId),
+        capitalCapRatio: specification.risk.maxAssetAllocationPct / 100,
+        executionProduct: "spot_usdt",
+        runtimeCycleId: cycleId,
+        traceId,
+      });
+    } catch (error) {
+      // 下发失败不能让整个周期失败：决策本身已经完成并留痕，客户仍然看得到这一轮的
+      // 七阶段叙述。把错误记下来，由对账任务与运维界面接手（INV-6）。
+      liveExecutionError = error instanceof ExecutionServiceError
+        ? `${error.code}:${error.message}`.slice(0, 160)
+        : error instanceof Error ? error.message.slice(0, 160) : "live execution failed";
+    }
+  }
+
   if (lease.mode === "paper" && evaluated.orderIntent?.executionTiming === "intrabar_threshold") {
     await settlePendingOfficialPaperOrder(database, {
       deploymentId: lease.id,
@@ -328,7 +395,48 @@ async function processOfficialSpotRuntimeDeployment(
     decision: evaluated.decision,
     demoIntentResults,
     demoIntentError,
+    liveReceipt,
+    liveExecutionError,
   };
+}
+
+/**
+ * 由单笔风险预算推导保护性止损百分比。
+ *
+ * 官方现货卡的 risk 里没有止损价，只有「单笔愿意承担多少本金风险」与「这笔仓位占
+ * 多少本金」。两者相除就是仓位上可承受的逆向幅度。
+ *
+ * 任一参数不合法时抛错而不是套一个默认值：一个凭空来的止损价会让客户以为有保护，
+ * 而那个价位与他的风控设置毫无关系（INV-6 / INV-7）。
+ */
+function protectiveStopLossPct(risk: { riskPerTradePct: number; maxAssetAllocationPct: number }): number {
+  const { riskPerTradePct, maxAssetAllocationPct } = risk;
+  if (!Number.isFinite(riskPerTradePct) || riskPerTradePct <= 0
+      || !Number.isFinite(maxAssetAllocationPct) || maxAssetAllocationPct <= 0) {
+    throw new Error("PROTECTIVE_STOP_LOSS_UNRESOLVABLE");
+  }
+  const pct = (riskPerTradePct / maxAssetAllocationPct) * 100;
+  // 止损不能等于或超过 100%：那等于没有止损，还会让意图自洽性校验算出非正的价格。
+  if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) throw new Error("PROTECTIVE_STOP_LOSS_UNRESOLVABLE");
+  return pct;
+}
+
+/**
+ * 该组合当前可动用的计价货币金额。
+ *
+ * 用 paper 组合的可用资金作为换算基准：实盘部署沿用同一个组合结构，分成口径因此
+ * 不会与 paper 分叉（INV-5，见 migration 0053 的说明）。
+ */
+async function loadLivePortfolioCapital(database: Pool, portfolioId: string): Promise<number> {
+  const row = (await database.query<{ available: string }>(
+    "SELECT cash_usdt::text AS available FROM official_paper_portfolios WHERE id = $1",
+    [portfolioId],
+  )).rows[0];
+  // 读不到资金就不猜一个数字：下单量算错的方向是「按一个不存在的余额下单」。
+  if (!row) throw new Error("LIVE_PORTFOLIO_CAPITAL_UNAVAILABLE");
+  const available = Number(row.available);
+  if (!Number.isFinite(available) || available <= 0) throw new Error("LIVE_PORTFOLIO_CAPITAL_UNAVAILABLE");
+  return available;
 }
 
 export async function processLeasedStrategyRuntimeDeployment(

@@ -15,6 +15,7 @@ import {
   type ExecutionRequest,
   type ExecutionResponse,
   type BindExchangeAccountResult,
+  type ExecuteOrderIntentResult,
   type VerifyExchangeAccountResult,
 } from "./protocol.ts";
 
@@ -122,4 +123,24 @@ export function bindExchangeAccount(input: {
   now: string;
 }): Promise<BindExchangeAccountResult> {
   return callExecutionService<BindExchangeAccountResult>({ operation: "bind_exchange_account", ...input });
+}
+
+/**
+ * 下发一条订单意图。Worker 用它把决策接到真实执行上。
+ *
+ * 意图本身已经在域层翻译并校验过（intent-translation.ts）；这里只负责送过去。
+ */
+export function executeOrderIntent(input: {
+  deploymentId: string;
+  customerId: string;
+  accountId: string;
+  portfolioId: string;
+  intent: unknown;
+  availableCapital: number;
+  capitalCapRatio: number;
+  executionProduct: "spot_usdt" | "usdt_perpetual";
+  runtimeCycleId: string | null;
+  traceId: string | null;
+}): Promise<ExecuteOrderIntentResult> {
+  return callExecutionService<ExecuteOrderIntentResult>({ operation: "execute_order_intent", ...input });
 }

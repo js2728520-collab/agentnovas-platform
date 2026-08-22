@@ -21,7 +21,7 @@ type DeploymentRow = QueryResultRow & {
   platform_strategy_code: "ai_conservative" | "ai_balanced" | "ai_aggressive" | null;
   membership_id: string | null;
   paper_portfolio_id: string | null;
-  mode: "shadow" | "paper";
+  mode: "shadow" | "paper" | "live";
   status: "active" | "paused" | "ended" | "failed";
   validation_label: string;
   unverified_warning: boolean;
@@ -85,11 +85,11 @@ export async function endConflictingOfficialStrategyDeployments(database: Querya
   strategyCode: "ai_conservative" | "ai_balanced" | "ai_aggressive";
   strategyId: string;
   strategyVersionId: string;
-  mode: "shadow" | "paper";
+  mode: "shadow" | "paper" | "live";
   paperPortfolioId: string;
 }) {
   const active = await database.query<{
-    id: string; strategy_id: string; strategy_version_id: string; mode: "shadow" | "paper";
+    id: string; strategy_id: string; strategy_version_id: string; mode: "shadow" | "paper" | "live";
     paper_portfolio_id: string | null; strategy_subscription_id: string | null;
   }>(`
     SELECT id, strategy_id, strategy_version_id, mode,
@@ -139,7 +139,7 @@ export async function createStrategyDeployment(database: Queryable, input: {
   strategyId: string;
   strategyVersionId: string;
   exchangeAccountId?: string | null;
-  mode: "shadow" | "paper";
+  mode: "shadow" | "paper" | "live";
   validationLabel: "UNVERIFIED" | "EXPLORATION_ONLY" | "STANDARD_FAILED" | "STANDARD_VERIFIED";
   idempotencyKey: string;
   riskAcknowledged: boolean;
@@ -322,7 +322,7 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
   const expiresAt = new Date(input.now.getTime() + input.leaseSeconds * 1_000);
   const result = await database.query<{
     id: string; owner_user_id: string; strategy_id: string; strategy_version_id: string;
-    exchange_account_id: string | null; mode: "shadow" | "paper"; validation_label: string;
+    exchange_account_id: string | null; mode: "shadow" | "paper" | "live"; validation_label: string;
     fencing_token: string; last_candle_close_at: Date | null; risk_state_json: Record<string, unknown>;
     specification_json: string; exchange: string | null; position_size_pct: number | null; stop_loss_pct_override: number | null;
     execution_product: "usdt_perpetual" | "spot_usdt";
@@ -667,7 +667,7 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
       return { id: existing.rows[0].id, sequence: Number(existing.rows[0].sequence), duplicate: true };
     }
     const deployment = await client.query<{
-      last_cycle_sequence: string; mode: "shadow" | "paper";
+      last_cycle_sequence: string; mode: "shadow" | "paper" | "live";
       execution_product: "usdt_perpetual" | "spot_usdt";
       paper_portfolio_id: string | null;
     }>(`

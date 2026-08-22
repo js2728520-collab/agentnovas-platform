@@ -33,6 +33,25 @@ export type ExecutionRequest =
       passphrase?: string;
       canTrade: boolean;
       now: string;
+    }
+  | {
+      /**
+       * 下发一条已翻译好的订单意图。
+       *
+       * Worker 只送「决定做什么」，凭证解密、限流、熔断、对账登记全部发生在执行
+       * 服务进程内——Worker 从头到尾不接触任何客户凭证。
+       */
+      operation: "execute_order_intent";
+      deploymentId: string;
+      customerId: string;
+      accountId: string;
+      portfolioId: string;
+      intent: unknown;
+      availableCapital: number;
+      capitalCapRatio: number;
+      executionProduct: "spot_usdt" | "usdt_perpetual";
+      runtimeCycleId: string | null;
+      traceId: string | null;
     };
 
 /** 执行服务的回复里**永不包含凭证**。这是这层协议存在的全部意义。 */
@@ -59,5 +78,16 @@ export type VerifyExchangeAccountResult = {
  * 东西——INV-6 要求未达门槛显式标注，不得伪装成已知结论。
  */
 export type BindExchangeAccountResult = { accountId: string };
+
+export type ExecuteOrderIntentResult = {
+  intentId: string;
+  outcome: "filled" | "partial" | "rejected" | "expired";
+  filledQuantity: number;
+  averagePrice: number;
+  feeAmount: number;
+  rejectionReason: string | null;
+  externalOrderId: string | null;
+  executedAt: string;
+};
 
 export const EXECUTION_UNAVAILABLE_CODE = "EXECUTION_SERVICE_UNAVAILABLE";

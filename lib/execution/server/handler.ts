@@ -8,10 +8,32 @@
 
 import { timingSafeEqual } from "node:crypto";
 
+import pg from "pg";
+import type { Pool } from "pg";
+
 import { EXECUTION_AUTH_HEADER, type ExecutionRequest } from "../protocol.ts";
 import { bindExchangeAccount } from "./account-binding.ts";
 import { closeOkxDemoTradeById } from "./emergency-close.ts";
+import { executeOrderIntent } from "./live-execution-service.ts";
 import { verifyExchangeAccount } from "./exchange-account-verification.ts";
+
+/**
+ * 执行服务自己的连接池。
+ *
+ * 单独一个而不是复用 Web 的 getDb()：这个进程不是 Web，它有自己的数据库角色
+ * （agentnovas_execution_service）与自己的生命周期。
+ */
+let pool: Pool | null = null;
+function executionDatabase(): Pool {
+  if (!pool) {
+    pool = new pg.Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: Number(process.env.EXECUTION_SERVICE_POOL_SIZE || 4),
+      application_name: "agentnovas-execution-service",
+    });
+  }
+  return pool;
+}
 
 export async function dispatchExecutionRequest(request: ExecutionRequest): Promise<unknown> {
   switch (request.operation) {
@@ -28,6 +50,19 @@ export async function dispatchExecutionRequest(request: ExecutionRequest): Promi
         passphrase: request.passphrase,
         canTrade: request.canTrade,
         now: request.now,
+      });
+    case "execute_order_intent":
+      return executeOrderIntent(executionDatabase(), {
+        deploymentId: request.deploymentId,
+        customerId: request.customerId,
+        accountId: request.accountId,
+        portfolioId: request.portfolioId,
+        intent: request.intent as never,
+        availableCapital: request.availableCapital,
+        capitalCapRatio: request.capitalCapRatio,
+        executionProduct: request.executionProduct,
+        runtimeCycleId: request.runtimeCycleId,
+        traceId: request.traceId,
       });
     case "emergency_close_okx_demo":
       return closeOkxDemoTradeById({

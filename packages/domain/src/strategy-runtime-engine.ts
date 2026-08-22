@@ -55,7 +55,10 @@ export function evaluateStrategyRuntimeCycle(input: {
   strategyVersionId: string;
   dsl: unknown;
   candles: StrategyCandle[];
-  mode: "shadow" | "paper";
+  // live 与 paper 的决策逻辑完全相同，差别只在「订单是否同时也发到交易所」。
+  // 让引擎知道这个区别，是为了 orderIntent.mode 与 execution 阶段的证据能如实标注
+  // 这一轮是不是实盘——客户看叙述时要能分清。
+  mode: "shadow" | "paper" | "live";
   position: RuntimePosition | null;
   riskState: {
     drawdownPct: number;

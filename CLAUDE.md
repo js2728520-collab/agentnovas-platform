@@ -200,7 +200,16 @@ apps/*  →  packages/*  →  lib/
   **实盘路由的现状（ADR-0019 第 6 步）**：授权机制已就位——`execution_live_routing`
   按 (交易所, 环境) 逐条批准，开通走 maker/checker、关停单人即时，运维端有界面。
   但 `createLiveExecutionPort` **仍然没有调用方**，决策扇出到真实下单那一段没接上。
-  因此即使批准了 OKX 实盘，也不会有任何真实订单产生。接上执行端是独立项目。
+  执行端已接通（见 ADR-0019 续作）：Worker 产出决策 → 域层翻译成订单意图 →
+  内网调用执行服务下单 → 回执写入 `live_execution_receipts`。Worker 全程不接触凭证。
+
+  **默认仍然不会产生任何真实订单**，需同时满足三件事：`execution_live_routing`
+  有 granted 授权、部署 `mode = 'live'` 且绑定可交易账户、无命中熔断且无未决对账。
+  任一不满足都产出明确的拒绝回执，不静默跳过。
+
+  官方现货卡没有止损价（退出靠 DSL 条件），真实下单的保护性止损由
+  `riskPerTradePct / maxAssetAllocationPct` 推导——这是把已有的风控预算换算到价格
+  上，不是新增规则。止盈留空，编一个会在条件未满足时提前平仓。
 
   两条不许做成配置项的规则：**只有现货可路由**、**平仓不受任何限制**。
   `lib/beta-legacy-runtime-guard.ts` 挡的是永续不是实盘，不要因为要开实盘而移除它。

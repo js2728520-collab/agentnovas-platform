@@ -524,3 +524,73 @@ export function assertBetaSpotRuntimeLease(executionProduct: string): void {
 `createBinanceOrderAdapter()` 与 `createOkxOrderAdapter()` 都默认模拟盘。是否走实盘由
 `execution_live_routing` 的显式授权决定——一个默认为 live 的适配器等于把第 6 步的闸门
 绕过去了。
+
+
+## 续作：执行端接进决策扇出（已完成）
+
+第 6 步之后仍有一句必须兑现的话：「`createLiveExecutionPort` 仍然没有调用方」。
+接的过程中发现，缺的**不是一行调用**。
+
+### 真正的缺口有三个，都不是接线
+
+**一、仓库里有两个都叫「订单意图」的类型，形状完全不同。**
+
+| 引擎产出 | 执行端口消费 |
+| --- | --- |
+| `{ idempotencyKey, mode, action, side: long/short, executionTiming, requestedPrice }` | `{ id, provenance, symbol, side: buy/sell, targetPositionRatio, entryPriceRange, stopLossPrice, … }` |
+
+前者描述「这一轮决定做什么」，后者描述「往交易所发什么」。`ExecutionPort` 是照后者
+设计的，而引擎从未产出过那个形状。新增
+`packages/domain/src/execution/intent-translation.ts` 补上翻译，纯函数、可重放。
+
+**二、数据模型里没有「现货 + 真实交易所账户」这个形状。**
+`mode` 只允许 `shadow|paper`，且绑定约束要求 `spot_usdt` 的部署
+`exchange_account_id IS NULL`——只有硬关闭的 `usdt_perpetual` 才带账户。
+migration 0053 加上 `live` 模式，并把绑定约束改成双向：
+`(mode = 'live') = (exchange_account_id IS NOT NULL)`。
+
+- live 但没绑账户 → 拒绝。这种部署被取走后每轮都会失败，而原因要到执行端才看得出来。
+- 非 live 却绑了账户 → 拒绝。那是「以为在模拟、其实随时可能真下单」的前置条件。
+
+**三、官方现货卡根本没有止损价。**
+它们的 `risk` 只有配置比例、日亏熔断、回撤上限、每日开仓次数；退出由 DSL 条件驱动。
+而真实下单必须带保护性止损，否则交易所侧没有任何兜底。
+
+解法是从既有预算推导，而不是新增一条风控规则：愿意为单笔承担
+`riskPerTradePct` 的本金风险，这笔仓位占本金 `maxAssetAllocationPct`，
+则仓位上可承受的逆向幅度为二者之商。止盈留空——这些卡按条件离场，编一个固定止盈
+会在条件未满足时提前平仓，等于悄悄改变了策略（INV-1）。
+
+### Worker 从头到尾不接触凭证
+
+Worker 只送「决定做什么」，通过内网调用走到执行服务；翻译在域层，凭证解密、限流、
+熔断、对账登记全部在执行服务进程内。三层闸门（实盘路由授权、三维度熔断、对账未决
+准入）仍然全部在上游生效，Worker 不重复判断。
+
+下发失败不让整个周期失败：决策本身已完成并留痕，客户仍看得到这一轮的七阶段叙述，
+错误记下来由对账与运维界面接手（INV-6）。
+
+### 回执表
+
+`live_execution_receipts` 回答「这一轮决策在这个组合上产出了什么结果」，与
+`execution_reconciliations`（「这一单到底成没成」）分工不同。
+`UNIQUE (intent_id)` 保证重放幂等；触发器禁止改写与删除——它是绩效分成的依据。
+
+### 一个我犯了又被机器抓住的错
+
+批量替换时把整段下发逻辑同时插进了**永续路径**，而永续路由是硬关闭的。
+`tsc` 没有意见，只有 lint 因为变量未使用报了两条才暴露——如果那两个变量恰好被用上，
+它会静默留在那里。`tests/runtime-live-execution-wiring.test.mjs` 现在守住五件事：
+调用点只有一个、被 live 模式守住、要求已绑账户、永续守卫仍在册、执行标的写死现货。
+
+### 现在的状态
+
+实盘链路已完整接通，但**默认不会产生任何真实订单**，需要同时满足：
+
+1. `execution_live_routing` 里有该 (交易所, 环境) 的 granted 授权（maker/checker）；
+2. 部署 `mode = 'live'` 且绑定了状态正常、可交易的交易所账户；
+3. 无命中的熔断开关，无未决对账。
+
+三者任一不满足都会产出一条明确的拒绝回执，而不是静默跳过。
+
+根 `AGENTS.md` 的「真实订单路由必须保持关闭」仍然有效——解除它是产品决定。
