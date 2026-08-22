@@ -133,7 +133,7 @@ test("internal applications use permission-driven navigation and login without r
   const maintenance = await read("apps/maintenance/ui/maintenance-app.tsx");
   const operationsRoot = await read("app/audience/operations-root.tsx");
   const maintenanceRoot = await read("app/audience/maintenance-root.tsx");
-  assert.match(shell, /visibleNavigation\(navigation, access\.permissions\)/);
+  assert.match(shell, /visibleNavigationGroups\(navigation, access\.permissions\)/);
   assert.match(login, /allowRegistration/);
   assert.match(operationsRoot, /allowRegistration=\{false\}/);
   assert.match(maintenanceRoot, /allowRegistration=\{false\}/);

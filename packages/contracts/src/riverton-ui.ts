@@ -28,7 +28,17 @@ export type ConsoleNavigationItem = {
   label: string;
   description?: string;
   icon: string;
+  badge?: string;
   requiredPermissions?: string[];
+};
+
+/**
+ * 分组导航。分组只影响侧边栏的视觉结构，不参与权限判定——
+ * 权限仍然逐条落在 item.requiredPermissions 上，整组不可见时才隐藏分组标题。
+ */
+export type ConsoleNavigationGroup = {
+  label: string;
+  items: ConsoleNavigationItem[];
 };
 
 export type WalletBalance = { currency: string; availableAmount: string; frozenAmount: string; version: string; updatedAt: string };
@@ -210,6 +220,21 @@ export function visibleNavigation(
   permissions: Record<string, DataScope>,
 ) {
   return items.filter((item) => hasAnyPermission(permissions, item.requiredPermissions));
+}
+
+/** 过滤分组导航；整组条目都不可见时，连同分组标题一起丢弃。 */
+export function visibleNavigationGroups(
+  groups: ConsoleNavigationGroup[],
+  permissions: Record<string, DataScope>,
+): ConsoleNavigationGroup[] {
+  return groups
+    .map((group) => ({ label: group.label, items: visibleNavigation(group.items, permissions) }))
+    .filter((group) => group.items.length > 0);
+}
+
+/** 分组导航展平成条目列表，供面包屑与当前页匹配使用。 */
+export function flattenNavigation(groups: ConsoleNavigationGroup[]): ConsoleNavigationItem[] {
+  return groups.flatMap((group) => group.items);
 }
 
 export function safeNextPath(value: string | null | undefined, fallback = "/") {

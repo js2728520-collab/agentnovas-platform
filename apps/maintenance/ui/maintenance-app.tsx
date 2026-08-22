@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { ConsoleShell } from "@/packages/ui/src/console-shell";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
-import { hasAnyPermission, type ConsoleNavigationItem } from "@/packages/contracts/src/riverton-ui";
+import { hasAnyPermission, type ConsoleNavigationGroup } from "@/packages/contracts/src/riverton-ui";
 
 const workspaceLoading = () => <LoadingState label="正在加载运维模块…" />;
 const EmailIntegrationWorkspace = dynamic(() => import("./email-integration-workspace").then((module) => module.EmailIntegrationWorkspace), { loading: workspaceLoading });
@@ -24,23 +24,31 @@ const SourceIntegrationsWorkspace = dynamic(() => import("./source-integrations-
 const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter), { loading: workspaceLoading });
 const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity), { loading: workspaceLoading });
 
-const navigation: ConsoleNavigationItem[] = [
-  { href: "/", label: "系统概览", icon: "⌂", requiredPermissions: ["maint.system_health.view"] },
-  { href: "/models", label: "模型与 Agent", icon: "模", requiredPermissions: ["maint.system_health.view", "maint.llm_profiles.manage", "maint.agent_bindings.manage"] },
-  { href: "/integrations", label: "服务集成", icon: "接", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage", "maint.payment_integrations.manage", "maint.demo_exchanges.view"] },
-  { href: "/integrations/sources", label: "数据与新闻", icon: "源", requiredPermissions: ["maint.system_health.view", "maint.feature_flags.manage"] },
-  { href: "/integrations/email", label: "邮件服务", icon: "邮", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage"] },
-  { href: "/integrations/payments", label: "支付服务", icon: "付", requiredPermissions: ["maint.system_health.view", "maint.payment_integrations.manage"] },
-  { href: "/integrations/demo-exchanges", label: "Demo 交易所", icon: "测", requiredPermissions: ["maint.demo_exchanges.view"] },
-  { href: "/health", label: "系统健康", icon: "康", requiredPermissions: ["maint.system_health.view"] },
-  { href: "/safety", label: "紧急暂停", icon: "停", requiredPermissions: ["maint.emergency_pause.execute"] },
-  { href: "/settings", label: "平台与客服", icon: "设", requiredPermissions: ["maint.feature_flags.manage"] },
-  { href: "/settings/disclosures", label: "商业披露", icon: "约", requiredPermissions: ["maint.commercial_disclosures.view"] },
-  { href: "/releases", label: "版本发布", icon: "版", requiredPermissions: ["maint.releases.view"] },
-  { href: "/access", label: "角色权限", icon: "权", requiredPermissions: ["maint.roles.manage", "maint.roles.approve_sensitive"] },
-  { href: "/access/audit", label: "授权审计", icon: "迹", requiredPermissions: ["maint.audit.view", "maint.roles.manage"] },
-  { href: "/audit", label: "技术审计", icon: "审", requiredPermissions: ["maint.audit.view"] },
-  { href: "/account/security", label: "账号安全", icon: "盾" },
+const navigation: ConsoleNavigationGroup[] = [
+  { label: "概览", items: [
+    { href: "/", label: "系统概览", icon: "dashboard", requiredPermissions: ["maint.system_health.view"] },
+    { href: "/health", label: "系统健康", icon: "activity", requiredPermissions: ["maint.system_health.view"] },
+  ] },
+  { label: "模型与集成", items: [
+    { href: "/models", label: "模型与 Agent", icon: "cpu", requiredPermissions: ["maint.system_health.view", "maint.llm_profiles.manage", "maint.agent_bindings.manage"] },
+    { href: "/integrations", label: "服务集成", icon: "plug", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage", "maint.payment_integrations.manage", "maint.demo_exchanges.view"] },
+    { href: "/integrations/sources", label: "数据与新闻", icon: "database", requiredPermissions: ["maint.system_health.view", "maint.feature_flags.manage"] },
+    { href: "/integrations/email", label: "邮件服务", icon: "inbox", requiredPermissions: ["maint.system_health.view", "maint.email_integrations.manage"] },
+    { href: "/integrations/payments", label: "支付服务", icon: "wallet", requiredPermissions: ["maint.system_health.view", "maint.payment_integrations.manage"] },
+    { href: "/integrations/demo-exchanges", label: "Demo 交易所", icon: "store", requiredPermissions: ["maint.demo_exchanges.view"] },
+  ] },
+  { label: "平台", items: [
+    { href: "/safety", label: "紧急暂停", icon: "pause", requiredPermissions: ["maint.emergency_pause.execute"] },
+    { href: "/settings", label: "平台与客服", icon: "settings", requiredPermissions: ["maint.feature_flags.manage"] },
+    { href: "/settings/disclosures", label: "商业披露", icon: "file", requiredPermissions: ["maint.commercial_disclosures.view"] },
+    { href: "/releases", label: "版本发布", icon: "tag", requiredPermissions: ["maint.releases.view"] },
+  ] },
+  { label: "账号", items: [
+    { href: "/access", label: "角色权限", icon: "key", requiredPermissions: ["maint.roles.manage", "maint.roles.approve_sensitive"] },
+    { href: "/access/audit", label: "授权审计", icon: "audit", requiredPermissions: ["maint.audit.view", "maint.roles.manage"] },
+    { href: "/audit", label: "技术审计", icon: "check-square", requiredPermissions: ["maint.audit.view"] },
+    { href: "/account/security", label: "账号安全", icon: "shield" },
+  ] },
 ];
 
 export default function MaintenanceApp({ segments }: { segments: string[] }) {

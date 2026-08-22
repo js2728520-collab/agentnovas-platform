@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { ConsoleShell } from "@/packages/ui/src/console-shell";
 import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
 import { useAppSession } from "@/packages/ui/src/use-app-session";
-import { hasAnyPermission, type ConsoleNavigationItem } from "@/packages/contracts/src/riverton-ui";
+import { hasAnyPermission, type ConsoleNavigationGroup } from "@/packages/contracts/src/riverton-ui";
 
 const workspaceLoading = () => <LoadingState label="正在加载运营模块…" />;
 const ApprovalsWorkspace = dynamic(() => import("./approvals-workspace").then((module) => module.ApprovalsWorkspace), { loading: workspaceLoading });
@@ -24,22 +24,30 @@ const DataCenterWorkspace = dynamic(() => import("./data-center-workspace").then
 const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter), { loading: workspaceLoading });
 const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity), { loading: workspaceLoading });
 
-const navigation: ConsoleNavigationItem[] = [
-  { href: "/", label: "运营概览", icon: "⌂" },
-  { href: "/customers", label: "客户管理", icon: "客", requiredPermissions: ["ops.customers.view"] },
-  { href: "/organization", label: "组织架构", icon: "组", requiredPermissions: ["ops.organization.view"] },
-  { href: "/team", label: "团队目标", icon: "队", requiredPermissions: ["ops.team.view"] },
-  { href: "/data-center", label: "数据中心", icon: "数", requiredPermissions: ["ops.customers.view"] },
-  { href: "/membership-orders", label: "会员订单", icon: "会", requiredPermissions: ["ops.membership_orders.view"] },
-  { href: "/performance-statements", label: "周分成", icon: "周", requiredPermissions: ["ops.performance_fees.view"] },
-  { href: "/credits", label: "Credits", icon: "点", requiredPermissions: ["ops.credits.view"] },
-  { href: "/deposits", label: "充值订单", icon: "充", requiredPermissions: ["ops.deposits.view"] },
-  { href: "/ledger", label: "账本查询", icon: "账", requiredPermissions: ["ops.ledger.view"] },
-  { href: "/finance", label: "财务结算", icon: "财", requiredPermissions: ["ops.ledger.view", "ops.membership_orders.view", "ops.performance_fees.view"] },
-  { href: "/approvals", label: "审批中心", icon: "审", requiredPermissions: ["ops.approvals.view", "ops.approvals.decide", "ops.deposits.action_approve", "ops.roles.approve_sensitive", "ops.credits.approve", "ops.attributions.manage", "ops.membership_orders.approve", "ops.performance_fees.approve", "ops.performance_fees.payment_approve"] },
-  { href: "/access", label: "角色权限", icon: "权", requiredPermissions: ["ops.roles.manage", "ops.roles.assign", "ops.roles.approve_sensitive"] },
-  { href: "/access/audit", label: "授权审计", icon: "迹", requiredPermissions: ["ops.roles.manage", "ops.roles.approve_sensitive"] },
-  { href: "/account/security", label: "账号安全", icon: "盾" },
+const navigation: ConsoleNavigationGroup[] = [
+  { label: "概览", items: [
+    { href: "/", label: "运营概览", icon: "dashboard" },
+  ] },
+  { label: "客户与组织", items: [
+    { href: "/customers", label: "客户管理", icon: "users", requiredPermissions: ["ops.customers.view"] },
+    { href: "/organization", label: "组织架构", icon: "org", requiredPermissions: ["ops.organization.view"] },
+    { href: "/team", label: "团队目标", icon: "chart", requiredPermissions: ["ops.team.view"] },
+    { href: "/data-center", label: "数据中心", icon: "database", requiredPermissions: ["ops.customers.view"] },
+  ] },
+  { label: "商业与资金", items: [
+    { href: "/membership-orders", label: "会员订单", icon: "file", requiredPermissions: ["ops.membership_orders.view"] },
+    { href: "/performance-statements", label: "周分成", icon: "percent", requiredPermissions: ["ops.performance_fees.view"] },
+    { href: "/credits", label: "Credits", icon: "coins", requiredPermissions: ["ops.credits.view"] },
+    { href: "/deposits", label: "充值订单", icon: "deposit", requiredPermissions: ["ops.deposits.view"] },
+    { href: "/ledger", label: "账本查询", icon: "book", requiredPermissions: ["ops.ledger.view"] },
+    { href: "/finance", label: "财务结算", icon: "calculator", requiredPermissions: ["ops.ledger.view", "ops.membership_orders.view", "ops.performance_fees.view"] },
+  ] },
+  { label: "治理", items: [
+    { href: "/approvals", label: "审批中心", icon: "check-square", requiredPermissions: ["ops.approvals.view", "ops.approvals.decide", "ops.deposits.action_approve", "ops.roles.approve_sensitive", "ops.credits.approve", "ops.attributions.manage", "ops.membership_orders.approve", "ops.performance_fees.approve", "ops.performance_fees.payment_approve"] },
+    { href: "/access", label: "角色权限", icon: "key", requiredPermissions: ["ops.roles.manage", "ops.roles.assign", "ops.roles.approve_sensitive"] },
+    { href: "/access/audit", label: "授权审计", icon: "audit", requiredPermissions: ["ops.roles.manage", "ops.roles.approve_sensitive"] },
+    { href: "/account/security", label: "账号安全", icon: "shield" },
+  ] },
 ];
 
 const routePermissions: Record<string, string[] | undefined> = {

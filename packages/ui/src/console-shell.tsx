@@ -5,7 +5,20 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { visibleNavigation, type ConsoleNavigationItem, type EffectiveAccessPayload, type ViewerPayload } from "@/packages/contracts/src/riverton-ui";
+import {
+  flattenNavigation,
+  visibleNavigationGroups,
+  type ConsoleNavigationGroup,
+  type EffectiveAccessPayload,
+  type ViewerPayload,
+} from "@/packages/contracts/src/riverton-ui";
+
+import { Icon, isIconName } from "./icon";
+import { ThemeToggle } from "./theme-toggle";
+
+function isActivePath(pathname: string, href: string) {
+  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function ConsoleShell({
   appName,
@@ -21,7 +34,7 @@ export function ConsoleShell({
   appKind: "operations" | "maintenance" | "client";
   statusText: string;
   accountLabel: string;
-  navigation: ConsoleNavigationItem[];
+  navigation: ConsoleNavigationGroup[];
   viewer: ViewerPayload;
   access: EffectiveAccessPayload;
   children: React.ReactNode;
@@ -31,10 +44,17 @@ export function ConsoleShell({
   const pathname = usePathname() || "/";
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
-  const items = useMemo(() => visibleNavigation(navigation, access.permissions), [access.permissions, navigation]);
-  const currentItem = useMemo(() => items
-    .filter((item) => item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`))
-    .sort((left, right) => right.href.length - left.href.length)[0], [items, pathname]);
+
+  const groups = useMemo(
+    () => visibleNavigationGroups(navigation, access.permissions),
+    [access.permissions, navigation],
+  );
+  const currentItem = useMemo(
+    () => flattenNavigation(groups)
+      .filter((item) => isActivePath(pathname, item.href))
+      .sort((left, right) => right.href.length - left.href.length)[0],
+    [groups, pathname],
+  );
   const displayName = viewer.nickname || viewer.username || viewer.email.split("@")[0];
 
   useEffect(() => {
@@ -92,40 +112,89 @@ export function ConsoleShell({
     window.location.assign("/login");
   }
 
-  return <main className={`rc-console rc-${appKind}`}>
+  return <main className={`rc-console rc-${appKind}`} data-nav={menuOpen ? "open" : undefined}>
     <a className="rc-skip-link" href="#rc-console-content">跳到主要内容</a>
-    <header className="rc-mobile-bar">
-      <button ref={menuButtonRef} type="button" aria-label={menuOpen ? "关闭导航菜单" : "打开导航菜单"} aria-expanded={menuOpen} aria-controls="rc-console-nav" onClick={() => setMenuOpen((value) => !value)}>菜单</button>
-      <strong>{appName}</strong>
-    </header>
-    <button className={`rc-console-backdrop ${menuOpen ? "is-open" : ""}`} type="button" tabIndex={-1} aria-label="关闭导航菜单" onClick={() => setMenuOpen(false)} />
-    <aside ref={drawerRef} id="rc-console-nav" className={menuOpen ? "is-open" : ""} inert={compactNavigation && !menuOpen ? true : undefined} aria-hidden={compactNavigation && !menuOpen ? true : undefined} role={compactNavigation && menuOpen ? "dialog" : undefined} aria-modal={compactNavigation && menuOpen ? true : undefined} aria-label={`${appName}菜单`}>
+    <button
+      className="rc-console-backdrop"
+      type="button"
+      tabIndex={-1}
+      aria-label="关闭导航菜单"
+      onClick={() => setMenuOpen(false)}
+    />
+
+    <aside
+      ref={drawerRef}
+      id="rc-console-nav"
+      inert={compactNavigation && !menuOpen ? true : undefined}
+      aria-hidden={compactNavigation && !menuOpen ? true : undefined}
+      role={compactNavigation && menuOpen ? "dialog" : undefined}
+      aria-modal={compactNavigation && menuOpen ? true : undefined}
+      aria-label={`${appName}菜单`}
+    >
       <Link className="rc-console-brand" href="/" aria-label={`Riverton Capital ${appName}`}>
         {appKind === "client"
-          ? <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="190px" alt="Riverton Capital" />
-          : <span>R</span>}
+          ? <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="186px" alt="Riverton Capital" />
+          : <span aria-hidden="true">RC</span>}
         <b>{appKind === "client" ? null : "Riverton Capital"}<small>{appName}</small></b>
       </Link>
+
       <nav aria-label={`${appName}导航`}>
-        {items.map((item) => {
-          const active = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);
-          return <Link key={item.href} className={active ? "active" : ""} href={item.href} onClick={() => setMenuOpen(false)}>
-            <i aria-hidden="true">{item.icon}</i><span>{item.label}{item.description && <small>{item.description}</small>}</span>
-          </Link>;
-        })}
+        {groups.map((group) => <div className="rc-nav-group" key={group.label}>
+          <div className="rc-nav-label">{group.label}</div>
+          {group.items.map((item) => {
+            const active = isActivePath(pathname, item.href);
+            return <Link
+              key={item.href}
+              className={active ? "active" : undefined}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              onClick={() => setMenuOpen(false)}
+            >
+              <Icon name={isIconName(item.icon) ? item.icon : "dashboard"} />
+              <span>{item.label}{item.description && <small>{item.description}</small>}</span>
+              {item.badge && <b>{item.badge}</b>}
+            </Link>;
+          })}
+        </div>)}
       </nav>
+
       <footer>
+        <i aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</i>
         <div><b>{displayName}</b><small>{accountLabel}</small></div>
-        <button type="button" onClick={() => void logout()}>退出</button>
+        <button
+          className="rc-icon-btn"
+          type="button"
+          onClick={() => void logout()}
+          title="退出登录"
+          aria-label="退出登录"
+        ><Icon name="logout" /></button>
       </footer>
     </aside>
+
     <section className="rc-console-main">
-      <div className="rc-console-top">
+      <header className="rc-console-top">
+        <button
+          ref={menuButtonRef}
+          className="rc-icon-btn rc-menu-btn"
+          type="button"
+          aria-label={menuOpen ? "关闭导航菜单" : "打开导航菜单"}
+          aria-expanded={menuOpen}
+          aria-controls="rc-console-nav"
+          onClick={() => setMenuOpen((value) => !value)}
+        ><Icon name="menu" /></button>
+
         <nav className="rc-breadcrumb" aria-label="面包屑">
-          <Link href="/">{appName}</Link><span aria-hidden="true">/</span><span aria-current="page">{currentItem?.label ?? "当前页面"}</span>
+          <Link href="/">{appName}</Link>
+          <span aria-hidden="true"><Icon name="chevron-right" size={14} /></span>
+          <span aria-current="page">{currentItem?.label ?? "当前页面"}</span>
         </nav>
-        <small><i />{statusText}</small>
-      </div>
+
+        <div className="rc-topbar-actions">
+          <span className="rc-env-badge"><i aria-hidden="true" />{statusText}</span>
+          <ThemeToggle />
+        </div>
+      </header>
+
       <div id="rc-console-content" className="rc-console-content" tabIndex={-1}>{children}</div>
     </section>
   </main>;
