@@ -1528,3 +1528,45 @@ tsc、lint、884 项测试、三端 build、bundle 预算、7 条边界通过。
 tsc、lint、892 项测试（+8）、三端 build、bundle 预算、7 条边界通过。
 另跑本地 Postgres 的 `official-platform-spot-runtime` 与
 `strategy-runtime-repository` 共 23 项确认端到端未变。
+
+
+## 42. 2026-08-22 决策轮扇出模型的方案（ADR-0018，待确认）
+
+§41 收敛了行情请求，但决策轮本身的数量没动。写成
+`docs/adr/0018-shared-decision-rounds-and-per-portfolio-admission.md`，状态 Proposed。
+
+### 摸清的依赖
+
+`cycle_id` 的下游共四处：`strategy_runtime_events`（每轮 7 行）、
+`strategy_runtime_explanation_jobs`（每轮最多 2 个，每个是一次真实 LLM 调用）、
+`official_paper_order_intents`、平台 Demo 意图。
+
+**最贵的是解释任务**：它按 `cycle_id` 建，触发条件是「动作不是 hold，或风控拒绝」。
+一旦某张卡产生信号，15,000 个周期各自发起解释——同一段解释被生成上万次。
+这不是性能问题，是直接的 AI 成本问题。
+
+### 方案要点
+
+把「决策」与「准入」分开：
+
+- **共享**：行情、技术信号、策略方案、反方审查、卡级风控阈值、最终叙述、LLM 解释。
+  身份是 (strategy_code, symbol, timeframe, candle_close_time)。
+- **按组合**：权益/回撤/熔断/访问状态、持仓、下单量换算、回执、账本。
+
+阶段 5 有两半：卡级阈值共享，组合级准入逐个执行。
+
+**域层不需要改**——这正好落在 P1 建好的执行缝上：`OrderIntent` 带的是
+`targetPositionRatio` 而非绝对数量，`resolveOrderQuantity` 在扇出时按各组合的
+资金与上限换算。
+
+### 两个需要产品决定的点
+
+1. 客户视图措辞：七阶段内容对同卡客户完全相同，是否明说「本卡的公共决策轮」。
+2. 纯 hold 是否为每个组合留痕：不留则每天省下百万行级写入与分区维护，
+   留则合规上「每客户每 K 线一条记录」成立。
+
+### 一处顺带确认
+
+`strategy_runtime_cycles` **不在**审计哈希链里（0044 只覆盖 `audit_logs` 与 8 张
+`*_decisions` 表），所以这次改动不触碰防篡改边界。绩效结算依据是
+`official_paper_fill_receipts`，也不依赖 cycle 结构。
