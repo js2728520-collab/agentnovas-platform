@@ -208,6 +208,40 @@ export const invitations = sqliteTable("invitations", {
   ...timestamps,
 }, (t) => [uniqueIndex("idx_invitations_code_unique").on(t.codeHash), index("idx_invitations_owner_status").on(t.ownerEmployeeId, t.status)]);
 
+// V3 Operations 权限注册链接。与客户 invitations 分表，避免两类 token 被任何注册
+// 路径互换。roleId 指向 PostgreSQL RBAC roles；兼容 schema 未重复声明整套 RBAC 表，
+// 因此这里只保留同名字段，真实外键由 migration 0065 强制。
+export const internalRegistrationLinks = sqliteTable("internal_registration_links", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull(),
+  issuerUserId: text("issuer_user_id").notNull().references(() => users.id),
+  roleId: text("role_id").notNull(),
+  targetRole: text("target_role", { enum: ["branch_admin", "manager", "supervisor", "employee"] }).notNull(),
+  organizationMode: text("organization_mode", { enum: ["CREATE_BRANCH", "EXISTING_ORGANIZATION"] }).notNull(),
+  organizationId: text("organization_id").references(() => organizations.id),
+  permissionSnapshotJson: text("permission_snapshot_json").notNull(),
+  permissionSnapshotSha256: text("permission_snapshot_sha256").notNull(),
+  status: text("status", { enum: ["active", "revoked"] }).notNull().default("active"),
+  useCount: integer("use_count").notNull().default(0),
+  lastUsedAt: text("last_used_at"),
+  revokedAt: text("revoked_at"),
+  revokedByUserId: text("revoked_by_user_id").references(() => users.id),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("idx_internal_registration_links_token_unique").on(t.tokenHash),
+  index("idx_internal_registration_links_issuer_status_compat").on(t.issuerUserId, t.status, t.createdAt),
+]);
+
+export const internalRegistrationLinkUses = sqliteTable("internal_registration_link_uses", {
+  id: text("id").primaryKey(),
+  linkId: text("link_id").notNull().references(() => internalRegistrationLinks.id),
+  registeredUserId: text("registered_user_id").notNull().references(() => users.id),
+  usedAt: text("used_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (t) => [
+  uniqueIndex("idx_internal_registration_link_uses_user_unique").on(t.registeredUserId),
+  index("idx_internal_registration_link_uses_link_time_compat").on(t.linkId, t.usedAt),
+]);
+
 export const customerAttributions = sqliteTable("customer_attributions", {
   id: text("id").primaryKey(),
   customerId: text("customer_id").notNull().references(() => users.id),
