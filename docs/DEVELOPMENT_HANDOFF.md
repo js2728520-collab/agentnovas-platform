@@ -2520,4 +2520,12 @@ TDD 先观察到模块不存在，再覆盖未收盘过滤、精确 stale 等号
 `da89d1c` 后全量 `npm test` 1364/1364、TypeScript、全仓 ESLint、8 条架构边界、三端
 key-custody、repository secret scan、production dependency audit 和 `git diff --check` 全通过。
 本切片仍不证明 stream latency/sequence、主备切换或 G2；T2.11b 等待真实 adapter 与 P-01/P-03。
+
+云端使用文档提交 `940389985fd391b3222a14f175a83495708fc486`、tree
+`106252134186539c5a0b2c54a46a95dadfb0697f` 的 3070 文件 Git 归档，archive SHA-256 为
+`5df16d8077a3daf28e57d484c1adf4bece9f902cbb34bc04da8ed6c6dbd754f2`。`ssh an-saas`
+固定 Node 22.21.1 容器完成 Client 68、Operations 62、Maintenance 51 页 production build，
+云端 production-only audit 为 0；`npm ci` 报告的 17 项均来自开发依赖，没有执行自动升级。
+本切片没有 UI、认证或 route 变化，未把窄浏览器重跑当成新证据；最终阶段仍必须在最新完整产物
+重跑三端空浏览器登录。远端两个本轮一次性目录已删除，不可恢复但只含可重建源码/依赖/构建产物。
 两处用户本地改动未纳入提交；未启动远端服务、未迁移数据库、未推送、未部署。

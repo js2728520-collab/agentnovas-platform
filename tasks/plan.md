@@ -242,6 +242,9 @@ provider sequence reset 规则、容量和主备切换等待 P-01/P-03 与供应
 `timeframe + 30s` 派生 cadence 准入。stale/invalid 只拒绝 entry，exit 继续生成意图。新增 7 项
 纯函数/引擎测试，PostgreSQL Runtime 22/22（含真实未收盘尾项）和全量 1364/1364 通过；
 TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、secret scan 与 production audit 通过。
+`ssh an-saas` 以提交 `9403899` 的 3070 文件精确归档和 Node 22.21.1 完成 Client 68、
+Operations 62、Maintenance 51 页 production build；本切片无 UI/auth 变化，不重复使用窄浏览器
+测试冒充全平台 Gate，最终阶段仍须在最新产物重跑三端空浏览器登录。
 
 ### T2.3：加密行情源选择
 

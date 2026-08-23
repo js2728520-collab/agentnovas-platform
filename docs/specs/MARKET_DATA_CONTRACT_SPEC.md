@@ -274,3 +274,5 @@ T2.11b 必须在真实 adapter 确定后把 T2.2 的 event envelope/连接状态
 `closeTime`，缺失、错配、未来、未知周期或越界时间均失败关闭。七阶段 evidence 记录派生质量；
 stale 新开仓形成可查询拒绝，已有仓位退出不受阻断。新增 7 项专项测试，PostgreSQL Runtime
 22/22 和全量 1364/1364 通过；真实 stream 综合准入仍由 T2.11b 完成。
+精确提交 `9403899` 已在 `ssh an-saas` 的 Node 22.21.1 容器完成三端 production build；该切片
+没有页面、认证或路由变化，因此未新增浏览器验收声明，仍沿用“最终可部署产物重跑三端登录”的 Gate。
