@@ -408,6 +408,11 @@ production build、production audit 0 和真实 nginx 检查。云端 standalone
 隔离 PostgreSQL + 真实 Chromium 18/18 通过，覆盖语言优先级/持久化/非法值及三端登录无回归；
 测试 schema、运行时秘密和临时构建产物均已清理。
 
+**T3.11b1 边界：** 先用 forward migration 把新账号 `users.locale` 默认改为 `en-US`，并以
+`NOT VALID` 七语言 CHECK 约束未来写入，不批量修改或假定既有账号值是显式偏好。实际 PostgreSQL
+必须证明历史未知值保留、新非法值拒绝、七语言通过和迁移可重放；用户修改 API 与三端消费留给
+语言范围确认后的 T3.11b2。
+
 ### Checkpoint P3
 
 - [ ] 配置/价格历史与审批 Gate 通过。

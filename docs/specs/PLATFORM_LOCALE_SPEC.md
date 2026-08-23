@@ -66,3 +66,17 @@ Client 68、Operations 62、Maintenance 51 页 production build，production-onl
 新增旅程覆盖空存储英语 fallback、中文浏览器推断、人工西班牙语跨刷新优先和损坏存储回退；同一
 套件继续覆盖三端空浏览器登录、Host/Cookie、权限链接、五设备、三端 UI 与无确认弹窗。
 schema 与运行时秘密已清理，本机构建缓存恢复，本地/云端临时目录已删除；未部署。
+
+## 5. T3.11b1 新账号数据库默认与写入边界
+
+在完整三端偏好语义确认前，可以先完成不会改写既有用户的数据库底座：
+
+- forward migration 把 `users.locale` 的新行默认值从 `zh-CN` 改为 `en-US`，与 PRD fallback 一致。
+- 新增七语言 CHECK 为 `NOT VALID`：迁移后所有新写入/更新都必须在 allowlist 内，但不因历史未知值
+  阻断上线，也不把历史账号静默改成英语。
+- migration 必须可重复执行；同一事务内重建约束，不暴露无约束窗口。
+- SQLite/Drizzle 兼容 schema 的新行默认同步为 `en-US`；历史 migration 文件保持不可变。
+- 实际 PostgreSQL 测试覆盖旧中文默认升级、历史非标准值保留、七种合法值、新非法值拒绝和重放。
+
+本切片不提供用户修改 API，不决定偏好跨三端还是仅 Client，也不把数据库 default 当成已保存的
+显式选择。已有账号继续保持原值，后续只有在需求方确认的 UI/API 中由用户主动更新。
