@@ -418,6 +418,10 @@ production build、production audit 0 和真实 nginx 检查。云端 standalone
 3/3、全量 1386/1386 及 TypeScript、全仓 ESLint、架构边界、key-custody、secret scan、production
 audit 0、差异检查全部通过；没有改写历史账号，也没有开放尚未确认的用户偏好 API。
 
+云端 `93d63fe` 精确快照由 Node 22.21.1 完成 Client 68、Operations 62、Maintenance 51 页构建，
+production audit 0、官方 nginx 1.29.8 检查通过；源码归档摘要在本地与云端一致。纯数据库切片不重复
+声明浏览器证据，紧邻 T3.11a 的完整 Chromium 18/18 继续有效，最终收口仍须在最新整体产物重跑。
+
 ### Checkpoint P3
 
 - [ ] 配置/价格历史与审批 Gate 通过。

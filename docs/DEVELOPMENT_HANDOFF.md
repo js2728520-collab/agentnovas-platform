@@ -2642,3 +2642,12 @@ TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、repository
 文件）、production dependency audit 0 和 `git diff --check` 全部通过。两处用户本地修改仍未纳入
 提交。纯数据库默认/约束切片没有 UI 或认证路由变更，因此不重复运行窄浏览器用例；同分支紧邻的
 T3.11a 云端产物已完成真实 Chromium 18/18，最终整体收口仍会在最新完整产物重跑。
+
+云端使用文档提交 `93d63fe5ea5530cc50c3c0f94253760da301fdec`、tree
+`487fcb9ab7d683cf1dbeb628d7fa1f263e8fb0e8` 的 3078 文件 Git 归档；本地与 `an-saas` 接收摘要
+均为 `ffd92552e168e90d9cf427d22c4b75ef72f07a7ee8fecea910a5ab7258c7f50d`。固定 Node 22.21.1
+完成 Client 68、Operations 62、Maintenance 51 页 production build，production-only audit 为 0。
+`npm ci` 的 17 项报告均来自开发依赖，没有自动升级；官方 nginx 1.29.8 `-t` 通过并保留 8 条
+已知 `listen ... http2` 兼容警告。远端 `/tmp/agentnovas-locale-db-build-G3BOpC` 与本地上传目录已
+逐项删除，只含可重建源码、依赖、构建和测试证书；未启动服务、未执行生产 migration、未接触
+生产数据库、未推送、未部署。

@@ -92,3 +92,9 @@ SQLite/Drizzle 兼容 schema 同步默认值。实际 PostgreSQL 定向测试证
 本地全量 `npm test` 1386/1386、TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、
 repository secret scan、production dependency audit 0 和 `git diff --check` 均通过。本证据仍不覆盖
 T3.11b2 的已登录偏好消费与全站翻译范围。
+
+云端使用文档提交 `93d63fe5ea5530cc50c3c0f94253760da301fdec`、tree
+`487fcb9ab7d683cf1dbeb628d7fa1f263e8fb0e8` 的 3078 文件精确归档；本地与 `an-saas` 收到的
+archive SHA-256 均为 `ffd92552e168e90d9cf427d22c4b75ef72f07a7ee8fecea910a5ab7258c7f50d`。
+Node 22.21.1 完成 Client 68、Operations 62、Maintenance 51 页 production build，production-only
+audit 为 0；官方 nginx 1.29.8 语法通过并保留 8 条已知兼容警告。一次性目录已删除，未部署。
