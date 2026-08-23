@@ -120,6 +120,17 @@ export async function registerInvitedClient(pool: Pool, input: RegisterInvitedCl
       publicPool ? null : invitation.owner_employee_id, publicPool ? null : now,
       publicPool ? "总公司客服一次性邀请码" : "邀请码自动归因",
     ]);
+    if (!publicPool) {
+      // 可复用链接不会被标记为 used（那是一次性码的语义），所以此前完全无法回答
+      // 「这条链接带来了多少注册」。运营需要它来发现链接外泄——一条本该发给三五个
+      // 人的链接突然涨到几百次，是唯一能看出来的信号。
+      await client.query(
+        `UPDATE invitations
+            SET use_count = use_count + 1, last_used_at = $2, updated_at = $2
+          WHERE id = $1 AND kind = 'employee_reusable'`,
+        [invitation.id, now],
+      );
+    }
     await client.query(`
       INSERT INTO memberships(
         id,customer_id,plan_code,status,

@@ -1924,6 +1924,50 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/invitations/link",
+    "source": "app/api/invitations/link/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.invitations.view"
+    ],
+    "permissionMfa": {
+      "ops.invitations.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/invitations/link",
+    "source": "app/api/invitations/link/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.invitations.manage"
+    ],
+    "permissionMfa": {
+      "ops.invitations.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/maintenance/audit",
     "source": "app/api/maintenance/audit/route.maintenance.ts",
     "audiences": [

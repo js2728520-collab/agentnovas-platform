@@ -23,6 +23,17 @@ function setupKeyFromUri(value: unknown) {
   }
 }
 
+/**
+ * 从当前 URL 取邀请码。
+ *
+ * 收到链接的人不该需要知道「先点注册、再把码抄进去」——那一步是纯粹的摩擦，
+ * 而且 8 位码抄错一位就得从头再来。
+ */
+function readInvitationCodeFromUrl(): string {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("invite")?.trim() ?? "";
+}
+
 export function AppLogin({ audience, title, description, allowRegistration, initialMode = "login" }: {
   audience: AppAudience;
   title: string;
@@ -33,7 +44,10 @@ export function AppLogin({ audience, title, description, allowRegistration, init
   const safeInitialMode = audience === "client" && initialMode === "forgot"
     ? "forgot"
     : allowRegistration && initialMode === "register" ? "register" : "login";
-  const [mode, setMode] = useState<LoginMode>(safeInitialMode);
+  // 邀请链接形如 /login?invite=<code>。用惰性初始值读取，不在 effect 里 setState
+  // ——那会触发一次级联渲染，注册表单会先闪一下登录态。
+  const [invitedCode] = useState(readInvitationCodeFromUrl);
+  const [mode, setMode] = useState<LoginMode>(invitedCode ? "register" : safeInitialMode);
   const [mfaFlow, setMfaFlow] = useState<MfaFlow>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -134,7 +148,14 @@ export function AppLogin({ audience, title, description, allowRegistration, init
     <section className="rc-auth-brand"><Link href="/" prefetch={false}>{audience === "client" ? <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="220px" alt="Riverton Capital" priority /> : "R"}</Link><div><small>{audience.toUpperCase()} ACCESS</small><h1>{title}</h1><p>{description}</p></div><ul><li>独立应用会话</li><li>服务端权限校验</li><li>完整操作审计</li></ul></section>
     <form onSubmit={submit} aria-labelledby="rc-login-heading">
       <header><small>RIVERTON CAPITAL</small><h2 id="rc-login-heading">{heading}</h2><p>{helper}</p></header>
-      {!mfaFlow && mode === "register" && <><label>手机号<input name="phone" type="tel" autoComplete="tel" required /></label><label>邮箱（可选）<input name="email" type="email" autoComplete="email" /></label><label>邀请码<input name="invitationCode" required autoCapitalize="characters" /></label></>}
+      {!mfaFlow && mode === "register" && <><label>手机号<input name="phone" type="tel" autoComplete="tel" required /></label><label>邮箱（可选）<input name="email" type="email" autoComplete="email" /></label><label>邀请码<input
+          name="invitationCode"
+          required
+          autoCapitalize="characters"
+          defaultValue={invitedCode}
+          // 链接带来的码仍然可改：链接可能过期或被换掉，锁死会让人卡在这里无路可走。
+          key={invitedCode}
+        /></label></>}
       {!mfaFlow && (mode === "forgot" ? <label>账户邮箱<input name="email" type="email" autoComplete="email" required /></label> : mode === "login" && <label>邮箱、手机号或用户名<input name="identifier" autoComplete="username" required /></label>)}
       {!mfaFlow && mode !== "forgot" && <label>密码<input name="password" type="password" minLength={10} autoComplete={mode === "login" ? "current-password" : "new-password"} required /></label>}
       {mfaFlow?.stage === "enroll" && <label>身份验证器设置密钥<input className="rc-mfa-setup-key" value={mfaFlow.setupKey} readOnly aria-describedby="rc-mfa-setup-help" /></label>}
