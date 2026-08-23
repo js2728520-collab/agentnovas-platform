@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import type { AppAudience } from "@/lib/riverton-apps";
 import { apiErrorMessage, safeNextPath } from "@/packages/contracts/src/riverton-ui";
@@ -47,6 +47,17 @@ function readStaffInviteFromUrl(): string {
   return new URLSearchParams(window.location.hash.replace(/^#/, "")).get("staff-invite")?.trim() ?? "";
 }
 
+function subscribeToLocationChange(onChange: () => void) {
+  window.addEventListener("hashchange", onChange);
+  window.addEventListener("popstate", onChange);
+  return () => {
+    window.removeEventListener("hashchange", onChange);
+    window.removeEventListener("popstate", onChange);
+  };
+}
+
+const emptyLocationSnapshot = () => "";
+
 export function AppLogin({ audience, title, description, allowRegistration, initialMode = "login" }: {
   audience: AppAudience;
   title: string;
@@ -57,10 +68,10 @@ export function AppLogin({ audience, title, description, allowRegistration, init
   const safeInitialMode = audience === "client" && initialMode === "forgot"
     ? "forgot"
     : allowRegistration && initialMode === "register" ? "register" : "login";
-  // 邀请链接形如 /login?invite=<code>。用惰性初始值读取，不在 effect 里 setState
-  // ——那会触发一次级联渲染，注册表单会先闪一下登录态。
-  const [invitedCode] = useState(readInvitationCodeFromUrl);
-  const [staffInviteCode] = useState(readStaffInviteFromUrl);
+  // 邀请链接来自 query 或 fragment。使用具备服务端空快照的外部 store，既避免
+  // effect 级联渲染，也确保服务端首屏与浏览器 hydration 快照一致。
+  const invitedCode = useSyncExternalStore(subscribeToLocationChange, readInvitationCodeFromUrl, emptyLocationSnapshot);
+  const staffInviteCode = useSyncExternalStore(subscribeToLocationChange, readStaffInviteFromUrl, emptyLocationSnapshot);
   const [staffState, setStaffState] = useState<{ status: "idle" | "busy" | "done"; message: string }>(
     { status: "idle", message: "" },
   );

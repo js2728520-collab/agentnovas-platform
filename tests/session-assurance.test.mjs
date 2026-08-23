@@ -29,6 +29,15 @@ test("a primary internal session is usable only for the MFA completion endpoint"
   ), { usable: true, recentMfa: false });
 });
 
+test("an internal session without MFA is usable only when enforcement is explicitly disabled", () => {
+  assert.deepEqual(evaluateSessionAssurance(
+    { ...base, mfaLevel: "none", mfaVerifiedAt: null }, now, { mfaEnforced: false },
+  ), { usable: true, recentMfa: false });
+  assert.deepEqual(evaluateSessionAssurance(
+    { ...base, mfaLevel: "none", mfaVerifiedAt: null }, now, { mfaEnforced: true },
+  ), { usable: false, recentMfa: false });
+});
+
 test("recent MFA expires after fifteen minutes while the session remains usable", () => {
   assert.deepEqual(evaluateSessionAssurance({ ...base, mfaVerifiedAt: "2026-08-20T11:44:59.000Z" }, now), {
     usable: true,

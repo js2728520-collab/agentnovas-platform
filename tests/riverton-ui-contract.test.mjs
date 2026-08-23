@@ -175,6 +175,9 @@ test("internal login retains TOTP enrollment and verification behind the rollout
   assert.match(login, /\/api\/auth\/mfa\/verify/);
   assert.match(login, /recoveryCodes/);
   assert.match(login, /autoComplete="one-time-code"/);
+  assert.match(login, /useSyncExternalStore/);
+  assert.match(login, /emptyLocationSnapshot/);
+  assert.doesNotMatch(login, /useState\(readStaffInviteFromUrl\)/);
 });
 
 test("shared console navigation is hydration-safe and keyboard-contained", async () => {
