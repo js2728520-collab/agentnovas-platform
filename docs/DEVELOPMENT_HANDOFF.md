@@ -1928,3 +1928,37 @@ npx tsc --noEmit; echo $?             # 直接看退出码
 
 第二条尤其重要：`npx tsc --noEmit | grep ... | head` 读到的是 **grep 的退出码**，
 那样的类型检查永远是绿的。
+
+## 实盘：记账已接通，闸门收敛成一道（2026-08-23）
+
+见 ADR-0020。要点：
+
+**模拟盘与实盘是同一本账，只差 `book` 维度与本金。** `official_paper_portfolios`
+新增 `book`（paper/live）；paper 本金恒 10000（产品规则，让客户可横向比较），
+live 为客户真实投入。域层 `principalUsdt` 从字面量类型 `10_000` 放宽为 `number`。
+
+改动这块时最容易踩的两条：
+
+1. **记账里不许出现 `OFFICIAL_PAPER_PRINCIPAL_USDT`**，一切百分比上限读
+   `state.principalUsdt`。这个 bug 在模拟盘上永远看不出来——两者恰好相等。
+2. **`ON CONFLICT` 的目标是 `(membership_id, strategy_code, book)`**。0060 换掉了
+   原来的两列唯一约束；漏改会直接报「没有匹配的唯一约束」，表现是客户开通会员后
+   进不去交易大厅。
+
+**新增测试要跑到 official_paper_portfolios 的，记得应用 0060。** 仓库里有若干测试
+自建 schema 子集或只应用部分迁移（`postgres-commercial-settlement`、
+`strategy-runtime-repository`、`client-onboarding-hardening`），它们都需要显式加上
+0060，否则报 `column "book" does not exist`。
+
+**实盘落账的入口是 `postLiveFillsToBook`，输入是事实不是回执。**
+`resolveEffectiveFill(回执, 对账记录)` 归一出事实；对账未决时**停住整条队列**，
+不跳过去记后面那笔——跳过会让账本按错误顺序累计。
+
+**开实盘之前先读 `LIVE_EXECUTION_BLOCKERS`。** 现在剩三条：余额核对缺失、
+客户侧开通入口缺失、从未对真实交易所下过一单。清单不是开关。
+
+### 一个反复出现的坑：两个时钟
+
+测试里用冻结时钟的 Worker + 用数据库 `now()` 插入的到期时间 = 租约取不到刚插进去的
+那条记录。本仓库已经踩过不止一次（`enqueueReconciliation`、以及这次的对账手续费
+用例）。**插入待处理记录时，到期时间用测试时钟，不用 `now()`。**

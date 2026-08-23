@@ -197,22 +197,27 @@ apps/*  →  packages/*  →  lib/
   npm run quality:key-custody
   ```
 
-  **实盘路由的现状（ADR-0019 第 6 步）**：授权机制已就位——`execution_live_routing`
-  按 (交易所, 环境) 逐条批准，开通走 maker/checker、关停单人即时，运维端有界面。
-  但 `createLiveExecutionPort` **仍然没有调用方**，决策扇出到真实下单那一段没接上。
-  **实盘链路仍未接通**，见 ADR-0019 文末的更正。接线写完了（Worker → 域层翻译 →
-  执行服务 → 回执），但被五处互相独立的检查各自挡住，一条真实订单都发不出去。
+  **实盘路由的现状**：授权机制就位（`execution_live_routing` 按 (交易所, 环境)
+  逐条批准，开通走 maker/checker、关停单人即时，运维端有界面）；记账链路也已接通
+  ——实盘成交进仓位表、进风控读数、进分成口径，两家交易所都有实盘适配器。
 
-  更重要的是记账缺口：实盘成交不写仓位表、不进风控读数、不进分成口径，且引擎在
-  live 模式下 `position` 恒为 null ⇒ 永远不产出平仓意图。**这些缺口不阻止下单，
-  它们让下单之后的一切都是错的。**
+  曾经挡住实盘的五处**意外** fail-closed（租约过滤、边界断言、requestedPrice
+  恒 null、symbol 格式、无创建入口）已经拆掉。它们逐个看都像普通条件，逐个改都像
+  修 bug——把闸门收敛成一道有名字的，正是为了不再靠意外来保证安全。
 
+  **实盘仍然关着，但现在只由一道命名闸门关着**：`isLiveExecutionReady()`。
   想开实盘先读 `packages/domain/src/execution/live-readiness.ts` 的
-  `LIVE_EXECUTION_BLOCKERS`——那五处阻断逐个看都像 bug，逐个修都像在修 bug。
+  `LIVE_EXECUTION_BLOCKERS`，剩下三条分别是余额核对缺失、客户侧开通入口缺失、
+  从未对真实交易所下过一单。清单不是开关：清空它之前每条都要有实现和测试。
 
-  **默认仍然不会产生任何真实订单**，需同时满足三件事：`execution_live_routing`
-  有 granted 授权、部署 `mode = 'live'` 且绑定可交易账户、无命中熔断且无未决对账。
-  任一不满足都产出明确的拒绝回执，不静默跳过。
+  **即使清单清空，默认也不会产生任何真实订单**，还需同时满足三件事：
+  `execution_live_routing` 有 granted 授权、部署 `mode = 'live'` 且绑定可交易账户、
+  无命中熔断且无未决对账。任一不满足都产出明确的拒绝回执，不静默跳过。
+
+  记账上有两条容易写反：**模拟盘与实盘是同一本账**（只差 `book` 维度与本金），
+  以及**事实取自回执与对账的归一判定**（`resolveEffectiveFill`），未决时什么都
+  不记——记成成交会凭空造出仓位，记成未成交会让引擎继续开新仓。
+  详见 `packages/domain/CLAUDE.md`。
 
   官方现货卡没有止损价（退出靠 DSL 条件），真实下单的保护性止损由
   `riskPerTradePct / maxAssetAllocationPct` 推导——这是把已有的风控预算换算到价格
