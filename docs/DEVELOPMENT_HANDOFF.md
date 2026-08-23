@@ -2086,3 +2086,52 @@ ESLint、261 条 API 安全清单、架构边界和仓库敏感信息扫描均�
 G1 仍保持进行中：真实邮件送达证据、正式生产 MFA 开启态专项 Gate、城市级定位是否需要
 以及第六台设备是否改为“替换旧设备”的需求结论尚未完成。当前实现继续采用安全默认：
 第六台直接拒绝，异地以 IP 网段变化为证据。
+
+## 55. 2026-08-23 V3 Phase 1：MFA 开启态三端本地登录预检
+
+本切片建立了与原关闭态门禁隔离的 `mfa-on` Playwright profile。默认 `npm run test:e2e`
+仍强制 `MFA_ENFORCEMENT_ENABLED=false` 并保留 15 项期望数量；新增
+`npm run test:e2e:mfa-on` 使用独立 `outputs/quality-mfa-on`、一次性 PostgreSQL Schema
+和运行时密钥，精确启用 MFA，成功或失败后都删除 `.runtime` 与 Schema。未知 profile
+直接失败，外部支付、邮件发送、Demo、Research/Runtime 写入继续全部关闭。
+
+本机真实 Chromium 的开启态预检为 3/3：
+
+- Client：空浏览器密码登录、账户安全页主动绑定、8 枚一次性 recovery code、另一个空
+  浏览器 TOTP 登录、第三个空浏览器 recovery 登录；数据库只保存 AES-GCM TOTP 密文和
+  recovery 摘要，并验证 recovery 单次消耗事实。
+- Operations：空浏览器密码登录后强制首次绑定，保存 recovery code 后进入运营概览；
+  再开空浏览器使用 TOTP 登录。
+- Maintenance：空浏览器密码登录后强制首次绑定并进入系统概览；再开空浏览器使用
+  recovery code 登录。
+
+浏览器执行发现并修复了门禁自身的两个真实性问题：Client 关闭态完整会话在 fixture 中
+仍错误标为 `primary`，与新的回滚安全语义冲突，现在改为 `none`；Next 16 的 standalone
+构建不能再由 `next start` 可靠承载，runner 现在运行生成的 `standalone/server.js`，并
+在启动前补齐 `public` 与 audience 对应的 static 资源。原关闭态套件随后重新通过 15/15。
+
+安全收敛同步完成：
+
+- MFA 验证和绑定确认同时使用 session、user、可信 connection 三层限流桶，轮换 primary
+  Session 不能重置账户/网络尝试预算；生产无法解析可信连接身份时返回 503。
+- 生产配置审计要求 Client、Operations、Maintenance 都显式配置精确 `true|false`，并且
+  三端值一致；finding 不回显配置值。
+- Client 关闭态可从完整会话主动预绑定；开关切换后，已绑定 Client 的旧 `none` Session
+  不再绕过挑战，遗留内部 `primary` Session 也不会在关闭开关时被静默提升。
+- 密码重置和内部激活链接使用 URL fragment 传递 bearer token，避免进入代理请求 URL。
+
+验证结果：全量 1277 个测试、TypeScript、ESLint、架构边界和仓库秘密扫描通过；MFA
+PostgreSQL fixture、共享限流和生产配置专项测试通过。三端生产 builder 在
+`ssh an-saas` 的一次性目录 `/root/agentnovas-v3-mfa.Am8pou` 构建，源码传输排除了
+`.env*`、Git、依赖和本地输出，未启动、未推送、未部署：
+
+- Client：`sha256:73eabad739a232776cbd45972fdba252076517d7195e754bbbe019e665a870d8`
+- Operations：`sha256:a1f0c0df12d1269676b49deb288e156e5f7fb6f9330bfe9400109b0c073e593a`
+- Maintenance：`sha256:4c2f3de65df3479ea4d7ffd65879a438d2065473c4ca98af443aa51abbd9db27`
+
+这仍是生产 Gate 的子集，不能把 T1.14 或 G1 标为完成。正式投入生产前还必须在目标环境
+完成 recent MFA 敏感接口、密码重置 continuation、同一数据库 on→off→on 回滚、三端
+readiness 一致性和真实邮件送达；产品侧城市级定位与第六台设备策略也仍待确认。
+
+代码差异审计还发现 Phase 1 任务真源遗漏 Operations PII 字段权限/导出一致性，已补为
+T1.6 / 1.15，后续应优先完成该切片，再进入多市场行情。

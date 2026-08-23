@@ -143,15 +143,27 @@
 
 ### T1.5：MFA 分阶段强制开关
 
-**状态：** 已完成（默认关闭；登录、敏感权限、密码重置、三端 UI/API、env 和测试已接入）。
+**状态：** 已完成实现；本地关闭态 15/15 与开启态三端登录预检 3/3 已通过，正式生产完整 Gate 仍待。
 
 **描述：** 保留 TOTP/recovery 全部能力与数据，通过 fail-closed 服务端开关推迟到正式生产强制。
 
 **验收：** 关闭态不产生 MFA 半会话或死路径；开启态恢复内部首次绑定、已绑定验证和 recent MFA；三端状态一致且可回滚。
-**验证：** 关闭/开启纯函数、PostgreSQL 密码重置、15 场景浏览器关闭态（三端空浏览器登录）；生产前另跑开启态专项。
+**验证：** 关闭/开启纯函数、PostgreSQL 密码重置、15 场景浏览器关闭态；本地开启态真实 Chromium 已覆盖 Client 主动绑定/TOTP/recovery、Operations 首次绑定/TOTP、Maintenance 首次绑定/recovery。生产前仍需 recent MFA、密码重置、同库回滚与目标环境三端一致性专项。
 **依赖：** T1.3/T1.4。
 **涉及：** auth/access-control、MFA API/UI、env、ADR-0023、发布 Gate。
 **规模：** S。
+
+### T1.6：Operations PII 字段权限与导出一致性
+
+**状态：** 未开始；Phase 1 当前代码/需求差异审计确认需要单独补齐。
+
+**描述：** 建立客户 PII 字段级读取权限、列表/详情/导出同源投影和脱敏合同，避免页面与 CSV 导出出现权限漂移。
+
+**验收：** 无字段权限时列表、详情和导出采用相同脱敏；有权限只放开合同字段；CSV 继续防公式注入；审计不保存无关明文 PII。
+**验证：** maker/checker/跨组织正反例、API inventory、PostgreSQL scope、CSV 合同和四身份浏览器回归。
+**依赖：** T1.1、T1.3。
+**涉及：** Operations customer APIs/UI、export projection、API Policy、PII tests。
+**规模：** M。
 
 ### Checkpoint P1
 
@@ -159,6 +171,7 @@
 - [ ] 组织 UI 退休且 scope/PII 无回归。
 - [ ] Beta 会员、Paper、Operations 审批回归全绿。
 - [ ] 正式生产 MFA 开启态专项与三端一致性通过。
+- [ ] Operations PII 字段权限与列表/详情/导出一致性通过。
 
 ## 6. Phase 2：多市场行情
 
