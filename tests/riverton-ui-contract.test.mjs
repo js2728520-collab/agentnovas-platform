@@ -378,7 +378,8 @@ test("maintenance connectivity tests keep audited reasons without redundant conf
   assert.match(payment, /DEPOSIT ONLY/);
   assert.match(payment, /InlineAuditReasonField/);
   assert.match(payment, /kind: "activate" \| "disable"/);
-  assert.match(payment, /ConfirmActionDialog/);
+  assert.match(payment, /hasValidAuditReason\(statusReason\)/);
+  assert.doesNotMatch(payment, /ConfirmActionDialog/);
   assert.match(payment, /idempotency-key/);
 });
 

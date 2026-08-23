@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { apiErrorMessage, formatDateTime, formatDecimal } from "@/packages/contracts/src/riverton-ui";
-import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
 import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import {
   EmptyState,
@@ -55,8 +54,7 @@ type DemoSafeView = {
   accounts: DemoAccountView[];
 };
 
-type PendingAction = {
-  idempotencyKey: string;
+type DemoAction = {
   account: DemoAccountView;
   action:
     | "verify"
@@ -88,19 +86,21 @@ export function DemoExchangesWorkspace({
     "/api/maintenance/demo-exchanges",
     "Demo 账户安全视图读取失败",
   );
-  const [pending, setPending] = useState<PendingAction | null>(null);
   const [verifyReason, setVerifyReason] = useState("");
+  const [controlReason, setControlReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const controlKeys = useRef(new Map<string, string>());
 
-  function queueAction(action: Omit<PendingAction, "idempotencyKey">) {
-    setPending({ ...action, idempotencyKey: crypto.randomUUID() });
-  }
-
-  async function execute(actionToRun: PendingAction, reason: string) {
+  async function execute(actionToRun: DemoAction, reason: string) {
     if (busy) return;
     setBusy(true);
     setMessage("");
+    const keyName = `${actionToRun.account.id}:${actionToRun.action}:${actionToRun.strategyCode ?? "account"}`;
+    const idempotencyKey = actionToRun.action === "verify"
+      ? crypto.randomUUID()
+      : controlKeys.current.get(keyName) ?? crypto.randomUUID();
+    if (actionToRun.action !== "verify") controlKeys.current.set(keyName, idempotencyKey);
     try {
       const suffix = actionToRun.action === "verify" ? "verify" : "control";
       const response = await fetch(
@@ -109,7 +109,7 @@ export function DemoExchangesWorkspace({
           method: "POST",
           headers: {
             "content-type": "application/json",
-            "idempotency-key": actionToRun.idempotencyKey,
+            "idempotency-key": idempotencyKey,
           },
           body: JSON.stringify({
             reason,
@@ -141,7 +141,7 @@ export function DemoExchangesWorkspace({
           ? "Demo provider 验证已真实执行并返回通过；这不表示 Worker 已启用或外部写入已授权。"
           : "安全控制已记录；页面刷新后展示数据库真状态，不表示发生了任何真实订单。",
       );
-      if (actionToRun.action !== "verify") setPending(null);
+      if (actionToRun.action !== "verify") controlKeys.current.delete(keyName);
       await resource.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Demo 账户操作失败");
@@ -151,7 +151,7 @@ export function DemoExchangesWorkspace({
   }
 
   function verifyAccount(account: DemoAccountView) {
-    void execute({ account, action: "verify", idempotencyKey: crypto.randomUUID() }, verifyReason.trim());
+    void execute({ account, action: "verify" }, verifyReason.trim());
   }
 
   if (resource.loading && !resource.data) {
@@ -197,7 +197,7 @@ export function DemoExchangesWorkspace({
           <span>不提供任何 UI 入口</span>
         </article>
       </section>
-      {canVerify ? <section className="rc-panel"><header><div><small>CONNECTION AUDIT</small><h2>Demo 连接验证</h2><p>填写一次原因后可直接验证账户连接；账户启停和紧急控制仍保留独立确认。</p></div></header><div className="rc-form"><InlineAuditReasonField id="demo-verification-reason" value={verifyReason} onChange={setVerifyReason} minLength={8} label="连接验证原因" /></div></section> : null}
+      {(canVerify || canManage || canKill) ? <section className="rc-panel"><header><div><small>INLINE AUDIT</small><h2>Demo 验证与安全控制</h2><p>填写对应原因后直接执行，不再弹出二次确认；账户启停、Kill、恢复、权限、幂等和运行时外写 Gate 保持不变。</p></div></header><div className="rc-form rc-form-grid">{canVerify ? <InlineAuditReasonField id="demo-verification-reason" value={verifyReason} onChange={setVerifyReason} minLength={8} label="连接验证原因" /> : null}{(canManage || canKill) ? <InlineAuditReasonField id="demo-control-reason" value={controlReason} onChange={setControlReason} minLength={8} label="安全控制原因" hint="控制只更新平台 Demo 账户或策略卡状态，不会创建、撤销或声称执行任何订单。" /> : null}</div></section> : null}
       {!resource.data?.accounts.length ? (
         <EmptyState
           title="尚无平台 Demo 账户"
@@ -278,8 +278,8 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    disabled={!account.configured || !account.verificationFresh}
-                    onClick={() => queueAction({ account, action: "enable" })}
+                    disabled={busy || !account.configured || !account.verificationFresh || !hasValidAuditReason(controlReason, 8)}
+                    onClick={() => void execute({ account, action: "enable" }, controlReason.trim())}
                   >
                     启用账户
                   </button>
@@ -288,7 +288,8 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    onClick={() => queueAction({ account, action: "disable" })}
+                    disabled={busy || !hasValidAuditReason(controlReason, 8)}
+                    onClick={() => void execute({ account, action: "disable" }, controlReason.trim())}
                   >
                     停用账户
                   </button>
@@ -297,7 +298,8 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button rc-danger-button"
                     type="button"
-                    onClick={() => queueAction({ account, action: "kill" })}
+                    disabled={busy || !hasValidAuditReason(controlReason, 8)}
+                    onClick={() => void execute({ account, action: "kill" }, controlReason.trim())}
                   >
                     紧急 Kill
                   </button>
@@ -306,7 +308,8 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    onClick={() => queueAction({ account, action: "resume" })}
+                    disabled={busy || !hasValidAuditReason(controlReason, 8)}
+                    onClick={() => void execute({ account, action: "resume" }, controlReason.trim())}
                   >
                     解除 Kill（保持停用）
                   </button>
@@ -333,13 +336,12 @@ export function DemoExchangesWorkspace({
                         <button
                           className="rc-button rc-danger-button"
                           type="button"
-                          onClick={() =>
-                            queueAction({
+                          disabled={busy || !hasValidAuditReason(controlReason, 8)}
+                          onClick={() => void execute({
                               account,
                               action: "card_kill",
                               strategyCode: card.strategyCode,
-                            })
-                          }
+                            }, controlReason.trim())}
                         >
                           停止该卡
                         </button>
@@ -348,13 +350,12 @@ export function DemoExchangesWorkspace({
                         <button
                           className="rc-button"
                           type="button"
-                          onClick={() =>
-                            queueAction({
+                          disabled={busy || !hasValidAuditReason(controlReason, 8)}
+                          onClick={() => void execute({
                               account,
                               action: "card_resume",
                               strategyCode: card.strategyCode,
-                            })
-                          }
+                            }, controlReason.trim())}
                         >
                           恢复该卡
                         </button>
@@ -367,34 +368,6 @@ export function DemoExchangesWorkspace({
           ))}
         </div>
       )}
-      <ConfirmActionDialog
-        open={Boolean(pending)}
-        title={actionTitle(pending)}
-        description={actionDescription(pending)}
-        confirmLabel="确认并记录"
-        busy={busy}
-        onCancel={() => setPending(null)}
-        onConfirm={(reason) => { if (pending) void execute(pending, reason); }}
-      />
     </>
   );
-}
-
-function actionTitle(pending: PendingAction | null) {
-  if (!pending) return "Demo 安全操作";
-  if (pending.action === "verify") return "验证 Demo provider 连接";
-  if (pending.action === "kill" || pending.action === "card_kill") {
-    return "执行 Demo 紧急停控";
-  }
-  return "变更 Demo 安全控制";
-}
-
-function actionDescription(pending: PendingAction | null) {
-  if (pending?.action === "verify") {
-    return "只有环境显式授权时才会请求 Demo provider；未授权会返回 503，不会显示假成功。";
-  }
-  if (pending?.action === "enable") {
-    return "启用要求密钥完整且 15 分钟内验证通过；仍需 Worker 和外部写入开关同时开启才可能发送 Demo 现货订单。";
-  }
-  return "控制只更新平台 Demo 账户或策略卡停控状态；不会创建、撤销或声称执行任何订单。";
 }

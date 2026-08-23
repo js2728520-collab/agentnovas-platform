@@ -26,7 +26,7 @@ test("maintenance model and integration workspaces are responsive, accessible an
   }
 });
 
-test("ordinary maintenance configuration submits inline without confirmation dialogs", async ({ page }) => {
+test("maintenance configuration and controls submit inline without confirmation dialogs", async ({ page }) => {
   await page.goto("/settings", { waitUntil: "domcontentloaded" });
   const save = page.getByRole("button", { name: "保存设置" });
   await expect(save).toBeDisabled();
@@ -84,9 +84,31 @@ test("ordinary maintenance configuration submits inline without confirmation dia
     ["/integrations/sources", "本轮测试原因"],
     ["/integrations/payments", "配置与测试原因"],
     ["/integrations/demo-exchanges", "连接验证原因"],
+    ["/settings/disclosures", "提交原因"],
+    ["/releases", "版本操作原因"],
+    ["/safety", "审批或事故原因"],
   ] as const) {
     await page.goto(path, { waitUntil: "domcontentloaded" });
     await expect(page.getByLabel(reasonLabel)).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  }
+
+  await page.goto("/safety", { waitUntil: "domcontentloaded" });
+  const pause = page.getByRole("button", { name: "暂停官方 Paper 新开仓" });
+  const resume = page.getByRole("button", { name: "解除紧急暂停" });
+  const initiallyPaused = await resume.isVisible().catch(() => false);
+  await page.getByLabel("审批或事故原因").fill("浏览器验证内联紧急控制流程");
+  const firstResponse = page.waitForResponse((response) => response.url().endsWith("/api/maintenance/trading/emergency-stop") && response.request().method() === "POST");
+  await (initiallyPaused ? resume : pause).click();
+  expect((await firstResponse).status()).toBe(200);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  if (!initiallyPaused) {
+    await expect(resume).toBeVisible();
+    await page.getByLabel("审批或事故原因").fill("浏览器验证结束后恢复初始状态");
+    const restoreResponse = page.waitForResponse((response) => response.url().endsWith("/api/maintenance/trading/emergency-stop") && response.request().method() === "POST");
+    await resume.click();
+    expect((await restoreResponse).status()).toBe(200);
     await expect(page.getByRole("dialog")).toHaveCount(0);
   }
 });

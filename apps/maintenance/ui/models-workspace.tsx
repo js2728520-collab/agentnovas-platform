@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 
 import { apiErrorMessage, formatDateTime, type MaintenanceAgentBinding, type MaintenanceModelProfile } from "@/packages/contracts/src/riverton-ui";
-import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
 import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
@@ -65,7 +64,7 @@ export function ModelsWorkspace({ canManageProfiles, canManageBindings }: { canM
   const [editingProfileId, setEditingProfileId] = useState("");
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [auditReason, setAuditReason] = useState("");
-  const [pendingRollback, setPendingRollback] = useState<RollbackAction | null>(null);
+  const [rollbackReason, setRollbackReason] = useState("");
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const revisions = useApiData<{ revisions: RevisionView[] }>(selectedProfileId ? `/api/admin/llm-profiles/${encodeURIComponent(selectedProfileId)}/revisions` : null, "模型修订历史读取失败");
   const [busy, setBusy] = useState(false);
@@ -82,7 +81,7 @@ export function ModelsWorkspace({ canManageProfiles, canManageBindings }: { canM
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(apiErrorMessage(payload, "模型回滚失败"));
         setMessage("模型 Profile 已从历史快照生成新的不可变修订；密钥和端点未回显。");
-        setPendingRollback(null);
+        setRollbackReason("");
         await Promise.all([refreshAll(), revisions.refresh()]);
         return;
       }
@@ -145,11 +144,10 @@ export function ModelsWorkspace({ canManageProfiles, canManageBindings }: { canM
         : null}</div></section>}
       <section className="rc-panel"><header><div><small>{profiles.data?.profiles.length ?? 0} 个配置</small><h2>安全配置状态</h2></div></header>{!profiles.data?.profiles.length ? <EmptyState title="没有模型 Profile" description="Research Agent 将保持暂停或未配置状态。" /> : <div className="rc-card-list">{profiles.data.profiles.map((profile) => <article key={profile.id}><header><div><b>{profile.name}</b><small>{profile.providerName} · {profile.modelName}</small></div><StatusBadge value={profile.enabled ? "enabled" : "disabled"} /></header><p>密钥：{profile.hasSecret ? "已保存（不可回显）" : "未配置"} · 修订：{profile.currentRevisionId ? "已生成" : "未生成"} · {formatDateTime(profile.updatedAt)}</p><div className="rc-action-row"><button className="rc-button" type="button" onClick={() => setSelectedProfileId(profile.id)}>查看版本与回滚</button>{canManageProfiles ? <button className="rc-button" type="button" onClick={() => { setEditingProfileId(profile.id); setForm({ name: profile.name, providerName: profile.providerName, baseUrl: "", modelName: profile.modelName, apiKey: "", enabled: profile.enabled }); }}>编辑 / 轮换</button> : null}</div></article>)}</div>}</section>
     </div>
-    {selectedProfileId ? <section className="rc-panel"><header><div><small>IMMUTABLE REVISIONS</small><h2>Profile 版本历史</h2></div><button className="rc-button" type="button" onClick={() => setSelectedProfileId("")}>关闭</button></header>{revisions.loading && !revisions.data ? <LoadingState /> : revisions.error && !revisions.data ? <ErrorState message={revisions.error} retry={revisions.refresh} /> : !revisions.data?.revisions.length ? <EmptyState title="没有修订记录" description="该 Profile 尚未产生版本。" /> : <div className="rc-card-list">{revisions.data.revisions.map((revision) => <article key={revision.id}><header><div><b>修订 {revision.revisionNumber} · {revision.modelName}</b><small>{revision.providerName} · {formatDateTime(revision.createdAt)}</small></div><StatusBadge value={revision.isCurrent ? "current" : revision.enabled ? "historical" : "disabled"} /></header><p>密钥：{revision.hasSecret ? "存在（不可回显）" : "缺失"} · 创建人 {revision.createdByUserId}</p>{canManageProfiles && !revision.isCurrent && <button className="rc-button" type="button" onClick={() => { const current = revisions.data?.revisions.find((item) => item.isCurrent); if (current) setPendingRollback({ kind: "rollback", profileId: selectedProfileId, revisionId: revision.id, expectedCurrentRevisionId: current.id }); }}>回滚到此版本</button>}</article>)}</div>}</section> : null}
+    {selectedProfileId ? <section className="rc-panel"><header><div><small>IMMUTABLE REVISIONS</small><h2>Profile 版本历史</h2></div><button className="rc-button" type="button" onClick={() => { setSelectedProfileId(""); setRollbackReason(""); }}>关闭</button></header>{canManageProfiles ? <div className="rc-form"><InlineAuditReasonField id="model-rollback-reason" value={rollbackReason} onChange={setRollbackReason} label="回滚原因" hint="回滚会从选中的历史快照创建新修订，不删除或覆盖任何历史。填写原因后可直接执行。" /></div> : null}{revisions.loading && !revisions.data ? <LoadingState /> : revisions.error && !revisions.data ? <ErrorState message={revisions.error} retry={revisions.refresh} /> : !revisions.data?.revisions.length ? <EmptyState title="没有修订记录" description="该 Profile 尚未产生版本。" /> : <div className="rc-card-list">{revisions.data.revisions.map((revision) => <article key={revision.id}><header><div><b>修订 {revision.revisionNumber} · {revision.modelName}</b><small>{revision.providerName} · {formatDateTime(revision.createdAt)}</small></div><StatusBadge value={revision.isCurrent ? "current" : revision.enabled ? "historical" : "disabled"} /></header><p>密钥：{revision.hasSecret ? "存在（不可回显）" : "缺失"} · 创建人 {revision.createdByUserId}</p>{canManageProfiles && !revision.isCurrent && <button className="rc-button" type="button" disabled={busy || !hasValidAuditReason(rollbackReason)} onClick={() => { const current = revisions.data?.revisions.find((item) => item.isCurrent); if (current) void submit({ kind: "rollback", profileId: selectedProfileId, revisionId: revision.id, expectedCurrentRevisionId: current.id }, rollbackReason.trim()); }}>回滚到此版本</button>}</article>)}</div>}</section> : null}
     <BindingPanel title="Research Agent 绑定" bindings={research.data?.bindings ?? []} profiles={profiles.data?.profiles ?? []} canManage={canManageBindings} selectionFor={selectionFor} setSelection={setSelection} runtime={false} busy={busy} reasonReady={hasValidAuditReason(auditReason)} onAction={(action) => void submit(action, auditReason.trim())} />
     <BindingPanel title="Runtime 解释 Agent 绑定" bindings={runtime.data?.bindings ?? []} profiles={profiles.data?.profiles ?? []} canManage={canManageBindings} selectionFor={selectionFor} setSelection={setSelection} runtime busy={busy} reasonReady={hasValidAuditReason(auditReason)} onAction={(action) => void submit(action, auditReason.trim())} />
     <section className="rc-panel"><header><div><small>PRODUCT PIPELINE</small><h2>七智能体确定性阶段目录</h2></div><StatusBadge value="simulation_only" /></header><p className="rc-muted">七阶段是有顺序、可退回且受硬风控约束的产品流程，不等同于七个可任意绑定的 LLM。上方 Profile 只负责允许使用模型的解释/研究角色。</p><div className="rc-card-list">{tradingHallAgentCatalog.map((agent) => <article key={agent.key}><header><div><b>{agent.sequence}. {agent.name}</b><small>{agent.key}</small></div></header><p>{agent.question}</p><small>固定输出：{agent.outputName}</small></article>)}</div></section>
-    <ConfirmActionDialog open={Boolean(pendingRollback)} title="回滚模型 Profile" description="系统会从目标快照创建新的不可变修订；不会删除历史，也不会回显密钥或端点。" confirmLabel="确认回滚" busy={busy} onCancel={() => setPendingRollback(null)} onConfirm={(reason) => { if (pendingRollback) void submit(pendingRollback, reason); }} />
   </>;
 }
 

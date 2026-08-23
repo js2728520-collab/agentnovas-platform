@@ -52,7 +52,9 @@ test("maintenance exposes explicit emergency controls through its own navigation
   const workspace = await read("apps/maintenance/ui/emergency-control-workspace.tsx");
   assert.match(app, /href: "\/safety"/);
   assert.match(app, /maint\.emergency_pause\.execute/);
-  assert.match(workspace, /ConfirmActionDialog/);
+  assert.match(workspace, /InlineAuditReasonField/);
+  assert.match(workspace, /hasValidAuditReason\(reason\)/);
+  assert.doesNotMatch(workspace, /ConfirmActionDialog/);
   assert.match(workspace, /官方 Paper/);
   assert.match(workspace, /平台 Demo/);
   assert.match(workspace, /\/integrations\/demo-exchanges/);
