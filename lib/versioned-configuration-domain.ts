@@ -102,6 +102,10 @@ function canonicalJson(value: unknown): string {
   return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`).join(",")}}`;
 }
 
+export function configurationPayloadSha256(payload: Record<string, unknown>) {
+  return createHash("sha256").update(canonicalJson(payload), "utf8").digest("hex");
+}
+
 export function normalizeConfigurationDraft(input: unknown): NormalizedConfigurationDraft {
   const value = inputObject(input);
   strictKeys(value, ["kind", "key", "audience", "schemaVersion", "payload", "reason"]);
@@ -131,7 +135,7 @@ export function normalizeConfigurationDraft(input: unknown): NormalizedConfigura
     schemaVersion,
     payload,
     payloadCanonical,
-    payloadSha256: createHash("sha256").update(payloadCanonical, "utf8").digest("hex"),
+    payloadSha256: configurationPayloadSha256(payload),
     reason: text(value.reason, "创建原因"),
   };
 }

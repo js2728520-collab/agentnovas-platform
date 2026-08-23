@@ -1,7 +1,11 @@
-import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 
-import { evaluateRegisteredFeatureFlag } from "./configuration-family-registry.ts";
+import {
+  evaluateRegisteredFeatureFlag,
+  normalizeRegisteredFeatureFlagPayload,
+  type FeatureFlagEvaluationContext,
+} from "./configuration-family-registry.ts";
+import { configurationPayloadSha256 } from "./versioned-configuration-domain.ts";
 
 type ActiveFeatureFlagRow = {
   configuration_version_id: string;
@@ -11,12 +15,6 @@ type ActiveFeatureFlagRow = {
 };
 
 const SHA256 = /^[a-f0-9]{64}$/;
-
-function featureFlagPayloadSha256(payload: Record<string, unknown>) {
-  return createHash("sha256")
-    .update(JSON.stringify({ enabled: payload.enabled }), "utf8")
-    .digest("hex");
-}
 
 function result(
   decision: ReturnType<typeof evaluateRegisteredFeatureFlag> | { enabled: false; reason: "configuration_unavailable" },
@@ -31,7 +29,14 @@ function result(
 
 export async function readClientFeatureFlagDecision(
   queryable: Pick<Pool, "query">,
-  input: { key: "client.strategy_research"; environmentEnabled: boolean },
+  input: {
+    key: "client.strategy_research";
+    environmentEnabled: boolean;
+    userId?: string | null;
+    organizationIds?: readonly string[];
+    applicationVersion?: string | null;
+    now?: Date;
+  },
 ) {
   if (!input.environmentEnabled) {
     return result(evaluateRegisteredFeatureFlag({ environmentEnabled: false, payload: null }), null);
@@ -48,12 +53,29 @@ export async function readClientFeatureFlagDecision(
   }
   if (!row) return result(evaluateRegisteredFeatureFlag({ environmentEnabled: true, payload: null }), null);
   if (!row.configuration_version_id || row.configuration_version_id.length > 160
-    || row.schema_version !== 1 || !SHA256.test(row.payload_sha256)) {
+    || ![1, 2].includes(row.schema_version) || !SHA256.test(row.payload_sha256)) {
     return result({ enabled: false, reason: "configuration_invalid" }, row);
   }
-  const decision = evaluateRegisteredFeatureFlag({ environmentEnabled: true, payload: row.payload_json });
-  if (decision.reason === "configuration_invalid" || featureFlagPayloadSha256(row.payload_json) !== row.payload_sha256) {
+  let payload: Record<string, unknown>;
+  try {
+    payload = normalizeRegisteredFeatureFlagPayload(row.schema_version, row.payload_json);
+  } catch {
     return result({ enabled: false, reason: "configuration_invalid" }, row);
   }
+  if (configurationPayloadSha256(payload) !== row.payload_sha256) {
+    return result({ enabled: false, reason: "configuration_invalid" }, row);
+  }
+  const context: FeatureFlagEvaluationContext = {
+    userId: input.userId,
+    organizationIds: input.organizationIds,
+    applicationVersion: input.applicationVersion,
+    now: input.now,
+  };
+  const decision = evaluateRegisteredFeatureFlag({
+    environmentEnabled: true,
+    schemaVersion: row.schema_version,
+    payload,
+    context,
+  });
   return result(decision, row);
 }

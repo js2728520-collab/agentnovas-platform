@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { readClientFeatureFlagDecision } from "../lib/active-feature-flags.ts";
+import { normalizeConfigurationDraft } from "../lib/versioned-configuration-domain.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -95,11 +96,68 @@ test("active payload must match its stored SHA-256 digest", async () => {
   assert.equal(decision.reason, "configuration_invalid");
 });
 
+test("targeted active configuration evaluates only server-owned subject, release and time context", async () => {
+  const normalized = normalizeConfigurationDraft({
+    kind: "feature_flag",
+    key: "client.strategy_research",
+    audience: "client",
+    schemaVersion: 2,
+    payload: {
+      defaultEnabled: false,
+      target: {
+        enabled: true,
+        userIds: ["customer-1"],
+        organizationIds: ["branch-a"],
+        applicationVersions: ["v1.0.0-beta.6"],
+        rolloutPercentage: 100,
+        startsAt: "2026-08-24T01:00:00Z",
+        endsAt: "2026-08-24T02:00:00Z",
+      },
+    },
+    reason: "验证服务端上下文参与灰度功能开关判定",
+  });
+  const queryable = {
+    query: async () => ({ rows: [{
+      configuration_version_id: "feature-version-targeted",
+      schema_version: 2,
+      payload_json: normalized.payload,
+      payload_sha256: normalized.payloadSha256,
+    }] }),
+  };
+  const enabled = await readClientFeatureFlagDecision(queryable, {
+    key: "client.strategy_research",
+    environmentEnabled: true,
+    userId: "customer-1",
+    organizationIds: [],
+    applicationVersion: "v1.0.0-beta.6",
+    now: new Date("2026-08-24T01:30:00Z"),
+  });
+  assert.equal(enabled.enabled, true);
+  assert.equal(enabled.reason, "targeted_enabled");
+  assert.equal(enabled.configurationVersionId, "feature-version-targeted");
+
+  const noReleaseIdentity = await readClientFeatureFlagDecision(queryable, {
+    key: "client.strategy_research",
+    environmentEnabled: true,
+    userId: "customer-1",
+    organizationIds: ["branch-a"],
+    applicationVersion: null,
+    now: new Date("2026-08-24T01:30:00Z"),
+  });
+  assert.equal(noReleaseIdentity.enabled, false);
+  assert.equal(noReleaseIdentity.reason, "default_disabled");
+});
+
 test("strategy research GET and POST share the active feature flag gate", async () => {
   const route = await read("app/api/strategy-research/runs/route.client.ts");
   assert.match(route, /readClientFeatureFlagDecision/);
   assert.match(route, /key:\s*"client\.strategy_research"/);
   assert.match(route, /runtimeSetting\("STRATEGY_RESEARCH_ENABLED"\)/);
-  assert.equal(route.match(/await requireStrategyResearchEnabled\(\)/g)?.length, 2);
+  assert.match(route, /safeRuntimeReleaseMetadata\(process\.env\)\.versionTag/);
+  assert.match(route, /userId:\s*user\.id/);
+  assert.match(route, /organizationIds:\s*user\.organizationId\s*\?\s*\[user\.organizationId\]\s*:\s*\[\]/);
+  assert.equal(route.match(/await requireStrategyResearchEnabled\(user\)/g)?.length, 2);
+  assert.equal(route.match(/const user = await requireResearchUser[\s\S]*?await requireStrategyResearchEnabled\(user\)/g)?.length, 2);
   assert.doesNotMatch(route, /function enabled\(\)/);
+  assert.doesNotMatch(route, /request\.headers.*(?:version|organization|user)/i);
 });

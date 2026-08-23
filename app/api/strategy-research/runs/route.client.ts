@@ -10,11 +10,12 @@ import { getPostgresPool } from "@/lib/postgres";
 import { createPerpetualMarketAdapter, type PerpetualExchange } from "@/lib/perpetual-market-adapters";
 import { createResearchRun, listOwnedResearchRuns, pauseResearchRunForMissingRoles } from "@/lib/postgres-research-queue";
 import { readResearchJson, requireResearchUser, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+import { safeRuntimeReleaseMetadata } from "@/lib/release-version-domain";
 import { parseStrategyResearchTarget } from "@/lib/research-target";
 import type { ResearchMode } from "@/packages/domain/src/research-validation";
 import { runtimeSetting } from "@/lib/runtime-setting";
 
-async function requireStrategyResearchEnabled() {
+async function requireStrategyResearchEnabled(user: { id: string; organizationId: string | null }) {
   const environmentEnabled = runtimeSetting("STRATEGY_RESEARCH_ENABLED") === "true";
   if (!environmentEnabled) throw new ResearchApiError("FEATURE_DISABLED", "多 Agent 策略研发功能尚未开放", 503);
   await ensureDatabaseSchema();
@@ -22,6 +23,10 @@ async function requireStrategyResearchEnabled() {
   const decision = await readClientFeatureFlagDecision(pool, {
     key: "client.strategy_research",
     environmentEnabled,
+    userId: user.id,
+    organizationIds: user.organizationId ? [user.organizationId] : [],
+    applicationVersion: safeRuntimeReleaseMetadata(process.env).versionTag,
+    now: new Date(),
   });
   if (!decision.enabled) throw new ResearchApiError("FEATURE_DISABLED", "多 Agent 策略研发功能尚未开放", 503);
   return pool;
@@ -29,8 +34,8 @@ async function requireStrategyResearchEnabled() {
 
 export async function GET(request: Request) {
   try {
-    const pool = await requireStrategyResearchEnabled();
     const user = await requireResearchUser(request, ["customer"]);
+    const pool = await requireStrategyResearchEnabled(user);
     const url = new URL(request.url);
     const scope = url.searchParams.get("scope") || "latest";
     const limitValue = Number(url.searchParams.get("limit") || 10);
@@ -66,8 +71,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const pool = await requireStrategyResearchEnabled();
     const user = await requireResearchUser(request, ["customer"]);
+    const pool = await requireStrategyResearchEnabled(user);
     const body = await readResearchJson(request, 65_536);
     const conversationId = String(body.conversationId ?? "").trim() || null;
     const exchangeAccountId = String(body.exchangeAccountId ?? "").trim();
