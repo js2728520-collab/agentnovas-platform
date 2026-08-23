@@ -23,23 +23,55 @@ test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
   await adminPool.query(`CREATE SCHEMA "${schema}"`);
   const migrationNames = (await readdir(new URL("../postgres/migrations/", import.meta.url)))
-    .filter((name) => /^\d{4}_.*\.sql$/.test(name) && Number(name.slice(0, 4)) <= 21)
+    .filter((name) => /^\d{4}_.*\.sql$/.test(name))
     .sort();
   for (const name of migrationNames) {
     await pool.query(await readFile(new URL(`../postgres/migrations/${name}`, import.meta.url), "utf8"));
   }
   await pool.query(`
     INSERT INTO users(id,email,password_hash,role,status)
-    VALUES('client-user','client@example.test','unused','customer','active');
+    VALUES
+      ('client-user','client@example.test','unused','customer','active'),
+      ('client-opt-in','client-opt-in@example.test','unused','customer','active');
     INSERT INTO sessions(
       id,user_id,token_hash,app_audience,expires_at,mfa_level,
       idle_expires_at,absolute_expires_at
-    ) VALUES(
-      'client-session','client-user','client-token','client',
-      '2026-08-30T00:00:00.000Z','primary',
-      '2026-08-22T00:00:00.000Z','2026-08-30T00:00:00.000Z'
-    );
+    ) VALUES
+      ('client-session','client-user','client-token','client',
+       '2026-08-30T00:00:00.000Z','primary',
+       '2026-08-30T00:00:00.000Z','2026-08-30T00:00:00.000Z'),
+      ('client-opt-in-session','client-opt-in','client-opt-in-token','client',
+       '2026-08-30T00:00:00.000Z','none',
+       '2026-08-30T00:00:00.000Z','2026-08-30T00:00:00.000Z');
   `);
+});
+
+test("Client can pre-enroll MFA from a complete session while enforcement is disabled", async () => {
+  const now = new Date("2026-08-23T08:00:00.000Z");
+  const started = await startMfaEnrollment(pool, {
+    userId: "client-opt-in",
+    sessionTokenHash: "client-opt-in-token",
+    environment,
+    now,
+  });
+  assert.equal(started.ok, true);
+  const code = await totpCode(started.secret, Math.floor(now.getTime() / 30_000));
+  const confirmed = await confirmMfaEnrollment(pool, {
+    userId: "client-opt-in",
+    sessionId: "client-opt-in-session",
+    sessionTokenHash: "client-opt-in-token",
+    audience: "client",
+    code,
+    idleExpiresAt: "2026-08-30T00:00:00.000Z",
+    environment,
+    now,
+  });
+  assert.equal(confirmed.ok, true);
+  assert.equal(confirmed.recoveryCodes.length, 8);
+  assert.deepEqual((await pool.query(`
+    SELECT mfa_level,mfa_verified_at IS NOT NULL AS verified
+      FROM sessions WHERE id='client-opt-in-session'
+  `)).rows[0], { mfa_level: "totp", verified: true });
 });
 
 test.after(async () => {
