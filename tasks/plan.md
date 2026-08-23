@@ -250,6 +250,9 @@ Operations 62、Maintenance 51 页 production build；本切片无 UI/auth 变�
 
 **描述：** 支持账户一致源、独立选择、策略级源和 Coinbase fallback。
 
+**状态：** 部分完成。T2.3a provider 无关单周期仲裁合同已实现；T2.3b 有状态切换、真实
+provider adapter、账户/策略偏好和 Coinbase fallback 仍等待 P-01/P-03 与供应商 fixture。
+
 **分阶段：**
 
 - T2.3a：先交付 provider 无关的单周期主备仲裁合同，使用显式 source 顺序和阈值，严格校验
@@ -262,6 +265,13 @@ Operations 62、Maintenance 51 页 production build；本切片无 UI/auth 变�
 **验证：** API/UI contract、切换 E2E、stale Gate。
 **依赖：** T2.2。
 **规模：** M。
+
+**T2.3a 实施证据（2026-08-24）：** 纯合同按显式来源顺序校验 provider symbol、canonical
+scope、服务端时间/新鲜度、每 provider sequence 和精确十进制价格。只有唯一最高实时共识簇，
+或由另一个 provider 的 fresh reference 验证的候选可接管；2 对 2 冲突簇、自身参考价、未来接收
+事件、stale/duplicate/out-of-order/scope mismatch 均失败关闭。定向 46/46、全量 1378/1378、
+TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、secret scan、production dependency
+audit 0 和差异检查通过。实现提交 `ef18d71`；无网络、数据库、route、UI 或真实 provider 变更。
 
 ### T2.4：A/HK 与 KR/JP 股票行情
 

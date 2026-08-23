@@ -2557,3 +2557,24 @@ TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、repository
 恢复初始状态；本轮 schema、运行时密钥和 3740–3742 端口均已清理。工作区既有
 `app/api/auth/me/route.shared.ts` 与 `tests/api-policy-security.test.mjs` 修改未纳入提交；远端只使用
 一次性构建目录且验证后已清理，未启动服务、未执行生产迁移、未接触生产数据库、未推送、未部署。
+
+## 70. 2026-08-24 T2.3a provider 无关主备行情仲裁合同
+
+T2.3a 在 `packages/contracts` 增加纯确定性的单周期来源仲裁，不建立 socket、不访问数据库、
+不选择真实供应商。调用方必须提供有序 source policy、精确 provider symbol、canonical
+market/instrument、服务端评估时刻、每 provider cursor 和明确的价格偏差/最少一致来源/参考价
+年龄上限。候选只有同时通过 symbol、scope、sequence、新鲜度和价格完整性检查才有新开仓资格；
+返回值只是 Runtime 风险 Gate 的必要输入，不替代授权、账户、策略或 named live Gate。
+
+价格使用有界十进制字符串和 `BigInt` 缩放，不经过 JavaScript 浮点。对抗性审查先用 RED 证明
+4 个来源形成 2 对 2 的冲突价格簇时旧实现会按优先级误选，随后收紧为只有唯一且内部一致的最高
+共识簇可用；并列冲突必须由另一个 provider 的 fresh reference 消歧，否则全部 unavailable。
+候选不能以自身历史参考价自证。共享行情 freshness 同时修正“receivedAt 晚于 evaluatedAt 仍被
+判 fresh”的时间完整性缺口，现统一失败关闭。
+
+实现提交 `ef18d71`。新增 14 项仲裁合同测试，相关行情/流/route/Runtime 定向 46/46；全量
+`npm test` 1378/1378、TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、repository
+secret scan（3073 个候选文件）、production dependency audit 0 和 `git diff --check` 均通过。
+本机没有 Docker/nginx，因此 nginx 检查按脚本明确停止，云端构建时补跑。两处用户本地改动没有
+纳入提交。T2.3b、真实 provider、持续防抖/切回、gap/reset/replay、故障注入和 G2 继续等待
+P-01/P-03 与 provider fixture；未启动服务、未迁移数据库、未推送、未部署。

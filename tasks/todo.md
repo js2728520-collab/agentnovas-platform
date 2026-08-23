@@ -54,7 +54,7 @@
   - [x] 2.2a provider 独立 sequence、连接状态、重连退避和缓存展示状态机。
   - [!] 2.2b 真实 WebSocket adapter、provider sequence scope 和容量验证，等待 P-01/P-03。
 - [-] 2.3 主备源切换和价格/时间/完整性校验。
-  - [-] 2.3a provider 无关单周期仲裁：显式优先级、symbol/scope、时间、新鲜度、精确价格偏差和 sequence 失败关闭。
+  - [x] 2.3a provider 无关单周期仲裁：显式优先级、symbol/scope、时间、新鲜度、精确价格偏差、唯一共识簇和 sequence 失败关闭。
   - [!] 2.3b 有状态防抖/切回、provider gap/reset/replay、容量和真实故障注入，等待 2.2b/P-01/P-03。
 - [ ] 2.4 加密行情账户一致源、独立选择和策略级绑定。
 - [ ] 2.5 Coinbase 加密 fallback。
