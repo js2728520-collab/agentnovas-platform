@@ -62,7 +62,10 @@
 ## Phase 3：Maintenance 配置、计费、主题与语言
 
 - [x] 3.0 普通配置/连通测试改为页面内审计原因并单击执行；发布、回滚、充值启停和紧急控制继续确认。
-- [ ] 3.1 通用配置 draft/test/approve/schedule/activate/rollback。
+- [-] 3.1 通用配置 draft/test/approve/schedule/activate/rollback。
+  - [ ] 3.1a 不含秘密的不可变配置版本、测试、独立审批、调度、激活/回滚内核与 Maintenance API。
+  - [ ] 3.1b Maintenance 配置发布工作台、时区预览和最小权限到期激活器。
+  - [ ] 3.1c 品牌/域名/协议、功能开关、Prompt/技能和价格配置族逐项接入。
 - [ ] 3.2 品牌、域名、协议和多语言配置。
 - [ ] 3.3 模块/用户组织/版本/百分比/定时功能开关。
 - [ ] 3.4 技能和 Prompt 草稿、测试、双审、历史和回滚。
