@@ -49,7 +49,7 @@
 | `specs/RELEASE_VERSION_MANAGEMENT_SPEC.md` | `CURRENT_BASELINE` | 当前不可变发布证据；V3 后续增加受限 trigger |
 | `api/API_CATALOG.md` | `CURRENT_BASELINE` | 当前真实路由和 Policy 索引，不提前虚构 V3 API |
 | `api/openapi-controlled-beta.yaml` | `CURRENT_BASELINE` | 当前受控 API 合同 |
-| `architecture/CAPABILITY_MIGRATION_MATRIX.md` | `CURRENT_BASELINE` | 旧后台迁移事实；V3 决定见目标 Spec/任务 |
+| `architecture/CAPABILITY_MIGRATION_MATRIX.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | V3 功能逐项映射到 Current route、DB、页面、Worker、测试、Gate 与新建位置；保留明确退休项 |
 | `quality/ACCEPTANCE_AND_RELEASE_GATES.md` | `CURRENT_BASELINE` | 当前 Beta 发布门禁 |
 | `quality/QUALITY_RELEASE_EVIDENCE.md` | `CURRENT_BASELINE` | 当前自动质量证据生成方式 |
 | `runbooks/commercial-beta-maintenance.md` | `CURRENT_BASELINE` | 当前 Beta Maintenance 操作 |

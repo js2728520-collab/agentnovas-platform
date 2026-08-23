@@ -2,8 +2,8 @@
 
 > 文档状态：`CURRENT_BASELINE`。本文只登记当前真实 route 和 Policy，不提前虚构 V3 endpoint。V3 目标 API 家族见 [`../specs/V3_SYSTEM_TARGET_SPEC.md`](../specs/V3_SYSTEM_TARGET_SPEC.md)；每个家族只有在合同、实现和 Gate 完成后才能写入本目录并改为 `CURRENT`。
 
-日期：2026-08-23
-范围：当前包含 197 个 route 文件、261 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。
+日期：2026-08-24
+范围：当前包含 203 个 route 文件、268 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。V3 Current→Target 的代码、数据库、页面、Worker 和 Gate 映射见 [`../architecture/CAPABILITY_MIGRATION_MATRIX.md`](../architecture/CAPABILITY_MIGRATION_MATRIX.md)。
 
 ## 0. V3 目标接口族（尚不是当前合同）
 
@@ -247,6 +247,6 @@
 
 ## 10. 下一步
 
-1. 机器可读 inventory 是 258 个 method route 的发布真源；本文仅维护人类可读的所有权与产品状态。
+1. 机器可读 inventory 是 268 个 method route 的发布真源；本文仅维护人类可读的所有权与产品状态。
 2. `DISABLED/BETA` 路径不得因未来重构重新暴露；重新启用必须先更新 PRD、ADR、policy、测试与页面合同。
 3. `openapi-controlled-beta.yaml` 只描述核心浏览器合同，不能替代完整 API Policy。

@@ -72,13 +72,15 @@
 
 ### T0.3：生成 Current → V3 代码能力矩阵
 
+**状态：** 已完成。矩阵基于 `8d72b94` 盘点 203 个 route 文件、268 个 method route、72 个页面 pattern、73 个迁移的最终 PostgreSQL catalog、7 个后台进程和测试目录 269 个文件（267 个可执行 test/spec、2 个支持模块）；P-01–P-12 未决项继续明确标为 `BLOCKED`，不影响盘点完成，也不解除下游 Gate。
+
 **描述：** 对 route、DB、页面、Worker、Execution Service 和测试逐项标记 `CURRENT/PARTIAL/TARGET/BLOCKED/RETIRED`。
 
 **验收：**
 
-- [ ] 每个 V3 功能映射到现有资产或明确新建位置。
-- [ ] 共享热点、迁移顺序和删除项可审查。
-- [ ] 估算基于任务切片而不是整阶段猜测。
+- [x] 每个 V3 功能映射到现有资产或明确新建位置。
+- [x] 共享热点、迁移顺序和删除项可审查。
+- [x] 估算基于任务切片而不是整阶段猜测。
 
 **验证：** route inventory、schema inventory、页面清单与矩阵数量一致。
 **依赖：** T0.2。

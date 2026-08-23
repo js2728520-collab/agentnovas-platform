@@ -2391,3 +2391,25 @@ Session 不能继续认证，三份 TOTP 凭据未被删除且仍可完成挑战
 云端 `npm ci` 报告的 17 项为开发依赖审计结果；本地 `npm audit --omit=dev --audit-level=high`
 为 0。远端 `/tmp/agentnovas-mfa-build-BvKxAg` 与本地临时归档已删除并复核不存在；未启动服务、
 未执行迁移、未接触生产数据库、未推送、未部署。
+
+## 64. 2026-08-24 T0.3 Current → V3 详细能力矩阵
+
+T0.3 已完成，并把原来偏“旧运营后台迁移”的矩阵升级为全平台 V3 可执行盘点。新矩阵按
+身份、行情、Maintenance 配置、AI/策略市场、真实交易、资金出站、发布与正式收口逐项标记
+`CURRENT/PARTIAL/TARGET/BLOCKED/RETIRED`，每项同时列出可复用 route、数据库、三端页面、
+Worker/Execution Service、测试证据、目标位置和剩余 Gate。P-01–P-12 未决参数没有用技术假设
+填充，相关切片继续保持阻断。
+
+数量采用机器或数据库 catalog 口径而不是手工猜测：中央 inventory 为 203 个 route 文件、
+268 个唯一 method route（其中 61 个当前硬关闭、154 个 mutation）；页面 dispatcher 合同为
+Client 27、Operations 24、Maintenance 21，共 72 个 route pattern；完整 73 个迁移在一次性
+PostgreSQL schema 应用后得到 153 张表（含迁移登记表）、5 个 view、67 个 routine、50 个
+trigger、10 个 policy 和 5 个 sequence，查询后 schema 已删除。后台进程盘点为 6 个 Worker
+加 1 个 Execution Service；测试目录有 269 个文件（267 个可执行 test/spec 和 2 个 Playwright
+支持模块），基线 Node 套件证据为 1329/1329。
+
+同时修正 `API_CATALOG.md` 中已经过时且彼此冲突的 197/261/258 统计为当前 203/268，并同步
+文档状态矩阵、文档入口和任务真源。矩阵特别区分“Next build 总 route 数”和“页面 pattern”，
+也明确表或 disabled route 存在不能证明 V3 能力已完成。下一可独立实施的无外部参数切片是
+Prompt/Skill 配置族，但其可编辑边界、Skill 语义、可信测试方式和版本生效规则仍需需求方确认；
+在确认前不进入实现。
