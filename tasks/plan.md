@@ -397,6 +397,12 @@ nginx 语法检查。无网络、数据库、route、UI 或真实 provider 变�
 已登录三端、认证/错误页、邮件、格式化器和数据库偏好一致性；其覆盖语言及 Maintenance
 `defaultLocale` 是否可覆盖英语仍待需求方确认。六主题继续等待 P-10。
 
+**T3.11a 实施证据（2026-08-24）：** 唯一七语言 allowlist、有界浏览器别名解析、英语 fallback、
+匿名 localStorage 偏好和公开 Client 动态字典已实现；不使用 IP/GPS/时区推断。自动加载与人工选择
+有竞态保护，硬编码中文可见/aria 标签已进入七语言字典。定向 31/31、全量 1385/1385、TypeScript、
+全仓 ESLint、8 条架构边界、三端 key-custody、secret scan、production audit 0 和差异检查通过；
+实现提交 `81b86bc`。本证据不覆盖 T3.11b 或六主题。
+
 ### Checkpoint P3
 
 - [ ] 配置/价格历史与审批 Gate 通过。

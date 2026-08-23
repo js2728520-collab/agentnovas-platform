@@ -2250,6 +2250,23 @@ secret/password/token/apiKey/privateKey 等字段。模型、支付和集成密�
 容器中通过，随后已删除目录；`npm ci` 的 17 项提示来自开发依赖。未启动服务、未迁移
 生产数据库、未推送、未部署。
 
+## 71. 2026-08-24 T3.11a 公开 Client 语言偏好基础
+
+T3.11a 建立唯一七语言 allowlist 与纯解析合同：canonical saved preference 优先，其次最多 16 个
+有界 `navigator.languages` 候选，最后固定 `en-US`。浏览器匹配覆盖语言别名、大小写、下划线和
+中文 script/region，但不读取 IP、GPS、时区或设备指纹；损坏 localStorage 值不会进入动态路径。
+
+公开 Client 着陆页首屏改为英语，非英语仍通过固定模块按需加载；匿名选择保存在平台命名空间
+localStorage，存储不可用时不阻断页面。自动推断与人工切换使用递增请求序号，旧异步结果不能覆盖
+新选择。审查同时把 skip link、首页/流程/Demo 环境 aria 和 Demo 账户标签从硬编码中文迁入七语言
+字典，避免英语首屏混杂中文。平台设置代码默认值同步为 `en-US`，但没有迁移用户数据库，也没有
+声称已登录三端、认证/错误页、邮件或全站格式化完成。
+
+规格提交 `02f1582`，实现提交 `81b86bc`。新增 7 项合同测试，定向 31/31、全量 1385/1385、
+TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、repository secret scan（3076 个候选
+文件）、production dependency audit 0 和 `git diff --check` 均通过。两处用户本地修改未纳入
+提交；T3.11b 与六主题继续分别等待语言范围确认和 P-10，未推送、未部署。
+
 T3.1 整体仍未完成：T3.1b 的 Maintenance 工作台和最小权限到期激活器、T3.1c 的品牌/
 域名/协议、功能开关、Prompt/技能和价格消费者仍待后续切片；P-07/P-08/P-10/P-11
 继续阻断相应具体值和素材，不能用占位配置替代需求方结论。

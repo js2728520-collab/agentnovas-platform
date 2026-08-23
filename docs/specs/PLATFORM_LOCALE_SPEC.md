@@ -1,6 +1,6 @@
 # 平台语言偏好合同规格
 
-状态：`TARGET/PARTIAL_CURRENT`；T3.11a 公开 Client 着陆页解析合同实施中，全站/三端/邮件一致性待 T3.11b
+状态：`TARGET/PARTIAL_CURRENT`；T3.11a 公开 Client 着陆页解析合同已实现，全站/三端/邮件一致性待 T3.11b
 日期：2026-08-24
 上位真源：`../product/PRD.md` 第 10 节；`V3_CLIENT_APP_TARGET_SPEC.md` 第 11 节
 
@@ -38,3 +38,19 @@ T3.11a 不声称已完成已登录 Client、Operations、Maintenance、认证页
 - 定向、全量、TypeScript、ESLint、架构、安全与云端三端 production build 通过。
 - 公开页可见行为改变后，使用本地真实 Chromium 验证英语默认、浏览器推断、刷新持久化和非法值回退。
 - T3.11a 完成后 T3.11 总任务仍保持部分完成，不把局部公开页证据扩大为全站 i18n 通过。
+
+## 4. T3.11a 实施结果
+
+2026-08-24 已新增唯一七语言 allowlist 和纯解析器。saved preference 只接受 canonical 值；浏览器
+候选最多 16 项、每项最多 35 字符，支持大小写/下划线、language-only 和中文 script/region 映射，
+最终固定回退 `en-US`。实现不读取 IP、GPS、时区或身份信息，也不记录原始浏览器语言。
+
+公开 Client 着陆页首屏改为英语，hydration 后按匿名 localStorage 与 `navigator.languages` 加载
+非英语字典；字典路径仍是编译期常量。存储不可用时页面继续工作，损坏值被忽略，自动加载和人工
+选择用请求序号防止旧请求覆盖新选择。此前硬编码中文的 skip link、首页 aria、流程 aria 和 Demo
+环境标签已进入七语言字典，避免英语首屏出现混合语言。
+
+新增 7 项合同测试，定向 31/31、全量 1385/1385、TypeScript、全仓 ESLint、8 条架构边界、
+三端 key-custody、repository secret scan（3076 个候选文件）、production dependency audit 0 和
+差异检查通过。实现提交 `81b86bc`。T3.11b 的数据库偏好、三端/认证/错误页/邮件与完整翻译范围
+仍等待需求确认，不能由本切片推导为完成。
