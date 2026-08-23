@@ -19,6 +19,48 @@ export function ModelsWorkspace({ canManageProfiles, canManageBindings }: { canM
   const research = useApiData<{ bindings: MaintenanceAgentBinding[] }>("/api/admin/agent-role-bindings", "Research Agent 绑定读取失败");
   const runtime = useApiData<{ bindings: MaintenanceAgentBinding[] }>("/api/admin/runtime-explanation-bindings", "Runtime Agent 绑定读取失败");
   const [form, setForm] = useState({ name: "", providerName: "", baseUrl: "", modelName: "", apiKey: "", enabled: true });
+  // 探测结果。流程是「填地址和密钥 → 测试 → 从返回的列表里挑模型 → 保存」，
+  // 而不是「盲填模型名 → 保存 → 绑到生产角色 → 才知道对不对」。
+  const presets = useApiData<{ presets: { id: string; label: string; baseUrl: string; note: string }[] }>(
+    canManageProfiles ? "/api/admin/llm-profiles/probe" : null, "供应商预设读取失败");
+  const [presetId, setPresetId] = useState("custom");
+  const [probe, setProbe] = useState<{
+    models: string[] | null; reason: string | null; latencyMs: number; busy: boolean; message: string;
+  }>({ models: null, reason: null, latencyMs: 0, busy: false, message: "" });
+
+  async function runProbe() {
+    if (probe.busy) return;
+    setProbe((current) => ({ ...current, busy: true, message: "" }));
+    try {
+      const response = await fetch("/api/admin/llm-profiles/probe", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: form.baseUrl,
+          apiKey: form.apiKey,
+          // 已填模型名时顺带验证那个模型本身可用，不只是端点通。
+          modelName: form.modelName || undefined,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(apiErrorMessage(payload, "供应商连通测试失败"));
+      setProbe({
+        models: payload.models ?? null,
+        reason: payload.modelsUnavailableReason ?? null,
+        latencyMs: payload.latencyMs ?? 0,
+        busy: false,
+        message: payload.models
+          ? `连通正常（${payload.latencyMs}ms），共 ${payload.models.length} 个可用模型。`
+          : `连通正常（${payload.latencyMs}ms）。该供应商未提供模型列表，请手动填写模型名。`,
+      });
+    } catch (error) {
+      setProbe({
+        models: null, reason: null, latencyMs: 0, busy: false,
+        message: error instanceof Error ? error.message : "供应商连通测试失败",
+      });
+    }
+  }
+
   const [editingProfileId, setEditingProfileId] = useState("");
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<Pending | null>(null);
@@ -72,7 +114,34 @@ export function ModelsWorkspace({ canManageProfiles, canManageBindings }: { canM
     <PageHeading eyebrow="MODEL ORCHESTRATION" title="模型与 Agent" description="读取与修改权限分离；浏览器只显示模型标识、密钥存在状态和不可变修订。" />
     <div className="rc-live" aria-live="polite">{message}</div>
     <div className="rc-split-layout">
-      {canManageProfiles && <section className="rc-panel"><header><div><small>{editingProfileId ? "编辑并生成修订" : "新增配置"}</small><h2>模型 Profile</h2></div>{editingProfileId ? <button className="rc-button" type="button" onClick={() => { setEditingProfileId(""); setForm({ name: "", providerName: "", baseUrl: "", modelName: "", apiKey: "", enabled: true }); }}>取消编辑</button> : null}</header><div className="rc-form"><label>配置名称<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>供应商<input value={form.providerName} onChange={(event) => setForm({ ...form, providerName: event.target.value })} /></label><label>模型名称<input value={form.modelName} onChange={(event) => setForm({ ...form, modelName: event.target.value })} /></label><label>服务端点（{editingProfileId ? "留空保留现值；填写则轮换" : "保存后不回显"}）<input type="password" autoComplete="off" value={form.baseUrl} onChange={(event) => setForm({ ...form, baseUrl: event.target.value })} /></label><label>API Key（{editingProfileId ? "留空保留现值；填写则轮换" : "保存后不回显"}）<input type="password" autoComplete="new-password" value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.target.value })} /></label><label className="rc-check"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm({ ...form, enabled: event.target.checked })} />启用 Profile</label><button className="rc-primary" type="button" onClick={() => setPending({ kind: "profile" })}>{editingProfileId ? "检查并生成新修订" : "检查并保存"}</button></div></section>}
+      {canManageProfiles && <section className="rc-panel"><header><div><small>{editingProfileId ? "编辑并生成修订" : "新增配置"}</small><h2>模型 Profile</h2></div>{editingProfileId ? <button className="rc-button" type="button" onClick={() => { setEditingProfileId(""); setForm({ name: "", providerName: "", baseUrl: "", modelName: "", apiKey: "", enabled: true }); }}>取消编辑</button> : null}</header><div className="rc-form"><label>配置名称<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>供应商预设<select value={presetId} onChange={(event) => {
+        const next = presets.data?.presets.find((item) => item.id === event.target.value);
+        setPresetId(event.target.value);
+        // 预设只填地址，不锁死：填完仍可改成任何 OpenAI 兼容端点。
+        if (next) setForm((current) => ({
+          ...current,
+          baseUrl: next.baseUrl || current.baseUrl,
+          providerName: current.providerName || next.label,
+        }));
+        setProbe({ models: null, reason: null, latencyMs: 0, busy: false, message: "" });
+      }}>{(presets.data?.presets ?? []).map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
+      <small>{presets.data?.presets.find((item) => item.id === presetId)?.note ?? "预设只是填表模板，地址仍可自由修改。"}</small></label>
+      <label>供应商名称<input value={form.providerName} onChange={(event) => setForm({ ...form, providerName: event.target.value })} /></label><label>模型名称{probe.models
+        ? <select value={form.modelName} onChange={(event) => setForm({ ...form, modelName: event.target.value })}>
+            <option value="">从 {probe.models.length} 个可用模型中选择</option>
+            {probe.models.map((model) => <option key={model} value={model}>{model}</option>)}
+          </select>
+        : <input value={form.modelName} onChange={(event) => setForm({ ...form, modelName: event.target.value })} placeholder="先测试连通以获取可选模型，或直接填写" />}</label><label>服务端点（{editingProfileId ? "留空保留现值；填写则轮换" : "保存后不回显"}）<input type="password" autoComplete="off" value={form.baseUrl} onChange={(event) => setForm({ ...form, baseUrl: event.target.value })} /></label><label>API Key（{editingProfileId ? "留空保留现值；填写则轮换" : "保存后不回显"}）<input type="password" autoComplete="new-password" value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.target.value })} /></label><label className="rc-check"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm({ ...form, enabled: event.target.checked })} />启用 Profile</label><div className="rc-action-row">
+        <button className="rc-button" type="button" disabled={probe.busy || !form.baseUrl || !form.apiKey}
+          onClick={() => void runProbe()}>{probe.busy ? "测试中…" : "测试连通并获取模型"}</button>
+        <button className="rc-primary" type="button" onClick={() => setPending({ kind: "profile" })}>{editingProfileId ? "检查并生成新修订" : "检查并保存"}</button>
+      </div>
+      {probe.message ? <p className="rc-callout" role="status">{probe.message}</p> : null}
+      {/* 编辑现有 Profile 时地址与密钥留空表示沿用旧值，那时无法测试——
+          必须重新填入才能验证，否则测的是一个不完整的配置。 */}
+      {editingProfileId && (!form.baseUrl || !form.apiKey)
+        ? <p className="rc-callout" role="status">编辑模式下地址与密钥留空表示沿用现值；要重新测试请完整填写两者。</p>
+        : null}</div></section>}
       <section className="rc-panel"><header><div><small>{profiles.data?.profiles.length ?? 0} 个配置</small><h2>安全配置状态</h2></div></header>{!profiles.data?.profiles.length ? <EmptyState title="没有模型 Profile" description="Research Agent 将保持暂停或未配置状态。" /> : <div className="rc-card-list">{profiles.data.profiles.map((profile) => <article key={profile.id}><header><div><b>{profile.name}</b><small>{profile.providerName} · {profile.modelName}</small></div><StatusBadge value={profile.enabled ? "enabled" : "disabled"} /></header><p>密钥：{profile.hasSecret ? "已保存（不可回显）" : "未配置"} · 修订：{profile.currentRevisionId ? "已生成" : "未生成"} · {formatDateTime(profile.updatedAt)}</p><div className="rc-action-row"><button className="rc-button" type="button" onClick={() => setSelectedProfileId(profile.id)}>查看版本与回滚</button>{canManageProfiles ? <button className="rc-button" type="button" onClick={() => { setEditingProfileId(profile.id); setForm({ name: profile.name, providerName: profile.providerName, baseUrl: "", modelName: profile.modelName, apiKey: "", enabled: profile.enabled }); }}>编辑 / 轮换</button> : null}</div></article>)}</div>}</section>
     </div>
     {selectedProfileId ? <section className="rc-panel"><header><div><small>IMMUTABLE REVISIONS</small><h2>Profile 版本历史</h2></div><button className="rc-button" type="button" onClick={() => setSelectedProfileId("")}>关闭</button></header>{revisions.loading && !revisions.data ? <LoadingState /> : revisions.error && !revisions.data ? <ErrorState message={revisions.error} retry={revisions.refresh} /> : !revisions.data?.revisions.length ? <EmptyState title="没有修订记录" description="该 Profile 尚未产生版本。" /> : <div className="rc-card-list">{revisions.data.revisions.map((revision) => <article key={revision.id}><header><div><b>修订 {revision.revisionNumber} · {revision.modelName}</b><small>{revision.providerName} · {formatDateTime(revision.createdAt)}</small></div><StatusBadge value={revision.isCurrent ? "current" : revision.enabled ? "historical" : "disabled"} /></header><p>密钥：{revision.hasSecret ? "存在（不可回显）" : "缺失"} · 创建人 {revision.createdByUserId}</p>{canManageProfiles && !revision.isCurrent && <button className="rc-button" type="button" onClick={() => { const current = revisions.data?.revisions.find((item) => item.isCurrent); if (current) setPending({ kind: "rollback", profileId: selectedProfileId, revisionId: revision.id, expectedCurrentRevisionId: current.id }); }}>回滚到此版本</button>}</article>)}</div>}</section> : null}

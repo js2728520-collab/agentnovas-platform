@@ -879,6 +879,50 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/admin/llm-profiles/probe",
+    "source": "app/api/admin/llm-profiles/probe/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.llm_profiles.manage"
+    ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/admin/llm-profiles/probe",
+    "source": "app/api/admin/llm-profiles/probe/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.llm_profiles.manage"
+    ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/admin/runtime-explanation-bindings",
     "source": "app/api/admin/runtime-explanation-bindings/route.maintenance.ts",
     "audiences": [

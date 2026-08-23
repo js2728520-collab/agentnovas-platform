@@ -59,3 +59,19 @@ export function normalizeLlmCompletionEndpoint(baseUrl: string) {
   }
   return { endpoint: `${normalized}/chat/completions`, apiStyle: "chat_completions" as const };
 }
+
+/**
+ * 由 base_url 推出模型列表端点。
+ *
+ * OpenAI 兼容协议约定 `GET {base}/models`。这里要处理运维填了完整补全路径的情况——
+ * 填 `.../v1/chat/completions` 时，模型列表在 `.../v1/models` 而不是
+ * `.../v1/chat/completions/models`。
+ */
+export function normalizeLlmModelsEndpoint(baseUrl: string) {
+  const normalized = normalizeLlmBaseUrl(baseUrl);
+  const base = normalized
+    .replace(/\/chat\/completions$/i, "")
+    .replace(/\/responses$/i, "")
+    .replace(/\/$/, "");
+  return `${base}/models`;
+}
