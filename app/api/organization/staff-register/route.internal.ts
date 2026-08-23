@@ -1,5 +1,5 @@
 import { getDb } from "@/db";
-import { approvalRequests, auditLogs, users } from "@/db/schema";
+import { auditLogs, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hashPassword, sha256 } from "@/lib/auth";
 import { encryptNotificationToken } from "@/lib/notification-secrets";
@@ -89,22 +89,16 @@ export async function POST(request: Request) {
       now,
     });
 
-    const approvalId = crypto.randomUUID();
+    // 记录「通过谁的链接进来的」。激活时会用它排除邀请人本人——
+    // 双人复核靠的是这一条，不是靠再建一张审批单。
+    //
+    // 刻意**不建** approval_requests：通用审批接口只处理 reporting_line_change，
+    // 其余类型一律 503。建了只会得到一张永远卡住的单，而运营会以为有人在处理。
+    await db.update(users)
+      .set({ invitedViaInvitationId: invitation.id })
+      .where(eq(users.id, userId));
+
     await db.batch([
-      db.insert(approvalRequests).values({
-        id: approvalId,
-        type: "internal_member_activation",
-        branchId: invitation.organizationId,
-        subjectType: "user",
-        subjectId: userId,
-        payloadJson: JSON.stringify({
-          email,
-          role: invitation.targetRole,
-          invitedBy: invitation.ownerEmployeeId,
-          via: "staff_invitation_link",
-        }),
-        requestedBy: invitation.ownerEmployeeId!,
-      }),
       db.insert(auditLogs).values({
         id: crypto.randomUUID(),
         actorUserId: userId,
@@ -115,7 +109,6 @@ export async function POST(request: Request) {
           invitationId: invitation.id,
           invitedBy: invitation.ownerEmployeeId,
           role: invitation.targetRole,
-          approvalRequestId: approvalId,
         }),
       }),
     ]);
@@ -124,7 +117,7 @@ export async function POST(request: Request) {
     return Response.json({
       status: "pending_approval",
       organizationId: provisioned.organizationId,
-      message: "注册已提交。账号需要另一位管理员复核通过后才能登录。",
+      message: "注册已提交。账号需要另一位管理员复核通过后才能登录——邀请你的人不能自己批准。",
     }, { status: 202 });
   } catch (error) {
     return responseError(error);

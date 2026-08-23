@@ -34,6 +34,17 @@ function readInvitationCodeFromUrl(): string {
   return new URLSearchParams(window.location.search).get("invite")?.trim() ?? "";
 }
 
+/**
+ * 员工邀请链接：/login?staff-invite=<code>&app=<audience>。
+ *
+ * 与客户链接分开读，因为两者走完全不同的注册接口：客户走 /api/auth/register 并立刻
+ * 可用，员工走 /api/organization/staff-register 且只产出待批准账号。
+ */
+function readStaffInviteFromUrl(): string {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("staff-invite")?.trim() ?? "";
+}
+
 export function AppLogin({ audience, title, description, allowRegistration, initialMode = "login" }: {
   audience: AppAudience;
   title: string;
@@ -47,6 +58,10 @@ export function AppLogin({ audience, title, description, allowRegistration, init
   // 邀请链接形如 /login?invite=<code>。用惰性初始值读取，不在 effect 里 setState
   // ——那会触发一次级联渲染，注册表单会先闪一下登录态。
   const [invitedCode] = useState(readInvitationCodeFromUrl);
+  const [staffInviteCode] = useState(readStaffInviteFromUrl);
+  const [staffState, setStaffState] = useState<{ status: "idle" | "busy" | "done"; message: string }>(
+    { status: "idle", message: "" },
+  );
   const [mode, setMode] = useState<LoginMode>(invitedCode ? "register" : safeInitialMode);
   const [mfaFlow, setMfaFlow] = useState<MfaFlow>(null);
   const [busy, setBusy] = useState(false);
@@ -146,6 +161,54 @@ export function AppLogin({ audience, title, description, allowRegistration, init
 
   return <main className={`rc-auth rc-auth-${audience}`}>
     <section className="rc-auth-brand"><Link href="/" prefetch={false}>{audience === "client" ? <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="220px" alt="Riverton Capital" priority /> : "R"}</Link><div><small>{audience.toUpperCase()} ACCESS</small><h1>{title}</h1><p>{description}</p></div><ul><li>独立应用会话</li><li>服务端权限校验</li><li>完整操作审计</li></ul></section>
+    {/* 员工邀请链接接管整个表单：它走完全不同的注册接口，且产出的是待批准账号。
+        与登录/客户注册并排显示只会让人不知道该填哪个。 */}
+    {staffInviteCode && staffState.status !== "done" ? (
+      <form
+        className="rc-auth-form"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (staffState.status === "busy") return;
+          const data = new FormData(event.currentTarget);
+          setStaffState({ status: "busy", message: "" });
+          try {
+            const response = await fetch("/api/organization/staff-register", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                code: staffInviteCode,
+                email: String(data.get("email") ?? ""),
+                password: String(data.get("password") ?? ""),
+              }),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(String(payload.error ?? "注册失败"));
+            setStaffState({ status: "done", message: String(payload.message ?? "注册已提交") });
+          } catch (error) {
+            setStaffState({
+              status: "idle",
+              message: error instanceof Error ? error.message : "注册失败",
+            });
+          }
+        }}
+      >
+        <h2>加入团队</h2>
+        <p>
+          你收到了一条员工邀请链接。填写邮箱和密码后，账号需要另一位管理员复核才能登录
+          ——邀请你的人不能自己批准。
+        </p>
+        <label>邮箱<input name="email" type="email" autoComplete="email" required /></label>
+        <label>密码（至少 12 位）<input name="password" type="password" autoComplete="new-password" minLength={12} required /></label>
+      {staffState.message ? <p role="alert">{staffState.message}</p> : null}
+        <button type="submit" disabled={staffState.status === "busy"}>
+        {staffState.status === "busy" ? "提交中…" : "提交注册"}
+        </button>
+      </form>
+    ) : null}
+    {staffState.status === "done" ? (
+      <p role="status">{staffState.message}</p>
+    ) : null}
+    {!staffInviteCode ? (
     <form onSubmit={submit} aria-labelledby="rc-login-heading">
       <header><small>RIVERTON CAPITAL</small><h2 id="rc-login-heading">{heading}</h2><p>{helper}</p></header>
       {!mfaFlow && mode === "register" && <><label>手机号<input name="phone" type="tel" autoComplete="tel" required /></label><label>邮箱（可选）<input name="email" type="email" autoComplete="email" /></label><label>邀请码<input
@@ -170,5 +233,6 @@ export function AppLogin({ audience, title, description, allowRegistration, init
         {mode === "login" && allowRegistration && <button type="button" onClick={() => switchMode("register")}>使用邀请码注册</button>}
       </footer>}
     </form>
+    ) : null}
   </main>;
 }

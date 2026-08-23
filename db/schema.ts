@@ -28,6 +28,11 @@ export const users = sqliteTable("users", {
   emailVerifiedAt: text("email_verified_at"),
   role: text("role", { enum: ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "customer", "finance", "auditor", "tech_staff"] }).notNull(),
   organizationId: text("organization_id").references(() => organizations.id),
+  // 通过邀请链接注册时的链接 id。激活该账号的人不得是该链接的归属人——
+  // 生成链接的人同时批准通过链接进来的人，等于一个人走完全程。
+  //
+  // 可空：绝大多数账号不是通过链接来的（手工录入、客户注册、初始管理员）。
+  invitedViaInvitationId: text("invited_via_invitation_id"),
   reportsToUserId: text("reports_to_user_id"),
   status: text("status", { enum: ["pending", "active", "frozen", "closed"] }).notNull().default("pending"),
   locale: text("locale").notNull().default("zh-CN"),

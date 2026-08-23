@@ -32,6 +32,11 @@ test.before(async () => {
   await pool.query(businessMigration);
   await pool.query(researchMigration);
   await pool.query(businessMigration);
+  // 0058 给 users 加了 invited_via_invitation_id。drizzle 的 insert 会带上它，
+  // 而本测试只跑 0000/0001 建表——不补这一条，所有经 drizzle 写 users 的用例都会
+  // 因「列不存在」失败。它是独立的 ALTER，没有依赖。
+  await pool.query(await readFile(
+    new URL("../postgres/migrations/0058_invitation_activation_separation.sql", import.meta.url), "utf8"));
 });
 
 test.beforeEach(async () => {

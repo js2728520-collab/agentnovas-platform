@@ -55,9 +55,33 @@ test("链接注册产出待批准状态，不产出可用账号", async () => {
   // 链接只省掉「上级手工录入对方资料」这一步，不省审批。
   const route = await readFile(new URL("../app/api/organization/staff-register/route.internal.ts", import.meta.url), "utf8");
   assert.match(route, /status: "pending_approval"/);
-  assert.match(route, /approvalRequests/, "必须建审批单");
-  assert.match(route, /type: "internal_member_activation"/);
   assert.equal(/status:\s*"active"/.test(route), false, "注册路径不得直接激活账号");
+});
+
+test("不建那张没人能处理的审批单", async () => {
+  // 通用审批接口只处理 reporting_line_change，其余类型一律 503。
+  // 建了只会得到一张永远卡住的单，而运营会以为有人在处理。
+  const route = await readFile(new URL("../app/api/organization/staff-register/route.internal.ts", import.meta.url), "utf8");
+  assert.equal(/db\.insert\(approvalRequests\)/.test(route), false);
+  assert.match(route, /invitedViaInvitationId: invitation\.id/, "改为记录来源，激活时据此排除邀请人");
+});
+
+test("邀请人不能批准通过自己链接进来的人", async () => {
+  // canManuallyActivateMember 只挡「激活自己」。生成链接的人同时批准通过链接进来的
+  // 人，等于一个人走完全程，双人复核名存实亡。
+  const route = await readFile(
+    new URL("../app/api/organization/members/[id]/activate/route.operations.ts", import.meta.url), "utf8");
+  assert.match(route, /INVITER_CANNOT_APPROVE/);
+  assert.match(route, /invitation\?\.owner_employee_id === actor\.id/);
+});
+
+test("激活时按角色选对应的端校验角色分配", async () => {
+  // 此前写死 operations，技术人员的分配在运维端，会被判成「尚未完成显式角色分配」
+  // ——一个正确但完全看不出原因的失败。
+  const route = await readFile(
+    new URL("../app/api/organization/members/[id]/activate/route.operations.ts", import.meta.url), "utf8");
+  assert.match(route, /member\.role === "tech_staff" \? "maintenance" : "operations"/);
+  assert.equal(/application_id = 'operations'/.test(route), false, "不得写死端");
 });
 
 test("角色来自链接，不接受注册者自选", async () => {

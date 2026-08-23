@@ -17,6 +17,9 @@ export function mapClientIdentityUser(value: JsonRecord): ClientIdentityUser {
     emailVerifiedAt: stringOrNull(value.email_verified_at),
     role: String(value.role) as ClientIdentityUser["role"],
     organizationId: stringOrNull(value.organization_id),
+    // 客户端网关映射的是客户账号，它们不会通过员工邀请链接注册。
+    // 保留字段是为了与 users 表结构对齐，值恒为 null。
+    invitedViaInvitationId: stringOrNull(value.invited_via_invitation_id),
     status: String(value.status) as ClientIdentityUser["status"],
     locale: String(value.locale),
     timezone: String(value.timezone),

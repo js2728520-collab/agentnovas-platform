@@ -22,6 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       organizationId: users.organizationId,
       reportsToUserId: users.reportsToUserId,
       status: users.status,
+      invitedViaInvitationId: users.invitedViaInvitationId,
     }).from(users).where(eq(users.id, id)).limit(1))[0];
 
     if (!member) return Response.json({ error: "成员账户不存在" }, { status: 404 });
@@ -34,12 +35,37 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const message = member.status !== "pending" ? "该账户已激活或当前状态不能邀请" : "无权邀请该成员账户";
       return Response.json({ error: message }, { status: 403 });
     }
-    const assignment = await (await getPostgresPool()).query(`
+
+    const pool = await getPostgresPool();
+
+    // 通过邀请链接注册的人，邀请人本人不能批准。
+    //
+    // canManuallyActivateMember 只挡「激活自己」。对手工录入影响不大——上级本来就
+    // 知道自己录了谁；但对链接注册是致命的：生成链接的人同时批准通过链接进来的人，
+    // 等于一个人走完全程，双人复核名存实亡。
+    if (member.invitedViaInvitationId) {
+      const invitation = (await pool.query<{ owner_employee_id: string | null }>(
+        "SELECT owner_employee_id FROM invitations WHERE id = $1",
+        [member.invitedViaInvitationId],
+      )).rows[0];
+      if (invitation?.owner_employee_id === actor.id) {
+        return Response.json({
+          code: "INVITER_CANNOT_APPROVE",
+          error: "该成员通过你的邀请链接注册，需由另一位管理员复核",
+        }, { status: 403 });
+      }
+    }
+
+    // 角色分配所在的端随角色而定：技术人员在运维端，其余内部角色在运营端。
+    // 此前这里写死 operations，技术人员会被判成「尚未完成显式角色分配」——
+    // 一个正确但完全看不出原因的失败。
+    const assignmentApp = member.role === "tech_staff" ? "maintenance" : "operations";
+    const assignment = await pool.query(`
       SELECT 1 FROM user_role_assignments
-      WHERE user_id = $1 AND application_id = 'operations' AND status = 'active'
+      WHERE user_id = $1 AND application_id = $2 AND status = 'active'
         AND effective_at <= now() AND (expires_at IS NULL OR expires_at > now())
       LIMIT 1
-    `, [member.id]);
+    `, [member.id, assignmentApp]);
     if (!assignment.rowCount) return Response.json({ error: "成员尚未完成显式角色分配" }, { status: 409 });
 
     const now = new Date().toISOString();
