@@ -204,5 +204,19 @@ current 网关。Client 角色没有配置底表权限，网关异常、非法 s
 配置开启；active `false` 能关闭现有模块；回滚恢复前一已验证版本；Client role 无底表权限。
 
 **验证：** family 纯函数 RED/GREEN、完整迁移链 PostgreSQL/current/rollback/role 测试、
-Route policy 合同、TypeScript、ESLint、全量测试、云端 Client/Maintenance production build，
+Route policy 合同、TypeScript、ESLint、全量测试、云端三端 production build，
 以及本地真实 Chromium 的配置发布与三端空浏览器登录回归。
+
+实施结果（2026-08-24）：上述验收全部通过。注册族请求严格拒绝浏览器提供的 result/evidence，
+服务端证据绑定精确 payload；current 网关复核 schema、摘要和最小权限，数据库异常失败关闭；
+策略研究 GET/POST 共用消费者。Maintenance 浏览器真实创建关闭版草稿并运行确定性测试，抓取到
+的请求体只有 `{reason}`，全程无 dialog。最终 `npm test` 1326/1326，TypeScript、ESLint、
+8 条架构边界、secret scan 和 production dependency audit 均通过。
+
+Client、Operations、Maintenance production standalone 在 `ssh an-saas` 的完整提交快照、固定
+Node 22.21.1 容器内全部构建成功；一次提前启动的半传输快照因缺文件产生 module-not-found，
+不计有效构建证据。最终本地隔离 PostgreSQL + 真实 Chromium 18/18 通过，覆盖三端空浏览器
+登录、Host/Cookie audience、五设备、权限注册链接、三端 UI、配置无弹窗和服务端确定性测试。
+测试期间修复隔离浏览器 teardown 竞态：仅在主动关闭开始后忽略 Playwright 已处理 route，
+运行期间 console/network/page error/HTTP 规则没有放宽。质量 schema、运行时凭证、端口和远端
+临时构建目录均已清理；未启动远端服务、未迁移生产数据库、未推送、未部署。

@@ -68,7 +68,7 @@
     - [x] 3.1b-UI `/configurations` 工作台、全流程内联审计原因且无确认弹窗、四断点/axe/真实 Chromium。
     - [x] 3.1b-Worker 到期扫描、租约、最小数据库权限、幂等恢复和告警。
   - [-] 3.1c 品牌/域名/协议、功能开关、Prompt/技能和价格配置族逐项接入。
-    - [-] 3.1c-FF1 `client.strategy_research` 全局开关 v1：严格 schema、确定性测试、最小权限 current 消费者和回滚证据。
+    - [x] 3.1c-FF1 `client.strategy_research` 全局开关 v1：严格 schema、服务端确定性测试、最小权限 current 消费者、运行时双 Gate 和回滚证据。
     - [ ] 3.1c-FF2 用户/组织/应用版本/百分比/独立时窗 targeting（与 3.3 合并验收）。
     - [!] 3.1c-Brand/Domain 品牌与域名消费者，等待 P-10/P-11。
     - [ ] 3.1c-Prompt/Skill Prompt 与技能配置族 schema、测试器和消费者。

@@ -279,7 +279,9 @@
 2. `T3.1c-FF2`：用户/组织/应用版本/百分比/独立时窗 targeting，作为 T3.3 的新 schema 版本单独设计和验收，不改变 FF1 语义。
 3. `T3.1c-Brand/Domain`、`Prompt/Skill`、`Pricing`：分别在 P-10/P-11、Prompt/技能 schema、P-07/P-08 参数确认后接入，禁止占位值生效。
 
-**当前状态：** T3.1c-FF1 实施中；其余配置族仍为 Target/Blocked。没有 active FF1 时保持现有环境开关行为；active 配置只能进一步关闭，不能打开被环境或能力 Gate 禁用的功能。
+**当前状态：** T3.1c-FF1 已完成（2026-08-24）；其余配置族仍为 Target/Blocked。首个注册族固定为 `client.strategy_research`、Client audience、schema v1 与 `{enabled:boolean}`，由服务端生成确定性测试证据；Client 只通过最小权限 current 网关读取，并在 GET/POST 共用“环境 Gate AND active 配置”的判定。没有 active FF1 时保持现有环境开关行为；active 配置只能进一步关闭，不能打开被环境或能力 Gate 禁用的功能。Maintenance 使用受限字段与页面内原因直接操作，无二次弹窗。
+
+**FF1 验证：** family/服务/PostgreSQL/角色/回滚与 UI 合同、1326 项全量测试、TypeScript、ESLint、架构边界、secret scan、production audit；`ssh an-saas` Node 22.21.1 三端 production build；本地隔离 PostgreSQL + 真实 Chromium 18/18，覆盖三端空浏览器登录和仅提交 `{reason}` 的服务端确定性测试。
 
 **验收：** 消费者只读取 active 精确版本；历史订单/执行引用版本 ID；具体族不能借通用 JSON 绕过安全 Gate。
 **验证：** 每配置族合同、确定性测试证据、消费者 N-1、最小数据库权限、浏览器与回滚演练。

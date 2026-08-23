@@ -27,6 +27,12 @@ offset/UTC 预览、调度、current、激活和已生效历史回滚；最小�
 
 功能开关不能绕过真实交易、提现、划转或部署 Gate。
 
+实施快照（2026-08-24）：T3.1c-FF1 已实现首个整个模块级开关
+`client.strategy_research`。创建界面固定 key、Client audience 和 schema v1，只允许选择启停；
+测试结果和证据摘要由服务端根据不可变 payload 生成，浏览器只提交审计原因。激活/回滚从下一次
+Client 请求生效且只能收窄环境 Gate。用户/组织、应用版本、百分比和独立时窗仍属于 T3.3，
+不能把 v1 描述为已经支持多粒度灰度。
+
 ## 4. 模型、技能和 Prompt
 
 - 模型 Profile、供应商、Key、模型 ID、连通性和 Agent 绑定。

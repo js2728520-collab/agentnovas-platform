@@ -2328,3 +2328,34 @@ Runtime Docker target 也构建成功，生产依赖为 0 vulnerability，并确
 覆盖三端空浏览器登录、权限注册链接、Host/Cookie audience 隔离、三端 UI、Maintenance 健康页
 和配置无弹窗提交。质量 schema、运行时 secret、3200–3202 进程、远端构建目录均已清理；本地
 隔离目录移入废纸篓。未启动远端服务、未迁移生产数据库、未推送、未部署。
+
+## 62. 2026-08-24 T3.1c-FF1 策略研究全局功能开关
+
+首个具体配置族 `feature_flag/client.strategy_research/client/schema v1` 已完成全栈接入，payload
+严格只允许 `{enabled:boolean}`。其他 feature flag key、audience、schema 或附加 targeting 字段
+均在草稿边界拒绝；用户/组织、应用版本、百分比和独立时窗继续留给 T3.3，不在 v1 猜测语义。
+
+注册族测试不再接受浏览器填写 `result` 或 `evidenceSha256`。Maintenance 只提交 3–500 字审计
+原因，服务端按 tester `feature-flag-v1` 对不可变 family/payload 生成确定性的 passed 与摘要并
+写入追加事实；审计同时保留 tester ID。其他尚未注册配置族仍使用既有人工证据路径。创建页固定
+key、Client audience 和 schema，只呈现模块开/关；详情页提供“运行确定性测试”，草稿、测试、
+审批、调度、激活和回滚继续使用页面内原因直接执行，没有恢复模态确认框。
+
+迁移 0071 提供 Client 唯一可执行的 `configuration_client_active_feature_flag(text)` 最小权限
+网关，由 migrator 拥有、固定安全 `search_path`、撤销 PUBLIC 权限；Client 没有通用配置底表
+权限。消费者重新校验 schema、严格 payload 与 canonical SHA-256，网关错误、非法投影或摘要
+不一致全部失败关闭且不回显错误正文。策略研究 GET/POST 共用双重 Gate：环境变量为 false 时
+完全不查询配置，环境变量为 true 且没有 active 版本时保持原行为，active false 只能关闭，
+不能打开环境或其他能力 Gate 已禁用的功能；激活/回滚从下一次请求读取新的 current。
+
+本地完整质量门禁为 `npm test` 1326/1326、TypeScript、ESLint、8 条架构边界、secret scan 与
+production dependency audit 全通过。`ssh an-saas` 使用完整提交快照和 Node 22.21.1 容器完成
+Client/Operations/Maintenance 三端 production build；首次归档仍在慢速传输时提前构建产生统一
+module-not-found，确认快照不完整后作废，最终以文件数和关键 SHA 对齐的完整快照重建成功。
+
+本地重新构建三端 standalone 后，隔离 PostgreSQL、MFA 关闭、外部写入全禁用的真实 Chromium
+最终 18/18 通过。Maintenance 实际创建注册草稿、触发服务端测试并断言请求体只有 `{reason}`；
+三端空浏览器登录、Cookie/Host audience、五设备、权限注册链接、响应式、axe、console、network
+与 HTTP Gate 同批通过。验收还修复了 Playwright teardown 竞态：只在主动关闭隔离上下文后忽略
+已被浏览器处理的 route；运行期错误仍 fail-fast。质量 schema、运行时 secret、3410–3412 端口
+和两处远端临时目录已清理。未启动远端服务、未迁移生产数据库、未推送、未部署。
