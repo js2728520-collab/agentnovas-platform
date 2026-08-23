@@ -139,6 +139,14 @@ test("fails closed for invalid timestamps, excessive clock skew, and invalid thr
     quality: "invalid",
     canOpenPosition: false,
   });
+  assert.deepEqual(
+    evaluateMarketDataFreshness({
+      ...input,
+      receivedAt: "2026-08-24T00:00:00.201Z",
+      evaluatedAt: "2026-08-24T00:00:00.200Z",
+    }),
+    { latencyMs: null, quality: "invalid", canOpenPosition: false },
+  );
 });
 
 test("creates a versioned event envelope and derives eligibility on the server", () => {

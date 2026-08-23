@@ -210,6 +210,7 @@ export function evaluateMarketDataFreshness(input: {
   if (![exchangeAt, receivedAt, evaluatedAt].every(Number.isFinite)
       || !validThresholds
       || receivedAt - exchangeAt < -MAX_CLOCK_SKEW_MS
+      || receivedAt > evaluatedAt
       || evaluatedAt - exchangeAt < -MAX_CLOCK_SKEW_MS) {
     return { latencyMs: null, quality: "invalid", canOpenPosition: false };
   }
