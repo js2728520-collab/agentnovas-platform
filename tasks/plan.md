@@ -167,6 +167,19 @@
 **涉及：** Operations customer APIs/UI、export projection、API Policy、PII tests。
 **规模：** M。
 
+### T1.7：权限配置交互减负
+
+**状态：** 已完成。Operations 与 Maintenance 共享权限中心的角色创建、模板发布、草稿角色发布
+和用户分配均改为页面内审计原因并单击提交，不再使用二次确认弹窗。敏感权限仍只创建
+maker/checker 申请；审批决定、角色撤销、恢复码与设备会话等独立高风险动作仍保留显式确认。
+
+**验收：** 普通配置按钮仅在审计原因有效时启用；同一原因可连续用于本轮配置；敏感角色和分配
+不能绕过服务端 RBAC、recent MFA 与双人审批；浏览器实际创建/发布普通角色时无 dialog。
+**验证：** UI 合同 RED/GREEN、全量测试、TypeScript、ESLint、安全门禁、三端云端 production
+build，以及隔离 PostgreSQL + 真实 Chromium 18 场景。
+**依赖：** T1.3 与既有 Access Center/RBAC 基线。
+**规模：** S。
+
 ### Checkpoint P1
 
 - [ ] G1 通过。
@@ -280,7 +293,7 @@ nginx 语法检查。无网络、数据库、route、UI 或真实 provider 变�
 **描述：** 支持行情源跟随交易账户或独立选择，并把解析结果固定到具体策略/部署版本；不把
 provider 字段写入策略 DSL，也不允许浏览器自报授权、健康或执行资格。
 
-**状态：** 进行中。T2.4a 先交付 provider-independent 纯合同；T2.4b 的持久化、账户能力
+**状态：** 进行中。T2.4a provider-independent 纯合同已完成；T2.4b 的持久化、账户能力
 解析、API、UI、Runtime 身份与历史迁移等待 P-01 和 provider/account capability registry。
 
 **分阶段：**
@@ -295,6 +308,14 @@ provider 字段写入策略 DSL，也不允许浏览器自报授权、健康或�
 **验证：** 纯合同 RED/GREEN、PostgreSQL 不可变/并发、API/UI contract、Runtime 回放与浏览器。
 **依赖：** T2.1、T2.2、T2.3；T2.4b 另依赖 P-01。
 **规模：** M。
+
+**T2.4a 实施证据（2026-08-24）：** 新增选择意图、账户与 capability 快照、稳定阻断原因、
+不可变解析绑定和双 fingerprint 合同。账户一致模式要求归属、启用、只读和 provider 完全匹配；
+独立选择不得夹带账户，`customer_account` 数据源必须有精确账户证据，公共/授权源不得伪造账户。
+policy 与 binding instance 使用版本化 tuple 哈希，字段顺序不改变结果；任何输出均明确
+`authorizesOrders=false`，不提供隐藏默认或 Coinbase 特例。17 项新测试与相关行情定向 48/48，
+完整测试 1411/1411 及类型、Lint、架构、安全、secret 与依赖门禁通过。实现提交 `c9d1d90`；
+T2.4b 继续等待 P-01/provider registry，不因纯合同完成而解锁持久化、UI、Runtime 或 G2。
 
 ### T2.5：Coinbase 加密 fallback
 

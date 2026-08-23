@@ -2687,3 +2687,56 @@ Playwright 交互/投影夹具，没有改变云端 runtime 源码。
 密钥、3740–3742 端口、本地/远端临时产物均已清理，测试前 cache 已恢复。两份用户本地修改未纳入
 提交；未启动远端服务、未执行生产迁移、未接触生产数据库、未推送、未部署。T4.4b 继续等待
 T2.4/P-01，不因 4.4a 完成而提前解除。
+
+## 74. 2026-08-24 T2.4a provider-independent 行情源绑定合同
+
+T2.4a 已建立不依赖真实 provider 的行情源选择与不可变解析合同。选择意图只允许“跟随客户账户”
+或“独立 provider”；账户一致模式要求服务端账户快照证明归属、启用、只读和 provider 完全匹配，
+独立模式拒绝账户旁路。`customer_account` 来源必须携带与选择一致的精确账户证据，公共/授权来源
+必须显式 `sourceAccountId=null`，不能把平台源伪装成客户账户源。
+
+解析结果分别生成 `sourcePolicyFingerprint` 与 `bindingInstanceFingerprint`：前者绑定计算/数据源策略，
+后者再绑定策略版本、选择模式和账户来源。两个摘要都使用版本化 JSON tuple，字段插入顺序不会改变
+结果；相同平台 policy 可跨账户复用计算证据，但 binding instance 仍不同。所有结果只允许
+display/research，明确 `authorizesOrders=false`；没有隐藏默认、Coinbase 特例、execution usage 或
+浏览器自报健康/授权路径。
+
+规格提交为 `ae2015c`，实现提交为 `c9d1d90`。17 项新合同测试覆盖账户/平台源隔离、双摘要、
+字段顺序、非法旁路、未知字段和边界，相关行情合同定向 48/48；包含后续权限配置切片的最终完整
+回归为 1411/1411，TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、repository secret
+scan（3086 个候选文件）和 production dependency audit 0 全部通过。T2.4b 的持久化、API、UI、
+Runtime、历史 `legacy_unpinned` 迁移与决策轮 aggregate hash 仍等待 P-01/provider registry；纯合同
+完成不解除 G2 或真实 provider Gate。
+
+## 75. 2026-08-24 权限配置流程移除冗余弹窗
+
+Operations 与 Maintenance 共用的权限中心已把角色创建、角色模板发布、草稿角色发布和用户分配
+改为页面内审计原因并单击执行，不再先点动作、再弹窗、再重复填写原因。同一角色原因可连续用于
+本轮创建/发布，按钮在 3–500 字原因有效前保持禁用，提交期间继续使用 busy guard。敏感角色、模板
+和分配仍只创建 maker/checker 申请，不会因为取消前端弹窗而直接生效；审批决定、角色撤销、恢复码
+和设备会话等独立高风险动作仍保留显式确认。
+
+实现提交为 `ddb213d809c81be321a8d97bd6bfba251790d6fb`，tree
+`8708a2d55bd9f267dbf93a3c16b32f818b5985e8`。UI 合同先 RED 证明普通配置仍依赖 dialog，再 GREEN
+锁定三个内联原因区与普通动作不再写入 `pending`；全量 1411/1411、TypeScript、全仓 ESLint、
+8 条架构边界、三端 key-custody、repository secret scan、production dependency audit 0 和差异
+检查均通过。
+
+云端使用 3086 文件精确 Git 归档，源码 archive SHA-256 为
+`d2ade97ea3d95ec4ac05346533f3fcd6ec057e615e7ff975d85190124f6af821`。`ssh an-saas` 固定
+Node 22.21.1 完成 Client 68、Operations 62、Maintenance 51 页 production build；三端镜像摘要
+依次为 `sha256:1bd0b9ae5b27d9e9be8603d6be1fd7c1e8bbd6ec3add8a0f4c26f005910c3999`、
+`sha256:e6fdaf2470fc3f151259aaab204c9a9862193b3ec4cbae3a0169a17a6bfc0478`、
+`sha256:705f55b70bc61650196f437e4ae80935838677220b58a5de8baa7d6e9387c8d0`。
+production-only audit 为 0；官方 nginx 1.29.8 `-t` 通过并保留 8 条既有 http2 兼容警告。
+
+三端 standalone 归档 SHA-256 为
+`12a4c7aca2a1cb4b94d58c828bb47f731a2454250e7769089b7a1dab454cc410`，下载前后一致。本地以
+云端产物、隔离 PostgreSQL、MFA 默认关闭和全部外部写入禁用运行真实 Chromium 18/18：除三端
+空浏览器登录、Host/Cookie audience、权限链接和五设备外，新增旅程实际创建并发布普通 Maintenance
+角色，连续收到 201/200 且全程 dialog 数为 0。质量 schema
+`quality_e2e_1787521174035_82127_261e8a2d` 已删除，runtime secrets 已移除，3740–3742 端口和
+本机原 build cache 已恢复；云端临时镜像/目录已删除。两份用户本地修改哈希保持为
+`103098cb5261603f7a43a262eedf34fe039daa8020fcbd35d0adf3e91c874c05` 与
+`bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，未纳入提交。未启动远端
+服务、未执行生产迁移、未接触生产数据库、未推送、未部署。

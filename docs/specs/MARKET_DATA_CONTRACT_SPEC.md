@@ -1,6 +1,6 @@
 # 多市场行情统一合同规格
 
-状态：`TARGET/PARTIAL_CURRENT`；T2.1a/T2.1b/T2.2a/T2.3a/T2.11a 已实现，真实供应商接入与有状态切换仍受 P-01/P-03 和后续 Gate 阻断
+状态：`TARGET/PARTIAL_CURRENT`；T2.1a/T2.1b/T2.2a/T2.3a/T2.4a/T2.11a 已实现，真实供应商接入、有状态切换和绑定接入仍受 P-01/P-03 和后续 Gate 阻断
 日期：2026-08-24
 上位真源：`../product/PRD.md` 第 6 节；`V3_SYSTEM_TARGET_SPEC.md` 第 5 节；ADR-0021；需求方确认书 V1.1
 
@@ -35,7 +35,8 @@
 - 当前公共 Yahoo/Binance 数据路径统一标记为 `display/research`，不声明生产授权，也不具备 execution eligibility。
 - 时间戳统一为 ISO 8601 UTC；市场时区使用 IANA timezone；交易日历以稳定 ID 引用，不在浏览器复制节假日规则。
 - A/HK/KR/JP 仅在合同 taxonomy 中预留合法值，不在当前 API 虚构 provider 或 instrument availability。
-- WebSocket sequence、缓存、重连、主备切换与 provider preference 分别由 T2.2/T2.3 实现。
+- WebSocket sequence、缓存和重连由 T2.2 实现，主备切换由 T2.3 实现；T2.4a 的
+  provider-independent 绑定纯合同见 `MARKET_SOURCE_BINDING_SPEC.md`，持久化/UI/Runtime 属于 T2.4b。
 
 ### 2.3 仍需确认或外部证据
 
