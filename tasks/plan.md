@@ -438,6 +438,20 @@ production audit 0、官方 nginx 1.29.8 检查通过；源码归档摘要在本
 **依赖：** P-04、T3.2。
 **规模：** M。
 
+### T4.1a：可编辑结构化策略候选（对应任务看板 T4.4a）
+
+**描述：** 在不等待 QuantDinger 差异与真实 provider 的前提下，补齐 PRD 已明确的结果闭环：研发
+时间线提供文字建议，候选公开完整 DSL，客户首次保存前可编辑 JSON 参数；服务端重新执行 V1–V3
+白名单校验。任何语义修改都丢弃原回测资格并保存为 `UNVERIFIED`，格式变化不误降级。
+
+**验收：** 相同规范化输入幂等返回同一不可变版本；已保存候选不能用不同 DSL 静默重放；编辑后
+UI 不保留 verified 样式；非法 JSON/DSL 不入库；只允许 shadow/paper，真实订单仍不可达。
+
+**验证：** 纯合同、PostgreSQL 并发/重放、UI 合同、四断点/axe 和 production Chromium。
+**依赖：** 已完成 DSL V1–V3、多 Agent 候选与策略草稿；4.4b 的 provider 字段另依赖 T2.4/P-01。
+**规格：** `docs/specs/EDITABLE_STRATEGY_CANDIDATE_SPEC.md`。
+**规模：** 先服务端、后 UI 两个 M 以下纵向增量。
+
 ### T4.2：策略准入与投稿状态机
 
 **描述：** 结构化策略、回测、模拟盘、风险指标、人工审核、披露和版本重审。
