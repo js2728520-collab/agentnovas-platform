@@ -74,6 +74,7 @@ const ROLE_PERMISSIONS = {
     "maint.email_integrations.manage",
     "maint.feature_flags.manage",
     "maint.system_health.view",
+    "maint.ai_usage.view",
     "maint.emergency_pause.execute",
     "maint.audit.view",
     "maint.roles.manage",
@@ -263,6 +264,74 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
       identities.operationsChecker.userId,
       identities.operationsMaker.userId,
       now.toISOString(),
+    ]);
+
+    const aiProfileId = `quality-ai-profile-${schema.slice(-12)}`;
+    const aiRevisionId = `quality-ai-revision-${schema.slice(-12)}`;
+    const aiCreditAccountId = `quality-ai-credits-${schema.slice(-12)}`;
+    const aiSuccessReservationId = `quality-ai-reservation-success-${schema.slice(-10)}`;
+    const aiFailureReservationId = `quality-ai-reservation-failure-${schema.slice(-10)}`;
+    await client.query(`
+      INSERT INTO llm_profiles(
+        id,name,provider_name,base_url,model_name,encrypted_api_key,masked_api_key,
+        enabled,current_revision_id,created_by_user_id,updated_by_user_id
+      ) VALUES ($1,'Quality AI profile','Quality Provider','https://quality.invalid/v1',
+        'quality-model','quality-fixture-non-secret','***fixture',true,$2,$3,$3)
+    `, [aiProfileId, aiRevisionId, identities.maintenanceAdmin.userId]);
+    await client.query(`
+      INSERT INTO llm_profile_revisions(
+        id,profile_id,revision_number,name,provider_name,base_url,model_name,
+        encrypted_api_key,masked_api_key,enabled,created_by_user_id
+      ) VALUES ($1,$2,1,'Quality AI revision','Quality Provider','https://quality.invalid/v1',
+        'quality-model','quality-fixture-non-secret','***fixture',true,$3)
+    `, [aiRevisionId, aiProfileId, identities.maintenanceAdmin.userId]);
+    await client.query(`
+      INSERT INTO ai_credit_accounts(id,user_id,available_credits,reserved_credits)
+      VALUES ($1,$2,100,0)
+    `, [aiCreditAccountId, identities.client.userId]);
+    await client.query(`
+      INSERT INTO ai_credit_reservations(
+        id,account_id,estimated_credits,settled_credits,status,idempotency_key,expires_at
+      ) VALUES
+        ($1,$3,9,7,'settled',$4,$6),
+        ($2,$3,5,NULL,'released',$5,$6)
+    `, [
+      aiSuccessReservationId,
+      aiFailureReservationId,
+      aiCreditAccountId,
+      `quality-ai-success-reservation-${schema}`,
+      `quality-ai-failure-reservation-${schema}`,
+      new Date(now.getTime() + 15 * 60_000).toISOString(),
+    ]);
+    await client.query(`
+      INSERT INTO client_ai_inference_requests(
+        id,user_id,operation,idempotency_key,payload_sha256,profile_revision_id,status,
+        reservation_id,result_json,error_code,error_message,error_status,
+        provider_request_id,usage_id,input_tokens,output_tokens,request_id,
+        organization_id,organization_attribution_mode,created_at,completed_at,updated_at
+      ) VALUES
+        ($1,$2,'assistant_message',$3,$4,$5,'succeeded',$6,'{"quality":true}'::jsonb,
+          NULL,NULL,NULL,$7,$7,120,30,$8,$9,'captured_at_request',$10,$10,$10),
+        ($11,$2,'strategy_generation',$12,$13,$5,'failed',$14,NULL,
+          'QUALITY_PROVIDER_UNAVAILABLE','Synthetic quality failure',503,NULL,NULL,NULL,NULL,
+          $15,$9,'captured_at_request',$16,$16,$16)
+    `, [
+      `quality-ai-success-${schema.slice(-12)}`,
+      identities.client.userId,
+      `quality-ai-success-request-${schema}`,
+      sha256(`quality-ai-success-payload-${schema}`),
+      aiRevisionId,
+      aiSuccessReservationId,
+      `quality-provider-request-${schema}`,
+      `quality-ai-request-id-success-${schema}`,
+      organizationId,
+      new Date(now.getTime() - 2 * 60 * 60_000).toISOString(),
+      `quality-ai-failure-${schema.slice(-12)}`,
+      `quality-ai-failure-request-${schema}`,
+      sha256(`quality-ai-failure-payload-${schema}`),
+      aiFailureReservationId,
+      `quality-ai-request-id-failure-${schema}`,
+      new Date(now.getTime() - 60 * 60_000).toISOString(),
     ]);
 
     for (const [index, documentType] of LEGAL_DOCUMENT_TYPES.entries()) {

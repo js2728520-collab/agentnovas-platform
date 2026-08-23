@@ -32,6 +32,7 @@
 | `specs/MARKET_DATA_CONTRACT_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.1a/T2.1b 合同、当前四市场兼容 API、T2.2a 流状态机、T2.3a 单周期仲裁与 T2.11a Runtime candle stale Gate 已实现；真实 provider/WebSocket adapter 与有状态切换等待 P-01/P-03 |
 | `specs/MARKET_SOURCE_BINDING_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.4a provider-independent 选择/解析、不可变绑定与双 fingerprint 已实现；T2.4b 持久化、UI、Runtime 和历史迁移等待 P-01/provider registry |
 | `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T4.3a 普通对话取消、provider abort、原请求重放与 Credits 单终态已实现；固定 Credits 价格等待 P-08 |
+| `specs/MAINTENANCE_AI_USAGE_ANALYTICS_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T3.9a UTC 请求创建 cohort、可信成功 Token、settled Credits、已记录非取消失败率和脱敏多维分析已通过完整 Gate；T3.9b 固定价格仍等待 P-08 |
 | `quality/FULL_PLATFORM_V3_GATES.md` | `TARGET_TRUTH` | 分能力验收和发布门禁 |
 | `roadmap/FULL_PLATFORM_V3_ROADMAP.md` | `TARGET_TRUTH` | 分阶段升级顺序 |
 | `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md` | `TARGET_TRUTH` | 当前基础与 V3 差距 |
@@ -49,7 +50,7 @@
 | `specs/SYSTEM_SPEC.md` | `CURRENT_BASELINE` | 当前运行架构与硬关闭证据 |
 | `specs/CLIENT_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Client 合同 |
 | `specs/OPERATIONS_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Operations 合同，组织 UI/邀请将迁移 |
-| `specs/MAINTENANCE_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Maintenance 与只登记发布证据合同 |
+| `specs/MAINTENANCE_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Maintenance、T3.9a AI 用量安全聚合与只登记发布证据合同 |
 | `specs/RELEASE_VERSION_MANAGEMENT_SPEC.md` | `CURRENT_BASELINE` | 当前不可变发布证据；V3 后续增加受限 trigger |
 | `api/API_CATALOG.md` | `CURRENT_BASELINE` | 当前真实路由和 Policy 索引，不提前虚构 V3 API |
 | `api/openapi-controlled-beta.yaml` | `CURRENT_BASELINE` | 当前受控 API 合同 |

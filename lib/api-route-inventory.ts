@@ -2162,6 +2162,28 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/maintenance/ai-usage",
+    "source": "app/api/maintenance/ai-usage/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.ai_usage.view"
+    ],
+    "permissionMfa": {
+      "maint.ai_usage.view": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "masked",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/maintenance/audit",
     "source": "app/api/maintenance/audit/route.maintenance.ts",
     "audiences": [

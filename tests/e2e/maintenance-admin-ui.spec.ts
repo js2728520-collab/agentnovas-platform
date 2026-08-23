@@ -1,4 +1,5 @@
-import { exerciseResponsiveWidths, expect, expectAudienceNavigation, test } from "./support/quality-test";
+import { createIsolatedQualityBrowser, exerciseResponsiveWidths, expect, expectAudienceNavigation, test } from "./support/quality-test";
+import { readQualityRuntime } from "./support/runtime";
 
 test("maintenance health and audit workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
   for (const [path, heading] of [
@@ -124,5 +125,50 @@ test("maintenance configuration and controls submit inline without confirmation 
     await resume.click();
     expect((await restoreResponse).status()).toBe(200);
     await expect(page.getByRole("dialog")).toHaveCount(0);
+  }
+});
+
+test("maintenance AI usage is truthful, accessible, dialog-free, and recoverable from an invalid shared URL", async ({ browser, page }) => {
+  await exerciseResponsiveWidths(page, "/ai-usage", "AI 用量与可靠性");
+  await expectAudienceNavigation(page, "maintenance");
+  const overview = page.getByRole("region", { name: "AI 用量总览" });
+  await expect(overview.getByText("已记录非取消失败率", { exact: true })).toBeVisible();
+  await expect(overview.locator("article").filter({ hasText: "总可信 Token" }).getByText("150", { exact: true })).toBeVisible();
+  await expect(overview.locator("article").filter({ hasText: "已结算 Credits" }).getByText("7", { exact: true })).toBeVisible();
+
+  const startDate = page.getByRole("textbox", { name: "开始日期", exact: true });
+  const nextStart = new Date(`${await startDate.inputValue()}T00:00:00.000Z`);
+  nextStart.setUTCDate(nextStart.getUTCDate() + 1);
+  await startDate.fill(nextStart.toISOString().slice(0, 10));
+  const applied = page.waitForResponse((response) => response.url().includes("/api/maintenance/ai-usage?") && response.status() === 200);
+  await page.getByRole("button", { name: "应用日期" }).click();
+  await applied;
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  const runtime = await readQualityRuntime();
+  const identity = runtime.identities.maintenanceAdmin;
+  const isolated = await createIsolatedQualityBrowser(browser, "maintenance");
+  await isolated.context.addCookies([{
+    name: identity.cookieName,
+    value: identity.token,
+    domain: identity.domain,
+    path: "/",
+    expires: Math.floor(new Date(runtime.expiresAt).getTime() / 1000),
+    httpOnly: true,
+    secure: true,
+    sameSite: "Strict",
+  }]);
+  try {
+    await isolated.page.goto("/ai-usage?from=not-a-date&to=2026-08-24", { waitUntil: "domcontentloaded" });
+    await expect(isolated.page.getByRole("button", { name: "恢复默认 30 天" })).toBeVisible();
+    await expect(isolated.page.getByText(/日期范围必须是 UTC 自然日/).first()).toBeVisible();
+    await expect(isolated.page.getByRole("dialog")).toHaveCount(0);
+    const recovered = isolated.page.waitForResponse((response) => response.url().includes("/api/maintenance/ai-usage?") && response.status() === 200);
+    await isolated.page.getByRole("button", { name: "恢复默认 30 天" }).click();
+    await recovered;
+    await expect(isolated.page.getByText("已记录非取消失败率", { exact: true })).toBeVisible();
+    await expect(isolated.page.getByRole("dialog")).toHaveCount(0);
+  } finally {
+    await isolated.close({ allowedStatuses: [400] });
   }
 });

@@ -307,6 +307,7 @@ function sensitivePermissionKeys(source) {
 }
 
 function piiForRoute(route) {
+  if (route === "/api/maintenance/ai-usage") return "masked";
   if (["/api/account/profile", "/api/data-center", "/api/employee/tasks", "/api/organization/members"].includes(route)
     || route.startsWith("/api/finance/payout-profiles") || route.startsWith("/api/operations/deposits")
     || route.startsWith("/api/operations/customers")) return "full";

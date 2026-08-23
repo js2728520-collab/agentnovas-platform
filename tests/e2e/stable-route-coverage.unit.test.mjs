@@ -48,11 +48,11 @@ test("Operations and Maintenance cases cover representative stable pages and aud
   assert.equal((maker.match(/\btest\(/g) ?? []).length, 3, "maker coverage includes the no-PII negative case");
   assert.equal((checker.match(/\btest\(/g) ?? []).length, 2, "checker coverage includes the audited PII reveal case");
 
-  assertPathsCovered(maintenance, ["/", "/health", "/models", "/integrations", "/integrations/sources", "/integrations/email", "/integrations/payments", "/integrations/demo-exchanges", "/settings", "/configurations", "/audit", "/releases"], "maintenance-admin-ui.spec.ts");
+  assertPathsCovered(maintenance, ["/", "/health", "/models", "/integrations", "/integrations/sources", "/integrations/email", "/integrations/payments", "/integrations/demo-exchanges", "/settings", "/configurations", "/audit", "/releases", "/ai-usage"], "maintenance-admin-ui.spec.ts");
   assert.match(maintenance, /expectAudienceNavigation\(page,\s*"maintenance"\)/);
   assert.match(maintenance, /运行确定性测试/);
   assert.match(maintenance, /postDataJSON\(\)/);
-  assert.equal((maintenance.match(/\btest\(/g) ?? []).length, 3, "Maintenance coverage includes the no-confirmation configuration flow");
+  assert.equal((maintenance.match(/\btest\(/g) ?? []).length, 4, "Maintenance coverage includes dialog-free configuration and AI usage recovery flows");
 });
 
 test("every stable-page navigation uses the shared browser quality exercise", async () => {

@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 
 import { apiErrorMessage, formatDateTime } from "@/packages/contracts/src/riverton-ui";
-import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
@@ -27,7 +26,7 @@ export function AccountsWorkspace({ canManage }: { canManage: boolean }) {
     "运营账号读取失败",
   );
   const [query, setQuery] = useState("");
-  const [pending, setPending] = useState<InternalAccount | null>(null);
+  const [auditReason, setAuditReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const accounts = useMemo(() => {
@@ -39,14 +38,16 @@ export function AccountsWorkspace({ canManage }: { canManage: boolean }) {
         .includes(needle)
     ));
   }, [query, resource.data?.accounts]);
+  const reasonReady = auditReason.trim().length >= 3 && auditReason.trim().length <= 500;
 
-  async function changeStatus(reason: string) {
-    if (!pending || busy) return;
-    const action = pending.status === "active" ? "deactivate" : "restore";
+  async function changeStatus(account: InternalAccount, rawReason: string) {
+    const reason = rawReason.trim();
+    if (busy || reason.length < 3 || reason.length > 500) return;
+    const action = account.status === "active" ? "deactivate" : "restore";
     setBusy(true);
-    setMessage("");
+    setMessage("正在更新账号状态…");
     try {
-      const response = await fetch(`/api/organization/members/${encodeURIComponent(pending.id)}/status`, {
+      const response = await fetch(`/api/organization/members/${encodeURIComponent(account.id)}/status`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action, reason }),
@@ -54,7 +55,7 @@ export function AccountsWorkspace({ canManage }: { canManage: boolean }) {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, "账号状态更新失败"));
       setMessage(String(payload.message ?? "账号状态已更新"));
-      setPending(null);
+      setAuditReason("");
       await resource.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "账号状态更新失败");
@@ -75,6 +76,7 @@ export function AccountsWorkspace({ canManage }: { canManage: boolean }) {
         <div><small>ACCOUNT DIRECTORY</small><h2>内部账号生命周期</h2></div>
         <label>搜索账号<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="邮箱、角色或状态" /></label>
       </header>
+      {canManage ? <div className="rc-form"><label>账号生命周期审计原因（3–500 字）<textarea rows={2} minLength={3} maxLength={500} value={auditReason} onChange={(event) => setAuditReason(event.target.value)} placeholder="例如：离职停用或复职恢复工单" /></label><p className="rc-muted">停用会立即撤销全部会话、未使用令牌和该账号签发的有效权限注册链接；恢复只允许重新登录，不会扩大原有权限。填写原因后直接点击目标账号的操作。</p></div> : null}
       {resource.loading && !resource.data ? <LoadingState />
         : resource.error && !resource.data ? <ErrorState message={resource.error} retry={resource.refresh} />
           : !accounts.length ? <EmptyState title="没有匹配账号" description="调整搜索条件后重试。" />
@@ -91,22 +93,11 @@ export function AccountsWorkspace({ canManage }: { canManage: boolean }) {
                   : <button
                       className={account.status === "active" ? "rc-button rc-danger-button" : "rc-button"}
                       type="button"
-                      disabled={busy}
-                      onClick={() => setPending(account)}
+                      disabled={busy || !reasonReady}
+                      onClick={() => void changeStatus(account, auditReason)}
                     >{account.status === "active" ? "停用" : "恢复"}</button>}</td>
               </tr>)}</tbody>
             </table></div>}
     </section>
-    <ConfirmActionDialog
-      open={pending !== null}
-      title={pending?.status === "active" ? "停用运营账号" : "恢复运营账号"}
-      description={pending?.status === "active"
-        ? "停用会立即撤销该账号的全部会话、未使用令牌和其签发的有效权限注册链接。"
-        : "恢复只允许账号重新登录，不会扩大原有角色或权限范围。"}
-      confirmLabel="确认提交"
-      busy={busy}
-      onCancel={() => setPending(null)}
-      onConfirm={(reason) => void changeStatus(reason)}
-    />
   </>;
 }

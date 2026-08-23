@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { apiErrorMessage, formatDateTime } from "@/packages/contracts/src/riverton-ui";
-import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
 import {
   EmptyState,
   ErrorState,
@@ -64,7 +63,6 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
     "体验账号读取失败",
   );
   const [issued, setIssued] = useState<{ link: string; replaced: boolean; kind: "customer" | "staff"; registrationLinkId?: string } | null>(null);
-  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState(false);
@@ -80,7 +78,6 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, "生成邀请链接失败"));
       setIssued({ link: payload.link, replaced: Boolean(payload.replacedPreviousLink), kind: "customer" });
-      setConfirming(false);
       await resource.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "生成邀请链接失败");
@@ -214,8 +211,8 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
             如果链接丢了或需要作废，重新生成一条。
           </p>
           {canCreate ? (
-            <button className={styles.danger} type="button" disabled={busy} onClick={() => setConfirming(true)}>
-              重新生成（当前链接立即失效）
+            <button className={styles.danger} type="button" disabled={busy} onClick={generate}>
+              {busy ? "正在重新生成…" : "重新生成（当前链接立即失效）"}
             </button>
           ) : null}
         </div>
@@ -417,17 +414,6 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
         </ul>
       </section>
 
-      {confirming ? (
-        <ConfirmActionDialog
-          open
-          title="重新生成邀请链接"
-          description="当前链接会立刻失效，已经拿到它但还没注册的人将无法完成注册。新链接只显示一次。"
-          confirmLabel="重新生成"
-          busy={busy}
-          onCancel={() => setConfirming(false)}
-          onConfirm={generate}
-        />
-      ) : null}
     </section>
   );
 }

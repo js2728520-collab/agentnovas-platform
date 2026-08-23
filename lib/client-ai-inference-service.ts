@@ -241,8 +241,17 @@ export async function beginClientAiInference(pool: Pool, input: {
       const id = randomUUID();
       const inserted = await client.query<{ id: string }>(`
         INSERT INTO client_ai_inference_requests(
-          id,user_id,operation,idempotency_key,payload_sha256,profile_revision_id,request_id
-        ) VALUES($1,$2,$3,$4,$5,$6,$7)
+          id,user_id,operation,idempotency_key,payload_sha256,profile_revision_id,request_id,
+          organization_id
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,(
+          SELECT active_attribution.branch_id
+          FROM customer_attributions AS active_attribution
+          WHERE active_attribution.customer_id=$2 AND active_attribution.status='active'
+          ORDER BY active_attribution.effective_at DESC NULLS LAST,
+                   active_attribution.created_at DESC,
+                   active_attribution.id DESC
+          LIMIT 1
+        ))
         ON CONFLICT(user_id,operation,idempotency_key) DO NOTHING
         RETURNING id
       `, [id, input.userId, input.operation, input.idempotencyKey, payloadHash, input.modelRevisionId, input.requestId]);

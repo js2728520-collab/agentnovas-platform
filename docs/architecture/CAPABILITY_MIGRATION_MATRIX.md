@@ -38,7 +38,7 @@
 | --- | --- | --- |
 | Client（27） | `/`、认证/验证/重置、`/dashboard`、`/legal/**`、`/account/security`、`/market`、`/assistant`、`/studio`、`/backtests/**`、`/trading-hall/**`、`/paper/**`、会员/Credits/账单、钱包、通知和支持 | 公开入口、账户安全、AI/Paper/商业闭环可复用；策略广场、跟单配置、真实交易中心、提现仍缺目标页面。 |
 | Operations（24） | 认证/账户、客户、运营账号、团队、数据中心、会员/账单/Credits/充值/账本/财务/审批、授权审计、kill switch、live routing、注册链接 | 组织树已退出稳定路由；客户交易风控、作者/策略审核和完整真实交易报表仍需扩展。 |
-| Maintenance（21） | 认证/账户、模型、四类集成、健康/准备度/安全、设置/披露、配置版本、发布、授权审计和技术审计 | 配置发布内核已可用；品牌/i18n、Prompt/技能、计费、完整任务管理和 CI/CD trigger 尚未形成最终页面。 |
+| Maintenance（22） | 认证/账户、模型、AI 用量、四类集成、健康/准备度/安全、设置/披露、配置版本、发布、授权审计和技术审计 | 配置发布内核与 T3.9a 只读 AI 用量分析已形成页面；品牌/i18n、Prompt/技能、固定价格、完整任务管理和 CI/CD trigger 尚未形成最终页面。 |
 
 ### 2.2 后台进程与执行边界
 
@@ -106,7 +106,7 @@
 | C-05 | 品牌、Logo、域名、协议、多语言配置 | platform settings 与 disclosure 基础；没有六主题素材和正式域名消费者 | Maintenance settings/configurations + 三端 public config | `BLOCKED` | P-10/P-11；域名还影响 Cookie/CORS/TLS/邮件链接。 |
 | C-06 | Prompt/技能 CRUD、测试、双审、历史和回滚 | 7 个研究 prompt role、3 个 runtime explanation role、模型 Profile/绑定；没有 Skill 领域模型 | versioned configuration family + Maintenance models/configurations | `BLOCKED` | 发布治理已确认；`PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 的 PS-01–PS-06 尚需冻结 Skill 执行模型、可编辑范围、安全包络、测试、新任务生效与删除语义。 |
 | C-07 | 月/季/年/终身套餐、USDT 价格、权益版本 | `commercial_plan_versions` 和当前 Beta 四档基础；非完整 V3 价格消费者 | Maintenance 计费配置 + Client 会员 | `PARTIAL/BLOCKED` | P-07；历史订单必须 pin 原版本。 |
-| C-08 | 固定对话 Credits、不可变流水和用量分析 | AI reservation/ledger/daily usage、可信 usage、取消单次 release、完成/取消竞态与同 key 重放 | Maintenance usage/price + Client AI | `PARTIAL/BLOCKED` | P-08；当前按可信用量结算，不是固定价；补组织/模型/Agent/功能/费用/失败率维度和版本引用。 |
+| C-08 | 固定对话 Credits、不可变流水和用量分析 | AI reservation/ledger、可信 usage、取消单次 release、完成/取消竞态与同 key 重放；T3.9a `/ai-usage` 和 Maintenance-only GET 按 UTC 请求创建 cohort 聚合已预留 inference，提供可信成功 Token、settled Credits、已记录非取消失败率、组织请求级快照/legacy 质量、稳定伪名用户、模型 revision、Agent、功能和日期；90 天/Top 50 有界 | Maintenance `/ai-usage` + Client AI；后续固定价格配置 | `CURRENT/PARTIAL/BLOCKED` | T3.9a 当前指标排除 preflight、用户取消和处理中请求，不代表系统/provider 可用率；P-08 仍阻断固定 Credits 数值、模型/功能价格分档和价格版本引用，当前可信用量结算不是固定价。 |
 | C-09 | 人工退款、原渠道结果、优惠码/券 | 当前人工付款与审批基础；没有 V3 退款/优惠规则模型 | Client 订单 + Operations 复核 + Maintenance 规则 | `TARGET/BLOCKED` | P-07/P-09 及退款状态/渠道/provider 合同。 |
 | C-10 | 三浅三深、英语默认、偏好优先级 | 当前主题/局部 locale 基础 | 三端 token、图表、邮件/错误页和偏好持久化 | `BLOCKED` | P-10 设计稿/品牌 token；需 320/768/1024/1440 与 axe Gate。 |
 

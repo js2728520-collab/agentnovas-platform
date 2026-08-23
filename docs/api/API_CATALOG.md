@@ -207,6 +207,7 @@
 | `/api/maintenance/demo-exchanges/[id]/control` | POST | M | KEEP；reason/recent MFA/幂等/kill 安全语义 |
 | `/api/maintenance/demo-exchanges/[id]/verify` | POST | M | KEEP；固定测试域名、原因、幂等审计 |
 | `/api/maintenance/audit` | GET | M | KEEP；Demo/模型/集成/设置/安全/身份 allowlist 安全投影，domain/action/status/cursor 与 requestId/traceId |
+| `/api/maintenance/ai-usage` | GET | M | CURRENT（T3.9a）；`maint.ai_usage.view` 敏感只读；按 UTC 请求创建 cohort 聚合已预留 inference，返回可信成功 Token、settled Credits、已记录非取消失败率及组织快照质量/稳定伪名用户/模型 revision/Agent/功能/日期维度；默认 30 天、最大 90 天、高基数 Top 50，`no-store`；不返回原始用户 ID、PII、AI 内容、错误原文或模型凭证，失败率不代表系统/provider 可用率 |
 | `/api/maintenance/configuration-versions` | GET, POST | M | CURRENT（T3.1a）；查询或幂等创建不含秘密的不可变配置草稿，按 `(kind,key,audience)` 并发分配版本号 |
 | `/api/maintenance/configuration-versions/[id]/tests` | POST | M | CURRENT（T3.1c-FF1/FF2）；功能开关 v1/v2 只接收原因并由服务端生成确定性结果/证据；尚未注册的其他配置族保留人工 passed/failed 证据，审批后均禁止补写 |
 | `/api/maintenance/configuration-versions/[id]/approval` | POST | M | CURRENT（T3.1a）；不同人员 approve/reject，创建者不可自审 |

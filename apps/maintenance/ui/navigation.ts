@@ -11,6 +11,7 @@ export const navigation: ConsoleNavigationGroup[] = [
     { href: "/", label: "系统概览", icon: "dashboard", requiredPermissions: ["maint.system_health.view"] },
     { href: "/readiness", label: "开服就绪清单", icon: "check-square", requiredPermissions: ["maint.system_health.view"] },
     { href: "/health", label: "系统健康", icon: "activity", requiredPermissions: ["maint.system_health.view"] },
+    { href: "/ai-usage", label: "AI 用量", icon: "database", requiredPermissions: ["maint.ai_usage.view"] },
   ] },
   { label: "模型与集成", items: [
     { href: "/models", label: "模型与 Agent", icon: "cpu", requiredPermissions: ["maint.system_health.view", "maint.llm_profiles.manage", "maint.agent_bindings.manage"] },

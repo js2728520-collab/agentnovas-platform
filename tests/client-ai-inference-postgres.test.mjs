@@ -26,7 +26,9 @@ test.before(async () => {
   process.env.LLM_PROFILE_ENCRYPTION_KEY = "test-only-client-runtime-key-32-chars";
   await admin.query(`CREATE SCHEMA "${schema}"`);
   await pool.query(`
+    CREATE TABLE organizations(id text PRIMARY KEY);
     CREATE TABLE users(id text PRIMARY KEY);
+    CREATE TABLE customer_attributions(id text PRIMARY KEY,customer_id text NOT NULL,status text NOT NULL,branch_id text,effective_at text,created_at text NOT NULL);
     CREATE TABLE llm_profiles(id text PRIMARY KEY,current_revision_id text,enabled boolean NOT NULL DEFAULT true);
     CREATE TABLE llm_profile_revisions(id text PRIMARY KEY,profile_id text NOT NULL,provider_name text NOT NULL,base_url text NOT NULL,model_name text NOT NULL,encrypted_api_key text NOT NULL,enabled boolean NOT NULL DEFAULT true);
     CREATE TABLE agent_role_bindings(id text PRIMARY KEY,role text UNIQUE NOT NULL,llm_profile_id text NOT NULL,enabled boolean NOT NULL DEFAULT true);
@@ -35,7 +37,10 @@ test.before(async () => {
     CREATE TABLE ai_credit_ledger_entries(id text PRIMARY KEY,account_id text NOT NULL REFERENCES ai_credit_accounts(id),entry_type text NOT NULL,available_delta numeric(36,0) NOT NULL,reserved_delta numeric(36,0) NOT NULL,balance_available numeric(36,0) NOT NULL CHECK(balance_available>=0),balance_reserved numeric(36,0) NOT NULL CHECK(balance_reserved>=0),source_type text NOT NULL,source_id text NOT NULL,reservation_id text REFERENCES ai_credit_reservations(id),cost_model_version text,usage_json jsonb,idempotency_key text UNIQUE NOT NULL,request_id text NOT NULL,created_by_user_id text,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(source_type,source_id,entry_type));
   `);
   await pool.query(await readFile(new URL("../postgres/migrations/0038_client_ai_runtime_credits.sql", import.meta.url), "utf8"));
+  await pool.query("ALTER TABLE client_ai_inference_requests ADD COLUMN organization_id text, ADD COLUMN organization_attribution_mode text NOT NULL DEFAULT 'captured_at_request'");
+  await pool.query("INSERT INTO organizations(id) VALUES('org-captured')");
   await pool.query("INSERT INTO users(id) VALUES('customer'),('poor-customer'),('settled-customer'),('cancel-customer'),('cancel-race-customer'),('cancel-complete-customer'),('cancel-settled-customer'),('other-customer')");
+  await pool.query("INSERT INTO customer_attributions(id,customer_id,status,branch_id,effective_at,created_at) VALUES('attr-customer','customer','active','org-captured','2026-08-01','2026-08-01')");
   await pool.query("INSERT INTO llm_profiles(id,current_revision_id) VALUES('profile-1','revision-1')");
   const encrypted = await encryptLlmProfileSecret("fixture-platform-secret");
   await pool.query("INSERT INTO llm_profile_revisions(id,profile_id,provider_name,base_url,model_name,encrypted_api_key) VALUES('revision-1','profile-1','Fixture','https://llm.example.test/v1','fixture-model',$1)", [encrypted]);
@@ -77,6 +82,11 @@ test("inference replay returns the stored result without a second reservation or
   };
   const started = await beginClientAiInference(pool, input);
   assert.equal(started.state, "started");
+  assert.deepEqual((await pool.query("SELECT organization_id,organization_attribution_mode FROM client_ai_inference_requests WHERE id=$1", [started.requestId])).rows[0], {
+    organization_id: "org-captured",
+    organization_attribution_mode: "captured_at_request",
+  });
+  await pool.query("UPDATE customer_attributions SET status='ended' WHERE customer_id='customer'");
   assert.equal((await pool.query("SELECT available_credits::text,reserved_credits::text FROM ai_credit_accounts WHERE user_id='customer'")).rows[0].available_credits, "8");
   await assert.rejects(beginClientAiInference(pool, input), (error) => error?.code === "AI_REQUEST_IN_PROGRESS");
 
@@ -97,6 +107,7 @@ test("inference replay returns the stored result without a second reservation or
   });
   const replay = await beginClientAiInference(pool, input);
   assert.deepEqual(replay, { state: "succeeded", result: stored });
+  assert.equal((await pool.query("SELECT organization_id FROM client_ai_inference_requests WHERE id=$1", [started.requestId])).rows[0].organization_id, "org-captured");
   assert.deepEqual(await readClientAiInferenceReplay(pool, {
     userId: input.userId,
     operation: input.operation,

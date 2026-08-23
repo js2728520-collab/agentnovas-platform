@@ -170,9 +170,10 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
   }
 
   async function activateMember(node: RelationshipNode) {
-    if (!window.confirm(`确定为 ${node.email} 重新发送设置密码邀请？\n\n旧邀请会失效；在成员完成设置密码前，账户仍保持待激活。`)) return;
+    if (activatingId) return;
     setActivatingId(node.id);
     setActivationError("");
+    setActivationDelivery(null);
     try {
       const response = await fetch(`/api/organization/members/${encodeURIComponent(node.subjectId)}/activate`, { method: "POST" });
       const data = await response.json() as Partial<ActivationDelivery> & { error?: string };
@@ -253,7 +254,7 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
             {selected.kind === "customer" && <section><h4>用户归属信息</h4><p><span>归属状态</span><b>{attributionLabels[selected.attributionStatus || ""] || selected.attributionStatus || "—"}</b></p><p><span>归属来源</span><b>{sourceLabels[selected.attributionSource || ""] || selected.attributionSource || "—"}</b></p><p><span>生效时间</span><b>{formatDate(selected.effectiveAt)}</b></p></section>}
             {selected.canManuallyActivate && <section className="organization-tree-activation">
               <h4>待激活账户</h4>
-              <p>重新发送一次性设置密码邀请；成员完成设置密码前，账户不会变为正常状态。</p>
+              <p>点击后会直接重新发送一次性设置密码邀请，旧邀请立即失效；成员完成设置密码前，账户不会变为正常状态。</p>
               <button type="button" disabled={Boolean(activatingId)} onClick={() => void activateMember(selected)}>{activatingId === selected.id ? "正在加入邮件队列…" : "重新发送设置密码邀请"}</button>
             </section>}
             {activationDelivery?.memberId === selected.subjectId && <section className="organization-tree-credentials" aria-live="polite">
@@ -262,7 +263,7 @@ export default function OrganizationRelationshipTree({ refreshKey = "" }: { refr
               <p>此处不会显示或复制密码、Token 或登录链接。邮件投递成功也不等于成员已激活。</p>
               <div className="organization-tree-credential-actions"><button type="button" onClick={() => setActivationDelivery(null)}>关闭回执</button></div>
             </section>}
-            {activationError && <div className="organization-tree-activation-error">{activationError}</div>}
+            {activationError && <div className="organization-tree-activation-error" role="alert">{activationError}</div>}
             <footer>人员编号 <code>{selected.subjectId}</code></footer>
           </> : <div className="organization-tree-detail-empty">点击左侧人员查看详情</div>}
         </section>

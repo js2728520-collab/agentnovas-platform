@@ -2817,3 +2817,55 @@ Client AI SSE 取消一次请求/保留问题/零 dialog/axe，以及 Maintenanc
 `103098cb5261603f7a43a262eedf34fe039daa8020fcbd35d0adf3e91c874c05` 与
 `bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，未纳入提交。未启动远端服务、
 未执行生产迁移、未接触生产数据库、未推送、未部署。
+
+## 78. 2026-08-24 T3.9a Maintenance AI 用量安全聚合
+
+T3.9a 已实现并通过完整 Gate。Maintenance 新增 `/ai-usage` 与
+`GET /api/maintenance/ai-usage`，只读权限为 `maint.ai_usage.view`。查询以
+`client_ai_inference_requests.created_at` 作为 UTC 请求创建 cohort，只统计已经完成 Credits 预留并
+建立 inference 记录的总体；默认最近 30 个 UTC 自然日，最大 90 天，高基数组维度只返回请求量
+Top 50。响应设置 `no-store`。
+
+指标包括成功请求的可信输入/输出 Token、真实 settled Credits 和“已记录非取消失败率”。该失败率
+只以非取消失败终态为分子，以成功加非取消失败为分母；preflight 拒绝、用户取消和处理中请求均不
+进入口径，因此不能描述为系统失败率或 provider 可用率。组织使用请求级归属快照，并区分
+`captured_at_request`、`legacy_current_backfill` 和 `legacy_unattributed` 证据质量；用户只返回稳定
+伪名，模型固定到请求使用的 revision，另提供 Agent、功能和日期维度。API/UI 不返回原始用户 ID、
+客户 PII、AI 内容、错误原文、provider request ID 或模型凭证。
+
+Maintenance 页面内直接应用日期，不使用确认弹窗。当前 MFA 全局 Gate 默认关闭，不额外打断登录
+或查看；正式生产重新开启后，敏感权限的 recent MFA 要求仍由服务端执行。P-08 的固定对话 Credits
+数值和模型/功能价格分档仍未确认，当前可信用量及 settled Credits 不得冒充固定价格已完成。
+
+查询服务把原先七次串行聚合收敛为一个带 `MATERIALIZED` 基础集的只读事务查询，并设置 5 秒语句
+超时；PostgreSQL 迁移在任何 Maintenance audience 撤权墓碑存在时都不会把权限重新授予
+`tech_staff`。无效共享 URL 仍按原始参数请求并显示 400，但只把合法 `YYYY-MM-DD` 写入原生日期
+输入框，因此错误可恢复且不会产生浏览器格式告警。普通邀请链接重生成、组织关系/账号生命周期、
+关系重邀和策略版本恢复也改为页面内影响说明、审计原因与单击执行；资金审批、权限撤销/双审、全局
+熔断、恢复码和会话撤销等高风险动作继续保留确认或服务端 Gate。
+
+最终本地 `npm test` 1430/1430、TypeScript、全仓 ESLint、8 条架构边界、repository secret scan
+（3096 个候选文件）、production dependency audit 0 和差异检查全部通过。云端初始精确源码归档
+本地/远端 SHA-256 均为
+`663a0cbad291cf76b892e5285a07f46cb348349f599b19b9bab32bc10cf8dd47`；最终 Maintenance UI
+文件以 SHA-256
+`bfba6a4c8c14898bc4336b1b4f97f8f725d183571439a504cba15d177b612ed5` 同步到同一构建目录后单独
+重建。`ssh an-saas` 固定 Node 22.21.1 完成 Client 67、Operations 62、Maintenance 52 页
+production build，bundle budget 与三端 key-custody 通过；production-only audit 为 0。官方 Nginx
+配置语法检查通过，仅保留 8 条既有 `listen ... http2` 弃用警告。
+
+初始三端完整 Web 产物 SHA-256 为
+`5787ff797515286f83fe36b6c223a5456af3e3450d58f6ea1bf62ef94f5d3363`；最终 Maintenance
+standalone + static 归档 SHA-256 为
+`4a5376e024d3146f59850aa2f254a45d05b6014d877f1ec7341925b63cb5a875`，下载前后一致。本地使用
+未受影响的 Client/Operations 云端产物和最终 Maintenance 产物，在隔离 PostgreSQL、MFA 默认关闭、
+全部外部写入禁用及端口偏移 10000 下完成真实 Chromium/axe 20/20。旅程覆盖三端空浏览器登录、
+Host/Cookie audience、权限链接注册、五设备、客户/运营/维护工作区隔离、普通配置零冗余确认弹窗，
+以及 AI 用量有权限访问、日期应用、非法共享 URL 错误恢复和零控制台告警。
+
+质量 schema `quality_e2e_1787528629948_38829_4c22d548` 已删除，runtime secrets 已移除，清理失败
+为 0，本机原三端 build cache 已恢复。两份用户本地修改哈希仍为
+`103098cb5261603f7a43a262eedf34fe039daa8020fcbd35d0adf3e91c874c05` 与
+`bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，不会纳入本轮提交。未执行
+生产迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署。P-08 固定 Credits 数值与
+模型/功能分档仍保持阻断。

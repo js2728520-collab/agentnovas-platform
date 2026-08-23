@@ -436,6 +436,19 @@ T2.4b 继续等待 P-01/provider registry，不因纯合同完成而解锁持久
 **依赖：** T3.1c-FF1。
 **规模：** M。
 
+### T3.9：Maintenance AI 用量分析
+
+**分阶段：** T3.9a 先交付不依赖 P-08 的可信用量与运行记录分析；T3.9b 在产品/财务确认 P-08 后再接入固定对话费用和模型/功能价格分档。两者不得混写为同一完成状态。
+
+**T3.9a 状态：** 已完成（2026-08-24）。Maintenance `/ai-usage` 与 `GET /api/maintenance/ai-usage` 基于 `client_ai_inference_requests.created_at` 的 UTC 请求创建 cohort，统计已完成 Credits 预留并建立 inference 记录的总体。看板提供可信成功 Token、settled Credits、已记录非取消失败率，按组织请求级快照（区分 `captured_at_request`、`legacy_current_backfill`、`legacy_unattributed`）、稳定伪名用户、固定模型 revision、Agent、功能和日期分组；默认 30 天、最大 90 天，高基数维度最多返回请求量 Top 50。
+
+**语义边界：** preflight 拒绝、用户取消和处理中请求不进入失败率分母，用户取消也不进入分子，因此该指标不是系统或 provider 可用率。API 不返回原始用户 ID、客户 PII、AI 内容、错误原文或模型凭证；敏感只读权限为 `maint.ai_usage.view`。当前全局 MFA Gate 默认关闭，不增加登录或操作弹窗；正式生产重新开启后仍按权限策略要求 recent MFA。日期筛选在原页面单击应用，不使用确认弹窗。
+
+**验收：** UTC 两端完整且最多 90 天；成功 Token 与 settled Credits 口径精确；组织历史质量可辨；用户只返回稳定伪名；历史按请求固定 revision；非法日期返回 400；无会话/无权限分别返回 401/403；Client/Operations 不含该页面。
+**验证：** 全量逻辑测试 1430/1430、TypeScript、ESLint、8 条架构边界、secret scan（3096 个候选文件）、production dependency audit 0；`ssh an-saas` Node 22.21.1 完成 Client 67、Operations 62、Maintenance 52 页 production build，bundle budget、三端 key-custody 与官方 Nginx 配置检查通过；下载云端产物后，本地隔离 PostgreSQL + 真实 Chromium/axe 20/20，覆盖三端空浏览器登录、Maintenance 有权限看板、非法共享日期 URL 可恢复且不产生控制台告警、配置动作零冗余确认弹窗。质量 schema 和 runtime secrets 已清理，本机原 build cache 已恢复。
+**依赖：** T4.3a 的可信 usage/取消单终态事实；T3.9a 不依赖 P-08，T3.9b 依赖 P-08。
+**规模：** M。
+
 ### T3.10–T3.11：六主题与 i18n 基础
 
 **描述：** 建立三浅三深 token、图表/Logo/状态色和英语默认语言优先级。

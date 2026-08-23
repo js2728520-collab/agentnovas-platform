@@ -20,6 +20,7 @@ const TechnicalAuditWorkspace = dynamic(() => import("./technical-audit-workspac
 const ReleaseManagementWorkspace = dynamic(() => import("./release-management-workspace").then((module) => module.ReleaseManagementWorkspace));
 const ConfigurationVersionsWorkspace = dynamic(() => import("./configuration-versions-workspace").then((module) => module.ConfigurationVersionsWorkspace));
 const SourceIntegrationsWorkspace = dynamic(() => import("./source-integrations-workspace").then((module) => module.SourceIntegrationsWorkspace));
+const AiUsageWorkspace = dynamic(() => import("./ai-usage-workspace").then((module) => module.AiUsageWorkspace));
 const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter));
 const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity));
 
@@ -32,6 +33,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
   if (session.status !== "authenticated") return null;
   const subtype = segments[1];
   const required = route === "overview" || route === "health" || route === "readiness" ? ["maint.system_health.view"]
+    : route === "ai-usage" ? ["maint.ai_usage.view"]
     : route === "models" ? ["maint.system_health.view", "maint.llm_profiles.manage", "maint.agent_bindings.manage"]
     : route === "integrations" && subtype === "email" ? ["maint.system_health.view", "maint.email_integrations.manage"]
     : route === "integrations" && subtype === "payments" ? ["maint.system_health.view", "maint.payment_integrations.manage"]
@@ -52,6 +54,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "account" ? <InternalAccountSecurity />
     : route === "readiness" ? <ReadinessWorkspace />
     : route === "health" ? <SystemHealthWorkspace />
+    : route === "ai-usage" ? <AiUsageWorkspace />
     : route === "models" ? <ModelsWorkspace canManageProfiles={Boolean(permissions["maint.llm_profiles.manage"])} canManageBindings={Boolean(permissions["maint.agent_bindings.manage"])} />
     : route === "integrations" && subtype === "email" ? <EmailIntegrationWorkspace canManage={Boolean(permissions["maint.email_integrations.manage"])} />
     : route === "integrations" && subtype === "payments" ? <PaymentIntegrationWorkspace canManage={Boolean(permissions["maint.payment_integrations.manage"])} />

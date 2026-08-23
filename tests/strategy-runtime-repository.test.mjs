@@ -87,7 +87,17 @@ function officialEntryCandles() {
       };
     });
     if (evaluatePlatformStrategy(PLATFORM_AI_STRATEGIES.ai_conservative, "BTCUSDT", rows, false).action === "enter") {
-      const shift = Date.now() - 1_000 - rows.at(-1).closeTime;
+      // Keep both the entry candle and the next settlement candle inside one
+      // UTC risk day. Anchoring to wall-clock "now" made this test fail during
+      // the last UTC hour because the second cycle correctly reset daily loss.
+      const today = new Date();
+      const stableCloseTime = Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth(),
+        today.getUTCDate() + 1,
+        12,
+      );
+      const shift = stableCloseTime - rows.at(-1).closeTime;
       return rows.map((candle) => ({
         ...candle,
         openTime: candle.openTime + shift,
@@ -465,7 +475,7 @@ test("official contract follows through account-free spot runtime into its isola
     createSpotAdapter: () => spotAdapter,
     saveSnapshot: async (_database, input) => ({ id: input.sourceId, candleSha256: "a", fundingSha256: "b", datasetSha256: "c" }),
   };
-  const firstNow = new Date(Date.now() + 60_000);
+  const firstNow = new Date(rows.at(-1).closeTime + 1_000);
   const firstLease = await leaseNextStrategyDeployment(pool, { workerId: "official-runtime-a", now: firstNow, leaseSeconds: 30 });
   assert.equal(firstLease.id, deployment.id);
   assert.equal(firstLease.exchangeAccountId, null);

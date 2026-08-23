@@ -418,6 +418,7 @@ GRANT SELECT ON
   configuration_approvals, configuration_schedules, configuration_activations
   TO agentnovas_maint_web;
 GRANT SELECT ON platform_demo_accounts_safe TO agentnovas_maint_web;
+GRANT SELECT ON maintenance_ai_usage_events_safe TO agentnovas_maint_web;
 GRANT INSERT, UPDATE ON
   users, sessions, auth_tokens, user_mfa_totp_credentials, user_mfa_recovery_codes,
   access_change_requests, access_change_decisions, authorization_audit_events,

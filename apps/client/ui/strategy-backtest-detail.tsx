@@ -192,7 +192,6 @@ export function StrategyBacktestDetail({
   async function rollbackVersion(sourceVersion: number) {
     if (!detail || busy || sourceVersion === detail.strategy.version) return;
     const nextVersion = detail.strategy.version + 1;
-    if (!window.confirm(`确认回滚到 V${sourceVersion}？\n\n系统不会覆盖历史记录，而是将生成新的 V${nextVersion}。`)) return;
     setBusy(true);
     setMessage(`正在将 V${sourceVersion} 恢复为新的 V${nextVersion}…`);
     try {
@@ -278,7 +277,7 @@ export function StrategyBacktestDetail({
     </section>
 
     <section className={styles.versionSection}>
-      <div className={styles.detailTitle}><div><small>IMMUTABLE HISTORY</small><h3>版本记录</h3><p>每次调整自动增加版本号；回滚会复制历史规则并生成新的最新版本。</p></div><span>{detail.versions.length} 个版本</span></div>
+      <div className={styles.detailTitle}><div><small>IMMUTABLE HISTORY</small><h3>版本记录</h3><p>点击回滚后会直接复制历史规则，将生成新的 V 版本，不会覆盖任何历史记录。</p></div><span>{detail.versions.length} 个版本</span></div>
       <div>{detail.versions.map((version) => {
         const currentVersion = version.version === strategy.version;
         const sourceLabel = version.restoredFromVersion

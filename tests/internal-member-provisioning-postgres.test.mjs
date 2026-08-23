@@ -20,7 +20,15 @@ test.before(async () => {
   await pool.query(`
     INSERT INTO organizations (id, type, name) VALUES ('org-a', 'branch', 'A');
     INSERT INTO users (id, email, password_hash, role, organization_id, status)
-    VALUES ('manager', 'manager@example.test', 'disabled', 'manager', 'org-a', 'active')
+    VALUES ('manager', 'manager@example.test', 'disabled', 'manager', 'org-a', 'active');
+    INSERT INTO permission_definitions (key, application_id, label, sensitive, status)
+    VALUES
+      ('maint.ai_usage.view', 'maintenance', '查看 AI 用量与可靠性', true, 'active'),
+      ('maint.releases.view', 'maintenance', '查看发布版本', false, 'active'),
+      ('maint.releases.manage', 'maintenance', '登记发布版本', true, 'active'),
+      ('maint.configuration_versions.view', 'maintenance', '查看版本化配置', false, 'active'),
+      ('maint.configuration_versions.manage', 'maintenance', '管理配置草稿与测试', true, 'active')
+    ON CONFLICT (key) DO NOTHING
   `);
 });
 
@@ -64,4 +72,38 @@ test("an invited internal member, explicit assignment, audience token, and encry
   assert.equal(JSON.parse(delivery.payload_json).expiresAt, "2026-08-22T00:00:00.000Z");
   assert.equal(delivery.secret_kind, "internal_account_invite");
   assert.equal(delivery.secret_expires_at.toISOString(), "2026-08-22T00:00:00.000Z");
+});
+
+test("a technical member receives only a Maintenance role, activation audience, and AI usage permission", async () => {
+  await provisionInternalMember(pool, {
+    actorUserId: "manager",
+    userId: "technician",
+    email: "technician@example.test",
+    passwordHash: "disabled",
+    role: "tech_staff",
+    organizationId: "org-a",
+    reportsToUserId: "manager",
+    activationTokenHash: "technical-activation-hash",
+    encryptedNotificationToken: "v1.technical.encrypted.payload",
+    now: new Date("2026-08-20T00:00:00.000Z"),
+  });
+
+  const assignment = (await pool.query(`
+    SELECT assignment.application_id, role.code,
+           array_agg(permission.permission_key ORDER BY permission.permission_key) AS permissions
+    FROM user_role_assignments assignment
+    JOIN roles role ON role.id = assignment.role_id
+    JOIN role_permissions permission ON permission.role_id = role.id
+    WHERE assignment.user_id = 'technician'
+    GROUP BY assignment.id, role.id
+  `)).rows[0];
+  assert.equal(assignment.application_id, "maintenance");
+  assert.equal(assignment.code, "maint_technical");
+  assert.ok(assignment.permissions.includes("maint.ai_usage.view"));
+  assert.equal(assignment.permissions.some((permission) => permission.startsWith("ops.")), false);
+
+  const token = (await pool.query("SELECT token_audience FROM auth_tokens WHERE user_id = 'technician'")).rows[0];
+  assert.equal(token.token_audience, "maintenance");
+  const delivery = (await pool.query("SELECT payload_json FROM notification_deliveries WHERE user_id = 'technician'")).rows[0];
+  assert.equal(JSON.parse(delivery.payload_json).audience, "maintenance");
 });

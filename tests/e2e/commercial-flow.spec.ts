@@ -211,7 +211,9 @@ test("four-identity membership evidence and maker-checker activation remains sid
     const credits = await expectJson<CreditsPayload>(await client.get("/api/credits/me", {
       headers: officialRequestHeaders("client", runtime.identities.client),
     }), 200);
-    expect(credits.credits).toMatchObject({ available: "1000", lifetimeGranted: "1000" });
+    // The isolated fixture starts with 100 AI Credits for usage analytics. Membership activation
+    // must add its 1,000 grant without overwriting that existing balance.
+    expect(credits.credits).toMatchObject({ available: "1100", lifetimeGranted: "1000" });
 
     const portfolios = await expectJson<PortfolioPayload>(await client.get("/api/trading-hall/paper/portfolio", {
       headers: officialRequestHeaders("client", runtime.identities.client),

@@ -262,7 +262,14 @@ BEGIN
     EXECUTE format('ALTER FUNCTION %s SET search_path TO pg_catalog, %I',routine,current_schema());
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC',routine);
     FOR role_row IN SELECT rolname FROM pg_roles WHERE rolname<>owner_name LOOP
-      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM %I',routine,role_row.rolname);
+      BEGIN
+        EXECUTE format('REVOKE ALL ON FUNCTION %s FROM %I',routine,role_row.rolname);
+      EXCEPTION WHEN undefined_object THEN
+        -- Roles are cluster-global and may be removed by another administrator
+        -- after the pg_roles snapshot. A vanished role has no remaining ACL to
+        -- revoke; keep the gateway migration safe under that DDL race.
+        NULL;
+      END;
     END LOOP;
     expected_role := CASE
       WHEN routine::text LIKE 'client_queue_email_verification_by_email(%'
