@@ -601,6 +601,138 @@ paths:
       responses:
         '200': { description: allowlist 技术审计事件与下一游标 }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/maintenance/configuration-versions:
+    get:
+      tags: [Maintenance]
+      summary: 查询不可变配置版本与派生发布状态
+      responses:
+        '200': { description: 配置版本、测试、审批、调度、生效历史与下一游标 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Maintenance]
+      summary: 幂等创建不含秘密的配置草稿
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [kind, key, audience, schemaVersion, payload, reason]
+              properties:
+                kind: { type: string, enum: [brand, domain, protocol, feature_flag, prompt, skill, pricing] }
+                key: { type: string, pattern: '^[a-z][a-z0-9_.-]{2,120}$' }
+                audience: { type: string, enum: [client, operations, maintenance, shared] }
+                schemaVersion: { type: integer, minimum: 1, maximum: 1000000 }
+                payload: { type: object, description: 最大 64 KiB；拒绝 secret/password/token/apiKey/privateKey 等字段 }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '201': { description: 不可变 draft；未测试、审批、调度或生效 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/configuration-versions/{id}/tests:
+    post:
+      tags: [Maintenance]
+      summary: 追加配置测试证据
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [result, evidenceSha256, reason]
+              properties:
+                result: { type: string, enum: [passed, failed] }
+                evidenceSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '201': { description: 最新测试状态已由追加事实投影 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/configuration-versions/{id}/approval:
+    post:
+      tags: [Maintenance]
+      summary: 由不同人员批准或拒绝已测试配置
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [decision, reason]
+              properties:
+                decision: { type: string, enum: [approve, reject] }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200': { description: 不可变审批决定；创建者自审返回 403 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/maintenance/configuration-versions/{id}/schedule:
+    post:
+      tags: [Maintenance]
+      summary: 为已批准配置登记生效时间
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [scheduledFor, reason]
+              properties:
+                scheduledFor: { type: string, format: date-time, description: 必须携带 Z 或明确 UTC offset }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '201': { description: 唯一调度事实；响应统一为 UTC ISO 时间 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/configuration-versions/{id}/activation:
+    post:
+      tags: [Maintenance]
+      summary: 到期激活或回滚到历史已验证配置
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [action, reason]
+              properties:
+                action: { type: string, enum: [activate, rollback] }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '201': { description: current 投影已由追加生效事实改变；API 不执行交易、支付或部署动作 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /api/maintenance/releases:
     get:
       tags: [Maintenance]

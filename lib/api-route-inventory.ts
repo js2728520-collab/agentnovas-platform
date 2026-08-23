@@ -2272,6 +2272,138 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/maintenance/configuration-versions",
+    "source": "app/api/maintenance/configuration-versions/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.configuration_versions.view"
+    ],
+    "permissionMfa": {
+      "maint.configuration_versions.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/configuration-versions",
+    "source": "app/api/maintenance/configuration-versions/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.configuration_versions.manage"
+    ],
+    "permissionMfa": {
+      "maint.configuration_versions.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/configuration-versions/:id/activation",
+    "source": "app/api/maintenance/configuration-versions/[id]/activation/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.configuration_versions.activate"
+    ],
+    "permissionMfa": {
+      "maint.configuration_versions.activate": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/configuration-versions/:id/approval",
+    "source": "app/api/maintenance/configuration-versions/[id]/approval/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.configuration_versions.approve"
+    ],
+    "permissionMfa": {
+      "maint.configuration_versions.approve": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/configuration-versions/:id/schedule",
+    "source": "app/api/maintenance/configuration-versions/[id]/schedule/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.configuration_versions.approve"
+    ],
+    "permissionMfa": {
+      "maint.configuration_versions.approve": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/configuration-versions/:id/tests",
+    "source": "app/api/maintenance/configuration-versions/[id]/tests/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.configuration_versions.manage"
+    ],
+    "permissionMfa": {
+      "maint.configuration_versions.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "GET",
     "route": "/api/maintenance/demo-exchanges",
     "source": "app/api/maintenance/demo-exchanges/route.maintenance.ts",
     "audiences": [

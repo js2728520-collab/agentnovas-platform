@@ -129,6 +129,14 @@ const RELEASE_CONTROL_TABLES = new Set([
   "release_deployments",
 ]);
 
+const CONFIGURATION_CONTROL_TABLES = new Set([
+  "configuration_versions",
+  "configuration_test_results",
+  "configuration_approvals",
+  "configuration_schedules",
+  "configuration_activations",
+]);
+
 const WORKER_TABLES = new Map([
   ["agentnovas_payment_webhook", new Set([
     "deposit_orders",
@@ -276,6 +284,14 @@ export function evaluatePostgresRolePolicy({
       findings.push(finding(
         "RELEASE_CONTROL_TABLE_GRANT",
         `${grant.grantee} can access Maintenance-only release evidence table ${grant.tableName}`,
+        grant.grantee,
+      ));
+    }
+    if (CONFIGURATION_CONTROL_TABLES.has(grant.tableName)
+      && !["agentnovas_migrator", "agentnovas_maint_web"].includes(grant.grantee)) {
+      findings.push(finding(
+        "CONFIGURATION_CONTROL_TABLE_GRANT",
+        `${grant.grantee} can access Maintenance-only versioned configuration table ${grant.tableName}`,
         grant.grantee,
       ));
     }

@@ -89,6 +89,10 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "maint.releases.view", appId: "maintenance", label: "查看发布版本" },
   { key: "maint.releases.manage", appId: "maintenance", label: "登记发布版本", sensitive: true },
   { key: "maint.releases.approve", appId: "maintenance", label: "复核发布与回滚证据", sensitive: true },
+  { key: "maint.configuration_versions.view", appId: "maintenance", label: "查看版本化配置" },
+  { key: "maint.configuration_versions.manage", appId: "maintenance", label: "管理配置草稿与测试", sensitive: true },
+  { key: "maint.configuration_versions.approve", appId: "maintenance", label: "审批与调度配置", sensitive: true },
+  { key: "maint.configuration_versions.activate", appId: "maintenance", label: "激活与回滚配置", sensitive: true },
 ];
 
 export const SENSITIVE_PERMISSION_KEYS = new Set(
@@ -187,6 +191,8 @@ export function legacyRoleAssignments(role: string): LegacyAssignment[] {
         { permissionKey: "maint.follow_policy.view", scope: "PLATFORM" },
         { permissionKey: "maint.releases.view", scope: "PLATFORM" },
         { permissionKey: "maint.releases.manage", scope: "PLATFORM" },
+        { permissionKey: "maint.configuration_versions.view", scope: "PLATFORM" },
+        { permissionKey: "maint.configuration_versions.manage", scope: "PLATFORM" },
       ] }];
     case "hq_support":
       return [{ appId: "operations", roleCode: "ops_hq_support", permissions: [

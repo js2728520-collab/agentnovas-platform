@@ -31,6 +31,7 @@
 - `specs/V3_CLIENT_APP_TARGET_SPEC.md`、`V3_OPERATIONS_APP_TARGET_SPEC.md`、`V3_MAINTENANCE_APP_TARGET_SPEC.md`：三端目标规格。
 - `specs/SYSTEM_SPEC.md` 与现有三端 App Spec：当前 Beta/Paper 可达合同和硬关闭边界。
 - `specs/RELEASE_VERSION_MANAGEMENT_SPEC.md`：SemVer、不可变验证/部署证据、环境 current 与回滚状态机。
+- `specs/VERSIONED_CONFIGURATION_FRAMEWORK_SPEC.md`：通用配置 draft/test/approve/schedule/activate/rollback 合同；T3.1a 内核/API 已实现，工作台、自动激活和具体配置族仍为 Target。
 - `architecture/CAPABILITY_MIGRATION_MATRIX.md`：旧运营后台能力去向、保留/重构/下线决定。
 - `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md`：V3 当前准备度、主要差距和风险优先级。
 - `review/SYSTEM_ASSESSMENT_2026-08-20.md`：历史商业 Beta 基线评估。

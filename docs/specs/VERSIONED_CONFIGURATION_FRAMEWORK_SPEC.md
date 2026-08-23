@@ -1,6 +1,6 @@
 # 通用版本化配置发布框架规格
 
-状态：`APPROVED_TARGET`；按 T3.1a–T3.1c 分片实施
+状态：`PARTIAL_CURRENT`；T3.1a 已实现，T3.1b–T3.1c 为 Target
 日期：2026-08-23
 上位真源：`../product/PRD.md` 第 10、12 节；`V3_SYSTEM_TARGET_SPEC.md` 第 10 节；`V3_MAINTENANCE_APP_TARGET_SPEC.md` 第 2–5 节
 
@@ -120,3 +120,8 @@ SQL 只使用参数化查询；动态配置 key 永不参与 SQL 标识符、She
 - 仅 Maintenance 数据库角色可访问新表，Client/Operations 明确无权限。
 - 全量测试、类型、Lint、云端 Maintenance production build 和安全扫描通过。
 - 本阶段不宣称 T3.1 整体完成；UI、自动到期激活和具体配置族仍在 T3.1b/T3.1c。
+
+实施结果（2026-08-24）：上述五项已通过。中央 inventory 登记 268 个 method route；
+定向 domain/PostgreSQL/API 合同、1298 项全量测试、TypeScript、ESLint、secret scan 和
+production dependency audit 均通过；Maintenance production build 在 `ssh an-saas` 的
+Node 22.21.1 隔离容器完成。未启动服务、未迁移生产库、未部署。

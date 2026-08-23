@@ -207,6 +207,11 @@
 | `/api/maintenance/demo-exchanges/[id]/control` | POST | M | KEEP；reason/recent MFA/幂等/kill 安全语义 |
 | `/api/maintenance/demo-exchanges/[id]/verify` | POST | M | KEEP；固定测试域名、原因、幂等审计 |
 | `/api/maintenance/audit` | GET | M | KEEP；Demo/模型/集成/设置/安全/身份 allowlist 安全投影，domain/action/status/cursor 与 requestId/traceId |
+| `/api/maintenance/configuration-versions` | GET, POST | M | CURRENT（T3.1a）；查询或幂等创建不含秘密的不可变配置草稿，按 `(kind,key,audience)` 并发分配版本号 |
+| `/api/maintenance/configuration-versions/[id]/tests` | POST | M | CURRENT（T3.1a）；追加 passed/failed 测试证据，审批后禁止补写 |
+| `/api/maintenance/configuration-versions/[id]/approval` | POST | M | CURRENT（T3.1a）；不同人员 approve/reject，创建者不可自审 |
+| `/api/maintenance/configuration-versions/[id]/schedule` | POST | M | CURRENT（T3.1a）；登记带明确 UTC offset 的唯一生效时间 |
+| `/api/maintenance/configuration-versions/[id]/activation` | POST | M | CURRENT（T3.1a）；到期激活或回滚到同流曾生效的已验证版本；不执行具体配置副作用 |
 | `/api/maintenance/releases` | GET, POST | M | CURRENT；查询或幂等登记 SemVer/commit/artifact/migration 不可变版本身份 |
 | `/api/maintenance/releases/[id]/verification` | POST | M | CURRENT；不同人员 approve/reject，recent MFA、证据摘要和不可变审计 |
 | `/api/maintenance/releases/[id]/deployments` | POST | M | CURRENT；登记 staging/production deploy/rollback 成功或失败事实，不执行基础设施操作 |

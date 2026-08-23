@@ -2222,3 +2222,34 @@ production standalone 在 `ssh an-saas` 的临时目录
 未推送、未部署。隔离 PostgreSQL 与本地真实 Chromium 的 Maintenance 套件 3/3 通过，
 包含一次真实平台设置 PUT、六个配置页面无对话框、四档响应式、axe、console/network
 检查。浏览器测试改用 3120–3122，避免干扰本机已有的独立 3002 服务。
+
+## 59. 2026-08-24 T3.1a 通用版本化配置发布内核
+
+Phase 3 的通用配置发布框架已先完成无外部产品参数依赖的内核/API 切片。迁移
+`0069_versioned_configuration_framework.sql` 新增五张追加式表：配置版本、测试结果、
+审批、调度和生效事实。配置流以 `(kind, configuration_key, audience)` 隔离并在事务内
+使用 advisory lock 分配单调版本号；所有版本和事实表由触发器禁止 `UPDATE/DELETE`。
+
+状态由事实投影为 `draft/test_failed/tested/rejected/approved/scheduled/active/
+superseded/rolled_back`。创建者不能审批；最新测试未通过、未批准、未调度或未到期的版本
+不能激活。回滚只能引用同一配置流里测试通过、审批通过且曾成功生效的历史版本。所有写入
+绑定 actor、幂等键、requestId、原因和非秘密审计；并发重放只产生一条事实。
+
+通用 payload 采用严格 JSON、64 KiB 上限、稳定 canonical SHA-256，并递归拒绝
+secret/password/token/apiKey/privateKey 等字段。模型、支付和集成密钥仍留在既有只写不读
+专用表。新权限分为 view/manage/approve/activate；技术角色只有 view/manage，审批和激活
+必须另行授权。Client/Operations 数据库角色没有新表权限。
+
+新增五个 Maintenance-only 路径（六个 method），覆盖列表/创建、测试、审批、调度和
+激活/回滚，并同步中央 API inventory、OpenAPI、API Catalog、最小权限 SQL 和数据库角色
+策略。API 只登记发布事实，不执行交易、支付、部署或任意外部副作用。
+
+验证结果：定向合同 6/6、`npm test` 1298/1298、TypeScript、ESLint、secret scan 均通过；
+`npm audit --omit=dev --audit-level=high` 为 0。Maintenance production build 在
+`ssh an-saas` 的隔离目录 `/tmp/agentnovas-config-framework-build-f9jcQx`、Node 22.21.1
+容器中通过，随后已删除目录；`npm ci` 的 17 项提示来自开发依赖。未启动服务、未迁移
+生产数据库、未推送、未部署。
+
+T3.1 整体仍未完成：T3.1b 的 Maintenance 工作台和最小权限到期激活器、T3.1c 的品牌/
+域名/协议、功能开关、Prompt/技能和价格消费者仍待后续切片；P-07/P-08/P-10/P-11
+继续阻断相应具体值和素材，不能用占位配置替代需求方结论。

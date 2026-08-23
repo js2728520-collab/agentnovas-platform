@@ -402,7 +402,8 @@ GRANT SELECT ON
   trading_emergency_stops, commercial_legal_document_versions,
   commercial_disclosure_bundles, commercial_disclosure_publish_requests,
   maintenance_idempotency_records, release_versions, release_verifications,
-  release_deployments
+  release_deployments, configuration_versions, configuration_test_results,
+  configuration_approvals, configuration_schedules, configuration_activations
   TO agentnovas_maint_web;
 GRANT SELECT ON platform_demo_accounts_safe TO agentnovas_maint_web;
 GRANT INSERT, UPDATE ON
@@ -422,6 +423,11 @@ GRANT INSERT, UPDATE ON
 GRANT INSERT, UPDATE ON auth_rate_limit_buckets TO agentnovas_maint_web;
 GRANT INSERT ON release_versions, release_verifications, release_deployments
   TO agentnovas_maint_web;
+GRANT INSERT ON configuration_versions, configuration_test_results,
+  configuration_approvals, configuration_schedules, configuration_activations
+  TO agentnovas_maint_web;
+GRANT USAGE, SELECT ON SEQUENCE configuration_test_results_sequence_no_seq,
+  configuration_activations_sequence_no_seq TO agentnovas_maint_web;
 GRANT DELETE ON sessions, auth_tokens, auth_rate_limit_buckets,
   user_mfa_recovery_codes TO agentnovas_maint_web;
 
