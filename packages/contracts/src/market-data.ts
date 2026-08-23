@@ -96,6 +96,15 @@ export function normalizeMarketDataId(input: unknown, label = "market data id"):
   return input;
 }
 
+export function normalizeMarketDataProviderSymbol(input: unknown): string {
+  if (typeof input !== "string") throw new Error("provider symbol must be a string");
+  const normalized = input.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/.test(normalized)) {
+    throw new Error("provider symbol is invalid");
+  }
+  return normalized;
+}
+
 function sortedUniqueEnum<T extends string>(input: unknown, allowed: readonly T[], label: string): T[] {
   if (!Array.isArray(input)) throw new Error(`${label} must be an array`);
   if (input.length > allowed.length) throw new Error(`${label} has too many values`);

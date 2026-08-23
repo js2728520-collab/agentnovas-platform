@@ -1,6 +1,7 @@
 import {
   createMarketDataEventEnvelope,
   normalizeMarketDataId,
+  normalizeMarketDataProviderSymbol,
   normalizeMarketDataUtcTimestamp,
   type MarketDataEventEnvelope,
   type MarketDataQuality,
@@ -118,15 +119,6 @@ function boundedInteger(input: unknown, minimum: number, maximum: number, label:
   return Number(input);
 }
 
-function providerSymbol(input: unknown): string {
-  if (typeof input !== "string") throw new Error("provider symbol must be a string");
-  const normalized = input.trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/.test(normalized)) {
-    throw new Error("provider symbol is invalid");
-  }
-  return normalized;
-}
-
 function decimal(input: unknown): Decimal {
   if (typeof input !== "string"
       || input.length > 64
@@ -186,7 +178,7 @@ function normalizePolicy(input: unknown): NormalizedPolicy {
     exactFields(item, ["providerId", "providerSymbol"], "market source policy entry");
     return {
       providerId: normalizeMarketDataId(item.providerId, "provider id"),
-      providerSymbol: providerSymbol(item.providerSymbol),
+      providerSymbol: normalizeMarketDataProviderSymbol(item.providerSymbol),
     };
   });
   if (new Set(sources.map((source) => source.providerId)).size !== sources.length) {
@@ -313,7 +305,7 @@ export function arbitrateMarketSources(input: unknown): MarketSourceArbitrationR
     try {
       const item = record(rawCandidate, "market source candidate");
       exactFields(item, CANDIDATE_FIELDS, "market source candidate");
-      const actualSymbol = providerSymbol(item.providerSymbol);
+      const actualSymbol = normalizeMarketDataProviderSymbol(item.providerSymbol);
       if (actualSymbol !== expected.providerSymbol) {
         decisions.set(providerId, candidateResult(providerId, "symbol_mismatch"));
         return;

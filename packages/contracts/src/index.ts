@@ -9,3 +9,5 @@ export * from "./release-management.ts";
 export * from "./trading-hall.ts";
 export * from "./market-data.ts";
 export * from "./market-stream.ts";
+export * from "./market-source-arbitration.ts";
+export * from "./market-source-binding.ts";
