@@ -2578,3 +2578,16 @@ secret scan（3073 个候选文件）、production dependency audit 0 和 `git d
 本机没有 Docker/nginx，因此 nginx 检查按脚本明确停止，云端构建时补跑。两处用户本地改动没有
 纳入提交。T2.3b、真实 provider、持续防抖/切回、gap/reset/replay、故障注入和 G2 继续等待
 P-01/P-03 与 provider fixture；未启动服务、未迁移数据库、未推送、未部署。
+
+云端使用文档提交 `122317a5e38a13b7bb4c88a28d133108cfcc1a02`、tree
+`dac2525587f56508d7d7924acdf52167de66247f` 的 3073 文件精确 Git 归档，archive SHA-256 为
+`8d95d90502f5890cdd0ce1a08e2102062662a96b8a8e8abfa354d8013a6423cd`。`ssh an-saas` 的
+Node 22.21.1 容器完成 Client 68、Operations 62、Maintenance 51 页 production build，云端
+production-only audit 为 0。官方 nginx 1.29.8 `-t` 在宿主可见的一次性证书/挂载路径下通过；
+保留脚本已记录的 8 条 `listen ... http2` 兼容警告。
+
+本切片没有认证、route 或 UI 变化，未把无关的窄浏览器重跑记录为新证据；同分支最近一次云端
+production standalone 的本地 Chromium 18/18 已覆盖三端空浏览器登录，最终整体收口仍须在最新
+完整产物强制重跑。远端 `/tmp/agentnovas-market-arbitration-build-thDYNi` 与本地上传目录已逐项
+删除并验证不存在，仅移除可重建源码、依赖和构建产物；未启动远端服务、未执行生产迁移、未接触
+生产数据库、未推送、未部署。

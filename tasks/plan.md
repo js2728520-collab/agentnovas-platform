@@ -271,7 +271,9 @@ scope、服务端时间/新鲜度、每 provider sequence 和精确十进制价�
 或由另一个 provider 的 fresh reference 验证的候选可接管；2 对 2 冲突簇、自身参考价、未来接收
 事件、stale/duplicate/out-of-order/scope mismatch 均失败关闭。定向 46/46、全量 1378/1378、
 TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、secret scan、production dependency
-audit 0 和差异检查通过。实现提交 `ef18d71`；无网络、数据库、route、UI 或真实 provider 变更。
+audit 0 和差异检查通过。实现提交 `ef18d71`；云端以 `122317a` 精确快照和 Node 22.21.1 完成
+Client 68、Operations 62、Maintenance 51 页 production build、production-only audit 0 和真实
+nginx 语法检查。无网络、数据库、route、UI 或真实 provider 变更，因此不重复运行浏览器专项。
 
 ### T2.4：A/HK 与 KR/JP 股票行情
 

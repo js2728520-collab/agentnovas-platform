@@ -296,6 +296,14 @@ secret scan（3073 个候选文件）、production dependency audit 0 和 `git d
 代码提交为 `ef18d71`。本切片不包含 adapter、网络、数据库、route 或 UI 消费，不声称真实故障
 切换、延迟目标或 G2 已完成；T2.3b 继续等待 P-01/P-03 和 provider fixture。
 
+云端以文档提交 `122317a`、tree `dac2525587f56508d7d7924acdf52167de66247f` 的 3073 文件
+精确 Git 归档构建，archive SHA-256 为
+`8d95d90502f5890cdd0ce1a08e2102062662a96b8a8e8abfa354d8013a6423cd`。`ssh an-saas`
+固定 Node 22.21.1 完成 Client 68、Operations 62、Maintenance 51 页 production build，云端
+production-only audit 为 0；官方 nginx 1.29.8 `-t` 通过，保留 8 条已知 http2 兼容警告。
+本切片没有认证、route 或 UI 变化，未重复运行无关浏览器专项；最终整体 Gate 仍须在最新完整
+产物重跑三端空浏览器登录。一次性本地/云端目录已逐项清理；未部署或接触生产状态。
+
 ## 12. T2.11a Runtime 已收盘 K 线与 cadence 准入
 
 真实 stream adapter 尚未确定时，当前 Runtime 仍必须先关闭两条已知的不安全路径：把 provider
