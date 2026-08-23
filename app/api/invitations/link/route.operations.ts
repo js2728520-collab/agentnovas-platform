@@ -5,6 +5,7 @@ import { sha256 } from "@/lib/auth";
 import { canCreateInvitation } from "@/lib/permissions";
 import { getPostgresPool } from "@/lib/postgres";
 import { responseError } from "@/lib/session";
+import { APP_DEFINITIONS } from "@/lib/riverton-apps";
 import {
   buildInvitationLink,
   findActiveReusableInvitation,
@@ -23,9 +24,23 @@ import {
  */
 
 function invitationBaseUrl(request: Request): string {
-  // 用请求自己的 origin 而不是配置项：三个应用各有域名，写死一个会让运营端
-  // 生成出指向错误站点的链接。
-  return process.env.CLIENT_PUBLIC_BASE_URL?.trim() || new URL(request.url).origin;
+  const configured = process.env.CLIENT_PUBLIC_BASE_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+
+  // 回退必须指向**客户端**站点，不能用请求自己的 origin。
+  //
+  // 这个接口只在运营端提供，请求 origin 是 zht.agentnovas.com。原来的回退直接用它，
+  // 生成出来的邀请链接指向运营控制台——客户点开落在一个他登录不了的后台，
+  // 而发链接的人完全看不出有问题（链接长得很正常）。
+  //
+  // 客户端域名在 APP_DEFINITIONS 里，那是全仓库解析 audience 的同一份映射。
+  const client = APP_DEFINITIONS.find((app) => app.id === "client");
+  if (!client) throw new Error("客户端应用定义缺失");
+  const requestUrl = new URL(request.url);
+  const target = new URL(`${requestUrl.protocol}//${client.domain}`);
+  // 本机开发时三个应用靠端口区分，域名相同；带端口就一起换成客户端的端口。
+  if (requestUrl.port) target.port = String(client.localPort);
+  return target.origin;
 }
 
 export async function GET(request: Request) {

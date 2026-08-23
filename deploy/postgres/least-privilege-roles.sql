@@ -267,6 +267,9 @@ GRANT EXECUTE ON FUNCTION
   public.client_registration_invitation(text),
   public.client_insert_invited_customer(text,text,text,text,text,text),
   public.client_claim_registration_invitation(text,text,text,timestamptz),
+  -- 可复用邀请链接的使用计数。收进函数而不是给 invitations 开写权限——
+  -- 那张表存着全部邀请码，公网进程不该碰得到。
+  public.client_record_reusable_invitation_use(text,timestamptz),
   public.client_profile_conflicts(text,text,text,text),
   public.client_update_profile(text,text,text,text,text,text,text,text,text,timestamptz),
   public.client_change_password(text,text,text,timestamptz),

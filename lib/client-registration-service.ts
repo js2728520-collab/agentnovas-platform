@@ -124,10 +124,12 @@ export async function registerInvitedClient(pool: Pool, input: RegisterInvitedCl
       // 可复用链接不会被标记为 used（那是一次性码的语义），所以此前完全无法回答
       // 「这条链接带来了多少注册」。运营需要它来发现链接外泄——一条本该发给三五个
       // 人的链接突然涨到几百次，是唯一能看出来的信号。
+      //
+      // 必须走 SECURITY DEFINER 函数，不能直接 UPDATE：invitations 是客户端角色被
+      // REVOKE ALL 的表（它存着全部邀请码）。直接写在开发机上一路绿灯，一到生产
+      // 就是 42501，而客户只看到「注册失败」——整个注册流程会被这一行挡死。
       await client.query(
-        `UPDATE invitations
-            SET use_count = use_count + 1, last_used_at = $2, updated_at = $2
-          WHERE id = $1 AND kind = 'employee_reusable'`,
+        "SELECT client_record_reusable_invitation_use($1,$2)",
         [invitation.id, now],
       );
     }
