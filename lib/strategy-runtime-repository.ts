@@ -154,16 +154,30 @@ export async function createStrategyDeployment(database: Queryable, input: {
   if (input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) throw new Error("部署幂等键长度无效");
   const executionProduct = input.executionProduct ?? "usdt_perpetual";
   if (executionProduct === "spot_usdt") {
-    if (!input.platformStrategyCode || !input.membershipId || !input.paperPortfolioId || input.exchangeAccountId) {
+    // 这里曾经无条件拒绝携带交易账户的现货部署——第五处意外的 fail-closed，
+    // 也是「没有任何入口能建 mode='live' 部署」的那一处。
+    //
+    // 真正的规则不是「不许带账户」，而是「带不带账户由 mode 决定」，与 0053 的
+    // 数据库 CHECK 是同一条：live 必须带，paper/shadow 必须不带。
+    const requiresAccount = input.mode === "live";
+    if (!input.platformStrategyCode || !input.membershipId || !input.paperPortfolioId
+        || Boolean(input.exchangeAccountId) !== requiresAccount) {
       throw new Error("官方策略部署缺少安全组合绑定或错误使用客户交易账户");
     }
-    const portfolio = await database.query<{ present: boolean }>(`
-      SELECT true AS present
+    // 账本身份必须与 mode 一致：实盘部署指向模拟盘那本账，就是把真实成交记进一本
+    // 本金 10000 的假账，而这不会报错。数据库侧另有生成列外键挡同一件事（0060），
+    // 这里先拦一道是为了给出能看懂的错误。
+    const portfolio = await database.query<{ book: string }>(`
+      SELECT book
       FROM official_paper_portfolios
       WHERE id = $1 AND membership_id = $2 AND customer_id = $3 AND strategy_code = $4
       FOR KEY SHARE
     `, [input.paperPortfolioId, input.membershipId, input.ownerUserId, input.platformStrategyCode]);
-    if (portfolio.rows[0]?.present !== true) throw new Error("官方策略模拟组合与会员、客户归属不匹配");
+    const book = portfolio.rows[0]?.book;
+    if (!book) throw new Error("官方策略模拟组合与会员、客户归属不匹配");
+    if (book !== (input.mode === "live" ? "live" : "paper")) {
+      throw new Error("部署模式与组合账本不一致");
+    }
   } else if (
     !input.exchangeAccountId?.trim()
     || input.platformStrategyCode != null

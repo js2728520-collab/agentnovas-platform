@@ -365,13 +365,15 @@ async function processOfficialSpotRuntimeDeployment(
   let liveReceipt: Awaited<ReturnType<typeof executeOrderIntent>> | null = null;
   let liveExecutionError: string | null = null;
   if (lease.mode === "live" && !completion.duplicate && evaluated.orderIntent && lease.exchangeAccountId) {
-    // 一道有名字的闸门，挡在五处意外的 fail-closed 前面。
+    // 唯一一道有名字的闸门。
     //
-    // 那五处（租约过滤、边界断言、requestedPrice 恒 null、symbol 格式、无创建入口）
-    // 逐个看都像 bug，逐个修都像在修 bug——而全部修完之后打开的是一条记账不成立的
-    // 真实交易通道：实盘成交不进仓位、不进风控、不进分成，且引擎永远不产出平仓意图。
+    // 那五处意外的 fail-closed（租约过滤、边界断言、requestedPrice 恒 null、
+    // symbol 格式、无创建入口）已经拆掉了：实盘部署现在可以被租走、走完决策、
+    // 记账、结算——全部路径都通，只在这里停下。
     //
-    // 所以先在这里说清楚缺什么，见 packages/domain/src/execution/live-readiness.ts。
+    // 记账缺口也补上了（live-book-posting.ts）。清单上剩下的是余额核对、
+    // 客户侧开通入口、以及从未对真实交易所下过一单。
+    // 见 packages/domain/src/execution/live-readiness.ts。
     if (!isLiveExecutionReady()) {
       liveExecutionError = `LIVE_EXECUTION_NOT_READY:${LIVE_EXECUTION_BLOCKERS.map((b) => b.code).join(",")}`.slice(0, 160);
       return {
