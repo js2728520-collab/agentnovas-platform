@@ -246,7 +246,7 @@ TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、secret sca
 Operations 62、Maintenance 51 页 production build；本切片无 UI/auth 变化，不重复使用窄浏览器
 测试冒充全平台 Gate，最终阶段仍须在最新产物重跑三端空浏览器登录。
 
-### T2.3：加密行情源选择
+### T2.3：主备源切换和价格/时间/完整性校验
 
 **描述：** 支持账户一致源、独立选择、策略级源和 Coinbase fallback。
 
@@ -275,18 +275,50 @@ audit 0 和差异检查通过。实现提交 `ef18d71`；云端以 `122317a` 精
 Client 68、Operations 62、Maintenance 51 页 production build、production-only audit 0 和真实
 nginx 语法检查。无网络、数据库、route、UI 或真实 provider 变更，因此不重复运行浏览器专项。
 
-### T2.4：A/HK 与 KR/JP 股票行情
+### T2.4：加密行情源选择与策略级绑定
 
-**描述：** 先 A/HK，再 KR/JP，逐市场完成指数、热门股、全市场搜索、K 线和实时行情。
+**描述：** 支持行情源跟随交易账户或独立选择，并把解析结果固定到具体策略/部署版本；不把
+provider 字段写入策略 DSL，也不允许浏览器自报授权、健康或执行资格。
 
-**验收：** 授权与 SLA 记录；交易日历/时区正确；UI 市场切换完整。
-**验证：** provider sandbox、节假日/停牌/复权测试、浏览器。
-**依赖：** T2.1/T2.2。
+**状态：** 进行中。T2.4a 先交付 provider-independent 纯合同；T2.4b 的持久化、账户能力
+解析、API、UI、Runtime 身份与历史迁移等待 P-01 和 provider/account capability registry。
+
+**分阶段：**
+
+- T2.4a：严格选择意图、服务端账户/capability 快照、稳定 blocked reason、不可变解析绑定和
+  deterministic fingerprint；只允许 display/research，不授权订单且不含默认 fallback。
+- T2.4b：保存版本化选择/解析策略，接入 Client 与 Runtime，把 binding/policy fingerprint 纳入
+  决策轮、回测、验证和行情快照证据；旧记录明确 `legacy_unpinned`。
+
+**验收：** 账户归属/状态/只读能力和 provider/scope/usage 失败关闭；修改当前偏好不能静默改变
+既有绑定；不同绑定不共享同一 Runtime 决策轮；同 DSL 换源必须重测。
+**验证：** 纯合同 RED/GREEN、PostgreSQL 不可变/并发、API/UI contract、Runtime 回放与浏览器。
+**依赖：** T2.1、T2.2、T2.3；T2.4b 另依赖 P-01。
+**规模：** M。
+
+### T2.5：Coinbase 加密 fallback
+
+**描述：** 在 P-01 冻结后，把 Coinbase 作为加密市场的显式默认 fallback，完成授权、symbol、
+限流、健康、主备顺序和故障恢复；不能把该默认套用到股票、外汇或贵金属。
+
+**验收：** fallback 优先级有产品结论；只有通过 T2.3 完整性校验才接管；恢复不抖动。
+**验证：** Coinbase sandbox/fixture、限流/断线/价格冲突故障注入、UI。
+**依赖：** P-01、T2.2b、T2.3b、T2.4。
+**规模：** M。
+
+### T2.6–T2.9：A/HK/KR/JP 股票行情
+
+**描述：** T2.6 A 股、T2.7 港股优先；T2.8 韩股、T2.9 日股后续。逐市场完成指数、热门股、
+全市场搜索、K 线和实时行情。
+
+**验收：** 授权与 SLA 记录；交易日历/时区、停牌、复权和 provider symbol 正确；UI 市场切换完整。
+**验证：** provider sandbox、节假日/午休/停牌/复权测试、浏览器。
+**依赖：** P-03、T2.1/T2.2。
 **规模：** M/市场。
 
-### T2.5：外汇和贵金属行情基础
+### T2.10：外汇和贵金属行情基础
 
-**描述：** 在 P-02 冻结后接入报价、交易时段和合约元数据，暂不自动下单。
+**描述：** 在 P-02 冻结后接入只读报价、交易时段和合约元数据，暂不自动下单。
 
 **验收：** 报价/点差/时区准确；无交易场所时只读；不复用加密 symbol 假设。
 **验证：** provider fixture、周末/隔夜边界、UI。
