@@ -38,8 +38,19 @@ function invitationBaseUrl(request: Request): string {
   if (!client) throw new Error("客户端应用定义缺失");
   const requestUrl = new URL(request.url);
   const target = new URL(`${requestUrl.protocol}//${client.domain}`);
-  // 本机开发时三个应用靠端口区分，域名相同；带端口就一起换成客户端的端口。
-  if (requestUrl.port) target.port = String(client.localPort);
+  // 只有真的在本机开发时才补端口。
+  //
+  // 上一版写成「请求带端口就补端口」，而容器里 Next 看到的是内网地址
+  // http://<host>:3000/...——生产上永远带端口。结果发出去的链接是
+  // https://agentnovas.com:3000/login?invite=…，客户端口不通，页面直接打不开。
+  //
+  // 判据改成「请求本身是不是 loopback」：只有本机开发才靠端口区分三端，
+  // 生产走域名，反向代理后面的内网端口与外部无关。
+  const loopback = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(requestUrl.hostname);
+  if (loopback) {
+    target.hostname = requestUrl.hostname;
+    target.port = String(client.localPort);
+  }
   return target.origin;
 }
 

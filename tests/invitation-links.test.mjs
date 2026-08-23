@@ -34,3 +34,13 @@ test("可复用链接的计数走 SECURITY DEFINER 函数，不直接写 invitat
   assert.doesNotMatch(roles, /GRANT[^\n]*\bON TABLE public\.invitations\b[^\n]*client/i);
   assert.match(roles, /client_record_reusable_invitation_use/);
 });
+
+test("生产环境的邀请链接不得带端口", async () => {
+  // 容器里 Next 看到的是内网地址 http://<host>:3000/...，生产上请求永远带端口。
+  // 「请求带端口就补端口」会发出 https://agentnovas.com:3000/... —— 客户端口不通，
+  // 页面直接打不开，而链接看上去只是多了几个字符。
+  const source = await readFile(new URL("../app/api/invitations/link/route.operations.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /if \(requestUrl\.port\) target\.port/, "不得以「请求带端口」作为补端口的判据");
+  assert.match(source, /loopback/, "补端口的唯一判据是请求本身来自 loopback");
+  assert.match(source, /127\.0\.0\.1/);
+});
