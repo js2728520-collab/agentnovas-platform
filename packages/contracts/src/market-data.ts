@@ -89,7 +89,7 @@ function enumValue<T extends string>(input: unknown, allowed: readonly T[], labe
   return input as T;
 }
 
-function stableId(input: unknown, label: string): string {
+export function normalizeMarketDataId(input: unknown, label = "market data id"): string {
   if (typeof input !== "string" || input.length > 80 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input)) {
     throw new Error(`${label} must be a stable lowercase id`);
   }
@@ -107,7 +107,7 @@ function sortedUniqueEnum<T extends string>(input: unknown, allowed: readonly T[
 function sortedUniqueIds(input: unknown, label: string): string[] {
   if (!Array.isArray(input) || input.length === 0) throw new Error(`${label} must be a non-empty array`);
   if (input.length > 64) throw new Error(`${label} has too many values`);
-  const values = input.map((item) => stableId(item, label));
+  const values = input.map((item) => normalizeMarketDataId(item, label));
   if (new Set(values).size !== values.length) throw new Error(`${label} contains duplicate values`);
   return [...values].sort();
 }
@@ -117,11 +117,18 @@ function positiveInteger(input: unknown, label: string): number {
   return input as number;
 }
 
-function normalizedUtcTimestamp(input: unknown, label: string): string {
+export function normalizeMarketDataUtcTimestamp(input: unknown, label = "timestamp"): string {
   if (typeof input !== "string" || !/Z$/.test(input)) throw new Error(`${label} must be an ISO UTC timestamp`);
   const milliseconds = Date.parse(input);
   if (!Number.isFinite(milliseconds)) throw new Error(`${label} must be an ISO UTC timestamp`);
   return new Date(milliseconds).toISOString();
+}
+
+export function normalizeMarketDataSequence(input: unknown): string {
+  if (typeof input !== "string" || input.length > 128 || !/^(?:0|[1-9][0-9]*)$/.test(input)) {
+    throw new Error("sequence must be a canonical non-negative decimal string");
+  }
+  return input;
 }
 
 function timezone(input: unknown): string {
@@ -143,12 +150,12 @@ export function normalizeMarketDescriptor(input: unknown): MarketDescriptor {
   exactFields(calendar, ["id", "kind"], "calendar");
 
   return {
-    id: stableId(value.id, "market id"),
+    id: normalizeMarketDataId(value.id, "market id"),
     assetClass: enumValue(value.assetClass, ASSET_CLASSES, "asset class"),
     region: enumValue(value.region, REGIONS, "region"),
     timezone: timezone(value.timezone),
     calendar: {
-      id: stableId(calendar.id, "calendar id"),
+      id: normalizeMarketDataId(calendar.id, "calendar id"),
       kind: enumValue(calendar.kind, CALENDAR_KINDS, "calendar kind"),
     },
     capabilities: sortedUniqueEnum(value.capabilities, CAPABILITIES, "capabilities"),
@@ -170,7 +177,7 @@ export function normalizeProviderDescriptor(input: unknown): ProviderDescriptor 
   if (typeof value.configured !== "boolean") throw new Error("configured must be boolean");
 
   return {
-    id: stableId(value.id, "provider id"),
+    id: normalizeMarketDataId(value.id, "provider id"),
     name: value.name.trim(),
     authorization: enumValue(value.authorization, AUTHORIZATIONS, "authorization"),
     marketIds: sortedUniqueIds(value.marketIds, "market ids"),
@@ -220,23 +227,20 @@ export function evaluateMarketDataFreshness(input: {
 export function createMarketDataEventEnvelope(input: unknown): MarketDataEventEnvelope {
   const value = record(input, "market data event");
   exactFields(value, ["providerId", "marketId", "instrumentId", "sequence", "exchangeAt", "receivedAt", "evaluatedAt", "latencyTargetMs", "staleAfterMs"], "market data event");
-  if (typeof value.sequence !== "string" || value.sequence.length > 128 || !/^(?:0|[1-9][0-9]*)$/.test(value.sequence)) {
-    throw new Error("sequence must be a canonical non-negative decimal string");
-  }
-
-  const exchangeAt = normalizedUtcTimestamp(value.exchangeAt, "exchangeAt");
-  const receivedAt = normalizedUtcTimestamp(value.receivedAt, "receivedAt");
-  const evaluatedAt = normalizedUtcTimestamp(value.evaluatedAt, "evaluatedAt");
+  const sequence = normalizeMarketDataSequence(value.sequence);
+  const exchangeAt = normalizeMarketDataUtcTimestamp(value.exchangeAt, "exchangeAt");
+  const receivedAt = normalizeMarketDataUtcTimestamp(value.receivedAt, "receivedAt");
+  const evaluatedAt = normalizeMarketDataUtcTimestamp(value.evaluatedAt, "evaluatedAt");
   const latencyTargetMs = positiveInteger(value.latencyTargetMs, "latency target");
   const staleAfterMs = positiveInteger(value.staleAfterMs, "stale threshold");
   const freshness = evaluateMarketDataFreshness({ exchangeAt, receivedAt, evaluatedAt, latencyTargetMs, staleAfterMs });
 
   return {
     contractVersion: MARKET_DATA_CONTRACT_VERSION,
-    providerId: stableId(value.providerId, "provider id"),
-    marketId: stableId(value.marketId, "market id"),
-    instrumentId: stableId(value.instrumentId, "instrument id"),
-    sequence: value.sequence,
+    providerId: normalizeMarketDataId(value.providerId, "provider id"),
+    marketId: normalizeMarketDataId(value.marketId, "market id"),
+    instrumentId: normalizeMarketDataId(value.instrumentId, "instrument id"),
+    sequence,
     exchangeAt,
     receivedAt,
     evaluatedAt,
