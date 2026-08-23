@@ -223,3 +223,20 @@ T2.1a/T2.1b 完成只把 M-01 提升为 `CURRENT` 的合同底座；真实 provi
 production dependency audit 和云端三端 production build 均通过。云端真实 nginx 语法通过；
 已知 `listen ... http2` 兼容警告按现有脚本保留。本切片没有 UI 消费变化，按第 6 节不单独重跑
 视觉专项；未启动服务、未迁移数据库、未推送、未部署。
+
+## 10. T2.2a provider 独立行情流状态机
+
+T2.2a 只定义纯 sequence、连接、新鲜度、重连和缓存判定，不打开 socket 或选择 provider：
+
+- sequence 是最多 128 位的 canonical 非负十进制字符串，使用 `BigInt` 比较，不转换为 Number。
+- cursor scope 固定为 `providerId/marketId/instrumentId`；scope 不同必须由 adapter 建立新 cursor，
+  不能把浏览器传入的 stream ID 当成 sequence reset 授权。
+- 同 scope 只接受严格递增 sequence；相同为 duplicate，更小为 out-of-order，两者都不推进 cursor。
+- 连接状态由 `connected/lastAcceptedAt/evaluatedAt/staleAfterMs/reconnectStartedAt` 派生为
+  `connecting/live/stale/reconnecting/offline/invalid`，不能由 UI 自报 live。
+- 重连采用确定性指数退避并封顶 10 秒；10 秒是单次重试间隔上限和恢复目标，不伪造实际恢复成功。
+- cache timestamp 合法时允许 display；达到 stale 阈值后明确 `displayOnly=true` 且
+  `eligibleForNewPosition=false`；时间非法时连展示资格也拒绝。
+
+完成标准：纯函数没有 I/O/时钟读取；所有时间由调用方传入；覆盖大整数、重复、乱序、scope、
+阈值等号、未来时间、重连上限和 stale cache。T2.2a 完成不代表 WebSocket、主备或 G2 完成。

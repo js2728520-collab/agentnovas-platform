@@ -50,7 +50,9 @@
   - [x] 2.1a provider 独立值类型、严格校验和行情新鲜度安全派生。
   - [x] 2.1b 当前行情目录与 instruments API 加法式兼容升级。
   - [!] 2.1c 真实 provider/授权/优先级注册，等待 P-01/P-03。
-- [ ] 2.2 WebSocket sequence、延迟、stale、重连和缓存。
+- [-] 2.2 WebSocket sequence、延迟、stale、重连和缓存。
+  - [-] 2.2a provider 独立 sequence、连接状态、重连退避和缓存展示状态机。
+  - [!] 2.2b 真实 WebSocket adapter、provider sequence scope 和容量验证，等待 P-01/P-03。
 - [ ] 2.3 主备源切换和价格/时间/完整性校验。
 - [ ] 2.4 加密行情账户一致源、独立选择和策略级绑定。
 - [ ] 2.5 Coinbase 加密 fallback。

@@ -208,6 +208,16 @@ Client 68、Operations 62、Maintenance 51 页 production build，并以真实 n
 
 **描述：** 实现 WebSocket 聚合、sequence、延迟、断线重连、缓存和切换校验。
 
+**状态：** 正在进行。T2.2a 先实现无 I/O 的 sequence/连接/重连/缓存状态机；真实 adapter、
+provider sequence reset 规则、容量和主备切换等待 P-01/P-03 与供应商 fixture。
+
+**子任务：**
+
+- T2.2a：同一 stream scope 的十进制大整数 sequence 严格递增；重复/乱序失败关闭；
+  连接状态按新鲜度派生；重连退避上限 10 秒；stale 缓存仅展示。
+- T2.2b：每个真实 provider 的 WebSocket adapter、订阅/心跳/sequence scope/reset/replay、
+  容量压测和故障注入。
+
 **验收：** ≤500ms/≤10s 目标可测；陈旧行情阻断新开仓；缓存只展示。
 **验证：** 压测、乱序/断线/偏差故障注入、Runtime admission test。
 **依赖：** T2.1。
