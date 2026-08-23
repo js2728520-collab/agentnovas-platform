@@ -203,7 +203,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
         <h2>加入团队</h2>
         <p>
           你收到了一条权限注册链接。注册者不能修改角色或数据范围；提交成功后账号立即
-          生效，首次登录必须完成 MFA 设置。
+          生效。双重验证能力已保留，是否强制由当前部署阶段的安全策略决定。
         </p>
         <label>邮箱<input name="email" type="email" autoComplete="email" required /></label>
         <label>密码（至少 12 位）<input name="password" type="password" autoComplete="new-password" minLength={12} required /></label>
@@ -215,7 +215,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
       </form>
     ) : null}
     {staffState.status === "done" ? (
-      <div role="status"><p>{staffState.message}</p><Link href="/login">返回登录并设置 MFA</Link></div>
+      <div role="status"><p>{staffState.message}</p><Link href="/login">返回登录</Link></div>
     ) : null}
     {!staffInviteCode ? (
     <form onSubmit={submit} aria-labelledby="rc-login-heading">

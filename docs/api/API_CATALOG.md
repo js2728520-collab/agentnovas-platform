@@ -40,6 +40,8 @@
 
 所有接口在受控测试前都必须进入可执行的 route policy 清单：method/path、audience、认证/MFA、permission、assignment-bound data scope、PII policy、mutation sensitivity、idempotency、rate limit、body limit 和审计类型。未登记 handler 发布失败。
 
+本目录中标记 `recent MFA` 的策略实现均受服务端 `MFA_ENFORCEMENT_ENABLED` 约束：当前准备阶段为 `false`，其他权限、scope、Origin、幂等、限流和审计继续执行；正式生产按 ADR-0023 三端统一设为 `true` 后生效。
+
 ## 2. Access 与账户（33）
 
 | 路由 | 方法 | 所有权 | 状态/说明 |
@@ -61,16 +63,16 @@
 | `/api/account/profile` | GET, PATCH | C | KEEP |
 | `/api/account/sessions` | GET, POST, DELETE | C/O/M | CURRENT；列出/单会话撤销；POST 原子退出全部设备并清当前 Cookie |
 | `/api/auth/forgot-password` | POST | C | KEEP；内部 audience 404，需限流 |
-| `/api/auth/login` | POST | C/O/M | CURRENT；Client 强制已验证邮箱、原子 5 设备上限和新设备/网段变化提醒；内部强制 MFA |
-| `/api/auth/mfa/**` | GET, POST | C/O/M | KEEP；内部强制、Client 可选绑定；恢复码只显示一次且仅存哈希 |
+| `/api/auth/login` | POST | C/O/M | CURRENT；Client 强制已验证邮箱、原子 5 设备上限和新设备/网段变化提醒；MFA 强制由服务端开关控制，当前关闭 |
+| `/api/auth/mfa/**` | GET, POST | C/O/M | KEEP；完整 TOTP/recovery 能力保留；恢复码只显示一次且仅存哈希；当前不强制登录挑战 |
 | `/api/auth/logout` | POST | C/O/M | KEEP；只清当前 audience |
 | `/api/auth/me` | GET | C/O/M | KEEP |
 | `/api/auth/register` | POST | C | CURRENT；国际手机号和邮箱必填，创建 pending 身份与加密验证邮件；内部 audience 404 |
 | `/api/auth/resend-verification` | POST | C | CURRENT；匿名同源、邮箱/网络双桶限流、非枚举响应并轮换旧验证 token |
 | `/api/auth/reset-password` | POST | C | KEEP；一次性 token、共享限流和全量会话撤销 |
 | `/api/auth/verify-email` | POST | C | CURRENT；24 小时摘要 token，消费后激活；浏览器 token 使用 URL fragment |
-| `/api/invitations/staff-link` | GET, POST, PATCH, DELETE | O | CURRENT；五级向下授权、recent MFA、复制审计、手动作废和原子重生成 |
-| `/api/organization/staff-register` | POST | O | CURRENT；匿名但仅 Operations，同源、三桶限流、注册即 active assignment 与 MFA 引导 |
+| `/api/invitations/staff-link` | GET, POST, PATCH, DELETE | O | CURRENT；五级向下授权、复制审计、手动作废和原子重生成；recent MFA 仅在生产强制开关开启时要求 |
+| `/api/organization/staff-register` | POST | O | CURRENT；匿名但仅 Operations，同源、三桶限流、注册即 active assignment；返回当前 MFA enforcement 事实 |
 | `/api/organization/members` | GET, POST, PATCH, DELETE | O | PARTIAL；GET 提供 scope-bound 平面账号目录；POST/PATCH 已 `410 Retired`，DELETE 禁用 |
 | `/api/organization/members/[id]/status` | PATCH | O | CURRENT；严格低级角色/下级链路，停用同时撤销会话、令牌和签发链接 |
 | `/api/system/bootstrap` | POST | M | DISABLED/BETA；HTTP 固定关闭，内部管理员只能由空系统一次性 CLI 创建 |

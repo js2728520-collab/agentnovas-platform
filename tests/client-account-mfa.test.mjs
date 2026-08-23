@@ -2,24 +2,39 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { mfaLoginRequirement } from "../lib/mfa.ts";
+import { mfaEnforcementEnabled, mfaLoginRequirement } from "../lib/mfa.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("Client MFA is optional until enrolled and mandatory after enrollment", () => {
+test("MFA enforcement is off by default while the complete login contract remains available", () => {
+  assert.equal(mfaEnforcementEnabled({}), false);
+  assert.equal(mfaEnforcementEnabled({ MFA_ENFORCEMENT_ENABLED: "false" }), false);
+  assert.equal(mfaEnforcementEnabled({ MFA_ENFORCEMENT_ENABLED: "true" }), true);
   assert.deepEqual(mfaLoginRequirement("client", false), {
     required: false,
     enrollmentRequired: false,
   });
   assert.deepEqual(mfaLoginRequirement("client", true), {
-    required: true,
+    required: false,
     enrollmentRequired: false,
   });
   assert.deepEqual(mfaLoginRequirement("operations", false), {
+    required: false,
+    enrollmentRequired: false,
+  });
+});
+
+test("explicit production MFA enforcement restores Client opt-in and mandatory internal MFA", () => {
+  const enabled = { MFA_ENFORCEMENT_ENABLED: "true" };
+  assert.deepEqual(mfaLoginRequirement("client", true, enabled), {
+    required: true,
+    enrollmentRequired: false,
+  });
+  assert.deepEqual(mfaLoginRequirement("operations", false, enabled), {
     required: true,
     enrollmentRequired: true,
   });
-  assert.deepEqual(mfaLoginRequirement("maintenance", true), {
+  assert.deepEqual(mfaLoginRequirement("maintenance", true, enabled), {
     required: true,
     enrollmentRequired: false,
   });

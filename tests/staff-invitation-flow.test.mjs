@@ -51,10 +51,11 @@ test("技术人员的角色分配落在运维端，且不含治理权限", () =>
   }
 });
 
-test("权限链接注册立即生效并要求首次登录完成 MFA", async () => {
+test("权限链接注册立即生效并按部署开关决定是否要求 MFA", async () => {
   const route = await readFile(new URL("../app/api/organization/staff-register/route.operations.ts", import.meta.url), "utf8");
   assert.match(route, /status: registered\.status/);
-  assert.match(route, /mfaEnrollmentRequired: registered\.mfaEnrollmentRequired/);
+  assert.match(route, /mfaEnrollmentRequired: mfaEnforced && registered\.mfaEnrollmentRequired/);
+  assert.match(route, /双重验证能力已保留，当前暂不强制/);
   assert.equal(/pending_approval/.test(route), false, "新注册路径不得残留人工审批状态");
 });
 

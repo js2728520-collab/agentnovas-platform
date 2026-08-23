@@ -16,7 +16,7 @@
 | 产品、业务负责人 | `product/PRD.md` → `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md` → `roadmap/FULL_PLATFORM_V3_ROADMAP.md` → `../tasks/plan.md` |
 | 前后端研发 | `specs/V3_SYSTEM_TARGET_SPEC.md` → 对应 V3 App Spec → 当前 `api/API_CATALOG.md` → ADR |
 | 运营、风控、财务 | `specs/V3_OPERATIONS_APP_TARGET_SPEC.md` → V3 Gate → `../tasks/todo.md` |
-| 运维、安全 | `specs/V3_MAINTENANCE_APP_TARGET_SPEC.md` → ADR-0019/0020/0021 → V3 Gate → 当前 Runbook |
+| 运维、安全 | `specs/V3_MAINTENANCE_APP_TARGET_SPEC.md` → ADR-0019/0020/0021/0022/0023 → V3 Gate → 当前 Runbook |
 | QA、交付 | `quality/FULL_PLATFORM_V3_GATES.md` → V3 Roadmap → 当前证据/Runbook |
 | 发布值班、事故负责人 | `runbooks/commercial-beta-release-and-rollback.md` → 当前版本 `releases/` 部署记录 |
 
@@ -69,6 +69,8 @@
 - `adr/0019-ga-execution-service-and-key-custody.md`：Execution Service、密钥托管、订单与对账基础。
 - `adr/0020-live-accounting-and-the-named-gate.md`：live book 与单一实盘 Gate。
 - `adr/0021-full-platform-v3-gated-upgrade.md`：V3 完整目标与分阶段、按能力解锁的升级决策。
+- `adr/0022-client-email-and-five-device-security.md`：Client 邮箱验证、五设备、提醒和撤销边界。
+- `adr/0023-deferred-mfa-enforcement-rollout.md`：MFA 能力保留、当前关闭与正式生产启用门禁。
 
 ## 状态标签
 

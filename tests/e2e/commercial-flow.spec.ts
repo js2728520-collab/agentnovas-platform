@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
 import pg from "pg";
 
-import { totpCode } from "../../lib/mfa";
 import { qualityApplicationPorts, qualityBrowserOrigin } from "../../scripts/quality/quality-policy.mjs";
 import { expect, test } from "./support/quality-test";
 import {
@@ -245,15 +244,8 @@ test("four-identity membership evidence and maker-checker activation remains sid
     await page.getByLabel("邮箱、手机号或用户名").fill(runtime.identities.operationsMaker.email);
     await page.getByLabel("密码").fill(runtime.identities.operationsMaker.password);
     await page.getByRole("button", { name: "登录" }).click();
-    await expect(page.getByRole("heading", { name: "绑定双重验证" })).toBeVisible();
-    const setupKey = await page.locator(".rc-mfa-setup-key").inputValue();
-    const code = await totpCode(setupKey, Math.floor(Date.now() / 1000 / 30));
-    await page.getByLabel("六位动态验证码").fill(code);
-    await page.getByRole("button", { name: "绑定并生成恢复码" }).click();
-    await expect(page.getByRole("heading", { name: "保存恢复码" })).toBeVisible();
-    await expect(page.locator(".rc-recovery-codes code")).toHaveCount(8);
-    await page.getByRole("button", { name: "我已安全保存，进入应用" }).click();
     await expect(page).toHaveURL(`${operationsOrigin}/`);
+    await expect(page.getByRole("heading", { name: "绑定双重验证" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "运营概览" })).toBeVisible();
   } finally {
     await Promise.all(contexts.map((context) => context.dispose()));

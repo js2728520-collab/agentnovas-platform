@@ -8,6 +8,16 @@
 
 本文解决两个问题：安全创建 Client、Operations、Maintenance 三个独立验收账号；用不泄密、可重复的方式补齐 Resend、优盾、模型和 Demo 配置。任何“已配置”都不等于“已启用”或“已成功发送/执行”。
 
+## 0. MFA 分阶段策略（下一版本）
+
+本分支尚未部署。下一版本按 ADR-0023 在三端 env 中设置 `MFA_ENFORCEMENT_ENABLED=false`：
+TOTP/recovery 数据、加密密钥和 API 保留，但准备阶段登录不强制挑战。下文 beta.5 的“首次
+现场绑定”记录是历史生产验收事实，不代表本分支当前策略。
+
+正式投入生产时必须在一次受控发布中将 Client、Operations、Maintenance 三份 env 同时改为
+`true`，重启三端，并验证首次绑定、已绑定账号登录、恢复码、recent MFA、密码重置和回滚。
+不得只开启一个 audience。回滚时三端同时改回 `false`，不删除 MFA 凭证或恢复码。
+
 ## 1. 当前生产配置快照
 
 2026-08-22 `v1.0.0-beta.5` 的只读审计结果如下。审计只读取“是否存在/是否一致”，没有输出任何值：
@@ -63,7 +73,7 @@ notification_email_send=disabled
 - 账号或固定 role code 已存在时失败，不覆盖、不重置；
 - 密码使用当前 Argon2id 参数；数据库和审计不保存明文；
 - 凭证只写入 `/run/credentials/three-app-credentials-*.json`，以 `wx` 创建且权限 `0600`；
-- 内部账号不预置 MFA secret，首次登录通过 UI 独立绑定。
+- 内部账号不预置 MFA secret；当前关闭阶段直接登录，正式生产开启开关后通过 UI 独立绑定。
 
 服务器准备：
 

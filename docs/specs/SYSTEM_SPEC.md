@@ -21,7 +21,7 @@ Legacy Research Worker：Beta 不启动，HTTP/租约/orchestrator/systemd 均�
 真实交易/提现/划转/自动扣款：代码路径硬关闭
 ```
 
-三个 Web 进程使用相同代码但独立 `RIVERTON_APP_AUDIENCE`、域名、端口、构建目录、Session Cookie、最小 env 和数据库角色。共享数据库不是共享授权；所有入口重新解析 audience、会话、MFA、权限与 assignment-bound data scope。
+三个 Web 进程使用相同代码但独立 `RIVERTON_APP_AUDIENCE`、域名、端口、构建目录、Session Cookie、最小 env 和数据库角色。共享数据库不是共享授权；所有入口重新解析 audience、会话、MFA enforcement、权限与 assignment-bound data scope。
 
 Client 使用两个不可继承、不可链式放大的数据库角色。`agentnovas_client_web` 只通过绑定当前有效 Client session token hash 的 `SECURITY DEFINER` gateway 完成会话、自助资料、MFA、注册 claim 和 reset consume，不能直接读取身份/邀请表；`agentnovas_client_auth` 只可执行登录身份投影、当前主体密码投影和找回密码发行三个精确 gateway，不能创建/完成 session、消费 reset 或继承 Web 角色。所有 gateway 由 migrator 持有、固定 `search_path`，过期但未 revoked 的 session 也必须失败关闭。Next 构建不打开数据库连接；运行时第一条 SQL 前同时校验 URL 用户名和 `current_user` 与 audience 一致。
 
@@ -98,7 +98,7 @@ type ApiPolicy = {
 - Client 设备 Cookie 与 Session Cookie 分离且只存摘要；同设备重登轮换，会话最多 5 个
   设备身份，第 6 台当前拒绝。新设备/网段变化双通道提醒，支持单设备和全量撤销。
 - 邮箱+audience 登录失败 5 次/15 分钟；IP 30 次/15 分钟；找回使用更严格小时限额，存储在 PostgreSQL 以覆盖多实例。
-- Operations/Maintenance 完成 TOTP 才发完整 session；recovery code 单次使用并保存 hash。critical 操作要求 15 分钟内 recent MFA。
+- TOTP/recovery 完整实现与加密数据保留。当前 `MFA_ENFORCEMENT_ENABLED=false` 时三端直接发完整 session，内部 critical 操作不要求 recent MFA；正式生产三端统一设为 `true` 后，Operations/Maintenance 完成 TOTP 才发完整 session，critical 操作要求 15 分钟内 recent MFA。recovery code 始终单次使用并只保存 hash。
 - Client 可选启用 TOTP；一旦启用，后续登录必须完成 TOTP 或消耗一枚 recovery code。启用/轮换只显示一次恢复码，服务器只存 hash。
 - 密码修改/重置、冻结、撤权和恢复码重置撤销相关 session。
 - HTTP bootstrap 在生产 404；CLI 仅在无内部管理员时一次成功并留审计。

@@ -1,6 +1,6 @@
 # Implementation Plan：AgentNovas 全平台 V3 升级
 
-状态：Phase 1 进行中；T1.1–T1.4 已实现，G1 四身份浏览器/真实邮件验收待完成
+状态：Phase 1 进行中；T1.1–T1.5 已实现，G1 真实邮件与生产 MFA 开启态验收待完成
 工作分支：`codex/platform-v3-doc-sync`
 需求真源：`docs/product/PRD.md`
 路线图：`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md`
@@ -19,6 +19,7 @@
 - Client、Operations、Maintenance 的 audience、Cookie、Host、RBAC、DB role 和 secret 独立。
 - Operations 不展示组织架构，后端保留 scope/归属事实。
 - 内部人员使用角色/权限链接自助注册；token 只存摘要、不能越级、全生命周期审计。
+- MFA 能力与凭证完整保留，当前默认不强制；正式生产按 ADR-0023 三端统一开启并通过专项 Gate。
 - LLM 不拥有确定性校验、风控或订单执行权。
 - Execution Service 是唯一长期持有客户交易凭证解密能力的进程。
 - Paper、Demo、Live 使用不同 book 和证据，不混写。
@@ -140,11 +141,24 @@
 **可能涉及：** auth routes、session service、Client UI、notification outbox。
 **规模：** M。
 
+### T1.5：MFA 分阶段强制开关
+
+**状态：** 已完成（默认关闭；登录、敏感权限、密码重置、三端 UI/API、env 和测试已接入）。
+
+**描述：** 保留 TOTP/recovery 全部能力与数据，通过 fail-closed 服务端开关推迟到正式生产强制。
+
+**验收：** 关闭态不产生 MFA 半会话或死路径；开启态恢复内部首次绑定、已绑定验证和 recent MFA；三端状态一致且可回滚。
+**验证：** 关闭/开启纯函数、PostgreSQL 密码重置、14 场景浏览器关闭态；生产前另跑开启态专项。
+**依赖：** T1.3/T1.4。
+**涉及：** auth/access-control、MFA API/UI、env、ADR-0023、发布 Gate。
+**规模：** S。
+
 ### Checkpoint P1
 
 - [ ] G1 通过。
 - [ ] 组织 UI 退休且 scope/PII 无回归。
 - [ ] Beta 会员、Paper、Operations 审批回归全绿。
+- [ ] 正式生产 MFA 开启态专项与三端一致性通过。
 
 ## 6. Phase 2：多市场行情
 

@@ -32,6 +32,7 @@
 | `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md` | `TARGET_TRUTH` | 当前基础与 V3 差距 |
 | `adr/0021-full-platform-v3-gated-upgrade.md` | `TARGET_TRUTH` | 目标范围与当前基线并存的决策 |
 | `adr/0022-client-email-and-five-device-security.md` | `CURRENT_BASELINE/PROVISIONAL` | Client 邮箱与设备安全合同；两项产品参数待确认 |
+| `adr/0023-deferred-mfa-enforcement-rollout.md` | `CURRENT_BASELINE/TARGET_TRUTH` | MFA 能力保留、当前关闭与生产启用门禁 |
 
 任务执行真源位于仓库根 `tasks/plan.md` 与 `tasks/todo.md`。
 
@@ -85,6 +86,7 @@
 | 0020 | live book 与 named gate 基础继续有效 |
 | 0021 | V3 目标范围和分阶段 Gate 的当前决策 |
 | 0022 | Client 邮箱与五设备安全当前合同；第六设备和城市定位仍为 provisional |
+| 0023 | MFA 当前默认不强制、能力保留并在正式生产 Gate 后统一开启 |
 
 ADR 原文不因目标升级批量改写；新决定使用新 ADR supersede。
 

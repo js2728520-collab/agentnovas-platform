@@ -19,6 +19,7 @@ Client 为受邀用户提供登录/设置密码、商业披露确认、试用与
 - Client 同时最多 5 个设备身份；同设备重登轮换 Session，第 6 台当前拒绝且不静默挤出。
 - 新设备和 IP 网段变化产生站内/Email 提醒；账户安全页显示脱敏网络位置，支持单设备和
   全部设备撤销。城市级定位与第 6 台最终交互见 ADR-0022。
+- TOTP/recovery 能力与既有绑定数据保留；当前登录不强制 MFA，正式生产按 ADR-0023 三端统一开启。
 - 创建新会员订单前必须阅读产品身份、地区、隐私、条款、风险、Paper 收费和退款/不退款规则七份正文，再保存 document ID/version/hash/time、可信代理提供的请求 IP 与 user-agent 摘要。
 - `0028_commercial_legal_content.sql` 与 `0030_commercial_disclosure_trial.sql` 提供版本化 locale/正文、maker-checker 发布和用户确认；七份正文任一缺失、长度异常或 SHA-256 不匹配时，计划、试用与订单服务同时失败关闭。
 - 披露未发布或未确认时拒绝创建会员订单，并返回真实缺失原因；不得借此阻断身份、Paper 工作台、行情、通知、钱包只读或账户安全。正文由平台 Maintenance 工作台维护。

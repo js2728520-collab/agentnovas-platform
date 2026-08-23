@@ -1,12 +1,12 @@
 # Operations 付费 Beta 应用规格
 
-> 文档状态：`CURRENT_BASELINE`。当前组织页面与一次性邀请将按 [`V3_OPERATIONS_APP_TARGET_SPEC.md`](V3_OPERATIONS_APP_TARGET_SPEC.md) 迁移为“不展示组织架构 + 权限链接自助注册”；迁移完成前不得把目标写成当前事实。
+> 文档状态：`CURRENT_BASELINE`。组织树与关系编辑已退休，内部账号已迁移为权限链接自助注册；完整 V3 目标见 [`V3_OPERATIONS_APP_TARGET_SPEC.md`](V3_OPERATIONS_APP_TARGET_SPEC.md)。
 
 ## 1. 职责与导航
 
 Operations 处理邀请/客户、组织、会员付款、credits 调整、paper 周分成、业务审批、充值历史、只读账本、财务与 RBAC。模型密钥、Worker 和技术开关属于 Maintenance；Operations 不执行真实支付或交易。
 
-核心路由：`/customers`、`/organization`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
+核心路由：`/customers`、`/accounts`、`/invitations`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
 
 优盾成功回调只进入 `MANUAL_REVIEW`。maker 提交 `APPROVE_CREDIT` 原因，checker 不得自审；批准时订单状态、平衡账本、钱包版本、审计和通知在同一事务提交并返回 `fundsExecuted=true`。其他人工操作批准仍只表示相应决定，不得统一写成资金已执行。
 
@@ -18,8 +18,9 @@ Operations 处理邀请/客户、组织、会员付款、credits 调整、paper 
 
 - 客户列表/详情服务端 pagination、URL 筛选和 PII 脱敏。
 - 备注、冻结/恢复、归属和组织关系分别授权、版本化、写原因与审计。
-- 内部/客户邀请只产生一次性 set-password link；响应、通知和组织树不显示临时密码。
-- 冻结/撤权/密码重置撤销 session；关系修改检查环、跨组织和 assignment scope。
+- 客户邀请继续使用独立邀请码；内部五级角色使用可重复、可撤销、可重生成的权限注册链接，员工自行注册并立即获得链接冻结的 assignment/scope，无人工审批或临时密码。
+- Operations 不展示组织树或关系编辑；后端组织/汇报事实仅用于 scope。
+- 冻结/撤权/密码重置撤销 session；账号操作检查角色层级、组织和 assignment scope。
 
 ## 4. 会员订单
 

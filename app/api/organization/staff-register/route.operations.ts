@@ -7,6 +7,7 @@ import {
   recordInternalRegistrationLinkFailure,
   registerWithInternalRegistrationLink,
 } from "@/lib/internal-registration-link-service";
+import { mfaEnforcementEnabled } from "@/lib/mfa";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError } from "@/lib/research-api";
 import { authConnectionBucketKey } from "@/lib/riverton-apps";
@@ -81,13 +82,16 @@ export async function POST(request: Request) {
       ipAddress: connection.ipAddress,
       userAgent: request.headers.get("user-agent"),
     });
+    const mfaEnforced = mfaEnforcementEnabled();
     return Response.json({
       ok: true,
       status: registered.status,
       role: registered.role,
       organizationId: registered.organizationId,
-      mfaEnrollmentRequired: registered.mfaEnrollmentRequired,
-      message: "注册成功，账号权限已立即生效。首次登录必须完成 MFA 设置。",
+      mfaEnrollmentRequired: mfaEnforced && registered.mfaEnrollmentRequired,
+      message: mfaEnforced
+        ? "注册成功，账号权限已立即生效。首次登录必须完成 MFA 设置。"
+        : "注册成功，账号权限已立即生效。双重验证能力已保留，当前暂不强制。",
     }, { status: 201, headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (tokenHash) {

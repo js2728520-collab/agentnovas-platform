@@ -53,7 +53,7 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 | 功能域 | 状态 | 说明 |
 | --- | --- | --- |
 | Client、Operations、Maintenance 三端 | `CURRENT` | 单工程、单 PostgreSQL，按 audience 独立登录、Cookie、路由、菜单、权限和构建 |
-| 邀请、登录、内部 MFA、会话管理 | `CURRENT` | Client 强制邮箱验证与 5 设备；内部端强制 TOTP；bearer token 仅存摘要 |
+| 邀请、登录、内部 MFA、会话管理 | `CURRENT` | Client 强制邮箱验证与 5 设备；TOTP/recovery 能力保留但当前不强制，生产 Gate 后开启；bearer token 仅存摘要 |
 | 商业披露、Trial、会员订单 | `CURRENT` | 平台维护七类版本化正文，确认后才启动试用和商业能力 |
 | AI Credits | `CURRENT` | 与钱包、Paper 和 Demo 资金隔离，余额不可为负 |
 | 三张官方 Paper 组合 | `CURRENT` | 每卡独立 10,000 USDT，仅现货、仅做多、无杠杆 |
@@ -128,7 +128,7 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 - 首次登录必须完成 TOTP 注册和六位动态码确认；
 - 系统只在注册时展示 8 枚 recovery codes，后续不可回显；
 - 内部会话最长 12 小时，闲置超过 1 小时失效；
-- 关键操作要求最近 15 分钟内完成 MFA；
+- 关键操作在 MFA 生产强制开关开启时要求最近 15 分钟内完成 MFA；当前关闭阶段仍执行权限、原因、幂等和审计；
 - 内部账号冻结、密码重置或撤权后，相关会话会被撤销；
 - 浏览器不能通过 HTTP bootstrap 创建或重置管理员，首次内部管理员只能通过一次性 CLI 流程建立。
 

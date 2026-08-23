@@ -14,7 +14,7 @@
 ## 2. Gate 1：身份、Audience 与 API Policy
 
 - 三 audience 登录/Cookie/退出/安全 next 隔离；错误 Host/page/API 404。
-- Operations/Maintenance 无注册/找回入口，强制 TOTP/recovery；critical 操作 recent MFA ≤15 分钟。
+- Operations/Maintenance 无公开注册/找回入口；TOTP/recovery 能力完整保留。当前准备阶段 enforcement 关闭；正式生产必须三端统一开启并验证 critical 操作 recent MFA ≤15 分钟。
 - Argon2id 新 hash、旧 PBKDF2 lazy rehash、dummy verify、共享限流、密码/冻结/撤权 session revoke 通过攻击测试。
 - HTTP bootstrap 生产 404；CLI 只在无内部管理员时一次成功。
 - 全 route/method API Policy inventory 零遗漏；未登记默认拒绝。
@@ -69,7 +69,7 @@
 
 使用一次性 PostgreSQL schema 和四个隔离 storageState：Client、Ops maker、Ops checker、Maint admin。
 
-- Playwright 完整覆盖邀请、MFA、商业披露、trial、会员复核、credits、三 paper、七阶段、Demo 证据、通知、周分成、到期与权限失败路径。
+- Playwright 完整覆盖邀请、MFA 当前关闭态、商业披露、trial、会员复核、credits、三 paper、七阶段、Demo 证据、通知、周分成、到期与权限失败路径；正式生产另跑 MFA 开启态专项。
 - 320/768/1024/1440 无非预期横向溢出；axe critical/serious=0；Tab/Shift+Tab/Escape/focus return 通过。
 - console error/warning=0；失败上传 trace/video/screenshot/network 摘要。
 - 三端 production build/Host smoke；Client 不含内部 chunk，内部端不含交易大厅/会员资源。

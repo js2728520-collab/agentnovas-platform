@@ -8,7 +8,7 @@ import { clientDeviceIdentity, clientNetworkKey, describeClientDevice, maskNetwo
 import { clientLoginIdentity } from "@/lib/client-identity-gateway";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
-import { mfaLoginRequirement } from "@/lib/mfa";
+import { mfaEnforcementEnabled, mfaLoginRequirement } from "@/lib/mfa";
 import { getClientAuthPostgresPool, getPostgresPool } from "@/lib/postgres";
 import { readResearchJson } from "@/lib/research-api";
 import { authConnectionBucketKey, sessionCookieHeaders, sessionDeadlinesForAudience } from "@/lib/riverton-apps";
@@ -90,6 +90,7 @@ export async function POST(request: Request) {
           SELECT 1 FROM user_mfa_totp_credentials
           WHERE user_id = $1 AND status = 'active'
         `, [user.id])).rowCount);
+    const mfaEnforced = mfaEnforcementEnabled();
     const requirement = mfaLoginRequirement(sessionCookie.audience, Boolean(enrollment));
     const mfaRequired = requirement.required;
     const mfaEnrollmentRequired = requirement.enrollmentRequired;
@@ -192,7 +193,7 @@ export async function POST(request: Request) {
     const headers = new Headers({ "content-type": "application/json" });
     for (const cookie of sessionCookie.headers) headers.append("set-cookie", cookie);
     if (deviceCookieHeader) headers.append("set-cookie", deviceCookieHeader);
-    return new Response(JSON.stringify({ ok: true, mfaRequired, mfaEnrollmentRequired, activeDevices, appAudience: sessionCookie.audience, user: { id: user.id, email: user.email, phone: user.phone, username: user.username, role: user.role } }), { headers });
+    return new Response(JSON.stringify({ ok: true, mfaEnforcementEnabled: mfaEnforced, mfaRequired, mfaEnrollmentRequired, activeDevices, appAudience: sessionCookie.audience, user: { id: user.id, email: user.email, phone: user.phone, username: user.username, role: user.role } }), { headers });
   } catch (error) {
     return responseError(error);
   }

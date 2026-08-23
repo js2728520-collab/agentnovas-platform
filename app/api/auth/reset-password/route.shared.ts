@@ -2,6 +2,7 @@ import { currentRequestAudience } from "@/lib/access-control";
 import { hashPassword, randomToken, sha256 } from "@/lib/auth";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { consumePasswordReset } from "@/lib/password-reset";
+import { mfaEnforcementEnabled } from "@/lib/mfa";
 import { getPostgresPool } from "@/lib/postgres";
 import {
   authConnectionBucketKey,
@@ -35,13 +36,15 @@ export async function POST(request: Request) {
 
     const now = new Date();
     const internal = audience !== "client";
-    const sessionToken = internal ? randomToken() : null;
+    const mfaEnforced = mfaEnforcementEnabled();
+    const sessionToken = internal && mfaEnforced ? randomToken() : null;
     const deadlines = sessionDeadlinesForAudience(audience, now);
     if (internal) deadlines.idleExpiresAt = new Date(now.getTime() + 10 * 60_000).toISOString();
     const result = await consumePasswordReset(pool, {
       tokenHash,
       passwordHash: await hashPassword(password),
       audience,
+      mfaEnforced,
       now,
       primarySession: sessionToken ? {
         id: crypto.randomUUID(),

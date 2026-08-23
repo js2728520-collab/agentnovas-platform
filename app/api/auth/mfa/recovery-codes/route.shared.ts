@@ -1,4 +1,4 @@
-import { getMfaRecoveryStatus, rotateMfaRecoveryCodes } from "@/lib/mfa";
+import { getMfaRecoveryStatus, mfaEnforcementEnabled, rotateMfaRecoveryCodes } from "@/lib/mfa";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { requireCurrentSession, requireRecentMfaSession } from "@/lib/session";
@@ -6,10 +6,11 @@ import { requireCurrentSession, requireRecentMfaSession } from "@/lib/session";
 export async function GET(request: Request) {
   try {
     const current = await requireCurrentSession(request);
-    return Response.json(await getMfaRecoveryStatus(await getPostgresPool(), {
+    const status = await getMfaRecoveryStatus(await getPostgresPool(), {
       userId: current.user.id,
       sessionTokenHash: current.session.appAudience === "client" ? current.session.tokenHash : undefined,
-    }), {
+    });
+    return Response.json({ ...status, enforcementEnabled: mfaEnforcementEnabled() }, {
       headers: { "cache-control": "no-store" },
     });
   } catch (error) {

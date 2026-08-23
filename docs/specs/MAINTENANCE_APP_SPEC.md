@@ -12,7 +12,7 @@ Maintenance 管理模型 Profile/Agent 绑定、Email、优盾充值通道配置
 
 - Profile 读取/修改分权；版本、启用、最近测试、绑定依赖和回滚可追溯。
 - 研发角色、七智能体产品角色、运行时解释角色分目录；确定性内核不伪装成 LLM。
-- 保存后密钥不回显；读取者看不到修改/测试控件；测试要求原因/recent MFA/audit。
+- 保存后密钥不回显；读取者看不到修改/测试控件；测试要求原因/audit，正式生产 MFA 开关开启后同时要求 recent MFA。
 - 付费 AI 只允许可靠 usage 和已配置费率的 profile。
 
 数据/新闻目录只提供代码固定的公共只读检查目标；浏览器不能传 endpoint。页面分离 configured/enabled/healthy/stale、最近检测时间、安全错误码和延迟，不返回完整 endpoint 或 Key。
@@ -28,7 +28,7 @@ Maintenance 管理模型 Profile/Agent 绑定、Email、优盾充值通道配置
 - provider 为 OKX Demo、Binance Spot Testnet、Bybit Demo；环境/域名固定 allowlist。
 - 展示 configured、enabled、permissionCheck、lastVerifiedAt、latestReceipt、dailyNotional、kill switch；不显示 secret。
 - 权限检查拒绝提现、划转、杠杆、衍生品或生产域名。OKX header 不可由请求覆盖。
-- 修改账户、测试和 kill switch 要 reason、recent MFA 和审计。
+- 修改账户、测试和 kill switch 要 reason 和审计；正式生产 MFA 开关开启后同时要求 recent MFA。
 - `local-demo`/fixture 只能显示 fixture/not_sent，不能显示 connected 或真实测试成功。
 
 ## 5. Worker 与健康

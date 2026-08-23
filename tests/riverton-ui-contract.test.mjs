@@ -167,7 +167,7 @@ test("login routes do not start authenticated session trees or prefetch protecte
   }
 });
 
-test("internal login completes required TOTP enrollment and verification", async () => {
+test("internal login retains TOTP enrollment and verification behind the rollout switch", async () => {
   const login = await read("packages/ui/src/app-login.tsx");
   assert.match(login, /mfaEnrollmentRequired/);
   assert.match(login, /\/api\/auth\/mfa\/enroll\/start/);

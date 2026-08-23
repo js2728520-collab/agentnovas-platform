@@ -7,6 +7,7 @@ import { ErrorState, LoadingState, StatusBadge } from "@/packages/ui/src/page-st
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
 type MfaStatus = {
+  enforcementEnabled: boolean;
   enrolled: boolean;
   enabledAt: string | null;
   remainingRecoveryCodes: number;
@@ -116,10 +117,11 @@ export function ClientMfaPanel() {
   }
 
   return <section className="rc-panel">
-    <header><div><small>TWO-FACTOR AUTHENTICATION</small><h2>双重验证（可选）</h2></div>{status.data ? <StatusBadge value={status.data.enrolled ? "已启用" : "未启用"} /> : null}</header>
+    <header><div><small>TWO-FACTOR AUTHENTICATION</small><h2>双重验证{status.data?.enforcementEnabled ? "（已强制）" : "（当前暂不强制）"}</h2></div>{status.data ? <StatusBadge value={status.data.enrolled ? "已绑定" : "未绑定"} /> : null}</header>
     {message ? <div ref={resultRef} className={message.kind === "error" ? "rc-error" : "rc-live"} role={message.kind === "error" ? "alert" : "status"} aria-live={message.kind === "error" ? "assertive" : "polite"} tabIndex={-1}>{message.text}</div> : <div className="rc-live" aria-live="polite" />}
     {status.loading && !status.data ? <LoadingState label="正在读取双重验证状态…" /> : status.error && !status.data ? <ErrorState message={status.error} retry={status.refresh} /> : <>
-      {!status.data?.enrolled && !setupKey ? <div className="rc-form"><p>启用后，每次登录都必须输入身份验证器动态验证码或一枚未使用的恢复码。</p><div className="rc-action-row"><button className="rc-primary" type="button" disabled={busy} onClick={() => void startEnrollment()}>{busy ? "正在准备…" : "启用双重验证"}</button></div></div> : null}
+      {!status.data?.enforcementEnabled ? <p className="rc-muted">双重验证能力与绑定数据均已保留，当前阶段不会在登录时强制校验；正式投入生产并开启安全开关后生效。</p> : null}
+      {!status.data?.enrolled && !setupKey ? <div className="rc-form"><p>{status.data?.enforcementEnabled ? "启用后，每次登录都必须输入身份验证器动态验证码或一枚未使用的恢复码。" : "现在可以预先绑定身份验证器；当前登录不会强制校验，正式启用开关后将使用这份绑定。"}</p><div className="rc-action-row"><button className="rc-primary" type="button" disabled={busy} onClick={() => void startEnrollment()}>{busy ? "正在准备…" : "绑定身份验证器"}</button></div></div> : null}
       {setupKey ? <div className="rc-form rc-form-grid">
         <label className="rc-wide-field">身份验证器设置密钥<input className="rc-mfa-setup-key" value={setupKey} readOnly aria-describedby="client-mfa-setup-help" /></label>
         <small id="client-mfa-setup-help" className="rc-wide-field">该密钥仅在绑定过程中显示，不会写入浏览器存储。请勿截图或发送给他人。</small>

@@ -62,7 +62,8 @@ test("login cookies are secure, HttpOnly, Strict and audience-bound", async () =
       expect(response.status(), `${audience}:${identity.userId}`).toBe(200);
       const payload = await response.json();
       expect(payload.appAudience).toBe(audience);
-      expect(payload.mfaRequired).toBe(audience !== "client");
+      expect(payload.mfaEnforcementEnabled).toBe(false);
+      expect(payload.mfaRequired).toBe(false);
       const cookies = response.headersArray()
         .filter((header) => header.name.toLowerCase() === "set-cookie")
         .map((header) => header.value);
