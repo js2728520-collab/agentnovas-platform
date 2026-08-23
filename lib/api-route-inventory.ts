@@ -2526,6 +2526,28 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/maintenance/readiness",
+    "source": "app/api/maintenance/readiness/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.system_health.view"
+    ],
+    "permissionMfa": {
+      "maint.system_health.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/maintenance/releases",
     "source": "app/api/maintenance/releases/route.maintenance.ts",
     "audiences": [

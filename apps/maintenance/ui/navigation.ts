@@ -9,6 +9,7 @@ import type { ConsoleNavigationGroup } from "@/packages/contracts/src/riverton-u
 export const navigation: ConsoleNavigationGroup[] = [
   { label: "概览", items: [
     { href: "/", label: "系统概览", icon: "dashboard", requiredPermissions: ["maint.system_health.view"] },
+    { href: "/readiness", label: "开服就绪清单", icon: "check-square", requiredPermissions: ["maint.system_health.view"] },
     { href: "/health", label: "系统健康", icon: "activity", requiredPermissions: ["maint.system_health.view"] },
   ] },
   { label: "模型与集成", items: [

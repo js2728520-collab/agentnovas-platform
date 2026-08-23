@@ -1,0 +1,55 @@
+.workspace { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.summaryReady, .summaryBlocked {
+  padding: 0.875rem 1.125rem;
+  border-radius: var(--rv-radius-md);
+  border: 1px solid var(--rv-border);
+}
+
+.summaryReady { background: var(--rv-success-soft); color: var(--rv-success); }
+.summaryBlocked { background: var(--rv-warning-soft); color: var(--rv-warning); }
+
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+
+.item {
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--rv-border);
+  border-left-width: 3px;
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-card);
+}
+
+/* 左侧色条区分状态：扫一眼就知道哪几行要处理，不用逐条读。 */
+.ready { border-left-color: var(--rv-success); }
+.partial { border-left-color: var(--rv-warning); }
+.missing { border-left-color: var(--rv-danger); }
+
+.itemHead { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
+.itemHead b { color: var(--rv-foreground); }
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  background: var(--rv-muted);
+  color: var(--rv-foreground);
+}
+
+.ready .mark { background: var(--rv-success-soft); color: var(--rv-success); }
+.partial .mark { background: var(--rv-warning-soft); color: var(--rv-warning); }
+.missing .mark { background: var(--rv-danger-soft); color: var(--rv-danger); }
+
+.blocking {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--rv-danger-soft);
+  color: var(--rv-danger);
+}
+
+.detail { margin: 0.5rem 0 0; color: var(--rv-foreground); font-size: 0.875rem; }
+.action { margin: 0.375rem 0 0; color: var(--rv-muted-foreground); font-size: 0.8125rem; line-height: 1.6; }

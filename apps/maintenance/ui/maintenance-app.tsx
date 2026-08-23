@@ -15,6 +15,7 @@ const PaymentIntegrationWorkspace = dynamic(() => import("./payment-integration-
 const PlatformSettingsWorkspace = dynamic(() => import("./platform-settings-workspace").then((module) => module.PlatformSettingsWorkspace));
 const CommercialDisclosuresWorkspace = dynamic(() => import("./commercial-disclosures-workspace").then((module) => module.CommercialDisclosuresWorkspace));
 const SystemHealthWorkspace = dynamic(() => import("./system-health-workspace").then((module) => module.SystemHealthWorkspace));
+const ReadinessWorkspace = dynamic(() => import("./readiness-workspace").then((module) => module.ReadinessWorkspace));
 const TechnicalAuditWorkspace = dynamic(() => import("./technical-audit-workspace").then((module) => module.TechnicalAuditWorkspace));
 const ReleaseManagementWorkspace = dynamic(() => import("./release-management-workspace").then((module) => module.ReleaseManagementWorkspace));
 const SourceIntegrationsWorkspace = dynamic(() => import("./source-integrations-workspace").then((module) => module.SourceIntegrationsWorkspace));
@@ -29,7 +30,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
   const route = segments[0] || "overview";
   if (session.status !== "authenticated") return null;
   const subtype = segments[1];
-  const required = route === "overview" || route === "health" ? ["maint.system_health.view"]
+  const required = route === "overview" || route === "health" || route === "readiness" ? ["maint.system_health.view"]
     : route === "models" ? ["maint.system_health.view", "maint.llm_profiles.manage", "maint.agent_bindings.manage"]
     : route === "integrations" && subtype === "email" ? ["maint.system_health.view", "maint.email_integrations.manage"]
     : route === "integrations" && subtype === "payments" ? ["maint.system_health.view", "maint.payment_integrations.manage"]
@@ -47,6 +48,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
   const permissions = session.access.permissions;
   const content = route === "overview" ? <SystemHealthWorkspace overview />
     : route === "account" ? <InternalAccountSecurity />
+    : route === "readiness" ? <ReadinessWorkspace />
     : route === "health" ? <SystemHealthWorkspace />
     : route === "models" ? <ModelsWorkspace canManageProfiles={Boolean(permissions["maint.llm_profiles.manage"])} canManageBindings={Boolean(permissions["maint.agent_bindings.manage"])} />
     : route === "integrations" && subtype === "email" ? <EmailIntegrationWorkspace canManage={Boolean(permissions["maint.email_integrations.manage"])} />
