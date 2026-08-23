@@ -2608,3 +2608,22 @@ localStorage，存储不可用时不阻断页面。自动推断与人工切换�
 TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、repository secret scan（3076 个候选
 文件）、production dependency audit 0 和 `git diff --check` 均通过。两处用户本地修改未纳入
 提交；T3.11b 与六主题继续分别等待语言范围确认和 P-10，未推送、未部署。
+
+浏览器旅程提交为 `d6b6c5f`。云端使用该提交、tree
+`259f69cb7cd592881151dc03d478b32ac0d3b287` 的 3076 文件精确 Git 归档，源码 archive
+SHA-256 为 `b738db75c7f75b2daeeb11b56af0d91d3ffc820d9e5211c2717bfd4b7407bd96`。`ssh an-saas`
+固定 Node 22.21.1 完成 Client 68、Operations 62、Maintenance 51 页 production build，云端
+production-only audit 为 0；官方 nginx 1.29.8 `-t` 通过并保留 8 条既有 http2 兼容警告。
+
+三端 standalone 归档 SHA-256 为
+`a9968e2ce63e544467baf7ea2d8f06349c3f0c0d73cdda2b134b8c0eaa773329`，第二次完整下载前后摘要
+一致；第一次下载因命令输出窗口中断而摘要不匹配，未解压、未用于测试。完整产物在本地隔离
+PostgreSQL、MFA 关闭、全部外部写入禁用下运行真实 Chromium 18/18：新增语言旅程覆盖空存储
+英语 fallback、中文浏览器推断、人工西班牙语跨刷新优先和损坏值回退；其余旅程继续证明三端
+空浏览器登录、Host/Cookie audience、权限链接、五设备、三端 UI 与 Maintenance 无确认弹窗。
+
+质量 schema `quality_e2e_1787516846142_46538_8bd59011` 已删除，运行时秘密移除且无清理失败；
+测试前本机三份 build cache 已恢复。远端 `/tmp/agentnovas-locale-build-wNeSUO`、本地上传/下载与
+缓存备份目录均已删除，仅移除可重建源码、依赖和产物。两处用户文件哈希仍为
+`845633aa0d007944dfc3aeb7fc3eef2c53d487f1` 与 `fdb1530dda87b024e5088471eaa99122d394acfb`；
+未启动远端服务、未迁移生产数据库、未推送、未部署。

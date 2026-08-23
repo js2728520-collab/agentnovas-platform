@@ -54,3 +54,15 @@ T3.11a 不声称已完成已登录 Client、Operations、Maintenance、认证页
 三端 key-custody、repository secret scan（3076 个候选文件）、production dependency audit 0 和
 差异检查通过。实现提交 `81b86bc`。T3.11b 的数据库偏好、三端/认证/错误页/邮件与完整翻译范围
 仍等待需求确认，不能由本切片推导为完成。
+
+云端以浏览器测试提交 `d6b6c5f`、tree `259f69cb7cd592881151dc03d478b32ac0d3b287` 的 3076
+文件精确 Git 归档构建，源码 archive SHA-256 为
+`b738db75c7f75b2daeeb11b56af0d91d3ffc820d9e5211c2717bfd4b7407bd96`。Node 22.21.1 完成
+Client 68、Operations 62、Maintenance 51 页 production build，production-only audit 为 0，
+官方 nginx 1.29.8 语法通过并保留 8 条已知兼容警告。standalone 归档 SHA-256
+`a9968e2ce63e544467baf7ea2d8f06349c3f0c0d73cdda2b134b8c0eaa773329` 下载前后相同。
+
+本地以云端产物、隔离 PostgreSQL、MFA 关闭和外部写入全部禁用运行真实 Chromium 18/18。
+新增旅程覆盖空存储英语 fallback、中文浏览器推断、人工西班牙语跨刷新优先和损坏存储回退；同一
+套件继续覆盖三端空浏览器登录、Host/Cookie、权限链接、五设备、三端 UI 与无确认弹窗。
+schema 与运行时秘密已清理，本机构建缓存恢复，本地/云端临时目录已删除；未部署。

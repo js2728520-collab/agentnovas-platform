@@ -403,6 +403,11 @@ nginx 语法检查。无网络、数据库、route、UI 或真实 provider 变�
 全仓 ESLint、8 条架构边界、三端 key-custody、secret scan、production audit 0 和差异检查通过；
 实现提交 `81b86bc`。本证据不覆盖 T3.11b 或六主题。
 
+云端 `d6b6c5f` 精确快照由 Node 22.21.1 完成 Client 68、Operations 62、Maintenance 51 页
+production build、production audit 0 和真实 nginx 检查。云端 standalone 下载摘要一致后，本地
+隔离 PostgreSQL + 真实 Chromium 18/18 通过，覆盖语言优先级/持久化/非法值及三端登录无回归；
+测试 schema、运行时秘密和临时构建产物均已清理。
+
 ### Checkpoint P3
 
 - [ ] 配置/价格历史与审批 Gate 通过。
