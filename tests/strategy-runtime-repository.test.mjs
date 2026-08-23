@@ -167,8 +167,11 @@ test.before(async () => {
   await adminPool.query(`CREATE SCHEMA "${schema}"`);
   await initializePre0024Schema(pool);
   const migration0024 = await readFile(new URL("../postgres/migrations/0024_platform_demo_execution.sql", import.meta.url), "utf8");
+  // 0060 给组合加 book 维度：同一张卡上模拟盘与实盘各一本账，本金规则按 book 分叉。
+  const migration0060 = await readFile(new URL("../postgres/migrations/0060_live_portfolio_book.sql", import.meta.url), "utf8");
   await pool.query(migration0024);
   await pool.query(migration0024);
+  await pool.query(migration0060);
   // 共享决策轮（ADR-0018）。跟 0024 一样跑两遍，验证迁移可重复执行。
   const migration0046 = await readFile(new URL("../postgres/migrations/0046_shared_decision_rounds.sql", import.meta.url), "utf8");
   await pool.query(migration0046);
@@ -686,6 +689,7 @@ test("performance fee scope is derived server-side from the complete official th
   assert.deepEqual(scope, {
     customerId,
     membershipId,
+    book: "paper",
     scopeKey: `official-three:${membershipId}`,
     strategies: [
       { strategyCode: "ai_conservative", portfolioId: `official-paper:${membershipId}:ai_conservative` },
@@ -698,6 +702,23 @@ test("performance fee scope is derived server-side from the complete official th
       `official-paper:${membershipId}:ai_aggressive`,
     ],
   });
+
+  // 客户上实盘后，这个会员名下会多出一本实盘账。计费范围此前查的是「名下全部组合」
+  // 并断言恰好三个——多出一本就会让这个客户的绩效计费整个停掉，
+  // 而报错信息是「官方三卡组合不完整」，完全指不到真正的原因。
+  await pool.query(`
+    INSERT INTO official_paper_portfolios
+      (id, membership_id, customer_id, strategy_code, book, principal_usdt, cash_usdt, risk_json, exchange_account_id)
+    VALUES ($1, $2, $3, 'ai_balanced', 'live', 3000, 3000, '{}'::jsonb, 'acct-live-1')
+  `, [`official-live:${membershipId}:ai_balanced`, membershipId, customerId]);
+
+  const stillPaper = await resolveOfficialThreeCardPortfolioScope(pool, { membershipId, customerId });
+  assert.deepEqual(stillPaper.portfolioIds, scope.portfolioIds, "实盘账不得进入模拟盘的计费范围");
+
+  // 实盘不要求三张卡齐全：客户按自己的节奏逐张上实盘。
+  const liveScope = await resolveOfficialThreeCardPortfolioScope(pool, { membershipId, customerId, book: "live" });
+  assert.deepEqual(liveScope.portfolioIds, [`official-live:${membershipId}:ai_balanced`]);
+  assert.equal(liveScope.scopeKey, `official-live:${membershipId}`, "两本账的计费范围键必须不同");
 
   const incompleteMembershipId = "membership-performance-scope-incomplete";
   await pool.query(`

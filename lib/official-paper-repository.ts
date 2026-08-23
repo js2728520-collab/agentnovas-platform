@@ -90,7 +90,10 @@ export async function ensureOfficialPaperPortfolios(database: Queryable, input: 
           id, membership_id, customer_id, strategy_code,
           principal_usdt, cash_usdt, risk_json
         ) VALUES ($1, $2, $3, $4, 10000, 10000, $5::jsonb)
-        ON CONFLICT (membership_id, strategy_code) DO NOTHING
+        -- 0060 把唯一约束换成了 (membership_id, strategy_code, book)：同一张卡上
+        -- 模拟盘与实盘各一本账。冲突目标必须跟着换，否则这条语句会直接报
+        -- 「没有匹配的唯一约束」——建组合失败 = 客户开通会员后进不去交易大厅。
+        ON CONFLICT (membership_id, strategy_code, book) DO NOTHING
         RETURNING *
       ), initial_ledger AS (
         INSERT INTO official_paper_ledger_entries (
@@ -133,38 +136,58 @@ export async function ensureOfficialPaperPortfolios(database: Queryable, input: 
  * Resolves the only paper portfolios eligible for official three-card accounting.
  * Callers provide trusted customer/membership context, never request-selected strategy IDs.
  */
+/**
+ * 计费范围必须按账本区分。
+ *
+ * 这个函数原来查「这个会员名下的全部组合」，然后断言恰好三个、且 id 都是
+ * `official-paper:<membership>:<card>`。加进实盘组合之后，行数会变成四个，
+ * 断言失败，这个客户的绩效计费会**整个停掉**——而错误信息是「官方三卡组合不完整」。
+ *
+ * 顺带一件更重要的事：模拟盘的盈亏不该和实盘盈亏混进同一张账单。前者客户从未拿到手，
+ * 对它收绩效分成没有任何立场。按 book 分开是这条边界的落点。
+ */
 export async function resolveOfficialThreeCardPortfolioScope(database: Queryable, input: {
   membershipId: string;
   customerId: string;
+  /** 默认 paper：保持现有计费行为不变。实盘计费必须显式传 'live'。 */
+  book?: "paper" | "live";
 }) {
   const membershipId = input.membershipId.trim();
   const customerId = input.customerId.trim();
+  const book = input.book ?? "paper";
   if (!membershipId || !customerId) throw new Error("会员或客户标识缺失");
 
   const result = await database.query<{ id: string; strategy_code: StrategyCode }>(`
     SELECT id, strategy_code
     FROM official_paper_portfolios
-    WHERE membership_id = $1 AND customer_id = $2
-  `, [membershipId, customerId]);
+    WHERE membership_id = $1 AND customer_id = $2 AND book = $3
+  `, [membershipId, customerId, book]);
   const byStrategyCode = new Map(result.rows.map((row) => [row.strategy_code, row.id]));
   const strategies = officialTradingHallStrategies.map((definition) => ({
     strategyCode: definition.code,
     portfolioId: byStrategyCode.get(definition.code),
   }));
-  const complete = result.rows.length === officialTradingHallStrategies.length
-    && strategies.every(({ strategyCode, portfolioId }) => (
-      portfolioId === `official-paper:${membershipId}:${strategyCode}`
-    ));
-  if (!complete) throw new Error("官方三卡组合不完整，不能进入绩效计费");
+  // 模拟盘的三张卡是开通会员时一次性建齐的，缺一张就是数据出了问题，
+  // 此时按不完整的视图计费会漏掉某张卡的亏损——只算盈利的那部分等于多收。
+  if (book === "paper") {
+    const complete = result.rows.length === officialTradingHallStrategies.length
+      && strategies.every(({ strategyCode, portfolioId }) => (
+        portfolioId === `official-paper:${membershipId}:${strategyCode}`
+      ));
+    if (!complete) throw new Error("官方三卡组合不完整，不能进入绩效计费");
+  }
 
-  const recognized = strategies.map(({ strategyCode, portfolioId }) => ({
-    strategyCode,
-    portfolioId: portfolioId!,
-  }));
+  // 实盘不要求三张卡齐全：客户按自己的节奏逐张上实盘，只有一张也要能正常计费。
+  const recognized = strategies
+    .filter(({ portfolioId }) => portfolioId !== undefined)
+    .map(({ strategyCode, portfolioId }) => ({ strategyCode, portfolioId: portfolioId! }));
+  if (recognized.length === 0) throw new Error("该账本下没有可计费的组合");
+
   return {
     customerId,
     membershipId,
-    scopeKey: `official-three:${membershipId}`,
+    book,
+    scopeKey: book === "paper" ? `official-three:${membershipId}` : `official-live:${membershipId}`,
     strategies: recognized,
     portfolioIds: recognized.map((item) => item.portfolioId),
   };
@@ -183,6 +206,7 @@ export async function aggregateOfficialThreeCardPreviousUtcWeek(database: Querya
   membershipId: string;
   customerId: string;
   asOf?: Date;
+  book?: "paper" | "live";
 }) {
   const scope = await resolveOfficialThreeCardPortfolioScope(database, input);
   const { periodStart, periodEnd } = previousCompleteUtcWeek(input.asOf ?? new Date());

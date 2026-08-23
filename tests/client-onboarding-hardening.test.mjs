@@ -36,6 +36,10 @@ test.before(async () => {
   for (const name of migrationNames) {
     await pool.query(await readFile(new URL(`../postgres/migrations/${name}`, import.meta.url), "utf8"));
   }
+  // 0060 给组合加 book 维度（模拟盘/实盘各一本账）。开通会员时建组合的语句按
+  // (membership_id, strategy_code, book) 判重，缺了这一列会直接报列不存在。
+  await pool.query(await readFile(
+    new URL("../postgres/migrations/0060_live_portfolio_book.sql", import.meta.url), "utf8"));
   const registrationMigration = await readFile(
     new URL("../postgres/migrations/0034_client_registration_rate_limit.sql", import.meta.url),
     "utf8",

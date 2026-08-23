@@ -192,6 +192,14 @@ test.before(async () => {
       "utf8",
     ),
   );
+  // 0060 给组合加 book 维度（模拟盘/实盘各一本账）。绩效计费范围按 book 取数，
+  // 缺了这一列，计费范围解析会直接报「column book does not exist」。
+  await pool.query(
+    await readFile(
+      new URL("../postgres/migrations/0060_live_portfolio_book.sql", import.meta.url),
+      "utf8",
+    ),
+  );
   cleanFingerprintNMinusOneVerified = (await pool.query(`
     SELECT c.is_nullable='NO'
       AND EXISTS (

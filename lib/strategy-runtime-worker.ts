@@ -26,6 +26,7 @@ import {
 } from "./official-paper-repository.ts";
 import { normalizeOfficialSpotStrategySpecification } from "../packages/domain/src/platform-strategy-v3.ts";
 import { enqueuePlatformDemoIntentsForRound } from "./platform-demo-execution.ts";
+import { postLiveFillsToBook } from "./live-book-posting.ts";
 import { executeOrderIntent, ExecutionServiceError } from "./execution/client.ts";
 import { toExecutionOrderIntent } from "../packages/domain/src/execution/intent-translation.ts";
 import {
@@ -227,14 +228,32 @@ async function processOfficialSpotRuntimeDeployment(
       traceId: `paper-settle:${lease.id}:${selected.openTime}:open`,
     });
   }
+  // 实盘：先把上几轮已确定的成交落账，再读仓位。
+  //
+  // 顺序不能反。账本落后一轮，引擎读到的就是「还没建仓」，于是这一轮会再开一次——
+  // 无限加仓正是 LIVE_POSITION_TRACKING_MISSING 描述的后果。
+  //
+  // 对账未决的成交不会被记（见 live-book-posting.ts），此时引擎读到的仓位是
+  // 未决之前的状态。这是有意的：三层闸门里的对账未决准入会挡住新开仓，
+  // 而平仓无条件放行——客户在事实未明时仍然离得了场（INV-7）。
+  if (lease.mode === "live") {
+    await postLiveFillsToBook(database, { deploymentId: lease.id });
+  }
   const runtimeAccess = await resolveOfficialPaperRuntimeAccess(database, {
     portfolioId: lease.paperPortfolioId,
     asOf: now,
   });
-  const position = lease.mode === "paper"
+  // 模拟盘与实盘读同一张仓位表——0060 之后两本账只差一个 book 维度。
+  // 此前这里对 live 恒返回 null，引擎因此永远看不到自己的实盘持仓。
+  //
+  // shadow 保持原样不读不写：它不下单也不记账，让它去动模拟盘那本账没有意义。
+  const booked = lease.mode === "paper" || lease.mode === "live";
+  const position = booked
     ? await loadOfficialPaperOpenPosition(database, lease.paperPortfolioId, specification.symbol)
     : null;
-  if (lease.mode === "paper") {
+  // 标记价格同样两本账都要更新：净值、回撤、日亏都建立在它上面，
+  // 不更新的话实盘账的风控读数只会在成交那一刻动一下，之后行情怎么走都看不见。
+  if (booked) {
     await markOfficialPaperPosition(database, {
       portfolioId: lease.paperPortfolioId,
       symbol: specification.symbol,
@@ -401,6 +420,20 @@ async function processOfficialSpotRuntimeDeployment(
       liveExecutionError = error instanceof ExecutionServiceError
         ? `${error.code}:${error.message}`.slice(0, 160)
         : error instanceof Error ? error.message.slice(0, 160) : "live execution failed";
+    }
+
+    // 刚下发的这笔如果当场就有确定结果，本轮就落账，不等到下一轮。
+    //
+    // 等一轮的代价是实打实的：客户在交易大厅上要过一个周期才看得到自己的持仓，
+    // 而这期间风控读数里没有这笔仓位。市价单绝大多数情况下响应即终态，
+    // 没有理由把它推迟。未决的仍然会停住（见 live-book-posting.ts）。
+    try {
+      await postLiveFillsToBook(database, { deploymentId: lease.id });
+    } catch (error) {
+      // 落账失败同样不让周期失败，但必须显式记下来：账本落后一轮时引擎会读到
+      // 「还没建仓」，下一轮会再开一次。这条错误是运维发现它的唯一线索。
+      const detail = error instanceof Error ? error.message.slice(0, 120) : "unknown";
+      liveExecutionError = `${liveExecutionError ? `${liveExecutionError};` : ""}LIVE_BOOK_POSTING_FAILED:${detail}`.slice(0, 160);
     }
   }
 

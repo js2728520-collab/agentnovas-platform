@@ -143,7 +143,16 @@ export function applyOfficialPaperFill(
     fillPrice: number;
     quoteAmountUsdt?: number;
     quantity?: number;
-    feeRate: number;
+    /** 按费率计算手续费。模拟盘用它——模拟成交没有真实费用可言。 */
+    feeRate?: number;
+    /**
+     * 直接给出手续费金额。实盘用它。
+     *
+     * 不走「反推费率再乘回去」：那条路要先除后乘，在 8 位小数上会漂，
+     * 而漂掉的那部分正是客户实际付出的成本。费用记少 = 净利记多 = 分成多收。
+     * 交易所回报的是金额，就按金额记。
+     */
+    feeUsdt?: number;
     filledAt: string;
   },
 ): OfficialPaperPortfolioState {
@@ -153,8 +162,18 @@ export function applyOfficialPaperFill(
   if (!Number.isFinite(Date.parse(input.filledAt))) throw new Error("模拟成交时间无效");
   const symbol = input.symbol as SpotSymbol;
   const fillPrice = positive(input.fillPrice, "模拟成交价格");
-  const feeRate = Number(input.feeRate);
-  if (!Number.isFinite(feeRate) || feeRate < 0 || feeRate > 0.01) throw new Error("模拟手续费率无效");
+  // 费率与金额二选一，不接受同时给或都不给——两者不一致时无法判断该信哪个。
+  const hasRate = input.feeRate !== undefined;
+  const hasAmount = input.feeUsdt !== undefined;
+  if (hasRate === hasAmount) throw new Error("手续费必须且只能指定费率或金额其中之一");
+  const feeRate = hasRate ? Number(input.feeRate) : 0;
+  if (hasRate && (!Number.isFinite(feeRate) || feeRate < 0 || feeRate > 0.01)) {
+    throw new Error("模拟手续费率无效");
+  }
+  const explicitFeeUsdt = hasAmount ? Number(input.feeUsdt) : 0;
+  if (hasAmount && (!Number.isFinite(explicitFeeUsdt) || explicitFeeUsdt < 0)) {
+    throw new Error("手续费金额无效");
+  }
 
   if (input.action === "buy") {
     if (state.access !== "active") throw new Error("会员到期后只允许平仓，不能新增现货持仓");
@@ -175,7 +194,7 @@ export function applyOfficialPaperFill(
     if (state.fills.filter((fill) => fill.action === "buy" && fill.filledAt.startsWith(day)).length >= definition.risk.maxNewEntriesPerDay) {
       throw new Error("模拟买入超过官方合同的每日新开仓次数上限");
     }
-    const feeUsdt = money(quoteAmountUsdt * feeRate);
+    const feeUsdt = hasAmount ? money(explicitFeeUsdt) : money(quoteAmountUsdt * feeRate);
     if (quoteAmountUsdt + feeUsdt > state.cashUsdt + 1e-8) throw new Error("模拟盘可用现金不足");
     const quantity = money(quoteAmountUsdt / fillPrice);
     const nextQuantity = money((existing?.quantity ?? 0) + quantity);
@@ -215,7 +234,7 @@ export function applyOfficialPaperFill(
   const quantity = positive(Number(input.quantity ?? existing.quantity), "模拟卖出数量");
   if (quantity > existing.quantity + 1e-12) throw new Error("模拟卖出数量超过持仓");
   const notionalUsdt = money(quantity * fillPrice);
-  const feeUsdt = money(notionalUsdt * feeRate);
+  const feeUsdt = hasAmount ? money(explicitFeeUsdt) : money(notionalUsdt * feeRate);
   const releasedCost = money(existing.costBasisUsdt * quantity / existing.quantity);
   const allocatedEntryFeeUsdt = money(existing.entryFeesUsdt * quantity / existing.quantity);
   const realizedGrossPnlUsdt = money(notionalUsdt - releasedCost);
