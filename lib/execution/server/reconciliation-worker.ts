@@ -80,6 +80,8 @@ async function observe(row: ReconciliationRow, deps: ReconciliationWorkerDepende
       state: order.state,
       filledQuantity: order.filledQuantity,
       averagePrice: order.averagePrice,
+      // 适配器一直返回手续费，此前在这里被丢掉。对账推翻回执时它是唯一的费用来源。
+      feeAmount: order.feeAmount,
       externalOrderId: order.externalOrderId,
     };
   } catch (error) {

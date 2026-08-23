@@ -49,6 +49,8 @@ before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
   await admin.query(`CREATE SCHEMA "${schema}"`);
   await pool.query(await readFile(new URL("../postgres/migrations/0050_execution_reconciliations.sql", import.meta.url), "utf8"));
+  // 0061 给结案事实补了手续费。对账推翻回执时它是费用的唯一来源。
+  await pool.query(await readFile(new URL("../postgres/migrations/0061_reconciled_fee_amount.sql", import.meta.url), "utf8"));
 });
 
 after(async () => {
@@ -191,4 +193,46 @@ test("租约让并发的两个 Worker 不会取到同一条", async () => {
     processNextReconciliation(pool, { ...slow, workerId: "w2" }),
   ]);
   assert.equal([a, b].filter((r) => r.processed).length, 1, "只能有一个 Worker 拿到这条");
+});
+
+test("结案时手续费落库——对账推翻回执时它是费用的唯一来源", async () => {
+  // 回执停在 rejected（费用 0），而这单其实成交了并且收了费。
+  // 缺了这个字段只能按 0 记账：费用记少 → 净利记多 → 高水位线绩效分成多收（INV-5）。
+  // 前面的用例会留下未结案的记录，租约按到期时间取，可能取到它们而不是这一条。
+  await pool.query("DELETE FROM execution_reconciliations");
+  await pool.query(`
+    INSERT INTO execution_reconciliations
+      (id, client_order_id, account_id, customer_id, exchange, symbol, requested_quantity,
+       first_seen_at, next_attempt_at)
+    VALUES ('r-fee','RV-FEE','acct-1','cust-1','binance','BTCUSDT',1,$1,$1)
+  `, [now().toISOString()]);
+  // 到期时间用测试时钟，不用数据库的 now()：这个用例的 Worker 走的是冻结时钟，
+  // 两个时钟一混，租约会取不到刚插进去的这条（本仓库踩过不止一次）。
+  const result = await processNextReconciliation(pool, deps({
+    async getOrderByClientOrderId() {
+      return { externalOrderId: "ex-fee", state: "filled", filledQuantity: 1, averagePrice: 60000, feeAmount: 42.5 };
+    },
+  }));
+  assert.equal(result.action, "resolve");
+  const row = (await pool.query(
+    "SELECT status, fee_amount FROM execution_reconciliations WHERE client_order_id='RV-FEE'")).rows[0];
+  assert.equal(row.status, "resolved");
+  assert.equal(Number(row.fee_amount), 42.5, "适配器一直返回它，此前在 Worker 里被丢掉");
+});
+
+test("结案记录必须带手续费，数据库拒绝留空", async () => {
+  // 留空与「费用确实是 0」无法区分，而两者在分成上差一笔钱。
+  await pool.query(`
+    INSERT INTO execution_reconciliations
+      (id, client_order_id, account_id, customer_id, exchange, symbol, requested_quantity)
+    VALUES ('r-nofee','RV-NOFEE','acct-1','cust-1','binance','BTCUSDT',1)
+  `);
+  await assert.rejects(
+    () => pool.query(`
+      UPDATE execution_reconciliations
+      SET status='resolved', resolved_outcome='filled', filled_quantity=1, average_price=60000,
+          resolved_at=now()
+      WHERE id='r-nofee'`),
+    /resolved_has_fee/,
+  );
 });

@@ -30,7 +30,20 @@ export type ReconciliationRecord = {
 
 export type ReconciliationObservation =
   /** 交易所返回了这笔订单。 */
-  | { kind: "order_found"; state: NormalizedOrderState; filledQuantity: number; averagePrice: number }
+  | {
+      kind: "order_found";
+      state: NormalizedOrderState;
+      filledQuantity: number;
+      averagePrice: number;
+      /**
+       * 交易所回报的手续费。
+       *
+       * 必须一路带到结案里：对账推翻回执时（回执说 rejected、实际 filled），
+       * 手续费只有这一个来源。缺了它只能按 0 记账，而费用记少 = 净利记多 =
+       * 高水位线绩效分成多收——错误方向偏向平台自己（INV-5）。
+       */
+      feeAmount: number;
+    }
   /** 交易所明确回答「没有这个 clientOrderId」。 */
   | { kind: "order_absent" }
   /** 查询本身失败：网络、限流、交易所故障。**这不等于订单不存在。** */
@@ -42,6 +55,7 @@ export type ReconciliationDecision =
       outcome: ExecutionOutcome;
       filledQuantity: number;
       averagePrice: number;
+      feeAmount: number;
       rejectionReason: string | null;
     }
   | { action: "retry"; attemptCount: number; nextAttemptAtMs: number }
@@ -82,6 +96,17 @@ function isTerminal(state: NormalizedOrderState): boolean {
   return state === "filled" || state === "canceled" || state === "rejected";
 }
 
+/**
+ * 手续费必须是一个有限的非负数。
+ *
+ * 不做「坏值当 0」的降级：那会把一笔真实费用抹掉，而抹掉费用的方向是多收分成。
+ * 数据不合格就抛，让调用方决定（域层硬规则 6）。
+ */
+function assertNonNegativeFee(value: number): number {
+  if (!Number.isFinite(value) || value < 0) throw new Error("RECONCILED_FEE_INVALID");
+  return value;
+}
+
 export function decideReconciliation(
   record: ReconciliationRecord,
   observation: ReconciliationObservation,
@@ -104,6 +129,8 @@ export function decideReconciliation(
         outcome: classification.outcome,
         filledQuantity: classification.filledQuantity,
         averagePrice: classification.averagePrice,
+        // 手续费不参与归类，但必须原样带出去：它是记账的输入。
+        feeAmount: assertNonNegativeFee(observation.feeAmount),
         rejectionReason: classification.rejectionReason,
       };
     }
@@ -128,6 +155,7 @@ export function decideReconciliation(
         outcome: "rejected",
         filledQuantity: 0,
         averagePrice: 0,
+        feeAmount: 0,
         rejectionReason: "ORDER_NEVER_PLACED",
       };
     }

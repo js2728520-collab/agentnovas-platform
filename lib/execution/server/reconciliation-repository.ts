@@ -127,10 +127,11 @@ export async function applyReconciliationDecision(
        SET status = 'resolved', resolved_outcome = $2, filled_quantity = $3,
            average_price = $4, rejection_reason = $5, resolved_at = $6,
            external_order_id = COALESCE($7, external_order_id),
+           fee_amount = $8,
            leased_by = NULL, leased_until = NULL
        WHERE id = $1`,
       [row.id, decision.outcome, decision.filledQuantity, decision.averagePrice,
-       decision.rejectionReason, now.toISOString(), externalOrderId],
+       decision.rejectionReason, now.toISOString(), externalOrderId, decision.feeAmount],
     );
     return;
   }

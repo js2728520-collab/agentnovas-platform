@@ -24,7 +24,7 @@ function record(overrides = {}) {
 
 test("终态订单直接结案，并如实带出成交量", () => {
   const decision = decideReconciliation(record(),
-    { kind: "order_found", state: "filled", filledQuantity: 1, averagePrice: 100 }, NOW);
+    { kind: "order_found", state: "filled", filledQuantity: 1, averagePrice: 100, feeAmount: 0.1 }, NOW);
   assert.equal(decision.action, "resolve");
   assert.equal(decision.outcome, "filled");
   assert.equal(decision.filledQuantity, 1);
@@ -32,7 +32,7 @@ test("终态订单直接结案，并如实带出成交量", () => {
 
 test("终态但只成交一部分，结案为 partial", () => {
   const decision = decideReconciliation(record(),
-    { kind: "order_found", state: "canceled", filledQuantity: 0.4, averagePrice: 100 }, NOW);
+    { kind: "order_found", state: "canceled", filledQuantity: 0.4, averagePrice: 100, feeAmount: 0.04 }, NOW);
   assert.equal(decision.action, "resolve");
   assert.equal(decision.outcome, "partial");
   assert.equal(decision.filledQuantity, 0.4);
@@ -41,7 +41,7 @@ test("终态但只成交一部分，结案为 partial", () => {
 test("还在挂着就不结案——剩余量仍可能成交", () => {
   for (const state of ["live", "partially_filled"]) {
     const decision = decideReconciliation(record(),
-      { kind: "order_found", state, filledQuantity: 0.3, averagePrice: 100 }, NOW);
+      { kind: "order_found", state, filledQuantity: 0.3, averagePrice: 100, feeAmount: 0.03 }, NOW);
     assert.equal(decision.action, "retry", `${state} 不应结案`);
   }
 });
@@ -49,7 +49,7 @@ test("还在挂着就不结案——剩余量仍可能成交", () => {
 test("一直挂着不走的单最终升级人工，而不是无限等待", () => {
   const decision = decideReconciliation(
     record({ attemptCount: DEFAULT_RECONCILIATION_POLICY.maxAttempts - 1 }),
-    { kind: "order_found", state: "live", filledQuantity: 0, averagePrice: 0 }, NOW);
+    { kind: "order_found", state: "live", filledQuantity: 0, averagePrice: 0, feeAmount: 0 }, NOW);
   assert.equal(decision.action, "escalate");
   assert.match(decision.reason, /ORDER_STILL_OPEN/);
 });
