@@ -20,8 +20,9 @@
 .pageHead p { margin: 0; max-width: 60ch; color: var(--rv-muted-foreground); font-size: 0.8125rem; line-height: 1.65; }
 
 .eyebrow {
-  color: var(--rv-primary);
+  color: var(--rv-brand-ink);
   font-size: 0.625rem;
+  font-weight: 800;
   letter-spacing: 0.14em;
 }
 
