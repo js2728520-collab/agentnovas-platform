@@ -240,6 +240,49 @@ async function exerciseEditableStrategyCandidate(page: import("@playwright/test"
   expect(deploymentRequests).toBe(0);
 }
 
+async function exerciseMarketWithoutWatchlist(page: import("@playwright/test").Page) {
+  const marketRequests: string[] = [];
+  page.on("request", request => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.startsWith("/api/market/")) marketRequests.push(pathname);
+  });
+  await page.route("**/api/market/instruments", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ instruments: [{
+      symbol: "AAPL",
+      label: "AAPL",
+      name: "Apple Inc.",
+      nameZh: "苹果",
+      category: "stocks",
+      providerSymbol: "AAPL",
+      aliases: ["apple", "苹果"],
+    }] }),
+  }));
+  await page.route("**/api/market/quote?*", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ price: 200, change: 2, changePercent: 1, high: 202, low: 197, volume: 1_000_000, open: 198, live: true, source: "quality fixture", updatedAt: new Date().toISOString() }),
+  }));
+  await page.route("**/api/market/candles?*", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ candles: [{ time: Date.now() - 60_000, open: 198, high: 201, low: 197, close: 200, volume: 1_000 }] }),
+  }));
+  await page.route("**/api/market/news?*", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ items: [], observedAt: new Date().toISOString(), contentFreshness: "unavailable", stale: true, live: false }),
+  }));
+
+  await exerciseResponsiveWidths(page, "/market", "行情中心");
+  await expect(page.getByLabel("搜索交易品种")).toBeVisible();
+  await expect(page.getByText("品种索引", { exact: true })).toBeVisible();
+  await expect(page.getByText(/关注产品|观察名单|Watchlist/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /收藏|关注|Watch/ })).toHaveCount(0);
+  expect(marketRequests.some(pathname => pathname === "/api/market/watchlist")).toBe(false);
+}
+
 test("public locale and client communication workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
   await exercisePublicLocalePreference(page);
   for (const [path, heading] of [
@@ -260,6 +303,11 @@ test("client wallet boundaries are responsive, accessible and audience-isolated"
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "client");
   }
+});
+
+test("client market keeps search and live evidence without the retired watchlist", async ({ page }) => {
+  await exerciseMarketWithoutWatchlist(page);
+  await expectAudienceNavigation(page, "client");
 });
 
 test("client commercial and paper workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
