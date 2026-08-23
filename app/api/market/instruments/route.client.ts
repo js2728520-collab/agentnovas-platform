@@ -1,3 +1,7 @@
-import { marketInstruments } from "@/lib/market-instruments";
+import { createMarketInstrumentsPayload } from "@/lib/market-catalog";
 
-export async function GET() { return Response.json({ instruments: marketInstruments, updatedAt: new Date().toISOString(), source: "Riverton Capital market catalog" }, { headers: { "cache-control": "no-store" } }); }
+export async function GET() {
+  return Response.json(createMarketInstrumentsPayload(new Date().toISOString()), {
+    headers: { "cache-control": "no-store" },
+  });
+}
