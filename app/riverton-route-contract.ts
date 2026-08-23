@@ -9,7 +9,11 @@ export function isRivertonAppRoute(audience: AppAudience, segments: string[]) {
   if (!root) return segments.length === 0;
 
   if (audience === "client" && CLIENT_ROUTES.has(root)) {
-    if (root === "legal") return segments.length === 2 && segments[1] === "consent";
+    // /legal 是**公开**的条款页（未登录可访问）；/legal/consent 是登录后的确认流程。
+    // 页脚要链接到前者——此前它只是三个点不动的词，访客看不到任何条款内容。
+    if (root === "legal") {
+      return segments.length === 1 || (segments.length === 2 && segments[1] === "consent");
+    }
     if (root === "account") return segments.length === 2 && segments[1] === "security";
     if (root === "wallet") return segments.length === 1 || (segments.length === 2 && segments[1] === "deposits");
     if (root === "membership") return segments.length === 1 || (segments.length === 2 && segments[1] === "orders");

@@ -427,7 +427,9 @@ export const landingMore: Record<Lang, Record<string, string>> = {
     ctaSub: "从三张官方现货策略开始体验 10,000 USDT 独立 paper 组合。",
     browse: "浏览AI策略",
     footer: "受邀 Beta · 客户 paper 与平台测试证据不代表真实或未来收益",
-    legal: "风险披露　隐私政策　服务条款",
+    legalRisk: "风险披露",
+    legalPrivacy: "隐私政策",
+    legalTerms: "服务条款",
   },
   "zh-TW": {
     roles:
@@ -453,7 +455,9 @@ export const landingMore: Record<Lang, Record<string, string>> = {
     ctaSub: "從三張官方現貨策略開始體驗獨立 paper 組合。",
     browse: "瀏覽AI策略",
     footer: "受邀 Beta · 客戶 paper 與平台測試證據不代表真實或未來收益",
-    legal: "風險披露　隱私政策　服務條款",
+    legalRisk: "風險披露",
+    legalPrivacy: "隱私政策",
+    legalTerms: "服務條款",
   },
   "en-US": {
     roles:
@@ -482,7 +486,9 @@ export const landingMore: Record<Lang, Record<string, string>> = {
     browse: "Browse AI strategies",
     footer:
       "Invite-only Beta · Customer paper and platform test evidence are not actual or future returns",
-    legal: "Risk Disclosure　Privacy　Terms",
+    legalRisk: "Risk Disclosure",
+    legalPrivacy: "Privacy",
+    legalTerms: "Terms",
   },
   "ru-RU": {
     roles:
@@ -509,7 +515,9 @@ export const landingMore: Record<Lang, Record<string, string>> = {
     ctaSub: "Изучите три официальные spot-стратегии в paper-портфелях.",
     browse: "Стратегии ИИ",
     footer: "Закрытая Beta · Paper и тестовые доказательства не являются фактической или будущей доходностью",
-    legal: "Риски　Конфиденциальность　Условия",
+    legalRisk: "Риски",
+    legalPrivacy: "Конфиденциальность",
+    legalTerms: "Условия",
   },
   "es-ES": {
     roles:
@@ -536,7 +544,9 @@ export const landingMore: Record<Lang, Record<string, string>> = {
     ctaSub: "Explora tres estrategias spot oficiales con portafolios paper aislados.",
     browse: "Ver estrategias IA",
     footer: "Beta por invitación · Paper y pruebas de plataforma no son rendimientos reales ni futuros",
-    legal: "Riesgos　Privacidad　Términos",
+    legalRisk: "Riesgos",
+    legalPrivacy: "Privacidad",
+    legalTerms: "Términos",
   },
   "ja-JP": {
     roles:
@@ -562,7 +572,9 @@ export const landingMore: Record<Lang, Record<string, string>> = {
     ctaSub: "3つの公式現物戦略を独立 paper で体験。",
     browse: "AI戦略を見る",
     footer: "招待制 Beta · Paper とプラットフォーム試験証跡は実績や将来収益ではありません",
-    legal: "リスク開示　プライバシー　利用規約",
+    legalRisk: "リスク開示",
+    legalPrivacy: "プライバシー",
+    legalTerms: "利用規約",
   },
   "ko-KR": {
     roles:
@@ -588,6 +600,8 @@ export const landingMore: Record<Lang, Record<string, string>> = {
     ctaSub: "세 가지 공식 현물 전략을 독립 paper 포트폴리오로 체험하세요.",
     browse: "AI 전략 보기",
     footer: "초대 전용 Beta · Paper와 플랫폼 테스트 증거는 실제 또는 미래 수익이 아닙니다",
-    legal: "위험 고지　개인정보　이용약관",
+    legalRisk: "위험 고지",
+    legalPrivacy: "개인정보",
+    legalTerms: "이용약관",
   },
 };

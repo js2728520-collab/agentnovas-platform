@@ -4271,6 +4271,24 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/platform/legal",
+    "source": "app/api/platform/legal/route.client.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/platform/network",
     "source": "app/api/platform/network/route.client.ts",
     "audiences": [

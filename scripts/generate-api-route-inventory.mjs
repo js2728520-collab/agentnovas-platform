@@ -33,6 +33,9 @@ const PUBLIC_CLIENT_METHODS = new Set([
   "GET /api/market/quote",
   "GET /api/market/ticker",
   "GET /api/platform/settings",
+  // 已发布的法律文档必须对**未登录访客**可读：落地页页脚要链接到它。
+  // 此前唯一能读到条款的接口需要登录，于是访客看不到任何条款内容。
+  "GET /api/platform/legal",
   "GET /api/strategy-marketplace",
   "POST /api/strategy-studio/chat",
 ]);

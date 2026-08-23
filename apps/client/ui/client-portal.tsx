@@ -11,6 +11,7 @@ import { ClientHomeWorkspace } from "./client-home-workspace";
 const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module) => module.CreditWorkspace));
 const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((module) => module.DepositWorkspace));
 const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience));
+const PublicLegalPage = dynamic(() => import("./public-legal-page").then((module) => module.PublicLegalPage));
 const MembershipExperience = dynamic(() => import("./membership-experience"));
 const AiAssistantChat = dynamic(() => import("./ai-assistant-chat"));
 const DecisionHall = dynamic(() => import("./decision-hall"));
@@ -30,6 +31,9 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
   // 统一处理。页面只做权限判定与工作区分发。
   const session = useAppSessionContext();
   const route = segments[0];
+  // 公开条款页必须排在登录判定**之前**。放在后面的话未登录访客仍然看不到条款，
+  // 而落地页页脚正是要链接到这里——那就等于把条款藏起来了。
+  if (route === "legal" && !segments[1]) return <PublicLegalPage />;
   if (session.status !== "authenticated") return null;
   if (route === "legal" && segments[1] === "consent") {
     return <>

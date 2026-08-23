@@ -78,7 +78,9 @@ const initialLocaleData: LocaleData = {
     ctaSub: "从三张官方现货策略开始体验 10,000 USDT 独立 paper 组合。",
     browse: "浏览AI策略",
     footer: "受邀 Beta · 客户 paper 与平台测试证据不代表真实或未来收益",
-    legal: "风险披露　隐私政策　服务条款",
+    legalRisk: "风险披露",
+    legalPrivacy: "隐私政策",
+    legalTerms: "服务条款",
   },
 };
 
@@ -417,7 +419,13 @@ function Landing({
             <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="160px" alt="Riverton Capital" />
           </b>
           <span>{m.footer}</span>
-          <div className={styles.footerLinks}>{m.legal}</div>
+          {/* 原本这里是纯文本「风险披露、隐私政策、服务条款」——点不动，也没有对应页面。
+              视觉上像入口而实际打不开，访客会认为平台把条款藏起来了。 */}
+          <div className={styles.footerLinks}>
+            <Link href="/legal#risk_disclosure" prefetch={false}>{m.legalRisk}</Link>
+            <Link href="/legal#privacy" prefetch={false}>{m.legalPrivacy}</Link>
+            <Link href="/legal#terms" prefetch={false}>{m.legalTerms}</Link>
+          </div>
         </div>
       </footer>
     </div>
