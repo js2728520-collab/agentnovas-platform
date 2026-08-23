@@ -35,7 +35,7 @@ export const users = sqliteTable("users", {
   invitedViaInvitationId: text("invited_via_invitation_id"),
   reportsToUserId: text("reports_to_user_id"),
   status: text("status", { enum: ["pending", "active", "frozen", "closed"] }).notNull().default("pending"),
-  locale: text("locale").notNull().default("zh-CN"),
+  locale: text("locale").notNull().default("en-US"),
   timezone: text("timezone").notNull().default("Asia/Shanghai"),
   ...timestamps,
 }, (t) => [uniqueIndex("idx_users_email_unique").on(t.email), uniqueIndex("idx_users_phone_unique").on(t.phone), uniqueIndex("idx_users_username_unique").on(t.username), index("idx_users_org_role").on(t.organizationId, t.role)]);
