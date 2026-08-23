@@ -2529,3 +2529,31 @@ key-custody、repository secret scan、production dependency audit 和 `git diff
 本切片没有 UI、认证或 route 变化，未把窄浏览器重跑当成新证据；最终阶段仍必须在最新完整产物
 重跑三端空浏览器登录。远端两个本轮一次性目录已删除，不可恢复但只含可重建源码/依赖/构建产物。
 两处用户本地改动未纳入提交；未启动远端服务、未迁移数据库、未推送、未部署。
+
+## 69. 2026-08-24 Maintenance 配置与控制流程去除确认弹窗
+
+Maintenance 配置和控制工作台已统一改为页面内说明、必填审计原因和直接提交，不再使用确认
+dialog。覆盖模型回滚、支付通道启停、商业披露提交与复核、平台 Demo 账户及策略卡控制、版本登记/
+复核/部署证据登记和官方 Paper 紧急暂停/恢复。按钮只有在原因满足长度约束且页面不处于 busy
+状态时才可执行；原有 RBAC、recent MFA、maker/checker、创建者不得自审、状态机、服务端校验、
+不可变审计和幂等语义均未放宽。复核还发现旧紧急控制 UI 未发送服务端已强制要求的
+`Idempotency-Key`，现已补为失败重试复用同一键、成功后才轮换。
+
+需求与规格提交为 `7b71b69`，实现提交为
+`773ef5b92387d308e7e356d6b61b3a5558e722e2`，tree 为
+`76546b29127dd74debe85301233d987fbc356098`。完整本地门禁通过：`npm test` 1364/1364、
+TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、repository secret scan（3070 个候选
+文件）、production dependency audit 0 vulnerability 和 `git diff --check`。
+
+云端使用上述精确提交的 3070 文件 Git 归档构建，源码归档 SHA-256 为
+`8e32fe289231dd8a89e28ad30ab48e49e030006fcf878aef90109bb51d37dade`；`ssh an-saas`
+固定 Node 22.21.1 容器完成 Client 68、Operations 62、Maintenance 51 页 production build，
+云端 production-only audit 为 0。三端 standalone 及静态资源归档 SHA-256 为
+`06b3da35117ce7e265a186f1596085fca1ea4bc4effab64d20b0d884b278bf9f`，下载前后摘要一致。
+
+本机以云端产物、隔离 PostgreSQL schema、MFA 默认关闭和全部外部写入关闭运行真实 Chromium，
+最终 18/18 通过：三端空浏览器登录、Host/Cookie audience 隔离、权限链接、五设备、三端 UI，
+以及 Maintenance 配置和紧急控制页面内直接提交且全程无 dialog。浏览器用例在变更紧急暂停状态后
+恢复初始状态；本轮 schema、运行时密钥和 3740–3742 端口均已清理。工作区既有
+`app/api/auth/me/route.shared.ts` 与 `tests/api-policy-security.test.mjs` 修改未纳入提交；远端只使用
+一次性构建目录且验证后已清理，未启动服务、未执行生产迁移、未接触生产数据库、未推送、未部署。
