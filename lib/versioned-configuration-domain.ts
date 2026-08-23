@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { normalizeConfigurationFamilyPayload } from "./configuration-family-registry.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 export const CONFIGURATION_KINDS = ["brand", "domain", "protocol", "feature_flag", "prompt", "skill", "pricing"] as const;
@@ -109,16 +110,25 @@ export function normalizeConfigurationDraft(input: unknown): NormalizedConfigura
   if (!Number.isSafeInteger(value.schemaVersion) || Number(value.schemaVersion) < 1 || Number(value.schemaVersion) > 1_000_000) {
     throw new ResearchApiError("CONFIGURATION_SCHEMA_VERSION_INVALID", "schemaVersion 必须是 1–1000000 的整数", 422);
   }
-  const payload = normalizedPayload(value.payload);
+  const kind = oneOf(value.kind, CONFIGURATION_KINDS, "配置类型");
+  const audience = oneOf(value.audience, CONFIGURATION_AUDIENCES, "配置 audience");
+  const schemaVersion = Number(value.schemaVersion);
+  const payload = normalizeConfigurationFamilyPayload({
+    kind,
+    key,
+    audience,
+    schemaVersion,
+    payload: normalizedPayload(value.payload),
+  });
   const payloadCanonical = canonicalJson(payload);
   if (Buffer.byteLength(payloadCanonical, "utf8") > MAX_PAYLOAD_BYTES) {
     throw new ResearchApiError("CONFIGURATION_PAYLOAD_TOO_LARGE", "配置 payload 不能超过 64 KiB", 422);
   }
   return {
-    kind: oneOf(value.kind, CONFIGURATION_KINDS, "配置类型"),
+    kind,
     key,
-    audience: oneOf(value.audience, CONFIGURATION_AUDIENCES, "配置 audience"),
-    schemaVersion: Number(value.schemaVersion),
+    audience,
+    schemaVersion,
     payload,
     payloadCanonical,
     payloadSha256: createHash("sha256").update(payloadCanonical, "utf8").digest("hex"),

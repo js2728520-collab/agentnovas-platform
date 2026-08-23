@@ -31,9 +31,9 @@ async function scheduledVersion({ key, scheduledFor, now = new Date(Date.now() -
     idempotencyKey: `worker-create-${suffix}`,
     requestId: `worker-create-${suffix}`,
     version: {
-      kind: "feature_flag",
+      kind: "prompt",
       key,
-      audience: "client",
+      audience: "shared",
       schemaVersion: 1,
       payload: { enabled: true, sequence: factSequence },
       reason: "创建自动激活 Worker PostgreSQL 验证版本",

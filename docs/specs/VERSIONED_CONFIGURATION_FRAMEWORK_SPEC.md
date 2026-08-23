@@ -166,3 +166,33 @@ warning、300 秒进入 critical。Container Compose 使用独立 `configuration
 本切片只把已测试、已审批且到期的通用版本推进到控制面 current。T3.1c 具体消费者尚未接入，
 因此不能声称品牌、域名、功能开关、Prompt、技能或价格已在运行时生效，也不能借 Worker 打开
 交易、支付、提现或部署能力。
+
+## 11. T3.1c-FF1 全局功能开关首个垂直切片
+
+第一条具体配置族固定为 `kind=feature_flag`、`key=client.strategy_research`、
+`audience=client`、`schemaVersion=1`，payload 只允许 `{ "enabled": boolean }`。这是
+“整个模块”级开关；指定用户/组织、应用版本、灰度百分比和独立启停窗口属于 T3.3 的后续
+schema 版本，不在 v1 中静默猜测组合语义。
+
+该配置遵循双重 Gate：环境变量 `STRATEGY_RESEARCH_ENABLED` 必须已经为 `true`，active
+配置才能参与判定。环境 Gate 为 `false` 时，配置永远不能把能力打开；没有 active 配置时
+保持当前环境 Gate 行为，避免接入瞬间改变生产状态；active 配置为 `false` 时立即失败关闭。
+回滚切换控制面 current 后，下一次请求读取回滚目标，不复制第二份可覆盖状态。
+
+草稿创建先经过注册表的严格 family/schema/key/audience 校验。Maintenance 使用服务端确定性
+测试器生成 `passed/failed` 和证据 SHA-256，不接受浏览器伪造 feature flag 的测试结果；通用
+人工测试证据路径暂为尚未接入的其他配置族保留。Client 数据库角色不能读取通用配置表，
+只能执行一个由 migrator 拥有、固定 `search_path`、撤销 PUBLIC 权限的参数化只读网关，且
+网关只返回 Client/shared 的当前 feature flag 安全投影。
+
+运行时消费者只返回启用/禁用判定、所用版本 ID 和受限原因码，不把原始 payload 暴露给
+浏览器或日志。配置缺失按既有环境 Gate；已激活配置不符合注册 schema、数据库网关异常或
+证据不一致时失败关闭。该切片不能控制真实订单、提现/划转、支付启停、MFA、权限、部署或
+任何外部写入 Gate。
+
+**验收：** 严格 schema 与未知字段拒绝；服务端测试证据确定且不可伪造；环境关闭不可被
+配置开启；active `false` 能关闭现有模块；回滚恢复前一已验证版本；Client role 无底表权限。
+
+**验证：** family 纯函数 RED/GREEN、完整迁移链 PostgreSQL/current/rollback/role 测试、
+Route policy 合同、TypeScript、ESLint、全量测试、云端 Client/Maintenance production build，
+以及本地真实 Chromium 的配置发布与三端空浏览器登录回归。

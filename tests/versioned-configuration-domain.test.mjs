@@ -11,17 +11,17 @@ import {
 
 test("configuration drafts are canonical, bounded and reject secret-bearing fields", () => {
   const left = normalizeConfigurationDraft({
-    kind: "feature_flag",
-    key: "client.strategy_market",
-    audience: "client",
+    kind: "prompt",
+    key: "research.market",
+    audience: "shared",
     schemaVersion: 1,
     payload: { rollout: 25, enabled: false, nested: { b: 2, a: 1 } },
     reason: "建立首个受控功能开关草稿",
   });
   const right = normalizeConfigurationDraft({
-    kind: "feature_flag",
-    key: "client.strategy_market",
-    audience: "client",
+    kind: "prompt",
+    key: "research.market",
+    audience: "shared",
     schemaVersion: 1,
     payload: { nested: { a: 1, b: 2 }, enabled: false, rollout: 25 },
     reason: "建立首个受控功能开关草稿",
