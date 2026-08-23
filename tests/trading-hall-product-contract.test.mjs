@@ -75,6 +75,7 @@ test("new deterministic runtime cycles include a final decision and keep audit o
     mode: "paper",
     position: null,
     riskState: { drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0, halted: false },
+    marketData: { evaluatedAt: rows.at(-1).closeTime + 1, latestClosedAt: rows.at(-1).closeTime, timeframe: "1h" },
   });
 
   assert.deepEqual(result.events.map((event) => event.role), [

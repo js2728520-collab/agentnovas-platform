@@ -5,6 +5,10 @@ import {
   type StrategyLegV3,
 } from "./strategy-dsl.ts";
 import { normalizeOfficialSpotStrategySpecification } from "./platform-strategy-v3.ts";
+import {
+  evaluateRuntimeCandleAdmission,
+  type RuntimeCandleAdmissionInput,
+} from "./runtime/market-admission.ts";
 
 export const runtimeAgentRoles = [
   "market_data",
@@ -73,16 +77,24 @@ export function evaluateStrategyRuntimeCycle(input: {
     unavailableFields?: readonly string[];
   };
   lastDecisionCandleCloseTime?: number | null;
+  marketData: RuntimeCandleAdmissionInput;
 }) {
   if (!input.deploymentId || !input.strategyVersionId) throw new Error("运行部署或策略版本标识缺失");
   const officialSpot = normalizeOfficialSpotStrategySpecification(input.dsl);
   const perpetualSpecification = officialSpot ? null : strategyDslToRuntime(input.dsl);
   const specification = officialSpot ?? perpetualSpecification!;
   if (input.candles.length < 2) throw new Error("运行周期至少需要两根完整 K 线");
+  if (!input.marketData) throw new Error("运行周期缺少服务端行情时间准入");
   const quality = dataQuality(input.candles);
   if (!quality.valid) throw new Error("运行周期 K 线顺序或质量无效");
   const index = input.candles.length - 1;
   const candle = input.candles[index];
+  const marketAdmission = evaluateRuntimeCandleAdmission(
+    input.marketData.timeframe === specification.timeframe
+      && input.marketData.latestClosedAt === candle.closeTime
+      ? input.marketData
+      : { ...input.marketData, latestClosedAt: Number.NaN },
+  );
   const marketState = classifyMarketState(input.candles);
   const longLeg = specification.legs.long;
   const shortLeg = "short" in specification.legs ? specification.legs.short : undefined;
@@ -159,6 +171,11 @@ export function evaluateStrategyRuntimeCycle(input: {
   if (longEntry && shortEntry) objections.push("conflicting_long_short_signal");
   const rejectionReasons: string[] = [];
   const isEntry = action === "enter_long" || action === "enter_short";
+  if (isEntry && !marketAdmission.entryAllowed) {
+    rejectionReasons.push(marketAdmission.quality === "stale"
+      ? "行情已陈旧，禁止新开仓"
+      : "行情时间无效，禁止新开仓");
+  }
   if (isEntry && input.riskState.halted) rejectionReasons.push("运行部署已触发熔断");
   // 失败安全（INV-7）：风控读数不可信时不开新仓。放在阈值判定之前——
   // 读数坏了就没有阈值可比，拿一个猜出来的 0 去比等于把风控关掉。
@@ -184,7 +201,21 @@ export function evaluateStrategyRuntimeCycle(input: {
     confirmedAtCandleCloseTime: candle.closeTime,
   } : null;
   const events = [
-    { role: "market_data", conclusion: "完整 K 线与数据质量已确认", evidence: { ...quality, ...marketState, firstOpenTime: input.candles[0].openTime, candleCloseTime: candle.closeTime } },
+    {
+      role: "market_data",
+      conclusion: marketAdmission.quality === "fresh"
+        ? "完整 K 线与数据质量已确认"
+        : marketAdmission.quality === "stale"
+          ? "完整 K 线已读取，但行情已陈旧并禁止新开仓"
+          : "行情时间无效并禁止新开仓",
+      evidence: {
+        ...quality,
+        ...marketState,
+        ...marketAdmission,
+        firstOpenTime: input.candles[0].openTime,
+        candleCloseTime: candle.closeTime,
+      },
+    },
     { role: "technical_analysis", conclusion: "DSL 指标与条件树已计算", evidence: { longEntry, shortEntry, dslExit, close: candle.close } },
     { role: "strategy_decision", conclusion: `候选策略方案：${action}`, evidence: { action, reason, strategyVersionId: input.strategyVersionId } },
     { role: "adversarial_review", conclusion: objections.length ? "发现运行异议" : "未发现阻断性运行异议", evidence: { objections } },
@@ -198,5 +229,5 @@ export function evaluateStrategyRuntimeCycle(input: {
     },
     { role: "execution", conclusion: orderIntent ? "已生成影子/模拟订单意图" : "本周期未生成执行意图", evidence: { orderIntent, executionMode: input.mode } },
   ].map((event, sequence) => ({ ...event, sequence: sequence + 1, durationMs: 0, llmUsed: false }));
-  return { specification, candle, decision, orderIntent, events };
+  return { specification, candle, marketAdmission, decision, orderIntent, events };
 }

@@ -35,15 +35,21 @@ function candles() {
   return rows;
 }
 
+function freshMarketData(rows) {
+  return { evaluatedAt: rows.at(-1).closeTime + 1, latestClosedAt: rows.at(-1).closeTime, timeframe: "1h" };
+}
+
 test("emits seven independent deterministic runtime agent events and a next-open intent", () => {
+  const rows = candles();
   const result = evaluateStrategyRuntimeCycle({
     deploymentId: "deployment-a",
     strategyVersionId: "version-a",
     dsl,
-    candles: candles(),
+    candles: rows,
     mode: "paper",
     position: null,
     riskState: { drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0, halted: false },
+    marketData: freshMarketData(rows),
   });
 
   assert.deepEqual(result.events.map(event => event.role), [
@@ -59,14 +65,16 @@ test("emits seven independent deterministic runtime agent events and a next-open
 });
 
 test("deterministic risk rejection cannot be overridden by explanatory agents", () => {
+  const rows = candles();
   const result = evaluateStrategyRuntimeCycle({
     deploymentId: "deployment-a",
     strategyVersionId: "version-a",
     dsl,
-    candles: candles(),
+    candles: rows,
     mode: "shadow",
     position: null,
     riskState: { drawdownPct: 13, dailyLossPct: 0, consecutiveLosses: 0, halted: false },
+    marketData: freshMarketData(rows),
   });
 
   assert.equal(result.decision.action, "enter_long");
@@ -86,6 +94,7 @@ test("uses stop-loss before take-profit when both thresholds occur in one candle
     mode: "paper",
     position: { side: "long", entryPrice: 100, quantity: 1 },
     riskState: { drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0, halted: false },
+    marketData: freshMarketData(rows),
   });
 
   assert.equal(result.decision.action, "exit");

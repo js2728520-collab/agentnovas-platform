@@ -105,14 +105,25 @@ function candles(last) {
   return rows;
 }
 
-const evaluate = (overrides) => evaluateStrategyRuntimeCycle({
-  deploymentId: "deployment-a",
-  strategyVersionId: "version-a",
-  dsl,
-  mode: "paper",
-  position: null,
-  ...overrides,
-});
+const evaluate = (overrides) => {
+  const input = {
+    deploymentId: "deployment-a",
+    strategyVersionId: "version-a",
+    dsl,
+    mode: "paper",
+    position: null,
+    ...overrides,
+  };
+  const rows = input.candles;
+  return evaluateStrategyRuntimeCycle({
+    ...input,
+    marketData: input.marketData ?? {
+      evaluatedAt: rows.at(-1).closeTime + 1,
+      latestClosedAt: rows.at(-1).closeTime,
+      timeframe: "1h",
+    },
+  });
+};
 
 test("读数完好时突破照常开仓", () => {
   const result = evaluate({

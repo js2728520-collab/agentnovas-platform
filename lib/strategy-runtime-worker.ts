@@ -69,6 +69,7 @@ import {
   isMarketSnapshotReusable,
   marketCacheKey,
 } from "../packages/domain/src/runtime/market-cache.ts";
+import { completedRuntimeCandlesAt } from "../packages/domain/src/runtime/market-admission.ts";
 import {
   callRuntimeExplanationAgent,
   resolveRuntimeExplanationPrompt,
@@ -183,11 +184,13 @@ async function processOfficialSpotRuntimeDeployment(
     adapter.getFeeSchedule(),
   ]);
   assertRuntimeSpotCandles(market.items);
+  const completedMarketItems = completedRuntimeCandlesAt(market.items, now.getTime());
+  assertRuntimeSpotCandles(completedMarketItems);
   if (!Number.isFinite(feeSchedule.takerRate) || feeSchedule.takerRate < 0 || feeSchedule.takerRate > 0.01) {
     throw new Error("官方现货手续费响应未通过严格校验");
   }
   const lastClose = lease.lastCandleCloseAt?.getTime() ?? null;
-  const cycle = selectCycleCandle(market.items, lastClose);
+  const cycle = selectCycleCandle(completedMarketItems, lastClose);
   if (!cycle) {
     await deferStrategyRuntimeLease(database, {
       deploymentId: lease.id, workerId, fencingToken: lease.fencingToken,
@@ -286,6 +289,11 @@ async function processOfficialSpotRuntimeDeployment(
       ? { side: "long" as const, entryPrice: position.entryPrice, quantity: position.quantity }
       : null,
     lastDecisionCandleCloseTime: lastClose,
+    marketData: {
+      evaluatedAt: now.getTime(),
+      latestClosedAt: selected.closeTime,
+      timeframe: specification.timeframe,
+    },
   };
 
   // 阶段 5 有两半（ADR-0018）。
@@ -533,10 +541,11 @@ export async function processLeasedStrategyRuntimeDeployment(
     adapter.getFeeSchedule({ symbol: specification.symbol }),
   ]);
   if (instrument.status !== "live") throw new Error("运行部署对应的永续合约当前不可用");
-  if (candles.items.length < 2) throw new Error("运行周期缺少足够的完整 K 线");
+  const completedMarketItems = completedRuntimeCandlesAt(candles.items, now.getTime());
+  if (completedMarketItems.length < 2) throw new Error("运行周期缺少足够的完整 K 线");
 
   const lastClose = lease.lastCandleCloseAt?.getTime() ?? null;
-  const cycle = selectCycleCandle(candles.items, lastClose);
+  const cycle = selectCycleCandle(completedMarketItems, lastClose);
   if (!cycle) {
     await deferStrategyRuntimeLease(database, {
       deploymentId: lease.id,
@@ -611,6 +620,11 @@ export async function processLeasedStrategyRuntimeDeployment(
     position: position ? { side: position.side, entryPrice: position.entryPrice, quantity: position.quantity } : null,
     riskState: resolveRuntimeRiskState(lease.riskState),
     lastDecisionCandleCloseTime: lastClose,
+    marketData: {
+      evaluatedAt: now.getTime(),
+      latestClosedAt: selected.closeTime,
+      timeframe: specification.timeframe,
+    },
   });
   const completion = await completeStrategyRuntimeCycle(database, {
     cycleId,

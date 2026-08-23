@@ -45,14 +45,16 @@ test("official strategy runtime specifications use the trading-hall spot contrac
 
 test("official spot specifications flow through runtime without short, leverage, or funding intents", () => {
   const specification = platformStrategyDslV3("ai_conservative", "BTCUSDT");
+  const rows = entryCandles();
   const result = evaluateStrategyRuntimeCycle({
     deploymentId: "official-deployment",
     strategyVersionId: "official-version",
     dsl: specification,
-    candles: entryCandles(),
+    candles: rows,
     mode: "paper",
     position: null,
     riskState: { drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0, halted: false },
+    marketData: { evaluatedAt: rows.at(-1).closeTime + 1, latestClosedAt: rows.at(-1).closeTime, timeframe: "1h" },
   });
 
   assert.equal(result.specification.product, "spot_usdt");

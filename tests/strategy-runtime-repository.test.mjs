@@ -86,7 +86,14 @@ function officialEntryCandles() {
         volume: (80 + random() * 50) * (index === 99 && seed % 5 === 0 ? 2.5 : 1),
       };
     });
-    if (evaluatePlatformStrategy(PLATFORM_AI_STRATEGIES.ai_conservative, "BTCUSDT", rows, false).action === "enter") return rows;
+    if (evaluatePlatformStrategy(PLATFORM_AI_STRATEGIES.ai_conservative, "BTCUSDT", rows, false).action === "enter") {
+      const shift = Date.now() - 1_000 - rows.at(-1).closeTime;
+      return rows.map((candle) => ({
+        ...candle,
+        openTime: candle.openTime + shift,
+        closeTime: candle.closeTime + shift,
+      }));
+    }
   }
   throw new Error("official entry fixture not found");
 }
@@ -445,8 +452,13 @@ test("official contract follows through account-free spot runtime into its isola
     paperPortfolioId: portfolio.id,
   });
   let rows = officialEntryCandles();
+  let marketRows = [...rows, {
+    ...rows.at(-1),
+    openTime: rows.at(-1).closeTime + 1,
+    closeTime: rows.at(-1).closeTime + 3_600_000,
+  }];
   const spotAdapter = {
-    async getCandles() { return { items: rows, provider: "fixture" }; },
+    async getCandles() { return { items: marketRows, provider: "fixture" }; },
     async getFeeSchedule() { return { makerRate: 0.001, takerRate: 0.001, source: "fixture" }; },
   };
   const dependencies = {
@@ -460,6 +472,9 @@ test("official contract follows through account-free spot runtime into its isola
   assert.equal(firstLease.executionProduct, "spot_usdt");
   const first = await processLeasedStrategyRuntimeDeployment(pool, firstLease, "official-runtime-a", { ...dependencies, now: () => firstNow });
   assert.equal(first.decision.action, "enter_long");
+  const firstCycle = await pool.query("SELECT candle_close_time FROM strategy_runtime_cycles WHERE id = $1", [first.cycleId]);
+  assert.equal(new Date(firstCycle.rows[0].candle_close_time).getTime(), rows.at(-1).closeTime,
+    "当前未收盘尾项不得成为决策轮");
   assert.equal((await pool.query("SELECT status FROM official_paper_order_intents")).rows[0].status, "pending");
   assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_paper_order_intents")).rows[0].count, 0);
 
@@ -473,7 +488,12 @@ test("official contract follows through account-free spot runtime into its isola
     close: last.close,
     volume: 100,
   }];
-  const secondNow = new Date(firstNow.getTime() + 16_000);
+  marketRows = [...rows, {
+    ...rows.at(-1),
+    openTime: rows.at(-1).closeTime + 1,
+    closeTime: rows.at(-1).closeTime + 3_600_000,
+  }];
+  const secondNow = new Date(rows.at(-1).closeTime + 1_000);
   const secondLease = await leaseNextStrategyDeployment(pool, { workerId: "official-runtime-b", now: secondNow, leaseSeconds: 30 });
   await processLeasedStrategyRuntimeDeployment(pool, secondLease, "official-runtime-b", { ...dependencies, now: () => secondNow });
   const storedPortfolio = (await pool.query(`
@@ -564,7 +584,7 @@ test("同一张卡的两个客户共享同一行决策轮，各自保留自己�
   };
 
   for (const [index, deployment] of [a, b].entries()) {
-    const now = new Date(Date.now() + 60_000 + index * 20_000);
+    const now = new Date(rows.at(-1).closeTime + 1_000 + index * 20_000);
     const lease = await leaseNextStrategyDeployment(pool, { workerId: `shared-${index}`, now, leaseSeconds: 30 });
     assert.equal(lease.id, deployment.id, "本测试假定两个部署按顺序被租走");
     await processLeasedStrategyRuntimeDeployment(pool, lease, `shared-${index}`, { ...dependencies, now: () => now });
