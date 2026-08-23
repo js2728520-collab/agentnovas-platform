@@ -8,6 +8,7 @@ import {
   advanceResearchRun,
   appendResearchEvent,
   createResearchRun,
+  listResearchCandidates,
   listOwnedResearchRuns,
   leaseNextResearchRun,
   pauseResearchRunForMissingRoles,
@@ -407,6 +408,7 @@ test("stores candidates idempotently and enforces tenant ownership when saving",
   assert.equal(await getOwnedCandidateForSave(pool, { runId: run.id, candidateId: firstId, ownerUserId: "other-user" }), null);
   const owned = await getOwnedCandidateForSave(pool, { runId: run.id, candidateId: firstId, ownerUserId: "user-a" });
   assert.equal(owned.id, firstId);
+  await pool.query("UPDATE strategy_candidates SET validation_label='STANDARD_VERIFIED' WHERE id=$1", [firstId]);
   assert.equal(await getSavedStrategyDraftForCandidate(pool, { candidateId: firstId }), null);
   const savedDsl = { ...dsl, name: "用户编辑后的候选", risk: { ...dsl.risk, positionSizePct: 4 } };
   await pool.query(
@@ -427,6 +429,11 @@ test("stores candidates idempotently and enforces tenant ownership when saving",
   });
   assert.equal(await markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-a", strategyVersionId: "version-a" }), "strategy-a");
   assert.equal(await markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-a", strategyVersionId: "version-a" }), "strategy-a");
+  const publicCandidates = await listResearchCandidates(pool, { runId: run.id, ownerUserId: "user-a" });
+  assert.equal(publicCandidates[0].dsl.name, "用户编辑后的候选");
+  assert.equal(publicCandidates[0].dsl.risk.positionSizePct, 4);
+  assert.equal(publicCandidates[0].validationLabel, "UNVERIFIED");
+  assert.equal(publicCandidates[0].edited, true);
   assert.deepEqual(await getSavedStrategyDraftForCandidate(pool, { candidateId: firstId }), {
     strategyId: "strategy-a",
     strategyVersionId: "version-a",

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import StrategyCandidateEditor from "./strategy-candidate-editor";
 import styles from "./strategy-studio.module.css";
 
 type Mode = "quick" | "standard" | "deep";
@@ -9,7 +10,7 @@ type Timeframe = "5m" | "15m" | "1h" | "4h" | "1d";
 type Direction = "long_only" | "short_only" | "both";
 type ResearchInstrument = { exchange: string; symbol: string; exchangeSymbol: string; status: "live"; quoteAsset: "USDT"; tickSize: number; lotSize: number; fundingIntervalHours: number };
 type EventRow = { id: string; sequence: number; role: string; type: string; title: string; content: Record<string, unknown>; createdAt: string };
-type Candidate = { id: string; strategyFamily: string; sourceRole: string; dsl: Record<string, unknown>; status: string; rank: number | null; score: number | null; rejectionReasons: string[]; validationLabel: string; savedStrategyId: string | null; savedStrategyVersionId: string | null };
+type Candidate = { id: string; strategyFamily: string; sourceRole: string; dsl: Record<string, unknown>; status: string; rank: number | null; score: number | null; rejectionReasons: string[]; validationLabel: string; savedStrategyId: string | null; savedStrategyVersionId: string | null; edited: boolean };
 type Evaluation = { candidateId: string; kind: string; metrics: { netReturnPct?: number; maxDrawdownPct?: number; profitFactor?: number; sampleSize?: number }; passed: boolean; finalHoldout: boolean };
 type MissingField = { key: string; question: string; options: Array<string | number | boolean>; defaultValue: string | number | boolean };
 type RunPayload = { run: { id: string; status: string; stage: string; progress: number; result?: { requirements?: { missingFields?: MissingField[] } }; finalConclusion?: string | null; lastErrorMessage?: string | null }; events: EventRow[]; candidates: Candidate[]; evaluations: Evaluation[] };
@@ -117,6 +118,7 @@ export default function StrategyStudio({ brief: seed }: { brief?: Record<string,
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [answerBusy, setAnswerBusy] = useState(false);
+  const [saveBusy, setSaveBusy] = useState("");
   const [deployBusy, setDeployBusy] = useState("");
   const [activeDeployment, setActiveDeployment] = useState<ActiveDeployment | null>(null);
   const [runtimeCycles, setRuntimeCycles] = useState<RuntimeCycle[]>([]);
@@ -318,19 +320,56 @@ export default function StrategyStudio({ brief: seed }: { brief?: Record<string,
     setMessage(response.ok ? "任务已取消；运行中的阶段结果不会再推进或保存。" : errorMessage(data, "取消失败"));
   }
 
-  async function save(candidate: Candidate) {
-    const response = await fetch(`/api/strategy-research/runs/${encodeURIComponent(runId)}/candidates/${encodeURIComponent(candidate.id)}/save`, { method: "POST" });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) { setMessage(errorMessage(data, "保存失败")); return; }
-    setPayload(current => current ? {
-      ...current,
-      candidates: current.candidates.map(item => item.id === candidate.id ? {
-        ...item,
-        savedStrategyId: String(data.strategyId),
-        savedStrategyVersionId: String(data.versionId),
-      } : item),
-    } : current);
-    setMessage(data.simulationOnly ? "已保存到我的策略；该候选仅可用于模拟盘。" : "已保存到我的策略；已保留标准验证标签。");
+  async function save(candidate: Candidate, specification: Record<string, unknown>) {
+    setSaveBusy(candidate.id);
+    try {
+      const response = await fetch(`/api/strategy-research/runs/${encodeURIComponent(runId)}/candidates/${encodeURIComponent(candidate.id)}/save`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ specification }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = errorMessage(data, "保存失败");
+        const issues = data?.error?.details?.issues;
+        const details = Array.isArray(issues)
+          ? issues.slice(0, 4).map((issue: { path?: unknown; message?: unknown }) => `${String(issue.path || "$")}：${String(issue.message || "参数无效")}`).join("；")
+          : "";
+        const failure = details ? `${message}：${details}` : message;
+        setMessage(failure);
+        return failure;
+      }
+      const labels = new Set(["UNVERIFIED", "EXPLORATION_ONLY", "STANDARD_FAILED", "STANDARD_VERIFIED"]);
+      if (
+        !data || !data.specification || typeof data.specification !== "object" || Array.isArray(data.specification)
+        || !labels.has(String(data.validationLabel)) || !data.strategyId || !data.versionId
+      ) {
+        const failure = "保存接口返回了无效的策略版本，页面没有采用该结果。";
+        setMessage(failure);
+        return failure;
+      }
+      setPayload(current => current ? {
+        ...current,
+        candidates: current.candidates.map(item => item.id === candidate.id ? {
+          ...item,
+          dsl: data.specification,
+          validationLabel: String(data.validationLabel),
+          savedStrategyId: String(data.strategyId),
+          savedStrategyVersionId: String(data.versionId),
+          edited: Boolean(data.edited),
+        } : item),
+      } : current);
+      setMessage(data.edited
+        ? "已保存编辑后的不可变草稿；原验证证据不再适用，标签已重置为 UNVERIFIED，必须重新回测。"
+        : data.simulationOnly ? "已保存到我的策略；该候选仅可用于模拟盘。" : "已保存到我的策略；已保留标准验证标签。");
+      return null;
+    } catch {
+      const failure = "保存请求未完成，请检查网络后重试；当前参数尚未标记为已保存。";
+      setMessage(failure);
+      return failure;
+    } finally {
+      setSaveBusy("");
+    }
   }
 
   async function deploy(candidate: Candidate, deploymentMode: "shadow" | "paper") {
@@ -470,20 +509,37 @@ export default function StrategyStudio({ brief: seed }: { brief?: Record<string,
       </section>}
       <div className={styles.timeline}>{payload.events.map(event => <article key={event.id}><i>{event.sequence}</i><div><small>{roleNames[event.role] || event.role}</small><b>{event.title}</b><p>{String(event.content.conclusion || event.content.summary || "阶段结果已结构化保存")}</p></div></article>)}</div>
       {payload.candidates.length > 0 && <div className={styles.candidates}>{payload.candidates.filter(candidate => candidate.rank != null).slice(0, 3).map(candidate => {
-        const evaluation = evaluationByCandidate.get(candidate.id);
+        const evaluation = candidate.edited ? undefined : evaluationByCandidate.get(candidate.id);
         return <article key={candidate.id} className={candidate.validationLabel === "STANDARD_VERIFIED" ? styles.verified : styles.failed}>
           <header><b>#{candidate.rank} {candidate.strategyFamily}</b><span>{candidate.validationLabel}</span></header>
-          <div><span>评分<b>{candidate.score?.toFixed(2) ?? "—"}</b></span><span>样本外收益<b>{evaluation?.metrics.netReturnPct == null ? "—" : `${evaluation.metrics.netReturnPct > 0 ? "+" : ""}${evaluation.metrics.netReturnPct.toFixed(2)}%`}</b></span><span>最大回撤<b>{evaluation?.metrics.maxDrawdownPct == null ? "—" : `${evaluation.metrics.maxDrawdownPct.toFixed(2)}%`}</b></span><span>交易数<b>{evaluation?.metrics.sampleSize ?? "—"}</b></span></div>
+          <div><span>评分<b>{candidate.edited ? "需重测" : candidate.score?.toFixed(2) ?? "—"}</b></span><span>样本外收益<b>{evaluation?.metrics.netReturnPct == null ? "—" : `${evaluation.metrics.netReturnPct > 0 ? "+" : ""}${evaluation.metrics.netReturnPct.toFixed(2)}%`}</b></span><span>最大回撤<b>{evaluation?.metrics.maxDrawdownPct == null ? "—" : `${evaluation.metrics.maxDrawdownPct.toFixed(2)}%`}</b></span><span>交易数<b>{evaluation?.metrics.sampleSize ?? "—"}</b></span></div>
+          {candidate.edited && <p className={styles.candidateEvidenceStale}>编辑后原评分与回测指标已失效；完成新回测前不得据此判断策略质量。</p>}
           {candidate.rejectionReasons.length > 0 && <ul>{candidate.rejectionReasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}
-          <button disabled={Boolean(candidate.savedStrategyId)} onClick={() => void save(candidate)}>{candidate.savedStrategyId ? "已保存到我的策略" : "保存到我的策略"}</button>
+          <StrategyCandidateEditor
+            key={`${candidate.id}:${candidate.savedStrategyVersionId || "draft"}`}
+            candidateId={candidate.id}
+            specification={candidate.dsl}
+            validationLabel={candidate.validationLabel}
+            saved={Boolean(candidate.savedStrategyId)}
+            saving={saveBusy === candidate.id}
+            onSave={specification => save(candidate, specification)}
+          />
           {candidate.savedStrategyId && <div className={styles.deployActions}><button disabled={Boolean(deployBusy)} onClick={() => void deploy(candidate, "shadow")}>{deployBusy === `${candidate.id}:shadow` ? "启动中…" : "启动影子运行"}</button><button disabled={Boolean(deployBusy)} onClick={() => void deploy(candidate, "paper")}>{deployBusy === `${candidate.id}:paper` ? "启动中…" : "启动模拟盘"}</button></div>}
         </article>;
       })}</div>}
       {payload.candidates.some(candidate => candidate.rank == null) && <details className={styles.otherCandidates}>
         <summary>查看其他研究候选（{payload.candidates.filter(candidate => candidate.rank == null).length}）</summary>
         <div>{payload.candidates.filter(candidate => candidate.rank == null).map(candidate => <article key={candidate.id}>
-          <span><b>{candidate.strategyFamily}</b><small>{candidate.validationLabel} · {candidate.score?.toFixed(2) ?? "未评分"}</small></span>
-          <button disabled={Boolean(candidate.savedStrategyId)} onClick={() => void save(candidate)}>{candidate.savedStrategyId ? "已保存" : "保存为研究草稿"}</button>
+          <span><b>{candidate.strategyFamily}</b><small>{candidate.validationLabel} · {candidate.edited ? "需重测" : candidate.score?.toFixed(2) ?? "未评分"}</small></span>
+          <StrategyCandidateEditor
+            key={`${candidate.id}:${candidate.savedStrategyVersionId || "draft"}`}
+            candidateId={candidate.id}
+            specification={candidate.dsl}
+            validationLabel={candidate.validationLabel}
+            saved={Boolean(candidate.savedStrategyId)}
+            saving={saveBusy === candidate.id}
+            onSave={specification => save(candidate, specification)}
+          />
         </article>)}</div>
       </details>}
       {payload.run.finalConclusion && <div className={`${styles.conclusion} ${payload.run.finalConclusion === "QUALIFIED" ? styles.pass : styles.fail}`}><b>{payload.run.finalConclusion === "QUALIFIED" ? "存在通过标准验证的候选" : "本轮没有候选通过标准验证"}</b><p>历史回测是研究证据，不代表未来收益。未通过候选不会被包装为已验证。</p></div>}

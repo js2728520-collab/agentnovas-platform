@@ -143,17 +143,29 @@ export async function listResearchCandidates(database: Queryable, input: {
     strategy_family: string;
     source_role: string;
     dsl_json: Record<string, unknown>;
+    effective_dsl_json: Record<string, unknown>;
     status: string;
     rank: number | null;
     score: number | null;
     rejection_reasons_json: string[];
     validation_label: string;
+    effective_validation_label: string;
     saved_strategy_id: string | null;
     saved_strategy_version_id: string | null;
+    edited: boolean;
   }>(`
-    SELECT candidate.*
+    SELECT candidate.*,
+           COALESCE(saved_version.specification_json::jsonb, candidate.dsl_json) AS effective_dsl_json,
+           COALESCE(saved_strategy.validation_label, candidate.validation_label) AS effective_validation_label,
+           (saved_version.id IS NOT NULL
+             AND saved_version.specification_json::jsonb IS DISTINCT FROM candidate.dsl_json) AS edited
     FROM strategy_candidates AS candidate
     JOIN strategy_research_runs AS run ON run.id = candidate.run_id
+    LEFT JOIN community_strategies AS saved_strategy
+      ON saved_strategy.id = candidate.saved_strategy_id
+    LEFT JOIN strategy_versions AS saved_version
+      ON saved_version.id = candidate.saved_strategy_version_id
+     AND saved_version.strategy_id = saved_strategy.id
     WHERE candidate.run_id = $1 AND run.owner_user_id = $2
     ORDER BY candidate.rank NULLS LAST, candidate.score DESC NULLS LAST, candidate.created_at
   `, [input.runId, input.ownerUserId]);
@@ -162,14 +174,15 @@ export async function listResearchCandidates(database: Queryable, input: {
     key: row.candidate_key,
     strategyFamily: row.strategy_family,
     sourceRole: row.source_role,
-    dsl: row.dsl_json,
+    dsl: row.effective_dsl_json,
     status: row.status,
     rank: row.rank,
     score: row.score,
     rejectionReasons: row.rejection_reasons_json,
-    validationLabel: row.validation_label,
+    validationLabel: row.effective_validation_label,
     savedStrategyId: row.saved_strategy_id,
     savedStrategyVersionId: row.saved_strategy_version_id,
+    edited: row.edited,
   }));
 }
 
