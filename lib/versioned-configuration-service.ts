@@ -76,7 +76,9 @@ type ActivationRow = {
   configuration_version_id: string;
   previous_configuration_version_id: string | null;
   action: ConfigurationActivationAction;
-  actor_user_id: string;
+  actor_user_id: string | null;
+  actor_kind: "user" | "worker";
+  actor_identity: string | null;
   reason: string;
   idempotency_key: string;
   request_id: string;
@@ -140,6 +142,8 @@ function projectActivation(row: ActivationRow) {
     action: row.action,
     previousConfigurationVersionId: row.previous_configuration_version_id,
     actorUserId: row.actor_user_id,
+    actorKind: row.actor_kind,
+    actorIdentity: row.actor_identity,
     reason: row.reason,
     createdAt: iso(row.created_at),
   };
@@ -414,7 +418,7 @@ export async function activateConfigurationVersion(pool: Pool, input: { versionI
     const row = version.rows[0];
     if (!row) throw new ResearchApiError("CONFIGURATION_VERSION_NOT_FOUND", "配置版本不存在", 404);
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended('configuration-activation:' || $1 || ':' || $2 || ':' || $3,0))", [row.kind,row.configuration_key,row.audience]);
-    const replay = await client.query<ActivationRow>(`SELECT * FROM configuration_activations WHERE actor_user_id=$1 AND idempotency_key=$2`, [input.actorUserId,key]);
+    const replay = await client.query<ActivationRow>(`SELECT * FROM configuration_activations WHERE actor_kind='user' AND actor_user_id=$1 AND idempotency_key=$2`, [input.actorUserId,key]);
     if (replay.rows[0]) {
       if (!sameActivation(replay.rows[0], input.versionId, activation)) throw new ResearchApiError("IDEMPOTENCY_PAYLOAD_MISMATCH", "幂等键已用于另一项配置生效操作", 409);
       return readVersionById(client, input.versionId);
@@ -442,8 +446,8 @@ export async function activateConfigurationVersion(pool: Pool, input: { versionI
     }
     const id = randomUUID();
     await client.query(`
-      INSERT INTO configuration_activations(id,configuration_version_id,previous_configuration_version_id,action,actor_user_id,reason,idempotency_key,request_id,created_at)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      INSERT INTO configuration_activations(id,configuration_version_id,previous_configuration_version_id,action,actor_user_id,actor_kind,reason,idempotency_key,request_id,created_at)
+      VALUES($1,$2,$3,$4,$5,'user',$6,$7,$8,$9)
     `, [id,input.versionId,currentId,activation.action,input.actorUserId,activation.reason,key,requestId,now.toISOString()]);
     await client.query(`
       INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json,request_id,created_at)

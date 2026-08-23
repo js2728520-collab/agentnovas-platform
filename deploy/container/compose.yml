@@ -115,6 +115,19 @@ services:
       postgres: { condition: service_healthy }
     networks: [backplane, egress]
 
+  configuration-activation-worker:
+    <<: *worker-security
+    profiles: [configuration-activation]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/configuration-activation.env, --experimental-strip-types, scripts/configuration-activation-worker.mjs]
+    secrets:
+      - source: configuration_activation_env
+        target: configuration-activation.env
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane]
+
   runtime-worker:
     <<: *worker-security
     profiles: [workers]
@@ -185,6 +198,8 @@ secrets:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/maintenance.env
   notification_env:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/notification.env
+  configuration_activation_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/configuration-activation.env
   runtime_env:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/runtime.env
   demo_env:

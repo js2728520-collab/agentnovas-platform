@@ -88,6 +88,10 @@ export async function GET(request: Request) {
         configured: databaseConfigured,
         enabled: process.env.STRATEGY_RUNTIME_ENABLED === "true",
       }),
+      configurationActivationWorker: workerStatus(diagnostics, "configuration_activation", {
+        configured: databaseConfigured,
+        enabled: process.env.CONFIGURATION_ACTIVATION_WORKER_ENABLED === "true",
+      }),
       demoExecutionWorker: {
         ...workerStatus(diagnostics, "demo_execution", {
           configured: databaseConfigured && Boolean(process.env.INTEGRATION_CREDENTIAL_ENCRYPTION_KEY?.trim()),

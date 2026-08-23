@@ -62,6 +62,7 @@ test("production compose keeps PostgreSQL private and mounts runtime env as secr
     ["operations_env", "operations.env"],
     ["maintenance_env", "maintenance.env"],
     ["notification_env", "notification.env"],
+    ["configuration_activation_env", "configuration-activation.env"],
     ["runtime_env", "runtime.env"],
     ["demo_env", "demo.env"],
     ["migrator_env", "migrator.env"],
@@ -80,6 +81,9 @@ test("production compose keeps PostgreSQL private and mounts runtime env as secr
     const section = match?.[1] ?? "";
     assert.match(section, /networks:\s*\[backplane, egress\]/, `${service} requires controlled egress`);
   }
+  const configurationWorker = compose.match(/\n {2}configuration-activation-worker:([\s\S]*?)(?=\n {2}[a-z][a-z-]+:|\nsecrets:)/)?.[1] ?? "";
+  assert.match(configurationWorker, /networks:\s*\[backplane\]/);
+  assert.doesNotMatch(configurationWorker, /egress|edge/);
   assert.doesNotMatch(compose, /5432:5432/);
   assert.doesNotMatch(compose, /payment-worker|worker:payment|strategy-research-worker/);
 });

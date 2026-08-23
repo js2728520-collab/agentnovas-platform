@@ -43,6 +43,7 @@ BEGIN
     'agentnovas_maint_web',
     'agentnovas_payment_webhook',
     'agentnovas_notification_worker',
+    'agentnovas_configuration_activation_worker',
     'agentnovas_demo_execution_worker',
     'agentnovas_runtime_worker',
     'agentnovas_execution_service'
@@ -79,6 +80,7 @@ REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
   agentnovas_payment_worker,
@@ -94,6 +96,7 @@ REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM
@@ -103,6 +106,7 @@ REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
 
@@ -114,6 +118,7 @@ GRANT CONNECT ON DATABASE :"agentnovas_database" TO
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
 GRANT USAGE ON SCHEMA public TO
@@ -123,6 +128,7 @@ GRANT USAGE ON SCHEMA public TO
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
 GRANT CREATE, USAGE ON SCHEMA public TO agentnovas_migrator;
@@ -476,6 +482,18 @@ GRANT SELECT, INSERT ON membership_access_events TO agentnovas_notification_work
 GRANT SELECT, INSERT, UPDATE ON notification_deliveries TO agentnovas_notification_worker;
 GRANT INSERT ON audit_logs TO agentnovas_notification_worker;
 GRANT SELECT, INSERT, UPDATE ON worker_instances TO agentnovas_notification_worker;
+
+-- The due activation worker can read only immutable configuration release
+-- facts, execute one owner-controlled activation gateway, and report its own
+-- heartbeat. It has no direct activation/audit append or sequence capability.
+GRANT SELECT ON configuration_versions, configuration_test_results,
+  configuration_approvals, configuration_schedules, configuration_activations
+  TO agentnovas_configuration_activation_worker;
+GRANT SELECT, INSERT, UPDATE ON worker_instances
+  TO agentnovas_configuration_activation_worker;
+GRANT EXECUTE ON FUNCTION
+  public.configuration_activation_worker_activate(text)
+  TO agentnovas_configuration_activation_worker;
 
 GRANT SELECT, UPDATE ON platform_demo_accounts, platform_demo_card_controls TO agentnovas_demo_execution_worker;
 GRANT SELECT, INSERT, UPDATE ON platform_demo_order_intents, platform_demo_execution_receipts, platform_demo_fill_receipts TO agentnovas_demo_execution_worker;

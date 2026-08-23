@@ -11,6 +11,7 @@ test("production units use per-process environment files and unique web ports", 
     operations: await read("deploy/systemd/riverton-operations.service"),
     maintenance: await read("deploy/systemd/riverton-maintenance.service"),
     notification: await read("deploy/systemd/riverton-notification-worker.service"),
+    "configuration-activation": await read("deploy/systemd/riverton-configuration-activation-worker.service"),
     demo: await read("deploy/systemd/riverton-demo-execution-worker.service"),
     research: await read("deploy/systemd/agentnovas-research-worker.service"),
     runtime: await read("deploy/systemd/agentnovas-runtime-worker.service"),
@@ -39,12 +40,15 @@ test("environment examples preserve disabled external effects", async () => {
   const demo = await read("deploy/env/demo.env.example");
   const notification = await read("deploy/env/notification.env.example");
   const maintenance = await read("deploy/env/maintenance.env.example");
+  const configurationActivation = await read("deploy/env/configuration-activation.env.example");
   const client = await read("deploy/env/client.env.example");
   const legacy = await read("deploy/agentnovas.env.example");
   assert.match(demo, /^DEMO_EXECUTION_WORKER_ENABLED=false$/m);
   assert.match(demo, /^PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false$/m);
   assert.match(maintenance, /^DEMO_EXECUTION_WORKER_ENABLED=false$/m);
   assert.match(maintenance, /^PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false$/m);
+  assert.match(maintenance, /^CONFIGURATION_ACTIVATION_WORKER_ENABLED=false$/m);
+  assert.match(configurationActivation, /^CONFIGURATION_ACTIVATION_WORKER_ENABLED=false$/m);
   assert.doesNotMatch(demo, /PAYMENT_WORKER_ENABLED=true/);
   assert.match(notification, /^NOTIFICATION_EMAIL_SEND_ENABLED=false$/m);
   assert.match(notification, /^RESEND_API_KEY=$/m);

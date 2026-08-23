@@ -182,6 +182,7 @@ export type MaintenanceWorkerHealth = {
   notificationWorker: MaintenanceWorkerStatus & { resendConfigured: boolean };
   researchWorker: MaintenanceWorkerStatus;
   runtimeWorker: MaintenanceWorkerStatus;
+  configurationActivationWorker: MaintenanceWorkerStatus;
   demoExecutionWorker: MaintenanceWorkerStatus & {
     externalWritesEnabled: boolean;
     executionEnabled: boolean;

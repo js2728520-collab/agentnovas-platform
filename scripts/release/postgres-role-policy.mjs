@@ -12,6 +12,7 @@ export const EXPECTED_RELEASE_DATABASE_ROLES = Object.freeze([
   "agentnovas_execution_service",
   "agentnovas_payment_webhook",
   "agentnovas_notification_worker",
+  "agentnovas_configuration_activation_worker",
   "agentnovas_demo_execution_worker",
   "agentnovas_runtime_worker",
   "agentnovas_payment_worker",
@@ -155,6 +156,14 @@ const WORKER_TABLES = new Map([
     "users",
     "worker_instances",
   ])],
+  ["agentnovas_configuration_activation_worker", new Set([
+    "configuration_activations",
+    "configuration_approvals",
+    "configuration_schedules",
+    "configuration_test_results",
+    "configuration_versions",
+    "worker_instances",
+  ])],
   ["agentnovas_demo_execution_worker", new Set([
     "platform_demo_accounts",
     "platform_demo_card_controls",
@@ -209,6 +218,17 @@ const WORKER_TABLES = new Map([
   ])],
 ]);
 
+const WORKER_TABLE_PRIVILEGES = new Map([
+  ["agentnovas_configuration_activation_worker", new Map([
+    ["configuration_activations", new Set(["SELECT"])],
+    ["configuration_approvals", new Set(["SELECT"])],
+    ["configuration_schedules", new Set(["SELECT"])],
+    ["configuration_test_results", new Set(["SELECT"])],
+    ["configuration_versions", new Set(["SELECT"])],
+    ["worker_instances", new Set(["SELECT", "INSERT", "UPDATE"])],
+  ])],
+]);
+
 function finding(code, message, roleName = null) {
   return { code, message, roleName };
 }
@@ -217,11 +237,13 @@ export function evaluatePostgresRolePolicy({
   roles,
   grants,
   schemaGrants,
+  sequenceGrants = [],
   routineGrants = [],
   memberships = [],
   identityTables,
   identityPolicies,
   identityRoutines,
+  configurationActivationRoutines,
   triggerReadGaps = [],
 }) {
   const findings = [];
@@ -263,6 +285,14 @@ export function evaluatePostgresRolePolicy({
         grant.grantee,
       ));
     }
+    const privilegeAllowlist = WORKER_TABLE_PRIVILEGES.get(grant.grantee)?.get(grant.tableName);
+    if (privilegeAllowlist && !privilegeAllowlist.has(String(grant.privilegeType).toUpperCase())) {
+      findings.push(finding(
+        "WORKER_TABLE_PRIVILEGE",
+        `${grant.grantee} has prohibited ${grant.privilegeType} access on ${grant.tableName}`,
+        grant.grantee,
+      ));
+    }
     const deniedSecrets = WEB_SECRET_TABLES.get(grant.grantee);
     if (deniedSecrets?.has(grant.tableName)) {
       findings.push(finding(
@@ -288,7 +318,7 @@ export function evaluatePostgresRolePolicy({
       ));
     }
     if (CONFIGURATION_CONTROL_TABLES.has(grant.tableName)
-      && !["agentnovas_migrator", "agentnovas_maint_web"].includes(grant.grantee)) {
+      && !["agentnovas_migrator", "agentnovas_maint_web", "agentnovas_configuration_activation_worker"].includes(grant.grantee)) {
       findings.push(finding(
         "CONFIGURATION_CONTROL_TABLE_GRANT",
         `${grant.grantee} can access Maintenance-only versioned configuration table ${grant.tableName}`,
@@ -303,6 +333,24 @@ export function evaluatePostgresRolePolicy({
     }
   }
 
+  for (const grant of sequenceGrants) {
+    if (grant.grantee === "PUBLIC") {
+      findings.push(finding("PUBLIC_SEQUENCE_GRANT", `PUBLIC has ${grant.privilegeType} on ${grant.sequenceName}`, "PUBLIC"));
+      continue;
+    }
+    if (DISABLED_ROLES.has(grant.grantee)) {
+      findings.push(finding("DISABLED_WORKER_ACCESS", `Disabled worker has sequence access: ${grant.grantee}`, grant.grantee));
+      continue;
+    }
+    if (grant.grantee === "agentnovas_configuration_activation_worker") {
+      findings.push(finding(
+        "WORKER_SEQUENCE_GRANT",
+        `${grant.grantee} has prohibited ${grant.privilegeType} access on ${grant.sequenceName}`,
+        grant.grantee,
+      ));
+    }
+  }
+
   for (const grant of routineGrants) {
     if (grant.grantee === "PUBLIC") {
       findings.push(finding(
@@ -314,6 +362,14 @@ export function evaluatePostgresRolePolicy({
       findings.push(finding(
         "DISABLED_WORKER_ACCESS",
         `Disabled worker can ${grant.privilegeType} ${grant.routineName}`,
+        grant.grantee,
+      ));
+    } else if (grant.grantee === "agentnovas_configuration_activation_worker"
+      && (grant.routineName !== "configuration_activation_worker_activate"
+        || String(grant.privilegeType).toUpperCase() !== "EXECUTE")) {
+      findings.push(finding(
+        "WORKER_ROUTINE_GRANT",
+        `${grant.grantee} has prohibited ${grant.privilegeType} access on ${grant.routineName}`,
         grant.grantee,
       ));
     }
@@ -432,6 +488,33 @@ export function evaluatePostgresRolePolicy({
     }
   }
 
+  if (configurationActivationRoutines) {
+    const gateway = configurationActivationRoutines.find((routine) => (
+      routine.signature === "configuration_activation_worker_activate(text)"
+    ));
+    const executeGrantees = new Set(gateway?.executeGrantees ?? []);
+    const expectedExecuteGrantees = new Set([
+      "agentnovas_configuration_activation_worker",
+      "agentnovas_migrator",
+    ]);
+    const config = Array.isArray(gateway?.config) ? gateway.config : [];
+    const pinnedPath = config.some((value) => (
+      String(value).replaceAll('"', "").replace(/\s+/g, " ").trim().toLowerCase()
+        === "search_path=public, pg_catalog"
+    ));
+    if (!gateway
+      || gateway.ownerName !== "agentnovas_migrator"
+      || !gateway.securityDefiner
+      || !pinnedPath
+      || !sameStringSet(executeGrantees, expectedExecuteGrantees)) {
+      findings.push(finding(
+        "CONFIGURATION_ACTIVATION_GATEWAY_UNSAFE",
+        "Configuration activation Worker gateway is missing or unsafe",
+        "agentnovas_configuration_activation_worker",
+      ));
+    }
+  }
+
   return findings;
 }
 
@@ -449,11 +532,13 @@ async function verifyConfiguredDatabase() {
       rolesResult,
       routineGrantsResult,
       grantsResult,
+      sequenceGrantsResult,
       schemaGrantsResult,
       membershipsResult,
       identityTablesResult,
       identityPoliciesResult,
       identityRoutinesResult,
+      configurationActivationRoutinesResult,
       triggerReadGapsResult,
     ] = await Promise.all([
       pool.query(`
@@ -473,6 +558,19 @@ async function verifyConfiguredDatabase() {
         FROM information_schema.table_privileges
         WHERE table_schema='public'
       `),
+      pool.query(`
+        SELECT COALESCE(grantee.rolname,'PUBLIC') AS grantee,
+               sequence.relname AS "sequenceName",acl.privilege_type AS "privilegeType"
+          FROM pg_class AS sequence
+          JOIN pg_namespace AS namespace ON namespace.oid=sequence.relnamespace
+          CROSS JOIN LATERAL aclexplode(
+            COALESCE(sequence.relacl,acldefault('S',sequence.relowner))
+          ) AS acl
+          LEFT JOIN pg_roles AS grantee ON grantee.oid=acl.grantee
+         WHERE namespace.nspname='public' AND sequence.relkind='S'
+           AND (COALESCE(grantee.rolname,'PUBLIC')='PUBLIC'
+                OR grantee.rolname=ANY($1::text[]))
+      `, [EXPECTED_RELEASE_DATABASE_ROLES]),
       pool.query(`
         SELECT COALESCE(grantee.rolname, 'PUBLIC') AS grantee,
                acl.privilege_type AS "privilegeType"
@@ -535,6 +633,23 @@ async function verifyConfiguredDatabase() {
          WHERE namespace.nspname='public'
            AND procedure.proname LIKE 'client_%'
       `),
+      pool.query(`
+        SELECT procedure.oid::regprocedure::text AS signature,
+               owner.rolname AS "ownerName",procedure.prosecdef AS "securityDefiner",
+               COALESCE(procedure.proconfig,'{}'::text[]) AS config,
+               ARRAY(
+                 SELECT COALESCE(grantee.rolname,'PUBLIC')
+                   FROM aclexplode(COALESCE(procedure.proacl,acldefault('f',procedure.proowner))) AS acl
+                   LEFT JOIN pg_roles AS grantee ON grantee.oid=acl.grantee
+                  WHERE acl.privilege_type='EXECUTE'
+                  ORDER BY COALESCE(grantee.rolname,'PUBLIC')
+               )::text[] AS "executeGrantees"
+          FROM pg_proc AS procedure
+          JOIN pg_namespace AS namespace ON namespace.oid=procedure.pronamespace
+          JOIN pg_roles AS owner ON owner.oid=procedure.proowner
+         WHERE namespace.nspname='public'
+           AND procedure.proname='configuration_activation_worker_activate'
+      `),
       // 非 SECURITY DEFINER 的触发器函数，函数体里读到的表 × 能写触发表的角色。
       // 从 pg_proc.prosrc 里抽表名是启发式的，宁可多报——多报一条要人看一眼，
       // 漏报一条是生产上一个功能整体不可用。
@@ -573,12 +688,14 @@ async function verifyConfiguredDatabase() {
       triggerReadGaps: triggerReadGapsResult.rows,
       roles: rolesResult.rows,
       grants: grantsResult.rows,
+      sequenceGrants: sequenceGrantsResult.rows,
       schemaGrants: schemaGrantsResult.rows,
       routineGrants: routineGrantsResult.rows,
       memberships: membershipsResult.rows,
       identityTables: identityTablesResult.rows,
       identityPolicies: identityPoliciesResult.rows,
       identityRoutines: identityRoutinesResult.rows,
+      configurationActivationRoutines: configurationActivationRoutinesResult.rows,
     });
     process.stdout.write(`${JSON.stringify({ database: url.pathname.slice(1), findings }, null, 2)}\n`);
     if (findings.length) process.exitCode = 1;

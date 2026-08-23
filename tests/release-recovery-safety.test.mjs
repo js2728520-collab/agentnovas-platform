@@ -136,6 +136,101 @@ test("database role policy rejects elevated roles, broad PUBLIC grants, and disa
   assert.ok(findings.some((finding) => finding.code === "WORKER_TABLE_GRANT" && finding.roleName === "agentnovas_payment_webhook"));
 });
 
+test("configuration activation worker grants are checked at table and privilege level", () => {
+  const roles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
+    roleName,
+    canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
+    superuser: false,
+    createRole: false,
+    createDatabase: false,
+    replication: false,
+    bypassRls: false,
+  }));
+  const base = {
+    roles,
+    schemaGrants: [],
+    sequenceGrants: [],
+    routineGrants: [{ grantee: "agentnovas_configuration_activation_worker", routineName: "configuration_activation_worker_activate", privilegeType: "EXECUTE" }],
+    memberships: [],
+  };
+  const safeGrants = [
+    ["configuration_versions", "SELECT"],
+    ["configuration_test_results", "SELECT"],
+    ["configuration_approvals", "SELECT"],
+    ["configuration_schedules", "SELECT"],
+    ["configuration_activations", "SELECT"],
+    ["worker_instances", "SELECT"],
+    ["worker_instances", "INSERT"],
+    ["worker_instances", "UPDATE"],
+  ].map(([tableName, privilegeType]) => ({ grantee: "agentnovas_configuration_activation_worker", tableName, privilegeType }));
+  assert.deepEqual(evaluatePostgresRolePolicy({ ...base, grants: safeGrants }), []);
+  for (const [tableName, privilegeType] of [["configuration_approvals", "INSERT"], ["configuration_versions", "UPDATE"], ["configuration_activations", "INSERT"], ["configuration_activations", "DELETE"], ["audit_logs", "INSERT"]]) {
+    const findings = evaluatePostgresRolePolicy({
+      ...base,
+      grants: [...safeGrants, { grantee: "agentnovas_configuration_activation_worker", tableName, privilegeType }],
+    });
+    const expectedCode = tableName === "audit_logs" ? "WORKER_TABLE_GRANT" : "WORKER_TABLE_PRIVILEGE";
+    assert.ok(findings.some((finding) => finding.code === expectedCode));
+  }
+  const sequenceFindings = evaluatePostgresRolePolicy({
+    ...base,
+    grants: safeGrants,
+    sequenceGrants: [...base.sequenceGrants, {
+      grantee: "agentnovas_configuration_activation_worker",
+      sequenceName: "configuration_activations_sequence_no_seq",
+      privilegeType: "USAGE",
+    }],
+  });
+  assert.ok(sequenceFindings.some((finding) => finding.code === "WORKER_SEQUENCE_GRANT"));
+  const routineFindings = evaluatePostgresRolePolicy({
+    ...base,
+    grants: safeGrants,
+    routineGrants: [...base.routineGrants, {
+      grantee: "agentnovas_configuration_activation_worker",
+      routineName: "protect_versioned_configuration_append_only",
+      privilegeType: "EXECUTE",
+    }],
+  });
+  assert.ok(routineFindings.some((finding) => finding.code === "WORKER_ROUTINE_GRANT"));
+});
+
+test("configuration activation gateway stays owner-controlled with a pinned path", () => {
+  const roles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
+    roleName,
+    canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
+    superuser: false,
+    createRole: false,
+    createDatabase: false,
+    replication: false,
+    bypassRls: false,
+  }));
+  const gateway = {
+    signature: "configuration_activation_worker_activate(text)",
+    ownerName: "agentnovas_migrator",
+    securityDefiner: true,
+    config: ["search_path=public, pg_catalog"],
+    executeGrantees: ["agentnovas_configuration_activation_worker", "agentnovas_migrator"],
+  };
+  const input = {
+    roles,
+    grants: [],
+    schemaGrants: [],
+    routineGrants: [],
+    memberships: [],
+    configurationActivationRoutines: [gateway],
+  };
+  assert.deepEqual(evaluatePostgresRolePolicy(input), []);
+  for (const unsafe of [
+    { ...gateway, ownerName: "agentnovas_configuration_activation_worker" },
+    { ...gateway, securityDefiner: false },
+    { ...gateway, config: null },
+    { ...gateway, executeGrantees: [...gateway.executeGrantees, "PUBLIC"] },
+  ]) {
+    const findings = evaluatePostgresRolePolicy({ ...input, configurationActivationRoutines: [unsafe] });
+    assert.ok(findings.some((finding) => finding.code === "CONFIGURATION_ACTIVATION_GATEWAY_UNSAFE"));
+  }
+});
+
 test("database role policy verifies Client identity RLS ownership and restrictive policies", () => {
   const identityTables = [
     "users",

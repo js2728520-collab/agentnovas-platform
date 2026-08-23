@@ -2289,3 +2289,42 @@ ESLint、secret scan 和 production dependency audit 均通过。最新 Maintena
 构建成功；同一产物下载到本地隔离测试仓后，关闭态完整 Playwright 再次 18/18 通过，覆盖
 三端空浏览器登录、配置页真实草稿创建和全程无 dialog。质量 schema 与运行时凭证均已清理，
 3002 上既有进程未停止或覆盖；远端未启动服务、未迁移生产库、未推送、未部署。
+
+## 61. 2026-08-24 T3.1b-Worker 最小权限到期激活器
+
+T3.1b-Worker 已完成。新增独立 Configuration Activation Worker，以全局 PostgreSQL session
+advisory lease 保证单扫描者，按计划时间和版本 ID 稳定扫描最新测试通过、独立批准、已经到期且
+从未生效的版本。默认每 5 秒、每批 50 条，边界限制为 1–30 秒与 1–100 条；每个候选由独立
+SQL 语句处理，一个失败不会阻断整批，连接崩溃后 lease 由 PostgreSQL 自动释放。
+
+Worker 不直接写 activation/audit 表，只能调用迁移 0070 提供的
+`configuration_activation_worker_activate(text)`。该 `SECURITY DEFINER` 网关由 migrator
+拥有，固定安全 `search_path` 并撤销 PUBLIC 执行权；它以数据库当前时间再次验证测试、审批、
+到期和尚未生效，取得与人工激活相同的流级事务锁，再写入固定 worker actor、原因、幂等键、
+激活事实和审计事实。调用方不能提供 actor、事实 ID 或任意审计文本。
+
+专用登录角色 `agentnovas_configuration_activation_worker` 只有配置事实只读、自己的心跳读写和
+该函数的 EXECUTE；没有审批、调度、回滚、secret、客户/支付数据、activation/audit 直接写入
+或 sequence 权限。生产角色策略同时检查表/列级操作、函数 allowlist、函数 owner、
+`SECURITY DEFINER`、`search_path` 和精确 grantee。Container Worker 只有 backplane 网络并使用
+独立 `configuration-activation` profile；systemd、Compose 与环境示例默认关闭。生产配置审计
+要求专用 DSN 及 Maintenance/Worker 开关一致，不回显配置值。
+
+Maintenance 健康 API、合同与 UI 已加入该 Worker 的配置、存活、最近成功和受限错误投影；
+60 秒无成功进入 warning，300 秒进入 critical。当前仅推进通用控制面 current，T3.1c 的品牌、
+域名、功能开关、Prompt、技能和价格消费者仍未接入，绝不代表这些配置已经接管运行时，也没有
+打开交易、支付、提现或部署能力。
+
+验证结果：Worker PostgreSQL/角色/网关专项 20/20、部署与配置合同 23/23 通过；最终标准
+`npm test` 1309/1309、TypeScript、ESLint、`git diff --check`、secret scan 和 production
+dependency audit 均通过。第一次标准全量测试在多个迁移 fixture 并行建 schema 时触发
+PostgreSQL `53200 out of shared memory`（`max_locks_per_transaction` 提示），没有业务断言失败；
+连接释放后以完全相同命令重跑通过，保留为测试基础设施容量波动证据。
+
+Maintenance production build 在 `ssh an-saas` 的一次性目录、固定 Node 22.21.1 容器内通过；
+Runtime Docker target 也构建成功，生产依赖为 0 vulnerability，并确认以非 root `node` 运行且
+包含 Worker 脚本与 0070 迁移，验证镜像随后删除。因机房代理/直连下载仅有几 KB/s，浏览器
+产物改在本地隔离副本以同一源码和 Node 22.21.1 重建；关闭态完整真实 Chromium 18/18 通过，
+覆盖三端空浏览器登录、权限注册链接、Host/Cookie audience 隔离、三端 UI、Maintenance 健康页
+和配置无弹窗提交。质量 schema、运行时 secret、3200–3202 进程、远端构建目录均已清理；本地
+隔离目录移入废纸篓。未启动远端服务、未迁移生产数据库、未推送、未部署。

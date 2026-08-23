@@ -36,7 +36,9 @@ export type ConfigurationActivationFact = {
   id: string;
   action: ConfigurationActivationAction;
   previousConfigurationVersionId: string | null;
-  actorUserId: string;
+  actorUserId: string | null;
+  actorKind: "user" | "worker";
+  actorIdentity: string | null;
   reason: string;
   createdAt: string;
 };

@@ -51,7 +51,14 @@ UDUN_API_KEY=
 UDUN_CALLBACK_URL=https://xm.agentnovas.com/api/integrations/payments/udun/webhook
 NOTIFICATION_EMAIL_SEND_ENABLED=false
 DEMO_EXECUTION_WORKER_ENABLED=false
+CONFIGURATION_ACTIVATION_WORKER_ENABLED=false
 PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false
+`,
+  "configuration-activation.env": `NODE_ENV=production
+CONFIGURATION_ACTIVATION_DATABASE_URL=postgresql://agentnovas_configuration_activation_worker@127.0.0.1:5432/agentnovas
+CONFIGURATION_ACTIVATION_WORKER_ENABLED=false
+CONFIGURATION_ACTIVATION_WORKER_INTERVAL_MS=5000
+CONFIGURATION_ACTIVATION_WORKER_BATCH_SIZE=50
 `,
   "notification.env": `NODE_ENV=production
 DATABASE_URL=postgresql://notification
@@ -185,6 +192,24 @@ test("the production audit requires the same MFA rollout state across all three 
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  }
+});
+
+test("the production audit rejects a configuration Worker DSN using another database role", async () => {
+  const directory = await fixtureDirectory();
+  try {
+    await replaceEnvValue(
+      directory,
+      "configuration-activation.env",
+      "CONFIGURATION_ACTIVATION_DATABASE_URL",
+      "postgresql://agentnovas_maint_web@127.0.0.1:5432/agentnovas",
+    );
+    await assert.rejects(
+      run("scripts/audit-production-config.sh", [], { RIVERTON_SECRET_DIR: directory }),
+      (error) => error.stderr.includes("configuration-activation.env:CONFIGURATION_ACTIVATION_DATABASE_URL:dedicated_role_required"),
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });
 
