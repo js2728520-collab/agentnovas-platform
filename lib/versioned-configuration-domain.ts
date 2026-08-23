@@ -140,17 +140,13 @@ export function normalizeConfigurationApproval(input: unknown): NormalizedConfig
   return { decision: oneOf(value.decision, CONFIGURATION_APPROVAL_DECISIONS, "审批决定"), reason: text(value.reason, "审批原因") };
 }
 
-export function normalizeConfigurationSchedule(input: unknown, now = new Date()): NormalizedConfigurationSchedule {
+export function normalizeConfigurationSchedule(input: unknown): NormalizedConfigurationSchedule {
   const value = inputObject(input);
   strictKeys(value, ["scheduledFor", "reason"]);
   const raw = typeof value.scheduledFor === "string" ? value.scheduledFor.trim() : "";
   if (!EXPLICIT_OFFSET.test(raw)) throw new ResearchApiError("CONFIGURATION_SCHEDULE_TIMEZONE_REQUIRED", "scheduledFor 必须携带 Z 或明确 UTC offset", 422);
   const scheduled = new Date(raw);
   if (Number.isNaN(scheduled.getTime())) throw new ResearchApiError("CONFIGURATION_SCHEDULE_INVALID", "scheduledFor 不是有效时间", 422);
-  if (scheduled.getTime() < now.getTime()) throw new ResearchApiError("CONFIGURATION_SCHEDULE_IN_PAST", "scheduledFor 不能早于当前时间", 422);
-  if (scheduled.getTime() > now.getTime() + 5 * 366 * 24 * 60 * 60 * 1_000) {
-    throw new ResearchApiError("CONFIGURATION_SCHEDULE_TOO_FAR", "scheduledFor 不能超过五年", 422);
-  }
   return { scheduledFor: scheduled.toISOString(), reason: text(value.reason, "调度原因") };
 }
 
