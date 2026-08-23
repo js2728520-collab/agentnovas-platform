@@ -246,3 +246,24 @@ T2.2a 只定义纯 sequence、连接、新鲜度、重连和缓存判定，不�
 的必要条件，不是开仓授权；调用方仍必须执行策略、账户、行情质量和风险检查。9 项定向测试、
 全量 1357/1357 及本地质量门禁通过。该实现没有 socket/provider adapter、网络 I/O、数据库或 UI
 变化，未声称达到 ≤500ms、10 秒实际恢复、主备切换或 G2。
+
+## 11. T2.11a Runtime 已收盘 K 线与 cadence 准入
+
+真实 stream adapter 尚未确定时，当前 Runtime 仍必须先关闭两条已知的不安全路径：把 provider
+返回的当前未收盘 K 线当成完整决策依据，以及在 feed 长时间未推进时继续自动开新仓。
+
+- `evaluatedAt` 由 Worker 注入，域层不读取系统时钟；浏览器不能提交 freshness。
+- 所有 K 线先做数值、OHLC、时间和顺序严格校验；随后只保留 `closeTime <= evaluatedAt` 的已收盘项。
+- 决策至少需要两根已收盘 K 线；当前未收盘尾项可以被安全忽略，不能成为 snapshot、决策或幂等键。
+- 只接受 Runtime 已支持并能换算毫秒的 timeframe。未知周期不猜默认值，quality 为 `invalid`。
+- 对连续 24/7 加密 K 线，`ageMs = evaluatedAt - latestClosedAt`；当
+  `ageMs >= timeframeMs + 30_000` 时为 `stale`，否则为 `fresh`。30 秒只容纳当前 15 秒轮询和
+  provider 收盘落盘延迟，不替代 stream 的 500ms latency 目标。
+- `stale/invalid` 只能阻断 `enter_long/enter_short`；已有仓位的退出意图继续由确定性策略与风险规则
+  计算，不能因为新开仓 Gate 失败而被吞掉。
+- 七阶段 `market_data` evidence 必须记录 `quality/ageMs/staleAfterMs/latestClosedAt`；结论不得在
+  stale/invalid 时声称行情完整且可开仓。
+- 共享卡级决策轮和逐组合准入使用同一派生状态，防止不同客户对同一根 K 线得到相互矛盾的行情资格。
+
+T2.11a 是当前 candle cadence 的必要安全 Gate，不证明 stream sequence、接收延迟、主备源或 G2。
+T2.11b 必须在真实 adapter 确定后把 T2.2 的 event envelope/连接状态与本 Gate 合并。

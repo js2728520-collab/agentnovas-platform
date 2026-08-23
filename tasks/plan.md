@@ -217,6 +217,10 @@ provider sequence reset 规则、容量和主备切换等待 P-01/P-03 与供应
   连接状态按新鲜度派生；重连退避上限 10 秒；stale 缓存仅展示。
 - T2.2b：每个真实 provider 的 WebSocket adapter、订阅/心跳/sequence scope/reset/replay、
   容量压测和故障注入。
+- T2.11a：当前 Runtime 先过滤未收盘 K 线，并由服务端按 timeframe cadence + 30 秒收盘容差
+  派生 fresh/stale/invalid；stale/invalid 只阻断新开仓，不吞掉退出意图。
+- T2.11b：真实 stream adapter 接入后把 event latency、sequence 和连接状态与 cadence Gate
+  合并；在此之前 2.11a 只是必要条件，不冒充 G2。
 
 **验收：** ≤500ms/≤10s 目标可测；陈旧行情阻断新开仓；缓存只展示。
 **验证：** 压测、乱序/断线/偏差故障注入、Runtime admission test。
@@ -227,6 +231,11 @@ provider sequence reset 规则、容量和主备切换等待 P-01/P-03 与供应
 全仓 ESLint、8 条架构边界、secret scan 和 production dependency audit。实现为纯合同函数，
 不读取系统时钟、不建立网络连接、不改变 UI 或数据库；因此本切片不单独触发浏览器和云端构建，
 沿用 T2.1 精确提交云端构建作为前一可部署基线，待实际 adapter/UI 消费时重跑三端完整 Gate。
+
+**T2.11a 完成标准：** 官方现货与遗留隔离运行路径不得把 provider 返回的当前未收盘 K 线
+当成决策依据；未知周期、非法时间、未来收盘或达到 `timeframe + 30s` 的陈旧已收盘 K 线均
+失败关闭新开仓。退出、减仓和平仓不因行情准入标志被静默吞掉。共享决策轮和逐组合准入使用
+同一服务端派生状态，七阶段行情证据如实记录 quality/age/threshold，不接受浏览器自报 fresh。
 
 ### T2.3：加密行情源选择
 
