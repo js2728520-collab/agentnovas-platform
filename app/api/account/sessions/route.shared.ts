@@ -1,5 +1,6 @@
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+import { clearSessionCookieHeaders } from "@/lib/riverton-apps";
 import { requireCurrentSession } from "@/lib/session";
 
 function maskIpAddress(value: string | null) {
@@ -96,6 +97,54 @@ export async function DELETE(request: Request) {
       client.release();
     }
     return Response.json({ ok: true, message: "该设备会话已撤销" }, { headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    return researchErrorResponse(error, request);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const current = await requireCurrentSession(request);
+    const body = await readResearchJson(request, 2_048);
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    if (reason.length < 3 || reason.length > 500) {
+      throw new ResearchApiError("SESSION_REASON_INVALID", "退出原因需要 3–500 个字符", 422);
+    }
+    const pool = await getPostgresPool();
+    const client = await pool.connect();
+    let revokedCount = 0;
+    try {
+      await client.query("BEGIN");
+      if (current.session.appAudience === "client") {
+        revokedCount = Number((await client.query<{ revoked_count: number }>(`
+          SELECT client_revoke_all_sessions($1,$2) AS revoked_count
+        `, [current.session.tokenHash,new Date()])).rows[0]?.revoked_count ?? 0);
+      } else {
+        revokedCount = (await client.query(`
+          UPDATE sessions SET revoked_at=now()
+           WHERE user_id=$1 AND app_audience=$2 AND revoked_at IS NULL
+        `, [current.user.id,current.session.appAudience])).rowCount ?? 0;
+      }
+      if (revokedCount < 1) throw new ResearchApiError("SESSION_STATE_CHANGED", "会话状态已变化，请重新登录", 409);
+      await client.query(`
+        INSERT INTO audit_logs(
+          id,actor_user_id,action,subject_type,subject_id,before_json,after_json,created_at
+        ) VALUES($1,$2,'account.sessions_revoked_all','user',$2,$3::jsonb,$4::jsonb,now())
+      `, [
+        crypto.randomUUID(),current.user.id,
+        JSON.stringify({ activeSessions: revokedCount }),
+        JSON.stringify({ activeSessions: 0,reason,audience: current.session.appAudience }),
+      ]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+    const headers = new Headers({ "content-type": "application/json", "cache-control": "no-store" });
+    for (const cookie of clearSessionCookieHeaders(request)) headers.append("set-cookie", cookie);
+    return new Response(JSON.stringify({ ok: true,revokedCount,message: "全部设备已退出" }), { headers });
   } catch (error) {
     return researchErrorResponse(error, request);
   }

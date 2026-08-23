@@ -44,6 +44,8 @@ export function mapClientIdentitySession(value: JsonRecord): ClientIdentitySessi
     revokedAt: stringOrNull(value.revoked_at),
     ipAddress: stringOrNull(value.ip_address),
     userAgent: stringOrNull(value.user_agent),
+    deviceHash: stringOrNull(value.device_hash),
+    networkKey: stringOrNull(value.network_key),
     createdAt: String(value.created_at),
     appAudience: String(value.app_audience) as ClientIdentitySession["appAudience"],
     mfaLevel: String(value.mfa_level) as ClientIdentitySession["mfaLevel"],

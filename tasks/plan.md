@@ -1,6 +1,6 @@
 # Implementation Plan：AgentNovas 全平台 V3 升级
 
-状态：Phase 1 进行中；T1.1–T1.3 已实现，T1.4 Client 注册与设备会话待完成
+状态：Phase 1 进行中；T1.1–T1.4 已实现，G1 四身份浏览器/真实邮件验收待完成
 工作分支：`codex/platform-v3-doc-sync`
 需求真源：`docs/product/PRD.md`
 路线图：`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md`
@@ -130,7 +130,7 @@
 
 ### T1.4：Client 注册与 5 设备会话
 
-**状态：** 进行中；本切片尚未把“邮箱必填+验证、5 设备、新设备通知、全量退出”标成完成。
+**状态：** 已完成核心实现与自动化验证；城市级定位和第 6 台交互策略见 ADR-0022 待确认，G1 真实环境证据归 T1.12。
 
 **描述：** 手机号/邮箱必填、邮箱验证、国际手机号、5 设备上限、设备通知和全量退出。
 

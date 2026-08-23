@@ -93,6 +93,10 @@ type ApiPolicy = {
 - 新密码使用 Argon2id：memory `19,456 KiB`、iterations `2`、parallelism `1`、32-byte output；旧 PBKDF2 登录成功后 lazy rehash。
 - 不存在账号执行等价 dummy verify，登录和找回不泄露账户存在性。
 - Client session：absolute 7 天、idle 24 小时；内部 session：absolute 12 小时、idle 1 小时。
+- Client 注册要求国际手机号和邮箱，邮箱验证前身份保持 pending；验证 token 只存摘要，
+  Email outbox 只存加密 token，重发按邮箱与可信网络限流且撤销旧 token。
+- Client 设备 Cookie 与 Session Cookie 分离且只存摘要；同设备重登轮换，会话最多 5 个
+  设备身份，第 6 台当前拒绝。新设备/网段变化双通道提醒，支持单设备和全量撤销。
 - 邮箱+audience 登录失败 5 次/15 分钟；IP 30 次/15 分钟；找回使用更严格小时限额，存储在 PostgreSQL 以覆盖多实例。
 - Operations/Maintenance 完成 TOTP 才发完整 session；recovery code 单次使用并保存 hash。critical 操作要求 15 分钟内 recent MFA。
 - Client 可选启用 TOTP；一旦启用，后续登录必须完成 TOTP 或消耗一枚 recovery code。启用/轮换只显示一次恢复码，服务器只存 hash。

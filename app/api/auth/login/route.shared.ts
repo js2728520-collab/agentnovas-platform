@@ -4,6 +4,7 @@ import { auditLogs, sessions, users } from "@/db/schema";
 import { effectiveAccessForUser } from "@/lib/access-control";
 import { dummyVerifyPassword, hashPassword, normalizeEmail, randomToken, sha256, verifyPasswordState } from "@/lib/auth";
 import { clearAuthRateLimit, consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { clientDeviceIdentity, clientNetworkKey, describeClientDevice, maskNetworkAddress } from "@/lib/client-device-security";
 import { clientLoginIdentity } from "@/lib/client-identity-gateway";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizePhone } from "@/lib/phone";
@@ -64,6 +65,12 @@ export async function POST(request: Request) {
     }
     const passwordState = await verifyPasswordState(body.password ?? "", user.passwordHash);
     if (!passwordState.valid) return Response.json({ error: "账号或密码错误" }, { status: 401 });
+    if (provisionalCookie.audience === "client" && !user.emailVerifiedAt) {
+      return Response.json({
+        code: "EMAIL_VERIFICATION_REQUIRED",
+        error: "请先完成邮箱验证；如链接已过期，可在登录页重发验证邮件",
+      }, { status: 403, headers: { "cache-control": "no-store" } });
+    }
     if (user.status !== "active") return Response.json({ error: "账户当前不可登录" }, { status: 403 });
 
     const token = randomToken();
@@ -93,18 +100,81 @@ export async function POST(request: Request) {
     await clearAuthRateLimit(pool, { action: "login", audience: sessionCookie.audience, bucketKeys: [identifierBucket, connection.bucketKey] });
     const sessionId = crypto.randomUUID();
     const sessionTokenHash = await sha256(token);
+    let activeDevices: number | undefined;
+    let deviceCookieHeader: string | null = null;
     if (sessionCookie.audience === "client") {
-      const completed = await pool.query<{ completed: boolean }>(`
-        SELECT client_complete_login(
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
-        ) AS completed
-      `, [
-        user.id,user.passwordHash,replacementPasswordHash,sessionId,sessionTokenHash,
-        deadlines.absoluteExpiresAt,mfaRequired ? "primary" : "none",now,
-        deadlines.idleExpiresAt,deadlines.absoluteExpiresAt,ipAddress,request.headers.get("user-agent"),
-      ]);
-      if (!completed.rows[0]?.completed) return Response.json({ error: "账号状态已变化，请重新登录" }, { status: 409 });
-      await db.insert(auditLogs).values({ id: crypto.randomUUID(), actorUserId: user.id, action: mfaRequired ? "auth.primary_authenticated" : "auth.login", subjectType: "user", subjectId: user.id, afterJson: JSON.stringify({ appAudience: sessionCookie.audience, mfaRequired }), ipAddress, userAgent: request.headers.get("user-agent") });
+      const device = await clientDeviceIdentity(request);
+      const networkKey = clientNetworkKey(ipAddress);
+      const userAgent = request.headers.get("user-agent");
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const completed = await client.query<{
+          completed: boolean;
+          failure_code: string | null;
+          new_device: boolean;
+          unusual_network: boolean;
+          active_devices: number;
+        }>(`
+          SELECT * FROM client_complete_login_v3(
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
+          )
+        `, [
+          user.id,user.passwordHash,replacementPasswordHash,sessionId,sessionTokenHash,
+          deadlines.absoluteExpiresAt,mfaRequired ? "primary" : "none",now,
+          deadlines.idleExpiresAt,deadlines.absoluteExpiresAt,ipAddress,userAgent,
+          device.deviceHash,networkKey,
+        ]);
+        const result = completed.rows[0];
+        if (!result?.completed) {
+          await client.query("ROLLBACK");
+          const headers = new Headers({ "cache-control": "no-store" });
+          if (device.cookieHeader) headers.append("set-cookie", device.cookieHeader);
+          if (result?.failure_code === "DEVICE_LIMIT_REACHED") {
+            return Response.json({
+              code: "DEVICE_LIMIT_REACHED",
+              error: "该账号已登录 5 台设备，请先在已登录设备撤销一台；如无法访问旧设备，可通过密码重置撤销全部会话",
+              activeDevices: result.active_devices,
+            }, { status: 409, headers });
+          }
+          return Response.json({ error: "账号状态已变化，请重新登录" }, { status: 409, headers });
+        }
+        activeDevices = result.active_devices;
+        deviceCookieHeader = device.cookieHeader;
+        const notificationTemplate = result.new_device
+          ? "security_new_device"
+          : result.unusual_network ? "security_network_changed" : null;
+        if (notificationTemplate) {
+          const payload = JSON.stringify({
+            device: describeClientDevice(userAgent),
+            maskedIpAddress: maskNetworkAddress(ipAddress) ?? "未获取",
+            occurredAt: now.toISOString(),
+          });
+          for (const channel of ["in_app", "email"] as const) {
+            await client.query(`
+              INSERT INTO notification_deliveries(
+                id,user_id,channel,category,template_key,payload_json,status,scheduled_at,dedupe_key
+              ) VALUES($1,$2,$3,'security',$4,$5,'queued',$6,$7)
+              ON CONFLICT(dedupe_key) DO NOTHING
+            `, [crypto.randomUUID(),user.id,channel,notificationTemplate,payload,now,`${notificationTemplate}:${sessionId}:${channel}`]);
+          }
+        }
+        await client.query(`
+          INSERT INTO audit_logs(
+            id,actor_user_id,action,subject_type,subject_id,after_json,ip_address,user_agent
+          ) VALUES($1,$2,$3,'user',$2,$4,$5,$6)
+        `, [
+          crypto.randomUUID(),user.id,mfaRequired ? "auth.primary_authenticated" : "auth.login",
+          JSON.stringify({ appAudience: sessionCookie.audience,mfaRequired,newDevice: result.new_device,unusualNetwork: result.unusual_network,activeDevices: result.active_devices }),
+          ipAddress,userAgent,
+        ]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
     } else {
       if (replacementPasswordHash) {
         await db.update(users).set({ passwordHash: replacementPasswordHash, updatedAt: now.toISOString() })
@@ -121,7 +191,8 @@ export async function POST(request: Request) {
     }
     const headers = new Headers({ "content-type": "application/json" });
     for (const cookie of sessionCookie.headers) headers.append("set-cookie", cookie);
-    return new Response(JSON.stringify({ ok: true, mfaRequired, mfaEnrollmentRequired, appAudience: sessionCookie.audience, user: { id: user.id, email: user.email, phone: user.phone, username: user.username, role: user.role } }), { headers });
+    if (deviceCookieHeader) headers.append("set-cookie", deviceCookieHeader);
+    return new Response(JSON.stringify({ ok: true, mfaRequired, mfaEnrollmentRequired, activeDevices, appAudience: sessionCookie.audience, user: { id: user.id, email: user.email, phone: user.phone, username: user.username, role: user.role } }), { headers });
   } catch (error) {
     return responseError(error);
   }

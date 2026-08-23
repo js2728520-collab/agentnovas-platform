@@ -1,6 +1,8 @@
 import type { Pool, PoolClient } from "pg";
 
+import { randomToken, sha256 } from "./auth.ts";
 import { consumeAuthRateLimit } from "./auth-rate-limit.ts";
+import { encryptNotificationToken } from "./notification-secrets.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 type RegistrationRateLimitInput = {
@@ -43,6 +45,7 @@ type RegisterInvitedClientInput = {
   now?: Date;
   ipAddress: string | null;
   userAgent: string | null;
+  environment?: Record<string, string | undefined>;
 };
 
 type InvitationRow = {
@@ -84,6 +87,13 @@ function registrationConflict(error: unknown) {
 }
 
 export async function registerInvitedClient(pool: Pool, input: RegisterInvitedClientInput) {
+  const nowDate = input.now ?? new Date();
+  const verificationExpiresAt = new Date(nowDate.getTime() + 24 * 60 * 60_000).toISOString();
+  const verificationToken = randomToken();
+  const [verificationTokenHash, encryptedVerificationToken] = await Promise.all([
+    sha256(verificationToken),
+    encryptNotificationToken(verificationToken, input.environment ?? process.env),
+  ]);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -98,7 +108,6 @@ export async function registerInvitedClient(pool: Pool, input: RegisterInvitedCl
     const { managerId, supervisorId } = publicPool
       ? { managerId: null, supervisorId: null }
       : await invitationAttribution(client, invitation.id, input.codeHash);
-    const nowDate = input.now ?? new Date();
     const now = nowDate.toISOString();
     const userId = crypto.randomUUID();
     const membershipId = crypto.randomUUID();
@@ -108,6 +117,21 @@ export async function registerInvitedClient(pool: Pool, input: RegisterInvitedCl
       FROM client_insert_invited_customer($1,$2,$3,$4,$5,$6)
     `, [userId,input.email,input.phone,input.passwordHash,invitation.id,input.codeHash]);
     if (!insertedIdentity.rows[0]) throw new ResearchApiError("INVITATION_INVALID", "邀请码无效或已使用", 400);
+    const verificationQueued = await client.query<{ queued: boolean }>(`
+      SELECT client_queue_registration_email_verification(
+        $1,$2,$3,$4,$5,$6,$7
+      ) AS queued
+    `, [
+      userId,crypto.randomUUID(),verificationTokenHash,verificationExpiresAt,
+      crypto.randomUUID(),JSON.stringify({
+        encryptedToken: encryptedVerificationToken,
+        audience: "client",
+        expiresAt: verificationExpiresAt,
+      }),now,
+    ]);
+    if (!verificationQueued.rows[0]?.queued) {
+      throw new ResearchApiError("EMAIL_VERIFICATION_QUEUE_FAILED", "邮箱验证邮件创建失败", 503);
+    }
     await client.query(`
       INSERT INTO customer_attributions(
         id,customer_id,source,status,branch_id,manager_id,supervisor_id,
@@ -160,11 +184,11 @@ export async function registerInvitedClient(pool: Pool, input: RegisterInvitedCl
       ) VALUES($1,$2,'customer.registered','user',$2,$3,$4,$5)
     `, [
       crypto.randomUUID(), userId,
-      JSON.stringify({ phone: input.phoneMasked, emailProvided: !input.email.endsWith("@unverified.agentnovas.local"), invitationKind: invitation.kind, smsVerification: false }),
+      JSON.stringify({ phone: input.phoneMasked, emailProvided: true, emailVerificationRequired: true, invitationKind: invitation.kind, smsVerification: false }),
       input.ipAddress, input.userAgent,
     ]);
     await client.query("COMMIT");
-    return { userId, membershipId, trialStatus: "PENDING_DISCLOSURE" as const };
+    return { userId, membershipId, trialStatus: "PENDING_DISCLOSURE" as const, verificationRequired: true as const };
   } catch (error) {
     await client.query("ROLLBACK");
     throw registrationConflict(error) ?? error;

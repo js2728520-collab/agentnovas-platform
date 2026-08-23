@@ -53,7 +53,7 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 | 功能域 | 状态 | 说明 |
 | --- | --- | --- |
 | Client、Operations、Maintenance 三端 | `CURRENT` | 单工程、单 PostgreSQL，按 audience 独立登录、Cookie、路由、菜单、权限和构建 |
-| 邀请、登录、内部 MFA、会话管理 | `CURRENT` | 内部端强制 TOTP；找回和邀请链接单次使用 |
+| 邀请、登录、内部 MFA、会话管理 | `CURRENT` | Client 强制邮箱验证与 5 设备；内部端强制 TOTP；bearer token 仅存摘要 |
 | 商业披露、Trial、会员订单 | `CURRENT` | 平台维护七类版本化正文，确认后才启动试用和商业能力 |
 | AI Credits | `CURRENT` | 与钱包、Paper 和 Demo 资金隔离，余额不可为负 |
 | 三张官方 Paper 组合 | `CURRENT` | 每卡独立 10,000 USDT，仅现货、仅做多、无杠杆 |
@@ -110,8 +110,8 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 
 ### 5.1 Client 身份流程
 
-- Client 只接受邀请注册或有效的一次性设置密码链接；
-- 支持登录、忘记密码、重置密码和邮箱验证；
+- Client 只接受邀请注册；国际手机号和邮箱均必填，邮箱验证前身份保持 pending；
+- 支持登录、忘记密码、重置密码、24 小时邮箱验证和非枚举验证邮件重发；
 - 登录失败和找回密码均使用通用响应，不泄露邮箱是否存在；
 - Client 会话最长 7 天，闲置超过 24 小时失效；
 - 用户可在“账号安全”修改姓名、邮箱、时区和密码；
@@ -119,6 +119,8 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 - Client 可以在验证当前 TOTP/recovery code 后轮换 recovery codes；明文只显示一次，旧码立即失效；
 - 修改密码会撤销所有会话；修改登录标识需校验当前密码，并撤销其他会话；
 - 用户可以查看经过脱敏的设备和会话列表，并撤销本人非当前会话。
+- 同一账号最多 5 个并发设备；同设备重登轮换 Session，第 6 台当前失败关闭而不静默挤出；
+- 新设备和 IP 网段变化产生站内/Email 安全通知，用户可一键撤销包括当前设备在内的全部 Client 会话。
 
 ### 5.2 Operations / Maintenance 身份流程
 

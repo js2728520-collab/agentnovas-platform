@@ -142,6 +142,8 @@ export const sessions = sqliteTable("sessions", {
   revokedAt: text("revoked_at"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
+  deviceHash: text("device_hash"),
+  networkKey: text("network_key"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (t) => [uniqueIndex("idx_sessions_token_unique").on(t.tokenHash), index("idx_sessions_user_expiry").on(t.userId, t.expiresAt), index("idx_sessions_user_app_expiry").on(t.userId, t.appAudience, t.expiresAt)]);
 

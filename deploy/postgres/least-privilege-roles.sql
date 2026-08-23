@@ -287,6 +287,7 @@ GRANT EXECUTE ON FUNCTION
   public.client_session_identity(text,timestamptz),
   public.client_touch_session(text,timestamptz,timestamptz),
   public.client_complete_login(text,text,text,text,text,timestamptz,text,timestamptz,timestamptz,timestamptz,text,text),
+  public.client_complete_login_v3(text,text,text,text,text,timestamptz,text,timestamptz,timestamptz,timestamptz,text,text,text,text),
   public.client_registration_conflicts(text,text),
   public.client_registration_invitation(text),
   public.client_insert_invited_customer(text,text,text,text,text,text),
@@ -300,6 +301,7 @@ GRANT EXECUTE ON FUNCTION
   public.client_list_sessions(text,timestamptz),
   public.client_revoke_session(text,text,timestamptz),
   public.client_revoke_current_session(text,timestamptz),
+  public.client_revoke_all_sessions(text,timestamptz),
   public.client_mfa_start(text,text,timestamptz),
   public.client_mfa_credential(text,text),
   public.client_mfa_accept_totp(text,bigint,timestamptz),
@@ -308,6 +310,7 @@ GRANT EXECUTE ON FUNCTION
   public.client_mfa_complete_enrollment(text,bigint,timestamptz,jsonb,timestamptz),
   public.client_mfa_mark_session_verified(text,text,timestamptz,timestamptz),
   public.client_mfa_recovery_status(text),
+  public.client_queue_registration_email_verification(text,text,text,timestamptz,text,text,timestamptz),
   public.client_consume_password_reset(text,text,timestamptz),
   public.client_verify_email(text,timestamptz)
 TO agentnovas_client_web;
@@ -318,6 +321,7 @@ TO agentnovas_client_web;
 GRANT EXECUTE ON FUNCTION
   public.client_login_identity(text,text,text),
   public.client_self_password_identity(text,timestamptz),
+  public.client_queue_email_verification_by_email(text,text,text,timestamptz,text,text,timestamptz),
   public.client_queue_password_reset(text,text,text,timestamptz,text,text,timestamptz)
 TO agentnovas_client_auth;
 

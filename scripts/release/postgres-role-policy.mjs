@@ -38,6 +38,7 @@ const CLIENT_IDENTITY_GATEWAY_ROUTINES = Object.freeze([
   "client_self_password_identity(text,timestamp with time zone)",
   "client_touch_session(text,timestamp with time zone,timestamp with time zone)",
   "client_complete_login(text,text,text,text,text,timestamp with time zone,text,timestamp with time zone,timestamp with time zone,timestamp with time zone,text,text)",
+  "client_complete_login_v3(text,text,text,text,text,timestamp with time zone,text,timestamp with time zone,timestamp with time zone,timestamp with time zone,text,text,text,text)",
   "client_registration_conflicts(text,text)",
   "client_registration_invitation(text)",
   "client_insert_invited_customer(text,text,text,text,text,text)",
@@ -51,6 +52,7 @@ const CLIENT_IDENTITY_GATEWAY_ROUTINES = Object.freeze([
   "client_list_sessions(text,timestamp with time zone)",
   "client_revoke_session(text,text,timestamp with time zone)",
   "client_revoke_current_session(text,timestamp with time zone)",
+  "client_revoke_all_sessions(text,timestamp with time zone)",
   "client_mfa_start(text,text,timestamp with time zone)",
   "client_mfa_credential(text,text)",
   "client_mfa_accept_totp(text,bigint,timestamp with time zone)",
@@ -60,6 +62,8 @@ const CLIENT_IDENTITY_GATEWAY_ROUTINES = Object.freeze([
   "client_mfa_mark_session_verified(text,text,timestamp with time zone,timestamp with time zone)",
   "client_mfa_recovery_status(text)",
   "client_queue_password_reset(text,text,text,timestamp with time zone,text,text,timestamp with time zone)",
+  "client_queue_registration_email_verification(text,text,text,timestamp with time zone,text,text,timestamp with time zone)",
+  "client_queue_email_verification_by_email(text,text,text,timestamp with time zone,text,text,timestamp with time zone)",
   "client_consume_password_reset(text,text,timestamp with time zone)",
   "client_verify_email(text,timestamp with time zone)",
 ]);
@@ -78,6 +82,7 @@ const IDENTITY_TABLE_ALLOWED_GRANTEES = new Map([
 const identityGatewayGrantee = (signature) => signature.startsWith("client_login_identity(")
   || signature.startsWith("client_self_password_identity(")
   || signature.startsWith("client_queue_password_reset(")
+  || signature.startsWith("client_queue_email_verification_by_email(")
   ? "agentnovas_client_auth"
   : "agentnovas_client_web";
 

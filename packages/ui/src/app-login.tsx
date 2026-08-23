@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AppAudience } from "@/lib/riverton-apps";
 import { apiErrorMessage, safeNextPath } from "@/packages/contracts/src/riverton-ui";
 
-type LoginMode = "login" | "register" | "forgot";
+type LoginMode = "login" | "register" | "forgot" | "verify";
 type MfaFlow =
   | { stage: "enroll"; setupKey: string }
   | { stage: "verify" }
@@ -65,6 +65,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
     { status: "idle", message: "" },
   );
   const [mode, setMode] = useState<LoginMode>(invitedCode ? "register" : safeInitialMode);
+  const [verificationEmail, setVerificationEmail] = useState("");
   const [mfaFlow, setMfaFlow] = useState<MfaFlow>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -117,7 +118,8 @@ export function AppLogin({ audience, title, description, allowRegistration, init
 
       const endpoint = mode === "register"
         ? "/api/auth/register"
-        : mode === "forgot" ? "/api/auth/forgot-password" : "/api/auth/login";
+        : mode === "forgot" ? "/api/auth/forgot-password"
+          : mode === "verify" ? "/api/auth/resend-verification" : "/api/auth/login";
       const payload = await postJson(endpoint, values);
       if (mode === "login") {
         if (payload.mfaRequired === true) {
@@ -134,8 +136,11 @@ export function AppLogin({ audience, title, description, allowRegistration, init
         enterApplication();
         return;
       }
-      setMessage(apiErrorMessage(payload, mode === "forgot" ? "如果邮箱存在，重置邮件已进入发送队列" : "注册成功，请返回登录"));
-      if (mode === "register") setMode("login");
+      setMessage(apiErrorMessage(payload, mode === "forgot" ? "如果邮箱存在，重置邮件已进入发送队列" : mode === "verify" ? "如果账户待验证，验证邮件已进入发送队列" : "注册成功，请完成邮箱验证"));
+      if (mode === "register") {
+        setVerificationEmail(String(values.email ?? ""));
+        setMode("verify");
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "操作失败，请稍后重试");
     } finally {
@@ -153,13 +158,13 @@ export function AppLogin({ audience, title, description, allowRegistration, init
     ? "绑定双重验证"
     : mfaFlow?.stage === "verify" ? "双重验证"
       : mfaFlow?.stage === "recovery" ? "保存恢复码"
-        : mode === "register" ? "创建客户账户" : mode === "forgot" ? "重置登录密码" : "安全登录";
+        : mode === "register" ? "创建客户账户" : mode === "forgot" ? "重置登录密码" : mode === "verify" ? "验证账户邮箱" : "安全登录";
   const helper = mfaFlow?.stage === "enroll"
     ? "将设置密钥加入身份验证器，再输入当前六位动态验证码。"
     : mfaFlow?.stage === "verify" ? "输入身份验证器动态验证码，或使用一枚尚未使用的恢复码。"
       : mfaFlow?.stage === "recovery" ? "恢复码仅显示一次。请保存到独立的安全位置后再进入应用。"
         : mode === "login" ? "请输入当前应用获授权的账户。"
-          : mode === "forgot" ? "重置链接仅发送到已登记邮箱。" : "客户注册需要有效邀请码。";
+          : mode === "forgot" ? "重置链接仅发送到已登记邮箱。" : mode === "verify" ? "验证链接有效期为 24 小时；重发会使旧链接失效。" : "客户注册需要有效邀请码。";
 
   return <main className={`rc-auth rc-auth-${audience}`}>
     <section className="rc-auth-brand"><Link href="/" prefetch={false}>{audience === "client" ? <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="220px" alt="Riverton Capital" priority /> : "R"}</Link><div><small>{audience.toUpperCase()} ACCESS</small><h1>{title}</h1><p>{description}</p></div><ul><li>独立应用会话</li><li>服务端权限校验</li><li>完整操作审计</li></ul></section>
@@ -215,7 +220,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
     {!staffInviteCode ? (
     <form onSubmit={submit} aria-labelledby="rc-login-heading">
       <header><small>RIVERTON CAPITAL</small><h2 id="rc-login-heading">{heading}</h2><p>{helper}</p></header>
-      {!mfaFlow && mode === "register" && <><label>手机号<input name="phone" type="tel" autoComplete="tel" required /></label><label>邮箱（可选）<input name="email" type="email" autoComplete="email" /></label><label>邀请码<input
+      {!mfaFlow && mode === "register" && <><label>手机号（含国际区号）<input name="phone" type="tel" autoComplete="tel" required /></label><label>邮箱<input name="email" type="email" autoComplete="email" required /></label><label>邀请码<input
           name="invitationCode"
           required
           autoCapitalize="characters"
@@ -223,17 +228,18 @@ export function AppLogin({ audience, title, description, allowRegistration, init
           // 链接带来的码仍然可改：链接可能过期或被换掉，锁死会让人卡在这里无路可走。
           key={invitedCode}
         /></label></>}
-      {!mfaFlow && (mode === "forgot" ? <label>账户邮箱<input name="email" type="email" autoComplete="email" required /></label> : mode === "login" && <label>邮箱、手机号或用户名<input name="identifier" autoComplete="username" required /></label>)}
+      {!mfaFlow && (mode === "forgot" || mode === "verify" ? <label>账户邮箱<input name="email" type="email" autoComplete="email" defaultValue={mode === "verify" ? verificationEmail : ""} required /></label> : mode === "login" && <label>邮箱、手机号或用户名<input name="identifier" autoComplete="username" required /></label>)}
       {!mfaFlow && mode !== "forgot" && <label>密码<input name="password" type="password" minLength={10} autoComplete={mode === "login" ? "current-password" : "new-password"} required /></label>}
       {mfaFlow?.stage === "enroll" && <label>身份验证器设置密钥<input className="rc-mfa-setup-key" value={mfaFlow.setupKey} readOnly aria-describedby="rc-mfa-setup-help" /></label>}
       {mfaFlow?.stage === "enroll" && <small id="rc-mfa-setup-help">设置密钥属于敏感信息；完成绑定后本页不会再次显示。</small>}
       {(mfaFlow?.stage === "enroll" || mfaFlow?.stage === "verify") && <label>{mfaFlow.stage === "enroll" ? "六位动态验证码" : "动态验证码或恢复码"}<input ref={mfaCodeRef} name="code" autoComplete="one-time-code" inputMode={mfaFlow.stage === "enroll" ? "numeric" : "text"} required /></label>}
       {mfaFlow?.stage === "recovery" && <div className="rc-recovery-codes" role="status" aria-live="polite"><ul>{mfaFlow.recoveryCodes.map((code) => <li key={code}><code>{code}</code></li>)}</ul><button className="rc-primary" type="button" onClick={enterApplication}>我已安全保存，进入应用</button></div>}
       {message && <div className="rc-auth-message" role="status" aria-live="polite">{message}</div>}
-      {mfaFlow?.stage !== "recovery" && <button className="rc-primary" disabled={busy}>{busy ? "处理中…" : mfaFlow?.stage === "enroll" ? "绑定并生成恢复码" : mfaFlow?.stage === "verify" ? "验证并进入" : mode === "login" ? "登录" : mode === "forgot" ? "发送重置邮件" : "创建账户"}</button>}
+      {mfaFlow?.stage !== "recovery" && <button className="rc-primary" disabled={busy}>{busy ? "处理中…" : mfaFlow?.stage === "enroll" ? "绑定并生成恢复码" : mfaFlow?.stage === "verify" ? "验证并进入" : mode === "login" ? "登录" : mode === "forgot" ? "发送重置邮件" : mode === "verify" ? "重发验证邮件" : "创建账户"}</button>}
       {!mfaFlow && <footer>
         {mode !== "login" && <button type="button" onClick={() => switchMode("login")}>返回登录</button>}
         {mode === "login" && audience === "client" && <button type="button" onClick={() => switchMode("forgot")}>忘记密码</button>}
+        {mode === "login" && audience === "client" && <button type="button" onClick={() => switchMode("verify")}>重发验证邮件</button>}
         {mode === "login" && allowRegistration && <button type="button" onClick={() => switchMode("register")}>使用邀请码注册</button>}
       </footer>}
     </form>

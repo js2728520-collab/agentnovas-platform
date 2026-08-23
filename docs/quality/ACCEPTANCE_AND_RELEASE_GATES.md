@@ -22,6 +22,9 @@
 - Origin/CSRF、strict body schema/limit、requestId、统一错误和敏感幂等验证完成。
 - Client `DATABASE_URL=agentnovas_client_web`，`CLIENT_AUTH_DATABASE_URL=agentnovas_client_auth`；运行时同时核验 URL 用户名与 `current_user`，构建阶段不打开数据库连接。
 - Client Web/Auth 均不能直读身份或邀请表；Web 不能调用登录 hash 投影，Auth 不能创建/完成 session 或消费 reset。两角色不可继承/互相 `SET ROLE`，过期但未 revoked 的 session 不能调用任何 self gateway。
+- Client 注册必须产生 pending 身份、摘要验证 token 和加密 Email outbox；验证前不能创建 Session，重发旧 token 失效且不枚举邮箱。
+- Client 五设备上限在 PostgreSQL 身份锁内原子执行；并发第 5/6 台只有一个成功，同设备重登不占新名额，单设备/全量撤销跨浏览器立即生效。
+- 新设备与网段变化提醒必须同时产生站内和 Email outbox；Email 未配置只能显示排队/未配置事实，不能宣称送达。
 
 ## 3. Gate 2：账本、会员和 Credits
 

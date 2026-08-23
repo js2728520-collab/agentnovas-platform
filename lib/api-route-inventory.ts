@@ -598,6 +598,28 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": false
   },
   {
+    "method": "POST",
+    "route": "/api/account/sessions",
+    "source": "app/api/account/sessions/route.shared.ts",
+    "audiences": [
+      "client",
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireCurrentSession"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
     "method": "GET",
     "route": "/api/admin/agent-role-bindings",
     "source": "app/api/admin/agent-role-bindings/route.maintenance.ts",
@@ -1402,6 +1424,24 @@ export const API_ROUTE_INVENTORY = [
     "method": "POST",
     "route": "/api/auth/register",
     "source": "app/api/auth/register/route.client.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/auth/resend-verification",
+    "source": "app/api/auth/resend-verification/route.client.ts",
     "audiences": [
       "client"
     ],

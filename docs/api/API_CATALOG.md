@@ -3,7 +3,7 @@
 > 文档状态：`CURRENT_BASELINE`。本文只登记当前真实 route 和 Policy，不提前虚构 V3 endpoint。V3 目标 API 家族见 [`../specs/V3_SYSTEM_TARGET_SPEC.md`](../specs/V3_SYSTEM_TARGET_SPEC.md)；每个家族只有在合同、实现和 Gate 完成后才能写入本目录并改为 `CURRENT`。
 
 日期：2026-08-23
-范围：当前包含 196 个 route 文件、259 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。
+范围：当前包含 197 个 route 文件、261 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。
 
 ## 0. V3 目标接口族（尚不是当前合同）
 
@@ -12,7 +12,7 @@
 | 接口族 | 所有权 | 当前状态 | 前置条件 |
 | --- | --- | --- | --- |
 | Operations 角色权限注册链接 | O | `CURRENT/PARTIAL` | 签发、复制、撤销、重生成、注册、限流和审计已落地；待 Client 会话子项与 G1 浏览器验收 |
-| Client 可复用邀请与 5 设备会话 | C/O | `TARGET/PARTIAL` | 身份合同、限流、Session 迁移，G1 |
+| Client 可复用邀请与 5 设备会话 | C/O | `CURRENT/PARTIAL` | 邮箱验证、5 设备、提醒和全量退出已实现；待 G1 浏览器/邮件/目标 Nginx 证据 |
 | 行情源偏好、provider 状态和主备切换 | C/M/S | `TARGET` | provider/symbol/calendar 合同，G2 |
 | 客户策略投稿、审核、上架和下架 | C/O | `TARGET` | 策略版本、准入、作者权限，G3 |
 | 跟单订阅、费用、参数和停止 | C/O/S | `TARGET` | 不可变快照、收费、风险，G3/G4 |
@@ -40,7 +40,7 @@
 
 所有接口在受控测试前都必须进入可执行的 route policy 清单：method/path、audience、认证/MFA、permission、assignment-bound data scope、PII policy、mutation sensitivity、idempotency、rate limit、body limit 和审计类型。未登记 handler 发布失败。
 
-## 2. Access 与账户（26）
+## 2. Access 与账户（33）
 
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
@@ -59,14 +59,16 @@
 | `/api/account/llm-config/test` | POST | C | DISABLED/BETA；不接受客户密钥测试 |
 | `/api/account/password` | POST | C/O/M | KEEP；校验当前密码、Argon2id、撤销其他会话与审计 |
 | `/api/account/profile` | GET, PATCH | C | KEEP |
+| `/api/account/sessions` | GET, POST, DELETE | C/O/M | CURRENT；列出/单会话撤销；POST 原子退出全部设备并清当前 Cookie |
 | `/api/auth/forgot-password` | POST | C | KEEP；内部 audience 404，需限流 |
-| `/api/auth/login` | POST | C/O/M | KEEP；audience 登录资格、共享限流；内部强制 MFA，Client 已绑定时要求 MFA |
+| `/api/auth/login` | POST | C/O/M | CURRENT；Client 强制已验证邮箱、原子 5 设备上限和新设备/网段变化提醒；内部强制 MFA |
 | `/api/auth/mfa/**` | GET, POST | C/O/M | KEEP；内部强制、Client 可选绑定；恢复码只显示一次且仅存哈希 |
 | `/api/auth/logout` | POST | C/O/M | KEEP；只清当前 audience |
 | `/api/auth/me` | GET | C/O/M | KEEP |
-| `/api/auth/register` | POST | C | KEEP；邀请制，内部 audience 404 |
+| `/api/auth/register` | POST | C | CURRENT；国际手机号和邮箱必填，创建 pending 身份与加密验证邮件；内部 audience 404 |
+| `/api/auth/resend-verification` | POST | C | CURRENT；匿名同源、邮箱/网络双桶限流、非枚举响应并轮换旧验证 token |
 | `/api/auth/reset-password` | POST | C | KEEP；一次性 token、共享限流和全量会话撤销 |
-| `/api/auth/verify-email` | POST | C | KEEP |
+| `/api/auth/verify-email` | POST | C | CURRENT；24 小时摘要 token，消费后激活；浏览器 token 使用 URL fragment |
 | `/api/invitations/staff-link` | GET, POST, PATCH, DELETE | O | CURRENT；五级向下授权、recent MFA、复制审计、手动作废和原子重生成 |
 | `/api/organization/staff-register` | POST | O | CURRENT；匿名但仅 Operations，同源、三桶限流、注册即 active assignment 与 MFA 引导 |
 | `/api/organization/members` | GET, POST, PATCH, DELETE | O | PARTIAL；GET 提供 scope-bound 平面账号目录；POST/PATCH 已 `410 Retired`，DELETE 禁用 |

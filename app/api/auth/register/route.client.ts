@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     const invitationCode = normalizeInvitationCode(String(body.invitationCode ?? ""));
 
     if (!phone) return Response.json({ error: "请输入有效手机号（可包含国际区号）" }, { status: 400 });
-    if (email && !validEmail(email)) return Response.json({ error: "邮箱格式不正确" }, { status: 400 });
+    if (!validEmail(email)) return Response.json({ error: "请输入有效邮箱" }, { status: 400 });
     if (password.length < 10) return Response.json({ error: "密码至少需要 10 位字符" }, { status: 400 });
     if (!invitationCode) return Response.json({ error: "必须填写邀请码" }, { status: 400 });
 
@@ -78,12 +78,11 @@ export async function POST(request: Request) {
     }
 
     const codeHash = await sha256(invitationCode);
-    const accountEmail = email || `phone-${(await sha256(phone.value)).slice(0, 18)}@unverified.agentnovas.local`;
     const registered = await registerInvitedClient(pool, {
       codeHash,
       phone: phone.value,
       phoneMasked: phone.masked,
-      email: accountEmail,
+      email,
       passwordHash: await hashPassword(password),
       ipAddress: connection.ipAddress,
       userAgent: request.headers.get("user-agent"),
@@ -91,8 +90,8 @@ export async function POST(request: Request) {
 
     return Response.json({
       ok: true,
-      message: "注册成功，无需短信验证码；等待完成商业披露确认后开通3天试用",
-      verificationRequired: false,
+      message: "注册成功，请在 24 小时内通过邮件完成邮箱验证；验证后可登录并确认商业披露",
+      verificationRequired: registered.verificationRequired,
       trial: {
         status: registered.trialStatus,
         expiresAt: null,

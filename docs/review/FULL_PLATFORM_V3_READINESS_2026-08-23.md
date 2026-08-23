@@ -17,8 +17,8 @@
 | 域 | 当前基础 | V3 差距 | 状态 | 风险 |
 | --- | --- | --- | --- | --- |
 | 三端隔离 | audience/Cookie/RBAC/DB role 已有 | V3 菜单与 target API 扩展 | `PARTIAL` | 中 |
-| Client 身份 | 邮箱/MFA/Session 基础 | 手机号必填、5 设备、可复用客户邀请 | `PARTIAL` | 中 |
-| Operations 身份 | assignment/邀请基础 | 权限链接、自助注册、取消组织 UI | `TARGET` | 高 |
+| Client 身份 | 邮箱验证、国际手机号、5 设备、提醒和全量退出已实现 | 城市级定位参数、真实邮件与浏览器 G1 | `CURRENT/PARTIAL` | 中 |
+| Operations 身份 | 权限链接、自助注册、扁平账号目录已实现 | 四身份浏览器 G1 | `CURRENT/PARTIAL` | 中 |
 | 行情 | 加密市场与回测基础 | 多 provider、股票/外汇/贵金属、实时 SLA | `TARGET` | 高 |
 | AI 助手 | 对话、DSL、回测基础 | QuantDinger 差异、精简 UI、固定 Credits | `PARTIAL` | 中 |
 | 策略市场 | 旧社区能力曾存在/已关闭 | 投稿审核、作者、收费、版本与风控 | `TARGET` | 高 |

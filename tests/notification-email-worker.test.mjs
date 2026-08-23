@@ -24,6 +24,25 @@ const tokenEnvironment = {
 };
 
 test("known notification templates render bounded escaped email", () => {
+  const verification = renderNotificationEmail("verify_email", { token: "verify&token", audience: "client" });
+  assert.match(verification.text, /https:\/\/agentnovas\.com\/verify-email#token=verify%26token/);
+  assert.doesNotMatch(verification.html, /verify&token/);
+
+  const newDevice = renderNotificationEmail("security_new_device", {
+    device: "Chrome · macOS",
+    maskedIpAddress: "203.0.113.x",
+    occurredAt: "2026-08-23T02:00:00.000Z",
+  });
+  assert.match(newDevice.subject, /新设备登录/);
+  assert.match(newDevice.text, /Chrome · macOS/);
+
+  const changedNetwork = renderNotificationEmail("security_network_changed", {
+    device: "Safari · iOS",
+    maskedIpAddress: "198.51.100.x",
+    occurredAt: "2026-08-23T02:05:00.000Z",
+  });
+  assert.match(changedNetwork.subject, /网络位置变化/);
+
   const reset = renderNotificationEmail("reset_password", { token: "a&b", audience: "client" });
   assert.match(reset.text, /https:\/\/agentnovas\.com\/reset-password\?token=a%26b/);
   assert.doesNotMatch(reset.html, /a&b/);

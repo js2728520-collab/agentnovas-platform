@@ -2015,3 +2015,36 @@ ESLint、三端生产构建和 bundle 预算均通过。构建仍有既存的 No
 
 Phase 1 尚未结束。下一切片是客户端账号安全：强制邮箱验证、最多 5 台设备、新设备/
 异地登录提醒以及一键退出全部设备；随后补齐真实浏览器验收证据。
+
+## 53. 2026-08-23 V3 Phase 1：Client 邮箱与五设备安全
+
+分支 `codex/platform-v3-doc-sync` 已完成 T1.4 的核心实现，决策见 ADR-0022，数据迁移为
+`0066_client_email_and_device_security.sql`。
+
+- Client 注册现在要求有效国际手机号和邮箱。新身份保持 `pending`，24 小时邮箱验证成功
+  后才激活；重发入口按邮箱和可信网络双桶限流，对外使用非枚举响应。
+- 邮箱 bearer token 只存 SHA-256 摘要，Email outbox 只存 AES-GCM 密文；验证链接改用
+  URL fragment，明文 token 不进入 Nginx/Next 请求 URL。
+- Client 设备使用独立 256-bit HttpOnly Cookie，数据库只存摘要。同设备重登轮换旧
+  Session；不同设备最多 5 台，客户行锁保证并发第 5/6 台不会同时成功。
+- 新设备和已知设备跨 IP 网段分别产生站内与 Email 安全 outbox。页面只显示设备摘要、
+  时间和脱敏 IP；完整 user-agent/IP 只留在受控 Session/审计数据。
+- 账户安全页支持单设备撤销和一键退出全部 Client 设备；全量撤销包括当前 Session，提交
+  后同时清 Cookie 并写审计。
+- Client Web/Auth 的精确数据库 gateway、生产最小权限、API inventory 和三端 Nginx
+  allowlist 已同步。新增验证重发 API 只存在于 Client 构建。
+
+验证结果：全量 1263 个测试、TypeScript、ESLint、bundle 预算和敏感信息扫描通过。三端
+生产镜像已在云端 `ssh an-saas` 使用仓库固定 Node 22.21.1 镜像构建，未启动或部署：
+
+- Client：`sha256:e9861c19d036ecfd2e40288be8bf5f71efae5b22f01c2fbb58feebbfa727713e`
+- Operations：`sha256:f1016b7eb13f104fe15944082aa30b2d5b60c434b2572437225ba3288f926e7f`
+- Maintenance：`sha256:57f111689aa9a0ce4b02dc42c93d23b86cdd65c087044eafc43c651084f25d7a`
+
+同一云端 Docker daemon 使用 `nginx:1.29.8-alpine` 完成真实 `nginx -t`，语法通过；只有
+为兼容发行版旧 nginx 而保留的 `listen ... http2` 弃用警告。生产依赖
+`npm audit --omit=dev` 为 0 漏洞；`npm ci` 的 17 项审计提示全部来自开发依赖。
+
+T1.4 自动化范围已完成，但 G1 仍未关闭：需要四身份真实浏览器、多上下文撤销和真实邮件
+送达/关闭降级证据。需求方还需确认第 6 台设备交互，以及是否要求城市级
+定位；当前安全默认分别是“拒绝第 6 台”和“以 IP 网段变化作为异地证据”。
