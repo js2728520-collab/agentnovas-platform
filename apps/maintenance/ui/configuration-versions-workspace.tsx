@@ -5,17 +5,11 @@ import { useRef, useState } from "react";
 import type { ConfigurationActivationAction, ConfigurationApprovalDecision, ConfigurationTestResult } from "@/lib/versioned-configuration-domain";
 import type { ConfigurationVersion, ConfigurationVersionsPayload } from "@/packages/contracts/src/versioned-configuration";
 import { apiErrorMessage, formatDateTime } from "@/packages/contracts/src/riverton-ui";
-import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 import { ConfigurationVersionCreatePanel } from "./configuration-version-create-panel";
 import { ConfigurationVersionDetailPanel } from "./configuration-version-detail-panel";
 import { commandKey, shortHash } from "./configuration-version-ui";
-
-type PendingAction =
-  | { kind: "approval"; version: ConfigurationVersion; decision: ConfigurationApprovalDecision }
-  | { kind: "schedule"; version: ConfigurationVersion; scheduledFor: string }
-  | { kind: "activation"; version: ConfigurationVersion; action: ConfigurationActivationAction };
 
 export function ConfigurationVersionsWorkspace(props: { currentUserId: string; canManage: boolean; canApprove: boolean; canActivate: boolean }) {
   const resource = useApiData<ConfigurationVersionsPayload>("/api/maintenance/configuration-versions?limit=100", "配置版本读取失败");
@@ -57,7 +51,6 @@ function ConfigurationVersionsControl({ payload, refresh, currentUserId, canMana
   loadMore: () => Promise<void>;
 }) {
   const [selectedId, setSelectedId] = useState(payload.versions[0]?.id ?? "");
-  const [pending, setPending] = useState<PendingAction | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const actionKeys = useRef(new Map<string, string>());
@@ -89,22 +82,29 @@ function ConfigurationVersionsControl({ payload, refresh, currentUserId, canMana
     await runInline(() => mutation(`/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}/tests`, { result, evidenceSha256, reason }, `configuration-test:${version.id}:${result}`), "测试证据已登记；这不代表浏览器执行了自动测试。");
   }
 
-  async function confirm(reason: string) {
-    if (!pending) return;
-    setBusy(true); setMessage("");
-    try {
-      const base = `/api/maintenance/configuration-versions/${encodeURIComponent(pending.version.id)}`;
-      if (pending.kind === "approval") await mutation(`${base}/approval`, { decision: pending.decision, reason }, `configuration-approval:${pending.version.id}:${pending.decision}`);
-      else if (pending.kind === "schedule") await mutation(`${base}/schedule`, { scheduledFor: pending.scheduledFor, reason }, `configuration-schedule:${pending.version.id}`);
-      else await mutation(`${base}/activation`, { action: pending.action, reason }, `configuration-activation:${pending.version.id}:${pending.action}`);
-      setMessage(pending.kind === "approval" ? "独立审批决定已记录。" : pending.kind === "schedule" ? "生效时间已按明确时区登记。" : pending.action === "activate" ? "控制面 current 已切换；尚未接管具体运行时消费者。" : "控制面已回滚到所选历史版本；尚未接管具体运行时消费者。");
-      setPending(null); await refresh();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "配置发布操作失败"); }
-    finally { setBusy(false); }
+  async function review(version: ConfigurationVersion, decision: ConfigurationApprovalDecision, reason: string) {
+    const base = `/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}`;
+    await runInline(
+      () => mutation(`${base}/approval`, { decision, reason }, `configuration-approval:${version.id}:${decision}`),
+      decision === "approve" ? "独立审批已批准并记录。" : "独立审批已拒绝并记录。",
+    );
   }
 
-  const dialogTitle = pending?.kind === "approval" ? `${pending.decision === "approve" ? "批准" : "拒绝"}配置版本` : pending?.kind === "schedule" ? "安排配置生效" : pending?.action === "rollback" ? "回滚配置 current" : "激活配置版本";
-  const dialogDescription = pending?.kind === "approval" ? "审批决定不可覆盖，拒绝后必须创建新版本。" : pending?.kind === "schedule" ? `计划时间 ${pending.scheduledFor} 将作为不可变事实保存。` : "此操作会改变配置流的控制面 current 投影，但当前尚不会改变具体运行时行为。";
+  async function schedule(version: ConfigurationVersion, scheduledFor: string, reason: string) {
+    const base = `/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}`;
+    await runInline(
+      () => mutation(`${base}/schedule`, { scheduledFor, reason }, `configuration-schedule:${version.id}`),
+      "生效时间已按明确时区登记。",
+    );
+  }
+
+  async function activate(version: ConfigurationVersion, action: ConfigurationActivationAction, reason: string) {
+    const base = `/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}`;
+    await runInline(
+      () => mutation(`${base}/activation`, { action, reason }, `configuration-activation:${version.id}:${action}`),
+      action === "activate" ? "控制面 current 已切换；尚未接管具体运行时消费者。" : "控制面已回滚到所选历史版本；尚未接管具体运行时消费者。",
+    );
+  }
 
   return <>
     <PageHeading eyebrow="VERSIONED CONFIGURATION CONTROL" title="配置发布" description="管理非秘密配置的草稿、测试证据、独立审批、调度、激活与回滚。" actions={<StatusBadge value={`${payload.versions.filter((version) => version.isCurrent).length} current`} />} />
@@ -122,7 +122,6 @@ function ConfigurationVersionsControl({ payload, refresh, currentUserId, canMana
       {payload.nextCursor ? <div className="rc-action-row"><button className="rc-button" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? "正在读取…" : "加载更早版本"}</button></div> : null}
       {loadMoreError ? <div className="rc-live" role="alert">{loadMoreError}</div> : null}
     </section>
-    {selected ? <ConfigurationVersionDetailPanel version={selected} current={current} currentUserId={currentUserId} canManage={canManage} canApprove={canApprove} canActivate={canActivate} busy={busy} onTest={(result, evidence, reason) => recordTest(selected, result, evidence, reason)} onReview={(decision) => setPending({ kind: "approval", version: selected, decision })} onSchedule={(scheduledFor) => setPending({ kind: "schedule", version: selected, scheduledFor })} onActivation={(action) => setPending({ kind: "activation", version: selected, action })} /> : null}
-    <ConfirmActionDialog open={pending !== null} title={dialogTitle} description={dialogDescription} confirmLabel="确认并记录" busy={busy} onCancel={() => setPending(null)} onConfirm={(reason) => void confirm(reason)} />
+    {selected ? <ConfigurationVersionDetailPanel version={selected} current={current} currentUserId={currentUserId} canManage={canManage} canApprove={canApprove} canActivate={canActivate} busy={busy} onTest={(result, evidence, reason) => recordTest(selected, result, evidence, reason)} onReview={(decision, reason) => review(selected, decision, reason)} onSchedule={(scheduledFor, reason) => schedule(selected, scheduledFor, reason)} onActivation={(action, reason) => activate(selected, action, reason)} /> : null}
   </>;
 }

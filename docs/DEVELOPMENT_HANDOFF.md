@@ -2260,7 +2260,9 @@ Maintenance 新增稳定路由 `/configurations` 和权限导航，页面消费 
 不可变草稿、版本历史、顶层字段差异、payload SHA、测试证据、独立审批、明确时区 offset/
 UTC 预览、稳定游标历史加载、调度、current 投影、到期激活和历史回滚。计划时间的 offset
 按目标日期计算，跨 DST 不复用页面打开当天的 offset。页面不读取或显示秘密字段；草稿和
-测试证据使用页面内审计原因直接提交，审批、调度、激活和回滚继续使用高风险确认对话框。
+测试证据、审批、调度、激活和回滚都使用页面内审计原因直接提交，不再用模态确认框打断
+配置流程。权限分离、创建者不得自审、状态机前置条件、幂等键、busy 防重复提交和不可变
+审计事实没有放宽；当前激活仍只改变尚未接管具体运行时的控制面 current 投影。
 
 工作台用词保持事实边界：人工上传只称为“登记测试证据”，不会声称浏览器运行了测试；
 在具体配置消费者接入前，active/current 也只表示控制面投影，不表示品牌、功能开关、
@@ -2280,3 +2282,10 @@ production dependency audit 均通过。Client、Operations、Maintenance standa
 最终 Maintenance 产物重建后真实 Chromium 3/3，通过四档宽度、axe、键盘、资源预算、
 console/network 检查和一次无确认弹窗的草稿创建 201。远端未启动服务、未迁移生产库、
 未推送、未部署。
+
+配置全流程去除模态框后再次验证：定向 UI 合同 7/7、`npm test` 1302/1302、TypeScript、
+ESLint、secret scan 和 production dependency audit 均通过。最新 Maintenance standalone
+在 `ssh an-saas` 的 `/tmp/agentnovas-config-inline-build-MdtmTZ`、固定 Node 22.21.1 容器中
+构建成功；同一产物下载到本地隔离测试仓后，关闭态完整 Playwright 再次 18/18 通过，覆盖
+三端空浏览器登录、配置页真实草稿创建和全程无 dialog。质量 schema 与运行时凭证均已清理，
+3002 上既有进程未停止或覆盖；远端未启动服务、未迁移生产库、未推送、未部署。

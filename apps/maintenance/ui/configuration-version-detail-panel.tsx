@@ -18,14 +18,18 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
   canActivate: boolean;
   busy: boolean;
   onTest: (result: ConfigurationTestResult, evidenceSha256: string, reason: string) => Promise<void>;
-  onReview: (decision: ConfigurationApprovalDecision) => void;
-  onSchedule: (scheduledFor: string) => void;
-  onActivation: (action: ConfigurationActivationAction) => void;
+  onReview: (decision: ConfigurationApprovalDecision, reason: string) => Promise<void>;
+  onSchedule: (scheduledFor: string, reason: string) => Promise<void>;
+  onActivation: (action: ConfigurationActivationAction, reason: string) => Promise<void>;
 }) {
   const [testResult, setTestResult] = useState<ConfigurationTestResult>("passed");
   const [evidence, setEvidence] = useState("");
   const [testReason, setTestReason] = useState("");
+  const [reviewReason, setReviewReason] = useState("");
   const [scheduleLocal, setScheduleLocal] = useState(defaultScheduleLocal);
+  const [scheduleReason, setScheduleReason] = useState("");
+  const [activationReason, setActivationReason] = useState("");
+  const [rollbackReason, setRollbackReason] = useState("");
   const [referenceNow, setReferenceNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setReferenceNow(Date.now()), 30_000);
@@ -59,17 +63,27 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
       <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || evidence.length !== 64 || !hasValidAuditReason(testReason)} onClick={() => void onTest(testResult, evidence, testReason).then(() => setTestReason("")).catch(() => undefined)}>{busy ? "正在登记…" : "登记测试证据"}</button></div>
     </div> : null}
 
-    {!version.approval && testPassed && canApprove ? <div className="rc-config-action-block">
-      {!independentlyReviewable ? <p className="rc-muted">创建者不能审批自己的配置版本，请由另一名具备审批权限的人员处理。</p> : <div className="rc-action-row"><button className="rc-button" type="button" disabled={busy} onClick={() => onReview("reject")}>拒绝版本</button><button className="rc-primary" type="button" disabled={busy} onClick={() => onReview("approve")}>批准版本</button></div>}
+    {!version.approval && testPassed && canApprove ? <div className="rc-form rc-form-grid rc-config-action-block">
+      {!independentlyReviewable ? <p className="rc-muted rc-wide-field">创建者不能审批自己的配置版本，请由另一名具备审批权限的人员处理。</p> : <>
+        <InlineAuditReasonField id={`configuration-review-reason-${version.id}`} value={reviewReason} onChange={setReviewReason} label="审批原因" hint="决定会直接写入不可变审批事实；拒绝后必须创建新版本。" />
+        <div className="rc-action-row rc-wide-field"><button className="rc-button" type="button" disabled={busy || !hasValidAuditReason(reviewReason)} onClick={() => void onReview("reject", reviewReason).then(() => setReviewReason("")).catch(() => undefined)}>拒绝版本</button><button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(reviewReason)} onClick={() => void onReview("approve", reviewReason).then(() => setReviewReason("")).catch(() => undefined)}>批准版本</button></div>
+      </>}
     </div> : null}
 
     {version.approval?.decision === "approve" && !version.schedule && canApprove ? <div className="rc-form rc-form-grid rc-config-action-block">
       <label>本地计划时间<input type="datetime-local" value={scheduleLocal} onChange={(event) => setScheduleLocal(event.target.value)} /><small>{Intl.DateTimeFormat().resolvedOptions().timeZone} · 明确 offset：{scheduledFor || "待输入"}</small></label>
       <div><small>UTC 预览</small><p>{scheduleUtc || "请输入有效时间"}</p></div>
-      <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !scheduledFor || new Date(scheduledFor).getTime() < referenceNow} onClick={() => onSchedule(scheduledFor)}>核对并安排生效</button></div>
+      <InlineAuditReasonField id={`configuration-schedule-reason-${version.id}`} value={scheduleReason} onChange={setScheduleReason} label="调度原因" hint="计划时间和原因会直接写入不可变调度事实。" />
+      <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !scheduledFor || new Date(scheduledFor).getTime() < referenceNow || !hasValidAuditReason(scheduleReason)} onClick={() => void onSchedule(scheduledFor, scheduleReason).then(() => setScheduleReason("")).catch(() => undefined)}>安排生效</button></div>
     </div> : null}
 
-    {canActivate && version.schedule && !version.isCurrent ? <div className="rc-config-action-block"><div className="rc-action-row"><button className="rc-primary" type="button" disabled={busy || !due} onClick={() => onActivation("activate")}>{due ? "确认立即激活" : "尚未到计划时间"}</button></div></div> : null}
-    {canActivate && version.status === "superseded" ? <div className="rc-config-action-block"><div className="rc-action-row"><button className="rc-button" type="button" disabled={busy} onClick={() => onActivation("rollback")}>回滚到此版本</button></div></div> : null}
+    {canActivate && version.schedule && !version.isCurrent ? <div className="rc-form rc-form-grid rc-config-action-block">
+      <InlineAuditReasonField id={`configuration-activation-reason-${version.id}`} value={activationReason} onChange={setActivationReason} label="激活原因" hint="到达计划时间后会直接改变控制面 current；当前不会改变具体运行时行为。" />
+      <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !due || !hasValidAuditReason(activationReason)} onClick={() => void onActivation("activate", activationReason).then(() => setActivationReason("")).catch(() => undefined)}>{due ? "立即激活" : "尚未到计划时间"}</button></div>
+    </div> : null}
+    {canActivate && version.status === "superseded" ? <div className="rc-form rc-form-grid rc-config-action-block">
+      <InlineAuditReasonField id={`configuration-rollback-reason-${version.id}`} value={rollbackReason} onChange={setRollbackReason} label="回滚原因" hint="提交后会直接把控制面 current 回滚到此历史版本，并保留完整事实链。" />
+      <div className="rc-action-row rc-wide-field"><button className="rc-button" type="button" disabled={busy || !hasValidAuditReason(rollbackReason)} onClick={() => void onActivation("rollback", rollbackReason).then(() => setRollbackReason("")).catch(() => undefined)}>回滚到此版本</button></div>
+    </div> : null}
   </section>;
 }

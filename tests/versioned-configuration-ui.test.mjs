@@ -19,7 +19,7 @@ test("Maintenance exposes a permission-scoped configuration release workspace", 
   assert.match(application, /maint\.configuration_versions\.activate/);
 });
 
-test("ordinary draft and test commands stay inline while release-risk commands require confirmation", async () => {
+test("the complete configuration release flow stays inline without modal confirmations", async () => {
   const [workspace, create, detail] = await Promise.all([
     read("apps/maintenance/ui/configuration-versions-workspace.tsx"),
     read("apps/maintenance/ui/configuration-version-create-panel.tsx"),
@@ -29,13 +29,15 @@ test("ordinary draft and test commands stay inline while release-risk commands r
   assert.match(ordinaryActions, /InlineAuditReasonField/);
   assert.match(ordinaryActions, /登记测试证据/);
   assert.match(workspace, /尚未接管具体运行时/);
-  assert.match(workspace, /ConfirmActionDialog/);
-  assert.match(workspace, /kind: "approval"/);
-  assert.match(workspace, /kind: "schedule"/);
-  assert.match(workspace, /kind: "activation"/);
+  assert.doesNotMatch(workspace, /ConfirmActionDialog/);
+  assert.doesNotMatch(workspace, /PendingAction|setPending/);
+  assert.match(detail, /审批原因/);
+  assert.match(detail, /调度原因/);
+  assert.match(detail, /激活原因/);
+  assert.match(detail, /回滚原因/);
+  assert.doesNotMatch(detail, /确认立即激活|核对并安排生效/);
   assert.match(workspace, /nextCursor/);
   assert.match(workspace, /加载更早版本/);
-  assert.doesNotMatch(workspace, /kind: "create"|kind: "test"/);
 });
 
 test("local schedule input is serialized with an explicit UTC offset", async () => {
