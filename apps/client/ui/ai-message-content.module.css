@@ -46,7 +46,7 @@
   cursor: pointer;
 }
 
-.primary { border: 1px solid var(--rv-primary); background: var(--rv-primary); color: var(--rv-primary-foreground); }
+.primary { border: 1px solid var(--rv-primary); background: var(--rv-primary-strong); color: var(--rv-primary-foreground); }
 .secondary { border: 1px solid var(--rv-border); background: var(--rv-background); color: var(--rv-foreground); }
 .primary:disabled, .secondary:disabled { opacity: 0.55; cursor: not-allowed; }
 

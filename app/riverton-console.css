@@ -56,7 +56,9 @@
   border-radius: var(--rv-radius-sm);
   padding: 9px 12px;
   color: var(--rv-primary-foreground);
-  background: var(--rv-primary);
+  /* 见 client-portal-shell.module.css 同一处：跳转到主内容的链接是键盘与读屏用户
+     唯一会用到的入口，它自己看不清是所有对比度问题里最不该出现的一个。 */
+  background: var(--rv-primary-strong);
   transform: translateY(-160%);
   transition: transform .15s ease;
 }
@@ -191,7 +193,7 @@
   height: 30px;
   border-radius: 999px;
   background: var(--rv-brand-soft);
-  color: var(--rv-brand);
+  color: var(--rv-brand-ink);
   font-size: 12px;
   font-style: normal;
   font-weight: 700;
@@ -280,7 +282,7 @@
   border: 1px solid color-mix(in oklab, var(--rv-warning) 26%, transparent);
   border-radius: 999px;
   background: var(--rv-warning-soft);
-  color: var(--rv-warning);
+  color: var(--rv-warning-ink);
   font-size: 12px;
   font-weight: 620;
   white-space: nowrap;
@@ -407,24 +409,24 @@
 .rc-status.is-approved, .rc-status.is-pass, .rc-status.is-paid,
 .rc-status.is-activated, .rc-status.is-healthy {
   background: var(--rv-success-soft);
-  color: var(--rv-success);
+  color: var(--rv-success-ink);
 }
 .rc-status.is-failed, .rc-status.is-rejected, .rc-status.is-disabled,
 .rc-status.is-frozen, .rc-status.is-unconfigured, .rc-status.is-cancelled,
 .rc-status.is-expired {
   background: var(--rv-danger-soft);
-  color: var(--rv-danger);
+  color: var(--rv-danger-ink);
 }
 .rc-status.is-pending, .rc-status.is-sandbox, .rc-status.is-manual_review,
 .rc-status.is-unknown, .rc-status.is-unverified, .rc-status.is-submitted,
 .rc-status.is-grace, .rc-status.is-awaiting_evidence {
   background: var(--rv-warning-soft);
-  color: var(--rv-warning);
+  color: var(--rv-warning-ink);
 }
 .rc-status.is-configured, .rc-status.is-enabled, .rc-status.is-verified,
 .rc-status.is-trial, .rc-status.is-invoiced {
   background: var(--rv-info-soft);
-  color: var(--rv-info);
+  color: var(--rv-info-ink);
 }
 
 /* ============================================================
@@ -462,25 +464,25 @@
 .rc-primary,
 .rc-button-primary {
   border-color: transparent;
-  background: var(--rv-primary);
+  background: var(--rv-primary-strong);
   color: var(--rv-primary-foreground);
 }
 .rc-primary:hover, .rc-primary:focus-visible,
 .rc-button-primary:hover, .rc-button-primary:focus-visible {
-  background: color-mix(in oklab, var(--rv-primary) 88%, black);
+  background: color-mix(in oklab, var(--rv-primary-strong) 88%, black);
   color: var(--rv-primary-foreground);
 }
 
 .rc-danger-button,
 .rc-button-danger {
   border-color: color-mix(in oklab, var(--rv-danger) 40%, transparent);
-  color: var(--rv-danger);
+  color: var(--rv-danger-ink);
   background: transparent;
 }
 .rc-danger-button:hover, .rc-danger-button:focus-visible,
 .rc-button-danger:hover, .rc-button-danger:focus-visible {
   background: var(--rv-danger-soft);
-  color: var(--rv-danger);
+  color: var(--rv-danger-ink);
 }
 
 .rc-table-link {
@@ -778,7 +780,7 @@
   padding: 13px 15px;
   border-radius: var(--rv-radius-md);
   background: var(--rv-info-soft);
-  color: var(--rv-info);
+  color: var(--rv-info-ink);
   font-size: 12.8px;
   line-height: 1.65;
   overflow-wrap: anywhere;
@@ -789,7 +791,7 @@
    而这一条被略过的后果是事后拒绝提现时的争议。 */
 .rc-callout-warning {
   background: var(--rv-warning-soft);
-  color: var(--rv-warning);
+  color: var(--rv-warning-ink);
 }
 
 .rc-callout-warning strong {
@@ -804,7 +806,7 @@
   padding: 13px 15px;
   border-radius: var(--rv-radius-md);
   background: var(--rv-warning-soft);
-  color: var(--rv-warning);
+  color: var(--rv-warning-ink);
   font-size: 12.8px;
   line-height: 1.65;
   overflow-wrap: anywhere;
@@ -1010,7 +1012,7 @@
 .rc-dialog::backdrop { background: var(--rv-overlay); backdrop-filter: blur(3px); }
 .rc-dialog form { display: grid; gap: 16px; padding: 22px; }
 .rc-dialog header small {
-  color: var(--rv-warning);
+  color: var(--rv-warning-ink);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: .08em;
@@ -1096,7 +1098,7 @@
 .rc-auth-brand li::before {
   content: "✓";
   margin-right: 10px;
-  color: var(--rv-brand);
+  color: var(--rv-brand-ink);
   font-weight: 700;
 }
 .rc-auth-client .rc-auth-brand > a {

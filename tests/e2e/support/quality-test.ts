@@ -18,8 +18,12 @@ const audienceNavigationContract: Record<QualityAudience, {
   forbiddenLabels: string[];
 }> = {
   client: {
-    navigationName: "客户端资产中心导航",
-    requiredLabels: ["客户工作台", "会员中心", "AI 积分", "模拟组合", "七智能体交易大厅", "钱包与账本", "通知中心"],
+    // 这份契约要守的是「客户端只看得到客户端的东西」，不是某几个字。
+    // 但字得对得上：下面这些标签与 aria-label 都是从 client-portal-shell 的实际
+    // 导航定义抄来的，原来那套（「客户工作台」「七智能体交易大厅」「钱包与账本」、
+    // aria-label「客户端资产中心导航」）在 UI 里已经全部改过名。
+    navigationName: "客户导航",
+    requiredLabels: ["交易总览", "交易大厅", "模拟组合", "会员中心", "AI 积分", "资产与账本", "通知中心"],
     forbiddenLabels: ["运营概览", "客户管理", "系统概览", "模型与 Agent"],
   },
   operations: {

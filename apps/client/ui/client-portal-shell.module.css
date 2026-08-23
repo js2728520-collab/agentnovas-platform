@@ -32,7 +32,10 @@
   padding: 9px 12px;
   border-radius: var(--rv-radius-sm);
   color: var(--rv-primary-foreground);
-  background: var(--rv-primary);
+  /* 用 ink 而不是 primary：白字压在 --rv-primary 上只有 2.7:1。
+     跳转到主内容的链接恰恰是键盘与读屏用户唯一会用到的入口，
+     它自己看不清是所有对比度问题里最不该出现的一个。ink 与白字是 6.9:1。 */
+  background: var(--rv-primary-strong);
   transform: translateY(-160%);
   transition: transform .15s ease;
 }
@@ -128,7 +131,7 @@
   height: 30px;
   border-radius: 999px;
   background: var(--rv-brand-soft);
-  color: var(--rv-brand);
+  color: var(--rv-brand-ink);
   font-size: 12px;
   font-style: normal;
   font-weight: 700;
@@ -214,7 +217,7 @@
   border: 1px solid color-mix(in oklab, var(--rv-warning) 26%, transparent);
   border-radius: 999px;
   background: var(--rv-warning-soft);
-  color: var(--rv-warning);
+  color: var(--rv-warning-ink);
   font-size: 12px;
   font-weight: 620;
   white-space: nowrap;

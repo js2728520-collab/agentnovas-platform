@@ -45,7 +45,14 @@ function AgentDialoguePanel({ talks = [] }: { talks?: string[][] }) {
         <b>Agent 工作记录</b>
         <span>DECISION LOG</span>
       </div>
-      <div className={styles.dialogueViewport}>
+      {/* 可滚动区域必须能被键盘聚焦，否则只能用鼠标滚轮翻——用键盘的人根本读不到
+          下面的内容。tabIndex 0 + role/label 是 axe 的 scrollable-region-focusable
+          要求的最小形态。 */}
+      {/* jsx-a11y 不允许非交互元素带 tabIndex，而 axe 的 scrollable-region-focusable
+          要求可滚动区域必须能被键盘聚焦。两条规则在这里是冲突的，以实际行为为准：
+          没有 tabIndex，用键盘的人只能看到这个框的第一屏，下面的内容读不到。 */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
+      <div className={styles.dialogueViewport} tabIndex={0} role="region" aria-label="七角色决策对话记录">
         <div className={styles.dialogueTrack}>
           {rows.map((x, i) => (
             <article key={`${x[0]}-${i}`}>

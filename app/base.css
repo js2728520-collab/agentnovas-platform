@@ -71,7 +71,7 @@ a {
   border: 1px solid transparent;
   border-radius: var(--rv-radius-md);
   padding: 0.65rem 1rem;
-  background: var(--rv-primary);
+  background: var(--rv-primary-strong);
   color: var(--rv-primary-foreground);
   cursor: pointer;
   font-weight: 650;

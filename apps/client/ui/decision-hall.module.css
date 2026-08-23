@@ -68,7 +68,7 @@
 }
 
 .loadState [role="alert"],
-.meetingLoadState [role="alert"] { color: var(--rv-danger); }
+.meetingLoadState [role="alert"] { color: var(--rv-danger-ink); }
 
 /* 角色位置只是界面示意，这条说明不能被淡化到看不见（产品合规文案）。 */
 .illustrationNote {
@@ -93,6 +93,11 @@
 /* 场景：角色按百分比定位，容器保持固定宽高比避免定位随内容跳动。 */
 .scene {
   position: relative;
+  /* 宽度必须显式钉住。只给 aspect-ratio + min-height 时，窄视口下高度下限会反过来
+     撑出宽度（320px 的屏上算出 568px），整页横向滚动。
+     实测触发点就是 320px 视口。 */
+  width: 100%;
+  max-width: 100%;
   aspect-ratio: 16 / 9;
   min-height: 20rem;
   border: 1px solid var(--rv-border);
@@ -304,7 +309,7 @@
 
 .tableCore thead th { background: var(--rv-table-header); color: var(--rv-muted-foreground); }
 
-.green { color: var(--rv-success); }
+.green { color: var(--rv-success-ink); }
 .line { border: 0; border-top: 1px solid var(--rv-border); margin: 0.5rem 0; }
 
 /* 圆桌席位。序号是数据，用 data-seat 表达而不是编进类名——

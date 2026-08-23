@@ -260,7 +260,7 @@
   transform: translateY(-50%);
   padding: 0 0.3rem;
   border-radius: var(--rv-radius-sm);
-  background: var(--rv-primary);
+  background: var(--rv-primary-strong);
   color: var(--rv-primary-foreground);
   font-size: 0.625rem;
   font-variant-numeric: tabular-nums;
@@ -290,7 +290,7 @@
 .newsCard.isFallback { border-style: dashed; }
 .newsCard.isFallback::before {
   content: "非实时";
-  color: var(--rv-warning);
+  color: var(--rv-warning-ink);
   font-size: 0.625rem;
 }
 
@@ -321,6 +321,6 @@
 
 /* 刷新频率标识。是否在流式推送用 data 属性表达，未在推送时不得显示成在推送。 */
 .refreshRate { color: var(--rv-muted-foreground); font-size: 0.6875rem; }
-.refreshRate[data-streaming] { color: var(--rv-success); }
+.refreshRate[data-streaming] { color: var(--rv-success-ink); }
 
 .chartFooter { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; font-size: 0.6875rem; }

@@ -6,8 +6,8 @@
   border: 1px solid var(--rv-border);
 }
 
-.summaryReady { background: var(--rv-success-soft); color: var(--rv-success); }
-.summaryBlocked { background: var(--rv-warning-soft); color: var(--rv-warning); }
+.summaryReady { background: var(--rv-success-soft); color: var(--rv-success-ink); }
+.summaryBlocked { background: var(--rv-warning-soft); color: var(--rv-warning-ink); }
 
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
 
@@ -39,16 +39,16 @@
   color: var(--rv-foreground);
 }
 
-.ready .mark { background: var(--rv-success-soft); color: var(--rv-success); }
-.partial .mark { background: var(--rv-warning-soft); color: var(--rv-warning); }
-.missing .mark { background: var(--rv-danger-soft); color: var(--rv-danger); }
+.ready .mark { background: var(--rv-success-soft); color: var(--rv-success-ink); }
+.partial .mark { background: var(--rv-warning-soft); color: var(--rv-warning-ink); }
+.missing .mark { background: var(--rv-danger-soft); color: var(--rv-danger-ink); }
 
 .blocking {
   font-size: 0.75rem;
   padding: 0.125rem 0.5rem;
   border-radius: 999px;
   background: var(--rv-danger-soft);
-  color: var(--rv-danger);
+  color: var(--rv-danger-ink);
 }
 
 .detail { margin: 0.5rem 0 0; color: var(--rv-foreground); font-size: 0.875rem; }

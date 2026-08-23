@@ -78,10 +78,30 @@ test("four-identity membership evidence and maker-checker activation remains sid
   const runId = randomUUID();
   try {
     await fixturePool.query("DELETE FROM commercial_legal_acceptances WHERE user_id=$1", [runtime.identities.client.userId]);
-    const blockedPlans = await expectJson<ErrorPayload>(await client.get("/api/membership/plans", {
+    // 未确认披露时，套餐**可读**——ADR-0017 把披露从全局 Gate 收成作用域化 Gate：
+    // 它只挡「创建付费订单」，不挡登录、工作台、行情、Paper、钱包只读。
+    // 那个反向 Gate 曾经让没有正文的环境里，已登录客户在披露页与产品入口之间循环。
+    //
+    // 这条用例原来断言套餐返回 403，是 ADR-0017 之前的行为，一直没跟着改。
+    const openPlans = await expectJson<PlansPayload>(await client.get("/api/membership/plans", {
       headers: officialRequestHeaders("client", runtime.identities.client),
-    }), 403);
-    expect(blockedPlans.error.code).toBe("LEGAL_CONSENT_REQUIRED");
+    }), 200);
+    expect(openPlans.plans.length).toBeGreaterThan(0);
+
+    // 挡住的是这一步。守住它比守住「套餐看不看得见」重要得多。
+    //
+    // 创建订单时必须逐项报出当前七份披露的版本 id——那个动作本身就是「确认」。
+    // 少报一份就拒绝：漏掉的那一份恰恰是客户没看过的那一份。
+    const blockedOrder = await expectJson<ErrorPayload>(await client.post("/api/membership/orders", {
+      headers: mutationHeaders("client", runtime.identities.client, `quality-order-blocked:${runId}`),
+      data: {
+        planCode: "monthly_v1",
+        acceptedDocumentVersionIds: openPlans.requiredLegalDocuments
+          .slice(0, -1)
+          .map((document: { id: string }) => document.id),
+      },
+    }), 422);
+    expect(blockedOrder.error.code).toBe("LEGAL_ACCEPTANCE_REQUIRED");
 
     const legalPayload = await expectJson<LegalConsentPayload>(await client.get("/api/membership/legal-consent", {
       headers: officialRequestHeaders("client", runtime.identities.client),
@@ -102,8 +122,12 @@ test("four-identity membership evidence and maker-checker activation remains sid
       { ...clientCookie, name: runtime.identities.client.cookieName },
       { ...clientCookie, name: "an_session" },
     ]);
-    await page.goto(`${clientOrigin}/workspace`, { waitUntil: "domcontentloaded" });
-    await expect(page).toHaveURL(`${clientOrigin}/legal/consent?next=%2Fworkspace`);
+    // 直接进确认页，而不是「访问受保护页面 → 被重定向到确认页」。
+    //
+    // ADR-0017 把披露从全局 Gate 收成作用域化 Gate，那个重定向已经不存在；
+    // 而它原来指向的 /workspace 也已经不是有效路由（策略实验室现在是 /studio），
+    // 请求它只会 404。这条用例真正要验的是确认流程本身，不是那个重定向。
+    await page.goto(`${clientOrigin}/legal/consent?next=%2Fdashboard`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "商业披露与版本确认" })).toBeVisible();
     await expect(page.locator("article")).toHaveCount(7);
     const confirmButton = page.getByRole("button", { name: "保存当前版本确认" });
@@ -113,8 +137,9 @@ test("four-identity membership evidence and maker-checker activation remains sid
     await expect(page.getByText("当前版本确认已完成")).toBeVisible();
     await expect(page.getByText(/3 天试用已在确认后由服务端开通/)).toBeVisible();
     await Promise.all([
-      page.waitForURL(`${clientOrigin}/workspace`),
-      page.getByRole("link", { name: "继续访问原页面" }).click(),
+      page.waitForURL(`${clientOrigin}/dashboard`),
+      // next 指向 /dashboard 时按钮文案是「进入交易总览」；带别的 next 才是「继续访问原页面」。
+      page.getByRole("link", { name: "进入交易总览" }).click(),
     ]);
 
     const confirmedLegal = await expectJson<LegalConsentPayload>(await client.get("/api/membership/legal-consent", {
@@ -128,7 +153,9 @@ test("four-identity membership evidence and maker-checker activation remains sid
     expect(plansPayload.orderCreationAvailable).toBe(true);
     expect(plansPayload.requiredLegalDocuments).toHaveLength(7);
     const monthly = plansPayload.plans.find((plan: { code: string }) => plan.code === "monthly_v1");
-    expect(monthly).toMatchObject({ priceUsd: "28.00", priceCurrency: "USD", aiCredits: 1000 });
+    // 迁移 0059 把会员计价改成 USDT：充值进来的是 USDT，而 wallet_balances 按币种分行，
+    // USD 计价的会员用 USDT 余额永远付不了。
+    expect(monthly).toMatchObject({ priceUsd: "28.00", priceCurrency: "USDT", aiCredits: 1000 });
 
     const orderPayload = await expectJson<OrderPayload>(await client.post("/api/membership/orders", {
       headers: mutationHeaders("client", runtime.identities.client, `quality-order:${runId}`),
@@ -147,7 +174,8 @@ test("four-identity membership evidence and maker-checker activation remains sid
         providerLabel: "quality-fixture",
         reference: `quality-local-reference-${runId}`,
         amount: "28.00",
-        currency: "USD",
+        // 迁移 0059：会员与分成统一 USDT。
+        currency: "USDT",
         occurredAt: new Date().toISOString(),
         note: "isolated quality evidence; no provider call",
       },

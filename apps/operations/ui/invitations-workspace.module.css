@@ -178,7 +178,7 @@
 .warning {
   margin: 0;
   font-size: 0.875rem;
-  color: var(--rv-warning);
+  color: var(--rv-warning-ink);
 }
 
 .linkRow {
@@ -204,7 +204,7 @@
   padding: 0.5rem 1rem;
   border-radius: var(--rv-radius-md);
   border: 1px solid var(--rv-primary);
-  background: var(--rv-primary);
+  background: var(--rv-primary-strong);
   color: var(--rv-primary-foreground);
   font: inherit;
   cursor: pointer;

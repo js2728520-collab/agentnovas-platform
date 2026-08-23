@@ -18,7 +18,7 @@
 }
 
 .boundary div { min-width: 0; }
-.boundary span { color: var(--rv-brand); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.boundary span { color: var(--rv-brand-ink); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 .boundary h2 { margin: 5px 0 7px; font-size: clamp(17px, 2vw, 21px); }
 .boundary p { max-width: 760px; margin: 0; color: var(--rv-muted-foreground); line-height: 1.65; }
 
@@ -28,7 +28,8 @@
   padding: 10px 15px;
   border: 1px solid var(--rv-brand);
   border-radius: var(--rv-radius-sm);
-  color: var(--rv-background);
+  /* 品牌绿是浅色：配白字 2.34:1，配深色字 8.41:1。换文字色，不换那块绿。 */
+  color: var(--rv-foreground);
   background: var(--rv-brand);
   font-size: 13px;
   font-weight: 850;
@@ -67,7 +68,7 @@
 }
 .document summary::-webkit-details-marker { display: none; }
 .document summary:focus-visible { outline: 3px solid var(--rv-brand-soft); outline-offset: 2px; }
-.index { color: var(--rv-brand); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.index { color: var(--rv-brand-ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .name { display: grid; min-width: 0; gap: 3px; overflow-wrap: anywhere; }
 .name strong { color: var(--rv-foreground); font-size: 14px; }
 .name small { color: var(--rv-muted-foreground); line-height: 1.45; }
@@ -97,7 +98,7 @@
   background: var(--rv-card);
 }
 .acceptance > div { min-width: 0; }
-.acceptance > div > span { color: var(--rv-brand); font-size: 12px; font-weight: 800; letter-spacing: .14em; }
+.acceptance > div > span { color: var(--rv-brand-ink); font-size: 12px; font-weight: 800; letter-spacing: .14em; }
 .acceptance h2 { margin: 5px 0 7px; font-size: 19px; }
 .acceptance p { max-width: 820px; margin: 0; color: var(--rv-muted-foreground); line-height: 1.65; }
 .acknowledgement { display: flex; max-width: 860px; align-items: flex-start; gap: 11px; color: var(--rv-foreground); line-height: 1.6; cursor: pointer; }

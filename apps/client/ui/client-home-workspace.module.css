@@ -12,7 +12,7 @@
   box-shadow: 0 24px 70px var(--rv-overlay);
 }
 .hero > div:first-child { max-width: 780px; }
-.eyebrow { color: var(--rv-brand); font-size: 12px; font-weight: 850; letter-spacing: .16em; }
+.eyebrow { color: var(--rv-brand-ink); font-size: 12px; font-weight: 850; letter-spacing: .16em; }
 .hero h1 { margin: 8px 0 10px; font-size: clamp(28px, 4vw, 48px); font-weight: 620; letter-spacing: -.045em; }
 .hero p { margin: 0; color: var(--rv-muted-foreground); line-height: 1.7; }
 .heroActions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 9px; }
@@ -29,8 +29,10 @@
   font-weight: 800;
   text-decoration: none;
 }
-.primaryAction { color: var(--rv-background); background: var(--rv-brand); }
-.secondaryAction { color: var(--rv-foreground); background: var(--rv-overlay); }
+/* 品牌绿是浅色，配白字只有 2.35:1，配深色字是 8.41:1。
+   保留这块绿本身——它是品牌色；换掉的是压在上面的文字色。 */
+.primaryAction { color: var(--rv-foreground); background: var(--rv-brand); }
+.secondaryAction { color: var(--rv-foreground); background: var(--rv-muted); }
 .primaryAction:hover { background: var(--rv-brand); }
 .secondaryAction:hover { border-color: var(--rv-brand); color: var(--rv-foreground); }
 
@@ -42,12 +44,15 @@
 }
 .equityCard,
 .portfolioStats article,
+/* --rv-overlay 是 42% 黑的遮罩，给模态背景用的。当成卡片底色，在浅色页面上会
+   合成出一片中灰，卡片里所有文字都压在那片灰上——实测四种文字色
+   全部低于 WCAG AA，最低的只有 1.23:1。表面用 --rv-card。 */
 .statusCard,
 .strategySection,
 .moduleSection {
   border: 1px solid var(--rv-border);
   border-radius: var(--rv-radius);
-  background: var(--rv-overlay);
+  background: var(--rv-card);
 }
 .equityCard { min-height: 210px; padding: clamp(22px, 3vw, 32px); }
 .equityCard h2 { margin: 8px 0 5px; color: var(--rv-muted-foreground); font-size: 14px; font-weight: 620; }
@@ -85,7 +90,7 @@
 .moduleSection > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
 .strategySection h2,
 .moduleSection h2 { margin: 6px 0 0; font-size: clamp(20px, 2.4vw, 28px); }
-.strategySection > header > a { color: var(--rv-brand); font-size: 12px; text-decoration: none; }
+.strategySection > header > a { color: var(--rv-brand-ink); font-size: 12px; text-decoration: none; }
 .strategyGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
 .strategyCard {
   display: grid;
@@ -103,7 +108,7 @@
 .strategyCard > header { display: flex; justify-content: space-between; gap: 12px; }
 .strategyCard header span { color: var(--rv-muted-foreground); font-family: var(--font-geist-mono), monospace; font-size: 12px; text-transform: uppercase; }
 .strategyCard h3 { margin: 5px 0 0; font-size: 18px; }
-.strategyCard header i { align-self: flex-start; border: 1px solid var(--rv-brand-soft); border-radius: var(--rv-radius); padding: 4px 8px; color: var(--rv-brand); font-size: 12px; font-style: normal; }
+.strategyCard header i { align-self: flex-start; border: 1px solid var(--rv-brand-soft); border-radius: var(--rv-radius); padding: 4px 8px; color: var(--rv-brand-ink); font-size: 12px; font-style: normal; }
 .strategyCard dl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; }
 .strategyCard dl > div:first-child { grid-column: 1 / -1; }
 .strategyCard dt { color: var(--rv-muted-foreground); font-size: 12px; }
@@ -137,10 +142,10 @@
 .moduleGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
 .moduleGrid a { position: relative; display: grid; min-height: 155px; align-content: start; gap: 7px; padding: 16px; border: 1px solid var(--rv-border); border-radius: var(--rv-radius-md); color: inherit; background: var(--rv-card); text-decoration: none; }
 .moduleGrid a:hover { border-color: var(--rv-muted-foreground); background: var(--rv-card); }
-.moduleGrid a > span { color: var(--rv-brand); font-size: 12px; font-weight: 850; letter-spacing: .13em; }
+.moduleGrid a > span { color: var(--rv-brand-ink); font-size: 12px; font-weight: 850; letter-spacing: .13em; }
 .moduleGrid strong { margin-top: 5px; font-size: 16px; }
 .moduleGrid p { margin: 0; color: var(--rv-muted-foreground); font-size: 12px; line-height: 1.55; }
-.moduleGrid b { position: absolute; right: 14px; bottom: 12px; color: var(--rv-brand); }
+.moduleGrid b { position: absolute; right: 14px; bottom: 12px; color: var(--rv-brand-ink); }
 
 .riskNote { margin-top: 14px; padding: 13px 15px; border-top: 1px solid var(--rv-border); color: var(--rv-muted-foreground); font-size: 12px; line-height: 1.6; }
 

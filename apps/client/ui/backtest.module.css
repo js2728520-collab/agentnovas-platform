@@ -253,7 +253,7 @@
   padding: 0.5rem 1rem;
   border: 1px solid var(--rv-primary);
   border-radius: var(--rv-radius-sm);
-  background: var(--rv-primary);
+  background: var(--rv-primary-strong);
   color: var(--rv-primary-foreground);
   font: inherit;
   font-size: 0.875rem;

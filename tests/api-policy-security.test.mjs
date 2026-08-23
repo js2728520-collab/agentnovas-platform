@@ -530,3 +530,22 @@ test("Next 16 Proxy applies API policy and page nonce policy before rendering", 
   assert.match(proxy, /x-request-id/);
   assert.doesNotMatch(proxy, /getPostgresPool|getDb|DATABASE_URL/);
 });
+
+test("内联脚本必须带 CSP nonce——否则被我们自己的策略挡掉", async () => {
+  // script-src 是 'self' 'nonce-…' 'strict-dynamic'，没有 unsafe-inline。
+  // 漏掉 nonce 不会报错页，只会让那段脚本静默不执行：主题引导脚本被挡掉的表现是
+  // 暗色用户每次加载白闪一下，而那正是它存在的唯一理由。
+  const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const inlineScripts = layout.match(/<script[^>]*dangerouslySetInnerHTML/g) ?? [];
+  assert.ok(inlineScripts.length > 0, "布局里应有主题引导脚本");
+  for (const tag of inlineScripts) {
+    assert.match(tag, /nonce=\{/, `内联脚本缺少 nonce：${tag}`);
+  }
+  // nonce 必须来自 proxy 写入的请求头，不能自己编一个——编的那个不在 CSP 里。
+  assert.match(layout, /headers\(\)|requestHeaders/);
+  assert.match(layout, /get\("x-nonce"\)/);
+
+  const proxy = await readFile(new URL("../proxy.ts", import.meta.url), "utf8");
+  assert.match(proxy, /requestHeaders\.set\("x-nonce", nonce\)/);
+  assert.match(proxy, /contentSecurityPolicy\(nonce/);
+});

@@ -89,7 +89,7 @@
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  color: var(--rv-danger);
+  color: var(--rv-danger-ink);
 }
 
 .launchActions,
@@ -209,7 +209,7 @@
 
 .explanation { color: var(--rv-foreground); }
 .explanationProgress { color: var(--rv-muted-foreground); }
-.explanationFailed { color: var(--rv-danger); }
+.explanationFailed { color: var(--rv-danger-ink); }
 
 /* 表格化数字与宽内容不得撑破页面。 */
 .timeline,
@@ -222,7 +222,7 @@
   padding: 0.5rem 1rem;
   border: 1px solid var(--rv-primary);
   border-radius: var(--rv-radius-sm);
-  background: var(--rv-primary);
+  background: var(--rv-primary-strong);
   color: var(--rv-primary-foreground);
   font: inherit;
   font-size: 0.875rem;
@@ -237,12 +237,12 @@
   color: var(--rv-primary-ink);
 }
 
-.ready { color: var(--rv-success); }
+.ready { color: var(--rv-success-ink); }
 .waiting { color: var(--rv-muted-foreground); }
 
 /* 候选校验标签：STANDARD_VERIFIED 之外都不是通过。 */
-.verified { color: var(--rv-success); }
-.failed { color: var(--rv-danger); }
+.verified { color: var(--rv-success-ink); }
+.failed { color: var(--rv-danger-ink); }
 
 .conclusion {
   padding: 0.875rem 1.125rem;

@@ -47,4 +47,4 @@
 .markdown ul, .markdown ol { margin: 0 0 0.75rem; padding-left: 1.5rem; }
 .markdown li { margin-bottom: 0.375rem; }
 
-.missing { color: var(--rv-warning); }
+.missing { color: var(--rv-warning-ink); }
