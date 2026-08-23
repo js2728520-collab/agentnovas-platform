@@ -105,10 +105,11 @@ async function exerciseEditableStrategyCandidate(page: import("@playwright/test"
 
   await page.goto("/studio", { waitUntil: "domcontentloaded" });
   const textarea = page.locator(`textarea[data-candidate-id="${candidateId}"]`);
-  await expect(textarea).toBeVisible();
   const candidateCard = textarea.locator("xpath=ancestor::article[1]");
   await expect(candidateCard.getByText("STANDARD_VERIFIED", { exact: true })).toBeVisible();
   await expect(candidateCard.getByText("88.50", { exact: true })).toBeVisible();
+  await candidateCard.getByText("结构化策略参数", { exact: true }).click();
+  await expect(textarea).toBeVisible();
 
   await textarea.fill('{"schemaVersion":3');
   await candidateCard.getByRole("button", { name: "保存并创建不可变草稿" }).click();
@@ -160,9 +161,10 @@ async function exerciseEditableStrategyCandidate(page: import("@playwright/test"
 
   await page.reload({ waitUntil: "domcontentloaded" });
   const reloadedTextarea = page.locator(`textarea[data-candidate-id="${candidateId}"]`);
+  const reloadedCard = reloadedTextarea.locator("xpath=ancestor::article[1]");
+  await reloadedCard.getByText("结构化策略参数", { exact: true }).click();
   await expect(reloadedTextarea).toBeDisabled();
   await expect(reloadedTextarea).toHaveValue(/"positionSizePct": 4/);
-  const reloadedCard = reloadedTextarea.locator("xpath=ancestor::article[1]");
   await expect(reloadedCard.getByText("UNVERIFIED", { exact: true })).toBeVisible();
   await expect(reloadedCard.getByText("需重测", { exact: true })).toBeVisible();
   await expect(reloadedCard.getByText(/原评分与回测指标已失效/)).toBeVisible();
