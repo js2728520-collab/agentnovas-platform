@@ -255,7 +255,7 @@ GRANT SELECT ON
   performance_fee_decisions, performance_fee_receivables,
   performance_fee_high_water_marks, high_water_marks, notification_channels,
   notification_preferences, notification_deliveries, ai_conversations, ai_messages,
-  market_candles, market_data_snapshots, market_watchlist, community_strategies,
+  market_candles, market_data_snapshots, community_strategies,
   strategy_versions, strategy_subscriptions, strategy_favorites, strategy_deployments,
   strategy_runtime_cycles, strategy_runtime_events, strategy_agent_events,
   official_paper_portfolios, official_paper_positions, official_paper_order_intents,
@@ -275,7 +275,7 @@ GRANT INSERT, UPDATE ON
   ai_credit_reservations, client_ai_inference_requests, ai_usage_daily,
   notification_channels,
   notification_preferences, notification_deliveries, ai_conversations, ai_messages,
-  market_watchlist, strategy_subscriptions, strategy_favorites, strategy_deployments,
+  strategy_subscriptions, strategy_favorites, strategy_deployments,
   official_paper_portfolios, customer_attributions
   TO agentnovas_client_web;
 GRANT INSERT (

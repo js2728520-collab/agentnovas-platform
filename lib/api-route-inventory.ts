@@ -2963,66 +2963,6 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": false
   },
   {
-    "method": "DELETE",
-    "route": "/api/market/watchlist",
-    "source": "app/api/market/watchlist/route.client.ts",
-    "audiences": [
-      "client"
-    ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireUser"
-    ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
-    "mfa": "none",
-    "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": true,
-    "idempotency": false
-  },
-  {
-    "method": "GET",
-    "route": "/api/market/watchlist",
-    "source": "app/api/market/watchlist/route.client.ts",
-    "audiences": [
-      "client"
-    ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireUser"
-    ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
-    "mfa": "none",
-    "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": false,
-    "idempotency": false
-  },
-  {
-    "method": "POST",
-    "route": "/api/market/watchlist",
-    "source": "app/api/market/watchlist/route.client.ts",
-    "audiences": [
-      "client"
-    ],
-    "authentication": "session",
-    "sessionAuthHelpers": [
-      "requireUser"
-    ],
-    "permissionKeys": [],
-    "permissionMfa": {},
-    "scope": "none",
-    "mfa": "none",
-    "pii": "none",
-    "sensitivity": "normal",
-    "requiresSameOrigin": true,
-    "idempotency": false
-  },
-  {
     "method": "GET",
     "route": "/api/membership/legal-consent",
     "source": "app/api/membership/legal-consent/route.client.ts",

@@ -36,8 +36,6 @@
 .categoryTabs button small { color: var(--rv-muted-foreground); font-size: 0.625rem; }
 .categoryTabs button.active { border-color: var(--rv-primary); background: var(--rv-primary-soft); color: var(--rv-primary-ink); }
 
-.panel,
-.watchlistPanel,
 .selectorPanel,
 .newsCard {
   display: grid;
@@ -48,13 +46,6 @@
   background: var(--rv-card);
 }
 
-.watchlistPanel h2 { margin: 0; font-size: 1rem; }
-.watchlistPanel p { margin: 0; color: var(--rv-muted-foreground); font-size: 0.75rem; }
-.watchlistContent { display: grid; gap: 0.5rem; }
-.watchlistCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.5rem; }
-
-.watchlistSelect,
-.searchResultRow,
 .symbolSelect {
   display: grid;
   gap: 0.2rem;
@@ -68,27 +59,7 @@
   cursor: pointer;
 }
 
-.watchlistSelect:hover,
-.searchResultRow:hover,
 .symbolSelect:hover { background: var(--rv-row-hover); }
-
-.watchlistSelect b, .symbolSelect b { font-size: 0.8125rem; }
-.watchlistSelect small, .watchlistSelect em { color: var(--rv-muted-foreground); font-size: 0.6875rem; font-style: normal; }
-.watchlistSelect strong { font-size: 0.875rem; font-variant-numeric: tabular-nums; }
-
-.watchlistRemove {
-  padding: 0.15rem 0.45rem;
-  border: 1px solid var(--rv-border);
-  border-radius: var(--rv-radius-sm);
-  background: transparent;
-  color: var(--rv-muted-foreground);
-  font: inherit;
-  font-size: 0.6875rem;
-  cursor: pointer;
-}
-
-.watchlistEmpty,
-.watchlistMessage,
 .newsEmpty,
 .newsMessage,
 .dataMessage,
@@ -117,6 +88,18 @@
 
 .searchResults { display: grid; gap: 0.3rem; max-height: 16rem; overflow-y: auto; }
 
+.searchSelect {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+}
+
+.searchSelect span,
+.searchSelect small { color: var(--rv-muted-foreground); }
+
 .summaryPrice {
   display: flex;
   flex-wrap: wrap;
@@ -128,7 +111,6 @@
 .instrumentSummary { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; font-size: 0.8125rem; }
 .instrumentName { display: flex; gap: 0.5rem; align-items: baseline; }
 .instrumentMark { color: var(--rv-muted-foreground); font-size: 0.75rem; }
-.instrumentActions { display: flex; gap: 0.5rem; align-items: center; }
 
 /* ------------------------------------------------------------------ 图表 */
 
@@ -298,8 +280,6 @@
 .legendDown { color: var(--rv-down); }
 .symbolIndex { display: grid; gap: 0.3rem; }
 
-/* 关注/切换品种的小按钮 */
-.watchButton,
 .symbolChip {
   padding: 0.2rem 0.55rem;
   border: 1px solid var(--rv-border);
@@ -311,7 +291,6 @@
   cursor: pointer;
 }
 
-.watchButton.active,
 .symbolChip.active,
 .categoryTabs button.active {
   border-color: var(--rv-primary);

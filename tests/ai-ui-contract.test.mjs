@@ -88,3 +88,30 @@ test("strategy research instrument loading exposes retry state and server proxy 
   assert.match(packageSource, /NODE_USE_ENV_PROXY=1 next dev/);
   assert.match(packageSource, /NODE_USE_ENV_PROXY=1 next start/);
 });
+
+test("confirmed Client cleanup removes watchlists and legacy assistant analysis controls", async () => {
+  const [assistant, market, marketStyles, portal, studio, grants, inventory] = await Promise.all([
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
+    source("../apps/client/ui/live-market.tsx"),
+    source("../apps/client/ui/live-market.module.css"),
+    source("../apps/client/ui/client-portal.tsx"),
+    source("../apps/client/ui/strategy-studio.tsx"),
+    source("../deploy/postgres/least-privilege-roles.sql"),
+    import("../lib/api-route-inventory.ts"),
+  ]);
+
+  assert.doesNotMatch(assistant, /<select|analysisTarget|instrumentId|setSymbol/);
+  const promptList = assistant.match(/const prompts = \[([^\]]+)\];/)?.[1].match(/"[^"]+"/g) ?? [];
+  assert.equal(promptList.length, 4);
+
+  assert.doesNotMatch(market, /\/api\/market\/watchlist|WatchlistItem|watchlist|watchedSymbols|toggleWatchlist/i);
+  assert.doesNotMatch(marketStyles, /watchlist|watchButton/i);
+  assert.match(portal, /route === "market"\) return <LiveMarket \/>/);
+  assert.equal(inventory.API_ROUTE_INVENTORY.some((entry) => entry.route === "/api/market/watchlist"), false);
+  assert.doesNotMatch(grants, /market_watchlist/);
+
+  assert.match(studio, /USDT 永续合约/);
+  assert.match(studio, /K 线周期/);
+  assert.match(studio, /交易方向/);
+  assert.match(studio, /target:\s*\{[\s\S]*instrumentId:[\s\S]*timeframe,[\s\S]*direction,/);
+});

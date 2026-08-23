@@ -50,7 +50,7 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
   if (route === "notifications") return <NotificationWorkspace />;
   // 行情页此前只存在于遗留 /workspace 的内部字符串路由（?page=market），
   // 落地页的「行情」链接因此把匿名访客送进一个要求登录的页面。
-  if (route === "market") return <LiveMarket onLogin={() => window.location.assign("/login")} />;
+  if (route === "market") return <LiveMarket />;
   // AI 助手：行情分析、决策解读、平台与会员规则问答。
   // 策略实验室：多智能体研发流水线（检查点式、样本外验证、确定性准入）。
   // 服务端一直都在，此前唯一的入口是运行时不可达的遗留页面。
