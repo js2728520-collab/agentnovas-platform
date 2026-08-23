@@ -68,7 +68,7 @@
 
 ## Phase 3：Maintenance 配置、计费、主题与语言
 
-- [x] 3.0 普通配置/连通测试改为页面内审计原因并单击执行；发布、回滚、充值启停和紧急控制继续确认。
+- [x] 3.0 Maintenance 配置、测试、发布、回滚、集成启停和紧急控制全部改为页面内影响说明与审计原因并单击执行，不使用确认弹窗；高风险服务端 Gate 保持不变。
 - [-] 3.1 通用配置 draft/test/approve/schedule/activate/rollback。
   - [x] 3.1a 不含秘密的不可变配置版本、测试、独立审批、调度、激活/回滚内核与 Maintenance API。
   - [x] 3.1b Maintenance 配置发布工作台、时区预览和最小权限到期激活器。

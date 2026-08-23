@@ -280,12 +280,12 @@ Operations 62、Maintenance 51 页 production build；本切片无 UI/auth 变�
 
 ## 7. Phase 3：配置、计费、主题和语言
 
-### T3.0：Maintenance 普通配置交互减负
+### T3.0：Maintenance 配置与控制交互减负
 
-**状态：** 已完成。普通可逆配置和只读连通测试使用页面内审计原因并单击执行，不再逐项弹出确认框；生产发布、模型回滚、充值启停、紧急控制和密钥/会话安全操作继续保留独立确认。
+**状态：** 已完成。Maintenance 普通配置、测试、发布、模型回滚、商业披露、充值启停、Demo 安全控制和紧急暂停均使用页面内影响说明与审计原因并单击执行，应用内不再使用确认弹窗。密钥/会话凭证展示等独立安全流程不在本任务范围。
 
-**验收：** 平台设置、模型 Profile/绑定/测试、邮件测试、数据源测试、支付映射/测试和 Demo 连接验证没有二次弹窗；每次请求仍携带服务端校验的审计原因；高风险动作边界不变。
-**验证：** UI 合同、TypeScript、ESLint、Maintenance production build，以及隔离 PostgreSQL + 真实 Chromium 保存/逐页无弹窗回归。
+**验收：** Maintenance 工作区源码和真实浏览器均无确认 dialog；普通与高风险动作按钮只有在页面内原因有效、业务前置条件满足时才可执行；每次请求仍携带服务端校验的原因；recent MFA、RBAC、maker/checker、幂等、状态机和审计边界不变。
+**验证：** UI 合同、TypeScript、ESLint、Maintenance production build，以及隔离 PostgreSQL + 真实 Chromium 配置保存、紧急暂停/恢复和逐页无弹窗回归。
 **依赖：** Phase 1 身份与 Maintenance RBAC 基线。
 **规模：** M。
 

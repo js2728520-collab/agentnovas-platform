@@ -100,7 +100,7 @@
 | ID | V3 能力 | Current 资产 | 目标位置 | 状态 | 剩余条件 |
 | --- | --- | --- | --- | --- | --- |
 | C-01 | 配置 draft/test/approve/schedule/activate/rollback | 5 组追加式表、Maintenance API、`/configurations`、Activation Worker、最小权限 DB gateway、PostgreSQL/Chromium tests | 通用配置控制面 | `CURRENT`（内核） | 具体 family 仍需独立 schema/tester/consumer。 |
-| C-02 | 减少配置弹窗，原因内联单击执行 | 普通配置/测试和配置发布全流程已无 dialog；充值启停、紧急控制等高风险动作保留确认 | Maintenance 各工作台 | `CURRENT` | 后续页面不得把低风险操作重新做成重复确认。 |
+| C-02 | 配置与控制无确认弹窗，原因内联单击执行 | Maintenance 普通配置、测试、模型回滚、商业披露、版本证据、充值启停、Demo 安全控制和紧急暂停均使用页面内影响说明与审计原因；应用内无确认 dialog | Maintenance 各工作台 | `CURRENT` | recent MFA、RBAC、maker/checker、幂等、状态机和审计仍是强制安全边界；后续页面不得恢复重复确认。 |
 | C-03 | 全局策略研究功能开关 | `feature_flag/client.strategy_research` v1；严格 schema、确定性 tester、最小权限 active consumer、双 Gate | `/configurations` + strategy research route | `CURRENT` | v1 全局 bool 保持兼容；环境 Gate 始终是上限。 |
 | C-04 | 用户/组织/版本/百分比/独立时窗 targeting | schema v2 单规则；服务端用户/组织/部署版本/时间；稳定 SHA-256 分桶；严格规范化、测试、current、回滚和无弹窗 UI | feature flag family v2 + strategy research consumer | `CURRENT` | 多规则优先级不属于 v2；未来扩展必须新建 schema。 |
 | C-05 | 品牌、Logo、域名、协议、多语言配置 | platform settings 与 disclosure 基础；没有六主题素材和正式域名消费者 | Maintenance settings/configurations + 三端 public config | `BLOCKED` | P-10/P-11；域名还影响 Cookie/CORS/TLS/邮件链接。 |
