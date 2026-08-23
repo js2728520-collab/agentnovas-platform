@@ -47,6 +47,7 @@ test("Client、Operations、Maintenance 从空浏览器登录后进入各自首�
       await login(isolated.page, identity.email, identity.password);
       await expect(isolated.page).toHaveURL(`${isolated.origin}${path}`);
       await expect(isolated.page.getByRole("heading", { name: heading })).toBeVisible();
+      await isolated.page.waitForLoadState("networkidle");
       await expect(isolated.page.getByRole("heading", { name: "绑定双重验证" })).toHaveCount(0);
     }
   } finally {

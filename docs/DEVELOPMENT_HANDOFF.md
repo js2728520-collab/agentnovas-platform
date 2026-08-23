@@ -2135,3 +2135,21 @@ readiness 一致性和真实邮件送达；产品侧城市级定位与第六台�
 
 代码差异审计还发现 Phase 1 任务真源遗漏 Operations PII 字段权限/导出一致性，已补为
 T1.6 / 1.15，后续应优先完成该切片，再进入多市场行情。
+
+## 56. 2026-08-23 MFA 关闭态三端登录强制复验
+
+在继续 Phase 1 之前，使用本地三套生产 standalone 服务和三个彼此隔离的真实 Chromium
+上下文，再次执行 Client、Operations、Maintenance 空浏览器登录。三端均通过真实表单
+填写与按钮提交进入各自首页：Client `/dashboard` 的“欢迎回来”、Operations `/` 的
+“运营概览”、Maintenance `/` 的“系统概览”；三端均未进入“绑定双重验证”。浏览器
+控制台、页面异常、本地失败请求、非预期 HTTP 4xx/5xx 和外部网络请求均为零。
+
+首次尝试使用 development server 时，Next 开发态对正式 HTTPS Host 转发的静态资源、
+CSP 和 HMR 产生预期外噪声，不能作为发布证据；切回生产 standalone 后又定位到登录
+断言完成时首页后台请求仍在飞行，三个上下文立即并行关闭会与 Playwright Route 转发
+形成竞态。验收用例现在逐端等待 `networkidle` 后再判定 MFA 未出现并关闭上下文，未
+放宽任何 console、network 或 HTTP 错误规则。
+
+最终专项命令以 `QUALITY_E2E_PORT_OFFSET=10` 使用本机 3010/3011/3012，结果为 1/1
+通过；测试器专项单元回归 17/17 通过。MFA 保持默认关闭，正式生产前的开启态完整 Gate
+仍按第 55 节要求执行。
