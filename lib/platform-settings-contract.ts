@@ -1,6 +1,6 @@
-export const supportedPlatformLocales = ["zh-CN", "zh-TW", "en-US", "ru-RU", "es-ES", "ja-JP", "ko-KR"] as const;
+import { supportedPlatformLocales, type PlatformLocale } from "./platform-locale.ts";
 
-export type PlatformLocale = typeof supportedPlatformLocales[number];
+export { supportedPlatformLocales, type PlatformLocale } from "./platform-locale.ts";
 
 export type SystemSettings = {
   siteName: string;
@@ -24,7 +24,7 @@ export const defaultSystemSettings: SystemSettings = {
   supportEmail: "",
   telegramSupportUrl: "",
   copyrightOwner: "Riverton Capital",
-  defaultLocale: "zh-CN",
+  defaultLocale: "en-US",
   maintenanceBanner: "",
 };
 

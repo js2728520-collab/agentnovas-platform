@@ -401,6 +401,59 @@ export const extraText: Record<Lang, Record<string, string>> = {
   },
 };
 
+const landingChromeText: Record<Lang, Record<string, string>> = {
+  "en-US": {
+    skipMain: "Skip to main content",
+    homeAria: "Riverton Capital home",
+    flowAria: "Four-stage product flow, horizontally scrollable",
+    demoEnvironmentsAria: "Isolated platform test environments",
+    demoAccount: "Platform test account",
+  },
+  "zh-CN": {
+    skipMain: "跳到主要内容",
+    homeAria: "Riverton Capital 首页",
+    flowAria: "四阶段产品流程，可横向滚动",
+    demoEnvironmentsAria: "平台隔离的测试环境",
+    demoAccount: "平台测试账户",
+  },
+  "zh-TW": {
+    skipMain: "跳到主要內容",
+    homeAria: "Riverton Capital 首頁",
+    flowAria: "四階段產品流程，可橫向捲動",
+    demoEnvironmentsAria: "平台隔離的測試環境",
+    demoAccount: "平台測試帳戶",
+  },
+  "ru-RU": {
+    skipMain: "Перейти к основному содержанию",
+    homeAria: "Главная Riverton Capital",
+    flowAria: "Четыре этапа продукта, горизонтальная прокрутка",
+    demoEnvironmentsAria: "Изолированные тестовые среды платформы",
+    demoAccount: "Тестовый аккаунт платформы",
+  },
+  "es-ES": {
+    skipMain: "Ir al contenido principal",
+    homeAria: "Inicio de Riverton Capital",
+    flowAria: "Flujo de producto en cuatro etapas, desplazamiento horizontal",
+    demoEnvironmentsAria: "Entornos de prueba aislados de la plataforma",
+    demoAccount: "Cuenta de prueba de la plataforma",
+  },
+  "ja-JP": {
+    skipMain: "メインコンテンツへ移動",
+    homeAria: "Riverton Capital ホーム",
+    flowAria: "4段階の製品フロー、横スクロール可能",
+    demoEnvironmentsAria: "分離されたプラットフォームテスト環境",
+    demoAccount: "プラットフォームテストアカウント",
+  },
+  "ko-KR": {
+    skipMain: "주요 콘텐츠로 이동",
+    homeAria: "Riverton Capital 홈",
+    flowAria: "4단계 제품 흐름, 가로 스크롤 가능",
+    demoEnvironmentsAria: "격리된 플랫폼 테스트 환경",
+    demoAccount: "플랫폼 테스트 계정",
+  },
+};
+for (const lang of Object.keys(landingChromeText) as Lang[]) Object.assign(extraText[lang], landingChromeText[lang]);
+
 export const landingMore: Record<Lang, Record<string, string>> = {
   "zh-CN": {
     roles:

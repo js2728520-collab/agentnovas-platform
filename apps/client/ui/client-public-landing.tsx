@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 
 import styles from "./client-public-landing.module.css";
 import Link from "next/link";
+import {
+  PLATFORM_LOCALE_STORAGE_KEY,
+  resolvePlatformLocale,
+  type PlatformLocale,
+} from "@/lib/platform-locale";
 
 type Page = "home" | "login" | "hall" | "market" | "trading";
 
-type Lang = "zh-CN" | "zh-TW" | "en-US" | "ru-RU" | "es-ES" | "ja-JP" | "ko-KR";
+type Lang = PlatformLocale;
 
 const languageNames: Record<Lang, string> = {
   "en-US": "English",
@@ -28,67 +33,72 @@ type LocaleData = {
 
 const initialLocaleData: LocaleData = {
   text: {
-    strategy: "策略广场",
-    risk: "风险设置",
-    login: "登录",
-    hero: "一支为你工作的 AI 量化团队",
-    sub: "多位专业 Agent 分析市场、生成策略、相互质疑并管理风险；交易执行阶段目前仅生成影子或模拟回执，真实订单关闭。",
-    enter: "进入交易大厅",
-    demo: "查看策略方案",
-    market: "市场状态",
-    decision: "当前决策",
+    strategy: "AI Strategies",
+    risk: "Risk Settings",
+    login: "Sign in",
+    hero: "An AI quant team working for you",
+    sub: "Specialized agents analyze markets, challenge proposals, and manage risk. Execution currently produces shadow or paper receipts only; real orders are off.",
+    enter: "Enter Trading Hall",
+    demo: "Explore Strategies",
+    market: "Market regime",
+    decision: "Current decision",
   },
   extraText: {
-    trust1: "无需客户密钥",
-    trust2: "权限隔离",
-    trust3: "多层风控",
-    trust4: "全程审计",
-    flow1: "启动官方 paper 组合",
-    flow1s: "客户无需上传交易所密钥",
-    flow2: "选择风险偏好",
-    flow2s: "设定不可突破的边界",
-    flow3: "AI 团队协作",
-    flow3s: "生成、质疑与审核方案",
-    flow4: "生成模拟执行证据",
-    flow4s: "Paper 回执与平台 Demo 分开记录",
-    systemStatus: "Beta 执行边界",
-    watch: "观看工作现场",
-    riskIndex: "AI 风险指数",
-    accountStatus: "账户状态",
-    teamTitle: "不是一个机器人，而是一支专业团队",
-    teamSub: "每位 Agent 独立判断、交叉质疑，最终由风控与确定性规则共同决定是否执行。",
+    trust1: "No customer credentials",
+    trust2: "Permission isolation",
+    trust3: "Layered risk control",
+    trust4: "Full audit trail",
+    flow1: "Start an official paper portfolio",
+    flow1s: "No customer exchange credentials required",
+    flow2: "Choose risk profile",
+    flow2s: "Set hard safety boundaries",
+    flow3: "AI team collaboration",
+    flow3s: "Generate, challenge and review",
+    flow4: "Produce simulation evidence",
+    flow4s: "Paper and platform Demo receipts stay separate",
+    systemStatus: "Beta execution boundary",
+    watch: "Watch the team at work",
+    riskIndex: "AI risk index",
+    accountStatus: "Account status",
+    teamTitle: "Not one bot, but a professional team",
+    teamSub: "Each Agent judges independently and challenges the others. Risk controls and deterministic rules decide whether execution is allowed.",
+    skipMain: "Skip to main content",
+    homeAria: "Riverton Capital home",
+    flowAria: "Four-stage product flow, horizontally scrollable",
+    demoEnvironmentsAria: "Isolated platform test environments",
+    demoAccount: "Platform test account",
   },
   landingMore: {
-    roles: "市|市场分析师|识别当前市场状态;技|技术分析师|验证具体交易信号;策|策略研究员|生成候选策略方案;反|反方审查员|寻找漏洞与反向证据;险|首席风控官|执行硬风险审批;决|AI 决策官|形成最终决策单;执|交易执行员|生成影子或模拟执行回执",
-    // 注意：这是 zh-CN 内容的第二份真源（首屏内联，避免加载整个语言包）。
-    // 改文案要同时改 client-public-landing-locales.ts，否则中文与其它语言会不一致。
-    gateNote: "第 5 阶段由确定性代码执行，不是模型。它可以否决前面全部 AI 结论；数据不足或风控不可用时，不产生新开仓。",
-    visibleTitle: "每一次决策，都看得见",
-    visible: "实时协作|查看 Agent 的观点、异议、修正和最终决定。;动态风控|市场变化时自动降低 paper 仓位或暂停策略。;完整审计|策略信号、风控批准、paper 回执和平台 Demo 证据分开记录。",
-    review: "风险复核中",
-    enterHall: "进入实时交易大厅",
-    safetyTitle: "AI负责适应，硬风控守住底线",
-    safety: "无需客户密钥|Beta 使用公共行情和服务端 paper 组合。;本金隔离|每张官方策略拥有独立的 10,000 USDT 模拟本金。;现货边界|仅 BTC、ETH、SOL 的 USDT 现货模拟，无杠杆和做空。;组合级熔断|达到日亏损或回撤限制立即停止新开仓。;异常安全|数据延迟、模型超时或格式异常时不生成 paper 成交。;证据隔离|平台 Demo 回执不影响客户 paper 收益或结算。",
-    exchangeTitle: "平台测试环境验证",
-    exchangeDesc: "OKX Demo、Binance Spot Testnet 与 Bybit Demo 仅验证平台策略信号；客户无需连接账户，也不会产生真实成交。",
-    connectWays: "查看 paper 组合",
-    faqTitle: "你可能关心的问题",
-    faq: "需要连接交易所吗？|不需要。Beta 不接收客户交易所密钥。;AI会发送真实订单吗？|不会。客户侧仅生成受风控约束的 paper 回执。;现在展示的收益真实吗？|不是。paper 收益不代表真实或未来收益。;平台 Demo 回执是什么？|它只证明信号可在隔离测试环境验证，不影响客户组合。",
-    ctaTitle: "进入AI量化团队的实时工作现场",
-    ctaSub: "从三张官方现货策略开始体验 10,000 USDT 独立 paper 组合。",
-    browse: "浏览AI策略",
-    footer: "受邀 Beta · 客户 paper 与平台测试证据不代表真实或未来收益",
-    legalRisk: "风险披露",
-    legalPrivacy: "隐私政策",
-    legalTerms: "服务条款",
+    roles: "M|Market Analyst|Classifies the current market;T|Technical Analyst|Validates concrete signals;S|Strategy Researcher|Builds a candidate plan;C|Adversarial Reviewer|Finds flaws and contrary evidence;R|Chief Risk Officer|Applies hard risk approval;D|AI Decision Officer|Issues the final decision;E|Execution Agent|Produces a shadow or paper receipt",
+    // This is the English first-paint copy. Keep it aligned with the lazy locale module.
+    gateNote: "Stage 5 runs on deterministic code, not a model. It can veto every AI conclusion above it, and no new position opens when data is thin or risk checks are unavailable.",
+    visibleTitle: "Every decision is visible",
+    visible: "Live collaboration|See Agent views, objections, revisions and final decisions.;Dynamic risk control|Reduce paper exposure or pause as markets change.;Complete audit|Keep paper receipts separate from platform Demo evidence.",
+    review: "Risk review in progress",
+    enterHall: "Enter live Trading Hall",
+    safetyTitle: "AI adapts. Hard controls protect the boundary.",
+    safety: "No customer credentials|Beta uses public market data and server-managed paper portfolios.;Isolated principal|Each official card receives a separate 10,000 USDT paper balance.;Spot only|BTC, ETH and SOL against USDT, with no leverage or shorting.;Portfolio circuit breaker|Stop new entries at loss or drawdown limits.;Fail safe|No paper fill on stale data, timeout or malformed output.;Separated evidence|Platform Demo receipts never change customer paper performance or settlement.",
+    exchangeTitle: "Platform test-environment evidence",
+    exchangeDesc: "OKX Demo, Binance Spot Testnet and Bybit Demo validate platform signals only. Customers do not connect accounts and no live trade is placed.",
+    connectWays: "View paper portfolios",
+    faqTitle: "Common questions",
+    faq: "Must I connect an exchange?|No. Beta does not accept customer exchange credentials.;Will AI place live orders?|No. Customer activity is limited to risk-controlled paper receipts.;Are the returns real?|No. Paper performance is not actual or future performance.;What is a platform Demo receipt?|It only proves a signal was tested in an isolated provider environment.",
+    ctaTitle: "Enter the AI quant team’s live workspace",
+    ctaSub: "Explore three official spot strategies through isolated paper portfolios.",
+    browse: "Browse AI strategies",
+    footer: "Invite-only Beta · Customer paper and platform test evidence are not actual or future returns",
+    legalRisk: "Risk Disclosure",
+    legalPrivacy: "Privacy",
+    legalTerms: "Terms",
   },
 };
 
 export function ClientPublicLanding() {
-  const [lang, setLang] = useState<Lang>("zh-CN");
+  const [lang, setLang] = useState<Lang>("en-US");
   const [localeData, setLocaleData] = useState<LocaleData>(initialLocaleData);
   const [localeLoading, setLocaleLoading] = useState(false);
   const [localeError, setLocaleError] = useState("");
+  const localeRequest = useRef(0);
   const t: Record<string, string> = useMemo(
     () => ({
       ...localeData.text,
@@ -103,27 +113,69 @@ export function ClientPublicLanding() {
     document.documentElement.lang = lang;
   }, [lang]);
 
+  useEffect(() => {
+    let cancelled = false;
+    let savedLocale: string | null = null;
+    try {
+      savedLocale = window.localStorage.getItem(PLATFORM_LOCALE_STORAGE_KEY);
+    } catch {
+      // Storage can be unavailable in hardened browser contexts; browser preference still works.
+    }
+    const resolved = resolvePlatformLocale({
+      savedLocale,
+      browserLanguages: navigator.languages ?? [navigator.language],
+    });
+    if (resolved.locale === "en-US") return () => { cancelled = true; };
+    const requestId = ++localeRequest.current;
+    void import("./client-public-landing-locales")
+      .then((locales) => {
+        if (cancelled || requestId !== localeRequest.current) return;
+        setLocaleData({
+          text: locales.text[resolved.locale],
+          extraText: locales.extraText[resolved.locale],
+          landingMore: locales.landingMore[resolved.locale],
+        });
+        setLang(resolved.locale);
+      })
+      .catch(() => {
+        if (!cancelled && requestId === localeRequest.current) {
+          setLocaleError("Language resources could not be loaded. Please retry.");
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   const selectLanguage = async (nextLanguage: Lang) => {
     if (nextLanguage === lang) return;
-    if (nextLanguage === "zh-CN") {
+    const requestId = ++localeRequest.current;
+    if (nextLanguage === "en-US") {
       setLocaleData(initialLocaleData);
       setLang(nextLanguage);
+      try { window.localStorage.setItem(PLATFORM_LOCALE_STORAGE_KEY, nextLanguage); } catch {
+        // A language choice remains usable for this page even when persistence is unavailable.
+      }
       return;
     }
     setLocaleLoading(true);
     setLocaleError("");
     try {
       const locales = await import("./client-public-landing-locales");
+      if (requestId !== localeRequest.current) return;
       setLocaleData({
         text: locales.text[nextLanguage],
         extraText: locales.extraText[nextLanguage],
         landingMore: locales.landingMore[nextLanguage],
       });
       setLang(nextLanguage);
+      try { window.localStorage.setItem(PLATFORM_LOCALE_STORAGE_KEY, nextLanguage); } catch {
+        // A language choice remains usable for this page even when persistence is unavailable.
+      }
     } catch {
-      setLocaleError("语言资源加载失败，请重试。");
+      if (requestId === localeRequest.current) {
+        setLocaleError("Language resources could not be loaded. Please retry.");
+      }
     } finally {
-      setLocaleLoading(false);
+      if (requestId === localeRequest.current) setLocaleLoading(false);
     }
   };
 
@@ -145,9 +197,9 @@ export function ClientPublicLanding() {
 
   return (
     <main className={`${styles.page} app-shell client-app-shell`} data-app-shell>
-      <a className={styles.skipLink} href="#landing-main">跳到主要内容</a>
+      <a className={styles.skipLink} href="#landing-main">{t.skipMain}</a>
       <header className={styles.topbar}>
-        <Link className={styles.logo} href="/" aria-label="Riverton Capital 首页">
+        <Link className={styles.logo} href="/" aria-label={t.homeAria}>
           <Image
             className={styles.brandLogo}
             src="/riverton-capital-logo.png"
@@ -226,8 +278,8 @@ function Landing({
       body: "암호자산과 자동 거래에는 높은 위험이 따릅니다. 과거 수익률, 백테스트 및 데모 데이터는 미래 결과를 보장하지 않습니다.",
     },
   }[t._lang as Lang] || {
-    label: "风险提示",
-    body: "加密资产及自动化交易具有较高风险，请谨慎决策。",
+    label: "Risk disclosure",
+    body: "Crypto assets and automated trading involve substantial risk.",
   };
   return (
     <div>
@@ -278,7 +330,7 @@ function Landing({
 
       {/* 横向滚动容器在窄屏必须可键盘聚焦；axe 会校验这个行为。 */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
-      <section className={styles.section} tabIndex={0} aria-label="四阶段产品流程，可横向滚动">
+      <section className={styles.section} tabIndex={0} aria-label={t.flowAria}>
         <div className={styles.flow}>
           {[[t.flow1, t.flow1s], [t.flow2, t.flow2s], [t.flow3, t.flow3s], [t.flow4, t.flow4s]].map((step, index) => (
             <div className={styles.card} key={step[0]}>
@@ -371,9 +423,9 @@ function Landing({
             <h2>{m.exchangeTitle}</h2>
             <p>{m.exchangeDesc}</p>
           </div>
-          <div className={styles.exchangeLogos} aria-label="平台隔离的测试环境">
+          <div className={styles.exchangeLogos} aria-label={t.demoEnvironmentsAria}>
             {["OKX Demo", "Binance Spot Testnet", "Bybit Demo"].map((name) => (
-              <div className={styles.exchangeLogo} key={name}><b>{name}</b><small>平台测试账户</small></div>
+              <div className={styles.exchangeLogo} key={name}><b>{name}</b><small>{t.demoAccount}</small></div>
             ))}
           </div>
           <button className={styles.exchangeLink} onClick={() => go("trading")}>
