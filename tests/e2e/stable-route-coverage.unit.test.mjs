@@ -49,6 +49,8 @@ test("Operations and Maintenance cases cover representative stable pages and aud
 
   assertPathsCovered(maintenance, ["/", "/health", "/models", "/integrations", "/integrations/sources", "/integrations/email", "/integrations/payments", "/integrations/demo-exchanges", "/settings", "/configurations", "/audit", "/releases"], "maintenance-admin-ui.spec.ts");
   assert.match(maintenance, /expectAudienceNavigation\(page,\s*"maintenance"\)/);
+  assert.match(maintenance, /运行确定性测试/);
+  assert.match(maintenance, /postDataJSON\(\)/);
   assert.equal((maintenance.match(/\btest\(/g) ?? []).length, 3, "Maintenance coverage includes the no-confirmation configuration flow");
 });
 
@@ -68,4 +70,12 @@ test("three-audience login completion relies on authenticated UI state instead o
   assert.match(identity, /toHaveURL\(`/);
   assert.match(identity, /getByRole\("heading"/);
   assert.doesNotMatch(identity, /waitForLoadState\("networkidle"\)|waitUntil:\s*"networkidle"/);
+});
+
+test("isolated browser teardown ignores only already-handled routes after closing starts", async () => {
+  const support = await source("support/quality-test.ts");
+  assert.match(support, /closing && error instanceof Error && error\.message\.includes\("Route is already handled"\)/);
+  assert.match(support, /openedPage\.on\("requestfailed", \(request\) => \{\s*if \(closing\) return;/);
+  assert.match(support, /context\.unrouteAll\(\{ behavior: "ignoreErrors" \}\)/);
+  assert.match(support, /throw new Error\(`isolated loopback fulfill failed/);
 });

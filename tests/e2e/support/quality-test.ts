@@ -242,6 +242,7 @@ export async function createIsolatedQualityBrowser(
   const pageErrors: string[] = [];
   const failedLocalRequests: string[] = [];
   const unsuccessfulResponses: Array<{ method: string; url: string; status: number }> = [];
+  let closing = false;
   const ports = qualityApplicationPorts(process.env);
   const origin = qualityBrowserOrigin(audience, ports).baseURL;
   const context: BrowserContext = await browser.newContext({
@@ -265,7 +266,12 @@ export async function createIsolatedQualityBrowser(
           "x-forwarded-proto": "https",
         },
       });
-      await route.fulfill({ response });
+      try {
+        await route.fulfill({ response });
+      } catch (error) {
+        if (closing && error instanceof Error && error.message.includes("Route is already handled")) return;
+        throw new Error(`isolated loopback fulfill failed for ${safeUrl(url)} (${route.request().resourceType()}, navigation=${route.request().isNavigationRequest()}, closing=${closing}, failure=${route.request().failure()?.errorText ?? "none"}, prefetch=${requestHeaders["next-router-prefetch"] ?? "none"}, purpose=${requestHeaders.purpose ?? requestHeaders["sec-purpose"] ?? "none"}): ${redactPotentialSecrets(error instanceof Error ? error.message : String(error))}`);
+      }
     } else if (isAllowedQualityNetworkUrl(url)) await route.continue();
     else {
       externalRequests.push(safeUrl(url));
@@ -280,6 +286,7 @@ export async function createIsolatedQualityBrowser(
     });
     openedPage.on("pageerror", (error) => pageErrors.push(redactPotentialSecrets(error.message)));
     openedPage.on("requestfailed", (request) => {
+      if (closing) return;
       if (!isAllowedQualityNetworkUrl(request.url())) return;
       const failure = request.failure()?.errorText ?? "failed";
       const headers = request.headers();
@@ -309,6 +316,7 @@ export async function createIsolatedQualityBrowser(
     origin,
     page,
     async close(options: { allowedStatuses?: number[] } = {}) {
+      closing = true;
       const allowedStatuses = new Set(options.allowedStatuses ?? []);
       const unexpectedResponses = unsuccessfulResponses.filter(({ status }) => !allowedStatuses.has(status));
       const expectedResourceFailure = new RegExp(
@@ -327,7 +335,7 @@ export async function createIsolatedQualityBrowser(
         expect(failedLocalRequests, "isolated browser failed local requests").toEqual([]);
         expect(unexpectedResponses, "isolated browser unexpected HTTP responses").toEqual([]);
       } finally {
-        await context.unrouteAll({ behavior: "wait" });
+        await context.unrouteAll({ behavior: "ignoreErrors" });
         await context.close();
       }
     },

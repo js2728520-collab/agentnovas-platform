@@ -40,12 +40,26 @@ test("ordinary maintenance configuration submits inline without confirmation dia
 
   await page.goto("/configurations", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByLabel("作用端")).toHaveValue("client");
+  await expect(page.getByLabel("作用端")).toBeDisabled();
+  await expect(page.getByLabel("配置 key")).toHaveValue("client.strategy_research");
+  await expect(page.getByLabel("配置 key")).toHaveAttribute("readonly", "");
+  await expect(page.getByLabel("Schema 版本")).toHaveValue("1");
+  await expect(page.getByLabel("模块状态")).toHaveValue("disabled");
   await page.getByLabel("草稿创建原因").fill("发布工作台普通草稿浏览器验证");
   const created = page.waitForResponse((response) => response.url().endsWith("/api/maintenance/configuration-versions") && response.request().method() === "POST");
   await page.getByRole("button", { name: "直接创建草稿" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect((await created).status()).toBe(201);
   await expect(page.getByText("不可变配置草稿已创建；后续修改需要创建新版本。", { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByLabel("确定性测试原因").fill("浏览器触发服务端功能开关确定性测试");
+  const tested = page.waitForResponse((response) => response.url().endsWith("/tests") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "运行确定性测试" }).click();
+  const testedResponse = await tested;
+  expect(testedResponse.status()).toBe(201);
+  expect(testedResponse.request().postDataJSON()).toEqual({ reason: "浏览器触发服务端功能开关确定性测试" });
+  await expect(page.getByText("服务端确定性测试已通过，结果与证据已绑定到该不可变 payload。", { exact: true })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
   for (const [path, reasonLabel] of [
