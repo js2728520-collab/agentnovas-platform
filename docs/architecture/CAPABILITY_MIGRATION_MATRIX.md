@@ -30,7 +30,7 @@
 | PostgreSQL 迁移 | 73 | `0000`–`0072`；完整迁移链在一次性 schema 应用后查询 catalog。 |
 | PostgreSQL 对象 | 153 tables、5 views、67 routines、50 triggers、10 policies | 153 tables 包含迁移登记表 `_agentnovas_migrations`，即 152 个业务/平台表；另有 5 sequences。 |
 | 长驻后台进程 | 7 | Research、Runtime、Notification、Payment、Configuration Activation、Demo Worker 和 Execution Service；Payment 默认 disabled，Execution Service 不代表 live 已解锁。 |
-| 自动测试目录文件 | 271 | 269 个可执行 `*.test.mjs/*.spec.ts` 加 2 个 Playwright 支持模块；基线完整 Node 套件 1357/1357，三端真实浏览器 Gate 另行运行。 |
+| 自动测试目录文件 | 272 | 270 个可执行 `*.test.mjs/*.spec.ts` 加 2 个 Playwright 支持模块；基线完整 Node 套件 1364/1364，三端真实浏览器 Gate 另行运行。 |
 
 ### 2.1 页面合同
 
@@ -88,7 +88,7 @@
 | ID | V3 能力 | Current 资产 | 目标位置 | 状态 | 剩余条件 |
 | --- | --- | --- | --- | --- | --- |
 | M-01 | 统一 market/provider/symbol/calendar/capability 合同 | contract v1 严格 normalizer/event envelope/freshness；四市场/40 标的 catalog；加法式 instruments API；既有 snapshots/freshness tests | `packages/contracts` + `lib/market-catalog` + Client market API；后续 Maintenance source catalog | `CURRENT/PARTIAL` | 合同底座已完成；真实 provider 授权/fixture 仍待 P-01/P-03，WebSocket/偏好/主备属 M-02–M-04。 |
-| M-02 | WebSocket sequence、≤500ms、10 秒恢复 | provider 独立 sequence/连接/重连/cache 纯状态机与 9 项边界测试；尚无真实 WebSocket adapter | 市场数据服务与 Client 实时连接层 | `PARTIAL` | P-01/P-03、供应商 sequence/reset fixture、容量与故障注入；10 秒当前仅为退避上限/恢复目标。 |
+| M-02 | WebSocket sequence、≤500ms、10 秒恢复 | provider 独立 sequence/连接/重连/cache 纯状态机；Runtime 已过滤未收盘 K 线并以 cadence stale Gate 阻断新开仓、保留退出；尚无真实 WebSocket adapter | 市场数据服务、Runtime admission 与 Client 实时连接层 | `PARTIAL` | P-01/P-03、供应商 sequence/reset fixture、stream latency 综合准入、容量与故障注入；10 秒当前仅为退避上限/恢复目标。 |
 | M-03 | 主备源、stale 标记和开仓阻断 | freshness/cache/risk 基础存在；source integration 只能测试固定只读目标 | 市场服务 + Runtime/Execution deterministic Gate | `PARTIAL` | 每市场主备、序列/价格/时间校验和恢复条件。 |
 | M-04 | 加密行情源随账户或策略独立绑定；Coinbase fallback | Binance/OKX/公共加密基础，尚无用户/策略级 provider preference 完整合同 | Client `/market`、策略版本和账户绑定 | `TARGET/PARTIAL` | P-01、账户/provider 能力合同；Coinbase 只作加密 fallback。 |
 | M-05 | A/HK/KR/JP 指数、股票搜索、K 线、实时行情 | 无满足 V3 授权与 SLA 的完整供应商实现 | 市场服务、Client `/market`、Maintenance `/integrations/sources` | `BLOCKED` | P-03 供应商、授权、SLA；A/HK 先行，KR/JP 后续但仍属目标。 |

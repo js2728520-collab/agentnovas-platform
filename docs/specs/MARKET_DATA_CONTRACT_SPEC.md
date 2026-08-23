@@ -267,3 +267,10 @@ T2.2a 只定义纯 sequence、连接、新鲜度、重连和缓存判定，不�
 
 T2.11a 是当前 candle cadence 的必要安全 Gate，不证明 stream sequence、接收延迟、主备源或 G2。
 T2.11b 必须在真实 adapter 确定后把 T2.2 的 event envelope/连接状态与本 Gate 合并。
+
+实施结果（2026-08-24）：`packages/domain/src/runtime/market-admission.ts` 提供无 I/O 的已收盘过滤
+与 cadence 判定，`strategy-runtime-worker` 已同时接入官方现货和硬关闭的遗留隔离路径；后者没有
+因此解除永续硬关闭。引擎要求 `marketData` 为服务端输入，并复核 timeframe 与本次决策 K 线
+`closeTime`，缺失、错配、未来、未知周期或越界时间均失败关闭。七阶段 evidence 记录派生质量；
+stale 新开仓形成可查询拒绝，已有仓位退出不受阻断。新增 7 项专项测试，PostgreSQL Runtime
+22/22 和全量 1364/1364 通过；真实 stream 综合准入仍由 T2.11b 完成。

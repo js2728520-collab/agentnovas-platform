@@ -2500,3 +2500,24 @@ TypeScript、全仓 ESLint、8 条架构边界、repository secret scan 与 prod
 浏览器或云端 build；T2.1 的精确提交云端构建仍是前一可部署证据，实际 adapter/UI 消费时必须
 重跑三端 production build、登录和行情故障注入 Gate。两处用户本地改动继续未纳入提交；未启动
 远端服务、未迁移数据库、未推送、未部署。
+
+## 68. 2026-08-24 T2.11a Runtime 已收盘 K 线与 cadence 准入
+
+T2.11a 关闭了当前 Runtime 的两条真实行情安全缺口。公开 Binance-compatible K 线响应会包含
+正在形成的当前尾项，旧 Worker 只检查数值和顺序后直接选择最后一根，可能在收盘前形成决策。
+现在 provider 原始项先完整校验，再按 Worker 注入的 `evaluatedAt` 只保留
+`closeTime <= evaluatedAt` 的已收盘 K 线；少于两根时失败关闭，不补造、不猜测。
+
+新纯域层准入按策略 timeframe 与 30 秒收盘容差判定：当决策 K 线年龄达到
+`timeframe + 30s` 时为 stale。引擎不接受浏览器 freshness，要求服务端提供行情时间并复核
+timeframe 与本轮最后 K 线 closeTime；缺失、错配、未知周期、未来或越界时间全部 invalid。
+stale/invalid 只拒绝 `enter_long/enter_short` 并写入七阶段行情证据与拒绝原因，已有仓位的 exit
+仍然生成意图，避免失败安全变成无法离场。共享卡级决策轮与逐组合准入使用同一状态。
+
+TDD 先观察到模块不存在，再覆盖未收盘过滤、精确 stale 等号、未知/未来/越界时间、身份错配、
+缺失输入、stale entry 与 stale exit，共新增 7 项。PostgreSQL Runtime 22/22 使用带真实当前
+未收盘尾项的 fixture，证明决策轮绑定上一根已收盘 K 线并在下一根收盘后正常推进。代码提交
+`da89d1c` 后全量 `npm test` 1364/1364、TypeScript、全仓 ESLint、8 条架构边界、三端
+key-custody、repository secret scan、production dependency audit 和 `git diff --check` 全通过。
+本切片仍不证明 stream latency/sequence、主备切换或 G2；T2.11b 等待真实 adapter 与 P-01/P-03。
+两处用户本地改动未纳入提交；未启动远端服务、未迁移数据库、未推送、未部署。

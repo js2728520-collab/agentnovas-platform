@@ -237,6 +237,12 @@ provider sequence reset 规则、容量和主备切换等待 P-01/P-03 与供应
 失败关闭新开仓。退出、减仓和平仓不因行情准入标志被静默吞掉。共享决策轮和逐组合准入使用
 同一服务端派生状态，七阶段行情证据如实记录 quality/age/threshold，不接受浏览器自报 fresh。
 
+**T2.11a 实施证据（2026-08-24）：** Runtime Worker 先严格校验 provider 响应，再过滤
+`closeTime > evaluatedAt` 的当前未收盘尾项；引擎校验策略 timeframe 与本轮 K 线身份一致，按
+`timeframe + 30s` 派生 cadence 准入。stale/invalid 只拒绝 entry，exit 继续生成意图。新增 7 项
+纯函数/引擎测试，PostgreSQL Runtime 22/22（含真实未收盘尾项）和全量 1364/1364 通过；
+TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、secret scan 与 production audit 通过。
+
 ### T2.3：加密行情源选择
 
 **描述：** 支持账户一致源、独立选择、策略级源和 Coinbase fallback。
