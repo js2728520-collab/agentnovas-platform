@@ -3,7 +3,7 @@
 > 文档状态：`CURRENT_BASELINE`。本文只登记当前真实 route 和 Policy，不提前虚构 V3 endpoint。V3 目标 API 家族见 [`../specs/V3_SYSTEM_TARGET_SPEC.md`](../specs/V3_SYSTEM_TARGET_SPEC.md)；每个家族只有在合同、实现和 Gate 完成后才能写入本目录并改为 `CURRENT`。
 
 日期：2026-08-23
-范围：当前包含 196 个 route 文件、258 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。
+范围：当前包含 196 个 route 文件、259 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。
 
 ## 0. V3 目标接口族（尚不是当前合同）
 
@@ -11,7 +11,7 @@
 
 | 接口族 | 所有权 | 当前状态 | 前置条件 |
 | --- | --- | --- | --- |
-| Operations 角色权限注册链接 | O | `TARGET` | token/越级/注册事务/审计 Spec，G1 |
+| Operations 角色权限注册链接 | O | `CURRENT/PARTIAL` | 签发、复制、撤销、重生成、注册、限流和审计已落地；待 Client 会话子项与 G1 浏览器验收 |
 | Client 可复用邀请与 5 设备会话 | C/O | `TARGET/PARTIAL` | 身份合同、限流、Session 迁移，G1 |
 | 行情源偏好、provider 状态和主备切换 | C/M/S | `TARGET` | provider/symbol/calendar 合同，G2 |
 | 客户策略投稿、审核、上架和下架 | C/O | `TARGET` | 策略版本、准入、作者权限，G3 |
@@ -24,7 +24,7 @@
 
 任何 `TARGET/BLOCKED` 接口都不得通过复用旧 route、隐藏参数或临时开关绕过中央 inventory。
 
-> 迁移警告：当前 `/api/invitations/staff-link` 与 `/api/organization/staff-register` 实现的是“48 小时链接 + 注册后 `pending_approval`”合同，`/api/invitations/link` 也属于既有邀请模型；三者都不是 V3 权限注册链接合同。Phase 1 必须先完成 token、角色、scope、即时 assignment、撤销和审计设计，再迁移或替换这些 route，不能只修改提示文字或放宽审批状态。
+> 迁移状态：`/api/invitations/staff-link` 与 `/api/organization/staff-register` 已切换到 V3 权限注册链接合同；内部 token 使用独立表、长期有效、只存摘要、注册即产生 active assignment。`/api/invitations/link` 仍是客户可复用邀请，二者不可互换。逐人创建成员和汇报关系写接口返回 `410 Retired`，历史待激活账号的兼容处理暂时保留。
 
 ## 1. 使用说明
 
@@ -67,6 +67,10 @@
 | `/api/auth/register` | POST | C | KEEP；邀请制，内部 audience 404 |
 | `/api/auth/reset-password` | POST | C | KEEP；一次性 token、共享限流和全量会话撤销 |
 | `/api/auth/verify-email` | POST | C | KEEP |
+| `/api/invitations/staff-link` | GET, POST, PATCH, DELETE | O | CURRENT；五级向下授权、recent MFA、复制审计、手动作废和原子重生成 |
+| `/api/organization/staff-register` | POST | O | CURRENT；匿名但仅 Operations，同源、三桶限流、注册即 active assignment 与 MFA 引导 |
+| `/api/organization/members` | GET, POST, PATCH, DELETE | O | PARTIAL；GET 提供 scope-bound 平面账号目录；POST/PATCH 已 `410 Retired`，DELETE 禁用 |
+| `/api/organization/members/[id]/status` | PATCH | O | CURRENT；严格低级角色/下级链路，停用同时撤销会话、令牌和签发链接 |
 | `/api/system/bootstrap` | POST | M | DISABLED/BETA；HTTP 固定关闭，内部管理员只能由空系统一次性 CLI 创建 |
 | `/api/invitations` | GET, POST | O | CURRENT；组织 scope、一次性设置密码、有效期与审计 |
 | `/api/attributions/requests` | POST | O | CURRENT；归属变更申请，不允许直接产生副作用 |

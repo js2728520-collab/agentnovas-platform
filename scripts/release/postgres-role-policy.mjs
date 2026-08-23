@@ -71,6 +71,8 @@ const IDENTITY_TABLE_ALLOWED_GRANTEES = new Map([
   ["user_mfa_totp_credentials", new Set(["agentnovas_migrator", "agentnovas_ops_web", "agentnovas_maint_web"])],
   ["user_mfa_recovery_codes", new Set(["agentnovas_migrator", "agentnovas_ops_web", "agentnovas_maint_web"])],
   ["invitations", new Set(["agentnovas_migrator", "agentnovas_ops_web", "agentnovas_maint_web"])],
+  ["internal_registration_links", new Set(["agentnovas_migrator", "agentnovas_ops_web"])],
+  ["internal_registration_link_uses", new Set(["agentnovas_migrator", "agentnovas_ops_web"])],
 ]);
 
 const identityGatewayGrantee = (signature) => signature.startsWith("client_login_identity(")

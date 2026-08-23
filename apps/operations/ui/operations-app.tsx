@@ -7,6 +7,7 @@ import { useAppSessionContext } from "@/packages/ui/src/app-session-context";
 import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 
 const ApprovalsWorkspace = dynamic(() => import("./approvals-workspace").then((module) => module.ApprovalsWorkspace));
+const AccountsWorkspace = dynamic(() => import("./accounts-workspace").then((module) => module.AccountsWorkspace));
 const CustomersWorkspace = dynamic(() => import("./customers-workspace").then((module) => module.CustomersWorkspace));
 const CreditsWorkspace = dynamic(() => import("./credits-workspace").then((module) => module.CreditsWorkspace));
 const InvitationsWorkspace = dynamic(() => import("./invitations-workspace").then((module) => module.InvitationsWorkspace));
@@ -17,7 +18,6 @@ const FinanceWorkspace = dynamic(() => import("./finance-workspace").then((modul
 const LedgerWorkspace = dynamic(() => import("./ledger-workspace").then((module) => module.LedgerWorkspace));
 const MembershipOrdersWorkspace = dynamic(() => import("./membership-orders-workspace").then((module) => module.MembershipOrdersWorkspace));
 const OperationsOverview = dynamic(() => import("./operations-overview").then((module) => module.OperationsOverview));
-const OrganizationWorkspace = dynamic(() => import("./organization-workspace").then((module) => module.OrganizationWorkspace));
 const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace));
 const TeamWorkspace = dynamic(() => import("./team-workspace").then((module) => module.TeamWorkspace));
 const DataCenterWorkspace = dynamic(() => import("./data-center-workspace").then((module) => module.DataCenterWorkspace));
@@ -26,7 +26,7 @@ const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal
 
 
 const routePermissions: Record<string, string[] | undefined> = {
-  customers: ["ops.customers.view"], organization: ["ops.organization.view"],
+  customers: ["ops.customers.view"], accounts: ["ops.organization.view"],
   team: ["ops.team.view"],
   "data-center": ["ops.customers.view"],
   "membership-orders": ["ops.membership_orders.view"],
@@ -53,7 +53,7 @@ export default function OperationsApp({ segments }: { segments: string[] }) {
   const content = route === "overview" ? overview
     : route === "account" ? <InternalAccountSecurity />
     : route === "customers" ? <CustomersWorkspace />
-    : route === "organization" ? <OrganizationWorkspace canManage={Boolean(permissions["ops.organization.manage"])} />
+    : route === "accounts" ? <AccountsWorkspace canManage={Boolean(permissions["ops.organization.manage"])} />
     : route === "team" ? <TeamWorkspace canManage={Boolean(permissions["ops.team.manage"])} />
     : route === "data-center" ? <DataCenterWorkspace />
     : route === "membership-orders" ? <MembershipOrdersWorkspace

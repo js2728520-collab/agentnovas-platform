@@ -6,7 +6,7 @@ import { buildStaffInvitationLink, staffInvitationAudience } from "../lib/invita
 import { childRole } from "../lib/permissions.ts";
 import { legacyRoleAssignments } from "../lib/rbac.ts";
 
-// 员工邀请链接的三条不变量：指向正确的端、角色不可自选、注册不等于生效。
+// V3 内部权限注册链接不变量：只服务运营五级角色、角色不可自选、注册立即生效。
 
 test("链接指向目标角色该进的那个端", () => {
   // 发错端会让人登进一个自己没有任何权限的应用——页面打得开，点哪里都是
@@ -51,19 +51,26 @@ test("技术人员的角色分配落在运维端，且不含治理权限", () =>
   }
 });
 
-test("链接注册产出待批准状态，不产出可用账号", async () => {
-  // 链接只省掉「上级手工录入对方资料」这一步，不省审批。
-  const route = await readFile(new URL("../app/api/organization/staff-register/route.internal.ts", import.meta.url), "utf8");
-  assert.match(route, /status: "pending_approval"/);
-  assert.equal(/status:\s*"active"/.test(route), false, "注册路径不得直接激活账号");
+test("权限链接注册立即生效并要求首次登录完成 MFA", async () => {
+  const route = await readFile(new URL("../app/api/organization/staff-register/route.operations.ts", import.meta.url), "utf8");
+  assert.match(route, /status: registered\.status/);
+  assert.match(route, /mfaEnrollmentRequired: registered\.mfaEnrollmentRequired/);
+  assert.equal(/pending_approval/.test(route), false, "新注册路径不得残留人工审批状态");
 });
 
-test("不建那张没人能处理的审批单", async () => {
-  // 通用审批接口只处理 reporting_line_change，其余类型一律 503。
-  // 建了只会得到一张永远卡住的单，而运营会以为有人在处理。
-  const route = await readFile(new URL("../app/api/organization/staff-register/route.internal.ts", import.meta.url), "utf8");
+test("权限 token 放在 URL fragment，不能进入代理访问日志", async () => {
+  const issuance = await readFile(new URL("../app/api/invitations/staff-link/route.operations.ts", import.meta.url), "utf8");
+  const login = await readFile(new URL("../packages/ui/src/app-login.tsx", import.meta.url), "utf8");
+  assert.match(issuance, /url\.hash\s*=/);
+  assert.doesNotMatch(issuance, /url\.searchParams\.set\("staff-invite"/);
+  assert.match(login, /window\.location\.hash/);
+});
+
+test("新注册路径不创建审批单或激活 token", async () => {
+  const route = await readFile(new URL("../app/api/organization/staff-register/route.operations.ts", import.meta.url), "utf8");
   assert.equal(/db\.insert\(approvalRequests\)/.test(route), false);
-  assert.match(route, /invitedViaInvitationId: invitation\.id/, "改为记录来源，激活时据此排除邀请人");
+  assert.equal(/activationToken|notificationToken|auth_tokens/.test(route), false);
+  assert.match(route, /registerWithInternalRegistrationLink/);
 });
 
 test("邀请人不能批准通过自己链接进来的人", async () => {
@@ -85,18 +92,18 @@ test("激活时按角色选对应的端校验角色分配", async () => {
 });
 
 test("角色来自链接，不接受注册者自选", async () => {
-  const route = await readFile(new URL("../app/api/organization/staff-register/route.internal.ts", import.meta.url), "utf8");
-  assert.match(route, /role: invitation\.targetRole/);
+  const service = await readFile(new URL("../lib/internal-registration-link-service.ts", import.meta.url), "utf8");
+  assert.match(service, /role,organization_id,reports_to_user_id[\s\S]*link\.target_role/);
   // body.role 出现即意味着注册者能影响自己的角色。
-  assert.equal(/body\.role/.test(route), false, "注册者不得指定角色");
+  assert.equal(/body\.role/.test(service), false, "注册者不得指定角色");
 });
 
 test("链接失效与不存在返回同一个错误", async () => {
   // 区分开等于给暴力猜码的人一个信号：「这个码存在，只是过期了」。
-  const route = await readFile(new URL("../app/api/organization/staff-register/route.internal.ts", import.meta.url), "utf8");
-  const matches = route.match(/STAFF_INVITE_INVALID/g) ?? [];
+  const service = await readFile(new URL("../lib/internal-registration-link-service.ts", import.meta.url), "utf8");
+  const matches = service.match(/INTERNAL_REGISTRATION_LINK_INVALID/g) ?? [];
   assert.ok(matches.length >= 1);
-  assert.match(route, /不区分「链接不存在」与「链接已失效」/);
+  assert.match(service, /!link \|\| link\.status !== "active"/);
 });
 
 test("只有 hq_admin 能建技术人员", async () => {

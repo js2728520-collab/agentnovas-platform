@@ -1,15 +1,10 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { approvalRequests, customerAttributions, customerProfiles, organizations, users } from "@/db/schema";
+import { customerAttributions, customerProfiles, organizations, users } from "@/db/schema";
 import { requireAccessPermission } from "@/lib/access-control";
-import { hashPassword, normalizeEmail, randomToken, sha256, validEmail } from "@/lib/auth";
 import { canAccessCustomerAttribution, canAccessOrganization } from "@/lib/operations-access";
-import { encryptNotificationToken } from "@/lib/notification-secrets";
-import { provisionInternalMember } from "@/lib/internal-member-provisioning";
 import { canManuallyActivateMember, childRole, roleLabels } from "@/lib/permissions";
-import { checkOrganizationName } from "@/packages/domain/src/organization-provisioning";
 import { getPostgresPool } from "@/lib/postgres";
-import { readResearchJson, ResearchApiError } from "@/lib/research-api";
 import { responseError } from "@/lib/session";
 
 type RelationshipNode = {
@@ -192,10 +187,62 @@ async function relationshipTree(request: Request) {
   });
 }
 
-export async function GET(request:Request){try{if(new URL(request.url).searchParams.get("view")==="tree")return await relationshipTree(request);const{user,scope,organizationIds}=await requireAccessPermission(request,"ops.organization.view");const target=childRole[user.role];if(!target)return Response.json({members:[]});const db=getDb();const candidates=await db.select({id:users.id,email:users.email,role:users.role,status:users.status,organizationId:users.organizationId,createdAt:users.createdAt}).from(users).where(eq(users.role,target as typeof users.$inferSelect.role)).orderBy(desc(users.createdAt)).limit(200);const rows=candidates.filter(row=>row.organizationId?canAccessOrganization(scope,{userId:user.id,organizationId:user.organizationId},row.organizationId,organizationIds):scope==="PLATFORM");return Response.json({members:rows,nextRole:target});}catch(e){return responseError(e)}}
+async function accountDirectory(request: Request) {
+  // 复用后端 scope 解析结果，但只把内部账号的平面生命周期信息返回给浏览器；
+  // 不返回 parentId、客户节点或可渲染成组织树的数据合同。
+  const scoped = await relationshipTree(request);
+  const payload = await scoped.json() as { rootId: string; nodes: RelationshipNode[] };
+  const members = payload.nodes.filter((node) => node.kind === "member");
+  const ids = members.map((member) => member.subjectId);
+  const activity = ids.length
+    ? (await (await getPostgresPool()).query<{
+        user_id: string;
+        active_sessions: string;
+        last_seen_at: Date | string | null;
+      }>(`
+        SELECT user_id,
+               count(*) FILTER (
+                 WHERE revoked_at IS NULL
+                   AND COALESCE(idle_expires_at,absolute_expires_at,expires_at::timestamptz)>now()
+               )::text AS active_sessions,
+               max(COALESCE(last_seen_at,created_at::timestamptz)) AS last_seen_at
+          FROM sessions
+         WHERE user_id=ANY($1::text[]) AND app_audience='operations'
+         GROUP BY user_id
+      `, [ids])).rows
+    : [];
+  const activityByUser = new Map(activity.map((row) => [row.user_id, row]));
+  return Response.json({
+    accounts: members.map((member) => ({
+      id: member.subjectId,
+      displayName: member.displayName,
+      email: member.email,
+      role: member.role,
+      roleLabel: member.roleLabel,
+      status: member.status,
+      scopeLabel: member.organizationName,
+      createdAt: member.createdAt,
+      activeSessions: Number(activityByUser.get(member.subjectId)?.active_sessions ?? 0),
+      lastSeenAt: activityByUser.get(member.subjectId)?.last_seen_at
+        ? new Date(activityByUser.get(member.subjectId)!.last_seen_at!).toISOString()
+        : null,
+      isCurrent: member.subjectId === payload.rootId,
+    })),
+  }, { headers: { "cache-control": "no-store" } });
+}
+
+export async function GET(request:Request){try{const view=new URL(request.url).searchParams.get("view");if(view==="tree")return await relationshipTree(request);if(view==="accounts")return await accountDirectory(request);const{user,scope,organizationIds}=await requireAccessPermission(request,"ops.organization.view");const target=childRole[user.role];if(!target)return Response.json({members:[]});const db=getDb();const candidates=await db.select({id:users.id,email:users.email,role:users.role,status:users.status,organizationId:users.organizationId,createdAt:users.createdAt}).from(users).where(eq(users.role,target as typeof users.$inferSelect.role)).orderBy(desc(users.createdAt)).limit(200);const rows=candidates.filter(row=>row.organizationId?canAccessOrganization(scope,{userId:user.id,organizationId:user.organizationId},row.organizationId,organizationIds):scope==="PLATFORM");return Response.json({members:rows,nextRole:target});}catch(e){return responseError(e)}}
 
 export async function POST(request: Request) {
   try {
+    await requireAccessPermission(request, "ops.organization.manage");
+    return Response.json({
+      error: {
+        code: "DIRECT_MEMBER_CREATION_RETIRED",
+        message: "逐人创建和邀请已停用，请在权限注册链接页面生成对应角色链接",
+      },
+    }, { status: 410 });
+    /* V3 迁移期保留旧实现作为取证参考；入口已在上方终止。
     const { user: actor, scope, organizationIds } = await requireAccessPermission(request, "ops.organization.manage");
     const body = await readResearchJson(request, 4_096);
     const email = normalizeEmail(typeof body.email === "string" ? body.email : "");
@@ -269,12 +316,24 @@ export async function POST(request: Request) {
   } catch (error) {
     return responseError(error);
   }
+  */
+  } catch (error) {
+    return responseError(error);
+  }
 }
 export async function DELETE() {
   return Response.json({ error: { code: "MEMBER_DELETE_DISABLED", message: "内部成员删除已停用；请使用可审计的停用操作" } }, { status: 503 });
 }
 export async function PATCH(request: Request) {
   try {
+    await requireAccessPermission(request, "ops.organization.manage");
+    return Response.json({
+      error: {
+        code: "REPORTING_RELATIONSHIP_UI_RETIRED",
+        message: "组织与汇报关系编辑已从 Operations 退休",
+      },
+    }, { status: 410 });
+    /* V3 迁移期保留旧实现作为取证参考；入口已在上方终止。
     const { user: actor, scope, organizationIds } = await requireAccessPermission(request, "ops.organization.manage");
     const body = await readResearchJson(request, 4_096);
     const memberId = typeof body.memberId === "string" ? body.memberId : "";
@@ -309,6 +368,10 @@ export async function PATCH(request: Request) {
       requestedBy: actor.id,
     });
     return Response.json({ approvalId: id, status: "pending", message: "汇报关系调整已提交双人审批" }, { status: 201 });
+  } catch (error) {
+    return responseError(error);
+  }
+  */
   } catch (error) {
     return responseError(error);
   }

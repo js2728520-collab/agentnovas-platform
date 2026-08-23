@@ -35,14 +35,16 @@ function readInvitationCodeFromUrl(): string {
 }
 
 /**
- * 员工邀请链接：/login?staff-invite=<code>&app=<audience>。
+ * 权限注册链接：/login#staff-invite=<code>&app=operations。fragment 不会发送到代理或
+ * Next.js 服务端，因此高熵 token 不会进入访问日志。
  *
- * 与客户链接分开读，因为两者走完全不同的注册接口：客户走 /api/auth/register 并立刻
- * 可用，员工走 /api/organization/staff-register 且只产出待批准账号。
+ * 与客户链接分开读，因为两者走完全不同的注册接口和 token 表：客户走
+ * /api/auth/register；内部五级角色走 /api/organization/staff-register 并立即获得
+ * 链接冻结的角色、权限和组织范围。
  */
 function readStaffInviteFromUrl(): string {
   if (typeof window === "undefined") return "";
-  return new URLSearchParams(window.location.search).get("staff-invite")?.trim() ?? "";
+  return new URLSearchParams(window.location.hash.replace(/^#/, "")).get("staff-invite")?.trim() ?? "";
 }
 
 export function AppLogin({ audience, title, description, allowRegistration, initialMode = "login" }: {
@@ -161,7 +163,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
 
   return <main className={`rc-auth rc-auth-${audience}`}>
     <section className="rc-auth-brand"><Link href="/" prefetch={false}>{audience === "client" ? <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="220px" alt="Riverton Capital" priority /> : "R"}</Link><div><small>{audience.toUpperCase()} ACCESS</small><h1>{title}</h1><p>{description}</p></div><ul><li>独立应用会话</li><li>服务端权限校验</li><li>完整操作审计</li></ul></section>
-    {/* 员工邀请链接接管整个表单：它走完全不同的注册接口，且产出的是待批准账号。
+    {/* 权限注册链接接管整个表单：它走独立 token 与注册事务。
         与登录/客户注册并排显示只会让人不知道该填哪个。 */}
     {staffInviteCode && staffState.status !== "done" ? (
       <form
@@ -179,11 +181,12 @@ export function AppLogin({ audience, title, description, allowRegistration, init
                 code: staffInviteCode,
                 email: String(data.get("email") ?? ""),
                 password: String(data.get("password") ?? ""),
+                organizationName: String(data.get("organizationName") ?? ""),
               }),
             });
             const payload = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(String(payload.error ?? "注册失败"));
-            setStaffState({ status: "done", message: String(payload.message ?? "注册已提交") });
+            if (!response.ok) throw new Error(apiErrorMessage(payload, "注册失败"));
+            setStaffState({ status: "done", message: String(payload.message ?? "注册成功") });
           } catch (error) {
             setStaffState({
               status: "idle",
@@ -194,11 +197,12 @@ export function AppLogin({ audience, title, description, allowRegistration, init
       >
         <h2>加入团队</h2>
         <p>
-          你收到了一条员工邀请链接。填写邮箱和密码后，账号需要另一位管理员复核才能登录
-          ——邀请你的人不能自己批准。
+          你收到了一条权限注册链接。注册者不能修改角色或数据范围；提交成功后账号立即
+          生效，首次登录必须完成 MFA 设置。
         </p>
         <label>邮箱<input name="email" type="email" autoComplete="email" required /></label>
         <label>密码（至少 12 位）<input name="password" type="password" autoComplete="new-password" minLength={12} required /></label>
+        <label>分公司名称（仅分公司总经理链接必填）<input name="organizationName" maxLength={120} /></label>
       {staffState.message ? <p role="alert">{staffState.message}</p> : null}
         <button type="submit" disabled={staffState.status === "busy"}>
         {staffState.status === "busy" ? "提交中…" : "提交注册"}
@@ -206,7 +210,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
       </form>
     ) : null}
     {staffState.status === "done" ? (
-      <p role="status">{staffState.message}</p>
+      <div role="status"><p>{staffState.message}</p><Link href="/login">返回登录并设置 MFA</Link></div>
     ) : null}
     {!staffInviteCode ? (
     <form onSubmit={submit} aria-labelledby="rc-login-heading">

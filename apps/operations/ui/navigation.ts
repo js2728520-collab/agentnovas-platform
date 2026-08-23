@@ -13,9 +13,9 @@ export const navigation: ConsoleNavigationGroup[] = [
   { label: "获客", items: [
     { href: "/invitations", label: "我的邀请链接", icon: "users", requiredPermissions: ["ops.invitations.view", "ops.invitations.manage"] },
   ] },
-  { label: "客户与组织", items: [
+  { label: "客户与团队", items: [
     { href: "/customers", label: "客户管理", icon: "users", requiredPermissions: ["ops.customers.view"] },
-    { href: "/organization", label: "组织架构", icon: "org", requiredPermissions: ["ops.organization.view"] },
+    { href: "/accounts", label: "运营账号", icon: "users", requiredPermissions: ["ops.organization.view"] },
     { href: "/team", label: "团队目标", icon: "chart", requiredPermissions: ["ops.team.view"] },
     { href: "/data-center", label: "数据中心", icon: "database", requiredPermissions: ["ops.customers.view"] },
   ] },

@@ -40,7 +40,7 @@ test("Operations and Maintenance cases cover representative stable pages and aud
   const checker = await source("operations-checker-ui.spec.ts");
   const maintenance = await source("maintenance-admin-ui.spec.ts");
 
-  assertPathsCovered(maker, ["/customers", "/organization", "/membership-orders", "/performance-statements", "/credits", "/deposits", "/ledger", "/finance"], "operations-maker-ui.spec.ts");
+  assertPathsCovered(maker, ["/customers", "/accounts", "/invitations", "/membership-orders", "/performance-statements", "/credits", "/deposits", "/ledger", "/finance"], "operations-maker-ui.spec.ts");
   assertPathsCovered(checker, ["/", "/approvals"], "operations-checker-ui.spec.ts");
   assert.match(`${maker}\n${checker}`, /expectAudienceNavigation\(page,\s*"operations"\)/);
   assert.equal((maker.match(/\btest\(/g) ?? []).length, 2);

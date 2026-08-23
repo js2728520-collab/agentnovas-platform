@@ -3,7 +3,8 @@ import { exerciseResponsiveWidths, expectAudienceNavigation, test } from "./supp
 test("maker customer and finance read workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
   for (const [path, heading] of [
     ["/customers", "客户管理"],
-    ["/organization", "组织架构"],
+    ["/accounts", "运营账号"],
+    ["/invitations", "我的邀请链接"],
     ["/deposits", "充值订单"],
     ["/ledger", "账本查询"],
     ["/finance", "商业财务"],

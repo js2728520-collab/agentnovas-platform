@@ -172,14 +172,10 @@ function basePolicy(route, method) {
     return { audiences: ["operations", "maintenance"], authentication: "session", sameOrigin: true };
   }
   if (route === "/api/organization/staff-register") {
-    // 员工邀请链接的注册入口。**必须匿名**——注册的人还没有账号。
-    //
-    // 它落在 operations 与 maintenance 两端：技术人员的链接指向运维端，
-    // 其余内部角色指向运营端。客户端不该有这条路由。
-    //
-    // 匿名不等于无门槛：这条路由产出的是 pending 成员 + 一张审批单，账号要另一位
-    // 管理员复核后才能登录。链接本身 48 小时过期。
-    return { audiences: ["operations", "maintenance"], authentication: "anonymous", sameOrigin: true };
+    // V3 五级运营角色的自助注册入口。必须匿名，因为注册者还没有账号；但只在
+    // Operations 暴露，并由高熵摘要 token、多桶限流、原子 assignment 与审计约束。
+    // Maintenance 技术账号不属于业务角色注册链接链。
+    return { audiences: ["operations"], authentication: "anonymous", sameOrigin: true };
   }
   if (route === "/api/system/bootstrap") return { audiences: ["maintenance"], authentication: "bootstrap", sameOrigin: false };
   if (route.startsWith("/api/integrations/resend/webhook")) {

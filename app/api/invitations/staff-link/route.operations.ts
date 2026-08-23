@@ -1,50 +1,42 @@
-import { getDb } from "@/db";
-import { auditLogs, invitations } from "@/db/schema";
 import { requireAccessPermission } from "@/lib/access-control";
-import { sha256 } from "@/lib/auth";
-import { childRole, roleLabels } from "@/lib/permissions";
-import { getPostgresPool } from "@/lib/postgres";
-import { responseError } from "@/lib/session";
 import {
-  buildStaffInvitationLink,
-  findActiveStaffInvitation,
-  generateInvitationCode,
-  revokeStaffInvitation,
-  staffInvitationAudience,
-  staffInvitationExpiry,
-} from "@/lib/invitation-links";
+  issueInternalRegistrationLink,
+  listInternalRegistrationLinks,
+  recordInternalRegistrationLinkCopied,
+  revokeInternalRegistrationLink,
+} from "@/lib/internal-registration-link-service";
+import { getPostgresPool } from "@/lib/postgres";
+import { readResearchJson, ResearchApiError } from "@/lib/research-api";
+import { responseError } from "@/lib/session";
+import { invitableInternalRoles } from "@/packages/domain/src/organization-provisioning";
 
-/**
- * 「我的员工邀请链接」。
- *
- * 与客户链接的区别不在能不能复用，而在**有效期与审批**：48 小时过期，且通过它注册
- * 的人只能进待批准状态，仍需第二个人放行。
- *
- * 目标角色由 childRole 推出，不可自选——能自选角色等于能给自己造上级。
- * 技术人员不在这条链上，由 hq_admin 在成员页直接创建。
- */
+function registrationUrl(request: Request, token: string) {
+  const base = process.env.OPERATIONS_PUBLIC_BASE_URL?.trim() || new URL(request.url).origin;
+  const url = new URL("/login", base);
+  url.hash = new URLSearchParams({ "staff-invite": token, app: "operations" }).toString();
+  return url.toString();
+}
 
 export async function GET(request: Request) {
   try {
-    const { user } = await requireAccessPermission(request, "ops.organization.view");
-    const target = childRole[user.role];
-    const existing = await findActiveStaffInvitation(await getPostgresPool(), user.id);
+    const { user } = await requireAccessPermission(request, "ops.invitations.view");
+    const pool = await getPostgresPool();
+    const [links, organizationResult] = await Promise.all([
+      listInternalRegistrationLinks(pool, user.id),
+      user.role === "hq_admin"
+        ? pool.query<{ id: string; name: string }>(`
+            SELECT id,name FROM organizations
+             WHERE type='branch' AND status='active'
+             ORDER BY name,id
+             LIMIT 500
+          `)
+        : Promise.resolve({ rows: [] as Array<{ id: string; name: string }> }),
+    ]);
     return Response.json({
-      link: existing
-        ? {
-            id: existing.id,
-            status: existing.status,
-            useCount: existing.useCount,
-            lastUsedAt: existing.lastUsedAt,
-            createdAt: existing.createdAt,
-            expiresAt: existing.expiresAt,
-            targetRole: existing.targetRole,
-            targetRoleLabel: existing.targetRole ? roleLabels[existing.targetRole] ?? existing.targetRole : null,
-          }
-        : null,
-      targetRole: target && target !== "customer" ? target : null,
-      targetRoleLabel: target && target !== "customer" ? roleLabels[target] ?? target : null,
-    });
+      links,
+      invitableRoles: invitableInternalRoles(user.role),
+      organizations: organizationResult.rows,
+    }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return responseError(error);
   }
@@ -52,60 +44,39 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { user } = await requireAccessPermission(request, "ops.organization.manage");
-    const target = childRole[user.role];
-    if (!target || target === "customer") {
-      return Response.json({ error: "当前角色没有可邀请的下一级" }, { status: 403 });
+    const { user } = await requireAccessPermission(request, "ops.invitations.manage");
+    const body = await readResearchJson(request, 4_096);
+    const targetRole = typeof body.targetRole === "string" ? body.targetRole : "";
+    const targetOrganizationId = typeof body.organizationId === "string" && body.organizationId.trim()
+      ? body.organizationId.trim()
+      : null;
+    if (!targetRole) {
+      throw new ResearchApiError("TARGET_ROLE_REQUIRED", "请选择要授予的角色", 400);
     }
-    if (!user.organizationId) {
-      return Response.json({ error: "账号尚未归属组织，无法生成邀请链接" }, { status: 409 });
-    }
-
-    const pool = await getPostgresPool();
-    const now = new Date();
-    const nowIso = now.toISOString();
-    // 唯一索引不允许同时存在两条有效的员工链接；先撤旧的，否则会直接撞约束。
-    const revoked = await revokeStaffInvitation(pool, {
-      ownerEmployeeId: user.id, revokedBy: user.id, now: nowIso,
+    const issued = await issueInternalRegistrationLink(await getPostgresPool(), {
+      issuerUserId: user.id,
+      issuerRole: user.role,
+      issuerOrganizationId: user.organizationId,
+      targetRole,
+      targetOrganizationId,
+      ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      userAgent: request.headers.get("user-agent"),
     });
-
-    const code = generateInvitationCode(10);
-    const id = crypto.randomUUID();
-    const expiresAt = staffInvitationExpiry(now);
-    const db = getDb();
-    await db.batch([
-      db.insert(invitations).values({
-        id,
-        codeHash: await sha256(code),
-        kind: "staff_reusable",
-        issuerUserId: user.id,
-        ownerEmployeeId: user.id,
-        organizationId: user.organizationId,
-        expiresAt,
-        targetRole: target,
-      }),
-      db.insert(auditLogs).values({
-        id: crypto.randomUUID(),
-        actorUserId: user.id,
-        action: revoked.revokedId ? "invitation.staff_link_regenerated" : "invitation.staff_link_created",
-        subjectType: "invitation",
-        subjectId: id,
-        afterJson: JSON.stringify({ targetRole: target, expiresAt, replacedInvitationId: revoked.revokedId }),
-      }),
-    ]);
-
     return Response.json({
-      link: buildStaffInvitationLink(
-        process.env.OPERATIONS_PUBLIC_BASE_URL?.trim() || new URL(request.url).origin,
-        code,
-        staffInvitationAudience(target),
-      ),
-      expiresAt,
-      targetRole: target,
-      targetRoleLabel: roleLabels[target] ?? target,
-      replacedPreviousLink: revoked.revokedId !== null,
-      warning: "链接明文仅本次显示。48 小时后自动失效；通过它注册的人仍需另一位管理员复核才能生效。",
-    }, { status: 201 });
+      link: registrationUrl(request, issued.token),
+      registrationLink: {
+        id: issued.id,
+        targetRole: issued.targetRole,
+        organizationMode: issued.organizationMode,
+        organizationId: issued.organizationId,
+        permissionSnapshot: issued.permissionSnapshot,
+        status: issued.status,
+        expiresAt: null,
+        createdAt: issued.createdAt,
+      },
+      replacedPreviousLink: issued.replacedLinkIds.length > 0,
+      warning: "链接明文仅本次显示。链接长期有效且可重复注册；手动作废或重新生成后，旧链接立即失效。",
+    }, { status: 201, headers: { "cache-control": "no-store" } });
   } catch (error) {
     return responseError(error);
   }
@@ -113,20 +84,37 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { user } = await requireAccessPermission(request, "ops.organization.manage");
-    const result = await revokeStaffInvitation(await getPostgresPool(), {
-      ownerEmployeeId: user.id, revokedBy: user.id, now: new Date().toISOString(),
-    });
-    if (!result.revokedId) return Response.json({ error: "当前没有生效中的邀请链接" }, { status: 409 });
-    await getDb().insert(auditLogs).values({
-      id: crypto.randomUUID(),
+    const { user } = await requireAccessPermission(request, "ops.invitations.manage");
+    const body = await readResearchJson(request, 2_048);
+    const linkId = typeof body.linkId === "string" ? body.linkId.trim() : "";
+    if (!linkId) throw new ResearchApiError("LINK_ID_REQUIRED", "缺少注册链接标识", 400);
+    const result = await revokeInternalRegistrationLink(await getPostgresPool(), {
+      linkId,
       actorUserId: user.id,
-      action: "invitation.staff_link_revoked",
-      subjectType: "invitation",
-      subjectId: result.revokedId,
-      afterJson: JSON.stringify({ revokedBy: user.id }),
+      ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      userAgent: request.headers.get("user-agent"),
     });
-    return Response.json({ revoked: true });
+    return Response.json(result, { headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    return responseError(error);
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const { user } = await requireAccessPermission(request, "ops.invitations.manage");
+    const body = await readResearchJson(request, 2_048);
+    const linkId = typeof body.linkId === "string" ? body.linkId.trim() : "";
+    if (!linkId || body.action !== "copied") {
+      throw new ResearchApiError("COPY_EVENT_INVALID", "复制事件参数无效", 400);
+    }
+    const result = await recordInternalRegistrationLinkCopied(await getPostgresPool(), {
+      linkId,
+      actorUserId: user.id,
+      ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      userAgent: request.headers.get("user-agent"),
+    });
+    return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return responseError(error);
   }

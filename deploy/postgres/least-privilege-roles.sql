@@ -193,6 +193,23 @@ BEGIN
 END
 $identity_acl_convergence$;
 
+-- 内部权限注册链接只属于 Operations。即使从旧备份恢复了 Maintenance 或遗留角色
+-- 的 ACL，也在这里收敛掉，避免 token 摘要和使用事实跨 audience 暴露。
+DO $internal_registration_link_acl_convergence$
+DECLARE role_row record;
+BEGIN
+  FOR role_row IN
+    SELECT rolname FROM pg_roles
+     WHERE rolname NOT IN ('agentnovas_migrator','agentnovas_ops_web')
+  LOOP
+    EXECUTE format(
+      'REVOKE ALL PRIVILEGES ON TABLE public.internal_registration_links,public.internal_registration_link_uses FROM %I',
+      role_row.rolname
+    );
+  END LOOP;
+END
+$internal_registration_link_acl_convergence$;
+
 -- A restored explicit EXECUTE grant must not turn an unknown/legacy database
 -- role into an identity API. Rebuild the gateway ACL from zero, pin its path,
 -- then add only the two exact Client roles below.
@@ -310,7 +327,8 @@ GRANT SELECT ON
   applications, organizations, permission_definitions, role_templates,
   role_template_versions, roles, role_permissions, user_role_assignments,
   rbac_revocation_tombstones, system_role_identities, users, sessions, auth_tokens,
-  auth_rate_limit_buckets, invitations, user_mfa_totp_credentials, user_mfa_recovery_codes,
+  auth_rate_limit_buckets, invitations, internal_registration_links,
+  internal_registration_link_uses, user_mfa_totp_credentials, user_mfa_recovery_codes,
   access_change_requests, access_change_decisions, approval_requests,
   approval_decisions, authorization_audit_events, audit_logs, customer_profiles,
   customer_attributions, customer_attribution_change_requests,
@@ -336,7 +354,8 @@ GRANT SELECT ON
   TO agentnovas_ops_web;
 GRANT SELECT ON commercial_closed_paper_pnl TO agentnovas_ops_web;
 GRANT INSERT, UPDATE ON
-  users, sessions, auth_tokens, invitations, user_mfa_totp_credentials,
+  users, sessions, auth_tokens, invitations, internal_registration_links,
+  user_mfa_totp_credentials,
   user_mfa_recovery_codes, access_change_requests, access_change_decisions,
   approval_requests, approval_decisions, authorization_audit_events, audit_logs,
   customer_profiles, customer_attributions, customer_attribution_change_requests,
@@ -355,6 +374,8 @@ GRANT INSERT, UPDATE ON
   roles, role_permissions, user_role_assignments
   TO agentnovas_ops_web;
 GRANT INSERT, UPDATE ON auth_rate_limit_buckets, commercial_idempotency_records
+  TO agentnovas_ops_web;
+GRANT INSERT ON organizations, internal_registration_link_uses
   TO agentnovas_ops_web;
 GRANT DELETE ON sessions, auth_tokens, auth_rate_limit_buckets,
   user_mfa_recovery_codes TO agentnovas_ops_web;

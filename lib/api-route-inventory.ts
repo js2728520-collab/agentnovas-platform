@@ -2020,10 +2020,10 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "permission",
     "sessionAuthHelpers": [],
     "permissionKeys": [
-      "ops.organization.manage"
+      "ops.invitations.manage"
     ],
     "permissionMfa": {
-      "ops.organization.manage": "recent"
+      "ops.invitations.manage": "recent"
     },
     "scope": "grant",
     "mfa": "recent",
@@ -2042,16 +2042,38 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "permission",
     "sessionAuthHelpers": [],
     "permissionKeys": [
-      "ops.organization.view"
+      "ops.invitations.view"
     ],
     "permissionMfa": {
-      "ops.organization.view": "none"
+      "ops.invitations.view": "none"
     },
     "scope": "grant",
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
     "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "PATCH",
+    "route": "/api/invitations/staff-link",
+    "source": "app/api/invitations/staff-link/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.invitations.manage"
+    ],
+    "permissionMfa": {
+      "ops.invitations.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
     "idempotency": false
   },
   {
@@ -2064,10 +2086,10 @@ export const API_ROUTE_INVENTORY = [
     "authentication": "permission",
     "sessionAuthHelpers": [],
     "permissionKeys": [
-      "ops.organization.manage"
+      "ops.invitations.manage"
     ],
     "permissionMfa": {
-      "ops.organization.manage": "recent"
+      "ops.invitations.manage": "recent"
     },
     "scope": "grant",
     "mfa": "recent",
@@ -4231,10 +4253,9 @@ export const API_ROUTE_INVENTORY = [
   {
     "method": "POST",
     "route": "/api/organization/staff-register",
-    "source": "app/api/organization/staff-register/route.internal.ts",
+    "source": "app/api/organization/staff-register/route.operations.ts",
     "audiences": [
-      "operations",
-      "maintenance"
+      "operations"
     ],
     "authentication": "anonymous",
     "sessionAuthHelpers": [],
