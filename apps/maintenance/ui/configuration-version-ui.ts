@@ -15,6 +15,10 @@ export function parseConfigurationPayload(value: string) {
   return parsed as Record<string, unknown>;
 }
 
+export function splitTargetValues(value: string) {
+  return [...new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))].sort();
+}
+
 export function localDateTimeWithOffset(value: string, timezoneOffsetMinutes: number) {
   if (!value) return "";
   const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) ? `${value}:00` : value;

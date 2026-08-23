@@ -45,7 +45,7 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
   const registeredFeatureFlag = version.kind === "feature_flag"
     && version.key === "client.strategy_research"
     && version.audience === "client"
-    && version.schemaVersion === 1;
+    && [1, 2].includes(version.schemaVersion);
 
   return <section className="rc-panel">
     <header><div><small>SELECTED CONFIGURATION</small><h2>{version.key} · v{version.versionNumber}</h2></div><StatusBadge value={version.status} /></header>
@@ -88,7 +88,7 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
     </div> : null}
 
     {canActivate && version.schedule && !version.isCurrent ? <div className="rc-form rc-form-grid rc-config-action-block">
-      <InlineAuditReasonField id={`configuration-activation-reason-${version.id}`} value={activationReason} onChange={setActivationReason} label="激活原因" hint={registeredFeatureFlag ? "到达计划时间后会改变 current；策略研究入口从下一次请求开始按环境 Gate 与该版本共同判定。" : "到达计划时间后会直接改变控制面 current；尚未接入运行时的配置族不会改变具体行为。"} />
+      <InlineAuditReasonField id={`configuration-activation-reason-${version.id}`} value={activationReason} onChange={setActivationReason} label="激活原因" hint={registeredFeatureFlag ? "到达计划时间后会改变 current；策略研究入口从下一次请求开始按环境 Gate 与该版本的全局或定向规则共同判定。" : "到达计划时间后会直接改变控制面 current；尚未接入运行时的配置族不会改变具体行为。"} />
       <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !due || !hasValidAuditReason(activationReason)} onClick={() => void onActivation("activate", activationReason).then(() => setActivationReason("")).catch(() => undefined)}>{due ? "立即激活" : "尚未到计划时间"}</button></div>
     </div> : null}
     {canActivate && version.status === "superseded" ? <div className="rc-form rc-form-grid rc-config-action-block">

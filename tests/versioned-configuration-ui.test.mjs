@@ -48,14 +48,25 @@ test("registered strategy research flag uses a constrained draft form and server
   ]);
   assert.match(create, /client\.strategy_research/);
   assert.match(create, /模块状态/);
-  assert.match(create, /payload:\s*registeredFeatureFlag/);
+  assert.match(create, /发布范围/);
+  assert.match(create, /指定用户 ID/);
+  assert.match(create, /指定组织 ID/);
+  assert.match(create, /指定应用版本/);
+  assert.match(create, /灰度百分比/);
+  assert.match(create, /独立开始时间/);
+  assert.match(create, /独立结束时间/);
+  assert.match(create, /schemaVersion:\s*targetedFeatureFlag\s*\?\s*2\s*:\s*1/);
+  assert.match(create, /payload:\s*targetedFeatureFlag\s*\?\s*targetedPayload\(\)\s*:\s*\{ enabled: featureEnabled \}/);
   assert.match(create, /readOnly=\{registeredFeatureFlag\}/);
+  assert.match(detail, /\[1, 2\]\.includes\(version\.schemaVersion\)/);
+  assert.match(workspace, /\[1, 2\]\.includes\(version\.schemaVersion\)/);
   assert.match(detail, /运行确定性测试/);
   assert.match(detail, /结果与证据 SHA-256 均由服务端/);
   assert.match(workspace, /runRegisteredTest/);
   assert.match(workspace, /\{ reason \}/);
   assert.match(workspace, /策略研究入口将在下一次请求/);
   assert.match(workspace, /环境 Gate 与 current 功能开关/);
+  assert.match(workspace, /全局或定向规则/);
 });
 
 test("local schedule input is serialized with an explicit UTC offset", async () => {
@@ -64,4 +75,13 @@ test("local schedule input is serialized with an explicit UTC offset", async () 
   assert.equal(helper.localDateTimeWithOffset("2026-01-02T03:04", 300), "2026-01-02T03:04:00-05:00");
   assert.equal(helper.localDateTimeWithOffset("", -480), "");
   assert.equal(helper.offsetForLocalDateTime(""), 0);
+});
+
+test("target lists are deterministic across comma, newline, whitespace and duplicate input", async () => {
+  const helper = await import("../apps/maintenance/ui/configuration-version-ui.ts");
+  assert.deepEqual(
+    helper.splitTargetValues(" user-b, user-a\nuser-a\n\nbranch:1 "),
+    ["branch:1", "user-a", "user-b"],
+  );
+  assert.deepEqual(helper.splitTargetValues(""), []);
 });

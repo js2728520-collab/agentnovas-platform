@@ -46,11 +46,27 @@ test("ordinary maintenance configuration submits inline without confirmation dia
   await expect(page.getByLabel("配置 key")).toHaveAttribute("readonly", "");
   await expect(page.getByLabel("Schema 版本")).toHaveValue("1");
   await expect(page.getByLabel("模块状态")).toHaveValue("disabled");
+  await page.getByLabel("发布范围").selectOption("targeted");
+  await expect(page.getByLabel("Schema 版本")).toHaveValue("2");
+  await expect(page.getByLabel("模块状态")).toHaveCount(0);
+  await page.getByLabel("灰度百分比").fill("25");
   await page.getByLabel("草稿创建原因").fill("发布工作台普通草稿浏览器验证");
   const created = page.waitForResponse((response) => response.url().endsWith("/api/maintenance/configuration-versions") && response.request().method() === "POST");
   await page.getByRole("button", { name: "直接创建草稿" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect((await created).status()).toBe(201);
+  const createdResponse = await created;
+  expect(createdResponse.status()).toBe(201);
+  expect(createdResponse.request().postDataJSON()).toEqual({
+    kind: "feature_flag",
+    key: "client.strategy_research",
+    audience: "client",
+    schemaVersion: 2,
+    payload: {
+      defaultEnabled: false,
+      target: { enabled: true, rolloutPercentage: 25 },
+    },
+    reason: "发布工作台普通草稿浏览器验证",
+  });
   await expect(page.getByText("不可变配置草稿已创建；后续修改需要创建新版本。", { exact: true })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByLabel("确定性测试原因").fill("浏览器触发服务端功能开关确定性测试");

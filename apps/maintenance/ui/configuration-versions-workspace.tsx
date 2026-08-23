@@ -15,7 +15,7 @@ function controlsStrategyResearch(version: ConfigurationVersion) {
   return version.kind === "feature_flag"
     && version.key === "client.strategy_research"
     && version.audience === "client"
-    && version.schemaVersion === 1;
+    && [1, 2].includes(version.schemaVersion);
 }
 
 export function ConfigurationVersionsWorkspace(props: { currentUserId: string; canManage: boolean; canApprove: boolean; canActivate: boolean }) {
@@ -127,7 +127,7 @@ function ConfigurationVersionsControl({ payload, refresh, currentUserId, canMana
 
   return <>
     <PageHeading eyebrow="VERSIONED CONFIGURATION CONTROL" title="配置发布" description="管理非秘密配置的草稿、测试证据、独立审批、调度、激活与回滚。" actions={<StatusBadge value={`${payload.versions.filter((version) => version.isCurrent).length} current`} />} />
-    <div className="rc-callout" role="note"><code>client.strategy_research</code> 已接管 Client 策略研究入口，有效状态由环境 Gate 与 current 功能开关共同决定；其他配置族在接入消费者前仍只形成受审计的控制面投影。秘密和客户数据不得写入 payload。</div>
+    <div className="rc-callout" role="note"><code>client.strategy_research</code> 已接管 Client 策略研究入口，有效状态由环境 Gate 与 current 功能开关的全局或定向规则共同决定；其他配置族在接入消费者前仍只形成受审计的控制面投影。秘密和客户数据不得写入 payload。</div>
     <div className="rc-live" aria-live="polite">{message}</div>
     {canManage ? <ConfigurationVersionCreatePanel busy={busy} onCreate={createDraft} report={setMessage} /> : null}
     <section className="rc-panel">

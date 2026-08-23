@@ -18,7 +18,7 @@ const schema = `active_feature_flag_${process.pid}_${Date.now()}`;
 const adminPool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
 const pool = new pg.Pool({ connectionString: databaseUrl, max: 4, options: `-c search_path=${schema}` });
 
-async function publish(enabled, suffix, now) {
+async function publish(payload, suffix, now, schemaVersion = 1) {
   const version = await createConfigurationVersion(pool, {
     actorUserId: "maker",
     idempotencyKey: `feature-create-${suffix}`,
@@ -27,9 +27,9 @@ async function publish(enabled, suffix, now) {
       kind: "feature_flag",
       key: "client.strategy_research",
       audience: "client",
-      schemaVersion: 1,
-      payload: { enabled },
-      reason: `创建策略研究全局开关版本 ${suffix}`,
+      schemaVersion,
+      payload,
+      reason: `创建策略研究功能开关版本 ${suffix}`,
     },
   });
   const tested = await testConfigurationVersion(pool, {
@@ -119,15 +119,38 @@ test.after(async () => {
 
 test("client gateway returns only the latest current version and follows rollback", async () => {
   const now = new Date();
-  const disabled = await publish(false, "a", now);
+  const disabled = await publish({ enabled: false }, "a", now);
   let current = await pool.query(`SELECT * FROM configuration_client_active_feature_flag($1)`, ["client.strategy_research"]);
   assert.equal(current.rows[0].configuration_version_id, disabled.id);
+  assert.equal(current.rows[0].schema_version, 1);
   assert.deepEqual(current.rows[0].payload_json, { enabled: false });
 
-  const enabled = await publish(true, "b", new Date(now.getTime() + 1_000));
+  const targetedPayload = {
+    defaultEnabled: false,
+    target: {
+      enabled: true,
+      organizationIds: ["branch-b", "branch-a", "branch-a"],
+      applicationVersions: ["v3.0.0"],
+      rolloutPercentage: 25,
+      startsAt: "2026-08-24T00:00:00+08:00",
+      endsAt: "2026-09-24T00:00:00+08:00",
+    },
+  };
+  const enabled = await publish(targetedPayload, "b", new Date(now.getTime() + 1_000), 2);
   current = await pool.query(`SELECT * FROM configuration_client_active_feature_flag($1)`, ["client.strategy_research"]);
   assert.equal(current.rows[0].configuration_version_id, enabled.id);
-  assert.deepEqual(current.rows[0].payload_json, { enabled: true });
+  assert.equal(current.rows[0].schema_version, 2);
+  assert.deepEqual(current.rows[0].payload_json, {
+    defaultEnabled: false,
+    target: {
+      enabled: true,
+      organizationIds: ["branch-a", "branch-b"],
+      applicationVersions: ["v3.0.0"],
+      rolloutPercentage: 25,
+      startsAt: "2026-08-23T16:00:00.000Z",
+      endsAt: "2026-09-23T16:00:00.000Z",
+    },
+  });
 
   await activateConfigurationVersion(pool, {
     versionId: disabled.id,
@@ -139,6 +162,7 @@ test("client gateway returns only the latest current version and follows rollbac
   });
   current = await pool.query(`SELECT * FROM configuration_client_active_feature_flag($1)`, ["client.strategy_research"]);
   assert.equal(current.rows[0].configuration_version_id, disabled.id);
+  assert.equal(current.rows[0].schema_version, 1);
   assert.deepEqual(current.rows[0].payload_json, { enabled: false });
   assert.deepEqual((await pool.query(`SELECT * FROM configuration_client_active_feature_flag($1)`, ["client.unknown"])).rows, []);
 });
