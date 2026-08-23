@@ -47,6 +47,32 @@ async function exercisePublicLocalePreference(page: import("@playwright/test").P
 async function exerciseEditableStrategyCandidate(page: import("@playwright/test").Page) {
   const runtime = await readQualityRuntime();
   const { runId, candidateId, exchangeAccountId } = runtime.researchFixture;
+  const candidateSpecification = {
+    schemaVersion: 3,
+    name: "Quality BTC trend candidate",
+    market: "usdt_perpetual",
+    marginMode: "isolated",
+    leverage: 1,
+    symbol: "BTCUSDT",
+    timeframe: "1h",
+    direction: "long_only",
+    legs: {
+      long: {
+        entry: { all: [{ type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bullish" }] },
+        exit: { any: [{ type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bearish" }] },
+        stopLossPct: 2,
+        takeProfitPct: 4,
+      },
+    },
+    risk: {
+      positionSizePct: 3,
+      maxDrawdownPct: 10,
+      maxDailyLossPct: 2,
+      maxConsecutiveLosses: 3,
+    },
+  };
+  let savedSpecification: typeof candidateSpecification | null = null;
+  let savedRequestPositionSizePct: number | null = null;
   await page.route("**/api/exchange-accounts", async route => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -94,6 +120,67 @@ async function exerciseEditableStrategyCandidate(page: import("@playwright/test"
       fundingIntervalHours: 8,
     }] }),
   }));
+  await page.route(`**/api/strategy-research/runs/${runId}`, async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      run: {
+        id: runId,
+        status: "completed",
+        stage: "completed",
+        progress: 100,
+        result: { qualityFixture: true },
+        finalConclusion: "QUALIFIED",
+        lastErrorMessage: null,
+      },
+      events: [],
+      candidates: [{
+        id: candidateId,
+        strategyFamily: "EMA trend",
+        sourceRole: "proposal_a",
+        dsl: savedSpecification ?? candidateSpecification,
+        status: "qualified",
+        rank: 1,
+        score: 88.5,
+        rejectionReasons: [],
+        validationLabel: savedSpecification ? "UNVERIFIED" : "STANDARD_VERIFIED",
+        savedStrategyId: savedSpecification ? candidateId : null,
+        savedStrategyVersionId: savedSpecification ? `${candidateId}-v1` : null,
+        edited: Boolean(savedSpecification),
+      }],
+      evaluations: [{
+        candidateId,
+        kind: "holdout",
+        metrics: { netReturnPct: 12.5, maxDrawdownPct: 7.25, profitFactor: 1.8, sampleSize: 120 },
+        passed: true,
+        finalHoldout: true,
+      }],
+    }),
+  }));
+  await page.route(`**/api/strategy-research/runs/${runId}/events?*`, async route => route.fulfill({
+    status: 200,
+    headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" },
+    body: `event: done\ndata: ${JSON.stringify({ status: "completed" })}\n\n`,
+  }));
+  await page.route(`**/api/strategy-research/runs/${runId}/candidates/${candidateId}/save`, async route => {
+    const body = route.request().postDataJSON() as { specification?: typeof candidateSpecification };
+    savedSpecification = body.specification ?? null;
+    savedRequestPositionSizePct = savedSpecification?.risk.positionSizePct ?? null;
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        strategyId: candidateId,
+        version: 1,
+        versionId: `${candidateId}-v1`,
+        created: true,
+        edited: true,
+        specification: savedSpecification,
+        validationLabel: "UNVERIFIED",
+        simulationOnly: true,
+      }),
+    });
+  });
 
   let saveRequests = 0;
   let deploymentRequests = 0;
@@ -117,28 +204,8 @@ async function exerciseEditableStrategyCandidate(page: import("@playwright/test"
   expect(saveRequests).toBe(0);
 
   const edited = {
-    schemaVersion: 3,
-    name: "Quality BTC trend candidate",
-    market: "usdt_perpetual",
-    marginMode: "isolated",
-    leverage: 1,
-    symbol: "BTCUSDT",
-    timeframe: "1h",
-    direction: "long_only",
-    legs: {
-      long: {
-        entry: { all: [{ type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bullish" }] },
-        exit: { any: [{ type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bearish" }] },
-        stopLossPct: 2,
-        takeProfitPct: 4,
-      },
-    },
-    risk: {
-      positionSizePct: 4,
-      maxDrawdownPct: 10,
-      maxDailyLossPct: 2,
-      maxConsecutiveLosses: 3,
-    },
+    ...candidateSpecification,
+    risk: { ...candidateSpecification.risk, positionSizePct: 4 },
   };
   await textarea.fill(JSON.stringify(edited, null, 2));
   const saveResponsePromise = page.waitForResponse(response =>
@@ -152,6 +219,7 @@ async function exerciseEditableStrategyCandidate(page: import("@playwright/test"
   expect(savePayload.validationLabel).toBe("UNVERIFIED");
   expect(savePayload.edited).toBe(true);
   expect(savePayload.specification.risk.positionSizePct).toBe(4);
+  expect(savedRequestPositionSizePct).toBe(4);
   expect(saveRequests).toBe(1);
   expect(deploymentRequests).toBe(0);
   await expect(candidateCard.getByText("UNVERIFIED", { exact: true })).toBeVisible();
