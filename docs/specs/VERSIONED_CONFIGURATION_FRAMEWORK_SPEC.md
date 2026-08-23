@@ -1,6 +1,6 @@
 # 通用版本化配置发布框架规格
 
-状态：`PARTIAL_CURRENT`；T3.1a、T3.1b 与 T3.1c-FF1 已实现，其余 T3.1c 配置族为 Target/Blocked
+状态：`PARTIAL_CURRENT`；T3.1a、T3.1b、T3.1c-FF1 与 FF2 已实现，其余 T3.1c 配置族为 Target/Blocked
 日期：2026-08-24
 上位真源：`../product/PRD.md` 第 10、12 节；`V3_SYSTEM_TARGET_SPEC.md` 第 10 节；`V3_MAINTENANCE_APP_TARGET_SPEC.md` 第 2–5 节
 
@@ -22,7 +22,7 @@
 1. 通用 payload 只保存非秘密 JSON；`secret/password/token/apiKey/privateKey` 等字段必须在边界拒绝。模型、支付和集成密钥继续留在既有只写不读专用表。
 2. T3.1a 交付数据库状态机、服务与受控 API；到期版本由有权限人员显式激活，不引入常驻调度 Worker。
 3. T3.1b 交付 Maintenance 工作台和到期激活 Worker；Worker 只消费数据库中已测试通过、已审批且到期的版本，不能自行测试、审批、调度或回滚。
-4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；首个 `client.strategy_research` 全局功能开关已接入，具体价格、域名和设计资源继续受 P-07/P-08/P-10/P-11 阻断。
+4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；`client.strategy_research` 的全局 v1 与定向 v2 功能开关已接入，具体价格、域名和设计资源继续受 P-07/P-08/P-10/P-11 阻断。
 5. audience 固定为 `client/operations/maintenance/shared`；配置流以 `(kind, key, audience)` 唯一识别。
 6. T3.1b 分为 UI 与 Worker 两个可独立验收的切片：工作台先行，自动到期激活器随后交付。工作台把人工提交明确称为“登记测试证据”，不能冒充自动测试；在 T3.1c 消费者接入前，active 只代表控制面 current 投影。
 
@@ -167,7 +167,7 @@ warning、300 秒进入 critical。Container Compose 使用独立 `configuration
 仅连接 backplane，不具备 egress/edge 网络；systemd 和示例环境默认关闭。生产配置审计要求
 专用 DSN、Maintenance/Worker 开关值一致且只报告启停状态，不回显配置值。
 
-本切片只把已测试、已审批且到期的通用版本推进到控制面 current。后续 T3.1c-FF1 只让
+本切片只把已测试、已审批且到期的通用版本推进到控制面 current。后续接入的 T3.1c-FF1/FF2 只让
 `client.strategy_research` 消费该 current；不能据此声称品牌、域名、Prompt、技能或价格已经
 接管运行时，也不能借 Worker 打开交易、支付、提现或部署能力。
 
@@ -175,8 +175,8 @@ warning、300 秒进入 critical。Container Compose 使用独立 `configuration
 
 第一条具体配置族固定为 `kind=feature_flag`、`key=client.strategy_research`、
 `audience=client`、`schemaVersion=1`，payload 只允许 `{ "enabled": boolean }`。这是
-“整个模块”级开关；指定用户/组织、应用版本、灰度百分比和独立启停窗口属于 T3.3 的后续
-schema 版本，不在 v1 中静默猜测组合语义。
+“整个模块”级开关；指定用户/组织、应用版本、灰度百分比和独立启停窗口不在 v1 中静默猜测
+组合语义，已由第 12 节的 T3.1c-FF2/schema v2 独立实现。
 
 该配置遵循双重 Gate：环境变量 `STRATEGY_RESEARCH_ENABLED` 必须已经为 `true`，active
 配置才能参与判定。环境 Gate 为 `false` 时，配置永远不能把能力打开；没有 active 配置时
@@ -220,3 +220,45 @@ Node 22.21.1 容器内全部构建成功；一次提前启动的半传输快照�
 测试期间修复隔离浏览器 teardown 竞态：仅在主动关闭开始后忽略 Playwright 已处理 route，
 运行期间 console/network/page error/HTTP 规则没有放宽。质量 schema、运行时凭证、端口和远端
 临时构建目录均已清理；未启动远端服务、未迁移生产数据库、未推送、未部署。
+
+## 12. T3.1c-FF2 多粒度功能开关
+
+`feature_flag/client.strategy_research/client/schemaVersion=2` 使用单条显式规则：
+
+```json
+{
+  "defaultEnabled": false,
+  "target": {
+    "enabled": true,
+    "userIds": ["internal-user-id"],
+    "organizationIds": ["internal-organization-id"],
+    "applicationVersions": ["v1.0.0-beta.6"],
+    "rolloutPercentage": 25,
+    "startsAt": "2026-08-24T00:00:00+08:00",
+    "endsAt": "2026-09-24T00:00:00+08:00"
+  }
+}
+```
+
+所有字段严格白名单；规则至少包含一个条件。用户与组织在主体维度内为 OR，主体、精确应用
+SemVer、灰度百分比和独立时窗在不同维度间为 AND。开始时间包含、结束时间不包含；时间输入
+必须携带明确 offset，规范化后以 UTC 保存。用户/组织各最多 100 个，应用版本最多 20 个；
+列表去空白、去重并排序。用户字段只接受内部不可变 ID，不接受邮箱或其他 PII。
+
+百分比分桶对 `flag key + ":" + userId` 计算 SHA-256，并稳定映射到 0–9999；同一用户不会按
+请求随机漂移。没有服务端用户 ID 时百分比条件不命中。运行时上下文只能来自已认证 Session 的
+`user.id`、`organizationId`、部署元数据中的精确 SemVer 和服务端当前时间；请求参数或 Header
+不能替代这些值。环境 Gate 始终为上限，schema v2 只能收窄能力。
+
+Maintenance 创建页可在“全局开关 v1”和“定向规则 v2”间选择，直接提交页面内审计原因，
+不出现确认 dialog。服务端仍执行严格规范化、确定性测试、摘要复核、独立审批、调度和回滚；
+非法 schema/payload、网关错误或摘要不一致全部失败关闭。首版只支持一条规则，避免在没有
+已确认优先级合同前引入多规则覆盖；未来扩展必须使用新的 schema 版本。
+
+实施结果（2026-08-24）：纯函数、运行时和 route 合同、完整 PostgreSQL 发布/current/v1 回滚
+与最小权限测试全部通过；`npm test` 1333/1333、TypeScript、ESLint、8 条架构边界、secret scan
+和 production dependency audit 全通过。`ssh an-saas` 使用提交 `4e21989` 的完整 Git 快照、
+Node 22.21.1 构建 Client 68 页、Operations 62 页、Maintenance 51 页全部成功。相同云端产物
+下载后，本地隔离 PostgreSQL、外部写入禁用、MFA 关闭的真实 Chromium 18/18 通过，覆盖三端
+空浏览器登录、v2 请求体、服务端确定性测试与全程无 dialog。一次性 schema、运行密钥、端口、
+本地和远端构建目录均已清理；未部署、未迁移生产数据库、未推送。

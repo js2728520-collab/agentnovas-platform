@@ -31,7 +31,7 @@
 - `specs/V3_CLIENT_APP_TARGET_SPEC.md`、`V3_OPERATIONS_APP_TARGET_SPEC.md`、`V3_MAINTENANCE_APP_TARGET_SPEC.md`：三端目标规格。
 - `specs/SYSTEM_SPEC.md` 与现有三端 App Spec：当前 Beta/Paper 可达合同和硬关闭边界。
 - `specs/RELEASE_VERSION_MANAGEMENT_SPEC.md`：SemVer、不可变验证/部署证据、环境 current 与回滚状态机。
-- `specs/VERSIONED_CONFIGURATION_FRAMEWORK_SPEC.md`：通用配置 draft/test/approve/schedule/activate/rollback 合同；T3.1a 内核/API 与 T3.1b 工作台/最小权限自动激活 Worker 已实现，具体配置族仍为 Target。
+- `specs/VERSIONED_CONFIGURATION_FRAMEWORK_SPEC.md`：通用配置 draft/test/approve/schedule/activate/rollback 合同；T3.1a 内核/API、T3.1b 工作台/最小权限自动激活 Worker、功能开关全局 v1 与定向 v2 已实现，其余配置族仍为 Target/Blocked。
 - `architecture/CAPABILITY_MIGRATION_MATRIX.md`：Current→V3 详细能力矩阵，覆盖 route、数据库、三端页面、Worker/Execution Service、测试、Gate、共享热点与退休项。
 - `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md`：V3 当前准备度、主要差距和风险优先级。
 - `review/SYSTEM_ASSESSMENT_2026-08-20.md`：历史商业 Beta 基线评估。

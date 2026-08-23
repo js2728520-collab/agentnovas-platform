@@ -2413,3 +2413,40 @@ trigger、10 个 policy 和 5 个 sequence，查询后 schema 已删除。后台
 也明确表或 disabled route 存在不能证明 V3 能力已完成。下一可独立实施的无外部参数切片是
 Prompt/Skill 配置族，但其可编辑边界、Skill 语义、可信测试方式和版本生效规则仍需需求方确认；
 在确认前不进入实现。
+
+## 65. 2026-08-24 T3.1c-FF2 多粒度功能开关
+
+`client.strategy_research` 已在保持 schema v1 `{enabled:boolean}` 兼容的同时增加严格 schema
+v2。v2 只允许一条显式规则，支持内部用户 ID、组织 ID、精确 `v` 前缀 SemVer、0–100 整数灰度
+百分比和带明确 offset 的独立启停时窗；规则至少包含一个条件。用户与组织在主体维度内 OR，
+主体、版本、百分比和时窗跨维度 AND；开始时刻包含、结束时刻不包含。列表规范化为去重排序，
+用户/组织各不超过 100 个、应用版本不超过 20 个，邮箱等 PII 在边界拒绝。
+
+灰度按 `SHA-256(flag key + ":" + userId)` 稳定映射到 0–9999，不按请求随机。运行时不接受浏览器
+提供的 targeting 上下文：用户 ID、组织 ID 来自已认证 Session，应用版本来自服务端发布元数据，
+时间来自服务端；环境变量 Gate 始终是能力上限。消费者会重新规范化 payload 并复核 canonical
+SHA-256，未知 schema、无效投影、摘要不一致和数据库网关异常全部失败关闭，不回显配置或错误
+正文。策略研究 GET/POST 在认证后共用同一判定，Client 仍只执行迁移 0071 的最小权限 current
+网关，没有配置底表读取权。
+
+Maintenance `/configurations` 增加“全局开关 v1 / 定向规则 v2”选择，定向字段在同一页面内
+完成，提交草稿、服务端确定性测试、审批、调度、激活和回滚均继续使用页面内审计原因，没有
+恢复确认 dialog。PostgreSQL 回归实际发布并规范化 v2，current 网关返回 schema 2/payload，
+随后回滚到已验证 v1；浏览器断言草稿请求体为 schema 2、25% 稳定灰度，测试请求仍只有
+`{reason}`。
+
+本地完整门禁为 `npm test` 1333/1333、TypeScript、全仓 ESLint、8 条架构边界、secret scan、
+`git diff --check` 与 production dependency audit 0 vulnerability。云端以提交 `4e21989`、tree
+`8da9cf6687bd20c573c54d246bdd86f53553eec5` 的 3062 文件 Git 快照构建，归档 SHA-256 为
+`0888becbdf8a0b3b4e33077b93248f0dc955dd0adfbde28e8b215afb4b594868`；`ssh an-saas` 的
+Node 22.21.1 容器完成 Client 68 页、Operations 62 页、Maintenance 51 页 production build。
+三份云端 standalone 归档 SHA-256 为
+`93cc0aea66e40b6743e4c758914a63664fc503b0b1b0c5fec3863a7f0ef86214`，下载到本地后以隔离
+PostgreSQL、MFA 关闭、外部写入全禁用运行真实 Chromium，最终 18/18 通过，覆盖三端空浏览器
+登录、Host/Cookie audience、权限注册链接、五设备、三端 UI、v2 配置和无 dialog。
+
+一次开发模式预跑被 Next 16 `allowedDevOrigins` 对正式测试域名的 403 挡在资源加载阶段，没有
+进入业务断言，因此不计验收证据，也没有放宽开发服务器安全配置；随后使用云端 production
+standalone 完成有效验收。质量 schema、运行时密钥、3740–3742 端口、下载产物及云端
+`/tmp/agentnovas-ff2-build-1Mlb23` 均已清理，本机原构建缓存已恢复。未启动远端服务、未执行
+生产迁移、未接触生产数据库、未推送、未部署。

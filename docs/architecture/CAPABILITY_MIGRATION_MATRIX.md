@@ -101,8 +101,8 @@
 | --- | --- | --- | --- | --- | --- |
 | C-01 | 配置 draft/test/approve/schedule/activate/rollback | 5 组追加式表、Maintenance API、`/configurations`、Activation Worker、最小权限 DB gateway、PostgreSQL/Chromium tests | 通用配置控制面 | `CURRENT`（内核） | 具体 family 仍需独立 schema/tester/consumer。 |
 | C-02 | 减少配置弹窗，原因内联单击执行 | 普通配置/测试和配置发布全流程已无 dialog；充值启停、紧急控制等高风险动作保留确认 | Maintenance 各工作台 | `CURRENT` | 后续页面不得把低风险操作重新做成重复确认。 |
-| C-03 | 全局策略研究功能开关 | `feature_flag/client.strategy_research` v1；严格 schema、确定性 tester、最小权限 active consumer、双 Gate | `/configurations` + strategy research route | `CURRENT` | 只支持全局 bool；不能推导 targeting 已完成。 |
-| C-04 | 用户/组织/版本/百分比/独立时窗 targeting | 无最终 evaluation/bucketing 合同 | feature flag family v2+ 与统一消费者 SDK | `TARGET` | T3.3；需稳定哈希、优先级、审计和回滚测试。 |
+| C-03 | 全局策略研究功能开关 | `feature_flag/client.strategy_research` v1；严格 schema、确定性 tester、最小权限 active consumer、双 Gate | `/configurations` + strategy research route | `CURRENT` | v1 全局 bool 保持兼容；环境 Gate 始终是上限。 |
+| C-04 | 用户/组织/版本/百分比/独立时窗 targeting | schema v2 单规则；服务端用户/组织/部署版本/时间；稳定 SHA-256 分桶；严格规范化、测试、current、回滚和无弹窗 UI | feature flag family v2 + strategy research consumer | `CURRENT` | 多规则优先级不属于 v2；未来扩展必须新建 schema。 |
 | C-05 | 品牌、Logo、域名、协议、多语言配置 | platform settings 与 disclosure 基础；没有六主题素材和正式域名消费者 | Maintenance settings/configurations + 三端 public config | `BLOCKED` | P-10/P-11；域名还影响 Cookie/CORS/TLS/邮件链接。 |
 | C-06 | Prompt/技能 CRUD、测试、双审、历史和回滚 | 7 个研究 prompt role、3 个 runtime explanation role、模型 Profile/绑定；没有 Skill 领域模型 | versioned configuration family + Maintenance models/configurations | `TARGET` | 需求方需确认 Skill 是否仅声明式、可编辑 prompt 范围、安全模板是否不可编辑、测试方式与新任务生效规则。 |
 | C-07 | 月/季/年/终身套餐、USDT 价格、权益版本 | `commercial_plan_versions` 和当前 Beta 四档基础；非完整 V3 价格消费者 | Maintenance 计费配置 + Client 会员 | `PARTIAL/BLOCKED` | P-07；历史订单必须 pin 原版本。 |
@@ -182,13 +182,12 @@
 | ---: | --- | --- | --- |
 | 1 | G1 目标环境真实邮件、三端 MFA rollout 与回滚证据 | M | 生产变更窗口/真实邮件授权 |
 | 2 | Prompt/Skill 可编辑边界确认与 family v1 | M | 需求方对 C-06 五项确认 |
-| 3 | feature flag targeting evaluation v2 | M | T3.3 合同 |
-| 4 | market/provider/symbol/calendar schema 与只读 API | M | P-01/P-03 可分市场冻结 |
-| 5 | 单一市场 WebSocket + stale Gate | L，拆 provider 接入/前端/风险三片 | M-01 和 provider sandbox |
-| 6 | QuantDinger 差异清单与 AI 入口收敛 | M | P-04 |
-| 7 | 策略投稿→审核→Paper 上架纵向切片 | L，拆状态机/审核/Client 三片 | P-05/P-06 |
-| 8 | 首个 provider 账户 readiness + reconcile | L，按 provider 拆 | P-01、密钥与网络环境 |
-| 9 | 单 provider 现货最小 canary | L，继续拆订单/恢复/监控 | G4/G4A |
+| 3 | market/provider/symbol/calendar schema 与只读 API | M | P-01/P-03 可分市场冻结 |
+| 4 | 单一市场 WebSocket + stale Gate | L，拆 provider 接入/前端/风险三片 | M-01 和 provider sandbox |
+| 5 | QuantDinger 差异清单与 AI 入口收敛 | M | P-04 |
+| 6 | 策略投稿→审核→Paper 上架纵向切片 | L，拆状态机/审核/Client 三片 | P-05/P-06 |
+| 7 | 首个 provider 账户 readiness + reconcile | L，按 provider 拆 | P-01、密钥与网络环境 |
+| 8 | 单 provider 现货最小 canary | L，继续拆订单/恢复/监控 | G4/G4A |
 
 ## 12. 矩阵验证命令
 

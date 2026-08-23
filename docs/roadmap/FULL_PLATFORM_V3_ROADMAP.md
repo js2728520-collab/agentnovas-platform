@@ -84,9 +84,9 @@ MFA 上线策略见 ADR-0023。
 5. 套餐、Credits、USDT 支付、退款和优惠版本。
 6. Token 用量多维统计。
 
-实施快照（2026-08-24）：通用版本内核、Maintenance 工作台、最小权限到期激活 Worker 和首个
-`client.strategy_research` 全局功能开关已完成；多粒度功能开关、品牌/域名、Prompt/技能、
-价格/Credits 仍按任务清单和产品参数依赖推进，Phase 3 尚未满足退出条件。
+实施快照（2026-08-24）：通用版本内核、Maintenance 工作台、最小权限到期激活 Worker，以及
+`client.strategy_research` 全局 v1 与用户/组织/版本/稳定百分比/独立时窗定向 v2 已完成；
+品牌/域名、Prompt/技能、价格/Credits 仍按任务清单和产品参数依赖推进，Phase 3 尚未满足退出条件。
 
 退出条件：配置历史不可覆盖，所有高风险变更可回滚。
 
