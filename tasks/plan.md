@@ -227,6 +227,15 @@
 
 ## 7. Phase 3：配置、计费、主题和语言
 
+### T3.0：Maintenance 普通配置交互减负
+
+**状态：** 已完成。普通可逆配置和只读连通测试使用页面内审计原因并单击执行，不再逐项弹出确认框；生产发布、模型回滚、充值启停、紧急控制和密钥/会话安全操作继续保留独立确认。
+
+**验收：** 平台设置、模型 Profile/绑定/测试、邮件测试、数据源测试、支付映射/测试和 Demo 连接验证没有二次弹窗；每次请求仍携带服务端校验的审计原因；高风险动作边界不变。
+**验证：** UI 合同、TypeScript、ESLint、Maintenance production build，以及隔离 PostgreSQL + 真实 Chromium 保存/逐页无弹窗回归。
+**依赖：** Phase 1 身份与 Maintenance RBAC 基线。
+**规模：** M。
+
 ### T3.1：版本化配置发布框架
 
 **描述：** 统一品牌、域名、协议、功能开关、Prompt、技能和价格的 draft/test/approve/schedule/activate/rollback。

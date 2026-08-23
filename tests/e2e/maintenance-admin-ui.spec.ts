@@ -1,4 +1,4 @@
-import { exerciseResponsiveWidths, expectAudienceNavigation, test } from "./support/quality-test";
+import { exerciseResponsiveWidths, expect, expectAudienceNavigation, test } from "./support/quality-test";
 
 test("maintenance health and audit workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
   for (const [path, heading] of [
@@ -22,5 +22,30 @@ test("maintenance model and integration workspaces are responsive, accessible an
   ] as const) {
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "maintenance");
+  }
+});
+
+test("ordinary maintenance configuration submits inline without confirmation dialogs", async ({ page }) => {
+  await page.goto("/settings", { waitUntil: "domcontentloaded" });
+  const save = page.getByRole("button", { name: "保存设置" });
+  await expect(save).toBeDisabled();
+  await page.getByLabel("设置变更原因").fill("日常平台配置维护");
+  await expect(save).toBeEnabled();
+  const saved = page.waitForResponse((response) => response.url().endsWith("/api/maintenance/platform-settings") && response.request().method() === "PUT");
+  await save.click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect((await saved).status()).toBe(200);
+  await expect(page.getByText("平台公开设置已保存并记录审计", { exact: true })).toBeVisible();
+
+  for (const [path, reasonLabel] of [
+    ["/models", "配置与测试原因"],
+    ["/integrations/email", "测试原因"],
+    ["/integrations/sources", "本轮测试原因"],
+    ["/integrations/payments", "配置与测试原因"],
+    ["/integrations/demo-exchanges", "连接验证原因"],
+  ] as const) {
+    await page.goto(path, { waitUntil: "domcontentloaded" });
+    await expect(page.getByLabel(reasonLabel)).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   }
 });

@@ -357,7 +357,7 @@ test("payment connectivity tests require an explicit true feature switch", async
   assert.match(source, /maintenanceReason/);
 });
 
-test("maintenance connectivity tests require reasons and Udun controls use confirmation dialogs", async () => {
+test("maintenance connectivity tests keep audited reasons without redundant configuration dialogs", async () => {
   for (const path of [
     "app/api/admin/agent-role-bindings/test/route.maintenance.ts",
     "app/api/admin/runtime-explanation-bindings/test/route.maintenance.ts",
@@ -365,11 +365,19 @@ test("maintenance connectivity tests require reasons and Udun controls use confi
   ]) {
     assert.match(await read(path), /maintenanceReason/);
   }
-  assert.match(await read("apps/maintenance/ui/models-workspace.tsx"), /kind: "test"/);
-  assert.match(await read("apps/maintenance/ui/email-integration-workspace.tsx"), /ConfirmActionDialog/);
+  const models = await read("apps/maintenance/ui/models-workspace.tsx");
+  assert.match(models, /kind: "test"/);
+  assert.match(models, /InlineAuditReasonField/);
+  const email = await read("apps/maintenance/ui/email-integration-workspace.tsx");
+  assert.match(email, /InlineAuditReasonField/);
+  assert.doesNotMatch(email, /ConfirmActionDialog/);
+  const sources = await read("apps/maintenance/ui/source-integrations-workspace.tsx");
+  assert.match(sources, /InlineAuditReasonField/);
+  assert.doesNotMatch(sources, /ConfirmActionDialog/);
   const payment = await read("apps/maintenance/ui/payment-integration-workspace.tsx");
   assert.match(payment, /DEPOSIT ONLY/);
-  assert.match(payment, /kind: "configure" \| "test" \| "activate" \| "disable"/);
+  assert.match(payment, /InlineAuditReasonField/);
+  assert.match(payment, /kind: "activate" \| "disable"/);
   assert.match(payment, /ConfirmActionDialog/);
   assert.match(payment, /idempotency-key/);
 });

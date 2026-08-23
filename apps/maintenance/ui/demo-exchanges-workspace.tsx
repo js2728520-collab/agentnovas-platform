@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { apiErrorMessage, formatDateTime, formatDecimal } from "@/packages/contracts/src/riverton-ui";
 import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
+import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import {
   EmptyState,
   ErrorState,
@@ -88,6 +89,7 @@ export function DemoExchangesWorkspace({
     "Demo 账户安全视图读取失败",
   );
   const [pending, setPending] = useState<PendingAction | null>(null);
+  const [verifyReason, setVerifyReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -95,25 +97,25 @@ export function DemoExchangesWorkspace({
     setPending({ ...action, idempotencyKey: crypto.randomUUID() });
   }
 
-  async function execute(reason: string) {
-    if (!pending || busy) return;
+  async function execute(actionToRun: PendingAction, reason: string) {
+    if (busy) return;
     setBusy(true);
     setMessage("");
     try {
-      const suffix = pending.action === "verify" ? "verify" : "control";
+      const suffix = actionToRun.action === "verify" ? "verify" : "control";
       const response = await fetch(
-        `/api/maintenance/demo-exchanges/${encodeURIComponent(pending.account.id)}/${suffix}`,
+        `/api/maintenance/demo-exchanges/${encodeURIComponent(actionToRun.account.id)}/${suffix}`,
         {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            "idempotency-key": pending.idempotencyKey,
+            "idempotency-key": actionToRun.idempotencyKey,
           },
           body: JSON.stringify({
             reason,
-            ...(pending.action === "verify" ? {} : { action: pending.action }),
-            ...(pending.strategyCode
-              ? { strategyCode: pending.strategyCode }
+            ...(actionToRun.action === "verify" ? {} : { action: actionToRun.action }),
+            ...(actionToRun.strategyCode
+              ? { strategyCode: actionToRun.strategyCode }
               : {}),
           }),
         },
@@ -135,17 +137,21 @@ export function DemoExchangesWorkspace({
       setMessage(
         noChange
           ? "状态未变化；未新增安全控制变更。"
-          : pending.action === "verify"
+          : actionToRun.action === "verify"
           ? "Demo provider 验证已真实执行并返回通过；这不表示 Worker 已启用或外部写入已授权。"
           : "安全控制已记录；页面刷新后展示数据库真状态，不表示发生了任何真实订单。",
       );
-      setPending(null);
+      if (actionToRun.action !== "verify") setPending(null);
       await resource.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Demo 账户操作失败");
     } finally {
       setBusy(false);
     }
+  }
+
+  function verifyAccount(account: DemoAccountView) {
+    void execute({ account, action: "verify", idempotencyKey: crypto.randomUUID() }, verifyReason.trim());
   }
 
   if (resource.loading && !resource.data) {
@@ -191,6 +197,7 @@ export function DemoExchangesWorkspace({
           <span>不提供任何 UI 入口</span>
         </article>
       </section>
+      {canVerify ? <section className="rc-panel"><header><div><small>CONNECTION AUDIT</small><h2>Demo 连接验证</h2><p>填写一次原因后可直接验证账户连接；账户启停和紧急控制仍保留独立确认。</p></div></header><div className="rc-form"><InlineAuditReasonField id="demo-verification-reason" value={verifyReason} onChange={setVerifyReason} minLength={8} label="连接验证原因" /></div></section> : null}
       {!resource.data?.accounts.length ? (
         <EmptyState
           title="尚无平台 Demo 账户"
@@ -261,7 +268,8 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    onClick={() => queueAction({ account, action: "verify" })}
+                    disabled={busy || !hasValidAuditReason(verifyReason, 8)}
+                    onClick={() => verifyAccount(account)}
                   >
                     验证 Demo 连接
                   </button>
@@ -366,7 +374,7 @@ export function DemoExchangesWorkspace({
         confirmLabel="确认并记录"
         busy={busy}
         onCancel={() => setPending(null)}
-        onConfirm={(reason) => void execute(reason)}
+        onConfirm={(reason) => { if (pending) void execute(pending, reason); }}
       />
     </>
   );
