@@ -104,7 +104,7 @@
 | C-03 | 全局策略研究功能开关 | `feature_flag/client.strategy_research` v1；严格 schema、确定性 tester、最小权限 active consumer、双 Gate | `/configurations` + strategy research route | `CURRENT` | v1 全局 bool 保持兼容；环境 Gate 始终是上限。 |
 | C-04 | 用户/组织/版本/百分比/独立时窗 targeting | schema v2 单规则；服务端用户/组织/部署版本/时间；稳定 SHA-256 分桶；严格规范化、测试、current、回滚和无弹窗 UI | feature flag family v2 + strategy research consumer | `CURRENT` | 多规则优先级不属于 v2；未来扩展必须新建 schema。 |
 | C-05 | 品牌、Logo、域名、协议、多语言配置 | platform settings 与 disclosure 基础；没有六主题素材和正式域名消费者 | Maintenance settings/configurations + 三端 public config | `BLOCKED` | P-10/P-11；域名还影响 Cookie/CORS/TLS/邮件链接。 |
-| C-06 | Prompt/技能 CRUD、测试、双审、历史和回滚 | 7 个研究 prompt role、3 个 runtime explanation role、模型 Profile/绑定；没有 Skill 领域模型 | versioned configuration family + Maintenance models/configurations | `TARGET` | 需求方需确认 Skill 是否仅声明式、可编辑 prompt 范围、安全模板是否不可编辑、测试方式与新任务生效规则。 |
+| C-06 | Prompt/技能 CRUD、测试、双审、历史和回滚 | 7 个研究 prompt role、3 个 runtime explanation role、模型 Profile/绑定；没有 Skill 领域模型 | versioned configuration family + Maintenance models/configurations | `BLOCKED` | 发布治理已确认；`PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 的 PS-01–PS-06 尚需冻结 Skill 执行模型、可编辑范围、安全包络、测试、新任务生效与删除语义。 |
 | C-07 | 月/季/年/终身套餐、USDT 价格、权益版本 | `commercial_plan_versions` 和当前 Beta 四档基础；非完整 V3 价格消费者 | Maintenance 计费配置 + Client 会员 | `PARTIAL/BLOCKED` | P-07；历史订单必须 pin 原版本。 |
 | C-08 | 固定对话 Credits、不可变流水和用量分析 | AI reservation/ledger/daily usage 与可信 usage 基础 | Maintenance usage/price + Client AI | `PARTIAL/BLOCKED` | P-08；补组织/模型/Agent/功能/费用/失败率维度和版本引用。 |
 | C-09 | 人工退款、原渠道结果、优惠码/券 | 当前人工付款与审批基础；没有 V3 退款/优惠规则模型 | Client 订单 + Operations 复核 + Maintenance 规则 | `TARGET/BLOCKED` | P-07/P-09 及退款状态/渠道/provider 合同。 |

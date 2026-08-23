@@ -330,9 +330,11 @@ Operations 62、Maintenance 51 页 production build；本切片无 UI/auth 变�
 
 1. `T3.1c-FF1`：`client.strategy_research` 全局功能开关 v1，严格 `{enabled:boolean}` schema、服务端确定性测试器、Client 最小权限 current 网关和“只能收窄环境 Gate”的消费者。
 2. `T3.1c-FF2`：用户/组织/应用版本/百分比/独立时窗 targeting，作为 T3.3 的新 schema 版本单独设计和验收，不改变 FF1 语义。
-3. `T3.1c-Brand/Domain`、`Prompt/Skill`、`Pricing`：分别在 P-10/P-11、Prompt/技能 schema、P-07/P-08 参数确认后接入，禁止占位值生效。
+3. `T3.1c-Brand/Domain`、`Prompt/Skill`、`Pricing`：分别在 P-10/P-11、
+   `docs/product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 的 PS-01–PS-06、P-07/P-08
+   参数确认后接入，禁止占位值生效。
 
-**当前状态：** T3.1c-FF1 与 FF2 已完成（2026-08-24）；品牌/域名、Prompt/Skill 与 Pricing 配置族仍为 Target/Blocked。注册族固定为 `client.strategy_research` 与 Client audience；schema v1 保留严格 `{enabled:boolean}` 全局语义，schema v2 提供单条显式 targeting 规则。服务端生成确定性测试证据，Client 只通过最小权限 current 网关读取，并在 GET/POST 共用“环境 Gate AND active 配置”的判定。没有 active 版本时保持现有环境开关行为；active 配置只能进一步收窄，不能打开被环境或能力 Gate 禁用的功能。Maintenance 使用受限字段与页面内原因直接操作，无二次弹窗。
+**当前状态：** T3.1c-FF1 与 FF2 已完成（2026-08-24）；品牌/域名、Prompt/Skill 与 Pricing 配置族仍为 Target/Blocked。Prompt/Skill 的发布治理已经确认，但具体角色范围、Skill 执行模型、安全包络、测试器、新任务生效和删除语义仍待 PS-01–PS-06 冻结。注册族固定为 `client.strategy_research` 与 Client audience；schema v1 保留严格 `{enabled:boolean}` 全局语义，schema v2 提供单条显式 targeting 规则。服务端生成确定性测试证据，Client 只通过最小权限 current 网关读取，并在 GET/POST 共用“环境 Gate AND active 配置”的判定。没有 active 版本时保持现有环境开关行为；active 配置只能进一步收窄，不能打开被环境或能力 Gate 禁用的功能。Maintenance 使用受限字段与页面内原因直接操作，无二次弹窗。
 
 **FF1 验证：** family/服务/PostgreSQL/角色/回滚与 UI 合同、1326 项全量测试、TypeScript、ESLint、架构边界、secret scan、production audit；`ssh an-saas` Node 22.21.1 三端 production build；本地隔离 PostgreSQL + 真实 Chromium 18/18，覆盖三端空浏览器登录和仅提交 `{reason}` 的服务端确定性测试。
 
