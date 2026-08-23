@@ -23,6 +23,11 @@ export type QualityRuntime = {
     "client" | "clientSecurity" | "operationsMaker" | "operationsChecker" | "maintenanceAdmin",
     QualityIdentity
   >;
+  researchFixture: {
+    runId: string;
+    candidateId: string;
+    exchangeAccountId: string;
+  };
 };
 
 export async function readQualityRuntime(): Promise<QualityRuntime> {

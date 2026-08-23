@@ -101,6 +101,25 @@ test("quality database fixture is isolated, complete, secret-safe, and disposabl
       assert.ok(!checkerPermissions.includes("ops.performance_fees.payment_evidence"));
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM notification_provider_configs WHERE status <> 'disabled'")).rows[0].count), 0);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM platform_demo_accounts")).rows[0].count), 0);
+      assert.equal(Number((await pool.query(
+        "SELECT count(*) AS count FROM strategy_research_runs WHERE id=$1 AND owner_user_id=$2 AND status='completed'",
+        [runtime.researchFixture.runId, fixture.identities.client.userId],
+      )).rows[0].count), 1);
+      const candidate = (await pool.query(`
+        SELECT validation_label,score,rank,saved_strategy_id
+          FROM strategy_candidates
+         WHERE id=$1 AND run_id=$2
+      `, [runtime.researchFixture.candidateId, runtime.researchFixture.runId])).rows[0];
+      assert.deepEqual(candidate, {
+        validation_label: "STANDARD_VERIFIED",
+        score: 88.5,
+        rank: 1,
+        saved_strategy_id: null,
+      });
+      assert.equal(Number((await pool.query(
+        "SELECT count(*) AS count FROM strategy_evaluations WHERE candidate_id=$1 AND passed=true AND is_final_holdout=true",
+        [runtime.researchFixture.candidateId],
+      )).rows[0].count), 1);
     } finally {
       await pool.end();
     }

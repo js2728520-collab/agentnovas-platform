@@ -1,4 +1,5 @@
 import { exerciseResponsiveWidths, expect, expectAudienceNavigation, test } from "./support/quality-test";
+import { readQualityRuntime } from "./support/runtime";
 
 const localeStorageKey = "riverton.platform-locale";
 const qualityBrowserLanguageKey = "riverton.quality-browser-language";
@@ -43,6 +44,132 @@ async function exercisePublicLocalePreference(page: import("@playwright/test").P
   await expect(page.getByLabel("Language")).toHaveValue("en-US");
 }
 
+async function exerciseEditableStrategyCandidate(page: import("@playwright/test").Page) {
+  const runtime = await readQualityRuntime();
+  const { runId, candidateId, exchangeAccountId } = runtime.researchFixture;
+  await page.route("**/api/exchange-accounts", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ accounts: [{
+      id: exchangeAccountId,
+      label: "Quality read-only market account",
+      exchange: "OKX",
+      status: "active",
+      canRead: true,
+      withdrawalAuthorized: false,
+    }] }),
+  }));
+  await page.route("**/api/strategy-research/roles", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ roles: [], ready: false }),
+  }));
+  await page.route("**/api/strategy-research/runs?*", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ runs: [{
+      id: runId,
+      exchangeAccountId,
+      mode: "standard",
+      stage: "completed",
+      status: "completed",
+      progress: 100,
+      brief: {
+        target: { instrumentId: "BTC-USDT-SWAP", symbol: "BTCUSDT", timeframe: "1h", direction: "long_only" },
+      },
+      finalConclusion: "QUALIFIED",
+    }] }),
+  }));
+  await page.route(`**/api/exchange-accounts/${exchangeAccountId}/perpetual-instruments?*`, async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ instruments: [{
+      exchange: "okx",
+      symbol: "BTCUSDT",
+      exchangeSymbol: "BTC-USDT-SWAP",
+      status: "live",
+      quoteAsset: "USDT",
+      tickSize: 0.1,
+      lotSize: 0.001,
+      fundingIntervalHours: 8,
+    }] }),
+  }));
+
+  let saveRequests = 0;
+  let deploymentRequests = 0;
+  page.on("request", request => {
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === "POST" && pathname.endsWith(`/candidates/${candidateId}/save`)) saveRequests += 1;
+    if (request.method() === "POST" && pathname.endsWith("/deployments")) deploymentRequests += 1;
+  });
+
+  await page.goto("/studio", { waitUntil: "domcontentloaded" });
+  const textarea = page.locator(`textarea[data-candidate-id="${candidateId}"]`);
+  await expect(textarea).toBeVisible();
+  const candidateCard = textarea.locator("xpath=ancestor::article[1]");
+  await expect(candidateCard.getByText("STANDARD_VERIFIED", { exact: true })).toBeVisible();
+  await expect(candidateCard.getByText("88.50", { exact: true })).toBeVisible();
+
+  await textarea.fill('{"schemaVersion":3');
+  await candidateCard.getByRole("button", { name: "保存并创建不可变草稿" }).click();
+  await expect(candidateCard.getByRole("alert")).toContainText("JSON 格式无效");
+  expect(saveRequests).toBe(0);
+
+  const edited = {
+    schemaVersion: 3,
+    name: "Quality BTC trend candidate",
+    market: "usdt_perpetual",
+    marginMode: "isolated",
+    leverage: 1,
+    symbol: "BTCUSDT",
+    timeframe: "1h",
+    direction: "long_only",
+    legs: {
+      long: {
+        entry: { all: [{ type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bullish" }] },
+        exit: { any: [{ type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bearish" }] },
+        stopLossPct: 2,
+        takeProfitPct: 4,
+      },
+    },
+    risk: {
+      positionSizePct: 4,
+      maxDrawdownPct: 10,
+      maxDailyLossPct: 2,
+      maxConsecutiveLosses: 3,
+    },
+  };
+  await textarea.fill(JSON.stringify(edited, null, 2));
+  const saveResponsePromise = page.waitForResponse(response =>
+    response.request().method() === "POST"
+      && new URL(response.url()).pathname.endsWith(`/candidates/${candidateId}/save`),
+  );
+  await candidateCard.getByRole("button", { name: "保存并创建不可变草稿" }).click();
+  const saveResponse = await saveResponsePromise;
+  expect(saveResponse.status()).toBe(201);
+  const savePayload = await saveResponse.json();
+  expect(savePayload.validationLabel).toBe("UNVERIFIED");
+  expect(savePayload.edited).toBe(true);
+  expect(savePayload.specification.risk.positionSizePct).toBe(4);
+  expect(saveRequests).toBe(1);
+  expect(deploymentRequests).toBe(0);
+  await expect(candidateCard.getByText("UNVERIFIED", { exact: true })).toBeVisible();
+  await expect(candidateCard.getByText("需重测", { exact: true })).toBeVisible();
+  await expect(candidateCard.getByText(/原评分与回测指标已失效/)).toBeVisible();
+  await expect(textarea).toBeDisabled();
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const reloadedTextarea = page.locator(`textarea[data-candidate-id="${candidateId}"]`);
+  await expect(reloadedTextarea).toBeDisabled();
+  await expect(reloadedTextarea).toHaveValue(/"positionSizePct": 4/);
+  const reloadedCard = reloadedTextarea.locator("xpath=ancestor::article[1]");
+  await expect(reloadedCard.getByText("UNVERIFIED", { exact: true })).toBeVisible();
+  await expect(reloadedCard.getByText("需重测", { exact: true })).toBeVisible();
+  await expect(reloadedCard.getByText(/原评分与回测指标已失效/)).toBeVisible();
+  expect(saveRequests).toBe(1);
+  expect(deploymentRequests).toBe(0);
+}
+
 test("public locale and client communication workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
   await exercisePublicLocalePreference(page);
   for (const [path, heading] of [
@@ -84,4 +211,5 @@ test("client commercial and paper workspaces are responsive, accessible and audi
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "client");
   }
+  await exerciseEditableStrategyCandidate(page);
 });

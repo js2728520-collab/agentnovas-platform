@@ -113,6 +113,15 @@ function randomSecret(bytes = 24) {
   return randomBytes(bytes).toString("base64url");
 }
 
+function qualityResearchFixtureIds(schema) {
+  const suffix = schema.slice(-12);
+  return {
+    runId: `quality-run-${suffix}`,
+    candidateId: `quality-candidate-${suffix}`,
+    exchangeAccountId: `quality-exchange-${suffix}`,
+  };
+}
+
 function assertLoopbackBaseUrls(baseUrls) {
   for (const audience of ["client", "operations", "maintenance"]) {
     const url = new URL(String(baseUrls?.[audience] ?? ""));
@@ -285,6 +294,78 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
       ]);
     }
 
+    const researchFixture = qualityResearchFixtureIds(schema);
+    const candidateSpecification = {
+      schemaVersion: 3,
+      name: "Quality BTC trend candidate",
+      market: "usdt_perpetual",
+      marginMode: "isolated",
+      leverage: 1,
+      symbol: "BTCUSDT",
+      timeframe: "1h",
+      direction: "long_only",
+      legs: {
+        long: {
+          entry: { all: [{ type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bullish" }] },
+          exit: { any: [{ type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bearish" }] },
+          stopLossPct: 2,
+          takeProfitPct: 4,
+        },
+      },
+      risk: {
+        positionSizePct: 3,
+        maxDrawdownPct: 10,
+        maxDailyLossPct: 2,
+        maxConsecutiveLosses: 3,
+      },
+    };
+    await client.query(`
+      INSERT INTO strategy_research_runs (
+        id,owner_user_id,conversation_id,exchange_account_id,mode,stage,status,progress,
+        brief_json,agent_role_snapshot_json,result_json,final_conclusion,idempotency_key,
+        candidate_budget,backtest_budget,model_call_budget,backtests_used,model_calls_used,
+        started_at,completed_at
+      ) VALUES (
+        $1,$2,NULL,$3,'standard','completed','completed',100,
+        $4::jsonb,'{}'::jsonb,$5::jsonb,'QUALIFIED',$6,
+        6,60,24,60,24,$7,$7
+      )
+    `, [
+      researchFixture.runId,
+      identities.client.userId,
+      researchFixture.exchangeAccountId,
+      JSON.stringify({
+        name: "Quality editable candidate research",
+        target: { instrumentId: "BTC-USDT-SWAP", symbol: "BTCUSDT", timeframe: "1h", direction: "long_only" },
+      }),
+      JSON.stringify({ qualityFixture: true }),
+      `quality-research-${schema}`,
+      now.toISOString(),
+    ]);
+    await client.query(`
+      INSERT INTO strategy_candidates (
+        id,run_id,candidate_key,strategy_family,source_role,dsl_json,status,rank,score,
+        rejection_reasons_json,validation_label
+      ) VALUES ($1,$2,'quality-primary','EMA trend','proposal_a',$3::jsonb,'qualified',1,88.5,'[]'::jsonb,'STANDARD_VERIFIED')
+    `, [researchFixture.candidateId, researchFixture.runId, JSON.stringify(candidateSpecification)]);
+    await client.query(`
+      INSERT INTO strategy_evaluations (
+        id,run_id,candidate_id,evaluation_kind,window_index,period_start,period_end,
+        metrics_json,data_quality_json,parameter_set_sha256,data_slice_sha256,
+        backtest_engine_version,cost_scenario,passed,is_final_holdout
+      ) VALUES ($1,$2,$3,'holdout',0,$4,$5,$6::jsonb,$7::jsonb,$8,$9,'quality-engine-v1','quality-cost-v1',true,true)
+    `, [
+      `quality-evaluation-${schema.slice(-12)}`,
+      researchFixture.runId,
+      researchFixture.candidateId,
+      new Date(now.getTime() - 24 * 60 * 60_000).toISOString(),
+      now.toISOString(),
+      JSON.stringify({ netReturnPct: 12.5, maxDrawdownPct: 7.25, profitFactor: 1.8, sampleSize: 120 }),
+      JSON.stringify({ qualityFixture: true }),
+      sha256(JSON.stringify(candidateSpecification)),
+      sha256(`quality-data-${schema}`),
+    ]);
+
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -316,6 +397,7 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
     expiresAt: expiresAt.toISOString(),
     baseUrls,
     identities,
+    researchFixture: qualityResearchFixtureIds(schema),
   };
   await writeFile(join(outputDirectory, "runtime.json"), JSON.stringify(runtime, null, 2), { mode: 0o600 });
   return runtime;
