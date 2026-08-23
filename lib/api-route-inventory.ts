@@ -4138,7 +4138,7 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "none",
     "pii": "none",
     "sensitivity": "normal",
-    "requiresSameOrigin": true,
+    "requiresSameOrigin": false,
     "idempotency": false
   },
   {

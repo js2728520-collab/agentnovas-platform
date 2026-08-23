@@ -169,7 +169,7 @@ function basePolicy(route, method) {
     //
     // 鉴权是 session 而非 permission：权限键带 appId，用运营端的键会让运维端的人
     // 拿到 404。这条接口也确实不需要细粒度权限，因为只能给自己开。
-    return { audiences: ["operations", "maintenance"], authentication: "session", sameOrigin: true };
+    return { audiences: ["operations", "maintenance"], authentication: "session", sameOrigin: mutation };
   }
   if (route === "/api/organization/staff-register") {
     // V3 五级运营角色的自助注册入口。必须匿名，因为注册者还没有账号；但只在
