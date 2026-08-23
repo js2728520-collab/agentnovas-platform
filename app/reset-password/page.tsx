@@ -1,11 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+
+function subscribeToResetToken(onChange: () => void) {
+  window.addEventListener("hashchange", onChange);
+  window.addEventListener("popstate", onChange);
+  return () => {
+    window.removeEventListener("hashchange", onChange);
+    window.removeEventListener("popstate", onChange);
+  };
+}
+
+function readResetToken() {
+  return new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token") || "";
+}
+
+function getServerSnapshot() {
+  return "";
+}
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-  const token = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("token") || "";
+  const token = useSyncExternalStore(subscribeToResetToken, readResetToken, getServerSnapshot);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");

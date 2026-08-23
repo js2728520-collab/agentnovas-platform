@@ -44,7 +44,8 @@ test("known notification templates render bounded escaped email", () => {
   assert.match(changedNetwork.subject, /网络位置变化/);
 
   const reset = renderNotificationEmail("reset_password", { token: "a&b", audience: "client" });
-  assert.match(reset.text, /https:\/\/agentnovas\.com\/reset-password\?token=a%26b/);
+  assert.match(reset.text, /https:\/\/agentnovas\.com\/reset-password#token=a%26b/);
+  assert.doesNotMatch(reset.text, /reset-password\?token=/);
   assert.doesNotMatch(reset.html, /a&b/);
 
   const invite = renderNotificationEmail("internal_account_invite", {
@@ -54,7 +55,8 @@ test("known notification templates render bounded escaped email", () => {
     audience: "operations",
   });
   assert.match(invite.subject, /内部账号邀请/);
-  assert.match(invite.text, /https:\/\/zht\.agentnovas\.com\/reset-password\?token=activation-token/);
+  assert.match(invite.text, /https:\/\/zht\.agentnovas\.com\/reset-password#token=activation-token/);
+  assert.doesNotMatch(invite.text, /reset-password\?token=/);
   assert.doesNotMatch(invite.text, /临时密码/);
 
   const brief = renderNotificationEmail("team_daily_brief", {
