@@ -15,6 +15,16 @@ import { useApiData } from "@/packages/ui/src/use-api-data";
 
 import styles from "./invitations-workspace.module.css";
 
+type StaffLink = {
+  id: string;
+  status: string;
+  useCount: number;
+  lastUsedAt: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+  targetRoleLabel: string | null;
+};
+
 type MyLink = {
   id: string;
   status: string;
@@ -29,7 +39,12 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
     "/api/invitations/link",
     "邀请链接读取失败",
   );
-  const [issued, setIssued] = useState<{ link: string; replaced: boolean } | null>(null);
+  const staff = useApiData<{
+    link: StaffLink | null;
+    targetRole: string | null;
+    targetRoleLabel: string | null;
+  }>("/api/invitations/staff-link", "员工邀请链接读取失败");
+  const [issued, setIssued] = useState<{ link: string; replaced: boolean; kind: "customer" | "staff"; expiresAt?: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -43,11 +58,33 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
       const response = await fetch("/api/invitations/link", { method: "POST" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, "生成邀请链接失败"));
-      setIssued({ link: payload.link, replaced: Boolean(payload.replacedPreviousLink) });
+      setIssued({ link: payload.link, replaced: Boolean(payload.replacedPreviousLink), kind: "customer" });
       setConfirming(false);
       await resource.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "生成邀请链接失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generateStaffLink() {
+    if (busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/invitations/staff-link", { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(apiErrorMessage(payload, "生成员工邀请链接失败"));
+      setIssued({
+        link: payload.link,
+        replaced: Boolean(payload.replacedPreviousLink),
+        kind: "staff",
+        expiresAt: payload.expiresAt,
+      });
+      await staff.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "生成员工邀请链接失败");
     } finally {
       setBusy(false);
     }
@@ -72,11 +109,13 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
       {issued ? (
         <div className={styles.issued}>
           <h3 className={styles.issuedTitle}>
-            {issued.replaced ? "新链接已生成，旧链接已失效" : "邀请链接已生成"}
+            {issued.kind === "staff" ? "员工邀请链接" : "客户邀请链接"}
+            {issued.replaced ? "已重新生成，旧链接失效" : "已生成"}
           </h3>
           <p className={styles.warning}>
             链接只在这里显示这一次。请立即保存——想要回它只能重新生成，
             而重新生成会让当前这条立刻失效。
+            {issued.expiresAt ? `本链接将于 ${formatDateTime(issued.expiresAt)} 自动失效。` : ""}
           </p>
           <div className={styles.linkRow}>
             <code className={styles.link}>{issued.link}</code>
@@ -134,6 +173,55 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
           生成我的邀请链接
         </button>
       ) : null}
+
+      <section className={styles.staffSection}>
+        <PageHeading
+          eyebrow="团队"
+          title="邀请下一级同事"
+          description="链接指向对方该进的那个端，48 小时后自动失效。通过它注册的人需要另一位管理员复核后才能登录。"
+        />
+        {staff.loading ? <LoadingState label="正在读取员工邀请链接…" /> : null}
+        {staff.error ? <ErrorState message={staff.error} retry={staff.refresh} /> : null}
+        {!staff.loading && !staff.error ? (
+          staff.data?.targetRole ? (
+            <div className={styles.card}>
+              <p className={styles.note}>
+                你可以邀请的是：<strong>{staff.data.targetRoleLabel}</strong>。
+                角色由汇报关系推出，不可自选——能自选角色等于能给自己造上级。
+              </p>
+              {staff.data.link ? (
+                <>
+                  <dl className={styles.stats}>
+                    <div>
+                      <dt>已通过链接注册</dt>
+                      <dd className={styles.count}>{staff.data.link.useCount}</dd>
+                    </div>
+                    <div>
+                      <dt>失效时间</dt>
+                      <dd>{staff.data.link.expiresAt ? formatDateTime(staff.data.link.expiresAt) : "—"}</dd>
+                    </div>
+                  </dl>
+                  <p className={styles.note}>
+                    链接明文不保存在系统里。重新生成会让当前链接立即失效。
+                  </p>
+                </>
+              ) : (
+                <p className={styles.note}>当前没有生效中的员工邀请链接。</p>
+              )}
+              {canManage ? (
+                <button className={styles.secondary} type="button" disabled={busy} onClick={generateStaffLink}>
+                  {staff.data.link ? "重新生成员工邀请链接" : "生成员工邀请链接"}
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <EmptyState
+              title="当前角色没有可邀请的下一级"
+              description="技术人员由总公司管理员在成员页直接创建，不走这条汇报链。"
+            />
+          )
+        ) : null}
+      </section>
 
       <section className={styles.explainer}>
         <h3 className={styles.sectionTitle}>这条链接是怎么工作的</h3>

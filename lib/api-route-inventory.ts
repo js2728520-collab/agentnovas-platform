@@ -1967,6 +1967,72 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": false
   },
   {
+    "method": "DELETE",
+    "route": "/api/invitations/staff-link",
+    "source": "app/api/invitations/staff-link/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.organization.manage"
+    ],
+    "permissionMfa": {
+      "ops.organization.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/invitations/staff-link",
+    "source": "app/api/invitations/staff-link/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.organization.view"
+    ],
+    "permissionMfa": {
+      "ops.organization.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/invitations/staff-link",
+    "source": "app/api/invitations/staff-link/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.organization.manage"
+    ],
+    "permissionMfa": {
+      "ops.organization.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
     "method": "GET",
     "route": "/api/maintenance/audit",
     "source": "app/api/maintenance/audit/route.maintenance.ts",
@@ -4007,6 +4073,25 @@ export const API_ROUTE_INVENTORY = [
     "mfa": "recent",
     "pii": "none",
     "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/organization/staff-register",
+    "source": "app/api/organization/staff-register/route.internal.ts",
+    "audiences": [
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "anonymous",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
     "idempotency": false
   },

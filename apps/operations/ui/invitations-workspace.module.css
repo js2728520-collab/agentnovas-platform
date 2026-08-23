@@ -247,3 +247,11 @@
   color: var(--rv-muted-foreground);
   font-size: 0.875rem;
 }
+
+.staffSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rv-border);
+}

@@ -194,9 +194,26 @@ export async function POST(request: Request) {
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     if (reason.length < 3 || reason.length > 500) throw new ResearchApiError("ORGANIZATION_REASON_INVALID", "邀请原因需要 3–500 个字符", 422);
     if (!validEmail(email)) return Response.json({ error: "请输入有效邮箱" }, { status: 400 });
-    const role = childRole[actor.role] as typeof users.$inferInsert.role | undefined;
+    // 技术人员不在 childRole 那条链上。
+    //
+    // 那条链表达的是业务汇报关系（分公司→经理→主管→员工→客户），而技术人员既不
+    // 管客户也不产生业绩，硬塞进去会让归因和团队目标多出一类永远为空的节点。
+    // 由 hq_admin 直接建，是显式声明「这个人不属于业务线」。
+    const requestedRole = typeof body.role === "string" ? body.role.trim() : "";
+    let role: typeof users.$inferInsert.role | undefined;
+    if (requestedRole === "tech_staff") {
+      if (actor.role !== "hq_admin") {
+        return Response.json({ error: "只有总公司管理员可以创建技术人员" }, { status: 403 });
+      }
+      role = "tech_staff";
+    } else if (requestedRole) {
+      // 其余角色一律由 childRole 推出，不接受自选——能自选角色等于能给自己造上级。
+      return Response.json({ error: "内部角色由汇报关系推导，不可指定" }, { status: 400 });
+    } else {
+      role = childRole[actor.role] as typeof users.$inferInsert.role | undefined;
+    }
     if (!role || role === "customer") return Response.json({ error: "该角色不能创建内部成员" }, { status: 403 });
-    if (!["branch_admin", "manager", "supervisor", "employee", "finance", "auditor", "hq_support"].includes(role)) {
+    if (!["branch_admin", "manager", "supervisor", "employee", "finance", "auditor", "hq_support", "tech_staff"].includes(role)) {
       return Response.json({ error: "目标内部角色不受支持" }, { status: 403 });
     }
     const db = getDb();

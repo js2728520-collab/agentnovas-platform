@@ -78,6 +78,21 @@ export function isStaffInvitationUsable(
   return { usable: true, reason: null };
 }
 
+/**
+ * 员工邀请链接。指向目标角色所属的端，不是生成链接的人所在的端。
+ *
+ * 技术人员进运维端，其余进运营端。发错端会让人登进一个自己没有任何权限的应用
+ * ——页面打得开，点哪里都是 AccessDenied，而原因完全看不出来。
+ */
+export function buildStaffInvitationLink(
+  baseUrl: string,
+  code: string,
+  audience: "operations" | "maintenance",
+): string {
+  const origin = baseUrl.replace(/\/$/, "");
+  return `${origin}/login?staff-invite=${encodeURIComponent(code)}&app=${audience}`;
+}
+
 /** 生成人类可抄写的码：去掉 0/O/1/I 这类易混字符。 */
 export function generateInvitationCode(length: number): string {
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -85,6 +100,78 @@ export function generateInvitationCode(length: number): string {
   const bytes = crypto.getRandomValues(new Uint8Array(length));
   return `${letters[bytes[0] % letters.length]}${
     Array.from(bytes.slice(1), (byte) => alphabet[byte % alphabet.length]).join("")}`;
+}
+
+/**
+ * 员工邀请链接的落库形态。与客户链接共用一张表，靠 kind 区分。
+ *
+ * 用同一张表而不是新开一张：两者的核心字段（归属人、状态、使用计数、撤销记录）
+ * 完全相同，拆开会让「这个人有哪些链接」变成两次查询和两套撤销逻辑。
+ */
+export type StaffInvitationRow = InvitationLinkRow & {
+  expiresAt: string | null;
+  targetRole: string | null;
+};
+
+export async function findActiveStaffInvitation(
+  database: Queryable,
+  ownerEmployeeId: string,
+): Promise<StaffInvitationRow | null> {
+  const result = await database.query(
+    `SELECT id, kind, status, owner_employee_id, organization_id, use_count,
+            last_used_at, created_at, revoked_at, expires_at, target_role
+       FROM invitations
+      WHERE owner_employee_id = $1 AND kind = 'staff_reusable' AND status = 'active'
+      LIMIT 1`,
+    [ownerEmployeeId],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id, kind: row.kind, status: row.status,
+    ownerEmployeeId: row.owner_employee_id, organizationId: row.organization_id,
+    useCount: Number(row.use_count), lastUsedAt: row.last_used_at,
+    createdAt: row.created_at, revokedAt: row.revoked_at,
+    expiresAt: row.expires_at, targetRole: row.target_role,
+  };
+}
+
+/** 按码查员工链接。注册路径用它——注册者手上只有码，没有 id。 */
+export async function findStaffInvitationByHash(
+  database: Queryable,
+  codeHash: string,
+): Promise<StaffInvitationRow | null> {
+  const result = await database.query(
+    `SELECT id, kind, status, owner_employee_id, organization_id, use_count,
+            last_used_at, created_at, revoked_at, expires_at, target_role
+       FROM invitations
+      WHERE code_hash = $1 AND kind = 'staff_reusable'
+      LIMIT 1`,
+    [codeHash],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id, kind: row.kind, status: row.status,
+    ownerEmployeeId: row.owner_employee_id, organizationId: row.organization_id,
+    useCount: Number(row.use_count), lastUsedAt: row.last_used_at,
+    createdAt: row.created_at, revokedAt: row.revoked_at,
+    expiresAt: row.expires_at, targetRole: row.target_role,
+  };
+}
+
+export async function revokeStaffInvitation(
+  database: Queryable,
+  input: { ownerEmployeeId: string; revokedBy: string; now: string },
+): Promise<{ revokedId: string | null }> {
+  const result = await database.query<{ id: string }>(
+    `UPDATE invitations
+        SET status = 'revoked', revoked_at = $3, revoked_by_user_id = $2, updated_at = $3
+      WHERE owner_employee_id = $1 AND kind = 'staff_reusable' AND status = 'active'
+      RETURNING id`,
+    [input.ownerEmployeeId, input.revokedBy, input.now],
+  );
+  return { revokedId: result.rows[0]?.id ?? null };
 }
 
 /** 某个人当前生效的可复用链接。一人最多一条，由唯一索引保证。 */
@@ -143,7 +230,17 @@ export async function recordInvitationUse(
   await database.query(
     `UPDATE invitations
         SET use_count = use_count + 1, last_used_at = $2, updated_at = $2
-      WHERE id = $1 AND kind = 'employee_reusable'`,
+      WHERE id = $1 AND kind IN ('employee_reusable', 'staff_reusable')`,
     [input.invitationId, input.now],
   );
+}
+
+/**
+ * 员工链接指向哪个端的登录页。
+ *
+ * 技术人员进运维端，其余内部角色进运营端。发错端的链接会让人登进一个自己没有任何
+ * 权限的应用——页面能打开，点哪里都是 AccessDenied，而原因完全看不出来。
+ */
+export function staffInvitationAudience(targetRole: string): "operations" | "maintenance" {
+  return targetRole === "tech_staff" ? "maintenance" : "operations";
 }

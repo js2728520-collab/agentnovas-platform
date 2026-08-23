@@ -183,13 +183,23 @@ export const aiUsageDaily = sqliteTable("ai_usage_daily", {
 export const invitations = sqliteTable("invitations", {
   id: text("id").primaryKey(),
   codeHash: text("code_hash").notNull(),
-  kind: text("kind", { enum: ["employee_reusable", "public_pool_single_use"] }).notNull(),
+  kind: text("kind", { enum: ["employee_reusable", "public_pool_single_use", "staff_reusable"] }).notNull(),
   issuerUserId: text("issuer_user_id").notNull().references(() => users.id),
   ownerEmployeeId: text("owner_employee_id").references(() => users.id),
   organizationId: text("organization_id").references(() => organizations.id),
-  status: text("status", { enum: ["active", "used", "disabled"] }).notNull().default("active"),
+  // "revoked" 而不是 "disabled"：与 migration 0055 的 CHECK 一致。
+  // revoked 是链接被主动作废，used 是一次性码被消费——混用会让审计说不清链接是
+  // 怎么失效的。
+  status: text("status", { enum: ["active", "used", "revoked"] }).notNull().default("active"),
   usedByUserId: text("used_by_user_id").references(() => users.id),
   usedAt: text("used_at"),
+  useCount: integer("use_count").notNull().default(0),
+  lastUsedAt: text("last_used_at"),
+  revokedAt: text("revoked_at"),
+  revokedByUserId: text("revoked_by_user_id"),
+  // 员工链接专有：48 小时期限与目标角色。客户链接两者都为空（0057 的 CHECK 强制）。
+  expiresAt: text("expires_at"),
+  targetRole: text("target_role"),
   ...timestamps,
 }, (t) => [uniqueIndex("idx_invitations_code_unique").on(t.codeHash), index("idx_invitations_owner_status").on(t.ownerEmployeeId, t.status)]);
 
