@@ -392,6 +392,11 @@ nginx 语法检查。无网络、数据库、route、UI 或真实 provider 变�
 **依赖：** P-10。
 **规模：** M。
 
+**分阶段：** T3.11a 先完成不依赖 P-10 视觉稿的纯 locale allowlist、公开 Client 英语首屏、
+匿名保存偏好和浏览器语言解析，只使用 `navigator.languages`，不引入 IP/GPS 定位。T3.11b 再完成
+已登录三端、认证/错误页、邮件、格式化器和数据库偏好一致性；其覆盖语言及 Maintenance
+`defaultLocale` 是否可覆盖英语仍待需求方确认。六主题继续等待 P-10。
+
 ### Checkpoint P3
 
 - [ ] 配置/价格历史与审批 Gate 通过。
