@@ -55,6 +55,7 @@ export async function currentSession(
     absoluteExpiresAt: row.session.absoluteExpiresAt,
     mfaLevel: row.session.mfaLevel,
     mfaVerifiedAt: row.session.mfaVerifiedAt,
+    mfaEnrolled: audience === "client" ? Boolean(clientIdentity?.hasActiveMfa) : true,
   }, now, { ...options, mfaEnforced: mfaEnforcementEnabled() });
   if (!assurance.usable) return null;
 

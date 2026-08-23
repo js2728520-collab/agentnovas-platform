@@ -36,6 +36,13 @@ test("an internal session without MFA is usable only when enforcement is explici
   assert.deepEqual(evaluateSessionAssurance(
     { ...base, mfaLevel: "none", mfaVerifiedAt: null }, now, { mfaEnforced: true },
   ), { usable: false, recentMfa: false });
+  assert.deepEqual(evaluateSessionAssurance(
+    { ...base, mfaLevel: "primary", mfaVerifiedAt: null }, now, { mfaEnforced: false },
+  ), { usable: false, recentMfa: false });
+  assert.deepEqual(evaluateSessionAssurance(
+    { ...base, mfaLevel: "primary", mfaVerifiedAt: null }, now,
+    { mfaEnforced: false, allowPrimaryInternal: true },
+  ), { usable: true, recentMfa: false });
 });
 
 test("recent MFA expires after fifteen minutes while the session remains usable", () => {
@@ -45,8 +52,21 @@ test("recent MFA expires after fifteen minutes while the session remains usable"
   });
 });
 
-test("client primary sessions do not require internal MFA", () => {
-  assert.deepEqual(evaluateSessionAssurance({ ...base, audience: "client", mfaLevel: "primary", mfaVerifiedAt: null }, now), {
+test("an enrolled Client cannot retain an unverified session when enforcement switches on", () => {
+  const client = { ...base, audience: "client", mfaEnrolled: true, mfaVerifiedAt: null };
+  assert.deepEqual(evaluateSessionAssurance({ ...client, mfaLevel: "none" }, now, { mfaEnforced: true }), {
+    usable: false,
+    recentMfa: false,
+  });
+  assert.deepEqual(evaluateSessionAssurance({ ...client, mfaLevel: "primary" }, now, { mfaEnforced: true }), {
+    usable: false,
+    recentMfa: false,
+  });
+  assert.deepEqual(evaluateSessionAssurance(
+    { ...client, mfaLevel: "primary" }, now,
+    { mfaEnforced: true, allowPrimaryInternal: true },
+  ), { usable: true, recentMfa: false });
+  assert.deepEqual(evaluateSessionAssurance({ ...client, mfaLevel: "none" }, now, { mfaEnforced: false }), {
     usable: true,
     recentMfa: false,
   });
