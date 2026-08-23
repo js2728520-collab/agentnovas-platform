@@ -413,6 +413,11 @@ production build、production audit 0 和真实 nginx 检查。云端 standalone
 必须证明历史未知值保留、新非法值拒绝、七语言通过和迁移可重放；用户修改 API 与三端消费留给
 语言范围确认后的 T3.11b2。
 
+**T3.11b1 实施证据（2026-08-24）：** migration `0073`、SQLite/Drizzle 默认和实际 PostgreSQL
+测试已完成，实现提交 `bfeb9bb`。定向 locale 合同/数据库 8/8、完整 0000–0073 migration 链相关
+3/3、全量 1386/1386 及 TypeScript、全仓 ESLint、架构边界、key-custody、secret scan、production
+audit 0、差异检查全部通过；没有改写历史账号，也没有开放尚未确认的用户偏好 API。
+
 ### Checkpoint P3
 
 - [ ] 配置/价格历史与审批 Gate 通过。

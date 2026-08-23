@@ -80,3 +80,15 @@ schema 与运行时秘密已清理，本机构建缓存恢复，本地/云端临
 
 本切片不提供用户修改 API，不决定偏好跨三端还是仅 Client，也不把数据库 default 当成已保存的
 显式选择。已有账号继续保持原值，后续只有在需求方确认的 UI/API 中由用户主动更新。
+
+### 5.1 实施证据（2026-08-24）
+
+forward migration `0073_platform_locale_default.sql` 已把新行默认值改为 `en-US`，以
+`NOT VALID` CHECK 约束七种 canonical locale；没有更新历史用户，也没有修改既有 migration。
+SQLite/Drizzle 兼容 schema 同步默认值。实际 PostgreSQL 定向测试证明旧中文默认升级、历史未知值
+保留、七语言接受、新非法 INSERT/UPDATE 拒绝和 migration 重放，完整 0000–0073 migration 链、
+质量 fixture、密码重置及并发 runner 共 3/3 通过。实现提交为 `bfeb9bb`。
+
+本地全量 `npm test` 1386/1386、TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、
+repository secret scan、production dependency audit 0 和 `git diff --check` 均通过。本证据仍不覆盖
+T3.11b2 的已登录偏好消费与全站翻译范围。

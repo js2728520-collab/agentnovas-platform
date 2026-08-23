@@ -2627,3 +2627,18 @@ PostgreSQL、MFA 关闭、全部外部写入禁用下运行真实 Chromium 18/18
 缓存备份目录均已删除，仅移除可重建源码、依赖和产物。两处用户文件哈希仍为
 `845633aa0d007944dfc3aeb7fc3eef2c53d487f1` 与 `fdb1530dda87b024e5088471eaa99122d394acfb`；
 未启动远端服务、未迁移生产数据库、未推送、未部署。
+
+## 72. 2026-08-24 T3.11b1 新账号数据库语言默认与写入边界
+
+T3.11b1 只完成不依赖三端偏好语义的数据库底座。forward migration `0073` 把
+`users.locale` 的新行默认从 `zh-CN` 改为 `en-US`，并增加七语言 `NOT VALID` CHECK。该约束保留
+历史未知值且不执行批量更新，但对 migration 之后的新 INSERT/UPDATE 失败关闭；migration 可在
+runner 事务中重放，SQLite/Drizzle 兼容 schema 的默认值也同步为英语。没有新增用户修改 API，
+没有决定 Maintenance 默认值是否覆盖英语，也没有扩大 T3.11b2 的全站翻译范围。
+
+实现提交为 `bfeb9bb`。locale 合同与实际 PostgreSQL 定向测试 8/8；完整 0000–0073 migration
+链、质量 fixture、密码重置与并发 migration runner 共 3/3；全量 `npm test` 1386/1386、
+TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、repository secret scan（3078 个候选
+文件）、production dependency audit 0 和 `git diff --check` 全部通过。两处用户本地修改仍未纳入
+提交。纯数据库默认/约束切片没有 UI 或认证路由变更，因此不重复运行窄浏览器用例；同分支紧邻的
+T3.11a 云端产物已完成真实 Chromium 18/18，最终整体收口仍会在最新完整产物重跑。
