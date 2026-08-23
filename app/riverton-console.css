@@ -783,6 +783,20 @@
   line-height: 1.65;
   overflow-wrap: anywhere;
 }
+
+/* 不可提现这类「客户读了才算数」的告知，用警示色而不是信息色。
+   信息色的提示条在这个界面里到处都是，客户会当成背景噪音略过——
+   而这一条被略过的后果是事后拒绝提现时的争议。 */
+.rc-callout-warning {
+  background: var(--rv-warning-soft);
+  color: var(--rv-warning);
+}
+
+.rc-callout-warning strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13.6px;
+}
 .rc-inline-error,
 .rc-live:not(:empty),
 .rc-warning {

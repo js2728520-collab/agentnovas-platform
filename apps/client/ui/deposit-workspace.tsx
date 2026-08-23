@@ -53,8 +53,16 @@ export function DepositWorkspace({ access }: { access: EffectiveAccessPayload })
       description="平台通过优盾生成专属充值地址；仅展示服务端真实返回值，回调验签并由运营双人复核后才进入钱包。"
       actions={<button className="rc-button" type="button" onClick={() => void orders.refresh()} disabled={orders.loading}>刷新订单</button>}
     />
+    {/* 「未开放」暗示以后会开，而实际决定是**永不开放**（ADR-0015 关掉了优盾的提现、
+        代付、划转接口，产品上余额也定性为预付服务费而非托管资产）。
+        写成「未开放」等于给客户一个不存在的预期，事后拒绝提现就是失信。 */}
+    <div className="rc-callout rc-callout-warning" role="alert">
+      <strong>余额只能用于购买本平台服务，不能提现、不能转出、不能退回。</strong>
+      充值即视为购买服务额度，用于开通会员与结算绩效分成；未消费的部分不予退款。
+      请按实际需要充值，不要把本平台当作资金存放渠道。
+    </div>
     <div className="rc-callout" role="status">
-      只可向订单指定的网络和地址转入 USDT。提现、站内划转与自动扣款未开放；链上转账不可撤回，请先小额验证。
+      只可向订单指定的网络和地址转入 USDT。链上转账不可撤回，请先小额验证。
     </div>
     {canCreate && <section className="rc-panel" aria-labelledby="deposit-create-title">
       <header><div><small>UDUN DEPOSIT-ONLY</small><h2 id="deposit-create-title">创建充值订单</h2><p>配置不完整或优盾不可用时，系统返回明确原因，不会生成占位地址。</p></div><StatusBadge value="双人复核入账" /></header>
