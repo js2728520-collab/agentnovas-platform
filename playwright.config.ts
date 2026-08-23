@@ -74,7 +74,7 @@ export default defineConfig({
   projects: [
     {
       name: "security-commercial",
-      testMatch: ["host-cookie-audience.spec.ts", "commercial-flow.spec.ts"],
+      testMatch: ["host-cookie-audience.spec.ts", "commercial-flow.spec.ts", "g1-identity-security.spec.ts"],
     },
     {
       name: "client",

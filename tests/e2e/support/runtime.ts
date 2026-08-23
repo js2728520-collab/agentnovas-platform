@@ -20,7 +20,7 @@ export type QualityRuntime = {
   expiresAt: string;
   baseUrls: Record<"client" | "operations" | "maintenance", string>;
   identities: Record<
-    "client" | "operationsMaker" | "operationsChecker" | "maintenanceAdmin",
+    "client" | "clientSecurity" | "operationsMaker" | "operationsChecker" | "maintenanceAdmin",
     QualityIdentity
   >;
 };

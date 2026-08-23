@@ -116,6 +116,7 @@ test("quality runner derives a fail-closed child environment", () => {
   assert.equal(environment.PAYMENT_WORKER_ENABLED, "false");
   assert.equal(environment.PAYMENT_PROVIDER_TESTS_ENABLED, "false");
   assert.equal(environment.NOTIFICATION_EMAIL_SEND_ENABLED, "false");
+  assert.equal(environment.MFA_ENFORCEMENT_ENABLED, "false");
   assert.equal(environment.PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED, "false");
   assert.equal(environment.PLATFORM_DEMO_VERIFICATION_ENABLED, "false");
   assert.equal(environment.RESEND_API_KEY, "");
@@ -127,6 +128,9 @@ test("quality runner derives a fail-closed child environment", () => {
   assert.equal(environment.NODE_ENV, "production");
   assert.equal(environment.NEXT_TELEMETRY_DISABLED, "1");
   assert.equal(environment.TRUST_PROXY_HOPS, "1");
+  assert.equal(environment.CLIENT_PUBLIC_BASE_URL, "https://agentnovas.com:3000");
+  assert.equal(environment.OPERATIONS_PUBLIC_BASE_URL, "https://zht.agentnovas.com:3001");
+  assert.equal(environment.MAINTENANCE_PUBLIC_BASE_URL, "https://xm.agentnovas.com:3002");
   for (const key of [
     "MFA_TOTP_ENCRYPTION_KEY",
     "INTEGRATION_CREDENTIAL_ENCRYPTION_KEY",
@@ -148,7 +152,7 @@ test("quality cleanup removes runtime secrets and records a failed schema drop b
       schema: "quality_e2e_cleanup_failure",
       startedAt: new Date("2026-08-21T00:00:00.000Z"),
       fixturePrepared: true,
-      gateResult: { passed: false, expectedTests: 12, externalWritesEnabled: false },
+      gateResult: { passed: false, expectedTests: 15, externalWritesEnabled: false },
       cleanupSchema: async () => { throw new Error("DROP failed password=plaintext-must-disappear"); },
     }), /schema cleanup failed/i);
     await assert.rejects(() => access(runtimeDirectory), /ENOENT/);

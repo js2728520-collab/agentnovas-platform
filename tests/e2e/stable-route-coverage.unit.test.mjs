@@ -15,7 +15,7 @@ function assertPathsCovered(contents, paths, file) {
   }
 }
 
-test("the fixed 12-case browser suite covers every stable Client beta page", async () => {
+test("the browser suite covers every stable Client beta page", async () => {
   const contents = await source("client-ui.spec.ts");
   assertPathsCovered(contents, [
     "/",
@@ -40,7 +40,8 @@ test("Operations and Maintenance cases cover representative stable pages and aud
   const checker = await source("operations-checker-ui.spec.ts");
   const maintenance = await source("maintenance-admin-ui.spec.ts");
 
-  assertPathsCovered(maker, ["/customers", "/accounts", "/invitations", "/membership-orders", "/performance-statements", "/credits", "/deposits", "/ledger", "/finance"], "operations-maker-ui.spec.ts");
+  assertPathsCovered(maker, ["/customers", "/accounts", "/membership-orders", "/performance-statements", "/credits", "/deposits", "/ledger", "/finance"], "operations-maker-ui.spec.ts");
+  assertPathsCovered(await source("g1-identity-security.spec.ts"), ["/invitations"], "g1-identity-security.spec.ts");
   assertPathsCovered(checker, ["/", "/approvals"], "operations-checker-ui.spec.ts");
   assert.match(`${maker}\n${checker}`, /expectAudienceNavigation\(page,\s*"operations"\)/);
   assert.equal((maker.match(/\btest\(/g) ?? []).length, 2);

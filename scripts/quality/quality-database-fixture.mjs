@@ -30,6 +30,14 @@ const ROLE_PERMISSIONS = {
     "client.paper.manage",
     "client.wallet.view",
   ],
+  clientSecurity: [
+    "client.membership.view",
+    "client.membership.order",
+    "client.credits.view",
+    "client.paper.view",
+    "client.paper.manage",
+    "client.wallet.view",
+  ],
   operationsMaker: [
     "ops.customers.view",
     "ops.organization.view",
@@ -43,6 +51,8 @@ const ROLE_PERMISSIONS = {
   ],
   operationsChecker: [
     "ops.customers.view",
+    "ops.invitations.view",
+    "ops.invitations.manage",
     "ops.membership_orders.view",
     "ops.membership_orders.approve",
     "ops.credits.view",
@@ -80,6 +90,7 @@ const ROLE_PERMISSIONS = {
 
 const IDENTITY_DEFINITIONS = {
   client: { audience: "client", domain: "agentnovas.com", cookieName: "rc_client_session", legacyRole: "customer", scope: "SELF" },
+  clientSecurity: { audience: "client", domain: "agentnovas.com", cookieName: "rc_client_session", legacyRole: "customer", scope: "SELF", seedSession: false },
   operationsMaker: { audience: "operations", domain: "zht.agentnovas.com", cookieName: "rc_ops_session", legacyRole: "employee", scope: "ORGANIZATION" },
   operationsChecker: { audience: "operations", domain: "zht.agentnovas.com", cookieName: "rc_ops_session", legacyRole: "manager", scope: "ORGANIZATION" },
   maintenanceAdmin: { audience: "maintenance", domain: "xm.agentnovas.com", cookieName: "rc_maint_session", legacyRole: "hq_admin", scope: "PLATFORM" },
@@ -192,23 +203,25 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
         now.toISOString(),
         JSON.stringify(definition.audience === "operations" ? [organizationId] : []),
       ]);
-      await client.query(`
-        INSERT INTO sessions (
-          id,user_id,token_hash,app_audience,expires_at,mfa_level,mfa_verified_at,
-          last_seen_at,idle_expires_at,absolute_expires_at,ip_address,user_agent
-        ) VALUES (
-          $1,$2,$3,$4,$5::text,$6,$7::timestamptz,$7::timestamptz,
-          $5::timestamptz,$5::timestamptz,'127.0.0.1','AgentNovas Quality E2E'
-        )
-      `, [
-        randomUUID(),
-        userId,
-        sha256(token),
-        definition.audience,
-        expiresAt.toISOString(),
-        internal ? "totp" : "primary",
-        internal ? now.toISOString() : null,
-      ]);
+      if (definition.seedSession !== false) {
+        await client.query(`
+          INSERT INTO sessions (
+            id,user_id,token_hash,app_audience,expires_at,mfa_level,mfa_verified_at,
+            last_seen_at,idle_expires_at,absolute_expires_at,ip_address,user_agent
+          ) VALUES (
+            $1,$2,$3,$4,$5::text,$6,$7::timestamptz,$7::timestamptz,
+            $5::timestamptz,$5::timestamptz,'127.0.0.1','AgentNovas Quality E2E'
+          )
+        `, [
+          randomUUID(),
+          userId,
+          sha256(token),
+          definition.audience,
+          expiresAt.toISOString(),
+          internal ? "totp" : "primary",
+          internal ? now.toISOString() : null,
+        ]);
+      }
       identities[name] = {
         userId,
         email,
@@ -272,8 +285,8 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
   }
 
   await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
-  for (const identity of Object.values(identities)) {
-    const cookies = [{
+  for (const [name, identity] of Object.entries(identities)) {
+    const cookies = IDENTITY_DEFINITIONS[name].seedSession === false ? [] : [{
       name: identity.cookieName,
       value: identity.token,
       domain: identity.domain,
@@ -283,7 +296,7 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
       secure: true,
       sameSite: "Strict",
     }];
-    if (identity.audience === "client") cookies.push({ ...cookies[0], name: "an_session" });
+    if (identity.audience === "client" && cookies.length) cookies.push({ ...cookies[0], name: "an_session" });
     await writeFile(identity.storageState, JSON.stringify({ cookies, origins: [] }), { mode: 0o600 });
   }
   const runtime = {

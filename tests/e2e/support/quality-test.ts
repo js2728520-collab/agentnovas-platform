@@ -1,10 +1,18 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test as base, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test as base,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import { browserResourceBudget } from "../../../scripts/quality/browser-resource-budget.mjs";
 import {
   isAllowedQualityNetworkUrl,
   qualityApplicationPorts,
+  qualityBrowserOrigin,
   qualityLoopbackForward,
   redactPotentialSecrets,
 } from "../../../scripts/quality/quality-policy.mjs";
@@ -107,7 +115,10 @@ export const test = base.extend<QualityFixtures>({
           && request.resourceType() === "fetch"
           && !request.isNavigationRequest()
           && headers["next-router-prefetch"] === "1";
-        if (expectedNextPrefetchCancellation) return;
+        const expectedOptimizedImageCancellation = failure === "net::ERR_ABORTED"
+          && request.resourceType() === "image"
+          && new URL(request.url()).pathname === "/_next/image";
+        if (expectedNextPrefetchCancellation || expectedOptimizedImageCancellation) return;
         failedLocalRequests.push(safeEntry({
           method: request.method(),
           url: safeUrl(request.url()),
@@ -218,4 +229,102 @@ export async function exerciseResponsiveWidths(page: Page, path: string, heading
   await expectKeyboardEntry(page);
   await expectCriticalAccessibility(page);
   await expectInitialResourceBudget(page);
+}
+
+export async function createIsolatedQualityBrowser(
+  browser: Browser,
+  audience: QualityAudience,
+) {
+  const externalRequests: string[] = [];
+  const consoleProblems: string[] = [];
+  const pageErrors: string[] = [];
+  const failedLocalRequests: string[] = [];
+  const unsuccessfulResponses: Array<{ method: string; url: string; status: number }> = [];
+  const ports = qualityApplicationPorts(process.env);
+  const origin = qualityBrowserOrigin(audience, ports).baseURL;
+  const context: BrowserContext = await browser.newContext({
+    baseURL: origin,
+    acceptDownloads: false,
+    serviceWorkers: "block",
+  });
+
+  await context.route("**/*", async (route) => {
+    const url = route.request().url();
+    const parsed = new URL(url);
+    const forward = parsed.protocol === "https:" ? qualityLoopbackForward(url, ports) : null;
+    if (forward) {
+      const requestHeaders = await route.request().allHeaders();
+      const response = await route.fetch({
+        url: forward.url,
+        headers: {
+          ...requestHeaders,
+          host: forward.host,
+          "x-forwarded-for": "127.0.0.1",
+          "x-forwarded-proto": "https",
+        },
+      });
+      await route.fulfill({ response });
+    } else if (isAllowedQualityNetworkUrl(url)) await route.continue();
+    else {
+      externalRequests.push(safeUrl(url));
+      await route.abort("blockedbyclient");
+    }
+  });
+  context.on("page", (openedPage) => {
+    openedPage.on("console", (message) => {
+      if (message.type() === "error" || message.type() === "warning") {
+        consoleProblems.push(redactPotentialSecrets(message.text()));
+      }
+    });
+    openedPage.on("pageerror", (error) => pageErrors.push(redactPotentialSecrets(error.message)));
+    openedPage.on("requestfailed", (request) => {
+      if (!isAllowedQualityNetworkUrl(request.url())) return;
+      const failure = request.failure()?.errorText ?? "failed";
+      const headers = request.headers();
+      const expectedPrefetchCancellation = failure === "net::ERR_ABORTED"
+        && request.resourceType() === "fetch"
+        && !request.isNavigationRequest()
+        && headers["next-router-prefetch"] === "1";
+      const expectedOptimizedImageCancellation = failure === "net::ERR_ABORTED"
+        && request.resourceType() === "image"
+        && new URL(request.url()).pathname === "/_next/image";
+      if (!expectedPrefetchCancellation && !expectedOptimizedImageCancellation) failedLocalRequests.push(safeUrl(request.url()));
+    });
+    openedPage.on("response", (response) => {
+      if (response.status() >= 400) {
+        unsuccessfulResponses.push({
+          method: response.request().method(),
+          url: safeUrl(response.url()),
+          status: response.status(),
+        });
+      }
+    });
+  });
+
+  const page = await context.newPage();
+  return {
+    context,
+    origin,
+    page,
+    async close(options: { allowedStatuses?: number[] } = {}) {
+      const allowedStatuses = new Set(options.allowedStatuses ?? []);
+      const unexpectedResponses = unsuccessfulResponses.filter(({ status }) => !allowedStatuses.has(status));
+      const expectedResourceFailure = new RegExp(
+        `^Failed to load resource: the server responded with a status of (?:${[...allowedStatuses].join("|")}) \\(.+\\)$`,
+      );
+      const unexpectedConsoleProblems = allowedStatuses.size
+        ? consoleProblems.filter((message) => !expectedResourceFailure.test(message))
+        : consoleProblems;
+      try {
+        expect(externalRequests, "isolated browser external requests").toEqual([]);
+        expect(unexpectedConsoleProblems, "isolated browser console errors/warnings").toEqual([]);
+        expect(pageErrors, "isolated browser page errors").toEqual([]);
+        expect(failedLocalRequests, "isolated browser failed local requests").toEqual([]);
+        expect(unexpectedResponses, "isolated browser unexpected HTTP responses").toEqual([]);
+      } finally {
+        await context.unrouteAll({ behavior: "wait" });
+        await context.close();
+      }
+    },
+  };
 }

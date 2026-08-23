@@ -195,6 +195,7 @@ export function createQualityRunEnvironment({
   const serverMode = baseEnvironment.QUALITY_E2E_SERVER_MODE === "development"
     ? "development"
     : "production";
+  const ports = qualityApplicationPorts(baseEnvironment);
   const encryptionKeys = {
     MFA_TOTP_ENCRYPTION_KEY: runtimeSecret(),
     INTEGRATION_CREDENTIAL_ENCRYPTION_KEY: runtimeSecret(),
@@ -207,6 +208,7 @@ export function createQualityRunEnvironment({
     ...DISABLED_EFFECT_ENVIRONMENT,
     ...SCRUBBED_PROVIDER_ENVIRONMENT,
     ...encryptionKeys,
+    MFA_ENFORCEMENT_ENABLED: "false",
     NODE_ENV: serverMode,
     DATABASE_URL: applicationDatabaseUrl,
     TEST_DATABASE_URL: applicationDatabaseUrl,
@@ -215,6 +217,9 @@ export function createQualityRunEnvironment({
     QUALITY_E2E_RUNTIME_DIR: runtimeDirectory,
     QUALITY_E2E_SCHEMA: schema,
     QUALITY_E2E_SERVER_MODE: serverMode,
+    CLIENT_PUBLIC_BASE_URL: `https://agentnovas.com:${ports.client}`,
+    OPERATIONS_PUBLIC_BASE_URL: `https://zht.agentnovas.com:${ports.operations}`,
+    MAINTENANCE_PUBLIC_BASE_URL: `https://xm.agentnovas.com:${ports.maintenance}`,
     NEXT_TELEMETRY_DISABLED: "1",
     // The test runner is the only local reverse-proxy boundary and always supplies
     // a single loopback X-Forwarded-For hop. Production defaults remain unchanged.
@@ -311,7 +316,7 @@ export async function runQualityE2e({
       fixturePrepared: Boolean(fixture),
       gateResult: {
         passed: e2ePassed,
-        expectedTests: 12,
+        expectedTests: 15,
         externalWritesEnabled: false,
       },
       cleanupSchema: () => cleanupQualityDatabaseFixture({ adminDatabaseUrl, schema }),

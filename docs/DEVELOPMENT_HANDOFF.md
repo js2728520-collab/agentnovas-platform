@@ -2049,3 +2049,40 @@ Phase 1 尚未结束。下一切片是客户端账号安全：强制邮箱验证
 T1.4 自动化范围已完成，但 G1 仍未关闭：需要四身份真实浏览器、多上下文撤销和真实邮件
 送达/关闭降级证据。需求方还需确认第 6 台设备交互，以及是否要求城市级
 定位；当前安全默认分别是“拒绝第 6 台”和“以 IP 网段变化作为异地证据”。
+
+## 54. 2026-08-23 V3 Phase 1：MFA 暂停强制与三端登录实测
+
+分支 `codex/platform-v3-doc-sync` 已按 ADR-0023 暂停三端 MFA 强制，但完整保留 TOTP、
+恢复码、凭证和再次开启能力。`MFA_ENFORCEMENT_ENABLED` 当前默认 `false`；正式生产前
+必须在三端同时开启并单独通过首次绑定、已绑定验证、恢复码、recent MFA、密码重置和
+回滚 Gate，不能把本次关闭态证据替代生产开启态验收。
+
+本次使用本地真实 Chromium 和空浏览器上下文逐端填写登录表单，Client、Operations、
+Maintenance 均成功进入各自首页且未进入 MFA 绑定页。浏览器实测同时发现并修复两项
+仅靠接口合同不容易发现的问题：
+
+- 登录 API 在关闭态会签发完整内部 Session，但通用 Session assurance 仍按 MFA 开启态
+  拒绝它，导致 Operations/Maintenance 登录成功后回到登录页；现在 assurance 显式接收
+  服务端 enforcement 状态，默认仍保持强制，只有配置明确关闭时才允许无 MFA 的内部
+  完整 Session。
+- 权限注册链接从 URL fragment 读取令牌时，服务端空快照和浏览器首屏快照不一致，可能
+  产生 React hydration 错误；现在使用带服务端空快照的 `useSyncExternalStore` 监听地址
+  变化，浏览器注册路径不再出现 hydration 异常。
+
+完整 Playwright 证据为 15/15，通过范围包括三端空浏览器登录、Host/Cookie audience
+隔离、Operations 权限链接注册/角色冻结/作废、Client 五浏览器上限与第六台拒绝、跨
+上下文全量退出、邮箱未验证重发和加密 outbox 降级，以及既有会员 maker-checker、三端
+稳定路由、axe、console/network 边界。全量 1267 个单元/集成/合同测试、TypeScript、
+ESLint、261 条 API 安全清单、架构边界和仓库敏感信息扫描均通过。
+
+三端生产镜像在 `ssh an-saas` 的一次性目录
+`/root/agentnovas-v3-g1.dPSIbN` 构建，源码传输显式排除 `.env*`、Git、依赖和本地输出；
+镜像仅用于验证，未启动、未推送、未部署：
+
+- Client：`sha256:40a53ef9bfd918c9c8e90e807a60c4392344ce83c7eeca7351b4519b2a137ea1`
+- Operations：`sha256:63939142f4f2651719832d5f54b4e4b8b26a92d8192705bd760b8052a7a8926c`
+- Maintenance：`sha256:ec451b7b6b79dd4db528db94ebe16cce0527d57ee9c359203b084b1e82c61967`
+
+G1 仍保持进行中：真实邮件送达证据、正式生产 MFA 开启态专项 Gate、城市级定位是否需要
+以及第六台设备是否改为“替换旧设备”的需求结论尚未完成。当前实现继续采用安全默认：
+第六台直接拒绝，异地以 IP 网段变化为证据。
