@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 
 import { evaluateRegisteredFeatureFlag } from "./configuration-family-registry.ts";
@@ -10,6 +11,12 @@ type ActiveFeatureFlagRow = {
 };
 
 const SHA256 = /^[a-f0-9]{64}$/;
+
+function featureFlagPayloadSha256(payload: Record<string, unknown>) {
+  return createHash("sha256")
+    .update(JSON.stringify({ enabled: payload.enabled }), "utf8")
+    .digest("hex");
+}
 
 function result(
   decision: ReturnType<typeof evaluateRegisteredFeatureFlag> | { enabled: false; reason: "configuration_unavailable" },
@@ -44,5 +51,9 @@ export async function readClientFeatureFlagDecision(
     || row.schema_version !== 1 || !SHA256.test(row.payload_sha256)) {
     return result({ enabled: false, reason: "configuration_invalid" }, row);
   }
-  return result(evaluateRegisteredFeatureFlag({ environmentEnabled: true, payload: row.payload_json }), row);
+  const decision = evaluateRegisteredFeatureFlag({ environmentEnabled: true, payload: row.payload_json });
+  if (decision.reason === "configuration_invalid" || featureFlagPayloadSha256(row.payload_json) !== row.payload_sha256) {
+    return result({ enabled: false, reason: "configuration_invalid" }, row);
+  }
+  return result(decision, row);
 }

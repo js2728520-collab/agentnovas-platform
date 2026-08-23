@@ -25,13 +25,18 @@ async function* sourceFiles(dir) {
   }
 }
 
+function referencedPermissionKeys(source) {
+  return [...source.matchAll(/"((?:client|ops|maint)\.[a-z0-9_]+\.[a-z0-9_]+)"/g)]
+    .map((match) => match[1]);
+}
+
 async function collectReferencedKeys(roots) {
   const found = new Map();
   for (const root of roots) {
     for await (const file of sourceFiles(root)) {
       const source = await readFile(file, "utf8");
-      for (const match of source.matchAll(/"((?:client|ops|maint)\.[a-z0-9_.]+)"/g)) {
-        if (!found.has(match[1])) found.set(match[1], file);
+      for (const key of referencedPermissionKeys(source)) {
+        if (!found.has(key)) found.set(key, file);
       }
     }
   }
@@ -44,6 +49,14 @@ test("路由与界面引用的权限键全部已注册", async () => {
     .filter(([key]) => !registered.has(key))
     .map(([key, file]) => `${key}（首次出现于 ${file}）`);
   assert.deepEqual(unknown, [], "未注册的权限键会让对应接口永久 500，且导航入口被隐藏");
+});
+
+test("权限扫描器不会把两段式配置 key 当成 RBAC 权限", () => {
+  assert.deepEqual(referencedPermissionKeys(`
+    const feature = "client.strategy_research";
+    const permission = "client.strategies.view";
+    const unknownPermission = "maint.example.manage";
+  `), ["client.strategies.view", "maint.example.manage"]);
 });
 
 test("ops.trading.manage 已注册且标记为敏感", () => {

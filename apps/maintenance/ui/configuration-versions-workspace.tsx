@@ -11,6 +11,13 @@ import { ConfigurationVersionCreatePanel } from "./configuration-version-create-
 import { ConfigurationVersionDetailPanel } from "./configuration-version-detail-panel";
 import { commandKey, shortHash } from "./configuration-version-ui";
 
+function controlsStrategyResearch(version: ConfigurationVersion) {
+  return version.kind === "feature_flag"
+    && version.key === "client.strategy_research"
+    && version.audience === "client"
+    && version.schemaVersion === 1;
+}
+
 export function ConfigurationVersionsWorkspace(props: { currentUserId: string; canManage: boolean; canApprove: boolean; canActivate: boolean }) {
   const resource = useApiData<ConfigurationVersionsPayload>("/api/maintenance/configuration-versions?limit=100", "配置版本读取失败");
   const [loadingMore, setLoadingMore] = useState(false);
@@ -82,6 +89,13 @@ function ConfigurationVersionsControl({ payload, refresh, currentUserId, canMana
     await runInline(() => mutation(`/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}/tests`, { result, evidenceSha256, reason }, `configuration-test:${version.id}:${result}`), "测试证据已登记；这不代表浏览器执行了自动测试。");
   }
 
+  async function runRegisteredTest(version: ConfigurationVersion, reason: string) {
+    await runInline(
+      () => mutation(`/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}/tests`, { reason }, `configuration-family-test:${version.id}`),
+      "服务端确定性测试已通过，结果与证据已绑定到该不可变 payload。",
+    );
+  }
+
   async function review(version: ConfigurationVersion, decision: ConfigurationApprovalDecision, reason: string) {
     const base = `/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}`;
     await runInline(
@@ -100,15 +114,20 @@ function ConfigurationVersionsControl({ payload, refresh, currentUserId, canMana
 
   async function activate(version: ConfigurationVersion, action: ConfigurationActivationAction, reason: string) {
     const base = `/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}`;
+    const runtimeMessage = action === "activate"
+      ? "控制面 current 已切换；策略研究入口将在下一次请求按环境 Gate 与 current 功能开关共同判定。"
+      : "控制面已回滚；策略研究入口将在下一次请求按环境 Gate 与回滚版本共同判定。";
     await runInline(
       () => mutation(`${base}/activation`, { action, reason }, `configuration-activation:${version.id}:${action}`),
-      action === "activate" ? "控制面 current 已切换；尚未接管具体运行时消费者。" : "控制面已回滚到所选历史版本；尚未接管具体运行时消费者。",
+      controlsStrategyResearch(version)
+        ? runtimeMessage
+        : action === "activate" ? "控制面 current 已切换；该配置族尚未接管具体运行时消费者。" : "控制面已回滚到所选历史版本；该配置族尚未接管具体运行时消费者。",
     );
   }
 
   return <>
     <PageHeading eyebrow="VERSIONED CONFIGURATION CONTROL" title="配置发布" description="管理非秘密配置的草稿、测试证据、独立审批、调度、激活与回滚。" actions={<StatusBadge value={`${payload.versions.filter((version) => version.isCurrent).length} current`} />} />
-    <div className="rc-callout" role="note">通用配置发布框架尚未接管具体运行时；active 目前只代表受审计的控制面 current 投影。秘密和客户数据不得写入 payload。</div>
+    <div className="rc-callout" role="note"><code>client.strategy_research</code> 已接管 Client 策略研究入口，有效状态由环境 Gate 与 current 功能开关共同决定；其他配置族在接入消费者前仍只形成受审计的控制面投影。秘密和客户数据不得写入 payload。</div>
     <div className="rc-live" aria-live="polite">{message}</div>
     {canManage ? <ConfigurationVersionCreatePanel busy={busy} onCreate={createDraft} report={setMessage} /> : null}
     <section className="rc-panel">
@@ -122,6 +141,6 @@ function ConfigurationVersionsControl({ payload, refresh, currentUserId, canMana
       {payload.nextCursor ? <div className="rc-action-row"><button className="rc-button" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? "正在读取…" : "加载更早版本"}</button></div> : null}
       {loadMoreError ? <div className="rc-live" role="alert">{loadMoreError}</div> : null}
     </section>
-    {selected ? <ConfigurationVersionDetailPanel version={selected} current={current} currentUserId={currentUserId} canManage={canManage} canApprove={canApprove} canActivate={canActivate} busy={busy} onTest={(result, evidence, reason) => recordTest(selected, result, evidence, reason)} onReview={(decision, reason) => review(selected, decision, reason)} onSchedule={(scheduledFor, reason) => schedule(selected, scheduledFor, reason)} onActivation={(action, reason) => activate(selected, action, reason)} /> : null}
+    {selected ? <ConfigurationVersionDetailPanel version={selected} current={current} currentUserId={currentUserId} canManage={canManage} canApprove={canApprove} canActivate={canActivate} busy={busy} onTest={(result, evidence, reason) => recordTest(selected, result, evidence, reason)} onRegisteredTest={(reason) => runRegisteredTest(selected, reason)} onReview={(decision, reason) => review(selected, decision, reason)} onSchedule={(scheduledFor, reason) => schedule(selected, scheduledFor, reason)} onActivation={(action, reason) => activate(selected, action, reason)} /> : null}
   </>;
 }

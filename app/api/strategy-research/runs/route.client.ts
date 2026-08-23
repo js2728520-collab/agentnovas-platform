@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { exchangeAccounts } from "@/db/schema";
 import { getOwnedAiConversation } from "@/lib/ai-conversations";
+import { readClientFeatureFlagDecision } from "@/lib/active-feature-flags";
 import { snapshotAgentRoleBindings } from "@/lib/agent-model-profiles";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
@@ -13,14 +14,22 @@ import { parseStrategyResearchTarget } from "@/lib/research-target";
 import type { ResearchMode } from "@/packages/domain/src/research-validation";
 import { runtimeSetting } from "@/lib/runtime-setting";
 
-function enabled() {
-  return runtimeSetting("STRATEGY_RESEARCH_ENABLED") === "true";
+async function requireStrategyResearchEnabled() {
+  const environmentEnabled = runtimeSetting("STRATEGY_RESEARCH_ENABLED") === "true";
+  if (!environmentEnabled) throw new ResearchApiError("FEATURE_DISABLED", "多 Agent 策略研发功能尚未开放", 503);
+  await ensureDatabaseSchema();
+  const pool = await getPostgresPool();
+  const decision = await readClientFeatureFlagDecision(pool, {
+    key: "client.strategy_research",
+    environmentEnabled,
+  });
+  if (!decision.enabled) throw new ResearchApiError("FEATURE_DISABLED", "多 Agent 策略研发功能尚未开放", 503);
+  return pool;
 }
 
 export async function GET(request: Request) {
   try {
-    if (!enabled()) throw new ResearchApiError("FEATURE_DISABLED", "多 Agent 策略研发功能尚未开放", 503);
-    await ensureDatabaseSchema();
+    const pool = await requireStrategyResearchEnabled();
     const user = await requireResearchUser(request, ["customer"]);
     const url = new URL(request.url);
     const scope = url.searchParams.get("scope") || "latest";
@@ -28,7 +37,6 @@ export async function GET(request: Request) {
     if (!['latest', 'active'].includes(scope) || !Number.isInteger(limitValue) || limitValue < 1 || limitValue > 20) {
       throw new ResearchApiError("VALIDATION_ERROR", "研发任务查询参数无效", 422);
     }
-    const pool = await getPostgresPool();
     const runs = await listOwnedResearchRuns(pool, {
       ownerUserId: user.id,
       limit: limitValue,
@@ -58,8 +66,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    if (!enabled()) throw new ResearchApiError("FEATURE_DISABLED", "多 Agent 策略研发功能尚未开放", 503);
-    await ensureDatabaseSchema();
+    const pool = await requireStrategyResearchEnabled();
     const user = await requireResearchUser(request, ["customer"]);
     const body = await readResearchJson(request, 65_536);
     const conversationId = String(body.conversationId ?? "").trim() || null;
@@ -118,7 +125,6 @@ export async function POST(request: Request) {
       direction: target.direction,
     };
 
-    const pool = await getPostgresPool();
     const roleSnapshot = await snapshotAgentRoleBindings(pool);
     let run = await createResearchRun(pool, {
       ownerUserId: user.id,

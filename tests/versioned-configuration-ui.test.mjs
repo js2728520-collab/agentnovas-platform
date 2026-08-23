@@ -40,6 +40,24 @@ test("the complete configuration release flow stays inline without modal confirm
   assert.match(workspace, /加载更早版本/);
 });
 
+test("registered strategy research flag uses a constrained draft form and server-run test", async () => {
+  const [workspace, create, detail] = await Promise.all([
+    read("apps/maintenance/ui/configuration-versions-workspace.tsx"),
+    read("apps/maintenance/ui/configuration-version-create-panel.tsx"),
+    read("apps/maintenance/ui/configuration-version-detail-panel.tsx"),
+  ]);
+  assert.match(create, /client\.strategy_research/);
+  assert.match(create, /模块状态/);
+  assert.match(create, /payload:\s*registeredFeatureFlag/);
+  assert.match(create, /readOnly=\{registeredFeatureFlag\}/);
+  assert.match(detail, /运行确定性测试/);
+  assert.match(detail, /结果与证据 SHA-256 均由服务端/);
+  assert.match(workspace, /runRegisteredTest/);
+  assert.match(workspace, /\{ reason \}/);
+  assert.match(workspace, /策略研究入口将在下一次请求/);
+  assert.match(workspace, /环境 Gate 与 current 功能开关/);
+});
+
 test("local schedule input is serialized with an explicit UTC offset", async () => {
   const helper = await import("../apps/maintenance/ui/configuration-version-ui.ts");
   assert.equal(helper.localDateTimeWithOffset("2026-08-24T09:30", -480), "2026-08-24T09:30:00+08:00");

@@ -4,6 +4,10 @@ import type { Pool, PoolClient } from "pg";
 import type { ConfigurationVersion, ConfigurationVersionsPayload } from "../packages/contracts/src/versioned-configuration.ts";
 import { encodeCommercialCursor, type CommercialCursor } from "./commercial-api-support.ts";
 import {
+  normalizeRegisteredConfigurationFamilyTestRequest,
+  runRegisteredConfigurationFamilyTest,
+} from "./configuration-family-registry.ts";
+import {
   normalizeConfigurationActivation,
   normalizeConfigurationApproval,
   normalizeConfigurationDraft,
@@ -14,6 +18,7 @@ import {
   type ConfigurationAudience,
   type ConfigurationKind,
   type ConfigurationTestResult,
+  type NormalizedConfigurationTest,
 } from "./versioned-configuration-domain.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
@@ -298,18 +303,33 @@ export async function createConfigurationVersion(pool: Pool, input: { actorUserI
   });
 }
 
-function sameTest(row: TestRow, versionId: string, fact: ReturnType<typeof normalizeConfigurationTest>) {
+type ConfigurationTestFact = NormalizedConfigurationTest & { testerId?: string };
+
+function configurationTestFact(row: VersionRow, input: unknown): ConfigurationTestFact {
+  if (row.kind !== "feature_flag") return normalizeConfigurationTest(input);
+  const request = normalizeRegisteredConfigurationFamilyTestRequest(input);
+  const automated = runRegisteredConfigurationFamilyTest({
+    kind: row.kind,
+    key: row.configuration_key,
+    audience: row.audience,
+    schemaVersion: row.schema_version,
+    payload: row.payload_json,
+  });
+  return { result: automated.result, evidenceSha256: automated.evidenceSha256, reason: request.reason, testerId: automated.testerId };
+}
+
+function sameTest(row: TestRow, versionId: string, fact: ConfigurationTestFact) {
   return row.configuration_version_id === versionId && row.result === fact.result && row.evidence_sha256 === fact.evidenceSha256 && row.reason === fact.reason;
 }
 
 export async function testConfigurationVersion(pool: Pool, input: { versionId: string; actorUserId: string; idempotencyKey: string; requestId: string; test: unknown }) {
-  const fact = normalizeConfigurationTest(input.test);
   const key = commandIdentity(input.idempotencyKey);
   const requestId = requestIdentity(input.requestId);
   return transaction(pool, async (client) => {
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended('configuration-test:' || $1,0))", [input.versionId]);
     const version = await client.query<VersionRow>(`SELECT * FROM configuration_versions WHERE id=$1 FOR UPDATE`, [input.versionId]);
     if (!version.rows[0]) throw new ResearchApiError("CONFIGURATION_VERSION_NOT_FOUND", "配置版本不存在", 404);
+    const fact = configurationTestFact(version.rows[0], input.test);
     const replay = await client.query<TestRow>(`SELECT * FROM configuration_test_results WHERE tested_by_user_id=$1 AND idempotency_key=$2`, [input.actorUserId,key]);
     if (replay.rows[0]) {
       if (!sameTest(replay.rows[0], input.versionId, fact)) throw new ResearchApiError("IDEMPOTENCY_PAYLOAD_MISMATCH", "幂等键已用于另一项配置测试", 409);
@@ -325,7 +345,7 @@ export async function testConfigurationVersion(pool: Pool, input: { versionId: s
     await client.query(`
       INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,request_id)
       VALUES($1,$2,$3,'configuration_version',$4,$5,$6)
-    `, [randomUUID(),input.actorUserId,`configuration.test.${fact.result}`,input.versionId,JSON.stringify({ result: fact.result, evidenceSha256: fact.evidenceSha256, reason: fact.reason }),requestId]);
+    `, [randomUUID(),input.actorUserId,`configuration.test.${fact.result}`,input.versionId,JSON.stringify({ result: fact.result, evidenceSha256: fact.evidenceSha256, reason: fact.reason, ...(fact.testerId ? { testerId: fact.testerId } : {}) }),requestId]);
     return readVersionById(client, input.versionId);
   });
 }

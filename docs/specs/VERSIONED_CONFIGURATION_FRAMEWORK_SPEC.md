@@ -1,6 +1,6 @@
 # 通用版本化配置发布框架规格
 
-状态：`PARTIAL_CURRENT`；T3.1a、T3.1b-UI 与 T3.1b-Worker 已实现，T3.1c 为 Target
+状态：`PARTIAL_CURRENT`；T3.1a、T3.1b 与 T3.1c-FF1 已实现，其余 T3.1c 配置族为 Target/Blocked
 日期：2026-08-24
 上位真源：`../product/PRD.md` 第 10、12 节；`V3_SYSTEM_TARGET_SPEC.md` 第 10 节；`V3_MAINTENANCE_APP_TARGET_SPEC.md` 第 2–5 节
 
@@ -22,7 +22,7 @@
 1. 通用 payload 只保存非秘密 JSON；`secret/password/token/apiKey/privateKey` 等字段必须在边界拒绝。模型、支付和集成密钥继续留在既有只写不读专用表。
 2. T3.1a 交付数据库状态机、服务与受控 API；到期版本由有权限人员显式激活，不引入常驻调度 Worker。
 3. T3.1b 交付 Maintenance 工作台和到期激活 Worker；Worker 只消费数据库中已测试通过、已审批且到期的版本，不能自行测试、审批、调度或回滚。
-4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；具体价格、域名和设计资源继续受 P-07/P-08/P-10/P-11 阻断。
+4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；首个 `client.strategy_research` 全局功能开关已接入，具体价格、域名和设计资源继续受 P-07/P-08/P-10/P-11 阻断。
 5. audience 固定为 `client/operations/maintenance/shared`；配置流以 `(kind, key, audience)` 唯一识别。
 6. T3.1b 分为 UI 与 Worker 两个可独立验收的切片：工作台先行，自动到期激活器随后交付。工作台把人工提交明确称为“登记测试证据”，不能冒充自动测试；在 T3.1c 消费者接入前，active 只代表控制面 current 投影。
 
@@ -35,7 +35,7 @@
 
 ### 3.2 追加事实
 
-- `configuration_test_results`：保存 `passed/failed`、证据摘要、执行人和原因；同一版本可重复测试，状态取最新事实。
+- `configuration_test_results`：保存 `passed/failed`、证据摘要、执行人和原因；注册配置族由服务端测试器生成结果和摘要，其他配置族暂存外部测试证据；同一版本可重复测试，状态取最新事实。
 - `configuration_approvals`：每版本只允许一个 `approve/reject` 最终决定；reviewer 必须不同于 creator。
 - `configuration_schedules`：每版本只允许一个生效时间事实；只接受未来或当前的带 offset 时间。
 - `configuration_activations`：以 sequence 投影每个配置流的 current；`activate` 激活目标版本，`rollback` 回到曾在同流生效过的历史版本。
@@ -64,7 +64,7 @@
 |---|---|---|
 | `GET /api/maintenance/configuration-versions` | `maint.configuration_versions.view` | 按稳定游标查询版本、派生状态和当前版本 |
 | `POST /api/maintenance/configuration-versions` | `maint.configuration_versions.manage` | 幂等创建不可变草稿 |
-| `POST /api/maintenance/configuration-versions/{id}/tests` | `maint.configuration_versions.manage` | 追加测试通过/失败事实 |
+| `POST /api/maintenance/configuration-versions/{id}/tests` | `maint.configuration_versions.manage` | 注册族只接收原因并运行服务端确定性测试；其他族追加人工通过/失败证据 |
 | `POST /api/maintenance/configuration-versions/{id}/approval` | `maint.configuration_versions.approve` | 独立 approve/reject |
 | `POST /api/maintenance/configuration-versions/{id}/schedule` | `maint.configuration_versions.approve` | 登记明确时区的生效时间 |
 | `POST /api/maintenance/configuration-versions/{id}/activation` | `maint.configuration_versions.activate` | 到期激活，或回滚到历史已验证版本 |
@@ -75,6 +75,9 @@
 
 - `postgres/migrations/0069_versioned_configuration_framework.sql`：表、约束、不可变触发器和权限定义。
 - `postgres/migrations/0070_configuration_activation_worker.sql`：Worker actor、到期索引、心跳类型和最小 `SECURITY DEFINER` 激活网关。
+- `postgres/migrations/0071_active_feature_flag_consumer.sql`：Client 只读 current 功能开关最小权限网关。
+- `lib/configuration-family-registry.ts`：注册族身份、严格 schema、服务端测试器和安全判定。
+- `lib/active-feature-flags.ts`：环境 Gate、current 投影、payload 摘要复核和失败关闭。
 - `lib/versioned-configuration-domain.ts`：纯输入归一化、秘密字段拒绝和状态类型。
 - `lib/versioned-configuration-service.ts`：事务、并发锁、状态投影和审计。
 - `lib/configuration-activation-worker.ts` 与 `scripts/configuration-activation-worker.mjs`：全局租约、候选扫描、逐项隔离处理、心跳和受限常驻循环。
@@ -137,7 +140,8 @@ Node 22.21.1 隔离容器完成。未启动服务、未迁移生产库、未部�
 创建和人工测试证据登记使用页面内审计原因直接执行，
 草稿、测试、审批、调度、激活和回滚均在页面内填写审计原因后直接提交，不使用打断流程的
 模态确认框。权限分离、创建者不得自审、状态机前置条件、幂等键、busy 防重复提交和不可变
-审计事实保持不变；当前激活仅改变尚未接管具体运行时的控制面 current 投影。
+审计事实保持不变。T3.1c-FF1 接入后，注册的策略研究功能开关使用专用字段和服务端测试，
+激活或回滚会从下一次 Client 请求改变该模块判定；其他配置族仍只改变控制面 current 投影。
 
 页面明确提示人工动作只是“登记测试证据”，不会冒充浏览器自动测试；在 T3.1c 消费者接入
 前，active/current 也不会被描述为具体运行时已经生效。真实 Chromium 已覆盖四档宽度、axe、
@@ -163,9 +167,9 @@ warning、300 秒进入 critical。Container Compose 使用独立 `configuration
 仅连接 backplane，不具备 egress/edge 网络；systemd 和示例环境默认关闭。生产配置审计要求
 专用 DSN、Maintenance/Worker 开关值一致且只报告启停状态，不回显配置值。
 
-本切片只把已测试、已审批且到期的通用版本推进到控制面 current。T3.1c 具体消费者尚未接入，
-因此不能声称品牌、域名、功能开关、Prompt、技能或价格已在运行时生效，也不能借 Worker 打开
-交易、支付、提现或部署能力。
+本切片只把已测试、已审批且到期的通用版本推进到控制面 current。后续 T3.1c-FF1 只让
+`client.strategy_research` 消费该 current；不能据此声称品牌、域名、Prompt、技能或价格已经
+接管运行时，也不能借 Worker 打开交易、支付、提现或部署能力。
 
 ## 11. T3.1c-FF1 全局功能开关首个垂直切片
 
@@ -187,8 +191,14 @@ schema 版本，不在 v1 中静默猜测组合语义。
 
 运行时消费者只返回启用/禁用判定、所用版本 ID 和受限原因码，不把原始 payload 暴露给
 浏览器或日志。配置缺失按既有环境 Gate；已激活配置不符合注册 schema、数据库网关异常或
-证据不一致时失败关闭。该切片不能控制真实订单、提现/划转、支付启停、MFA、权限、部署或
+payload SHA-256 不一致时失败关闭。该切片不能控制真实订单、提现/划转、支付启停、MFA、权限、部署或
 任何外部写入 Gate。
+
+Maintenance 创建表单固定首个注册族的 key、audience 和 schema，只让操作者选择开/关；测试
+请求只提交审计原因，结果、tester ID 和证据摘要由服务端绑定到不可变 payload。策略研究
+GET/POST 共用同一运行时判定：环境 Gate 为 false 时不查询配置；为 true 时才读取最小权限
+current 网关。Client 角色没有配置底表权限，网关异常、非法 schema 或摘要不一致均返回统一
+功能关闭，不泄露数据库错误或配置内容。
 
 **验收：** 严格 schema 与未知字段拒绝；服务端测试证据确定且不可伪造；环境关闭不可被
 配置开启；active `false` 能关闭现有模块；回滚恢复前一已验证版本；Client role 无底表权限。

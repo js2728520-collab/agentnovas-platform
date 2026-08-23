@@ -71,6 +71,24 @@ export function runRegisteredConfigurationFamilyTest(input: ConfigurationFamilyI
   };
 }
 
+export function normalizeRegisteredConfigurationFamilyTestRequest(input: unknown) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new ResearchApiError("CONFIGURATION_FAMILY_TEST_INPUT_INVALID", "确定性测试请求必须是对象", 422);
+  }
+  const value = input as Record<string, unknown>;
+  const extras = Object.keys(value).filter((key) => key !== "reason");
+  const reason = typeof value.reason === "string" ? value.reason.trim() : "";
+  if (extras.length || reason.length < 3 || reason.length > 500) {
+    throw new ResearchApiError(
+      "CONFIGURATION_FAMILY_TEST_INPUT_INVALID",
+      extras.length ? "确定性测试结果和证据只能由服务端生成" : "测试原因长度必须为 3–500 个字符",
+      422,
+      extras.length ? { fields: extras } : undefined,
+    );
+  }
+  return { reason };
+}
+
 export function evaluateRegisteredFeatureFlag(input: { environmentEnabled: boolean; payload: unknown }) {
   if (!input.environmentEnabled) return { enabled: false, reason: "environment_gate_disabled" as const };
   if (input.payload === null) return { enabled: true, reason: "no_active_configuration" as const };

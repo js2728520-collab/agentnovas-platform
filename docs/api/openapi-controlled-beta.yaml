@@ -635,7 +635,7 @@ paths:
   /api/maintenance/configuration-versions/{id}/tests:
     post:
       tags: [Maintenance]
-      summary: 追加配置测试证据
+      summary: 运行注册族确定性测试或追加其他配置族测试证据
       parameters:
         - in: path
           name: id
@@ -647,15 +647,23 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required: [result, evidenceSha256, reason]
-              properties:
-                result: { type: string, enum: [passed, failed] }
-                evidenceSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
-                reason: { type: string, minLength: 3, maxLength: 500 }
+              oneOf:
+                - title: 注册配置族服务端测试请求
+                  type: object
+                  additionalProperties: false
+                  required: [reason]
+                  properties:
+                    reason: { type: string, minLength: 3, maxLength: 500 }
+                - title: 尚未注册配置族人工证据请求
+                  type: object
+                  additionalProperties: false
+                  required: [result, evidenceSha256, reason]
+                  properties:
+                    result: { type: string, enum: [passed, failed] }
+                    evidenceSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+                    reason: { type: string, minLength: 3, maxLength: 500 }
       responses:
-        '201': { description: 最新测试状态已由追加事实投影 }
+        '201': { description: 注册族的服务端确定性结果或人工证据已由追加事实投影；注册族拒绝浏览器指定结果与摘要 }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
   /api/maintenance/configuration-versions/{id}/approval:

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   evaluateRegisteredFeatureFlag,
+  normalizeRegisteredConfigurationFamilyTestRequest,
   runRegisteredConfigurationFamilyTest,
 } from "../lib/configuration-family-registry.ts";
 import { normalizeConfigurationDraft } from "../lib/versioned-configuration-domain.ts";
@@ -45,6 +46,24 @@ test("registered family test evidence is deterministic and bound to the exact pa
   assert.match(first.evidenceSha256, /^[a-f0-9]{64}$/);
   assert.equal(first.testerId, "feature-flag-v1");
   assert.notEqual(first.evidenceSha256, disabled.evidenceSha256);
+});
+
+test("registered family test requests accept only an audited reason", () => {
+  assert.deepEqual(
+    normalizeRegisteredConfigurationFamilyTestRequest({ reason: "  运行策略研究功能开关确定性测试  " }),
+    { reason: "运行策略研究功能开关确定性测试" },
+  );
+  for (const input of [
+    { result: "passed", evidenceSha256: "a".repeat(64), reason: "浏览器伪造测试证据" },
+    { reason: "短" },
+    { reason: "x".repeat(501) },
+    null,
+  ]) {
+    assert.throws(
+      () => normalizeRegisteredConfigurationFamilyTestRequest(input),
+      (error) => error?.code === "CONFIGURATION_FAMILY_TEST_INPUT_INVALID",
+    );
+  }
 });
 
 test("feature flag decisions preserve absence, narrow active capability and fail closed", () => {

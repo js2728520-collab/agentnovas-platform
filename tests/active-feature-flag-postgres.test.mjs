@@ -10,6 +10,7 @@ import {
   scheduleConfigurationVersion,
   testConfigurationVersion,
 } from "../lib/versioned-configuration-service.ts";
+import { runRegisteredConfigurationFamilyTest } from "../lib/configuration-family-registry.ts";
 import { runPostgresMigrations } from "../scripts/postgres-migration-runner.mjs";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
@@ -31,13 +32,16 @@ async function publish(enabled, suffix, now) {
       reason: `创建策略研究全局开关版本 ${suffix}`,
     },
   });
-  await testConfigurationVersion(pool, {
+  const tested = await testConfigurationVersion(pool, {
     versionId: version.id,
     actorUserId: "maker",
     idempotencyKey: `feature-test-${suffix}`,
     requestId: `feature-test-${suffix}`,
-    test: { result: "passed", evidenceSha256: suffix.repeat(64).slice(0, 64), reason: `确定性测试通过 ${suffix}` },
+    test: { reason: `确定性测试通过 ${suffix}` },
   });
+  const expected = runRegisteredConfigurationFamilyTest(version);
+  assert.equal(tested.latestTest?.result, expected.result);
+  assert.equal(tested.latestTest?.evidenceSha256, expected.evidenceSha256);
   await reviewConfigurationVersion(pool, {
     versionId: version.id,
     reviewerUserId: "checker",
@@ -75,6 +79,36 @@ test.before(async () => {
   for (const id of ["maker", "checker", "activator"]) {
     await pool.query(`INSERT INTO users(id,email,password_hash,role,status) VALUES($1,$2,'test-only-hash','hq_admin','active')`, [id, `${id}@quality.invalid`]);
   }
+});
+
+test("registered feature flag rejects browser-supplied test results and evidence", async () => {
+  const version = await createConfigurationVersion(pool, {
+    actorUserId: "maker",
+    idempotencyKey: "feature-create-forged-test",
+    requestId: "feature-create-forged-test",
+    version: {
+      kind: "feature_flag",
+      key: "client.strategy_research",
+      audience: "client",
+      schemaVersion: 1,
+      payload: { enabled: true },
+      reason: "验证浏览器不能伪造功能开关测试证据",
+    },
+  });
+  await assert.rejects(
+    testConfigurationVersion(pool, {
+      versionId: version.id,
+      actorUserId: "maker",
+      idempotencyKey: "feature-forged-test-evidence",
+      requestId: "feature-forged-test-evidence",
+      test: {
+        result: "passed",
+        evidenceSha256: "f".repeat(64),
+        reason: "尝试从浏览器提交伪造的测试证据",
+      },
+    }),
+    (error) => error?.code === "CONFIGURATION_FAMILY_TEST_INPUT_INVALID",
+  );
 });
 
 test.after(async () => {

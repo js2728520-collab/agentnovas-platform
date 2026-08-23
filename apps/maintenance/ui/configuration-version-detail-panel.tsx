@@ -9,7 +9,7 @@ import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/i
 import { StatusBadge } from "@/packages/ui/src/page-state";
 import { changedTopLevelKeys, defaultScheduleLocal, localDateTimeWithOffset, offsetForLocalDateTime, shortHash } from "./configuration-version-ui";
 
-export function ConfigurationVersionDetailPanel({ version, current, currentUserId, canManage, canApprove, canActivate, busy, onTest, onReview, onSchedule, onActivation }: {
+export function ConfigurationVersionDetailPanel({ version, current, currentUserId, canManage, canApprove, canActivate, busy, onTest, onRegisteredTest, onReview, onSchedule, onActivation }: {
   version: ConfigurationVersion;
   current: ConfigurationVersion | null;
   currentUserId: string;
@@ -18,6 +18,7 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
   canActivate: boolean;
   busy: boolean;
   onTest: (result: ConfigurationTestResult, evidenceSha256: string, reason: string) => Promise<void>;
+  onRegisteredTest: (reason: string) => Promise<void>;
   onReview: (decision: ConfigurationApprovalDecision, reason: string) => Promise<void>;
   onSchedule: (scheduledFor: string, reason: string) => Promise<void>;
   onActivation: (action: ConfigurationActivationAction, reason: string) => Promise<void>;
@@ -41,6 +42,10 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
   const independentlyReviewable = version.createdByUserId !== currentUserId;
   const testPassed = version.latestTest?.result === "passed";
   const due = version.schedule ? new Date(version.schedule.scheduledFor).getTime() <= referenceNow : false;
+  const registeredFeatureFlag = version.kind === "feature_flag"
+    && version.key === "client.strategy_research"
+    && version.audience === "client"
+    && version.schemaVersion === 1;
 
   return <section className="rc-panel">
     <header><div><small>SELECTED CONFIGURATION</small><h2>{version.key} · v{version.versionNumber}</h2></div><StatusBadge value={version.status} /></header>
@@ -56,12 +61,17 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
     </dl>
     <details><summary>查看不可变 payload</summary><pre className="rc-config-payload"><code>{JSON.stringify(version.payload, null, 2)}</code></pre></details>
 
-    {canManage && !version.approval ? <div className="rc-form rc-form-grid rc-config-action-block">
-      <label>测试结果<select value={testResult} onChange={(event) => setTestResult(event.target.value as ConfigurationTestResult)}><option value="passed">passed</option><option value="failed">failed</option></select></label>
-      <label>测试证据 SHA-256<input spellCheck={false} maxLength={64} value={evidence} onChange={(event) => setEvidence(event.target.value.toLowerCase())} /></label>
-      <InlineAuditReasonField id={`configuration-test-reason-${version.id}`} value={testReason} onChange={setTestReason} label="测试登记原因" hint="这里只登记外部测试产生的证据，不会从浏览器执行自动测试。" />
-      <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || evidence.length !== 64 || !hasValidAuditReason(testReason)} onClick={() => void onTest(testResult, evidence, testReason).then(() => setTestReason("")).catch(() => undefined)}>{busy ? "正在登记…" : "登记测试证据"}</button></div>
-    </div> : null}
+    {canManage && !version.approval ? registeredFeatureFlag
+      ? <div className="rc-form rc-form-grid rc-config-action-block">
+        <InlineAuditReasonField id={`configuration-test-reason-${version.id}`} value={testReason} onChange={setTestReason} label="确定性测试原因" hint="结果与证据 SHA-256 均由服务端根据不可变 payload 生成，浏览器不能指定。" />
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(testReason)} onClick={() => void onRegisteredTest(testReason).then(() => setTestReason("")).catch(() => undefined)}>{busy ? "正在测试…" : "运行确定性测试"}</button></div>
+      </div>
+      : <div className="rc-form rc-form-grid rc-config-action-block">
+        <label>测试结果<select value={testResult} onChange={(event) => setTestResult(event.target.value as ConfigurationTestResult)}><option value="passed">passed</option><option value="failed">failed</option></select></label>
+        <label>测试证据 SHA-256<input spellCheck={false} maxLength={64} value={evidence} onChange={(event) => setEvidence(event.target.value.toLowerCase())} /></label>
+        <InlineAuditReasonField id={`configuration-test-reason-${version.id}`} value={testReason} onChange={setTestReason} label="测试登记原因" hint="这里只登记外部测试产生的证据，不会从浏览器执行自动测试。" />
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || evidence.length !== 64 || !hasValidAuditReason(testReason)} onClick={() => void onTest(testResult, evidence, testReason).then(() => setTestReason("")).catch(() => undefined)}>{busy ? "正在登记…" : "登记测试证据"}</button></div>
+      </div> : null}
 
     {!version.approval && testPassed && canApprove ? <div className="rc-form rc-form-grid rc-config-action-block">
       {!independentlyReviewable ? <p className="rc-muted rc-wide-field">创建者不能审批自己的配置版本，请由另一名具备审批权限的人员处理。</p> : <>
@@ -78,7 +88,7 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
     </div> : null}
 
     {canActivate && version.schedule && !version.isCurrent ? <div className="rc-form rc-form-grid rc-config-action-block">
-      <InlineAuditReasonField id={`configuration-activation-reason-${version.id}`} value={activationReason} onChange={setActivationReason} label="激活原因" hint="到达计划时间后会直接改变控制面 current；当前不会改变具体运行时行为。" />
+      <InlineAuditReasonField id={`configuration-activation-reason-${version.id}`} value={activationReason} onChange={setActivationReason} label="激活原因" hint={registeredFeatureFlag ? "到达计划时间后会改变 current；策略研究入口从下一次请求开始按环境 Gate 与该版本共同判定。" : "到达计划时间后会直接改变控制面 current；尚未接入运行时的配置族不会改变具体行为。"} />
       <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !due || !hasValidAuditReason(activationReason)} onClick={() => void onActivation("activate", activationReason).then(() => setActivationReason("")).catch(() => undefined)}>{due ? "立即激活" : "尚未到计划时间"}</button></div>
     </div> : null}
     {canActivate && version.status === "superseded" ? <div className="rc-form rc-form-grid rc-config-action-block">
