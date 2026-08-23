@@ -30,6 +30,11 @@
 - 显示 provider、更新时间、延迟、stale 与切换状态。
 - 陈旧行情明确警告；自动策略暂停新开仓。
 
+实施状态（2026-08-24）：当前 instruments API 已在保持旧字段兼容的同时增加 contract v1、
+四个当前市场、canonical instrument ID、market/calendar/capability 与公共 provider symbol 映射；
+当前能力明确为 REST、display/research、display-only。Client UI 尚未消费新元数据，A/HK/KR/JP、
+provider 选择、WebSocket、延迟展示和主备切换仍属于后续 T2.2–T2.4。
+
 ## 4. AI 助手
 
 - 移除观察名单、分析标的选择和旧 8 卡片。

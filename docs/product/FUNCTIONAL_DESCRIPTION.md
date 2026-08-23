@@ -239,6 +239,8 @@ Credits 是 AI 使用额度，不是 USDT、现金、Paper 本金或交易所余
 - 策略大厅展示官方策略、七阶段状态和真实记录入口；
 - Agent 对话提供持久化会话、结构化回复和策略草稿保存；
 - 行情页读取当前市场报价、K 线、关注列表和外部新闻可用性，不以静态 fallback 冒充实时行情；
+  instruments API 已加法式返回 contract v1、四个当前市场和 canonical/provider symbol 元数据，
+  旧字段保持兼容，公共源只声明展示/研究用途且不具备 execution eligibility；
 - 交易中心复用官方 Paper 组合与成交体验，不连接客户交易所；
 - 会员和账号安全入口复用当前服务端权益及身份状态；
 - 持久化 AI 对话和消息历史；

@@ -72,7 +72,7 @@
 
 ### T0.3：生成 Current → V3 代码能力矩阵
 
-**状态：** 已完成。矩阵基于 `8d72b94` 盘点 203 个 route 文件、268 个 method route、72 个页面 pattern、73 个迁移的最终 PostgreSQL catalog、7 个后台进程和测试目录 269 个文件（267 个可执行 test/spec、2 个支持模块）；P-01–P-12 未决项继续明确标为 `BLOCKED`，不影响盘点完成，也不解除下游 Gate。
+**状态：** 已完成。矩阵已同步到 `7279688`：203 个 route 文件、268 个 method route、72 个页面 pattern、73 个迁移的最终 PostgreSQL catalog、7 个后台进程和测试目录 270 个文件（268 个可执行 test/spec、2 个支持模块）；P-01–P-12 未决项继续明确标为 `BLOCKED`，不影响盘点完成，也不解除下游 Gate。
 
 **描述：** 对 route、DB、页面、Worker、Execution Service 和测试逐项标记 `CURRENT/PARTIAL/TARGET/BLOCKED/RETIRED`。
 
@@ -181,8 +181,8 @@
 
 **描述：** 定义市场、供应商能力、symbol 映射、时区、交易日历、K 线和授权元数据。
 
-**状态：** 正在进行。`docs/specs/MARKET_DATA_CONTRACT_SPEC.md` 已冻结 T2.1a/T2.1b 的
-provider 独立合同、API 兼容和新鲜度安全边界；真实 provider 注册仍等待 P-01/P-03。
+**状态：** `PARTIAL_CURRENT`。T2.1a/T2.1b 已完成 provider 独立合同、API 兼容和
+新鲜度安全边界；T2.1c 真实 provider 注册仍等待 P-01/P-03，因此 T2.1 总任务保持进行中。
 
 **子任务：**
 
@@ -195,6 +195,14 @@ provider 独立合同、API 兼容和新鲜度安全边界；真实 provider 注
 **验证：** contract/schema tests、当前 provider fixture、日期/时区/sequence/latency/stale 边界。
 **依赖：** T2.1a/T2.1b 只依赖已确认 PRD；T2.1c 依赖 P-01/P-03。
 **规模：** M。
+
+**实施证据（2026-08-24）：** 9 项纯合同、7 项目录/API 和 6 项既有行情定向回归通过；
+`npm test` 1348/1348、TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、secret scan
+与 production dependency audit 全通过。`ssh an-saas` 的 Node 22.21.1 精确提交快照完成
+Client 68、Operations 62、Maintenance 51 页 production build，并以真实 nginx 1.29.8
+完成配置语法检查。API 为纯加法且现有 UI 不消费新字段，本切片按规格不触发视觉专项；三端
+空浏览器登录仍以本轮此前同分支 18/18 production Chromium 证据为阶段 Gate，后续 UI 消费
+新合同时必须在当前产物重跑。
 
 ### T2.2：实时流、stale 与主备切换
 

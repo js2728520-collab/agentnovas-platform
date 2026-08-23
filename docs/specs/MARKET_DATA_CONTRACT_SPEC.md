@@ -1,6 +1,6 @@
 # 多市场行情统一合同规格
 
-状态：`TARGET/PARTIAL_CURRENT`；T2.1a/T2.1b 为当前实施切片，真实供应商接入与主备切换仍受 P-01/P-03 阻断
+状态：`TARGET/PARTIAL_CURRENT`；T2.1a/T2.1b 已实现，真实供应商接入与主备切换仍受 P-01/P-03 和后续 Gate 阻断
 日期：2026-08-24
 上位真源：`../product/PRD.md` 第 6 节；`V3_SYSTEM_TARGET_SPEC.md` 第 5 节；ADR-0021；需求方确认书 V1.1
 
@@ -174,7 +174,7 @@ const quality = evaluateMarketDataFreshness({
 - 全量：`npm test`
 - 类型：`./node_modules/.bin/tsc --noEmit`
 - Lint：`npm run lint`
-- 架构/安全：`npm run quality:all && npm run quality:secret-scan && npm audit --omit=dev --audit-level=high`
+- 架构/安全：`npm run quality:boundaries && npm run quality:key-custody && npm run quality:nginx && npm run quality:secret-scan && npm audit --omit=dev --audit-level=high`
 - 三端 production build：只在 `ssh an-saas` 的 Node 22.21+ 隔离目录执行。
 - 浏览器：若本切片改变 Client 可见 UI，则使用本地 production standalone + 真实 Chromium 回归 `/market` 和三端空浏览器登录；纯 API 加法且 UI 未消费时记录为不触发 UI 专项，但三端登录 Gate 在完整阶段收口时仍强制执行。
 
@@ -204,3 +204,22 @@ const quality = evaluateMarketDataFreshness({
 - 定向、全量、TypeScript、Lint、架构、安全与云端三端构建通过。
 
 T2.1a/T2.1b 完成只把 M-01 提升为 `CURRENT` 的合同底座；真实 provider、WebSocket、主备切换和 G2 仍分别属于后续任务。
+
+## 9. T2.1a/T2.1b 实施结果
+
+2026-08-24 已完成 provider 独立公共类型、严格 market/provider normalizer、版本化事件 envelope
+和服务端新鲜度派生。未知字段、重复能力、非 IANA 时区、不规范 ID/sequence、无界数组、非法
+目标阈值和浏览器伪造 `quality/canOpenPosition` 均在边界拒绝；非法、超延迟或 stale 行情只会
+得到 `canOpenPosition=false`。这是新开仓资格的必要条件，不替代 Runtime 风控或 named live Gate。
+
+当前 40 个静态标的映射为 `crypto-global/equities-us/forex-global/metals-global` 四个当前市场，
+只声明 REST、display/research 和 `display_only`。公共 Binance/Yahoo 映射使用稳定 provider ID，
+不声明生产授权、WebSocket 或 execution。A/HK/KR/JP 只保留类型 taxonomy，没有在当前 API
+虚构 provider、市场或标的。
+
+`GET /api/market/instruments` 保留既有 `instruments/updatedAt/source` 字段和值，并加法式增加
+`contractVersion/markets` 及 instrument canonical 元数据；现有 Client 继续读取原字段。定向
+22/22、全量 1348/1348、TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、secret scan、
+production dependency audit 和云端三端 production build 均通过。云端真实 nginx 语法通过；
+已知 `listen ... http2` 兼容警告按现有脚本保留。本切片没有 UI 消费变化，按第 6 节不单独重跑
+视觉专项；未启动服务、未迁移数据库、未推送、未部署。

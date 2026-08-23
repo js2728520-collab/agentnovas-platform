@@ -47,8 +47,8 @@
 ## Phase 2：多市场行情
 
 - [-] 2.1 provider/market/symbol/calendar/capability 合同。
-  - [-] 2.1a provider 独立值类型、严格校验和行情新鲜度安全派生。
-  - [ ] 2.1b 当前行情目录与 instruments API 加法式兼容升级。
+  - [x] 2.1a provider 独立值类型、严格校验和行情新鲜度安全派生。
+  - [x] 2.1b 当前行情目录与 instruments API 加法式兼容升级。
   - [!] 2.1c 真实 provider/授权/优先级注册，等待 P-01/P-03。
 - [ ] 2.2 WebSocket sequence、延迟、stale、重连和缓存。
 - [ ] 2.3 主备源切换和价格/时间/完整性校验。

@@ -130,7 +130,7 @@
 | `/api/exchange-accounts` | GET, POST | C | DISABLED/BETA；客户密钥与连接状态不可达 |
 | `/api/integrations/catalog` | GET | C | DISABLED/BETA；不向 Client 暴露环境变量名称或平台配置状态，运维使用专用安全投影 |
 | `/api/market/candles` | GET | C | KEEP；缓存、数据质量 |
-| `/api/market/instruments` | GET | C | KEEP；现货/永续产品类型明确 |
+| `/api/market/instruments` | GET | C | KEEP/CURRENT；contract v1 加法式返回四个当前市场、canonical instrument 与公共 provider symbol 映射，保留旧字段；不声明 WebSocket、生产授权或 execution |
 | `/api/market/news` | GET | C | KEEP |
 | `/api/market/quote` | GET | C | KEEP |
 | `/api/market/ticker` | GET | C | KEEP |

@@ -2450,3 +2450,35 @@ PostgreSQL、MFA 关闭、外部写入全禁用运行真实 Chromium，最终 18
 standalone 完成有效验收。质量 schema、运行时密钥、3740–3742 端口、下载产物及云端
 `/tmp/agentnovas-ff2-build-1Mlb23` 均已清理，本机原构建缓存已恢复。未启动远端服务、未执行
 生产迁移、未接触生产数据库、未推送、未部署。
+
+## 66. 2026-08-24 T2.1a/T2.1b 多市场统一合同与当前目录
+
+T2.1a 已新增 provider 独立的 market/provider/calendar/capability 公共合同、严格 normalizer、
+版本化事件 envelope 和服务端行情新鲜度派生。ID、枚举、IANA timezone、UTC timestamp、
+sequence、数组数量和目标阈值均受限；未知字段和重复值失败关闭。`quality/canOpenPosition` 不接受
+浏览器输入：时间非法、超过声明的 latency 目标或达到 stale 阈值时均不能获得自动新开仓资格。
+这只是确定性安全输入，不代表 Runtime/live Gate 已通过，也不影响安全平仓的独立规则。
+
+T2.1b 把当前 40 个静态标的映射为 crypto-global、equities-us、forex-global 和 metals-global
+四个当前市场，提供 canonical instrument ID、market、asset class、quote currency 和公共
+provider symbol mapping。当前只声明 REST、display/research、display-only；没有把现有页面请求
+冒充 WebSocket，也没有虚构 A/HK/KR/JP provider、授权或标的。`GET /api/market/instruments` 采用
+加法式 contract v1，保留旧 `instruments/updatedAt/source` 和每个 instrument 原字段，当前
+Client 因而无需迁移即可继续运行。
+
+TDD 先后观察到合同模块不存在和目录模块不存在的预期 RED；安全审计补充了超长 ID、sequence、
+timezone 与大数组滥用边界；最终复核又以 RED 抓到从展示 label 猜 canonical 元数据的规格违约，
+改为 40 条显式 metadata 清单和缺项/重复检查。最终 22 项行情定向测试、`npm test` 1348/1348、TypeScript、全仓
+ESLint、8 条架构边界、三端 key-custody、secret scan 与 production dependency audit 0 均通过。
+本机无 Docker 时 nginx Gate 明确失败，随后在 `ssh an-saas` 用真实 Docker daemon 和
+nginx 1.29.8 补跑通过；`listen ... http2` 为脚本记录的兼容警告。
+
+云端构建使用提交 `7279688`、tree `ce86c1f789286e041cd0a03614336b6e78f6487f` 的 3066 文件
+Git 快照，归档 SHA-256 为 `a61e7b68d68a5d068b64938280632645d946a9b5701f393416ed555f02a99da7`。
+Node 22.21.1 容器完成 Client 68、Operations 62、Maintenance 51 页 production build；云端
+production-only audit 同样为 0。API 为纯加法且 UI 未消费新字段，按规格没有重跑视觉专项；
+本轮同分支此前 production Chromium 18/18 已覆盖三端空浏览器登录，未来 UI 消费新合同时必须
+在当前产物重跑。两处用户本地改动哈希保持
+`845633aa0d007944dfc3aeb7fc3eef2c53d487f1` 和
+`fdb1530dda87b024e5088471eaa99122d394acfb`，未纳入任何提交。所有本地/远端临时目录已清理；
+未启动服务、未执行迁移、未接触生产数据库、未推送、未部署。

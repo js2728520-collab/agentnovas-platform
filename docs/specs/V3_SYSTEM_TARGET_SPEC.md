@@ -77,6 +77,12 @@ Operations UI 不提供组织树。数据库仍保存 organization、organizatio
 - 陈旧数据不得触发新开仓。
 - 行情事件携带 provider、exchange time、receive time、sequence 和 stale 状态。
 
+实施快照（2026-08-24）：T2.1a/T2.1b 已提供 provider 独立 market/provider/calendar/capability
+合同、严格事件 envelope、新鲜度与 `canOpenPosition` 服务端派生，以及当前四市场/40 标的的
+加法式 instruments API。当前公共源只标记 display/research 和 display-only，不声明 WebSocket、
+生产授权或 execution。真实 provider 注册、账户/策略偏好、主备切换和 Runtime stale 接线仍未
+完成，本节整体保持 `PARTIAL/TARGET`，G2 未解锁。
+
 ## 6. AI、策略和确定性内核
 
 LLM 负责对话、需求结构化、候选策略、解释和反方意见。确定性代码负责 DSL 验证、数据规范化、回测、评分、准入、风险、仓位、费用、订单意图和状态转换。
