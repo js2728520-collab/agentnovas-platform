@@ -2482,3 +2482,21 @@ production-only audit 同样为 0。API 为纯加法且 UI 未消费新字段，
 `845633aa0d007944dfc3aeb7fc3eef2c53d487f1` 和
 `fdb1530dda87b024e5088471eaa99122d394acfb`，未纳入任何提交。所有本地/远端临时目录已清理；
 未启动服务、未执行迁移、未接触生产数据库、未推送、未部署。
+
+## 67. 2026-08-24 T2.2a provider 独立行情流状态机
+
+T2.2a 在 `packages/contracts` 增加无 I/O 的行情流状态机。sequence 以最多 128 位 canonical
+十进制字符串保存并用 `BigInt` 比较；cursor scope 固定为 provider/market/instrument，重复、乱序
+或 scope mismatch 都不会推进 cursor，也不接受浏览器附加 reset 字段。cache 按调用方提供的 UTC
+时间和 stale 阈值派生，达到阈值后只允许展示并明确禁止新开仓；非法时间或超过五秒的未来时间
+失败关闭。连接状态只由服务端输入派生为 connecting/live/stale/reconnecting/offline/invalid，
+重连退避从 250ms 指数增长到 10 秒封顶。10 秒不是已验证恢复承诺，fresh 也只是 Runtime admission
+的必要条件，不替代后续确定性风险 Gate。
+
+TDD 覆盖任意精度 sequence、重复/乱序、scope 变化、canonical 输入、stale 等号边界、未来时间、
+六种连接状态和退避上限，共新增 9 项测试。代码提交 `839f0e1` 后，全量 `npm test` 1357/1357、
+TypeScript、全仓 ESLint、8 条架构边界、repository secret scan 与 production dependency audit
+均通过。本切片没有真实 WebSocket/provider adapter、网络、数据库或 UI 变化，因此没有单独运行
+浏览器或云端 build；T2.1 的精确提交云端构建仍是前一可部署证据，实际 adapter/UI 消费时必须
+重跑三端 production build、登录和行情故障注入 Gate。两处用户本地改动继续未纳入提交；未启动
+远端服务、未迁移数据库、未推送、未部署。

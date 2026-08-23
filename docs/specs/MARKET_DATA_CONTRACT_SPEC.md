@@ -240,3 +240,9 @@ T2.2a 只定义纯 sequence、连接、新鲜度、重连和缓存判定，不�
 
 完成标准：纯函数没有 I/O/时钟读取；所有时间由调用方传入；覆盖大整数、重复、乱序、scope、
 阈值等号、未来时间、重连上限和 stale cache。T2.2a 完成不代表 WebSocket、主备或 G2 完成。
+
+实施结果（2026-08-24）：`packages/contracts/src/market-stream.ts` 已提供 sequence cursor、cache
+使用资格、连接状态和确定性重连退避。`streamFreshEnoughForAdmission` 只是进入 Runtime 风险 Gate
+的必要条件，不是开仓授权；调用方仍必须执行策略、账户、行情质量和风险检查。9 项定向测试、
+全量 1357/1357 及本地质量门禁通过。该实现没有 socket/provider adapter、网络 I/O、数据库或 UI
+变化，未声称达到 ≤500ms、10 秒实际恢复、主备切换或 G2。

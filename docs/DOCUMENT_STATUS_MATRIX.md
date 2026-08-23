@@ -28,7 +28,7 @@
 | `specs/V3_OPERATIONS_APP_TARGET_SPEC.md` | `TARGET_TRUTH` | Operations 目标规格 |
 | `specs/V3_MAINTENANCE_APP_TARGET_SPEC.md` | `TARGET_TRUTH` | Maintenance 目标规格 |
 | `specs/VERSIONED_CONFIGURATION_FRAMEWORK_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T3.1 通用发布合同；T3.1a 数据/API、T3.1b 工作台/Worker、T3.1c-FF1 全局与 FF2 定向功能开关已实现，其余配置族未完成 |
-| `specs/MARKET_DATA_CONTRACT_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.1a/T2.1b 合同、新鲜度安全派生和当前四市场兼容 API 已实现；真实 provider、WebSocket、主备与偏好等待后续任务/P-01/P-03 |
+| `specs/MARKET_DATA_CONTRACT_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.1a/T2.1b 合同、当前四市场兼容 API与 T2.2a 纯行情流状态机已实现；真实 provider/WebSocket adapter、主备与偏好等待后续任务/P-01/P-03 |
 | `quality/FULL_PLATFORM_V3_GATES.md` | `TARGET_TRUTH` | 分能力验收和发布门禁 |
 | `roadmap/FULL_PLATFORM_V3_ROADMAP.md` | `TARGET_TRUTH` | 分阶段升级顺序 |
 | `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md` | `TARGET_TRUTH` | 当前基础与 V3 差距 |

@@ -79,7 +79,8 @@ Operations UI 不提供组织树。数据库仍保存 organization、organizatio
 
 实施快照（2026-08-24）：T2.1a/T2.1b 已提供 provider 独立 market/provider/calendar/capability
 合同、严格事件 envelope、新鲜度与 `canOpenPosition` 服务端派生，以及当前四市场/40 标的的
-加法式 instruments API。当前公共源只标记 display/research 和 display-only，不声明 WebSocket、
+加法式 instruments API。provider 独立的 sequence、连接、新鲜度、重连退避和 stale cache
+纯状态机已实现，但尚未接入真实数据源。当前公共源只标记 display/research 和 display-only，不声明 WebSocket、
 生产授权或 execution。真实 provider 注册、账户/策略偏好、主备切换和 Runtime stale 接线仍未
 完成，本节整体保持 `PARTIAL/TARGET`，G2 未解锁。
 

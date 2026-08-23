@@ -208,7 +208,7 @@ Client 68、Operations 62、Maintenance 51 页 production build，并以真实 n
 
 **描述：** 实现 WebSocket 聚合、sequence、延迟、断线重连、缓存和切换校验。
 
-**状态：** 正在进行。T2.2a 先实现无 I/O 的 sequence/连接/重连/缓存状态机；真实 adapter、
+**状态：** 部分完成。T2.2a 无 I/O 的 sequence/连接/重连/缓存状态机已实现；真实 adapter、
 provider sequence reset 规则、容量和主备切换等待 P-01/P-03 与供应商 fixture。
 
 **子任务：**
@@ -222,6 +222,11 @@ provider sequence reset 规则、容量和主备切换等待 P-01/P-03 与供应
 **验证：** 压测、乱序/断线/偏差故障注入、Runtime admission test。
 **依赖：** T2.1。
 **规模：** M（按 provider 拆分）。
+
+**T2.2a 实施证据（2026-08-24）：** 新增 9 项状态机测试并完成全量 1357/1357、TypeScript、
+全仓 ESLint、8 条架构边界、secret scan 和 production dependency audit。实现为纯合同函数，
+不读取系统时钟、不建立网络连接、不改变 UI 或数据库；因此本切片不单独触发浏览器和云端构建，
+沿用 T2.1 精确提交云端构建作为前一可部署基线，待实际 adapter/UI 消费时重跑三端完整 Gate。
 
 ### T2.3：加密行情源选择
 
