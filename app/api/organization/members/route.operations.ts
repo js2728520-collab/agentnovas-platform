@@ -7,6 +7,7 @@ import { canAccessCustomerAttribution, canAccessOrganization } from "@/lib/opera
 import { encryptNotificationToken } from "@/lib/notification-secrets";
 import { provisionInternalMember } from "@/lib/internal-member-provisioning";
 import { canManuallyActivateMember, childRole, roleLabels } from "@/lib/permissions";
+import { checkOrganizationName } from "@/packages/domain/src/organization-provisioning";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError } from "@/lib/research-api";
 import { responseError } from "@/lib/session";
@@ -171,9 +172,16 @@ async function relationshipTree(request: Request) {
     });
   }
 
+  const nextRole = childRole[actor.role];
+
   return Response.json({
     rootId,
     scope: actor.role,
+    // 邀请下一级会创建谁，由后端的 childRole 决定，不接受前端自选。
+    // 但界面需要知道结果：创建 branch_admin 会顺带建一个分公司，名称必填；
+    // 其余角色不建组织，那个输入框不该出现。
+    nextRole: nextRole ?? null,
+    nextRoleLabel: nextRole ? roleLabels[nextRole] ?? nextRole : null,
     nodes,
     summary: {
       organizations: new Set(nodes.filter(node => node.organizationId).map(node => node.organizationId)).size,
@@ -216,6 +224,11 @@ export async function POST(request: Request) {
     if (!["branch_admin", "manager", "supervisor", "employee", "finance", "auditor", "hq_support", "tech_staff"].includes(role)) {
       return Response.json({ error: "目标内部角色不受支持" }, { status: 403 });
     }
+    const nameCheck = checkOrganizationName(role, body.name);
+    if (!nameCheck.ok) {
+      return Response.json({ code: nameCheck.code, error: nameCheck.message }, { status: 422 });
+    }
+
     const db = getDb();
     if ((await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1))[0]) {
       return Response.json({ error: "邮箱已存在" }, { status: 409 });
@@ -240,7 +253,8 @@ export async function POST(request: Request) {
       passwordHash: await hashPassword(disabledCredential),
       role: role as Parameters<typeof provisionInternalMember>[1]["role"],
       organizationId,
-      organizationName: typeof body.name === "string" ? body.name : undefined,
+      // 已去空白并校验过长度；不建组织的角色这里是 undefined。
+      organizationName: nameCheck.name ?? undefined,
       reportsToUserId: actor.id,
       activationTokenHash: await sha256(activationToken),
       encryptedNotificationToken: encryptedToken,
