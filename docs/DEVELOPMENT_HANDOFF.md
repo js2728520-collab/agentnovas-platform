@@ -2359,3 +2359,35 @@ module-not-found，确认快照不完整后作废，最终以文件数和关键 
 与 HTTP Gate 同批通过。验收还修复了 Playwright teardown 竞态：只在主动关闭隔离上下文后忽略
 已被浏览器处理的 route；运行期错误仍 fail-fast。质量 schema、运行时 secret、3410–3412 端口
 和两处远端临时目录已清理。未启动远端服务、未迁移生产数据库、未推送、未部署。
+
+## 63. 2026-08-24 G1 本地 MFA 完整专项与 Client 密码重置修复
+
+G1 本地 MFA 缺口已经收口，但正式生产 Gate 仍保持未通过。扩展后的
+`test:e2e:mfa-on` 在外部写入全关闭、一次性 PostgreSQL schema 和真实 Chromium 中 3/3
+通过：Client 主动绑定后分别使用恢复码和密码重置后的 TOTP 登录；Operations 首次绑定、TOTP、
+密码重置后 primary-only Session、旧会话撤销和恢复码登录通过；Operations/Maintenance 把精确
+Session 的 `mfa_verified_at` 回退到 16 分钟后，敏感权限 API 均返回
+`RECENT_MFA_REQUIRED`，普通 Session 仍存在。
+
+专项最初实际复现 Client `/api/auth/reset-password` 500。完整迁移链回归定位为迁移 0040 的
+`client_consume_password_reset` 返回列 `user_id` 与函数内未限定 `WHERE user_id=...` 在
+PL/pgSQL 中歧义（PostgreSQL 42702）。没有改写历史迁移；新增前向迁移 0072 对所有可变表列加
+别名限定，重新固定 `pg_catalog` 优先的 `search_path`、撤销 PUBLIC/其他角色并只向
+`agentnovas_client_web` 收敛执行权限。完整迁移链测试验证 token 单次消费、密码更新、Session
+撤销和带 `row_hash` 的 `auth.password_reset` 审计。重置页同时兼容字符串与结构化安全错误，
+避免把错误对象直接交给 React 渲染。
+
+新增 `test:e2e:mfa-rollout` 使用同一隔离 schema 依次以 `true → false → true` 重启 Client、
+Operations、Maintenance。9 条旅程证明关闭时三端可直接登录，重新开启后关闭期签发的无 MFA
+Session 不能继续认证，三份 TOTP 凭据未被删除且仍可完成挑战。最终证据记录
+`offSessionsRejectedAfterReenable=true`、`activeCredentialsPreserved=3`；schema、运行时凭据和
+3610–3612 端口均已清理。当前完整门禁为 `npm test` 1329/1329、TypeScript、ESLint、8 条
+架构边界、secret scan、production dependency audit 与本地三端 production build 全通过。
+正式生产仍必须三端同步开启并在目标环境执行相同专项、真实邮件与批准的变更/回滚流程。
+
+云端构建使用本次精确暂存树 `0c30fa095ac98e4995a10d82d91020e565f871b0`，归档包含 3062 个
+文件；归档、迁移 0072 和重置页 SHA 在本地与 `ssh an-saas` 一致。Node 22.21.1 容器内
+`npm ci` 后 Client 68 页、Operations 62 页、Maintenance 51 页 production build 全部成功。
+云端 `npm ci` 报告的 17 项为开发依赖审计结果；本地 `npm audit --omit=dev --audit-level=high`
+为 0。远端 `/tmp/agentnovas-mfa-build-BvKxAg` 与本地临时归档已删除并复核不存在；未启动服务、
+未执行迁移、未接触生产数据库、未推送、未部署。

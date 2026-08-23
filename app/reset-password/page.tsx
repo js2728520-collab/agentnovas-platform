@@ -31,8 +31,9 @@ export default function ResetPasswordPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ token, password }),
     });
-    const result = await response.json() as { error?: string };
-    setMessage(response.ok ? "密码已更新，请返回登录。" : result.error || "重置链接无效或已过期");
+    const result = await response.json() as { error?: string | { message?: string } };
+    const errorMessage = typeof result.error === "string" ? result.error : result.error?.message;
+    setMessage(response.ok ? "密码已更新，请返回登录。" : errorMessage || "重置链接无效或已过期");
   }
   return <main style={{ maxWidth: 460, margin: "80px auto", padding: 24 }}>
     <h1>重置 Riverton Capital 密码</h1>

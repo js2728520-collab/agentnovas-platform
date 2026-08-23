@@ -143,12 +143,12 @@
 
 ### T1.5：MFA 分阶段强制开关
 
-**状态：** 已完成实现；本地关闭态 18/18 与开启态三端登录预检 3/3 已通过，正式生产完整 Gate 仍待。
+**状态：** 已完成实现；本地关闭态 18/18、扩展开启态 3/3 和同一数据库开→关→开 9 旅程均通过，正式生产目标环境 Gate 仍待。
 
 **描述：** 保留 TOTP/recovery 全部能力与数据，通过 fail-closed 服务端开关推迟到正式生产强制。
 
 **验收：** 关闭态不产生 MFA 半会话或死路径；开启态恢复内部首次绑定、已绑定验证和 recent MFA；三端状态一致且可回滚。
-**验证：** 关闭/开启纯函数、PostgreSQL 密码重置、15 场景浏览器关闭态；本地开启态真实 Chromium 已覆盖 Client 主动绑定/TOTP/recovery、Operations 首次绑定/TOTP、Maintenance 首次绑定/recovery。生产前仍需 recent MFA、密码重置、同库回滚与目标环境三端一致性专项。
+**验证：** 关闭/开启纯函数、完整迁移链 PostgreSQL 密码重置、18 场景浏览器关闭态；扩展开启态真实 Chromium 覆盖三端绑定与验证、Client/Operations 密码重置、旧会话撤销、Operations/Maintenance recent MFA 过期；同库专项覆盖三端开→关→开、关闭期直登、重开后旧 Session 拒绝和凭据保留。生产前仅剩目标环境三端一致性与变更回滚证据。
 **依赖：** T1.3/T1.4。
 **涉及：** auth/access-control、MFA API/UI、env、ADR-0023、发布 Gate。
 **规模：** S。

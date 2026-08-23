@@ -19,6 +19,8 @@ This runner creates repeatable release evidence without contacting a payment pro
 ```json
 {
   "test:e2e": "node scripts/quality/run-e2e.mjs",
+  "test:e2e:mfa-on": "node scripts/quality/run-mfa-on-e2e.mjs",
+  "test:e2e:mfa-rollout": "node --experimental-strip-types scripts/quality/run-mfa-rollout-e2e.mjs",
   "test:e2e:direct": "playwright test",
   "quality:bundle": "node scripts/quality/check-next-bundle-budget.mjs",
   "quality:lighthouse": "node scripts/quality/run-lighthouse.mjs",
@@ -41,6 +43,8 @@ Run the gates in this order:
 ```text
 node --test tests/e2e/*.unit.test.mjs tests/e2e/*.postgres.test.mjs
 npm run test:e2e
+npm run test:e2e:mfa-on
+npm run test:e2e:mfa-rollout
 npm run quality:bundle
 npm run quality:lighthouse
 npm run quality:release
@@ -50,12 +54,12 @@ The browser run uses one disposable `quality_e2e_*` PostgreSQL schema. It migrat
 
 All external-effect switches are forced off, including `PAYMENT_PROVIDER_TESTS_ENABLED`, `PLATFORM_DEMO_VERIFICATION_ENABLED`, and `PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED`. Provider credentials are scrubbed from the child environment, and Playwright requests are aborted unless their URL is loopback or one of the three official app hosts. Playwright maps exact official HTTPS hosts to the matching loopback server while preserving the upstream Host and secure audience Cookie. Lighthouse uses a loopback audit URL so local TLS cannot create false failures, but its runner-owned proxy rewrites the upstream Host to the official Client audience and permits only exact read-only loopback traffic; every other host, method, or tunnel is rejected. Service workers are blocked, and the application server process receives a dead local proxy for all other traffic. No payment, notification, research, runtime, or Demo worker is started.
 
-`MFA_ENFORCEMENT_ENABLED` is also forced to `false` so this evidence matches the current rollout policy. Production enablement uses the separate ADR-0023 MFA-on gate.
+The canonical `test:e2e` run forces `MFA_ENFORCEMENT_ENABLED=false` so it matches the current rollout policy. `test:e2e:mfa-on` uses a separate disposable schema for the enabled-state login, reset and recent-MFA path. `test:e2e:mfa-rollout` restarts all three standalone applications against one disposable schema through `true → false → true`; it proves that disabled-state sessions cannot bypass a later re-enable and that credentials remain usable. Production enablement still requires the target-environment ADR-0023 gate.
 
 ## Covered evidence
 
 - strict Host and audience rejection, audience-specific cookie isolation, and production cookie attributes;
-- Operations 当前关闭态密码登录直接进入完整会话，且不出现 MFA 绑定挑战；显式开启态由独立单元/PostgreSQL 合同与正式生产专项 Gate 覆盖；
+- 三端当前关闭态密码登录直接进入完整会话且不出现 MFA 挑战；本地开启态覆盖三端绑定/验证、TOTP/recovery、Client/Operations 密码重置、recent MFA 过期和同库开→关→开；目标环境仍需单独复验；
 - Operations 权限链接浏览器注册、冻结角色/scope、手动作废和旧链接拒绝；
 - Client 五浏览器设备、第六台拒绝、跨上下文全量退出，以及 Email send 关闭时加密 outbox 降级；
 - the synthetic Client order → maker evidence/submit → maker denial → checker approval/replay path;
@@ -91,7 +95,7 @@ The implementation follows the official Playwright guidance for [web servers](ht
 
 - CI `quality-release` job 已集成；基础设施级 egress deny、生产 DNS/TLS 和真实外部 provider smoke 仍由部署环境负责。
 - 当前三端初始 JS/CSS gzip：Client 188,677/9,386 bytes，Operations 185,268/8,704 bytes，Maintenance 185,448/8,704 bytes，均通过 200/50 KiB 预算。
-- 15 个 Playwright 场景使用五个合成身份与四档 viewport，覆盖三端空浏览器表单登录、Host/Cookie audience 隔离、权限链接、五设备/全量退出、会员 maker-checker、Client/Operations/Maintenance 稳定路由、axe 和 console/network；全部通过。
+- 18 个 canonical Playwright 场景使用五个合成身份与四档 viewport，覆盖三端空浏览器表单登录、Host/Cookie audience 隔离、权限链接、五设备/全量退出、会员 maker-checker、Client/Operations/Maintenance 稳定路由、axe 和 console/network；另有 MFA-on 3/3 与同库 rollout 9 旅程全部通过。
 - 最新三次 Lighthouse performance 均为 0.99，accessibility 与 best practices 均为 1.00；LCP 2,221/2,163/2,162 ms，CLS 均为 0，TBT 24/4.2/3.3 ms，全部满足 Gate 预算。登录由 audience Server Component 在导入已认证应用树之前分发，不启动 session 数据树或受保护根路由预取，并关闭登录页未使用字体的 preload。
 - 本机恢复演练已在 2026-08-23 由专用 `agentnovas_migrator` 对 fresh 源库覆盖 63 个迁移和 146 张表；迁移 registry checksum、表集合与逐表行数在恢复前后完全一致，一次性源库、目标库和临时 dump 均已清理，临时 `CREATEDB` 已撤销。`pg_dump --enable-row-security` 在不授予 `BYPASSRLS` 的前提下完整验证 `0043` 的 FORCE RLS。本轮新增范围为 `0044`–`0062`，其中 `0050`–`0053` 是执行对账、熔断、实盘路由与实盘现货部署，`0060`–`0062` 是组合账本的 book 维度、对账手续费与实盘落账；实盘仍由 `isLiveExecutionReady()` 关闭，演练未执行任何真实商户请求或资金操作。该证据只对截至 `0062` 的当前迁移集合有效；新增、改名或 checksum 变化会自动使恢复 Gate 失效，必须重跑演练，不能手工递增文档数字。
 - 本 runner 验证角色模板、Client Web/Auth 攻击矩阵和隔离测试，但不替代目标环境的进程角色 smoke。每次部署仍须从 Client 两条连接及 Operations、Maintenance、各 Worker、payment webhook、migrator 的实际 secret/env 执行 `SELECT current_user` 并保存脱敏结果；不得记录连接串或口令。

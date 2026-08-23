@@ -180,6 +180,19 @@ test("MFA-on preflight has an isolated command, project, output, and expected te
   assert.equal(JSON.parse(packageJson).scripts["test:e2e:mfa-on"], "node scripts/quality/run-mfa-on-e2e.mjs");
 });
 
+test("MFA rollout rehearsal restarts the same isolated database through on-off-on", async () => {
+  const [runner, packageJson] = await Promise.all([
+    readFile(new URL("../../scripts/quality/run-mfa-rollout-e2e.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(runner, /startServers\(repositoryRoot, environment, true\)/);
+  assert.match(runner, /startServers\(repositoryRoot, environment, false\)/);
+  assert.match(runner, /offSessionsRejectedAfterReenable: true/);
+  assert.match(runner, /activeCredentialsPreserved: 3/);
+  assert.match(runner, /cleanupQualityDatabaseFixture/);
+  assert.equal(JSON.parse(packageJson).scripts["test:e2e:mfa-rollout"], "node --experimental-strip-types scripts/quality/run-mfa-rollout-e2e.mjs");
+});
+
 test("quality cleanup removes runtime secrets and records a failed schema drop before rejecting", async () => {
   const outputDirectory = await mkdtemp(join(tmpdir(), "agentnovas-quality-cleanup-"));
   const runtimeDirectory = join(outputDirectory, ".runtime");
