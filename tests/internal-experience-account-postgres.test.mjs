@@ -38,6 +38,11 @@ before(async () => {
       created_at text NOT NULL DEFAULT '2026-01-01T00:00:00.000Z',
       updated_at text NOT NULL DEFAULT '2026-01-01T00:00:00.000Z'
     );
+    CREATE TABLE memberships (
+      id text PRIMARY KEY, customer_id text NOT NULL, plan_code text NOT NULL,
+      status text NOT NULL, max_exchange_accounts integer, max_active_strategies integer,
+      created_at text NOT NULL DEFAULT '2026-01-01T00:00:00.000Z'
+    );
     CREATE TABLE audit_logs (
       id text PRIMARY KEY, actor_user_id text, action text NOT NULL,
       subject_type text NOT NULL, subject_id text NOT NULL,
@@ -123,8 +128,41 @@ test("失败时不留下半个账号", async () => {
   assert.deepEqual(orphans.rows, []);
 });
 
+test("体验账号带一条待开通的试用会员", async () => {
+  // 不建这一条，登进客户端会是空的：三张 paper 组合由首次登录时的
+  // activatePendingInvitationTrial 创建，而它只认 pending 状态的 trial 会员。
+  const row = (await pool.query("SELECT plan_code, status FROM memberships WHERE customer_id='exp-1'")).rows[0];
+  assert.equal(row.plan_code, "trial_monthly_equivalent");
+  assert.equal(row.status, "pending");
+});
+
 test("创建动作留审计", async () => {
   const row = (await pool.query("SELECT action, actor_user_id FROM audit_logs WHERE subject_id='exp-1'")).rows[0];
   assert.equal(row.action, "internal_experience_account.created");
   assert.equal(row.actor_user_id, "emp-1");
+});
+
+test("接口不用带 appId 的权限键", async () => {
+  // requireAccessPermission 的权限键带 appId，access-control 对「当前 audience ≠
+  // 权限所属 audience」直接返回 404。用 ops.organization.view 会让运维端的技术人员
+  // 完全调不到这条接口，而报错是 404——最难查的那种。
+  //
+  // 这里也确实不需要细粒度权限：只能给自己开，ownerUserId 恒为当前登录者。
+  const { readFile } = await import("node:fs/promises");
+  const route = await readFile(
+    new URL("../app/api/organization/experience-account/route.internal.ts", import.meta.url), "utf8");
+  // 只看实际调用，不看注释——注释里解释「为什么不用它」时会提到这个名字。
+  assert.equal(/await requireAccessPermission\(/.test(route), false, "不得用带 appId 的权限键");
+  assert.match(route, /requireUser\(request, INTERNAL_ROLES\)/);
+  assert.equal(/"customer"/.test(route.slice(route.indexOf("INTERNAL_ROLES"), route.indexOf("];"))), false,
+    "客户不在可开通名单里——客户本来就是客户");
+  assert.match(route, /ownerUserId: user\.id/, "只能给自己开");
+});
+
+test("体验账号必须用与工号不同的邮箱", async () => {
+  // 同一个邮箱注册两个账号，登录时分不清进的是哪一个。
+  const { readFile } = await import("node:fs/promises");
+  const route = await readFile(
+    new URL("../app/api/organization/experience-account/route.internal.ts", import.meta.url), "utf8");
+  assert.match(route, /EMAIL_SAME_AS_WORK/);
 });

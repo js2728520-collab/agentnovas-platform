@@ -3949,6 +3949,48 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": false
   },
   {
+    "method": "GET",
+    "route": "/api/organization/experience-account",
+    "source": "app/api/organization/experience-account/route.internal.ts",
+    "audiences": [
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/organization/experience-account",
+    "source": "app/api/organization/experience-account/route.internal.ts",
+    "audiences": [
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
     "method": "DELETE",
     "route": "/api/organization/members",
     "source": "app/api/organization/members/route.operations.ts",

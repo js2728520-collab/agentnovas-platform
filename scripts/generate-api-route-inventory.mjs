@@ -160,6 +160,14 @@ function basePolicy(route, method) {
     return { audiences: ALL_AUDIENCES, authentication: "anonymous", sameOrigin: true };
   }
   if (route.startsWith("/api/auth/")) return { audiences: ["client"], authentication: "anonymous", sameOrigin: mutation };
+  if (route === "/api/organization/experience-account") {
+    // 内部人员给自己开客户端体验账号。运营端与运维端都要能用——技术人员同样需要
+    // 熟悉业务，而他们在运维端。
+    //
+    // 鉴权是 session 而非 permission：权限键带 appId，用运营端的键会让运维端的人
+    // 拿到 404。这条接口也确实不需要细粒度权限，因为只能给自己开。
+    return { audiences: ["operations", "maintenance"], authentication: "session", sameOrigin: true };
+  }
   if (route === "/api/organization/staff-register") {
     // 员工邀请链接的注册入口。**必须匿名**——注册的人还没有账号。
     //

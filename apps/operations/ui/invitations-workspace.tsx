@@ -15,6 +15,8 @@ import { useApiData } from "@/packages/ui/src/use-api-data";
 
 import styles from "./invitations-workspace.module.css";
 
+type ExperienceAccount = { customerId: string; email: string; reason: string; createdAt: string | null };
+
 type StaffLink = {
   id: string;
   status: string;
@@ -44,6 +46,10 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
     targetRole: string | null;
     targetRoleLabel: string | null;
   }>("/api/invitations/staff-link", "员工邀请链接读取失败");
+  const experience = useApiData<{ account: ExperienceAccount | null }>(
+    "/api/organization/experience-account",
+    "体验账号读取失败",
+  );
   const [issued, setIssued] = useState<{ link: string; replaced: boolean; kind: "customer" | "staff"; expiresAt?: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -219,6 +225,87 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
               title="当前角色没有可邀请的下一级"
               description="技术人员由总公司管理员在成员页直接创建，不走这条汇报链。"
             />
+          )
+        ) : null}
+      </section>
+
+      <section className={styles.staffSection}>
+        <PageHeading
+          eyebrow="熟悉业务"
+          title="我的体验账号"
+          description="一个独立的客户账号，用来从客户视角看产品。它不计入任何业绩统计——否则用自己的账号交易会算成自己的业绩。"
+        />
+        {experience.loading ? <LoadingState label="正在读取体验账号…" /> : null}
+        {experience.error ? <ErrorState message={experience.error} retry={experience.refresh} /> : null}
+        {!experience.loading && !experience.error ? (
+          experience.data?.account ? (
+            <div className={styles.card}>
+              <p className={styles.note}>
+                已开通：<code className={styles.link}>{experience.data.account.email}</code>
+              </p>
+              <p className={styles.note}>用途：{experience.data.account.reason}</p>
+              <p className={styles.note}>
+                用这个邮箱和密码登录<strong>客户端</strong>即可。它是独立账号，与工号账号互不影响。
+              </p>
+            </div>
+          ) : (
+            <form
+              className={styles.engageForm}
+              onSubmit={async (event) => {
+                event.preventDefault();
+                if (busy) return;
+                const data = new FormData(event.currentTarget);
+                setBusy(true);
+                setMessage("");
+                try {
+                  const response = await fetch("/api/organization/experience-account", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({
+                      email: String(data.get("email") ?? ""),
+                      phone: String(data.get("phone") ?? ""),
+                      password: String(data.get("password") ?? ""),
+                      reason: String(data.get("reason") ?? ""),
+                    }),
+                  });
+                  const payload = await response.json().catch(() => ({}));
+                  if (!response.ok) throw new Error(apiErrorMessage(payload, "开通体验账号失败"));
+                  setMessage(String(payload.message ?? "体验账号已开通"));
+                  await experience.refresh();
+                } catch (error) {
+                  setMessage(error instanceof Error ? error.message : "开通体验账号失败");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <h3 className={styles.formTitle}>开通体验账号</h3>
+              <p className={styles.formNote}>
+                需要一个与工号账号不同的邮箱——同一个邮箱注册两个账号，登录时分不清进的是哪一个。
+                每人只能开通一个。
+              </p>
+              <div className={styles.formRow}>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>邮箱</span>
+                  <input className={styles.input} name="email" type="email" required />
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>手机号</span>
+                  <input className={styles.input} name="phone" required />
+                </label>
+              </div>
+              <div className={styles.formRow}>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>密码（至少 12 位）</span>
+                  <input className={styles.input} name="password" type="password" minLength={12} required />
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>用途</span>
+                  <input className={styles.input} name="reason" placeholder="例如：熟悉客户端下单流程" required />
+                </label>
+              </div>
+              <button className={styles.secondary} type="submit" disabled={busy}>开通</button>
+            </form>
           )
         ) : null}
       </section>

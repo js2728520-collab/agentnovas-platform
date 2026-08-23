@@ -79,6 +79,21 @@ export async function provisionInternalExperienceAccount(
       ],
     );
 
+    // 待开通的试用会员。
+    //
+    // 不建这一条，体验账号登进客户端会是空的：三张 paper 组合由
+    // activatePendingInvitationTrial 在首次登录时创建，而它只认 pending 状态的
+    // trial 会员。一个登进去什么都看不到的体验账号，比没有体验账号更让人困惑。
+    //
+    // 与客户注册用同一条路径和同一个 plan_code，体验到的东西才和客户看到的一致
+    // ——这正是「熟悉业务」的意义。
+    await client.query(
+      `INSERT INTO memberships (
+         id, customer_id, plan_code, status, max_exchange_accounts, max_active_strategies
+       ) VALUES ($1, $2, 'trial_monthly_equivalent', 'pending', 1, 3)`,
+      [crypto.randomUUID(), input.customerUserId],
+    );
+
     await client.query(
       `INSERT INTO audit_logs (id, actor_user_id, action, subject_type, subject_id, after_json)
        VALUES ($1, $2, 'internal_experience_account.created', 'user', $3, $4)`,
