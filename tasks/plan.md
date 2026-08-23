@@ -250,6 +250,14 @@ Operations 62、Maintenance 51 页 production build；本切片无 UI/auth 变�
 
 **描述：** 支持账户一致源、独立选择、策略级源和 Coinbase fallback。
 
+**分阶段：**
+
+- T2.3a：先交付 provider 无关的单周期主备仲裁合同，使用显式 source 顺序和阈值，严格校验
+  canonical scope、provider symbol、服务端时间、新鲜度、价格偏差和各 provider sequence；
+  无法确认完整性时失败关闭新开仓。
+- T2.3b：真实 provider adapter 确定后补齐有状态防抖/切回、gap/reset/replay、容量与故障注入。
+- T2.4/T2.5：另行实现账户一致源、用户独立偏好、策略级版本绑定和加密 Coinbase fallback。
+
 **验收：** 偏好优先级确定；不可用源准确降级；策略读取绑定版本。
 **验证：** API/UI contract、切换 E2E、stale Gate。
 **依赖：** T2.2。

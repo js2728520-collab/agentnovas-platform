@@ -1,6 +1,6 @@
 # 多市场行情统一合同规格
 
-状态：`TARGET/PARTIAL_CURRENT`；T2.1a/T2.1b 已实现，真实供应商接入与主备切换仍受 P-01/P-03 和后续 Gate 阻断
+状态：`TARGET/PARTIAL_CURRENT`；T2.1a/T2.1b/T2.2a/T2.11a 已实现，T2.3a provider 无关主备仲裁合同正在实施，真实供应商接入与有状态切换仍受 P-01/P-03 和后续 Gate 阻断
 日期：2026-08-24
 上位真源：`../product/PRD.md` 第 6 节；`V3_SYSTEM_TARGET_SPEC.md` 第 5 节；ADR-0021；需求方确认书 V1.1
 
@@ -147,6 +147,7 @@ T2.1b 对现有 `GET /api/market/instruments` 做加法式扩展：
 ## 5. 项目结构与代码风格
 
 - `packages/contracts/src/market-data.ts`：可序列化公共类型、严格 normalizer 和新鲜度派生函数。
+- `packages/contracts/src/market-source-arbitration.ts`：provider 无关的 symbol、时间、价格和 sequence 主备仲裁合同。
 - `lib/market-catalog.ts`：当前平台市场目录与既有 instrument 的兼容映射。
 - `lib/market-instruments.ts`：保留当前静态标的真源，不嵌入 provider 选择策略。
 - `app/api/market/instruments/route.client.ts`：薄响应映射，保持旧字段。
@@ -169,7 +170,7 @@ const quality = evaluateMarketDataFreshness({
 
 ## 6. 命令与测试策略
 
-- RED/GREEN 定向合同：`node --test --experimental-strip-types tests/market-data-contract.test.mjs tests/market-route-contract.test.mjs`
+- RED/GREEN 定向合同：`node --test --experimental-strip-types tests/market-data-contract.test.mjs tests/market-stream-state.test.mjs tests/market-source-arbitration.test.mjs tests/market-route-contract.test.mjs`
 - 既有行情回归：`node --test --experimental-strip-types tests/market-content-freshness.test.mjs tests/market-data-snapshots.test.mjs tests/market-route-contract.test.mjs`
 - 全量：`npm test`
 - 类型：`./node_modules/.bin/tsc --noEmit`
@@ -247,7 +248,40 @@ T2.2a 只定义纯 sequence、连接、新鲜度、重连和缓存判定，不�
 全量 1357/1357 及本地质量门禁通过。该实现没有 socket/provider adapter、网络 I/O、数据库或 UI
 变化，未声称达到 ≤500ms、10 秒实际恢复、主备切换或 G2。
 
-## 11. T2.11a Runtime 已收盘 K 线与 cadence 准入
+## 11. T2.3a provider 无关主备行情仲裁合同
+
+T2.3a 只实现一次仲裁周期的纯确定性合同，不建立网络连接、不选择真实供应商，也不把本切片
+冒充完整主备运行系统：
+
+- 调用方显式提供同一 canonical market/instrument 的有序 source policy；数组顺序就是主源到
+  备源优先级。合同不写死 Binance、Coinbase、股票或其他 provider 顺序。
+- 每个 source policy 固定 `providerId + providerSymbol`；候选事件必须同时匹配 canonical
+  market/instrument 和精确 provider symbol，不能从展示 symbol 猜映射。
+- 每个候选使用统一事件 envelope 的服务端时间、新鲜度和 `canOpenPosition` 派生；浏览器不能
+  自报 quality、latency、sequence reset 或开仓资格。
+- 每个 provider 的前序 cursor 独立校验；duplicate、out-of-order 和 scope mismatch 候选不能
+  接管。provider 特有 gap/reset/replay 规则仍等待真实 fixture，不在公共合同中猜测。
+- 价格只接受有界的正十进制字符串并用整数缩放比较，不能经过 JavaScript 浮点。调用方必须显式
+  提供最大偏差 bps、最小一致 source 数和参考价最大年龄，没有隐藏默认值。
+- 价格完整性可以由足够数量的当前 fresh source 相互一致证明，或由同 scope、未过期的最近已接受
+  参考价证明。参考价达到年龄阈值、来自未知 source、scope 不同或时间非法时不能作为切换证据。
+- 只有 fresh、sequence 接受且价格完整性通过的候选参与选择；按 source policy 选择最高优先级。
+  主源不可用时可选择通过全部检查的备源；无法确认价格、时间或完整性时返回 unavailable，明确
+  `eligibleForNewPosition=false`。
+- 返回的 eligibility 只是 Runtime 新开仓 Gate 的必要条件，不代表授权、策略、账户、风险或 named
+  live Gate 已通过，也不影响既有仓位的安全退出路径。
+
+输入数量、ID、symbol、价格位数、bps、时间和 cursor 全部有界；函数不读取系统时钟、不修改
+入参、不保存状态。T2.3a 不实现有状态防抖/切回、WebSocket 补齐、provider sequence gap/reset、
+客户端偏好、策略绑定、Maintenance source 目录或真实故障注入；这些能力必须在 P-01/P-03、真实
+授权和 provider fixture 冻结后分别进入 T2.2b/T2.3b/T2.4。
+
+完成标准：覆盖主源正常、主源 stale 后参考价校验的备源接管、精确 bps 边界、价格分歧、参考价
+过期、symbol/scope 错配、duplicate/out-of-order、大整数 sequence、非法时间/价格、未知字段和
+输入上限；定向、全量、TypeScript、ESLint、架构与安全 Gate 通过。纯合同且没有 UI/route/数据库
+变化时不单独声称完成浏览器、真实切换或 G2。
+
+## 12. T2.11a Runtime 已收盘 K 线与 cadence 准入
 
 真实 stream adapter 尚未确定时，当前 Runtime 仍必须先关闭两条已知的不安全路径：把 provider
 返回的当前未收盘 K 线当成完整决策依据，以及在 feed 长时间未推进时继续自动开新仓。
