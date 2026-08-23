@@ -53,7 +53,8 @@ function adapterKey(exchange: string, environment: "demo" | "live") {
 }
 
 const adapters = new Map<string, LiveOrderAdapter>([
-  [adapterKey("okx", "demo"), createOkxOrderAdapter()],
+  [adapterKey("okx", "demo"), createOkxOrderAdapter({ environment: "demo" })],
+  [adapterKey("okx", "live"), createOkxOrderAdapter({ environment: "live" })],
   [adapterKey("binance", "demo"), createBinanceOrderAdapter({ environment: "demo" })],
   [adapterKey("binance", "live"), createBinanceOrderAdapter({ environment: "live" })],
 ]);

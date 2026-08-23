@@ -345,7 +345,15 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
     WHERE deployment.id = picked.id
       AND version.id = deployment.strategy_version_id
       AND deployment.execution_product = 'spot_usdt'
-      AND deployment.exchange_account_id IS NULL
+      -- 这里曾经有一条 exchange_account_id IS NULL，把所有实盘部署挡在租约之外。
+      --
+      -- 它是五处**意外**的 fail-closed 之一：没有任何注释说它是闸门，逐个看都像
+      -- 普通条件，逐个改都像修 bug——而全部改完之后打开的是一条真实交易通道。
+      --
+      -- 闸门应该只有一个，并且有名字：isLiveExecutionReady() 与
+      -- execution_live_routing 的逐交易所授权。实盘部署现在可以被租走、可以走完
+      -- 决策与记账，唯一停下来的地方是下发订单之前那道命名闸门。
+      -- 见 packages/domain/src/execution/live-readiness.ts。
       AND deployment.platform_strategy_code IS NOT NULL
       AND deployment.membership_id IS NOT NULL
       AND deployment.paper_portfolio_id IS NOT NULL
@@ -357,7 +365,9 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
       deployment.execution_product, deployment.platform_strategy_code,
       deployment.membership_id, deployment.paper_portfolio_id,
       version.specification_json,
-      NULL::text AS exchange,
+      -- 实盘要知道下到哪家交易所。此前恒为 NULL，因为实盘部署根本租不走。
+      (SELECT account.exchange FROM exchange_accounts AS account
+        WHERE account.id = deployment.exchange_account_id) AS exchange,
       (SELECT membership.status FROM memberships AS membership
        WHERE membership.id = deployment.membership_id) AS membership_status,
       (SELECT membership.expires_at FROM memberships AS membership
@@ -408,7 +418,9 @@ export async function renewStrategyRuntimeLease(database: Queryable, input: {
     SET lease_expires_at = $5, updated_at = $4
     WHERE id = $1 AND lease_owner = $2 AND fencing_token = $3
       AND status = 'active' AND execution_product = 'spot_usdt'
-      AND exchange_account_id IS NULL AND lease_expires_at > $4
+      -- 续租条件必须与租约条件一致。留着 exchange_account_id IS NULL，实盘部署
+      -- 会租得到却续不上，跑到一半租约过期被别的 Worker 抢走——同一轮决策被执行两次。
+      AND lease_expires_at > $4
   `, [input.deploymentId, input.workerId, input.fencingToken, input.now, expiresAt]);
   if (result.rowCount !== 1) throw new Error("Runtime Worker 续租失败：租约或 fencing token 已失效");
   return { leaseExpiresAt: expiresAt };

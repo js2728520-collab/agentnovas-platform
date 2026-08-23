@@ -4,11 +4,15 @@
  * 只做一件事：把 OKX 的字段与状态名映射成执行层的归一化形态。编排（幂等、限流、
  * 分类、对账）在上层，与交易所无关。新增交易所时只写一个这样的文件。
  *
- * 目前接的**只有** OKX 模拟盘端点：okx-demo-execution 无条件发
- * `x-simulated-trading: 1`，没有实盘参数。因此 `okx/live` 在
- * live-execution-service 里没有注册适配器——宁可明确报「该环境没有适配器」，
- * 也不要把 live 账户静默发到模拟盘端点，那会让客户以为自己有实盘仓位而交易所里
- * 是模拟仓位。
+ * OKX 的模拟盘与实盘是同一套 REST API，区别只有 `x-simulated-trading: 1` 这个
+ * 请求头。所以这里不需要两份实现，只需要把环境显式传下去。
+ *
+ * 默认 demo，且默认值只在一处（okx-demo-execution 的请求层）。一个默认走实盘的
+ * 适配器等于把 execution_live_routing 的灰度闸门绕过去了——实盘要靠那份显式授权
+ * 打开，不靠这里的默认值。
+ *
+ * 反过来同样危险：把 live 账户静默发到模拟盘端点，客户会以为自己有实盘仓位，
+ * 而交易所里是模拟仓位。两个方向都由 (exchange, environment) 成对注册来防止。
  */
 
 import { getOkxDemoOrder, okxFeeInUsdt, placeOkxDemoMarketOrder, type OkxDemoOrder } from "../../okx-demo-execution.ts";
@@ -45,7 +49,8 @@ function toNormalizedOrder(order: OkxDemoOrder): NormalizedOrder {
   };
 }
 
-export function createOkxOrderAdapter(): LiveOrderAdapter {
+export function createOkxOrderAdapter(options: { environment?: "demo" | "live" } = {}): LiveOrderAdapter {
+  const environment = options.environment ?? "demo";
   return {
     exchange: "okx",
     async placeMarketOrder(input) {
@@ -58,6 +63,7 @@ export function createOkxOrderAdapter(): LiveOrderAdapter {
           ? { notionalUsdt: input.size.quoteAmount }
           : { quantity: input.size.baseQuantity }),
         clientOrderId: input.clientOrderId,
+        environment,
       });
       return toNormalizedOrder(order);
     },
@@ -67,6 +73,7 @@ export function createOkxOrderAdapter(): LiveOrderAdapter {
           credentials: input.credentials,
           symbol: input.symbol,
           clientOrderId: input.clientOrderId,
+          environment,
         }));
       } catch (error) {
         // 「查不到该订单」是一个明确的答案（返回 null），其它错误必须继续往上抛——

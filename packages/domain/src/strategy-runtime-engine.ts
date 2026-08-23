@@ -104,7 +104,16 @@ export function evaluateStrategyRuntimeCycle(input: {
   let action: RuntimeAction = "hold";
   let reason = "no_signal";
   let executionTiming: "next_candle_open" | "intrabar_threshold" = "next_candle_open";
-  let requestedPrice: number | null = null;
+  // 参考价默认取决策所依据的那根已收盘 K 线的收盘价。
+  //
+  // 原来只在止损/止盈两条离场分支赋值，其余情况恒为 null——第三处意外的
+  // fail-closed：翻译成执行意图时会抛 REQUESTED_PRICE_INVALID，于是任何一笔开仓
+  // 都到不了交易所。
+  //
+  // 用收盘价是因为它就是「决策依据」本身：执行意图的价格区间存在的理由，是让行情
+  // 偏离决策当时的价格太远时不要成交（避免滑点吃掉决策依据）。止损/止盈触发时另有
+  // 明确的触发价，覆盖掉这个默认值。
+  let requestedPrice: number | null = candle.close;
 
   if (input.position) {
     const leg = input.position.side === "long" ? longLeg : shortLeg;

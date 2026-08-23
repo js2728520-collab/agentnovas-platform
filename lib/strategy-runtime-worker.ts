@@ -164,7 +164,17 @@ async function processOfficialSpotRuntimeDeployment(
   const now = dependencies.now?.() ?? new Date();
   const specification = normalizeOfficialSpotStrategySpecification(lease.specification);
   if (!specification || lease.executionProduct !== "spot_usdt") throw new Error("官方现货运行规格无效");
-  if (lease.platformStrategyCode !== specification.strategyCode || !lease.paperPortfolioId || lease.exchangeAccountId !== null) {
+  // 边界断言：部署形状必须与它声称的 mode 一致。
+  //
+  // 原来这里是 `exchangeAccountId !== null` 就抛——第二处意外的 fail-closed。
+  // 现在改成检查真正的不变量：mode 与 exchange_account_id 必须成对出现
+  // （0053 的 CHECK 在数据库侧同样保证这一点，这里是同一条规则的运行时表达）。
+  //
+  //   live 却没绑账户  → 无法下单，每一轮都会失败，而失败原因要到执行端才看得出来
+  //   非 live 却绑了账户 → 「以为在模拟、其实随时可能真下单」的前置条件
+  const boundToAccount = lease.exchangeAccountId !== null;
+  if (lease.platformStrategyCode !== specification.strategyCode || !lease.paperPortfolioId
+      || boundToAccount !== (lease.mode === "live")) {
     throw new Error("官方现货部署边界不一致");
   }
   const adapter = dependencies.createSpotAdapter?.() ?? createPublicSpotRuntimeAdapter(dependencies.now ?? (() => new Date()));

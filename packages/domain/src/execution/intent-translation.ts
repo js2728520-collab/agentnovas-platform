@@ -83,6 +83,46 @@ export function resolveExecutionSide(action: string): "buy" | "sell" {
   throw new IntentTranslationError("UNKNOWN_RUNTIME_ACTION", `无法翻译的运行时动作：${action}`);
 }
 
+/**
+ * 计价资产白名单。
+ *
+ * 用固定清单而不是「在中间某处切一刀」：BTCUSDT 切成 BTC/USDT 还是 BT/CUSDT，
+ * 没有任何字符串规则能分辨，只有知道哪些是计价资产才能分。清单之外一律抛错，
+ * 不猜——猜错的后果是把订单发到一个不存在或不相干的交易对上。
+ *
+ * 这几个之间没有互为后缀的（USD 是 USDT 的前缀而不是后缀），所以匹配顺序不影响
+ * 结果。新增计价资产时要重新检查这一点：一旦有一个是另一个的后缀，先匹配到哪个
+ * 就会决定切在哪里。
+ */
+const QUOTE_ASSETS = ["USDT", "USDC", "USD", "BTC", "ETH"] as const;
+
+/**
+ * 把运行规格里的品种写法归一成执行意图的写法。
+ *
+ * 策略规格里写的是 `BTCUSDT`，而 OrderIntent 要求 `BTC/USDT`
+ * （assertValidOrderIntent 检查 symbol.includes("/")）。这是第四处意外的
+ * fail-closed：两边各自都自洽，接在一起就必然抛 INTENT_SYMBOL_INVALID。
+ *
+ * 归一放在这里而不是放在适配器里：适配器各自会再转成交易所自己的写法
+ * （OKX 是 BTC-USDT，Binance 是 BTCUSDT），域层需要一个与交易所无关的规范形态。
+ */
+export function toCanonicalSpotSymbol(symbol: string): string {
+  const raw = symbol.trim().toUpperCase();
+  if (raw.includes("/")) {
+    const [base, quote, ...rest] = raw.split("/");
+    if (!base || !quote || rest.length > 0) {
+      throw new IntentTranslationError("INTENT_SYMBOL_INVALID", `品种格式无效：${symbol}`);
+    }
+    return `${base}/${quote}`;
+  }
+  const normalized = raw.replace(/[^A-Z0-9]/g, "");
+  const quote = QUOTE_ASSETS.find((candidate) => normalized.endsWith(candidate));
+  if (!quote || normalized.length <= quote.length) {
+    throw new IntentTranslationError("INTENT_SYMBOL_INVALID", `无法识别 ${symbol} 的计价资产`);
+  }
+  return `${normalized.slice(0, -quote.length)}/${quote}`;
+}
+
 export function toExecutionOrderIntent(
   runtimeIntent: RuntimeOrderIntent,
   context: TranslationContext,
@@ -119,7 +159,7 @@ export function toExecutionOrderIntent(
       // 形成结论所依据的已收盘 K 线。重放时靠它确认「是同一根 K 线的同一个结论」。
       candleId: String(runtimeIntent.confirmedAtCandleCloseTime),
     },
-    symbol: context.symbol,
+    symbol: toCanonicalSpotSymbol(context.symbol),
     side,
     targetPositionRatio: context.targetPositionRatio,
     entryPriceRange,
