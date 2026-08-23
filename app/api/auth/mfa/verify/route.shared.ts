@@ -2,11 +2,15 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, sessions } from "@/db/schema";
-import { clearAuthRateLimit, consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import {
+  clearAuthRateLimit,
+  consumeAuthRateLimit,
+  mfaChallengeRateLimitBucketKeys,
+} from "@/lib/auth-rate-limit";
 import { verifyAndConsumeMfa } from "@/lib/mfa";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson } from "@/lib/research-api";
-import { sessionPolicyForAudience } from "@/lib/riverton-apps";
+import { authConnectionBucketKey, sessionPolicyForAudience } from "@/lib/riverton-apps";
 import { requirePrimarySession, responseError } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -15,11 +19,17 @@ export async function POST(request: Request) {
     const body = await readResearchJson(request, 2_048);
     const code = typeof body.code === "string" ? body.code : "";
     const pool = await getPostgresPool();
-    const bucketKey = `session:${current.session.id}`;
+    const connection = authConnectionBucketKey(request);
+    if (!connection) return Response.json({ error: "请求网络身份不可用" }, { status: 503 });
+    const bucketKeys = mfaChallengeRateLimitBucketKeys({
+      sessionId: current.session.id,
+      userId: current.user.id,
+      connectionBucketKey: connection.bucketKey,
+    });
     const limit = await consumeAuthRateLimit(pool, {
       action: "mfa_verify",
       audience: current.session.appAudience,
-      bucketKeys: [bucketKey],
+      bucketKeys,
       maxAttempts: 5,
       windowSeconds: 10 * 60,
       blockSeconds: 15 * 60,
@@ -74,7 +84,7 @@ export async function POST(request: Request) {
     await clearAuthRateLimit(pool, {
       action: "mfa_verify",
       audience: current.session.appAudience,
-      bucketKeys: [bucketKey],
+      bucketKeys,
     });
     return Response.json({ ok: true, mfaLevel: result.level });
   } catch (error) {

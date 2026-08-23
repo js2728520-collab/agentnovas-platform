@@ -1,8 +1,12 @@
-import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import {
+  clearAuthRateLimit,
+  consumeAuthRateLimit,
+  mfaChallengeRateLimitBucketKeys,
+} from "@/lib/auth-rate-limit";
 import { confirmMfaEnrollment } from "@/lib/mfa";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson } from "@/lib/research-api";
-import { sessionPolicyForAudience } from "@/lib/riverton-apps";
+import { authConnectionBucketKey, sessionPolicyForAudience } from "@/lib/riverton-apps";
 import { requirePrimarySession, responseError } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -11,11 +15,17 @@ export async function POST(request: Request) {
     const body = await readResearchJson(request, 2_048);
     const code = typeof body.code === "string" ? body.code : "";
     const pool = await getPostgresPool();
-    const bucketKey = `session:${current.session.id}`;
+    const connection = authConnectionBucketKey(request);
+    if (!connection) return Response.json({ error: "请求网络身份不可用" }, { status: 503 });
+    const bucketKeys = mfaChallengeRateLimitBucketKeys({
+      sessionId: current.session.id,
+      userId: current.user.id,
+      connectionBucketKey: connection.bucketKey,
+    });
     const limit = await consumeAuthRateLimit(pool, {
       action: "mfa_verify",
       audience: current.session.appAudience,
-      bucketKeys: [bucketKey],
+      bucketKeys,
       maxAttempts: 5,
       windowSeconds: 10 * 60,
       blockSeconds: 15 * 60,
@@ -38,6 +48,11 @@ export async function POST(request: Request) {
       now,
     });
     if (!result.ok) return Response.json({ error: "验证码无效或绑定状态已变化" }, { status: 400 });
+    await clearAuthRateLimit(pool, {
+      action: "mfa_verify",
+      audience: current.session.appAudience,
+      bucketKeys,
+    });
     return Response.json({
       ok: true,
       recoveryCodes: result.recoveryCodes,

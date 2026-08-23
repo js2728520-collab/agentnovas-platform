@@ -14,13 +14,21 @@ test("internal login keeps the restricted MFA path behind an explicit runtime en
   assert.match(mfa, /required: internal \|\| enrolled/);
   assert.match(mfa, /enrollmentRequired: internal && !enrolled/);
 });
-test("the MFA endpoint is rate limited and atomically upgrades the same session", async () => {
+test("MFA challenges share rate limits across sessions for the same account and connection", async () => {
   const verify = await readFile(new URL("../app/api/auth/mfa/verify/route.shared.ts", import.meta.url), "utf8");
+  const confirm = await readFile(new URL("../app/api/auth/mfa/enroll/confirm/route.shared.ts", import.meta.url), "utf8");
   assert.match(verify, /requirePrimarySession/);
+  assert.match(verify, /authConnectionBucketKey/);
+  assert.match(verify, /mfaChallengeRateLimitBucketKeys/);
   assert.match(verify, /consumeAuthRateLimit/);
+  assert.match(verify, /clearAuthRateLimit/);
   assert.match(verify, /verifyAndConsumeMfa/);
   assert.match(verify, /mfaVerifiedAt/);
   assert.match(verify, /eq\(sessions\.id, current\.session\.id\)/);
+  assert.match(confirm, /authConnectionBucketKey/);
+  assert.match(confirm, /mfaChallengeRateLimitBucketKeys/);
+  assert.match(confirm, /consumeAuthRateLimit/);
+  assert.match(confirm, /clearAuthRateLimit/);
 });
 
 test("sensitive RBAC permissions require MFA completed within fifteen minutes", async () => {
