@@ -1,5 +1,7 @@
 # Riverton Capital 付费 Beta 发布与回滚 Runbook
 
+> 适用状态：`CURRENT_BASELINE`。当前发布仍由 CI/CD/值班人员执行并登记证据；Maintenance 触发工作流属于 V3 `BLOCKED` 目标，Gate 完成前不得使用本手册推断其已可用。
+
 当前发布方式为 `deploy/container/compose.yml` 的版本化容器；`deploy/systemd/` 与 `deploy/nginx/` 只保留为旧环境迁移参考，新安装不得同时启动两套 Web/Worker。容器发布仍遵守本文件的数据库、角色、证据和外部副作用 Gate。
 
 ## 1. 发布前

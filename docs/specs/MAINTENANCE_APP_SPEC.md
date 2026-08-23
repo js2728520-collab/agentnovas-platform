@@ -1,5 +1,7 @@
 # Maintenance 付费 Beta 应用规格
 
+> 文档状态：`CURRENT_BASELINE`。V3 Maintenance 目标见 [`V3_MAINTENANCE_APP_TARGET_SPEC.md`](V3_MAINTENANCE_APP_TARGET_SPEC.md)；当前“只登记发布证据”在 CI/CD 控制面 Gate 完成前继续有效。
+
 ## 1. 职责与导航
 
 Maintenance 管理模型 Profile/Agent 绑定、Email、优盾充值通道配置、平台 Demo 账户、Worker 健康、紧急暂停、RBAC 和技术审计，不处理客户归属、会员付款、充值入账审批或 paper 分成业务决定。

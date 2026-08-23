@@ -1,0 +1,111 @@
+# AgentNovas 文档状态与同步矩阵
+
+更新日期：2026-08-23
+目标分支：`codex/platform-v3-doc-sync`
+
+## 1. 状态说明
+
+| 状态 | 含义 |
+| --- | --- |
+| `TARGET_TRUTH` | V3 目标产品或目标技术真源 |
+| `CURRENT_BASELINE` | 当前已实现/已部署系统的合同或运行手册 |
+| `FOUNDATION` | 仍可复用的专项设计基础 |
+| `HISTORICAL` | 不改写的发布、评估或阶段记录 |
+| `RETIRED` | 仅保留来源，不得作为执行指令 |
+
+当 `TARGET_TRUTH` 与 `CURRENT_BASELINE` 不同时，开发按 Target 设计、按阶段任务迁移；生产运行仍遵守 Current 的失败关闭边界，直到对应 Gate 通过。
+
+## 2. V3 目标真源
+
+| 文档 | 状态 | 用途 |
+| --- | --- | --- |
+| `README.md` | `TARGET_TRUTH` | 文档入口与阅读路径 |
+| `DOCUMENT_STATUS_MATRIX.md` | `TARGET_TRUTH` | 全部文档生命周期与同步规则 |
+| `product/PRD.md` | `TARGET_TRUTH` | 完整需求、首期范围、冲突解释和待补参数 |
+| `product/FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md` | `TARGET_TRUTH` | 跨团队功能说明 |
+| `specs/V3_SYSTEM_TARGET_SPEC.md` | `TARGET_TRUTH` | V3 系统、数据、安全和执行边界 |
+| `specs/V3_CLIENT_APP_TARGET_SPEC.md` | `TARGET_TRUTH` | Client 目标规格 |
+| `specs/V3_OPERATIONS_APP_TARGET_SPEC.md` | `TARGET_TRUTH` | Operations 目标规格 |
+| `specs/V3_MAINTENANCE_APP_TARGET_SPEC.md` | `TARGET_TRUTH` | Maintenance 目标规格 |
+| `quality/FULL_PLATFORM_V3_GATES.md` | `TARGET_TRUTH` | 分能力验收和发布门禁 |
+| `roadmap/FULL_PLATFORM_V3_ROADMAP.md` | `TARGET_TRUTH` | 分阶段升级顺序 |
+| `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md` | `TARGET_TRUTH` | 当前基础与 V3 差距 |
+| `adr/0021-full-platform-v3-gated-upgrade.md` | `TARGET_TRUTH` | 目标范围与当前基线并存的决策 |
+
+任务执行真源位于仓库根 `tasks/plan.md` 与 `tasks/todo.md`。
+
+## 3. 当前实现基线
+
+| 文档 | 状态 | V3 使用方式 |
+| --- | --- | --- |
+| `product/FUNCTIONAL_DESCRIPTION.md` | `CURRENT_BASELINE` | 保留当前 Beta/Paper 完整功能事实 |
+| `specs/SYSTEM_SPEC.md` | `CURRENT_BASELINE` | 当前运行架构与硬关闭证据 |
+| `specs/CLIENT_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Client 合同 |
+| `specs/OPERATIONS_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Operations 合同，组织 UI/邀请将迁移 |
+| `specs/MAINTENANCE_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Maintenance 与只登记发布证据合同 |
+| `specs/RELEASE_VERSION_MANAGEMENT_SPEC.md` | `CURRENT_BASELINE` | 当前不可变发布证据；V3 后续增加受限 trigger |
+| `api/API_CATALOG.md` | `CURRENT_BASELINE` | 当前真实路由和 Policy 索引，不提前虚构 V3 API |
+| `api/openapi-controlled-beta.yaml` | `CURRENT_BASELINE` | 当前受控 API 合同 |
+| `architecture/CAPABILITY_MIGRATION_MATRIX.md` | `CURRENT_BASELINE` | 旧后台迁移事实；V3 决定见目标 Spec/任务 |
+| `quality/ACCEPTANCE_AND_RELEASE_GATES.md` | `CURRENT_BASELINE` | 当前 Beta 发布门禁 |
+| `quality/QUALITY_RELEASE_EVIDENCE.md` | `CURRENT_BASELINE` | 当前自动质量证据生成方式 |
+| `runbooks/commercial-beta-maintenance.md` | `CURRENT_BASELINE` | 当前 Beta Maintenance 操作 |
+| `runbooks/commercial-beta-operations.md` | `CURRENT_BASELINE` | 当前 Beta Operations 操作 |
+| `runbooks/commercial-beta-release-and-rollback.md` | `CURRENT_BASELINE` | 当前部署和回滚 |
+| `runbooks/production-accounts-and-configuration.md` | `CURRENT_BASELINE` | 当前账号与外部配置 |
+| `runbooks/riverton-three-app-ui.md` | `CURRENT_BASELINE` | 当前三端 UI 运行方式 |
+| `runbooks/self-hosted-strategy-research.md` | `CURRENT_BASELINE` | 当前自托管 Research/Runtime |
+| `runbooks/udun-deposit-gateway.md` | `CURRENT_BASELINE` | 当前 deposit-only 能力 |
+| `DEVELOPMENT_HANDOFF.md` | `CURRENT_BASELINE` | 历次实施交接；顶部 V3 说明优先 |
+
+## 4. 可复用专项基础
+
+| 文档 | 状态 | V3 关系 |
+| --- | --- | --- |
+| `ai-assistant-strategy-dsl-v1.md` | `FOUNDATION` | 结构化策略基础，需接 V3 AI/市场合同 |
+| `ai-conversation-structured-ui-v3.md` | `FOUNDATION` | 对话 UI 基础 |
+| `ai-research-backtest-v2.md` | `FOUNDATION` | 研究与回测基础 |
+| `multi-agent-strategy-research-v5.md` | `FOUNDATION` | 多 Agent 研发基础 |
+| `product/SEVEN_AGENT_TRADING_HALL.md` | `FOUNDATION` | 七阶段、确定性风控和证据链基础 |
+
+## 5. ADR 生命周期
+
+| ADR | 状态关系 |
+| --- | --- |
+| 0001–0004 | AI、回测、PostgreSQL Pipeline、DSL/Paper 基础，继续有效 |
+| 0005 | 三端/RBAC 基础有效；组织 UI 和注册方式由 ADR-0021 迁移 |
+| 0006–0007 | 产品/资金边界和七智能体基础继续有效 |
+| 0008 | 受邀 Beta 历史阶段；目标范围被 ADR-0021 取代 |
+| 0009 | Paper/Demo 隔离继续有效，V3 增加 Live book |
+| 0010 | 当前会员/Paper 分成基线；V3 扩展作者和跟单收费 |
+| 0011–0017 | API Policy、迁移、披露、版本、充值、容器和 Client Shell 基础继续有效 |
+| 0018 | 共享决策轮和分组合准入基础继续有效 |
+| 0019 | Execution Service 与密钥托管基础继续有效 |
+| 0020 | live book 与 named gate 基础继续有效 |
+| 0021 | V3 目标范围和分阶段 Gate 的当前决策 |
+
+ADR 原文不因目标升级批量改写；新决定使用新 ADR supersede。
+
+## 6. 历史与归档资料
+
+| 文档 | 状态 | 说明 |
+| --- | --- | --- |
+| `releases/2026-08-22-v1.0.0-beta.2-deployment.md` | `HISTORICAL` | beta.2 部署证据 |
+| `releases/2026-08-22-v1.0.0-beta.3-deployment.md` | `HISTORICAL` | beta.3 部署证据 |
+| `releases/2026-08-22-v1.0.0-beta.5-deployment.md` | `HISTORICAL` | beta.5 部署证据 |
+| `review/SYSTEM_ASSESSMENT_2026-08-20.md` | `HISTORICAL` | 2026-08-20 审计快照 |
+| `roadmap/CONTROLLED_BETA_ROADMAP.md` | `HISTORICAL` | 已完成/被取代的 Beta 路线图 |
+| `创始人待办清单与真实交易闭环接入指南.md` | `RETIRED` | 旧规划，禁止作为执行指令 |
+
+## 7. 同步规则
+
+每完成一个 V3 任务，至少同步：
+
+1. PRD/目标 Spec 的状态与验收。
+2. 当前 API Catalog/OpenAPI 的真实合同。
+3. 数据迁移和 ADR。
+4. V3 Gate 与自动化证据。
+5. 对应 Runbook 和回滚。
+6. `tasks/todo.md` 的状态、证据链接和后续 blocker。
+
+历史发布记录不回填新状态；新发布创建新文件。

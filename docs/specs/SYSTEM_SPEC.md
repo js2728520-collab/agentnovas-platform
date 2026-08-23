@@ -1,5 +1,7 @@
 # Riverton Capital 受邀付费 Beta 系统规格
 
+> 文档状态：`CURRENT_BASELINE`。本文描述当前运行和硬关闭边界；V3 目标系统见 [`V3_SYSTEM_TARGET_SPEC.md`](V3_SYSTEM_TARGET_SPEC.md)。目标文档不自动解锁本文关闭的真实交易、资金出站或自动部署。
+
 版本：2.0
 状态：目标规格；以测试和 Gate 证据判定完成度
 

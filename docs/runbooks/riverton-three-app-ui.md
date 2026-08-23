@@ -1,5 +1,7 @@
 # Riverton 三应用一库前端运行手册
 
+> 适用状态：`CURRENT_BASELINE`。V3 导航与页面目标见三份 `V3_*_APP_TARGET_SPEC.md`；当前三端 audience/Host/Cookie 隔离继续作为不可退化基础。
+
 ## 1. 架构边界
 
 Client、Operations 和 Maintenance 使用同一个 Next.js 工程、PostgreSQL 业务库、合同与共享 UI。功能隔离由 `RIVERTON_APP_AUDIENCE`、域名、独立 Cookie、页面白名单、路由权限和服务端 RBAC 共同完成。

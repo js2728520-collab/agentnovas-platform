@@ -1,5 +1,7 @@
 # Riverton Capital 完整功能说明
 
+> 文档状态：`CURRENT_BASELINE`。本文保留当前受控 Beta/Paper 的已实现功能事实；V3 目标功能见 [`FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md`](FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md) 和 [`PRD.md`](PRD.md)。两者不一致时，生产运行继续遵守本文硬关闭，开发目标遵守 V3 文档与 Gate。
+
 状态：`CURRENT`，团队功能总览真源
 
 文档版本：1.0
@@ -734,7 +736,7 @@ Operations 支持：
 - 幂等要求；
 - 限流和请求体大小。
 
-未登记 handler 会使 CI 失败。当前 inventory 覆盖 233 个 method handler。
+未登记 handler 会使 CI 失败。2026-08-23 的 inventory 检查覆盖 258 个 method route。
 
 ### 14.2 写请求保护
 

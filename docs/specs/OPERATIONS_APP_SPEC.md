@@ -1,5 +1,7 @@
 # Operations 付费 Beta 应用规格
 
+> 文档状态：`CURRENT_BASELINE`。当前组织页面与一次性邀请将按 [`V3_OPERATIONS_APP_TARGET_SPEC.md`](V3_OPERATIONS_APP_TARGET_SPEC.md) 迁移为“不展示组织架构 + 权限链接自助注册”；迁移完成前不得把目标写成当前事实。
+
 ## 1. 职责与导航
 
 Operations 处理邀请/客户、组织、会员付款、credits 调整、paper 周分成、业务审批、充值历史、只读账本、财务与 RBAC。模型密钥、Worker 和技术开关属于 Maintenance；Operations 不执行真实支付或交易。

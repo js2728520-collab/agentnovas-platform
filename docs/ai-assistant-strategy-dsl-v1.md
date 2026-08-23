@@ -1,5 +1,7 @@
 # AgentNovas AI 对话与策略 DSL V1 规格
 
+> 文档状态：`FOUNDATION`。受限 DSL 和确定性校验继续用于 V3；QuantDinger 差异、固定 Credits、策略市场和实盘确认以 PRD V3 与 `specs/V3_CLIENT_APP_TARGET_SPEC.md` 为准。
+
 状态：已批准实施
 
 批准依据：用户于 2026-08-16 确认“按照建议进行代码实现”

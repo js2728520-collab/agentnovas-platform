@@ -1,5 +1,7 @@
 # Controlled Beta quality evidence runner
 
+> 文档状态：`CURRENT_BASELINE`。本证据 runner 证明当前受控 Beta，不证明真实交易、资金出站或 CI/CD 触发安全；V3 每个阶段需在 [`FULL_PLATFORM_V3_GATES.md`](FULL_PLATFORM_V3_GATES.md) 基础上扩展并重新生成证据。
+
 状态：已集成并在 2026-08-21 当前工作树完成最终本地重跑；证据目录为被 Git 忽略的 `outputs/`，发布提交变化后必须重新生成。
 
 This runner creates repeatable release evidence without contacting a payment provider, an email provider, a Demo exchange, or any other external host. It resolves only approved direct test dependencies and never downloads tools at runtime.

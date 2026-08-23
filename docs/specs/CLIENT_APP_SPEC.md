@@ -1,5 +1,7 @@
 # Client 付费 Beta 应用规格
 
+> 文档状态：`CURRENT_BASELINE`。V3 Client 目标见 [`V3_CLIENT_APP_TARGET_SPEC.md`](V3_CLIENT_APP_TARGET_SPEC.md)；未完成对应任务和 Gate 前，本文件仍是当前可达合同。
+
 ## 1. 目标与导航
 
 Client 为受邀用户提供登录/设置密码、商业披露确认、试用与会员、AI credits、三张官方 paper 组合、七智能体记录、平台 Demo 证据、研究/回测、只读钱包和通知。保留多语言与 Riverton 深色视觉，不做无关改版。

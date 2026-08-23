@@ -1,9 +1,11 @@
 openapi: 3.1.0
+x-document-status: CURRENT_BASELINE
+x-v3-target-spec: ../specs/V3_SYSTEM_TARGET_SPEC.md
 info:
   title: Riverton Capital Controlled Beta API
   version: 2.2.0-beta
   description: >-
-    三应用一库的核心浏览器接口合同。客户 paper 与平台 Demo 证据分离；
+    当前受控 Beta 的核心浏览器接口合同，不是 V3 目标 API 清单。客户 paper 与平台 Demo 证据分离；
     优盾 deposit-only 客户充值可在目标商户配置和双人复核 Gate 下启用；提现、划转、自动扣款、客户交易所密钥、真实现货/永续和其他生产外部操作不启用。
 servers:
   - url: https://agentnovas.com

@@ -1,5 +1,7 @@
 # AgentNovas 开发环境交接说明
 
+> 2026-08-23 V3 文档同步：当前目标文档分支为 `codex/platform-v3-doc-sync`。需求方已确认完整三端平台 PRD V3.0；先阅读 `docs/DOCUMENT_STATUS_MATRIX.md`、`docs/product/PRD.md`、`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md` 和 `tasks/todo.md`。当前生产仍是 Beta/Paper 基线，真实交易、永续、提现/划转和 Maintenance 自动部署不得因目标文档存在而开启。
+
 > 最新文档入口为 `docs/README.md`。本文第 13 节对前文“全部完成”的表述进行了状态校正；接管者应以最新 PRD、Spec、系统评估和任务清单为准。
 
 ## 1. 接管入口

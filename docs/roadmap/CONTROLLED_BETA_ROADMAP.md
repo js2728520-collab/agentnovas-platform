@@ -1,5 +1,7 @@
 # Riverton Capital 14 天受邀付费 Beta 路线图
 
+> 文档状态：`HISTORICAL`。本路线图保留受控 Beta 的阶段记录；V3 全面升级以 [`FULL_PLATFORM_V3_ROADMAP.md`](FULL_PLATFORM_V3_ROADMAP.md) 为当前路线图。
+
 本路线图是时间盒，不是上线承诺。Gate 优先于日期；优盾 deposit-only 充值按 ADR-0015 收口，社区市场、提现/划转、自动扣款、真实交易和退款进入 Beta 后 backlog。
 
 ## Wave 1：D1–D8 后端纵向闭环

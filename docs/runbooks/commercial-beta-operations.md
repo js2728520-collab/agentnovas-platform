@@ -1,5 +1,7 @@
 # Riverton Capital 付费 Beta 运营 Runbook
 
+> 适用状态：`CURRENT_BASELINE`。本文的一次性邀请和当前组织流程将在 V3 Phase 1 被权限注册链接取代；迁移完成前按当前系统执行，禁止混用两种 token。
+
 ## 1. 使用范围
 
 供 Operations maker/checker 处理邀请、会员付款凭证、credits 调整、paper 周分成和争议。所有真实资金动作均发生在外部人工渠道；系统只记录凭证、权益、应收和审计。

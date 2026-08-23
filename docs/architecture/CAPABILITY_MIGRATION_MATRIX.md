@@ -1,7 +1,28 @@
 # 旧运营后台能力迁移与优化矩阵
 
+> 文档状态：`CURRENT_BASELINE`。本文保留旧后台到当前 Beta 的迁移事实；V3 已确认取消 Operations 组织架构展示、改用权限注册链接，并恢复策略市场/真实交易目标。新的迁移顺序见 [`../roadmap/FULL_PLATFORM_V3_ROADMAP.md`](../roadmap/FULL_PLATFORM_V3_ROADMAP.md) 和 `tasks/todo.md`。
+
 日期：2026-08-20
 原则：先盘点、再决定，不做无差别复制。业务能力进入 Operations，技术配置进入 Maintenance；重复、虚假或越权入口下线。
+
+## V3 目标差异（2026-08-23）
+
+| 能力 | 当前基线 | V3 决定 | 状态 | 目标阶段 |
+| --- | --- | --- | --- | --- |
+| Operations 组织树/关系页 | 已实现 `/organization` | 从导航和业务 UI 退休；只保留后端 scope/归属事实 | `RETIRED_TARGET` | Phase 1 |
+| 内部账号邀请 | 一次性 set-password invitation | 角色/权限链接、长期复用、自助注册、即时 assignment | `TARGET` | Phase 1 |
+| 客户邀请 | 一次性邀请 | 可复用、可重生成、与内部 token 分离 | `TARGET` | Phase 1 |
+| 多市场行情 | 加密/公共行情基础 | 加密 + A/HK/KR/JP + 外汇/贵金属，主备与 stale Gate | `TARGET` | Phase 2 |
+| 社区策略市场 | 当前隐藏/关闭 | 客户投稿、平台审核、作者/费用/版本/风险合同 | `TARGET` | Phase 4 |
+| 自动跟单 | Paper/官方卡基础 | 用户账户真实执行，先 Paper 验收后逐 provider 解锁 | `BLOCKED` | Phase 4–5 |
+| 客户交易凭证 | 隔离与执行服务基础 | 五家首期 provider、IP 白名单、live activation | `PARTIAL/BLOCKED` | Phase 5 |
+| 真实现货 | named gate、live book 基础 | 单 provider G4A 通过后小灰度 | `BLOCKED` | Phase 5 |
+| USDT 永续 | 项目规则硬关闭 | 独立衍生品 ADR/Gate 获授权后实施 | `BLOCKED` | Phase 6 |
+| 提现/划转 | 不可达 | 独立资金服务、密钥、账本、服务费和双审 | `BLOCKED` | Phase 7 |
+| Maintenance 发布 | 只登记不可变证据 | 通过受限 CI/CD workflow 触发，不执行任意命令 | `BLOCKED` | Phase 8 |
+| 主题/i18n | 当前主题与局部多语言 | 三浅三深、英语默认、偏好/浏览器/地区规则 | `TARGET` | Phase 3/9 |
+
+本节描述目标差异；后续原表继续记录“旧后台 → 当前 Beta”的历史迁移事实。
 
 ## 状态说明
 

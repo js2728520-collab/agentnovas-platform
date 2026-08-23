@@ -1,5 +1,7 @@
 # Riverton Capital 付费 Beta 验收与发布门禁
 
+> 文档状态：`CURRENT_BASELINE`。本文继续约束当前 Beta/Paper 发布；完整平台 V3 的分能力 Gate 见 [`FULL_PLATFORM_V3_GATES.md`](FULL_PLATFORM_V3_GATES.md)。V3 目标不能绕过本文已有安全否决项。
+
 状态：强制 Gate；任何否决项不得豁免为“先上线再修”
 
 ## 1. Gate 0：产品合同、披露与范围

@@ -1,5 +1,7 @@
 # Riverton Capital 付费 Beta Maintenance Runbook
 
+> 适用状态：`CURRENT_BASELINE`。只用于当前 Beta/Paper；V3 Target 能力在实现并通过 Gate 后必须新增或修订 Runbook，本文不能用于开启真实交易或自动部署。
+
 ## 1. MFA 恢复
 
 1. 验证工单、账号、组织、回拨渠道和两名授权人员；不接受聊天截图作为唯一证据。

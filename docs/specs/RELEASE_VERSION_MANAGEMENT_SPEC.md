@@ -1,5 +1,7 @@
 # Release Version Management Spec
 
+> 文档状态：`CURRENT_BASELINE`。本文定义当前不可变发布证据控制面；V3 的受限 CI/CD 触发扩展见 [`V3_MAINTENANCE_APP_TARGET_SPEC.md`](V3_MAINTENANCE_APP_TARGET_SPEC.md)，不会覆盖本文历史事实或允许任意基础设施命令。
+
 状态：Approved for implementation
 目标版本：`v1.0.0-beta.1`
 所有者：Maintenance / Release manager

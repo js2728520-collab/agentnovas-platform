@@ -1,7 +1,30 @@
 # API 目录与迁移状态
 
-日期：2026-08-21
-范围：当前包含 181 个 route 文件、233 个 HTTP method handler，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。
+> 文档状态：`CURRENT_BASELINE`。本文只登记当前真实 route 和 Policy，不提前虚构 V3 endpoint。V3 目标 API 家族见 [`../specs/V3_SYSTEM_TARGET_SPEC.md`](../specs/V3_SYSTEM_TARGET_SPEC.md)；每个家族只有在合同、实现和 Gate 完成后才能写入本目录并改为 `CURRENT`。
+
+日期：2026-08-23
+范围：当前包含 196 个 route 文件、258 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。
+
+## 0. V3 目标接口族（尚不是当前合同）
+
+下列接口族来自 PRD V3.0。这里只记录所有权和依赖，不指定最终 path；详细设计、威胁模型、中央 Policy、迁移和测试完成后，才可把实际 route 加入后续章节。
+
+| 接口族 | 所有权 | 当前状态 | 前置条件 |
+| --- | --- | --- | --- |
+| Operations 角色权限注册链接 | O | `TARGET` | token/越级/注册事务/审计 Spec，G1 |
+| Client 可复用邀请与 5 设备会话 | C/O | `TARGET/PARTIAL` | 身份合同、限流、Session 迁移，G1 |
+| 行情源偏好、provider 状态和主备切换 | C/M/S | `TARGET` | provider/symbol/calendar 合同，G2 |
+| 客户策略投稿、审核、上架和下架 | C/O | `TARGET` | 策略版本、准入、作者权限，G3 |
+| 跟单订阅、费用、参数和停止 | C/O/S | `TARGET` | 不可变快照、收费、风险，G3/G4 |
+| 客户交易账户 live readiness | C/S | `PARTIAL/BLOCKED` | balance reconcile、activation，G4 |
+| 真实订单、回执和对账 | S | `PARTIAL/BLOCKED` | Execution Service/provider Gate，G4A/G4B |
+| 提现、划转和服务费 | C/O/S | `BLOCKED` | 独立资金 Spec 与 G5 |
+| 套餐、Credits、退款和优惠版本 | M/C/O | `TARGET/PARTIAL` | 产品参数、双审、账本，G3/G6 |
+| CI/CD workflow 触发与回调 | M/S | `BLOCKED` | 受限 workflow、短期凭证、G7 |
+
+任何 `TARGET/BLOCKED` 接口都不得通过复用旧 route、隐藏参数或临时开关绕过中央 inventory。
+
+> 迁移警告：当前 `/api/invitations/staff-link` 与 `/api/organization/staff-register` 实现的是“48 小时链接 + 注册后 `pending_approval`”合同，`/api/invitations/link` 也属于既有邀请模型；三者都不是 V3 权限注册链接合同。Phase 1 必须先完成 token、角色、scope、即时 assignment、撤销和审计设计，再迁移或替换这些 route，不能只修改提示文字或放宽审批状态。
 
 ## 1. 使用说明
 
@@ -211,6 +234,6 @@
 
 ## 10. 下一步
 
-1. 机器可读 inventory 是 233 个 method handler 的发布真源；本文仅维护人类可读的所有权与产品状态。
+1. 机器可读 inventory 是 258 个 method route 的发布真源；本文仅维护人类可读的所有权与产品状态。
 2. `DISABLED/BETA` 路径不得因未来重构重新暴露；重新启用必须先更新 PRD、ADR、policy、测试与页面合同。
 3. `openapi-controlled-beta.yaml` 只描述核心浏览器合同，不能替代完整 API Policy。

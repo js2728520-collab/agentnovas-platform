@@ -1,5 +1,7 @@
 # 自有 Linux 上线运行手册
 
+> 适用状态：`CURRENT_BASELINE`。V3 仍使用自托管 Linux/PostgreSQL/Nginx，不增加 Cloudflare Runtime 或 Redis；真实交易和新服务只有在专项 Gate 通过后才能加入部署单元。
+
 ## 边界
 
 生产架构固定为自有 Linux 服务器上的三个 Node Web 应用、PostgreSQL、官方 spot-only Runtime Worker、独立 Notification Worker、受控 Demo Execution Worker 和 Nginx。受邀付费 Beta 硬关闭 legacy Research Worker，不安装 Payment Worker unit。所有服务共享 PostgreSQL，但必须分别启停；数据库迁移是显式部署步骤，不放进并发的服务启动钩子。不部署 Redis，也不使用边缘 Runtime 或代理平台。

@@ -1,5 +1,7 @@
 # 优盾充值通道运行手册
 
+> 适用状态：`CURRENT_BASELINE`。本文仅覆盖 deposit-only；V3 提现/划转是独立资金项目，不能复用本手册、商户权限或回调来暗中开放资金出站。
+
 ## 1. 发布前配置
 
 1. 在优盾商户后台确认当前账户使用 legacy MD5 商户协议、专属 HTTPS 节点、商户号、API Key、钱包编号（如需）及 USDT/TRC20 的 `mainCoinType`/`coinType`。不要从示例或其他商户复制 token 编号。
