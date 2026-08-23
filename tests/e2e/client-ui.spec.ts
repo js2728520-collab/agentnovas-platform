@@ -1,6 +1,50 @@
-import { exerciseResponsiveWidths, expectAudienceNavigation, test } from "./support/quality-test";
+import { exerciseResponsiveWidths, expect, expectAudienceNavigation, test } from "./support/quality-test";
 
-test("client communication and account workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
+const localeStorageKey = "riverton.platform-locale";
+const qualityBrowserLanguageKey = "riverton.quality-browser-language";
+
+async function exercisePublicLocalePreference(page: import("@playwright/test").Page) {
+  await page.addInitScript(({ browserLanguageKey }) => {
+    const forcedLanguage = window.localStorage.getItem(browserLanguageKey) ?? "fr-FR";
+    Object.defineProperty(window.navigator, "languages", { configurable: true, get: () => [forcedLanguage] });
+    Object.defineProperty(window.navigator, "language", { configurable: true, get: () => forcedLanguage });
+  }, { browserLanguageKey: qualityBrowserLanguageKey });
+
+  await page.goto("/");
+  await page.evaluate(({ browserLanguageKey, storageKey }) => {
+    window.localStorage.setItem(browserLanguageKey, "fr-FR");
+    window.localStorage.removeItem(storageKey);
+  }, { browserLanguageKey: qualityBrowserLanguageKey, storageKey: localeStorageKey });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
+  await expect(page.getByLabel("Language")).toHaveValue("en-US");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("An AI quant team working for you");
+
+  await page.evaluate(({ browserLanguageKey, storageKey }) => {
+    window.localStorage.setItem(browserLanguageKey, "zh-CN");
+    window.localStorage.removeItem(storageKey);
+  }, { browserLanguageKey: qualityBrowserLanguageKey, storageKey: localeStorageKey });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.getByLabel("Language")).toHaveValue("zh-CN");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("一支为你工作的 AI 量化团队");
+
+  await page.getByLabel("Language").selectOption("es-ES");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Un equipo cuantitativo de IA trabajando para ti");
+  await page.evaluate((browserLanguageKey) => window.localStorage.setItem(browserLanguageKey, "ko-KR"), qualityBrowserLanguageKey);
+  await page.reload();
+  await expect(page.getByLabel("Language")).toHaveValue("es-ES");
+
+  await page.evaluate(({ browserLanguageKey, storageKey }) => {
+    window.localStorage.setItem(browserLanguageKey, "fr-FR");
+    window.localStorage.setItem(storageKey, "<script>");
+  }, { browserLanguageKey: qualityBrowserLanguageKey, storageKey: localeStorageKey });
+  await page.reload();
+  await expect(page.getByLabel("Language")).toHaveValue("en-US");
+}
+
+test("public locale and client communication workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
+  await exercisePublicLocalePreference(page);
   for (const [path, heading] of [
     ["/notifications", "通知中心"],
     ["/account/security", "账号与登录安全"],
