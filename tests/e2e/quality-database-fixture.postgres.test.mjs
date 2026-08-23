@@ -34,6 +34,7 @@ test("quality database fixture is isolated, complete, secret-safe, and disposabl
     prepared = true;
     assert.deepEqual(Object.keys(fixture.identities).sort(), [
       "client",
+      "clientSecurity",
       "maintenanceAdmin",
       "operationsChecker",
       "operationsMaker",
@@ -55,10 +56,10 @@ test("quality database fixture is isolated, complete, secret-safe, and disposabl
       max: 1,
     });
     try {
-      assert.equal(Number((await pool.query("SELECT count(*) AS count FROM users WHERE email LIKE '%@quality.invalid'")).rows[0].count), 4);
+      assert.equal(Number((await pool.query("SELECT count(*) AS count FROM users WHERE email LIKE '%@quality.invalid'")).rows[0].count), 5);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM sessions WHERE revoked_at IS NULL")).rows[0].count), 4);
       const clientSessions = await pool.query(`
-        SELECT session.id,session.app_audience,session.created_at,session.last_seen_at,
+        SELECT session.id,session.app_audience,session.mfa_level,session.created_at,session.last_seen_at,
                session.idle_expires_at,session.absolute_expires_at,session.ip_address,session.user_agent
           FROM sessions AS session
          WHERE session.user_id=$1
@@ -68,12 +69,13 @@ test("quality database fixture is isolated, complete, secret-safe, and disposabl
          LIMIT 50
       `, [fixture.identities.client.userId]);
       assert.equal(clientSessions.rowCount, 1);
+      assert.equal(clientSessions.rows[0].mfa_level, "none");
       assert.doesNotThrow(() => new Date(clientSessions.rows[0].idle_expires_at).toISOString());
       assert.doesNotThrow(() => new Date(clientSessions.rows[0].absolute_expires_at).toISOString());
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM commercial_legal_document_versions WHERE status='active'")).rows[0].count), 7);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM commercial_legal_document_versions WHERE status='active' AND content_markdown IS NOT NULL AND content_locale='en'")).rows[0].count), 7);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM commercial_legal_acceptances WHERE user_id=$1", [fixture.identities.client.userId])).rows[0].count), 7);
-      assert.equal(Number((await pool.query("SELECT count(*) AS count FROM user_role_assignments WHERE status='active'")).rows[0].count), 4);
+      assert.equal(Number((await pool.query("SELECT count(*) AS count FROM user_role_assignments WHERE status='active'")).rows[0].count), 5);
       const permissionKeys = async (userId) => (await pool.query(`
         SELECT rp.permission_key
         FROM user_role_assignments ura

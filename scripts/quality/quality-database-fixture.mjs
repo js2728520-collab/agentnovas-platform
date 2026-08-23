@@ -218,7 +218,7 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
           sha256(token),
           definition.audience,
           expiresAt.toISOString(),
-          internal ? "totp" : "primary",
+          internal ? "totp" : "none",
           internal ? now.toISOString() : null,
         ]);
       }

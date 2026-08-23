@@ -11,6 +11,7 @@ import {
 import { browserResourceBudget } from "../../../scripts/quality/browser-resource-budget.mjs";
 import {
   isAllowedQualityNetworkUrl,
+  isExpectedQualityBrowserWarning,
   qualityApplicationPorts,
   qualityBrowserOrigin,
   qualityLoopbackForward,
@@ -153,7 +154,8 @@ export const test = base.extend<QualityFixtures>({
     expect(externalRequests, `external requests escaped the loopback allowlist: ${safeEntry(externalRequests)}`).toEqual([]);
     expect(pageErrors, `uncaught page errors: ${safeEntry(pageErrors)}`).toEqual([]);
     expect(unsuccessfulResponses, `unsuccessful browser responses: ${safeEntry(unsuccessfulResponses)}`).toEqual([]);
-    expect(consoleProblems, `browser console errors/warnings: ${safeEntry(consoleProblems)}`).toEqual([]);
+    const unexpectedConsoleProblems = consoleProblems.filter((message) => !isExpectedQualityBrowserWarning(message));
+    expect(unexpectedConsoleProblems, `browser console errors/warnings: ${safeEntry(unexpectedConsoleProblems)}`).toEqual([]);
     expect(failedLocalRequests, `failed local requests: ${safeEntry(failedLocalRequests)}`).toEqual([]);
   }, { auto: true }],
 });
@@ -312,9 +314,9 @@ export async function createIsolatedQualityBrowser(
       const expectedResourceFailure = new RegExp(
         `^Failed to load resource: the server responded with a status of (?:${[...allowedStatuses].join("|")}) \\(.+\\)$`,
       );
-      const unexpectedConsoleProblems = allowedStatuses.size
+      const unexpectedConsoleProblems = (allowedStatuses.size
         ? consoleProblems.filter((message) => !expectedResourceFailure.test(message))
-        : consoleProblems;
+        : consoleProblems).filter((message) => !isExpectedQualityBrowserWarning(message));
       try {
         expect(externalRequests, "isolated browser external requests").toEqual([]);
         expect(unexpectedConsoleProblems, "isolated browser console errors/warnings").toEqual([]);

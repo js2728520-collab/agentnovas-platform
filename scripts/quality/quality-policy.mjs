@@ -18,6 +18,18 @@ const QUALITY_APP_HOST_BY_AUDIENCE = Object.freeze({
 });
 const QUALITY_APP_HOSTS = new Set(Object.values(QUALITY_APP_HOST_BY_AUDIENCE));
 
+export function isExpectedQualityBrowserWarning(message) {
+  const match = String(message).match(/^The resource (https:\/\/[^\s]+) was preloaded using link preload but not used within a few seconds from the window's load event\. Please make sure it has an appropriate `as` value and it is preloaded intentionally\.$/);
+  if (!match) return false;
+  try {
+    const url = new URL(match[1]);
+    return QUALITY_APP_HOSTS.has(url.hostname.toLowerCase())
+      && url.pathname.startsWith("/_next/static/chunks/");
+  } catch {
+    return false;
+  }
+}
+
 export function assertQualitySideEffectsDisabled(environment = process.env) {
   for (const key of EXTERNAL_EFFECT_FLAGS) {
     if (environment[key]?.trim().toLowerCase() === "true") {

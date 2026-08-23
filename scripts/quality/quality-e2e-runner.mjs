@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { access, lstat, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { access, cp, lstat, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { spawn } from "node:child_process";
 
@@ -189,9 +189,14 @@ export function createQualityRunEnvironment({
   baseEnvironment = process.env,
   applicationDatabaseUrl,
   outputDirectory,
+  profile = "default",
   runtimeDirectory,
   schema,
 }) {
+  if (profile !== "default" && profile !== "mfa-on") {
+    throw new Error(`Unsupported quality E2E profile: ${profile}`);
+  }
+  const qualityProfile = profile;
   const serverMode = baseEnvironment.QUALITY_E2E_SERVER_MODE === "development"
     ? "development"
     : "production";
@@ -208,12 +213,13 @@ export function createQualityRunEnvironment({
     ...DISABLED_EFFECT_ENVIRONMENT,
     ...SCRUBBED_PROVIDER_ENVIRONMENT,
     ...encryptionKeys,
-    MFA_ENFORCEMENT_ENABLED: "false",
+    MFA_ENFORCEMENT_ENABLED: qualityProfile === "mfa-on" ? "true" : "false",
     NODE_ENV: serverMode,
     DATABASE_URL: applicationDatabaseUrl,
     TEST_DATABASE_URL: applicationDatabaseUrl,
     RESEARCH_DATABASE_URL: applicationDatabaseUrl,
     QUALITY_E2E_OUTPUT_DIR: outputDirectory,
+    QUALITY_E2E_PROFILE: qualityProfile,
     QUALITY_E2E_RUNTIME_DIR: runtimeDirectory,
     QUALITY_E2E_SCHEMA: schema,
     QUALITY_E2E_SERVER_MODE: serverMode,
@@ -244,6 +250,22 @@ export async function resolveLocalPlaywrightBinary(repositoryRoot) {
   return binary;
 }
 
+export async function prepareQualityStandaloneAssets(repositoryRoot) {
+  for (const audience of ["client", "operations", "maintenance"]) {
+    const buildRoot = join(repositoryRoot, `.next-${audience}`);
+    const standaloneRoot = join(buildRoot, "standalone");
+    await access(join(standaloneRoot, "server.js"));
+    await cp(join(repositoryRoot, "public"), join(standaloneRoot, "public"), {
+      recursive: true,
+      force: true,
+    });
+    await cp(join(buildRoot, "static"), join(standaloneRoot, `.next-${audience}`, "static"), {
+      recursive: true,
+      force: true,
+    });
+  }
+}
+
 function spawnPlaywright(binary, args, options) {
   return new Promise((resolveExit, reject) => {
     const child = spawn(binary, ["test", ...args], {
@@ -260,14 +282,21 @@ export async function runQualityE2e({
   repositoryRoot = process.cwd(),
   args = [],
   environment = process.env,
+  profile = "default",
 } = {}) {
   assertQualitySideEffectsDisabled(environment);
+  if (profile !== "default" && profile !== "mfa-on") {
+    throw new Error(`Unsupported quality E2E profile: ${profile}`);
+  }
   const binary = await resolveLocalPlaywrightBinary(repositoryRoot);
   const outputDirectory = resolve(
     repositoryRoot,
-    environment.QUALITY_E2E_OUTPUT_DIR || "outputs/quality-e2e",
+    environment.QUALITY_E2E_OUTPUT_DIR || (profile === "mfa-on" ? "outputs/quality-mfa-on" : "outputs/quality-e2e"),
   );
   await resetQualityE2eOutput({ repositoryRoot, outputDirectory });
+  if (environment.QUALITY_E2E_SERVER_MODE !== "development") {
+    await prepareQualityStandaloneAssets(repositoryRoot);
+  }
   const runtimeDirectory = join(outputDirectory, ".runtime");
   const runId = environment.QUALITY_E2E_RUN_ID
     || `${Date.now()}_${process.pid}_${randomBytes(4).toString("hex")}`;
@@ -295,6 +324,7 @@ export async function runQualityE2e({
       baseEnvironment: environment,
       applicationDatabaseUrl: fixture.applicationDatabaseUrl,
       outputDirectory,
+      profile,
       runtimeDirectory,
       schema,
     });
@@ -316,8 +346,9 @@ export async function runQualityE2e({
       fixturePrepared: Boolean(fixture),
       gateResult: {
         passed: e2ePassed,
-        expectedTests: 15,
+        expectedTests: profile === "mfa-on" ? 3 : 15,
         externalWritesEnabled: false,
+        profile,
       },
       cleanupSchema: () => cleanupQualityDatabaseFixture({ adminDatabaseUrl, schema }),
     });
