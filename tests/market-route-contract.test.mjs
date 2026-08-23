@@ -84,3 +84,9 @@ test("catalog payload timestamps must be bounded UTC input", () => {
   assert.throws(() => createMarketInstrumentsPayload(`${"1".repeat(200)}Z`), /UTC timestamp/i);
   assert.throws(() => createMarketInstrumentsPayload("not-a-timeZ"), /UTC timestamp/i);
 });
+
+test("canonical instrument metadata is explicit and never parsed from display labels or symbols", () => {
+  const catalogSource = readFileSync(new URL("../lib/market-catalog.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(catalogSource, /\.split\(["']\/["']\)|replace\([^\n]*(?:USD|USDT)/);
+  assert.match(catalogSource, /missing explicit contract/i);
+});
