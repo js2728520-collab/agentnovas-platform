@@ -32,6 +32,11 @@ type PendingAiRequest = {
   temporaryMessageId: string;
 };
 
+type AiCancellation = {
+  state?: "cancelled" | "succeeded" | "failed";
+  creditsDisposition?: "released" | "settled";
+};
+
 function apiError(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object") return fallback;
   const error = (payload as { error?: unknown }).error;
@@ -74,13 +79,21 @@ export default function AiAssistantChat({
   const [suggestedAction, setSuggestedAction] = useState<"strategy" | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [activeInferenceRequestId, setActiveInferenceRequestId] = useState("");
   const [promptMessageId, setPromptMessageId] = useState("");
   const [savingStrategyMessageId, setSavingStrategyMessageId] = useState("");
   const [savedStrategyMessageIds, setSavedStrategyMessageIds] = useState<Record<string, string>>({});
   const [strategySaveNotices, setStrategySaveNotices] = useState<Record<string, string>>({});
   const [retryRequest, setRetryRequest] = useState<PendingAiRequest | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const activeInferenceRequestIdRef = useRef("");
+  const cancelRequestedRef = useRef(false);
+  const currentRequestRef = useRef<PendingAiRequest | null>(null);
+  const persistedUserMessageIdsRef = useRef(new Set<string>());
   const active = conversations.find((item) => item.id === activeId) || null;
   const prompts = ["BTC 当前行情与风险如何？", "解释我的持仓风险", "当前跟随策略有哪些？", "帮我生成一个策略"];
 
@@ -91,13 +104,16 @@ export default function AiAssistantChat({
   async function loadConversation(id: string) {
     setActiveId(id);
     setError("");
+    setNotice("");
     setRetryRequest(null);
     setSuggestedAction(null);
     setPromptMessageId("");
     const response = await fetch(`/api/ai/conversations/${encodeURIComponent(id)}`, { cache: "no-store" });
     const payload = await response.json().catch(() => null) as { messages?: Message[] } | null;
     if (!response.ok) throw new Error(apiError(payload, "对话加载失败"));
-    setMessages(Array.isArray(payload?.messages) ? payload.messages : []);
+    const loadedMessages = Array.isArray(payload?.messages) ? payload.messages : [];
+    persistedUserMessageIdsRef.current = new Set(loadedMessages.filter((message) => message.role === "user").map((message) => message.id));
+    setMessages(loadedMessages);
   }
 
   async function createConversation() {
@@ -109,11 +125,13 @@ export default function AiAssistantChat({
     const payload = await response.json().catch(() => null) as { conversation?: Conversation } | null;
     if (!response.ok || !payload?.conversation) throw new Error(apiError(payload, "新建对话失败"));
     setConversations((items) => [payload.conversation!, ...items]);
+    persistedUserMessageIdsRef.current = new Set();
     setMessages([]);
     setActiveId(payload.conversation.id);
     setSuggestedAction(null);
     setPromptMessageId("");
     setRetryRequest(null);
+    setNotice("");
     return payload.conversation;
   }
 
@@ -133,7 +151,9 @@ export default function AiAssistantChat({
           if (cancelled) return;
           setConversations(items);
           setActiveId(items[0].id);
-          setMessages(Array.isArray(detail?.messages) ? detail.messages : []);
+          const loadedMessages = Array.isArray(detail?.messages) ? detail.messages : [];
+          persistedUserMessageIdsRef.current = new Set(loadedMessages.filter((message) => message.role === "user").map((message) => message.id));
+          setMessages(loadedMessages);
         } else {
           const createResponse = await fetch("/api/ai/conversations", {
             method: "POST",
@@ -145,6 +165,7 @@ export default function AiAssistantChat({
           if (cancelled) return;
           setConversations([created.conversation]);
           setActiveId(created.conversation.id);
+          persistedUserMessageIdsRef.current = new Set();
           setMessages([]);
         }
       } catch (caught) {
@@ -158,7 +179,7 @@ export default function AiAssistantChat({
   }, []);
 
   async function newConversation() {
-    if (sending) return;
+    if (sending || cancelling) return;
     setError("");
     try {
       await createConversation();
@@ -168,7 +189,7 @@ export default function AiAssistantChat({
   }
 
   async function selectConversation(id: string) {
-    if (id === activeId || sending) return;
+    if (id === activeId || sending || cancelling) return;
     setLoading(true);
     try {
       await loadConversation(id);
@@ -180,7 +201,7 @@ export default function AiAssistantChat({
   }
 
   async function archiveConversation() {
-    if (!activeId || sending) return;
+    if (!activeId || sending || cancelling) return;
     const response = await fetch(`/api/ai/conversations/${encodeURIComponent(activeId)}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -193,6 +214,7 @@ export default function AiAssistantChat({
     }
     const remaining = conversations.filter((item) => item.id !== activeId);
     setConversations(remaining);
+    persistedUserMessageIdsRef.current = new Set();
     setMessages([]);
     setPromptMessageId("");
     if (remaining[0]) await loadConversation(remaining[0].id).catch(() => undefined);
@@ -202,16 +224,24 @@ export default function AiAssistantChat({
   async function send(contentOverride?: string, retry?: PendingAiRequest) {
     const content = (retry?.content ?? contentOverride ?? question).trim();
     const conversationId = retry?.conversationId ?? activeId;
-    if (!content || sending || !conversationId) return;
+    if (!content || sending || cancelling || !conversationId) return;
+    const freshIdempotencyKey = retry ? "" : crypto.randomUUID();
     const pendingRequest: PendingAiRequest = retry ?? {
       conversationId,
       content,
-      idempotencyKey: crypto.randomUUID(),
-      temporaryMessageId: `pending-${Date.now()}`,
+      idempotencyKey: freshIdempotencyKey,
+      temporaryMessageId: `pending-${freshIdempotencyKey}`,
     };
     const temporaryId = pendingRequest.temporaryMessageId;
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    currentRequestRef.current = pendingRequest;
+    cancelRequestedRef.current = false;
+    activeInferenceRequestIdRef.current = "";
+    setActiveInferenceRequestId("");
     if (!retry && contentOverride === undefined) setQuestion("");
     setError("");
+    setNotice("");
     setRetryRequest(null);
     setSuggestedAction(null);
     setPromptMessageId("");
@@ -235,6 +265,7 @@ export default function AiAssistantChat({
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": pendingRequest.idempotencyKey },
         body: JSON.stringify({ message: pendingRequest.content }),
+        signal: controller.signal,
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
@@ -245,11 +276,22 @@ export default function AiAssistantChat({
         if (event === "meta") {
           const saved = data.userMessage as Message | undefined;
           if (saved) {
+            const firstPersistence = !persistedUserMessageIdsRef.current.has(saved.id);
+            persistedUserMessageIdsRef.current.add(saved.id);
             userMessagePersisted = true;
             setMessages((items) => items.map((item) => item.id === temporaryId ? saved : item));
+            if (firstPersistence) {
+              setConversations((items) => items.map((item) => item.id === pendingRequest.conversationId
+                ? { ...item, messageCount: item.messageCount + 1, lastMessageAt: saved.createdAt }
+                : item));
+            }
+          }
+          if (typeof data.inferenceRequestId === "string" && data.inferenceRequestId) {
+            activeInferenceRequestIdRef.current = data.inferenceRequestId;
+            setActiveInferenceRequestId(data.inferenceRequestId);
           }
           if (typeof data.title === "string") {
-            setConversations((items) => items.map((item) => item.id === activeId ? { ...item, title: data.title as string } : item));
+            setConversations((items) => items.map((item) => item.id === pendingRequest.conversationId ? { ...item, title: data.title as string } : item));
           }
         } else if (event === "delta" && typeof data.text === "string") {
           setStreamingText((value) => value + data.text);
@@ -262,8 +304,8 @@ export default function AiAssistantChat({
           }
           setStreamingText("");
           setSuggestedAction(data.suggestedAction === "strategy" ? "strategy" : null);
-          setConversations((items) => items.map((item) => item.id === activeId
-            ? { ...item, messageCount: item.messageCount + 2, lastMessageAt: new Date().toISOString() }
+          setConversations((items) => items.map((item) => item.id === pendingRequest.conversationId
+            ? { ...item, messageCount: item.messageCount + 1, lastMessageAt: saved?.createdAt || new Date().toISOString() }
             : item));
         } else if (event === "error") {
           terminalError = true;
@@ -274,6 +316,14 @@ export default function AiAssistantChat({
       setRetryRequest(null);
     } catch (caught) {
       setStreamingText("");
+      if (cancelRequestedRef.current) {
+        setRetryRequest(null);
+        setError("");
+        if (!userMessagePersisted) {
+          setMessages((items) => items.filter((item) => item.id !== temporaryId));
+        }
+        return;
+      }
       if (completed) {
         setRetryRequest(null);
         setError("");
@@ -290,7 +340,48 @@ export default function AiAssistantChat({
         setError(caught instanceof Error ? caught.message : "AI 回复暂时不可用");
       }
     } finally {
+      if (requestControllerRef.current === controller) requestControllerRef.current = null;
+      currentRequestRef.current = null;
+      activeInferenceRequestIdRef.current = "";
+      setActiveInferenceRequestId("");
       setSending(false);
+    }
+  }
+
+  async function cancelGeneration() {
+    const inferenceRequestId = activeInferenceRequestIdRef.current;
+    const pendingRequest = currentRequestRef.current;
+    if (!sending || cancelling || !inferenceRequestId || !pendingRequest) return;
+    setCancelling(true);
+    setError("");
+    setNotice("");
+    setStreamingText("");
+    setRetryRequest(null);
+    cancelRequestedRef.current = true;
+    requestControllerRef.current?.abort(new DOMException("cancelled by customer", "AbortError"));
+    try {
+      const response = await fetch(`/api/ai/inferences/${encodeURIComponent(inferenceRequestId)}/cancel`, {
+        method: "POST",
+        headers: { "idempotency-key": `cancel-${crypto.randomUUID()}` },
+      });
+      const payload = await response.json().catch(() => null) as { inference?: AiCancellation } | null;
+      if (!response.ok || !payload?.inference?.state) {
+        throw new Error(apiError(payload, "取消结果暂未确认，请稍后重试原请求查询最终状态"));
+      }
+      if (payload.inference.state === "succeeded") {
+        await loadConversation(pendingRequest.conversationId);
+        setNotice("回复已在取消前完成，已加载最终结果；Credits 按实际用量结算。");
+      } else if (payload.inference.state === "cancelled") {
+        setNotice("生成已取消，Credits 预留已释放；已发送的问题仍保留在当前会话中。");
+      } else {
+        setNotice("请求已经结束且 Credits 预留已释放，可重新发起问题。");
+      }
+    } catch (caught) {
+      cancelRequestedRef.current = false;
+      setRetryRequest(pendingRequest);
+      setError(caught instanceof Error ? caught.message : "取消结果暂未确认，请稍后重试原请求查询最终状态");
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -323,17 +414,18 @@ export default function AiAssistantChat({
     <div className={styles.pageHead}><div><h1>{title}</h1><p>与你的 AI 量化团队持续对话，历史由服务端安全保存</p></div></div>
     <div className={styles.workspace}>
       <aside className={styles.history}>
-        <header><div><b>对话记录</b><small>仅当前账号可见</small></div><button type="button" onClick={() => void newConversation()} disabled={sending}>＋ 新建对话</button></header>
+        <header><div><b>对话记录</b><small>仅当前账号可见</small></div><button type="button" onClick={() => void newConversation()} disabled={sending || cancelling}>＋ 新建对话</button></header>
         <div className={styles.historyList} aria-label="AI 对话列表">
           {conversations.map((item) => <button key={item.id} className={item.id === activeId ? styles.active : undefined} type="button" onClick={() => void selectConversation(item.id)} aria-current={item.id === activeId ? "page" : undefined}><i>{item.purpose === "strategy" ? "策" : "AI"}</i><span><b>{item.title}</b><small>{formatRelative(item.lastMessageAt)} · {item.messageCount} 条消息</small></span><em>›</em></button>)}
           {!loading && !conversations.length && <p className={styles.empty}>还没有对话</p>}
         </div>
         <footer><span><i />持久化对话服务</span><small>不会执行交易</small></footer>
       </aside>
-      <section className={styles.main} aria-busy={loading || sending}>
-        <header className={styles.pageHead}><div><span className={styles.eyebrow}>AI CONSULTATION</span><h2>AI 助手</h2><p>行情分析、决策解读、平台与会员规则问答。回答只基于服务端的行情快照、决策轮记录与平台合同事实。</p></div><div className={styles.headerActions}><span className={styles.status}><i />{sending ? "回复生成中" : "平台模型服务"}</span></div></header>
+      <section className={styles.main} aria-busy={loading || sending || cancelling}>
+        <header className={styles.pageHead}><div><span className={styles.eyebrow}>AI CONSULTATION</span><h2>AI 助手</h2><p>行情分析、决策解读、平台与会员规则问答。回答只基于服务端的行情快照、决策轮记录与平台合同事实。</p></div><div className={styles.headerActions}>{sending && activeInferenceRequestId && <button className={styles.cancel} type="button" disabled={cancelling} onClick={() => void cancelGeneration()}>{cancelling ? "正在取消…" : "取消生成"}</button>}<span className={styles.status}><i />{cancelling ? "正在取消" : sending ? "回复生成中" : "平台模型服务"}</span></div></header>
         <div className={styles.current}><span>当前会话</span><b>{active?.title || "新对话"}</b><small>市场分析 · 风险解释 · 策略研究</small>{active && <button className={styles.archive} type="button" onClick={() => void archiveConversation()}>归档</button>}</div>
         {error && <div className={styles.error} role="alert"><span>{error}</span>{retryRequest && <button type="button" disabled={sending} onClick={() => void send(undefined, retryRequest)}>{sending ? "正在查询原请求…" : "重试原请求"}</button>}</div>}
+        {notice && <div className={styles.notice} role="status">{notice}</div>}
         <div className={styles.messages} aria-live="polite">
           {loading && <div className={styles.empty}>正在加载对话…</div>}
           {!loading && !messages.length && <div className={styles.empty}><b>开始一段真实对话</b><span>可以咨询行情依据、持仓风险，或讨论一个待回测策略。</span></div>}
@@ -342,8 +434,8 @@ export default function AiAssistantChat({
           {suggestedAction === "strategy" && <button type="button" className={styles.openStrategy} onClick={onOpenStrategies}>前往策略工作室创建可回测规则 →</button>}
           <div ref={messageEndRef} />
         </div>
-        <section className={styles.prompts}><header><b>快速问题</b><span>点击填入输入框</span></header><div>{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => setQuestion(prompt)} disabled={sending}>{prompt}<i>→</i></button>)}</div></section>
-        <label className={styles.composer}><textarea aria-label="AI 对话内容" maxLength={2_000} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="输入你想咨询的问题…" disabled={sending || loading} /><button type="button" onClick={() => void send()} disabled={sending || loading || !question.trim()}>发送问题 →</button></label>
+        <section className={styles.prompts}><header><b>快速问题</b><span>点击填入输入框</span></header><div>{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => setQuestion(prompt)} disabled={sending || cancelling}>{prompt}<i>→</i></button>)}</div></section>
+        <label className={styles.composer}><textarea aria-label="AI 对话内容" maxLength={2_000} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="输入你想咨询的问题…" disabled={sending || cancelling || loading} /><button type="button" onClick={() => void send()} disabled={sending || cancelling || loading || !question.trim()}>发送问题 →</button></label>
         <small className={styles.disclaimer}>请勿提交 API Key、密码、私钥或令牌。AI 内容仅用于信息与策略研究，不构成投资建议。</small>
       </section>
     </div>

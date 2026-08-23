@@ -57,6 +57,7 @@ export async function requestAiText(
     maxOutputTokens?: number;
     temperature?: number;
     fetchImpl?: typeof fetch;
+    signal?: AbortSignal;
   } = {},
 ) {
   const maxOutputTokens = options.maxOutputTokens ?? 500;
@@ -68,6 +69,10 @@ export async function requestAiText(
         temperature: options.temperature ?? 0.2,
         max_tokens: maxOutputTokens,
       };
+  const timeoutSignal = AbortSignal.timeout(45_000);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeoutSignal])
+    : timeoutSignal;
   const response = await (options.fetchImpl ?? fetch)(config.endpoint, {
     method: "POST",
     headers: {
@@ -76,7 +81,7 @@ export async function requestAiText(
       authorization: `Bearer ${config.apiKey}`,
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(45_000),
+    signal,
   });
   if (!response.ok) throw new Error(await safeProviderError(response, config.providerName));
   const data = await response.json() as {

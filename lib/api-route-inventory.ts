@@ -1144,6 +1144,28 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": false
   },
   {
+    "method": "POST",
+    "route": "/api/ai/inferences/:id/cancel",
+    "source": "app/api/ai/inferences/[id]/cancel/route.client.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
+    ],
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
     "method": "GET",
     "route": "/api/approvals",
     "source": "app/api/approvals/route.operations.ts",

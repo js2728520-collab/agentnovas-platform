@@ -1,4 +1,4 @@
-import { exerciseResponsiveWidths, expect, expectAudienceNavigation, test } from "./support/quality-test";
+import { exerciseResponsiveWidths, expect, expectAudienceNavigation, expectCriticalAccessibility, expectResponsivePage, test } from "./support/quality-test";
 import { readQualityRuntime } from "./support/runtime";
 
 const localeStorageKey = "riverton.platform-locale";
@@ -283,6 +283,99 @@ async function exerciseMarketWithoutWatchlist(page: import("@playwright/test").P
   expect(marketRequests.some(pathname => pathname === "/api/market/watchlist")).toBe(false);
 }
 
+async function exerciseAssistantCancellationWithoutDialog(page: import("@playwright/test").Page) {
+  const conversationId = "10000000-0000-4000-8000-000000000001";
+  const inferenceRequestId = "20000000-0000-4000-8000-000000000002";
+  const userMessageId = "30000000-0000-4000-8000-000000000003";
+  const question = "请分析取消生成时的资金安全";
+  let dialogs = 0;
+  page.on("dialog", async dialog => {
+    dialogs += 1;
+    await dialog.dismiss();
+  });
+  await page.addInitScript(({ conversationId: seededConversationId, inferenceRequestId: seededInferenceRequestId, userMessageId: seededUserMessageId, question: seededQuestion }) => {
+    const originalFetch = window.fetch.bind(window);
+    const evidence = { messageRequests: 0, cancelRequests: 0, cancelIdempotencyKey: "", cancelBody: "" };
+    (window as Window & { __assistantCancellationEvidence?: typeof evidence }).__assistantCancellationEvidence = evidence;
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : null;
+      const url = new URL(request?.url ?? String(input), window.location.origin);
+      const method = String(init?.method ?? request?.method ?? "GET").toUpperCase();
+      if (url.pathname === "/api/ai/conversations" && method === "GET") {
+        return Response.json({ conversations: [{
+          id: seededConversationId,
+          title: "取消测试会话",
+          purpose: "consultation",
+          messageCount: 0,
+          lastMessageAt: new Date().toISOString(),
+        }] });
+      }
+      if (url.pathname === `/api/ai/conversations/${seededConversationId}` && method === "GET") {
+        return Response.json({ messages: [] });
+      }
+      if (url.pathname === `/api/ai/conversations/${seededConversationId}/messages` && method === "POST") {
+        evidence.messageRequests += 1;
+        const signal = init?.signal ?? request?.signal;
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode(`event: meta\ndata: ${JSON.stringify({
+              conversationId: seededConversationId,
+              title: "取消测试会话",
+              inferenceRequestId: seededInferenceRequestId,
+              userMessage: {
+                id: seededUserMessageId,
+                role: "user",
+                content: seededQuestion,
+                createdAt: new Date().toISOString(),
+              },
+            })}\n\n`));
+            signal?.addEventListener("abort", () => controller.close(), { once: true });
+          },
+        });
+        return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8" } });
+      }
+      if (url.pathname === `/api/ai/inferences/${seededInferenceRequestId}/cancel` && method === "POST") {
+        evidence.cancelRequests += 1;
+        const headers = new Headers(init?.headers ?? request?.headers);
+        evidence.cancelIdempotencyKey = headers.get("idempotency-key") ?? "";
+        evidence.cancelBody = typeof init?.body === "string" ? init.body : "";
+        return Response.json({ inference: {
+          id: seededInferenceRequestId,
+          state: "cancelled",
+          creditsDisposition: "released",
+          created: true,
+        } });
+      }
+      return originalFetch(input, init);
+    };
+  }, { conversationId, inferenceRequestId, userMessageId, question });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/assistant", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "AI 助手", level: 1 })).toBeVisible();
+  await page.getByLabel("AI 对话内容").fill(question);
+  await page.getByRole("button", { name: "发送问题" }).click();
+  const cancelButton = page.getByRole("button", { name: "取消生成" });
+  await expect(cancelButton).toBeVisible();
+  await cancelButton.click();
+  await expect(page.getByRole("status").filter({ hasText: "生成已取消" })).toBeVisible();
+  await expect(page.getByText(question, { exact: true })).toBeVisible();
+  await expect(page.getByText("AI 团队", { exact: true })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    const state = (window as Window & { __assistantCancellationEvidence?: { messageRequests: number; cancelRequests: number; cancelIdempotencyKey: string; cancelBody: string } }).__assistantCancellationEvidence;
+    return state ?? null;
+  })).toEqual({
+    messageRequests: 1,
+    cancelRequests: 1,
+    cancelIdempotencyKey: expect.stringMatching(/^cancel-[0-9a-f-]{36}$/),
+    cancelBody: "",
+  });
+  expect(dialogs).toBe(0);
+  await expectResponsivePage(page);
+  await expectCriticalAccessibility(page);
+}
+
 test("public locale and client communication workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
   await exercisePublicLocalePreference(page);
   for (const [path, heading] of [
@@ -293,6 +386,8 @@ test("public locale and client communication workspaces are responsive, accessib
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "client");
   }
+  await exerciseAssistantCancellationWithoutDialog(page);
+  await expectAudienceNavigation(page, "client");
 });
 
 test("client wallet boundaries are responsive, accessible and audience-isolated", async ({ page }) => {

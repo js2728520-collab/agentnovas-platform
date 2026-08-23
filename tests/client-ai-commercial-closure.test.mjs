@@ -56,6 +56,24 @@ test("provider output without a request id or reliable token usage fails closed"
   }
 });
 
+test("provider requests combine user cancellation with the bounded timeout", async () => {
+  const controller = new AbortController();
+  let providerSignal;
+  const request = requestAiText(config, [{ role: "user", content: "cancel me" }], {
+    signal: controller.signal,
+    fetchImpl: async (_url, init) => {
+      providerSignal = init?.signal;
+      return new Promise((_resolve, reject) => {
+        providerSignal?.addEventListener("abort", () => reject(providerSignal.reason), { once: true });
+        setTimeout(() => reject(new Error("external abort was not propagated")), 100);
+      });
+    },
+  });
+  controller.abort(new DOMException("cancelled by customer", "AbortError"));
+  await assert.rejects(request, (error) => error?.name === "AbortError");
+  assert.equal(providerSignal?.aborted, true);
+});
+
 test("Client model runtime uses the safe report/proposal projection and dedicated encryption key", async () => {
   const [resolver, migration, grants] = await Promise.all([
     source("../lib/client-platform-llm.ts"),
@@ -111,6 +129,7 @@ test("every Client AI conversation and generation API requires the effective pap
     ["PATCH", "/api/ai/conversations/:id"],
     ["POST", "/api/ai/conversations/:id/messages"],
     ["POST", "/api/ai/conversations/:id/messages/:messageId/strategy"],
+    ["POST", "/api/ai/inferences/:id/cancel"],
     ["POST", "/api/strategy-studio/generate"],
   ];
   for (const [method, route] of expected) {
@@ -125,9 +144,27 @@ test("every Client AI conversation and generation API requires the effective pap
     "../app/api/ai/conversations/[id]/route.client.ts",
     "../app/api/ai/conversations/[id]/messages/route.client.ts",
     "../app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.client.ts",
+    "../app/api/ai/inferences/[id]/cancel/route.client.ts",
     "../app/api/strategy-studio/generate/route.client.ts",
   ]) {
     const routeSource = await source(path);
     assert.match(routeSource, /requireAccessPermission\(request,\s*"client\.paper\.view"\)/);
   }
+});
+
+test("Client chat exposes a server-owned cancel target and never treats abort as an idempotent retry", async () => {
+  const [chatRoute, cancelRoute, chatUi] = await Promise.all([
+    source("../app/api/ai/conversations/[id]/messages/route.client.ts"),
+    source("../app/api/ai/inferences/[id]/cancel/route.client.ts"),
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
+  ]);
+  assert.match(chatRoute, /inferenceRequestId:\s*claimed\.requestId/);
+  assert.match(chatRoute, /signal:\s*request\.signal/);
+  assert.match(cancelRoute, /cancelClientAiInference/);
+  assert.match(cancelRoute, /idempotencyKey\(request\)/);
+  assert.match(chatUi, /AbortController/);
+  assert.match(chatUi, /取消生成/);
+  assert.match(chatUi, /\/api\/ai\/inferences\/\$\{encodeURIComponent\([^)]*\)\}\/cancel/);
+  assert.match(chatUi, /inferenceRequestId/);
+  assert.doesNotMatch(chatUi, /setRetryRequest\([^)]*AI_REQUEST_CANCELLED/);
 });

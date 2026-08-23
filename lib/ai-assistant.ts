@@ -41,6 +41,7 @@ export async function generateAssistantReply(options: {
   history: AssistantHistoryMessage[];
   context: AssistantContext;
   config: ResolvedLlmConfig | null;
+  signal?: AbortSignal;
 }) {
   const intent = classifyAssistantIntent(options.latestMessage);
   const memory = buildSessionWorkingMemory(options.history, options.latestMessage);
@@ -78,7 +79,11 @@ export async function generateAssistantReply(options: {
     { role: "system", content: system },
     ...boundedAiHistory(options.history),
   ];
-  let response = await requestAiText(options.config, messages, { maxOutputTokens: 900, temperature: 0.15 });
+  let response = await requestAiText(options.config, messages, {
+    maxOutputTokens: 900,
+    temperature: 0.15,
+    signal: options.signal,
+  });
   const metering = { ...response.metering };
   const usageIds = [response.metering.usageId];
 
@@ -100,7 +105,7 @@ export async function generateAssistantReply(options: {
             + "请按同样的回答结构重新输出完整回复（结论、关键证据、失效条件、下一步），"
             + "并修正 JSON DSL 草稿使其满足平台规范。只修正被指出的问题，不要改变策略意图。",
         },
-      ], { maxOutputTokens: 900, temperature: 0.15 });
+      ], { maxOutputTokens: 900, temperature: 0.15, signal: options.signal });
       usageIds.push(repair.metering.usageId);
       metering.inputTokens += repair.metering.inputTokens;
       metering.outputTokens += repair.metering.outputTokens;

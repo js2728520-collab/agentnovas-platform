@@ -32,7 +32,7 @@ const disclaimer = "AI 内容仅用于信息与策略研究，不构成投资建
 
 type StoredChatResult = {
   text: string;
-  meta: { conversationId: string; title: string; userMessage: unknown };
+  meta: { conversationId: string; title: string; userMessage: unknown; inferenceRequestId?: string };
   done: { message: unknown; mode: "ai_provider"; suggestedAction: "strategy" | null; disclaimer: string };
 };
 
@@ -150,6 +150,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           conversationId: id,
           title: savedUser.title,
           userMessage: savedUser.message,
+          inferenceRequestId: claimed.requestId,
         });
         let committed = false;
         try {
@@ -165,6 +166,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             history: history.map((message) => ({ role: message.role, content: message.content })),
             context,
             config,
+            signal: request.signal,
           });
           if (!("metering" in result)) throw new Error("AI_PROVIDER_METERING_MISSING");
           const completed = await completeClientAiInference(pool, {
@@ -184,7 +186,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
               });
               return {
                 text: result.text,
-                meta: { conversationId: id, title: savedUser.title, userMessage: savedUser.message },
+                meta: {
+                  conversationId: id,
+                  title: savedUser.title,
+                  userMessage: savedUser.message,
+                  inferenceRequestId: claimed.requestId,
+                },
                 done: {
                   message: assistantMessage,
                   mode: "ai_provider" as const,
@@ -198,8 +205,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           committed = true;
           for (const text of splitStreamingText(stored.text)) send("delta", { text });
           send("done", stored.done);
-        } catch {
+        } catch (error) {
           if (!committed) {
+            const errorCode = error && typeof error === "object" && "code" in error
+              ? String((error as { code?: unknown }).code || "")
+              : "";
+            const cancelled = request.signal.aborted
+              || errorCode === "AI_REQUEST_CANCELLED"
+              || (error instanceof Error && error.name === "AbortError");
             let released = false;
             try {
               await failClientAiInference(pool, {
@@ -207,9 +220,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
                 reservationId: claimed.reservationId,
                 idempotencyKey: key,
                 correlationRequestId,
-                errorCode: "AI_REPLY_FAILED",
-                errorMessage: "AI 回复未完成，Credits 预留已释放，请使用新的请求重试",
-                errorStatus: 502,
+                errorCode: cancelled ? "AI_REQUEST_CANCELLED" : "AI_REPLY_FAILED",
+                errorMessage: cancelled
+                  ? "AI 请求已由用户取消，Credits 预留已释放"
+                  : "AI 回复未完成，Credits 预留已释放，请使用新的请求重试",
+                errorStatus: cancelled ? 409 : 502,
               });
               released = true;
             } catch {
@@ -218,9 +233,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             await recordAiMessageFailure(user.id, id).catch(() => undefined);
             try {
               send("error", {
-                code: released ? "AI_REPLY_FAILED" : "AI_RECONCILIATION_REQUIRED",
+                code: released
+                  ? cancelled ? "AI_REQUEST_CANCELLED" : "AI_REPLY_FAILED"
+                  : "AI_RECONCILIATION_REQUIRED",
                 message: released
-                  ? "AI 回复未完成，Credits 未扣除，请使用新的请求重试"
+                  ? cancelled
+                    ? "AI 生成已取消，Credits 未扣除"
+                    : "AI 回复未完成，Credits 未扣除，请使用新的请求重试"
                   : "AI 回复未完成，Credits 结算状态待平台核对；相同请求不会再次调用模型",
               });
             } catch {
