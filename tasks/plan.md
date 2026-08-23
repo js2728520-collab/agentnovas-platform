@@ -514,6 +514,22 @@ UI 不保留 verified 样式；非法 JSON/DSL 不入库；只允许 shadow/pape
 build 为 68/62/51 页；同一云端 standalone 在 MFA 关闭、外部写入禁用、隔离 PostgreSQL 下真实
 Chromium 18/18，通过三端登录、候选编辑/刷新/零真实订单请求和 Maintenance 无确认弹窗回归。
 
+### T4.1b：已确认旧界面元素退役（对应任务看板 T4.2）
+
+**状态：** 已完成（2026-08-24）。
+
+**边界：** Client 行情页不再展示、读取或写入观察名单；对应 API 从 Client 路由和最小数据库
+授权中移除，但历史 `market_watchlist` 表与数据暂不做破坏性迁移。`/assistant` 不提供分析标的
+选择和旧 8 卡片，只保留 4 个必要快捷问题；`/studio` 的账户、合约、周期和方向仍是确定性研究
+输入，不属于应删除的助手分析标的控件。
+
+行情页继续通过同源报价、K 线与新闻 API 展示可验证的新鲜度，不在真实 provider adapter 尚未
+完成时从浏览器直连外部 WebSocket。该边界与生产 CSP、`MARKET_DATA_CONTRACT_SPEC.md` 以及
+M-02 的 `PARTIAL` 状态保持一致。
+
+**验证：** 静态合同锁定 UI/API/inventory/数据库授权边界；生产 Chromium 覆盖搜索、品种索引、
+四断点、axe、无观察名单请求和无外部网络；三端空浏览器登录及 Maintenance 无确认弹窗一并回归。
+
 ### T4.2：策略准入与投稿状态机
 
 **描述：** 结构化策略、回测、模拟盘、风险指标、人工审核、披露和版本重审。

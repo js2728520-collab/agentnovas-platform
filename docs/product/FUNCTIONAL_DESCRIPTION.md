@@ -158,7 +158,9 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 | `/paper` | 模拟组合 | 查看三张官方组合汇总、持仓、运行状态 | `client.paper.view` |
 | `/paper/[portfolioId]` | 组合详情 | 查看单卡现金、权益、盈亏、持仓和成交 | 本人组合 |
 | `/trading-hall` | 七智能体交易大厅 | 三卡、七角色、决策轮、Paper 和 Demo 证据 | `client.paper.view` |
-| `/workspace` | 策略与 Agent | AI 助手、策略研究、策略 DSL、回测和版本历史 | 登录、`client.paper.view` |
+| `/assistant` | AI 助手 | 持久对话、流式回复和 4 个必要快捷问题；不提供分析标的选择或旧 8 卡片 | 已登录 |
+| `/studio` | 策略研发 | 多 Agent 研究、确定性目标输入、策略 DSL、候选编辑和不可变版本 | 已登录、策略研发 Gate |
+| `/market` | 行情中心 | 品种搜索、报价、K 线、新闻与来源新鲜度；不提供观察名单 | 已登录 |
 | `/wallet` | 钱包与账本 | 只读服务余额和历史账本 | `client.wallet.view` |
 | `/wallet/deposits` | 优盾 USDT 充值 | 创建真实订单、专属地址、链上与复核状态；未配置失败关闭 | `client.wallet.view`、`client.deposit.create` |
 | `/notifications` | 通知中心 | 收件箱、已读、偏好、免打扰和渠道状态 | 已登录 |
@@ -234,11 +236,13 @@ Credits 是 AI 使用额度，不是 USDT、现金、Paper 本金或交易所余
 
 ### 6.5 策略与 Agent 工作区
 
-`/workspace` 保留 AgentNovas 原有策略研究能力，并置于 Client audience 会话和 Paper 权限之后，嵌入统一客户 Shell：
+`/assistant` 与 `/studio` 承接 AgentNovas 的对话和策略研究能力，并置于 Client audience 会话与能力
+Gate 之后，嵌入统一客户 Shell：
 
 - 策略大厅展示官方策略、七阶段状态和真实记录入口；
 - Agent 对话提供持久化会话、结构化回复和策略草稿保存；
-- 行情页读取当前市场报价、K 线、关注列表和外部新闻可用性，不以静态 fallback 冒充实时行情；
+- 行情页读取当前市场报价、K 线和外部新闻可用性，不提供观察名单，也不以静态 fallback 冒充
+  实时行情；当前浏览器只访问同源 API，不在真实 adapter 尚未完成时直连外部 WebSocket；
   instruments API 已加法式返回 contract v1、四个当前市场和 canonical/provider symbol 元数据，
   旧字段保持兼容，公共源只声明展示/研究用途且不具备 execution eligibility；
 - 交易中心复用官方 Paper 组合与成交体验，不连接客户交易所；

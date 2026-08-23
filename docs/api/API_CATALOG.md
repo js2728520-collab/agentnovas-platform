@@ -134,7 +134,6 @@
 | `/api/market/news` | GET | C | KEEP |
 | `/api/market/quote` | GET | C | KEEP |
 | `/api/market/ticker` | GET | C | KEEP |
-| `/api/market/watchlist` | GET, POST, DELETE | C | KEEP；所有权 |
 | `/api/platform/network` | GET | C | DISABLED/BETA；不向 Client 提供密钥连接网络信息 |
 | `/api/platform/settings` | GET | C | KEEP；只返回公开白名单字段 |
 | `/api/health` | GET | S | KEEP；公开粗粒度模式/时间，不含内部检查 |

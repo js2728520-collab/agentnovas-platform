@@ -1293,7 +1293,7 @@ tsc、lint、884 项测试、三端 build、bundle 预算、7 条边界通过。
 | --- | --- |
 | `ai-assistant-chat.module.css` | AI 助手对话（原 111 条规则，大半是 beta 覆盖链） |
 | `decision-hall.module.css` | 交易大厅与决策会议室 |
-| `live-market.module.css` | 行情终端（K 线、成交量、十字光标、关注列表、资讯） |
+| `live-market.module.css` | 行情终端（品种搜索、K 线、成交量、十字光标、资讯） |
 | `backtest.module.css` | 回测中心与单策略配置回测 |
 | `strategy-studio.module.css` | 策略实验室（更早一批） |
 | `ai-message-content.module.css` | 助手回复富文本与待确认问题对话框 |
@@ -2740,3 +2740,43 @@ production-only audit 为 0；官方 nginx 1.29.8 `-t` 通过并保留 8 条既�
 `103098cb5261603f7a43a262eedf34fe039daa8020fcbd35d0adf3e91c874c05` 与
 `bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，未纳入提交。未启动远端
 服务、未执行生产迁移、未接触生产数据库、未推送、未部署。
+
+## 76. 2026-08-24 T4.2 旧 Client 元素退役与行情生产边界修正
+
+已按确认需求完成任务看板 4.2。Client `/market` 不再展示或调用观察名单，对应
+`/api/market/watchlist` 已从 Client 路由、生成 inventory 和 Client 最小数据库授权删除；历史
+`market_watchlist` schema 与数据仍保留，未执行破坏性迁移。`/assistant` 没有分析标的选择和旧
+8 卡片，仅保留 4 个快捷问题；`/studio` 的账户、合约、周期、方向是确定性研究输入，明确保留。
+
+实现提交为 `a43c1d5`，浏览器覆盖提交为 `067318d`，19 项门禁计数提交为 `805cf55`。首次最新
+产物浏览器运行暴露两项真实问题：新闻 eyebrow 在白底只有 2.71:1 对比度，遗留 Client 代码还会
+尝试直连 `data-stream.binance.vision`，但生产 CSP `connect-src 'self'` 会阻断，而且现有规格明确
+真实 WebSocket adapter 尚未完成。修复提交 `f012d78` 改用可读的 `--rv-brand-ink`，删除虚假的
+浏览器外部 WebSocket，继续用同源 quote/candles/news API 和服务端时间派生 freshness；同时在
+浏览器 fixture 结束时卸载 context route，避免轮询请求与 teardown 竞争。`3dd95c2` 将旧的
+socket-onerror 测试更新为同源轮询、离线降级和禁止外部 stream 的当前合同。
+
+最终本地 `npm test` 1412/1412、TypeScript、全仓 ESLint、8 条架构边界、repository secret scan
+（3085 个候选文件）、production dependency audit 0 与差异检查全部通过。云端以运行时代码提交
+`f012d7887afa253339e73dbf4d5a8c4d96dfc190`、tree
+`5a4e8e685f6c2bd09c5a1b0a7b60b770f2ad2aa0` 的 3085 文件 Git 归档构建；本地与 `an-saas` 接收的
+源码 SHA-256 均为 `6f379d1d2ede2b6d28bbe9ff2c6aec7a8d632fe2f9baeeb82daa795fc377c1a0`。
+固定 Node 22.21.1 完成 Client 67、Operations 62、Maintenance 51 页 production build，
+production-only audit 为 0，bundle budget 与三端 key-custody 通过；Client 路由清单中不存在
+watchlist API。nginx 配置沿用本切片此前同文件的官方 `nginx:1.29.8-alpine` 语法通过证据，后续
+提交未改动 `deploy/nginx`。
+
+三端 standalone 归档 SHA-256 为
+`2171ea6d090d448adcd52fdc0d0a7adff477b8817221af51c84a84c419175441`，下载前后一致。本地以该
+云端产物、隔离 PostgreSQL、MFA 默认关闭和全部外部写入禁用运行真实 Chromium，最终 19/19：
+覆盖三端空浏览器登录、Host/Cookie audience、权限链接注册、五设备、Client 行情搜索/品种索引、
+四断点/axe、零观察名单请求、零外部 WebSocket/CSP 错误，以及 Maintenance 配置全程无确认弹窗。
+质量 schema `quality_e2e_1787523092119_91458_3c7a564d` 已删除，runtime secrets 已移除，清理失败
+为 0。本机 `3002` 被另一长期服务占用，因此使用项目自带且已有单测的
+`QUALITY_E2E_PORT_OFFSET=10000` 在 13000–13002 完成同一标准门禁，未终止用户进程。
+
+测试前本机三份 build cache 已恢复；两份用户本地修改哈希仍为
+`103098cb5261603f7a43a262eedf34fe039daa8020fcbd35d0adf3e91c874c05` 与
+`bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，未纳入任何提交。未启动
+远端服务、未执行生产迁移、未接触生产数据库、未推送、未部署。真实 WebSocket/provider adapter
+仍属于 M-02 后续任务，不能因本切片完成而标记为 CURRENT。

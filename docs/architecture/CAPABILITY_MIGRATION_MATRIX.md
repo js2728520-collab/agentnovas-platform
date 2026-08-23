@@ -114,7 +114,7 @@
 
 | ID | V3 能力 | Current 资产 | 目标位置 | 状态 | 剩余条件 |
 | --- | --- | --- | --- | --- | --- |
-| A-01 | AI 助手普通对话和策略生成 | 持久化 conversation/message、SSE、Credits reservation、Client `/assistant` 和 `/studio` | 统一 Client AI 助手 | `PARTIAL` | 统一入口/信息架构，移除观察名单与旧 8 卡片，完成取消/重试。 |
+| A-01 | AI 助手普通对话和策略生成 | 持久化 conversation/message、SSE、Credits reservation、Client `/assistant` 和 `/studio`；观察名单、助手分析标的选择和旧 8 卡片已退役，保留 4 个快捷问题 | 统一 Client AI 助手 | `PARTIAL` | 统一入口/信息架构，完成固定 Credits、取消/重试与幂等闭环。 |
 | A-02 | QuantDinger 移植与差异验收 | 当前研究/DSL/AI 基础；未取得指定仓库和可移植版本 | AI assistant/research modules | `BLOCKED` | P-04 仓库、演示和验收样例。 |
 | A-03 | 文字建议、可编辑参数、结构化策略 | DSL v1–v3、strategy candidates/versions/validations 与确定性校验 | Client AI/studio + strategy domain | `PARTIAL` | 新市场/provider 字段、版本兼容与端到端浏览器旅程。 |
 | A-04 | 回测、模拟盘准入和风险门槛版本 | backtest/Paper/Research 基础和多类测试 | Client `/backtests` + admission service | `PARTIAL/BLOCKED` | P-05 时长、收益/回撤门槛；不能用开发默认值代替。 |
