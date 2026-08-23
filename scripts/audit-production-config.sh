@@ -41,6 +41,21 @@ required_value() {
   fi
 }
 
+required_boolean() {
+  local file=$1 key=$2 value
+  if ! value=$(value_of "$file" "$key"); then
+    fail "$(basename "$file"):${key}:missing_or_duplicate"
+    return 1
+  fi
+  case "$value" in
+    true|false) ;;
+    *)
+      fail "$(basename "$file"):${key}:must_be_true_or_false"
+      return 1
+      ;;
+  esac
+}
+
 optional_present() {
   local file=$1 key=$2 value
   value=$(value_of "$file" "$key" 2>/dev/null) || return 1
@@ -87,6 +102,9 @@ if [ "$findings" -eq 0 ]; then
   for key in DATABASE_URL PAYMENT_WEBHOOK_DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY INTEGRATION_CREDENTIAL_ENCRYPTION_KEY LLM_PROFILE_ENCRYPTION_KEY; do
     required_value "$maintenance" "$key" || true
   done
+  for file in "$client" "$operations" "$maintenance"; do
+    required_boolean "$file" MFA_ENFORCEMENT_ENABLED || true
+  done
   for key in DATABASE_URL NOTIFICATION_WORKER_ENABLED NOTIFICATION_EMAIL_SEND_ENABLED NOTIFICATION_TOKEN_ENCRYPTION_KEY; do
     required_value "$notification" "$key" || true
   done
@@ -97,6 +115,8 @@ if [ "$findings" -eq 0 ]; then
   same_value "notification_token_client_worker" "$client" NOTIFICATION_TOKEN_ENCRYPTION_KEY "$notification" NOTIFICATION_TOKEN_ENCRYPTION_KEY
   same_value "notification_token_operations_worker" "$operations" NOTIFICATION_TOKEN_ENCRYPTION_KEY "$notification" NOTIFICATION_TOKEN_ENCRYPTION_KEY
   same_value "internal_mfa_operations_maintenance" "$operations" MFA_TOTP_ENCRYPTION_KEY "$maintenance" MFA_TOTP_ENCRYPTION_KEY
+  same_value "mfa_enforcement_client_operations" "$client" MFA_ENFORCEMENT_ENABLED "$operations" MFA_ENFORCEMENT_ENABLED
+  same_value "mfa_enforcement_client_maintenance" "$client" MFA_ENFORCEMENT_ENABLED "$maintenance" MFA_ENFORCEMENT_ENABLED
   same_value "llm_client_maintenance" "$client" LLM_PROFILE_ENCRYPTION_KEY "$maintenance" LLM_PROFILE_ENCRYPTION_KEY
   same_value "llm_runtime_maintenance" "$runtime" LLM_PROFILE_ENCRYPTION_KEY "$maintenance" LLM_PROFILE_ENCRYPTION_KEY
   same_value "integration_demo_maintenance" "$demo" INTEGRATION_CREDENTIAL_ENCRYPTION_KEY "$maintenance" INTEGRATION_CREDENTIAL_ENCRYPTION_KEY
