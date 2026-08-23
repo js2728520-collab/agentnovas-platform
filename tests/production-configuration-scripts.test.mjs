@@ -74,6 +74,17 @@ DATABASE_URL=postgresql://migrator
 POSTGRES_MIGRATION_SCHEMA=public
 GIT_COMMIT_SHA=test
 `,
+  // 执行服务：全系统唯一持有交易所凭证解密能力的进程。配置审计必须检查它，
+  // 否则漏配这一份的后果是客户点「验证交易所账户」和「一键平仓」都报服务不可用。
+  "execution.env": `NODE_ENV=production
+DATABASE_URL=postgresql://agentnovas_execution_service@127.0.0.1:5432/agentnovas
+RIVERTON_EXECUTION_SERVICE=true
+EXCHANGE_CREDENTIAL_ENCRYPTION_KEY=test-exchange-key
+EXECUTION_SERVICE_SHARED_SECRET=test-shared-secret-0123456789abcdef0123456789
+EXECUTION_SERVICE_HOST=127.0.0.1
+EXECUTION_SERVICE_PORT=3020
+GIT_COMMIT_SHA=test
+`,
 };
 
 async function fixtureDirectory() {

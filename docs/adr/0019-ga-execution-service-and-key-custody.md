@@ -276,6 +276,9 @@ npm run quality:key-custody
 
 ### 实盘仍然关闭
 
+> **注：这一段描述的 `LIVE_EXECUTION_ENABLED` 已被第 6 步的授权表取代，代码里零处
+> 读取。保留原文是为了让阅读顺序可追溯，配置时请以第 6 步为准。**
+
 `LIVE_EXECUTION_ENABLED` 默认为假，此时**不向交易所发出任何请求**，但仍产出一条
 `LIVE_ROUTING_DISABLED` 的回执——静默跳过会让上层以为下单成功了（INV-6）。
 第 6 步才按交易所逐个灰度。现在把实现和单测做完，是为了让第 6 步只剩「打开开关」

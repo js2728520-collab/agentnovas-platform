@@ -1,0 +1,28 @@
+[Unit]
+Description=Riverton execution service (sole holder of exchange credential decryption)
+After=network-online.target postgresql.service
+Wants=network-online.target
+# Web 应用启动前它就该在：客户点「验证交易所账户」和「一键平仓」都要经过它。
+Before=riverton-client.service
+
+[Service]
+Type=simple
+User=agentnovas
+Group=agentnovas
+WorkingDirectory=/opt/agentnovas/current
+EnvironmentFile=/etc/agentnovas/execution.env
+ExecStart=/usr/bin/npm run service:execution
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=90
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# 这个进程持有全部客户凭证的解密能力，内存转储会把明文凭证写到磁盘上。
+LimitCORE=0
+
+[Install]
+WantedBy=multi-user.target

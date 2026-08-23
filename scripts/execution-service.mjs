@@ -36,9 +36,22 @@ const secret = assertExecutionSecretConfigured(process.env.EXECUTION_SERVICE_SHA
 if (!process.env.EXCHANGE_CREDENTIAL_ENCRYPTION_KEY) {
   throw new Error("EXCHANGE_CREDENTIAL_ENCRYPTION_KEY 缺失：执行服务是唯一能解密凭证的进程，没有它无事可做");
 }
-if (host === "0.0.0.0" || host === "::") {
-  // 这不是洁癖：这个端口等价于「替任何客户下单」的能力。
-  throw new Error(`拒绝监听 ${host}：执行服务只能绑回环或明确的内网地址`);
+// 绑通配地址需要运维显式声明「本进程只在内网可达」。
+//
+// 这个端口等价于「替任何客户下单」的能力，所以默认拒绝通配地址。但容器部署里
+// 回环地址对同网络的其它容器不可达，一律拒绝会让执行服务在 compose 下根本用不了
+// ——那正是这份配置此前与文档互相矛盾的地方。
+//
+// 做成一个具名断言而不是静默放行：它写在 env 文件里（可审计）、启动时大声打印
+// （可发现），默认仍然是拒绝。运维做出这个断言的前提是：
+//   容器没有 ports 映射、不在 edge 网络上，或裸机上有防火墙挡住该端口。
+const internalNetworkOnly = process.env.EXECUTION_SERVICE_INTERNAL_NETWORK_ONLY === "true";
+if ((host === "0.0.0.0" || host === "::") && !internalNetworkOnly) {
+  throw new Error(
+    `拒绝监听 ${host}：执行服务只能绑回环地址。\n` +
+    "容器部署确需绑通配地址时，设置 EXECUTION_SERVICE_INTERNAL_NETWORK_ONLY=true，\n" +
+    "前提是该容器没有 ports 映射且不在 edge 网络上——这个端口等价于「替任何客户下单」。",
+  );
 }
 
 function sendJson(response, status, body) {
@@ -84,6 +97,13 @@ const server = createServer((request, response) => {
 
 server.listen(port, host, () => {
   console.log(`[execution] 执行服务已启动 http://${host}:${port}（唯一持有凭证解密能力的进程）`);
+  if (internalNetworkOnly) {
+    // 大声说出来：这条断言的正确性由部署拓扑保证，代码无法自行验证。
+    console.warn(
+      "[execution] 已按 EXECUTION_SERVICE_INTERNAL_NETWORK_ONLY=true 绑定通配地址。" +
+      "请确认本进程没有对外发布端口，且不在面向公网的网络上。",
+    );
+  }
 });
 
 // ---------------------------------------------------------------------------

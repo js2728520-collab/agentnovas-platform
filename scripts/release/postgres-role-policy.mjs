@@ -159,11 +159,34 @@ const WORKER_TABLES = new Map([
     "platform_demo_card_controls",
     "platform_demo_order_intents",
     "runtime_explanation_bindings",
+    // 共享决策轮（0046–0048）：同一张卡、同一根 K 线只算一次。
+    "strategy_decision_rounds",
     "strategy_deployments",
+    // 实盘部署要判断绑定的账户是否可用。授权是**列级**的
+    // （least-privilege-roles.sql），encrypted_credential_ref 不在其中——
+    // Worker 拿不到凭证密文，解密只发生在执行服务里（ADR-0019）。
+    "exchange_accounts",
     "strategy_runtime_cycles",
     "strategy_runtime_events",
     "strategy_runtime_explanation_jobs",
     "strategy_versions",
+    "worker_instances",
+  ])],
+  // 执行服务：全系统唯一能解密交易所凭证的进程。
+  //
+  // 它不在这里的话，即使角色建出来了，拿到任何越权 GRANT 也不会被检查器发现
+  // ——一个不在白名单里的角色等于不受这条闸门约束。
+  ["agentnovas_execution_service", new Set([
+    "audit_logs",
+    "exchange_accounts",
+    "execution_kill_switches",
+    "execution_live_routing",
+    "execution_reconciliations",
+    "live_execution_receipts",
+    "official_paper_portfolios",
+    "platform_decisions",
+    "strategy_deployments",
+    "trades",
     "worker_instances",
   ])],
 ]);

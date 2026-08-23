@@ -56,7 +56,7 @@ same_value() {
   fi
 }
 
-for name in client operations maintenance notification runtime demo migrator; do
+for name in client operations maintenance notification runtime demo migrator execution; do
   file="$secret_dir/$name.env"
   if [ ! -f "$file" ]; then
     fail "$name.env:missing"

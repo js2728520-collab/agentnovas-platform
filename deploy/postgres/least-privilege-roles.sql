@@ -37,7 +37,8 @@ BEGIN
     'agentnovas_payment_webhook',
     'agentnovas_notification_worker',
     'agentnovas_demo_execution_worker',
-    'agentnovas_runtime_worker'
+    'agentnovas_runtime_worker',
+    'agentnovas_execution_service'
   ] LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
       EXECUTE format('CREATE ROLE %I LOGIN PASSWORD NULL NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', role_name);
@@ -452,6 +453,52 @@ GRANT SELECT (id,provider,enabled,kill_switch_enabled,last_verified_at,last_veri
   ON platform_demo_accounts TO agentnovas_runtime_worker;
 GRANT SELECT ON platform_demo_card_controls TO agentnovas_runtime_worker;
 GRANT SELECT, INSERT, UPDATE ON platform_demo_order_intents TO agentnovas_runtime_worker;
+
+-- ---------------------------------------------------------------------------
+-- 0044–0053 新增对象的授权。
+--
+-- 这一段此前是空的：全部 54 个迁移里只有 0043 含 GRANT，而授权的唯一真源是本文件。
+-- 于是跑完 0044–0053 之后，运营端的熔断开关页与实盘路由页会全线 PostgreSQL 42501，
+-- 执行服务连自己的对账表都读不了。
+-- 文件末尾那句「新表保持关闭」是刻意的默认，但默认之后必须有人来开。
+
+-- 执行服务：全系统唯一能解密交易所凭证的进程。
+--
+-- 它读凭证密文，写对账与回执。**不给它任何客户身份表的权限**——它不需要知道
+-- 客户是谁，只需要知道这个账户属于那个 customerId（归属校验在 SQL 的 WHERE 里做）。
+GRANT SELECT ON exchange_accounts, strategy_deployments, official_paper_portfolios
+  TO agentnovas_execution_service;
+GRANT SELECT, INSERT, UPDATE ON execution_reconciliations TO agentnovas_execution_service;
+-- 回执只增不改：0053 的触发器已禁止 UPDATE/DELETE，这里连 UPDATE 权限都不给，
+-- 两层各自独立。
+GRANT SELECT, INSERT ON live_execution_receipts TO agentnovas_execution_service;
+-- 熔断与实盘授权只读：执行服务查闸门，但无权自行开关。
+GRANT SELECT ON execution_kill_switches, execution_live_routing TO agentnovas_execution_service;
+GRANT SELECT, UPDATE ON trades TO agentnovas_execution_service;
+GRANT INSERT ON audit_logs TO agentnovas_execution_service;
+GRANT SELECT, INSERT, UPDATE ON worker_instances TO agentnovas_execution_service;
+GRANT SELECT, INSERT ON platform_decisions TO agentnovas_execution_service;
+
+-- 运营端：熔断与实盘路由的操作界面。
+--
+-- 两张表都不给 DELETE：熔断与授权的历史是事后复盘的依据，
+-- 0051/0052 的触发器禁止复活已解除的记录，权限层再挡一次删除。
+GRANT SELECT, INSERT, UPDATE ON execution_kill_switches TO agentnovas_ops_web;
+GRANT SELECT, INSERT, UPDATE ON execution_live_routing TO agentnovas_ops_web;
+GRANT SELECT ON execution_reconciliations, live_execution_receipts TO agentnovas_ops_web;
+
+-- 运维端：审计链尾锚点。登记与校验都在这里，不给删除。
+GRANT SELECT, INSERT ON audit_chain_anchors TO agentnovas_maint_web;
+
+-- Runtime Worker：共享决策轮（0046–0048）。
+GRANT SELECT, INSERT, UPDATE ON strategy_decision_rounds TO agentnovas_runtime_worker;
+-- 实盘部署要读绑定的交易所账户是否可用，但**不读凭证密文**——
+-- 列级授权把 encrypted_credential_ref 挡在外面，Worker 拿不到它。
+GRANT SELECT (id, customer_id, exchange, environment, status, can_trade, withdrawal_authorized)
+  ON exchange_accounts TO agentnovas_runtime_worker;
+
+-- 客户端与运营端读共享决策轮，用于展示七阶段叙述。
+GRANT SELECT ON strategy_decision_rounds TO agentnovas_client_web, agentnovas_ops_web;
 
 -- No ALTER DEFAULT PRIVILEGES are granted to application roles. Re-run this
 -- database-bound template after forward migrations so new tables remain closed.

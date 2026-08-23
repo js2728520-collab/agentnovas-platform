@@ -4,8 +4,11 @@
  * 只做一件事：把 OKX 的字段与状态名映射成执行层的归一化形态。编排（幂等、限流、
  * 分类、对账）在上层，与交易所无关。新增交易所时只写一个这样的文件。
  *
- * 目前接的是 OKX 的模拟盘端点。实盘路由由 LIVE_EXECUTION_ENABLED 控制，默认关闭
- * （ADR-0019 第 6 步才逐个灰度）。
+ * 目前接的**只有** OKX 模拟盘端点：okx-demo-execution 无条件发
+ * `x-simulated-trading: 1`，没有实盘参数。因此 `okx/live` 在
+ * live-execution-service 里没有注册适配器——宁可明确报「该环境没有适配器」，
+ * 也不要把 live 账户静默发到模拟盘端点，那会让客户以为自己有实盘仓位而交易所里
+ * 是模拟仓位。
  */
 
 import { getOkxDemoOrder, okxFeeInUsdt, placeOkxDemoMarketOrder, type OkxDemoOrder } from "../../okx-demo-execution.ts";

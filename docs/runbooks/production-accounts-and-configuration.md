@@ -398,16 +398,24 @@ DATABASE_URL=postgresql://agentnovas_execution_service:<口令>@127.0.0.1:5432/<
 RIVERTON_EXECUTION_SERVICE=true
 EXCHANGE_CREDENTIAL_ENCRYPTION_KEY=<与现有值一致，迁移时务必保留原值>
 EXECUTION_SERVICE_SHARED_SECRET=<48 字符随机值>
-EXECUTION_SERVICE_HOST=0.0.0.0        # 容器内监听；容器不挂 edge 网络
+EXECUTION_SERVICE_HOST=127.0.0.1      # 裸机保持回环；容器见下
 EXECUTION_SERVICE_PORT=3020
 ```
 
 `RIVERTON_EXECUTION_SERVICE=true` 声明进程身份，数据库角色必须是
 `agentnovas_execution_service`——角色与身份不匹配时进程拒绝启动。
 
-> `EXECUTION_SERVICE_HOST` 在**容器内**可以是 `0.0.0.0`，因为 `execution` 服务
-> **不挂 `edge` 网络**，只在 `backplane` 内可达。裸机 systemd 部署时必须改成
-> `127.0.0.1`——代码里拒绝 `0.0.0.0` 的检查只在非容器场景下才是最后一道。
+> **容器部署**里回环地址对同网络的其它容器不可达，需要绑通配地址。代码默认拒绝
+> `0.0.0.0`，要绕过必须显式声明：
+>
+> ```
+> EXECUTION_SERVICE_HOST=0.0.0.0
+> EXECUTION_SERVICE_INTERNAL_NETWORK_ONLY=true
+> ```
+>
+> 这是一条**运维断言**，代码无法自行验证，启动时会大声打印出来。做出它的前提是：
+> 该容器没有 `ports` 映射、不在 `edge` 网络上（compose 里 `execution` 只挂
+> `backplane` 与 `egress`）。裸机 systemd 部署保持 `127.0.0.1`，不要设这个变量。
 
 ### 10.3 三个 Web 的 env 需要补两行
 
