@@ -155,6 +155,34 @@ export function legacyRoleAssignments(role: string): LegacyAssignment[] {
         { appId: "operations", roleCode: "ops_hq_general_manager", permissions: operationsPlatformPermissions() },
         { appId: "maintenance", roleCode: "maint_break_glass_admin", permissions: maintenancePlatformPermissions() },
       ];
+    case "tech_staff":
+      // 运维端技术人员。
+      //
+      // 此前运维端只有 hq_admin 能进，于是「只该管模型配置和发布」的人必须当
+      // hq_admin，而那会同时给他运营端全部权限——改客户归属、看客户 PII。
+      // 这个角色把技术操作和业务/治理权限分开。
+      //
+      // 刻意不给的四类，每一类都有具体理由：
+      //   - roles.manage / roles.approve_sensitive：权限管理是治理，不是技术操作。
+      //     能给自己加权限的技术账号等于没有权限体系。
+      //   - releases.approve：登记发布的人不能自己复核（maker/checker）。
+      //     技术人员登记版本，由另一个人验证证据后放行。
+      //   - emergency_pause.execute / demo_exchanges.kill：熔断是业务决定，
+      //     停下来影响的是客户能不能交易，不该由值班工程师单独按。
+      //   - payment_integrations.manage / commercial_disclosures.*：碰钱与对外承诺。
+      return [{ appId: "maintenance", roleCode: "maint_technical", permissions: [
+        { permissionKey: "maint.llm_profiles.manage", scope: "PLATFORM" },
+        { permissionKey: "maint.agent_bindings.manage", scope: "PLATFORM" },
+        { permissionKey: "maint.email_integrations.manage", scope: "PLATFORM" },
+        { permissionKey: "maint.feature_flags.manage", scope: "PLATFORM" },
+        { permissionKey: "maint.system_health.view", scope: "PLATFORM" },
+        { permissionKey: "maint.audit.view", scope: "PLATFORM" },
+        { permissionKey: "maint.demo_exchanges.view", scope: "PLATFORM" },
+        { permissionKey: "maint.demo_exchanges.verify", scope: "PLATFORM" },
+        { permissionKey: "maint.follow_policy.view", scope: "PLATFORM" },
+        { permissionKey: "maint.releases.view", scope: "PLATFORM" },
+        { permissionKey: "maint.releases.manage", scope: "PLATFORM" },
+      ] }];
     case "hq_support":
       return [{ appId: "operations", roleCode: "ops_hq_support", permissions: [
         { permissionKey: "ops.customers.view", scope: "PLATFORM" },

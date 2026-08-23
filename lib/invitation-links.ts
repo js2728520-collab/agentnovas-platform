@@ -43,6 +43,41 @@ export function buildInvitationLink(baseUrl: string, code: string): string {
   return `${origin}/login?invite=${encodeURIComponent(code)}`;
 }
 
+/** 员工邀请链接的有效期。48 小时，运维可通过环境变量收紧但不能放宽到无限。 */
+export const STAFF_INVITATION_TTL_MS = 48 * 3600_000;
+
+/**
+ * 员工链接与客户链接的区别不在能不能复用，而在**有效期与审批**。
+ *
+ * 拿到客户链接的人最多注册成一个客户，只能看到自己的数据；拿到员工链接的人会进入
+ * 组织架构，能看到名下客户的资料、发起充值人工操作、调整归属。同一条链接永久有效
+ * 意味着一次转发就是永久的入口。
+ *
+ * 48 小时把窗口收窄；真正的闸门仍是双人复核——即使链接在窗口内外泄，多出来的账号
+ * 也只能停在待批准状态。期限的作用是把复核人要审的量控制住。
+ */
+export function staffInvitationExpiry(now: Date, ttlMs = STAFF_INVITATION_TTL_MS): string {
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0 || ttlMs > STAFF_INVITATION_TTL_MS) {
+    // 只允许收紧，不允许放宽。一个能被配置成无限的期限等于没有期限。
+    throw new Error("STAFF_INVITATION_TTL_INVALID");
+  }
+  return new Date(now.getTime() + ttlMs).toISOString();
+}
+
+/** 链接是否仍在有效期内。过期判定放在这里，调用方不各自比时间。 */
+export function isStaffInvitationUsable(
+  invitation: { status: string; expiresAt: string | null },
+  now: Date,
+): { usable: boolean; reason: string | null } {
+  if (invitation.status !== "active") return { usable: false, reason: "STAFF_LINK_NOT_ACTIVE" };
+  if (!invitation.expiresAt) return { usable: false, reason: "STAFF_LINK_MISSING_EXPIRY" };
+  const deadline = Date.parse(invitation.expiresAt);
+  // 时间戳损坏时判为不可用：默认放行才是危险的方向。
+  if (!Number.isFinite(deadline)) return { usable: false, reason: "STAFF_LINK_EXPIRY_INVALID" };
+  if (now.getTime() > deadline) return { usable: false, reason: "STAFF_LINK_EXPIRED" };
+  return { usable: true, reason: null };
+}
+
 /** 生成人类可抄写的码：去掉 0/O/1/I 这类易混字符。 */
 export function generateInvitationCode(length: number): string {
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";

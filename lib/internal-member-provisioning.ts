@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 
 import { legacyRoleAssignments } from "./rbac.ts";
 
-type InternalRole = "branch_admin" | "manager" | "supervisor" | "employee" | "finance" | "auditor" | "hq_support";
+type InternalRole = "branch_admin" | "manager" | "supervisor" | "employee" | "finance" | "auditor" | "hq_support" | "tech_staff";
 
 export async function provisionInternalMember(pool: Pool, input: {
   actorUserId: string;
@@ -18,7 +18,10 @@ export async function provisionInternalMember(pool: Pool, input: {
   reason?: string;
   now?: Date;
 }) {
-  const assignment = legacyRoleAssignments(input.role).find((candidate) => candidate.appId === "operations");
+  // 技术人员在运维端，其余内部角色在运营端。取错端会让 assignment 为空，
+  // 进而抛 INTERNAL_ROLE_NOT_PROVISIONABLE——那是个正确但难懂的失败。
+  const targetApp = input.role === "tech_staff" ? "maintenance" : "operations";
+  const assignment = legacyRoleAssignments(input.role).find((candidate) => candidate.appId === targetApp);
   if (!assignment || !assignment.permissions.length) throw new Error("INTERNAL_ROLE_NOT_PROVISIONABLE");
   const now = input.now ?? new Date();
   const activationExpiresAt = new Date(now.getTime() + 48 * 3600_000);

@@ -32,7 +32,10 @@ export async function GET(request: Request) {
     const month = monthPattern.test(requested) ? requested : new Date().toISOString().slice(0, 7), { start, end } = monthBounds(month), db = getDb();
     const [allUsers, attributions, allMemberships, allTargets, followUps] = await Promise.all([
       db.select({ id: users.id, email: users.email, role: users.role, organizationId: users.organizationId, reportsToUserId: users.reportsToUserId, createdAt: users.createdAt }).from(users),
-      db.select().from(customerAttributions).where(eq(customerAttributions.status, "active")),
+      // 内部体验账号不计入业绩：员工用自己的链接注册，仓位会算成他自己的业绩，
+      // 主管、经理、分公司跟着一路分成——一个可以自我刷单的口子。
+      db.select().from(customerAttributions)
+        .where(and(eq(customerAttributions.status, "active"), eq(customerAttributions.isInternal, false))),
       (await getPostgresPool()).query<{ customer_id: string; starts_at: string; plan_code: string }>(`
         SELECT orders.user_id AS customer_id,orders.activated_at AS starts_at,plan.plan_code
           FROM commercial_membership_orders orders

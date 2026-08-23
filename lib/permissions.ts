@@ -26,7 +26,7 @@ export function canCreateInvitation(role: string, kind: string) {
 
 export function isBranchReviewer(role: string) { return (branchApprovalRoles as readonly string[]).includes(role); }
 
-export const roleLabels: Record<string, string> = { hq_admin: "总公司", hq_support: "总公司客服", branch_admin: "分公司", manager: "经理", supervisor: "主管", employee: "员工", customer: "客户", finance: "财务", auditor: "审核员" };
+export const roleLabels: Record<string, string> = { hq_admin: "总公司", hq_support: "总公司客服", branch_admin: "分公司", manager: "经理", supervisor: "主管", employee: "员工", customer: "客户", finance: "财务", auditor: "审核员", tech_staff: "技术人员" };
 
 type MemberActivationActor = { id: string; role: string; organizationId: string | null };
 type MemberActivationTarget = MemberActivationActor & { reportsToUserId: string | null; status: string };

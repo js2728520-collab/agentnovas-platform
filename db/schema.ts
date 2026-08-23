@@ -26,7 +26,7 @@ export const users = sqliteTable("users", {
   gender: text("gender").notNull().default(""),
   passwordHash: text("password_hash").notNull(),
   emailVerifiedAt: text("email_verified_at"),
-  role: text("role", { enum: ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "customer", "finance", "auditor"] }).notNull(),
+  role: text("role", { enum: ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "customer", "finance", "auditor", "tech_staff"] }).notNull(),
   organizationId: text("organization_id").references(() => organizations.id),
   reportsToUserId: text("reports_to_user_id"),
   status: text("status", { enum: ["pending", "active", "frozen", "closed"] }).notNull().default("pending"),
@@ -206,6 +206,11 @@ export const customerAttributions = sqliteTable("customer_attributions", {
   endedAt: text("ended_at"),
   reason: text("reason").notNull().default(""),
   approvalId: text("approval_id"),
+  // 内部员工的体验账号。不计入任何业绩归因、团队目标或绩效分成基准——
+  // 否则员工用自己的邀请链接注册，仓位会算成他自己的业绩，上级跟着一路分成。
+  isInternal: integer("is_internal", { mode: "boolean" }).notNull().default(false),
+  internalOwnerUserId: text("internal_owner_user_id"),
+  internalReason: text("internal_reason"),
   ...timestamps,
 }, (t) => [index("idx_attribution_customer_effective").on(t.customerId, t.effectiveAt), index("idx_attribution_branch_status").on(t.branchId, t.status)]);
 
