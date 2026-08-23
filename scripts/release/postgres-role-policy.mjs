@@ -244,6 +244,7 @@ export function evaluatePostgresRolePolicy({
   identityPolicies,
   identityRoutines,
   configurationActivationRoutines,
+  configurationConsumerRoutines,
   triggerReadGaps = [],
 }) {
   const findings = [];
@@ -369,6 +370,15 @@ export function evaluatePostgresRolePolicy({
         || String(grant.privilegeType).toUpperCase() !== "EXECUTE")) {
       findings.push(finding(
         "WORKER_ROUTINE_GRANT",
+        `${grant.grantee} has prohibited ${grant.privilegeType} access on ${grant.routineName}`,
+        grant.grantee,
+      ));
+    } else if (grant.grantee === "agentnovas_client_web"
+      && String(grant.routineName).startsWith("configuration_")
+      && (grant.routineName !== "configuration_client_active_feature_flag"
+        || String(grant.privilegeType).toUpperCase() !== "EXECUTE")) {
+      findings.push(finding(
+        "CONFIGURATION_CONSUMER_ROUTINE_GRANT",
         `${grant.grantee} has prohibited ${grant.privilegeType} access on ${grant.routineName}`,
         grant.grantee,
       ));
@@ -515,6 +525,30 @@ export function evaluatePostgresRolePolicy({
     }
   }
 
+  if (configurationConsumerRoutines) {
+    const gateway = configurationConsumerRoutines.find((routine) => (
+      routine.signature === "configuration_client_active_feature_flag(text)"
+    ));
+    const executeGrantees = new Set(gateway?.executeGrantees ?? []);
+    const expectedExecuteGrantees = new Set(["agentnovas_client_web", "agentnovas_migrator"]);
+    const config = Array.isArray(gateway?.config) ? gateway.config : [];
+    const pinnedPath = config.some((value) => (
+      String(value).replaceAll('"', "").replace(/\s+/g, " ").trim().toLowerCase()
+        === "search_path=public, pg_catalog"
+    ));
+    if (!gateway
+      || gateway.ownerName !== "agentnovas_migrator"
+      || !gateway.securityDefiner
+      || !pinnedPath
+      || !sameStringSet(executeGrantees, expectedExecuteGrantees)) {
+      findings.push(finding(
+        "CONFIGURATION_CONSUMER_GATEWAY_UNSAFE",
+        "Client feature flag gateway is missing or unsafe",
+        "agentnovas_client_web",
+      ));
+    }
+  }
+
   return findings;
 }
 
@@ -539,6 +573,7 @@ async function verifyConfiguredDatabase() {
       identityPoliciesResult,
       identityRoutinesResult,
       configurationActivationRoutinesResult,
+      configurationConsumerRoutinesResult,
       triggerReadGapsResult,
     ] = await Promise.all([
       pool.query(`
@@ -650,6 +685,23 @@ async function verifyConfiguredDatabase() {
          WHERE namespace.nspname='public'
            AND procedure.proname='configuration_activation_worker_activate'
       `),
+      pool.query(`
+        SELECT procedure.oid::regprocedure::text AS signature,
+               owner.rolname AS "ownerName",procedure.prosecdef AS "securityDefiner",
+               COALESCE(procedure.proconfig,'{}'::text[]) AS config,
+               ARRAY(
+                 SELECT COALESCE(grantee.rolname,'PUBLIC')
+                   FROM aclexplode(COALESCE(procedure.proacl,acldefault('f',procedure.proowner))) AS acl
+                   LEFT JOIN pg_roles AS grantee ON grantee.oid=acl.grantee
+                  WHERE acl.privilege_type='EXECUTE'
+                  ORDER BY COALESCE(grantee.rolname,'PUBLIC')
+               )::text[] AS "executeGrantees"
+          FROM pg_proc AS procedure
+          JOIN pg_namespace AS namespace ON namespace.oid=procedure.pronamespace
+          JOIN pg_roles AS owner ON owner.oid=procedure.proowner
+         WHERE namespace.nspname='public'
+           AND procedure.proname='configuration_client_active_feature_flag'
+      `),
       // 非 SECURITY DEFINER 的触发器函数，函数体里读到的表 × 能写触发表的角色。
       // 从 pg_proc.prosrc 里抽表名是启发式的，宁可多报——多报一条要人看一眼，
       // 漏报一条是生产上一个功能整体不可用。
@@ -696,6 +748,7 @@ async function verifyConfiguredDatabase() {
       identityPolicies: identityPoliciesResult.rows,
       identityRoutines: identityRoutinesResult.rows,
       configurationActivationRoutines: configurationActivationRoutinesResult.rows,
+      configurationConsumerRoutines: configurationConsumerRoutinesResult.rows,
     });
     process.stdout.write(`${JSON.stringify({ database: url.pathname.slice(1), findings }, null, 2)}\n`);
     if (findings.length) process.exitCode = 1;

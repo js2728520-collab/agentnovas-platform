@@ -23,6 +23,27 @@ const pool = new pg.Pool({ connectionString: databaseUrl, max: 8, options: `-c s
 const evidence = (letter) => letter.repeat(64);
 let factSequence = 0;
 
+async function waitForWorkerLeaseRelease(timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const probe = await pool.connect();
+    try {
+      const result = await probe.query(
+        "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS acquired",
+        [CONFIGURATION_ACTIVATION_WORKER_LEASE_KEY],
+      );
+      if (result.rows[0]?.acquired) {
+        await probe.query("SELECT pg_advisory_unlock(hashtextextended($1,0))", [CONFIGURATION_ACTIVATION_WORKER_LEASE_KEY]);
+        return;
+      }
+    } finally {
+      probe.release();
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.fail("PostgreSQL did not release the crashed Worker session lease within 10 seconds");
+}
+
 async function scheduledVersion({ key, scheduledFor, now = new Date(Date.now() - 60 * 60_000).toISOString() }) {
   factSequence += 1;
   const suffix = String(factSequence).padStart(4, "0");
@@ -93,6 +114,7 @@ test("one leased worker activates only due versions and replay is idempotent", a
   const blocked = await runDueConfigurationActivations(pool, { now: wallClock, batchSize: 10 });
   assert.deepEqual(blocked, { leaseAcquired: false, scanned: 0, activated: 0, skipped: 0, failed: 0, failures: [] });
   leaseHolder.release(true);
+  await waitForWorkerLeaseRelease();
 
   const processed = await runDueConfigurationActivations(pool, { now: wallClock, batchSize: 10 });
   assert.equal(processed.leaseAcquired, true);

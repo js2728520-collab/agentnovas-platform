@@ -321,6 +321,12 @@ GRANT EXECUTE ON FUNCTION
   public.client_verify_email(text,timestamptz)
 TO agentnovas_client_web;
 
+-- Client can resolve one active, non-secret feature flag by exact key. It has
+-- no SELECT privilege on the versioned configuration control-plane tables.
+GRANT EXECUTE ON FUNCTION
+  public.configuration_client_active_feature_flag(text)
+TO agentnovas_client_web;
+
 -- Password verification happens in application memory. Keep its exact
 -- identifier projection on a separate non-inheriting role so the shared Web
 -- role cannot chain password_hash lookup into session creation.

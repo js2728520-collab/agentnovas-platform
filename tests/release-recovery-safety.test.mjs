@@ -231,6 +231,52 @@ test("configuration activation gateway stays owner-controlled with a pinned path
   }
 });
 
+test("Client feature flag gateway stays read-only, owner-controlled and narrowly granted", () => {
+  const roles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
+    roleName,
+    canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
+    superuser: false,
+    createRole: false,
+    createDatabase: false,
+    replication: false,
+    bypassRls: false,
+  }));
+  const gateway = {
+    signature: "configuration_client_active_feature_flag(text)",
+    ownerName: "agentnovas_migrator",
+    securityDefiner: true,
+    config: ["search_path=public, pg_catalog"],
+    executeGrantees: ["agentnovas_client_web", "agentnovas_migrator"],
+  };
+  const input = {
+    roles,
+    grants: [],
+    schemaGrants: [],
+    routineGrants: [{ grantee: "agentnovas_client_web", routineName: "configuration_client_active_feature_flag", privilegeType: "EXECUTE" }],
+    memberships: [],
+    configurationConsumerRoutines: [gateway],
+  };
+  assert.deepEqual(evaluatePostgresRolePolicy(input), []);
+  for (const unsafe of [
+    { ...gateway, ownerName: "agentnovas_client_web" },
+    { ...gateway, securityDefiner: false },
+    { ...gateway, config: null },
+    { ...gateway, executeGrantees: [...gateway.executeGrantees, "PUBLIC"] },
+  ]) {
+    const findings = evaluatePostgresRolePolicy({ ...input, configurationConsumerRoutines: [unsafe] });
+    assert.ok(findings.some((finding) => finding.code === "CONFIGURATION_CONSUMER_GATEWAY_UNSAFE"));
+  }
+  const broadGrant = evaluatePostgresRolePolicy({
+    ...input,
+    routineGrants: [...input.routineGrants, {
+      grantee: "agentnovas_client_web",
+      routineName: "configuration_client_arbitrary_reader",
+      privilegeType: "EXECUTE",
+    }],
+  });
+  assert.ok(broadGrant.some((finding) => finding.code === "CONFIGURATION_CONSUMER_ROUTINE_GRANT"));
+});
+
 test("database role policy verifies Client identity RLS ownership and restrictive policies", () => {
   const identityTables = [
     "users",
