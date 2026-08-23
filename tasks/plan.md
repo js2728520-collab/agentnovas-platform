@@ -564,6 +564,26 @@ production build，以及 MFA 默认关闭、外部写入禁用的三端真实 C
 `2faf8d8` 修正为高对比度 token。最终 `npm test` 1418/1418；固定 Node 22.21.1 云端构建为
 Client 67、Operations 62、Maintenance 51 页，production audit 0，最终浏览器 19/19。
 
+### T4.1d：工作记录详情与受控导出（对应任务看板 T4.13）
+
+**状态：** 进行中。该能力不依赖 P-01–P-12，不改变真实订单硬关闭边界。
+
+**目标合同：** Client 通过 `/work-records` 查看属于自己的历史决策轮，并进入稳定详情页查看完整七阶段公开对话、固定策略名称与版本、行情快照摘要、客户组合准入、模拟订单意图、成交回执和审计标识。公共决策内容按 ADR-0018 共享，客户准入和成交必须按当前用户所有权隔离；纯 hold 轮也必须可见。Maintenance 仅通过独立敏感权限、近期 MFA 策略和页面内审计原因导出脱敏安全投影，不获得客户业务原表或原始用户 ID。
+
+**增量任务：**
+
+1. WR1 合同/查询：定义有界 DTO、稳定不透明游标、最多 50 条分页和详情 404 语义；Client 查询以订阅 `started_at/ended_at` 限制共享轮时间范围，以 `deployment.owner_user_id` 限制组合数据。
+2. WR2 Client API：新增 `GET /api/work-records` 与 `GET /api/work-records/:id`，统一 `client.paper.view`、`no-store`、参数上限和安全错误信封；同步 inventory、OpenAPI 与合同测试。
+3. WR3 Client UI：新增 `/work-records` 与 `/work-records/:id`，提供加载、错误、空态、分页、七阶段记录、行情/风控/意图/成交与“公共决策、个人准入”说明；覆盖 320/768/1024/1440、键盘和 axe。
+4. WR4 Maintenance 投影：新增 security-barrier 安全视图，只暴露伪名用户和 allowlist 字段；Maintenance DB role 只获得该视图 SELECT，新敏感权限不得覆盖显式撤权墓碑。
+5. WR5 Maintenance 导出：使用 `POST /api/maintenance/work-records/export`，日期最多 31 天、最多 1,000 条、请求体严格、same-origin、幂等与页面内 3–500 字审计原因；返回无公式注入风险的 JSON，不落本地文件、不回显原始用户 ID/PII/模型凭证/错误原文。
+
+**验收：** 跨客户 IDOR 返回统一 404；纯 hold 与有组合准入两类记录均可追溯；列表分页不重复不遗漏；导出调用写入追加式审计且重放不重复生成审计事件；记录保留合同至少六个月，任何清理器不得提前删除关联决策、事件、意图和回执。
+
+**验证：** 纯合同、PostgreSQL ownership/时间窗/并发/保留、API Policy/RBAC/最小权限、TypeScript、ESLint、架构与 secret Gate、云端三端 production build、本地真实 Chromium/axe 三端登录和工作记录主旅程。
+**依赖：** 已完成 ADR-0018、共享决策轮、官方 Paper 意图/回执和三端 RBAC；无产品参数阻断。
+**规格：** `docs/specs/STRATEGY_WORK_RECORDS_SPEC.md`。
+
 ### T4.2：策略准入与投稿状态机
 
 **描述：** 结构化策略、回测、模拟盘、风险指标、人工审核、披露和版本重审。
