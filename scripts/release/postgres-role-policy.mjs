@@ -42,6 +42,9 @@ const CLIENT_IDENTITY_GATEWAY_ROUTINES = Object.freeze([
   "client_registration_invitation(text)",
   "client_insert_invited_customer(text,text,text,text,text,text)",
   "client_claim_registration_invitation(text,text,text,timestamp with time zone)",
+  // 可复用邀请链接的使用计数。收进 client_ 网关是因为 invitations 表对客户端角色
+  // REVOKE ALL——那张表存着全部邀请码，公网进程不该碰得到（见迁移 0063）。
+  "client_record_reusable_invitation_use(text,timestamp with time zone)",
   "client_profile_conflicts(text,text,text,text)",
   "client_update_profile(text,text,text,text,text,text,text,text,text,timestamp with time zone)",
   "client_change_password(text,text,text,timestamp with time zone)",
@@ -204,6 +207,7 @@ export function evaluatePostgresRolePolicy({
   identityTables,
   identityPolicies,
   identityRoutines,
+  triggerReadGaps = [],
 }) {
   const findings = [];
   const byName = new Map(roles.map((role) => [role.roleName, role]));
@@ -351,6 +355,23 @@ export function evaluatePostgresRolePolicy({
     }
   }
 
+  // 触发器函数如果不是 SECURITY DEFINER，函数体里的查询跑在**调用方**权限下。
+  //
+  // 客户注册就是这样炸掉的：0044 给 audit_logs 加了防篡改哈希链，接链要先读出链尾，
+  // 而写审计日志的进程角色只有 INSERT——审计表存着全平台的操作记录，公网进程本就
+  // 不该读得到。于是任何「插一条审计日志」的动作都 42501，而注册的最后一步正是它。
+  //
+  // 这一类在开发机上完全看不见：本地用超级用户跑，读一路放行。只有配了最小权限
+  // 角色的环境才会暴露，也就是生产。所以必须由闸门在发布前查出来。
+  for (const gap of triggerReadGaps) {
+    findings.push(finding(
+      "TRIGGER_READ_PRIVILEGE_GAP",
+      `${gap.grantee} can write ${gap.writeTable} but the non-SECURITY DEFINER trigger `
+      + `${gap.functionName}() reads ${gap.readTable}, which it cannot ${gap.privilege}`,
+      gap.grantee,
+    ));
+  }
+
   if (identityRoutines) {
     const bySignature = new Map(identityRoutines.map((routine) => [routine.signature, routine]));
     const expectedSignatures = new Set(CLIENT_IDENTITY_GATEWAY_ROUTINES);
@@ -410,6 +431,7 @@ async function verifyConfiguredDatabase() {
       identityTablesResult,
       identityPoliciesResult,
       identityRoutinesResult,
+      triggerReadGapsResult,
     ] = await Promise.all([
       pool.query(`
         SELECT rolname AS "roleName", rolcanlogin AS "canLogin", rolsuper AS superuser,
@@ -490,8 +512,42 @@ async function verifyConfiguredDatabase() {
          WHERE namespace.nspname='public'
            AND procedure.proname LIKE 'client_%'
       `),
+      // 非 SECURITY DEFINER 的触发器函数，函数体里读到的表 × 能写触发表的角色。
+      // 从 pg_proc.prosrc 里抽表名是启发式的，宁可多报——多报一条要人看一眼，
+      // 漏报一条是生产上一个功能整体不可用。
+      pool.query(`
+        WITH trigger_functions AS (
+          SELECT DISTINCT
+                 target.relname AS "writeTable",
+                 procedure.proname AS "functionName",
+                 procedure.prosrc AS body
+            FROM pg_trigger AS trg
+            JOIN pg_class AS target ON target.oid = trg.tgrelid
+            JOIN pg_proc AS procedure ON procedure.oid = trg.tgfoid
+            JOIN pg_namespace AS namespace ON namespace.oid = target.relnamespace
+           WHERE NOT trg.tgisinternal
+             AND namespace.nspname = 'public'
+             AND NOT procedure.prosecdef
+        ), reads AS (
+          SELECT "writeTable", "functionName", lower(match[1]) AS "readTable"
+            FROM trigger_functions,
+                 LATERAL regexp_matches(body, '(?:FROM|JOIN)\\s+([a-zA-Z_][a-zA-Z0-9_]*)', 'gi') AS match
+        ), real_reads AS (
+          SELECT DISTINCT reads.*
+            FROM reads
+            JOIN pg_class AS source ON source.relname = reads."readTable"
+            JOIN pg_namespace AS ns ON ns.oid = source.relnamespace AND ns.nspname = 'public'
+           WHERE source.relkind IN ('r', 'v', 'm', 'p')
+        )
+        SELECT grantee AS grantee, "writeTable", "functionName", "readTable", 'SELECT' AS privilege
+          FROM real_reads
+          CROSS JOIN unnest($1::text[]) AS grantee
+         WHERE has_table_privilege(grantee, 'public.' || "writeTable", 'INSERT')
+           AND NOT has_table_privilege(grantee, 'public.' || "readTable", 'SELECT')
+      `, [EXPECTED_RELEASE_DATABASE_ROLES]),
     ]);
     const findings = evaluatePostgresRolePolicy({
+      triggerReadGaps: triggerReadGapsResult.rows,
       roles: rolesResult.rows,
       grants: grantsResult.rows,
       schemaGrants: schemaGrantsResult.rows,

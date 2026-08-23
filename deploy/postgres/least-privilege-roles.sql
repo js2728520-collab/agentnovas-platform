@@ -2,24 +2,31 @@
 
 -- Invoke only after migrations, with an explicit database name:
 -- psql --set=agentnovas_database=agentnovas --file=deploy/postgres/least-privilege-roles.sql
+-- 三处拒绝都必须以非零退出码结束。
+--
+-- 原来用的是 \quit，psql 以 0 退出（这个版本还会忽略 \quit 的参数）——于是
+-- 「脚本跑成功了」和「脚本什么都没做」在调用方看来完全一样。部署脚本据此判断成功，
+-- 实际一条 GRANT 都没执行，故障要等到某个进程角色第一次写库时才以 42501 冒出来。
+--
+-- 改成抛 SQL 异常：文件开头的 ON_ERROR_STOP on 会让 psql 以非零码退出。
 \if :{?agentnovas_database}
 \else
   \echo 'agentnovas_database is required'
-  \quit
+  DO $refuse$ BEGIN RAISE EXCEPTION 'agentnovas_database is required'; END $refuse$;
 \endif
 
 SELECT current_database() = :'agentnovas_database' AS agentnovas_database_matches \gset
 \if :agentnovas_database_matches
 \else
   \echo 'Refusing to configure roles in a different database'
-  \quit
+  DO $refuse$ BEGIN RAISE EXCEPTION 'Refusing to configure roles in a different database'; END $refuse$;
 \endif
 
 SELECT current_database() ~ '^agentnovas(_[a-z0-9]+)*$' AS agentnovas_database_is_controlled \gset
 \if :agentnovas_database_is_controlled
 \else
   \echo 'Refusing to configure roles outside a controlled AgentNovas database'
-  \quit
+  DO $refuse$ BEGIN RAISE EXCEPTION 'Refusing to configure roles outside a controlled AgentNovas database'; END $refuse$;
 \endif
 
 BEGIN;
