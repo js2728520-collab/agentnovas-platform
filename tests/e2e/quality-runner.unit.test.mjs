@@ -174,7 +174,7 @@ test("MFA-on preflight has an isolated command, project, output, and expected te
   ]);
   assert.match(wrapper, /profile:\s*"mfa-on"/);
   assert.match(runner, /outputs\/quality-mfa-on/);
-  assert.match(runner, /profile === "mfa-on" \? 3 : 18/);
+  assert.match(runner, /profile === "mfa-on" \? 3 : 19/);
   assert.match(configuration, /QUALITY_E2E_PROFILE === "mfa-on"/);
   assert.match(configuration, /mfa-on-preflight\.spec\.ts/);
   assert.equal(JSON.parse(packageJson).scripts["test:e2e:mfa-on"], "node scripts/quality/run-mfa-on-e2e.mjs");
@@ -205,7 +205,7 @@ test("quality cleanup removes runtime secrets and records a failed schema drop b
       schema: "quality_e2e_cleanup_failure",
       startedAt: new Date("2026-08-21T00:00:00.000Z"),
       fixturePrepared: true,
-      gateResult: { passed: false, expectedTests: 18, externalWritesEnabled: false },
+      gateResult: { passed: false, expectedTests: 19, externalWritesEnabled: false },
       cleanupSchema: async () => { throw new Error("DROP failed password=plaintext-must-disappear"); },
     }), /schema cleanup failed/i);
     await assert.rejects(() => access(runtimeDirectory), /ENOENT/);
