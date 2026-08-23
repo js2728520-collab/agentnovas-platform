@@ -38,6 +38,20 @@ test("maintenance configuration and controls submit inline without confirmation 
   expect((await saved).status()).toBe(200);
   await expect(page.getByText("平台公开设置已保存并记录审计", { exact: true })).toBeVisible();
 
+  await page.goto("/access", { waitUntil: "domcontentloaded" });
+  await expect(page.getByLabel("角色配置原因")).toBeVisible();
+  await page.getByLabel("角色代码").fill("quality_inline_role");
+  await page.getByLabel("角色名称").fill("浏览器内联配置角色");
+  await page.getByRole("checkbox", { name: /查看系统健康/ }).check();
+  await page.getByLabel("角色配置原因").fill("浏览器验证权限配置无需二次弹窗");
+  const createRole = page.waitForResponse((response) => response.url().endsWith("/api/access/roles") && response.request().method() === "POST");
+  const publishRole = page.waitForResponse((response) => response.url().includes("/api/access/roles/") && response.url().endsWith("/publish") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "创建角色", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect((await createRole).status()).toBe(201);
+  expect((await publishRole).status()).toBe(200);
+  await expect(page.getByText("普通角色已创建并发布。", { exact: true })).toBeVisible();
+
   await page.goto("/configurations", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByLabel("作用端")).toHaveValue("client");

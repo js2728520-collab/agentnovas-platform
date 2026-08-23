@@ -325,6 +325,13 @@ test("access center can publish approved draft roles with an audited reason", as
   const publish = await read("app/api/access/roles/[id]/publish/route.internal.ts");
   assert.match(center, /kind: "publish"/);
   assert.match(center, /role\.status === "draft"/);
+  assert.match(center, /InlineAuditReasonField/);
+  assert.match(center, /角色配置原因/);
+  assert.match(center, /模板配置原因/);
+  assert.match(center, /角色分配原因/);
+  assert.doesNotMatch(center, /setPending\(\{ kind: "(?:role|template|publish|assignment)"/);
+  assert.match(center, /setPending\(\{ kind: "revoke"/);
+  assert.match(center, /setPending\(\{ kind: "decision"/);
   assert.match(publish, /必须填写发布原因/);
   assert.match(publish, /authorization_audit_events/);
   assert.match(center, /\/api\/access\/role-templates/);
