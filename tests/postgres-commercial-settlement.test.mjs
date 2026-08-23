@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import pg from "pg";
+import { payMembershipOrderFromWallet } from "../lib/membership-wallet-payment.ts";
 
 import {
   mutateAiCredits,
@@ -27,6 +28,7 @@ import {
 } from "../lib/commercial-api-support.ts";
 import {
   ensurePlatformLedgerAccount,
+  ensureUserAvailableLedgerAccount,
   postCommercialLedgerTransaction,
 } from "../lib/commercial-ledger-service.ts";
 import {
@@ -2336,4 +2338,204 @@ test("legacy trim-only fingerprints require controlled reconciliation without mu
       index_preserved: true,
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// 用钱包余额购买会员。
+//
+// 与站外付款路径的区别在于**为什么不需要双人复核**：钱包里的钱已经在系统里，
+// 而且它进来时就走过一次充值的双人复核。再要求第二个人批准「客户花自己的钱」，
+// 是没有对应风险的摩擦。
+
+async function creditWallet(userId, amount) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const clearing = await ensurePlatformLedgerAccount(client, "platform_deposit_clearing", "USD");
+    const account = await ensureUserAvailableLedgerAccount(client, userId, "USD");
+    await postCommercialLedgerTransaction(client, {
+      transactionType: "deposit_credit",
+      sourceType: "deposit_order",
+      sourceId: `seed-${userId}-${amount}`,
+      currency: "USD",
+      idempotencyKey: `seed-deposit:${userId}:${amount}`,
+      requestId: `seed-${userId}`,
+      createdByUserId: "maker",
+      metadata: {},
+      postings: [
+        { accountId: clearing, side: "debit", amount },
+        { accountId: account, side: "credit", amount },
+      ],
+      walletMutation: { userId, availableDelta: amount, frozenDelta: "0" },
+    });
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * 造一个干净的客户。
+ *
+ * 不蹭 customer / customer2——本文件前面二十条测试已经在它们身上留下了会员、订单
+ * 和归因。钱包测试要断言「余额一分不动」「不得重复扣款」，任何残留状态都会让断言
+ * 失去意义。
+ */
+async function freshCustomer(id) {
+  await pool.query(
+    `INSERT INTO users(id,email,password_hash,role,organization_id,status)
+     VALUES($1,$1||'@wallet.test','x','customer','org','active')
+     ON CONFLICT (id) DO NOTHING`,
+    [id],
+  );
+  return id;
+}
+
+async function walletAvailable(userId) {
+  const row = (await pool.query(
+    "SELECT available_amount::text AS amount FROM wallet_balances WHERE user_id=$1 AND currency='USD'",
+    [userId],
+  )).rows[0];
+  return row?.amount ?? null;
+}
+
+test("钱包余额足够时即时开通，余额与账本同时变动", async () => {
+  const user = await freshCustomer("wallet-rich");
+  await creditWallet(user, "100");
+  const order = await createMembershipOrder(pool, {
+    userId: user,
+    planVersionId: "membership_monthly_v1",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "wallet-pay-create",
+    requestId: "wallet-pay-create",
+  });
+  const before = await walletAvailable(user);
+
+  const result = await payMembershipOrderFromWallet(pool, {
+    orderId: order.id,
+    userId: user,
+    idempotencyKey: "wallet-pay-1",
+    requestId: "wallet-pay-1",
+  });
+  assert.equal(result.status, "activated");
+  assert.equal(result.paymentMethod, "wallet");
+
+  // 钱包扣了 28
+  assert.equal(Number(before) - Number(await walletAvailable(user)), 28);
+
+  // 会员真的生效了
+  const membership = (await pool.query(
+    "SELECT status FROM memberships WHERE id=$1", [result.membershipId])).rows[0];
+  assert.equal(membership.status, "active");
+
+  // 分录与充值对称：客户账户借、手续费账户贷
+  const postings = (await pool.query(
+    `SELECT account.account_type, posting.side, posting.amount::text AS amount
+       FROM ledger_postings posting
+       JOIN ledger_accounts account ON account.id = posting.account_id
+      WHERE posting.transaction_id=$1 ORDER BY posting.side`,
+    [result.ledgerTransactionId])).rows;
+  assert.equal(postings.length, 2);
+  const debit = postings.find((p) => p.side === "debit");
+  const credit = postings.find((p) => p.side === "credit");
+  assert.equal(debit.account_type, "user_available",
+    "必须借客户账户——借清算账户会让客户对平台的债权永远挂着");
+  assert.equal(credit.account_type, "platform_fee");
+  assert.equal(debit.amount, credit.amount, "借贷必平（INV-4）");
+});
+
+test("余额不足时整笔回滚，订单与会员都不变", async () => {
+  const user = await freshCustomer("wallet-poor");
+  const order = await createMembershipOrder(pool, {
+    userId: user,
+    planVersionId: "membership_monthly_v1",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "wallet-poor-create",
+    requestId: "wallet-poor-create",
+  });
+  await creditWallet(user, "5");
+  const before = await walletAvailable(user);
+  await assert.rejects(
+    () => payMembershipOrderFromWallet(pool, {
+      orderId: order.id, userId: user,
+      idempotencyKey: "wallet-poor-1", requestId: "wallet-poor-1",
+    }),
+    (error) => error.code === "WALLET_BALANCE_INSUFFICIENT" && error.status === 402,
+  );
+  assert.equal(await walletAvailable(user), before, "失败后余额一分不动");
+  const row = (await pool.query(
+    "SELECT status FROM commercial_membership_orders WHERE id=$1", [order.id])).rows[0];
+  assert.equal(row.status, "pending_evidence", "订单必须停在原状态");
+});
+
+test("不能用自己的余额替别人开通", async () => {
+  const user = await freshCustomer("wallet-owner");
+  const order = await createMembershipOrder(pool, {
+    userId: user,
+    planVersionId: "membership_monthly_v1",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "wallet-other-create",
+    requestId: "wallet-other-create",
+  });
+  const stranger = await freshCustomer("wallet-stranger");
+  await assert.rejects(
+    () => payMembershipOrderFromWallet(pool, {
+      orderId: order.id, userId: stranger,
+      idempotencyKey: "wallet-other-1", requestId: "wallet-other-1",
+    }),
+    // 返回「订单不存在」而不是「无权」：后者等于确认了这个订单号存在。
+    (error) => error.code === "ORDER_NOT_FOUND",
+  );
+});
+
+test("已进入站外付款审核的订单不能再走钱包", async () => {
+  // 否则会出现「钱包扣了一次、站外又付了一次」。
+  const user = await freshCustomer("wallet-conflict");
+  const order = await createMembershipOrder(pool, {
+    userId: user,
+    planVersionId: "membership_monthly_v1",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "wallet-conflict-create",
+    requestId: "wallet-conflict-create",
+  });
+  await creditWallet(user, "100");
+  // 直接置成审核中，不依赖凭证链路——这条测试要验的是状态闸门本身。
+  await pool.query("UPDATE commercial_membership_orders SET status='pending_review' WHERE id=$1", [order.id]);
+  const before = await walletAvailable(user);
+  await assert.rejects(
+    () => payMembershipOrderFromWallet(pool, {
+      orderId: order.id, userId: user,
+      idempotencyKey: "wallet-conflict-1", requestId: "wallet-conflict-1",
+    }),
+    (error) => error.code === "ORDER_NOT_PAYABLE",
+  );
+  assert.equal(await walletAvailable(user), before, "被拒时不得扣款");
+});
+
+test("已开通的订单不能重复扣款", async () => {
+  const user = await freshCustomer("wallet-twice");
+  const order = await createMembershipOrder(pool, {
+    userId: user,
+    planVersionId: "membership_monthly_v1",
+    acceptedDocumentVersionIds: legalIds,
+    idempotencyKey: "wallet-twice-create",
+    requestId: "wallet-twice-create",
+  });
+  await creditWallet(user, "100");
+  await payMembershipOrderFromWallet(pool, {
+    orderId: order.id, userId: user,
+    idempotencyKey: "wallet-twice-1", requestId: "wallet-twice-1",
+  });
+  const after = await walletAvailable(user);
+  await assert.rejects(
+    () => payMembershipOrderFromWallet(pool, {
+      orderId: order.id, userId: user,
+      idempotencyKey: "wallet-twice-2", requestId: "wallet-twice-2",
+    }),
+    (error) => error.code === "ORDER_NOT_PAYABLE",
+  );
+  assert.equal(await walletAvailable(user), after, "第二次不得再扣一分");
 });
