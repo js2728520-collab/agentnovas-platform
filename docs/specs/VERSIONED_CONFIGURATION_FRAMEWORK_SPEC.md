@@ -1,6 +1,6 @@
 # 通用版本化配置发布框架规格
 
-状态：`PARTIAL_CURRENT`；T3.1a 已实现，T3.1b–T3.1c 为 Target
+状态：`PARTIAL_CURRENT`；T3.1a 与 T3.1b-UI 已实现，T3.1b-Worker、T3.1c 为 Target
 日期：2026-08-23
 上位真源：`../product/PRD.md` 第 10、12 节；`V3_SYSTEM_TARGET_SPEC.md` 第 10 节；`V3_MAINTENANCE_APP_TARGET_SPEC.md` 第 2–5 节
 
@@ -24,6 +24,7 @@
 3. T3.1b 交付 Maintenance 工作台和到期激活 Worker；Worker 只消费数据库中已审批且到期的版本，不能自行审批。
 4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；具体价格、域名和设计资源继续受 P-07/P-08/P-10/P-11 阻断。
 5. audience 固定为 `client/operations/maintenance/shared`；配置流以 `(kind, key, audience)` 唯一识别。
+6. T3.1b 分为 UI 与 Worker 两个可独立验收的切片：工作台先行，自动到期激活器随后交付。工作台把人工提交明确称为“登记测试证据”，不能冒充自动测试；在 T3.1c 消费者接入前，active 只代表控制面 current 投影。
 
 ## 3. 数据与状态合同
 
@@ -119,9 +120,21 @@ SQL 只使用参数化查询；动态配置 key 永不参与 SQL 标识符、She
 - 状态机、并发、时区、幂等、不可变和回滚 PostgreSQL 测试通过。
 - 仅 Maintenance 数据库角色可访问新表，Client/Operations 明确无权限。
 - 全量测试、类型、Lint、云端 Maintenance production build 和安全扫描通过。
-- 本阶段不宣称 T3.1 整体完成；UI、自动到期激活和具体配置族仍在 T3.1b/T3.1c。
+- 本阶段不宣称 T3.1 整体完成；自动到期激活和具体配置族仍在 T3.1b-Worker/T3.1c。
 
 实施结果（2026-08-24）：上述五项已通过。中央 inventory 登记 268 个 method route；
 定向 domain/PostgreSQL/API 合同、1298 项全量测试、TypeScript、ESLint、secret scan 和
 production dependency audit 均通过；Maintenance production build 在 `ssh an-saas` 的
 Node 22.21.1 隔离容器完成。未启动服务、未迁移生产库、未部署。
+
+## 9. T3.1b-UI 实施结果
+
+2026-08-24 已交付 Maintenance `/configurations` 工作台和权限导航。工作台按不可变配置流
+展示版本、状态、payload SHA、顶层字段差异、测试/审批/调度事实和 current 投影；提供明确
+计划日期（含 DST）对应的浏览器时区 offset 与 UTC 预览，并可按稳定游标加载完整历史。草稿
+创建和人工测试证据登记使用页面内审计原因直接执行，
+审批、调度、激活和回滚继续使用独立高风险确认。
+
+页面明确提示人工动作只是“登记测试证据”，不会冒充浏览器自动测试；在 T3.1c 消费者接入
+前，active/current 也不会被描述为具体运行时已经生效。真实 Chromium 已覆盖四档宽度、axe、
+键盘、资源预算、网络/控制台边界及一次无弹窗草稿创建。T3.1b-Worker 仍未实现。

@@ -47,7 +47,7 @@ test("Operations and Maintenance cases cover representative stable pages and aud
   assert.equal((maker.match(/\btest\(/g) ?? []).length, 3, "maker coverage includes the no-PII negative case");
   assert.equal((checker.match(/\btest\(/g) ?? []).length, 2, "checker coverage includes the audited PII reveal case");
 
-  assertPathsCovered(maintenance, ["/", "/health", "/models", "/integrations", "/integrations/sources", "/integrations/email", "/integrations/payments", "/integrations/demo-exchanges", "/settings", "/audit", "/releases"], "maintenance-admin-ui.spec.ts");
+  assertPathsCovered(maintenance, ["/", "/health", "/models", "/integrations", "/integrations/sources", "/integrations/email", "/integrations/payments", "/integrations/demo-exchanges", "/settings", "/configurations", "/audit", "/releases"], "maintenance-admin-ui.spec.ts");
   assert.match(maintenance, /expectAudienceNavigation\(page,\s*"maintenance"\)/);
   assert.equal((maintenance.match(/\btest\(/g) ?? []).length, 3, "Maintenance coverage includes the no-confirmation configuration flow");
 });
@@ -61,4 +61,11 @@ test("every stable-page navigation uses the shared browser quality exercise", as
   ]) {
     assert.match(await source(file), /exerciseResponsiveWidths/);
   }
+});
+
+test("three-audience login completion relies on authenticated UI state instead of network idleness", async () => {
+  const identity = await source("g1-identity-security.spec.ts");
+  assert.match(identity, /toHaveURL\(`/);
+  assert.match(identity, /getByRole\("heading"/);
+  assert.doesNotMatch(identity, /waitForLoadState\("networkidle"\)|waitUntil:\s*"networkidle"/);
 });

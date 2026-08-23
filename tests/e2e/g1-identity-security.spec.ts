@@ -14,7 +14,7 @@ async function closeAllBrowsers(closures: Array<Promise<void>>) {
 }
 
 async function login(page: IsolatedPage, email: string, password: string) {
-  await page.goto("/login", { waitUntil: "networkidle" });
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
   await page.getByLabel("邮箱、手机号或用户名").fill(email);
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录" }).click();
@@ -47,7 +47,6 @@ test("Client、Operations、Maintenance 从空浏览器登录后进入各自首�
       await login(isolated.page, identity.email, identity.password);
       await expect(isolated.page).toHaveURL(`${isolated.origin}${path}`);
       await expect(isolated.page.getByRole("heading", { name: heading })).toBeVisible();
-      await isolated.page.waitForLoadState("networkidle");
       await expect(isolated.page.getByRole("heading", { name: "绑定双重验证" })).toHaveCount(0);
     }
   } finally {

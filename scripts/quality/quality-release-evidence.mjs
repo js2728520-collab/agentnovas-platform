@@ -118,7 +118,7 @@ export async function verifyQualityReleaseEvidence(value) {
   assertCleanup(e2eCleanup, "E2E");
   assertCleanup(lighthouseCleanup, "Lighthouse");
   if (e2eGate?.passed !== true
-    || e2eGate?.expectedTests !== 15
+    || e2eGate?.expectedTests !== 18
     || e2eGate?.externalWritesEnabled !== false) {
     throw new Error("E2E gate did not pass the complete side-effect-safe suite");
   }
@@ -131,7 +131,7 @@ export async function verifyQualityReleaseEvidence(value) {
     throw new Error("Lighthouse gate did not pass three side-effect-safe runs");
   }
   const e2eSummary = junitSummary(e2eXml);
-  if (e2eSummary.tests !== 15
+  if (e2eSummary.tests !== 18
     || e2eSummary.failures !== 0
     || e2eSummary.skipped !== 0
     || e2eSummary.errors !== 0

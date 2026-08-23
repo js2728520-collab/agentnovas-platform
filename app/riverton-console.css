@@ -932,6 +932,9 @@
   overflow-wrap: anywhere;
 }
 
+.rc-config-action-block { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--rv-border); }
+.rc-config-payload { max-height: 360px; overflow: auto; padding: 14px; border: 1px solid var(--rv-border); border-radius: var(--rv-radius-md); background: var(--rv-muted); color: var(--rv-foreground); font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .rc-health-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));

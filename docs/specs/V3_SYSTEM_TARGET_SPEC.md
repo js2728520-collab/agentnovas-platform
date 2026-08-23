@@ -123,9 +123,10 @@ Paper、Demo、Live 共用确定性订单/记账数学，但使用不同 book、
 高风险发布使用 draft/test/approve/schedule/activate/rollback 状态机，创建者不能批准自己。
 
 实施快照（2026-08-24）：T3.1a 已提供不含秘密的通用 JSON 配置版本、测试、独立审批、
-带时区调度、到期激活和历史回滚追加式内核/API。当前尚无 Maintenance 工作台、自动到期
-激活 Worker 或具体配置消费者，因此本节整体仍为 `PARTIAL/TARGET`，不能把草稿或调度当作
-业务配置已经生效。
+带时区调度、到期激活和历史回滚追加式内核/API；T3.1b-UI 已提供 Maintenance 工作台、
+差异、测试证据、时区预览、调度、current、激活和回滚控制。自动到期激活 Worker 与具体
+配置消费者仍未实现，因此本节整体仍为 `PARTIAL/TARGET`，不能把控制面 current 当作业务
+配置已经接管运行时。
 
 ## 11. Maintenance CI/CD 控制面
 

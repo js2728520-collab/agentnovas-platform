@@ -346,7 +346,7 @@ export async function runQualityE2e({
       fixturePrepared: Boolean(fixture),
       gateResult: {
         passed: e2ePassed,
-        expectedTests: profile === "mfa-on" ? 3 : 15,
+        expectedTests: profile === "mfa-on" ? 3 : 18,
         externalWritesEnabled: false,
         profile,
       },

@@ -18,6 +18,7 @@ const SystemHealthWorkspace = dynamic(() => import("./system-health-workspace").
 const ReadinessWorkspace = dynamic(() => import("./readiness-workspace").then((module) => module.ReadinessWorkspace));
 const TechnicalAuditWorkspace = dynamic(() => import("./technical-audit-workspace").then((module) => module.TechnicalAuditWorkspace));
 const ReleaseManagementWorkspace = dynamic(() => import("./release-management-workspace").then((module) => module.ReleaseManagementWorkspace));
+const ConfigurationVersionsWorkspace = dynamic(() => import("./configuration-versions-workspace").then((module) => module.ConfigurationVersionsWorkspace));
 const SourceIntegrationsWorkspace = dynamic(() => import("./source-integrations-workspace").then((module) => module.SourceIntegrationsWorkspace));
 const AccessCenter = dynamic(() => import("@/packages/ui/src/access-center").then((module) => module.AccessCenter));
 const InternalAccountSecurity = dynamic(() => import("@/packages/ui/src/internal-account-security").then((module) => module.InternalAccountSecurity));
@@ -40,6 +41,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "safety" ? ["maint.emergency_pause.execute"]
     : route === "settings" && subtype === "disclosures" ? ["maint.commercial_disclosures.view"]
     : route === "settings" ? ["maint.feature_flags.manage"]
+    : route === "configurations" ? ["maint.configuration_versions.view"]
     : route === "releases" ? ["maint.releases.view"]
     : route === "access" && subtype === "audit" ? ["maint.audit.view", "maint.roles.manage"]
     : route === "audit" ? ["maint.audit.view"]
@@ -67,6 +69,7 @@ export default function MaintenanceApp({ segments }: { segments: string[] }) {
     : route === "safety" ? <EmergencyControlWorkspace />
     : route === "settings" && subtype === "disclosures" ? <CommercialDisclosuresWorkspace currentUserId={session.viewer.id} canSubmit={Boolean(permissions["maint.commercial_disclosures.submit"])} canApprove={Boolean(permissions["maint.commercial_disclosures.approve"])} />
     : route === "settings" ? <PlatformSettingsWorkspace />
+    : route === "configurations" ? <ConfigurationVersionsWorkspace currentUserId={session.viewer.id} canManage={Boolean(permissions["maint.configuration_versions.manage"])} canApprove={Boolean(permissions["maint.configuration_versions.approve"])} canActivate={Boolean(permissions["maint.configuration_versions.activate"])} />
     : route === "releases" ? <ReleaseManagementWorkspace currentUserId={session.viewer.id} canManage={Boolean(permissions["maint.releases.manage"])} canApprove={Boolean(permissions["maint.releases.approve"])} />
     : route === "access" ? <AccessCenter appId="maintenance" permissions={permissions} auditOnly={subtype === "audit"} />
     : route === "audit" ? <TechnicalAuditWorkspace />

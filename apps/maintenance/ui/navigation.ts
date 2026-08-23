@@ -24,6 +24,7 @@ export const navigation: ConsoleNavigationGroup[] = [
     { href: "/safety", label: "紧急暂停", icon: "pause", requiredPermissions: ["maint.emergency_pause.execute"] },
     { href: "/settings", label: "平台与客服", icon: "settings", requiredPermissions: ["maint.feature_flags.manage"] },
     { href: "/settings/disclosures", label: "商业披露", icon: "file", requiredPermissions: ["maint.commercial_disclosures.view"] },
+    { href: "/configurations", label: "配置发布", icon: "tag", requiredPermissions: ["maint.configuration_versions.view"] },
     { href: "/releases", label: "版本发布", icon: "tag", requiredPermissions: ["maint.releases.view"] },
   ] },
   { label: "账号", items: [

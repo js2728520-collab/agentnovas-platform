@@ -2253,3 +2253,30 @@ secret/password/token/apiKey/privateKey 等字段。模型、支付和集成密�
 T3.1 整体仍未完成：T3.1b 的 Maintenance 工作台和最小权限到期激活器、T3.1c 的品牌/
 域名/协议、功能开关、Prompt/技能和价格消费者仍待后续切片；P-07/P-08/P-10/P-11
 继续阻断相应具体值和素材，不能用占位配置替代需求方结论。
+
+## 60. 2026-08-24 T3.1b-UI 配置发布工作台与三端登录回归
+
+Maintenance 新增稳定路由 `/configurations` 和权限导航，页面消费 T3.1a 的受控 API，提供
+不可变草稿、版本历史、顶层字段差异、payload SHA、测试证据、独立审批、明确时区 offset/
+UTC 预览、稳定游标历史加载、调度、current 投影、到期激活和历史回滚。计划时间的 offset
+按目标日期计算，跨 DST 不复用页面打开当天的 offset。页面不读取或显示秘密字段；草稿和
+测试证据使用页面内审计原因直接提交，审批、调度、激活和回滚继续使用高风险确认对话框。
+
+工作台用词保持事实边界：人工上传只称为“登记测试证据”，不会声称浏览器运行了测试；
+在具体配置消费者接入前，active/current 也只表示控制面投影，不表示品牌、功能开关、
+Prompt、技能或价格已经接管运行时。T3.1b-Worker 的到期扫描、租约、最小数据库角色和告警
+仍为下一独立切片，T3.1 整体没有提前标记完成。
+
+三端登录回归首次运行时，Client 已完成登录并渲染真实首页，但测试在成功后额外等待
+`networkidle`，因首页持续受控请求耗尽 60 秒，Operations/Maintenance 没有执行。登录业务
+逻辑未改；测试完成判据改为目标 URL、受众首页标题和无 MFA 强制绑定页，并新增合同防止
+恢复 `networkidle`。隔离三端空浏览器登录随后 1/1（4.3 秒）通过，完整关闭态 Playwright
+从过时的 15 项门禁同步为实际 18 项并最终 18/18 通过；Cookie Secure/HttpOnly/Strict、
+Host/audience 隔离、设备上限、权限链接和三端 UI 均在同一生产产物套件中通过。
+
+最终验证：`npm test` 1302/1302，TypeScript、ESLint、`git diff --check`、secret scan 和
+production dependency audit 均通过。Client、Operations、Maintenance standalone 在
+`ssh an-saas` 的 `/tmp/agentnovas-config-ui-build-bxeokz`、固定 Node 22.21.1 容器中构建；
+最终 Maintenance 产物重建后真实 Chromium 3/3，通过四档宽度、axe、键盘、资源预算、
+console/network 检查和一次无确认弹窗的草稿创建 201。远端未启动服务、未迁移生产库、
+未推送、未部署。

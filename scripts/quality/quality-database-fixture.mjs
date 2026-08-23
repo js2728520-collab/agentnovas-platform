@@ -90,6 +90,10 @@ const ROLE_PERMISSIONS = {
     "maint.releases.view",
     "maint.releases.manage",
     "maint.releases.approve",
+    "maint.configuration_versions.view",
+    "maint.configuration_versions.manage",
+    "maint.configuration_versions.approve",
+    "maint.configuration_versions.activate",
   ],
 };
 

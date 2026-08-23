@@ -56,10 +56,10 @@ test("release evidence verifier hashes only complete, secret-safe outputs", asyn
     });
     await writeJson(join(root, "quality-e2e", "gate-result.json"), {
       passed: true,
-      expectedTests: 15,
+      expectedTests: 18,
       externalWritesEnabled: false,
     });
-    await writeFile(join(root, "quality-e2e", "results.xml"), '<testsuites tests="15" failures="0" skipped="0" errors="0"></testsuites>');
+    await writeFile(join(root, "quality-e2e", "results.xml"), '<testsuites tests="18" failures="0" skipped="0" errors="0"></testsuites>');
     await writeJson(join(root, "quality-bundle", "report.json"), {
       applications: [{ name: "client", passed: true }, { name: "operations", passed: true }, { name: "maintenance", passed: true }],
     });
@@ -128,19 +128,19 @@ test("release evidence verifier hashes only complete, secret-safe outputs", asyn
       externalWritesEnabled: false,
     });
 
-    await writeFile(join(root, "quality-e2e", "results.xml"), '<testsuites tests="15" failures="0" skipped="15" errors="0"></testsuites>');
+    await writeFile(join(root, "quality-e2e", "results.xml"), '<testsuites tests="18" failures="0" skipped="18" errors="0"></testsuites>');
     await assert.rejects(() => verifyQualityReleaseEvidence(root), /E2E evidence is not one complete passing run/);
-    await writeFile(join(root, "quality-e2e", "results.xml"), '<testsuites tests="15" failures="0" skipped="0" errors="0"></testsuites>');
+    await writeFile(join(root, "quality-e2e", "results.xml"), '<testsuites tests="18" failures="0" skipped="0" errors="0"></testsuites>');
 
     await writeJson(join(root, "quality-e2e", "gate-result.json"), {
       passed: false,
-      expectedTests: 15,
+      expectedTests: 18,
       externalWritesEnabled: false,
     });
     await assert.rejects(() => verifyQualityReleaseEvidence(root), /E2E gate did not pass/);
     await writeJson(join(root, "quality-e2e", "gate-result.json"), {
       passed: true,
-      expectedTests: 15,
+      expectedTests: 18,
       externalWritesEnabled: false,
     });
 
