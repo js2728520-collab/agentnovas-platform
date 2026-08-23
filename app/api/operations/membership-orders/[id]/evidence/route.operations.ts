@@ -23,7 +23,7 @@ export async function POST(
     );
     const { id } = await params;
     const b = await commercialJson(request);
-    const evidenceInput = paymentEvidenceInput(b, "USD");
+    const evidenceInput = paymentEvidenceInput(b, "USDT");
     const pool = await getPostgresPool();
     const identity = { userId: user.id, organizationId: user.organizationId };
     await assertOperationsOrderScope(

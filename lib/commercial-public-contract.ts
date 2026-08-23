@@ -98,7 +98,7 @@ export function commercialPlanDto(row: Record<string, unknown>) {
     code,
     name: planNames[code],
     priceUsd: usd(row.price_amount),
-    priceCurrency: "USD" as const,
+    priceCurrency: "USDT" as const,
     durationDays: row.duration_days === null ? null : Number(row.duration_days),
     aiCredits: Number(row.ai_credit_grant),
     performanceFeeRate: rate(row.performance_fee_bps),

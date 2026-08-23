@@ -67,3 +67,33 @@
   .itemValues, .metrics, .definitionGrid { grid-template-columns: 1fr; }
   .itemFooter a { align-self: stretch; text-align: center; }
 }
+
+/* 结清入口放在账单详情顶部：客户看到金额的同一屏就能付，
+   不需要记住账单号再跳到别处。 */
+.walletPayPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-border-strong);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.walletPayPanel p { margin: 0.25rem 0 0; color: var(--rv-muted-foreground); font-size: 0.875rem; }
+
+.walletPay {
+  padding: 0.5rem 1rem;
+  border-radius: var(--rv-radius-md);
+  border: 1px solid var(--rv-primary);
+  background: var(--rv-primary);
+  color: var(--rv-primary-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.walletPay:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.payMessage { flex-basis: 100%; margin: 0; color: var(--rv-foreground); }

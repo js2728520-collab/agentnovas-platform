@@ -47,7 +47,7 @@ test("every commercial Operations mutation authorizes on its business transactio
       evidenceKind: "bank_transfer",
       reference: "membership-reference",
       amount: "1",
-      currency: "USD",
+      currency: "USDT",
       occurredAt: now,
       idempotencyKey: "membership-evidence",
       authorize,

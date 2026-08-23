@@ -328,7 +328,7 @@ export async function createMembershipOrder(
       },
       sourceType: "commercial_plan_version",
       sourceId: input.planVersionId,
-      currency: "USD",
+      currency: "USDT",
     });
     if (claim.replayed) return claim.response as Record<string, unknown>;
     const plan = await client.query<{
@@ -479,7 +479,9 @@ export async function recordMembershipPaymentEvidence(
     authorize?: CommercialMutationAuthorization;
   },
 ) {
-  assertEvidence(input, "USD");
+  // 会员计价与充值、绩效分成统一为 USDT（migration 0059）。
+  // 钱包余额按 (user_id, currency) 分行，币种不统一会让充进来的 USDT 付不了会员。
+  assertEvidence(input, "USDT");
   return inTransaction(pool, async (client) => {
     const order = await client.query<{ status: string; user_id: string }>(
       `SELECT status,user_id FROM commercial_membership_orders WHERE id=$1 FOR UPDATE`,

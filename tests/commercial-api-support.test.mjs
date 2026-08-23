@@ -54,8 +54,18 @@ test("write boundaries require header idempotency and reject malformed evidence 
     "actor-resource-1",
   );
   for (const body of [
+    // 畸形点：evidenceKind 不在白名单里。
     {
       evidenceKind: "raw_payload",
+      reference: "ref",
+      amount: "1",
+      currency: "USDT",
+      occurredAt: "2026-08-20",
+    },
+    // 畸形点：币种与订单不符。会员计价改为 USDT 后（migration 0059），
+    // 这条用例必须显式写另一个币种，否则它就不再畸形了。
+    {
+      evidenceKind: "bank_transfer",
       reference: "ref",
       amount: "1",
       currency: "USD",
@@ -65,8 +75,16 @@ test("write boundaries require header idempotency and reject malformed evidence 
       evidenceKind: "bank_transfer",
       reference: "ref",
       amount: "0",
-      currency: "USD",
+      currency: "USDT",
       occurredAt: "2026-08-20",
+    },
+    {
+      // 畸形点：occurredAt 晚于当前时间。
+      evidenceKind: "bank_transfer",
+      reference: "ref",
+      amount: "1",
+      currency: "USDT",
+      occurredAt: "2999-01-01",
     },
     {
       evidenceKind: "bank_transfer",
@@ -74,25 +92,11 @@ test("write boundaries require header idempotency and reject malformed evidence 
       amount: "1",
       currency: "USDT",
       occurredAt: "2026-08-20",
-    },
-    {
-      evidenceKind: "bank_transfer",
-      reference: "ref",
-      amount: "1",
-      currency: "USD",
-      occurredAt: "2999-01-01",
-    },
-    {
-      evidenceKind: "bank_transfer",
-      reference: "ref",
-      amount: "1",
-      currency: "USD",
-      occurredAt: "2026-08-20",
       note: "x".repeat(501),
     },
   ])
     assert.throws(
-      () => paymentEvidenceInput(body, "USD"),
+      () => paymentEvidenceInput(body, "USDT"),
       (error) => error.status === 422 && error.code === "VALIDATION_ERROR",
     );
 });

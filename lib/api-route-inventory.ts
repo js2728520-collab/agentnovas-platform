@@ -2935,6 +2935,28 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": false
   },
   {
+    "method": "POST",
+    "route": "/api/membership/performance-statements/:id/pay-from-wallet",
+    "source": "app/api/membership/performance-statements/[id]/pay-from-wallet/route.client.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.membership.order"
+    ],
+    "permissionMfa": {
+      "client.membership.order": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
     "method": "GET",
     "route": "/api/membership/plans",
     "source": "app/api/membership/plans/route.client.ts",

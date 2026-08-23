@@ -4,6 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import pg from "pg";
 import { payMembershipOrderFromWallet } from "../lib/membership-wallet-payment.ts";
+import { payPerformanceStatementFromWallet } from "../lib/performance-fee-wallet-payment.ts";
 
 import {
   mutateAiCredits,
@@ -183,6 +184,14 @@ test.before(async () => {
       "utf8",
     ),
   );
+  // 0059 必须排在所有迁移之后：0023 在本 setup 里被重复应用，而它会插入 USD 计价的
+  // 计划版本。0059 加的 CHECK 只允许 USDT，放在前面会让后续的 0023 重跑直接失败。
+  await pool.query(
+    await readFile(
+      new URL("../postgres/migrations/0059_membership_priced_in_usdt.sql", import.meta.url),
+      "utf8",
+    ),
+  );
   cleanFingerprintNMinusOneVerified = (await pool.query(`
     SELECT c.is_nullable='NO'
       AND EXISTS (
@@ -357,7 +366,7 @@ async function readyOrder(
     evidenceKind: "bank_transfer",
     reference: `${key}-REFERENCE-1234`,
     amount,
-    currency: "USD",
+    currency: "USDT",
     occurredAt: "2026-08-20T00:00:00Z",
     idempotencyKey: `${key}-evidence`,
   });
@@ -369,7 +378,7 @@ async function readyOrder(
   return { ...order, paymentEvidenceId: evidence.id };
 }
 
-test("seven-current-document gate, USD snapshot and bound idempotency activate safely", async () => {
+test("seven-current-document gate, USDT snapshot and bound idempotency activate safely", async () => {
   await assert.rejects(
     createMembershipOrder(pool, {
       userId: "customer",
@@ -387,7 +396,9 @@ test("seven-current-document gate, USD snapshot and bound idempotency activate s
     idempotencyKey: "order-create-1",
     requestId: "order-create-1",
   });
-  assert.equal(order.price_currency, "USD");
+  // 会员计价与充值、绩效分成统一为 USDT（migration 0059）。
+  // 此前是 USD，而客户充进来的是 USDT，wallet_balances 按币种分行——两者根本不通。
+  assert.equal(order.price_currency, "USDT");
   assert.equal(order.price_amount, "28.000000000000000000");
   assert.equal(
     (
@@ -425,7 +436,7 @@ test("seven-current-document gate, USD snapshot and bound idempotency activate s
     evidenceKind: "bank_transfer",
     reference: "MAKER-SECRET-5678",
     amount: "28",
-    currency: "USD",
+    currency: "USDT",
     occurredAt: "2026-08-20T00:00:00Z",
     idempotencyKey: "order-evidence-maker",
   });
@@ -435,7 +446,7 @@ test("seven-current-document gate, USD snapshot and bound idempotency activate s
     evidenceKind: "bank_transfer",
     reference: "CHECKER-SECRET-1234",
     amount: "28",
-    currency: "USD",
+    currency: "USDT",
     occurredAt: "2026-08-20T00:00:00Z",
     idempotencyKey: "order-evidence-checker",
   });
@@ -446,7 +457,7 @@ test("seven-current-document gate, USD snapshot and bound idempotency activate s
       evidenceKind: "bank_transfer",
       reference: "MAKER-SECRET-5678",
       amount: "27",
-      currency: "USD",
+      currency: "USDT",
       occurredAt: "2026-08-20T00:00:00Z",
       idempotencyKey: "order-evidence-mutated",
     }),
@@ -465,7 +476,7 @@ test("seven-current-document gate, USD snapshot and bound idempotency activate s
       evidenceKind: "manual_invoice",
       reference: "LATE-EVIDENCE-AFTER-SUBMIT",
       amount: "28",
-      currency: "USD",
+      currency: "USDT",
       occurredAt: "2026-08-20T00:01:00Z",
       idempotencyKey: "order-evidence-after-submit",
     }),
@@ -583,7 +594,7 @@ test("seven-current-document gate, USD snapshot and bound idempotency activate s
         evidenceKind: "bank_transfer",
         reference: "MAKER-SECRET-5678",
         amount: "28",
-        currency: "USD",
+        currency: "USDT",
         occurredAt: "2026-08-20T00:00:00Z",
         idempotencyKey: "order-evidence-maker",
       })
@@ -646,7 +657,7 @@ test("membership create, evidence and submit roll back with their audit outbox",
     evidenceKind: "bank_transfer",
     reference: "ATOMIC-EVIDENCE-1234",
     amount: "28",
-    currency: "USD",
+    currency: "USDT",
     occurredAt: "2026-08-20T00:00:00Z",
     idempotencyKey: "atomic-evidence",
   };
@@ -734,7 +745,7 @@ test("payment evidence references cannot be reused across orders by switching ev
     providerLabel: "untrusted-bank-label-a",
     reference: "  cross   business ref ００１  ",
     amount: "28",
-    currency: "USD",
+    currency: "USDT",
     occurredAt: "2026-08-20T02:00:00Z",
     idempotencyKey: "global-reference-evidence-a",
   });
@@ -746,7 +757,7 @@ test("payment evidence references cannot be reused across orders by switching ev
       providerLabel: "different-untrusted-bank-label",
       reference: "CROSS BUSINESS REF 001",
       amount: "28",
-      currency: "USD",
+      currency: "USDT",
       occurredAt: "2026-08-20T02:00:00Z",
       idempotencyKey: "global-reference-evidence-b",
     }),
@@ -1655,7 +1666,7 @@ test("only the previous complete UTC week settles server-resolved scope with HWM
       providerLabel: "different-untrusted-provider",
       reference: " shared-statement-reference-７７７７ ",
       amount: "28",
-      currency: "USD",
+      currency: "USDT",
       occurredAt: "2026-08-20T02:30:00Z",
       idempotencyKey: "reverse-currency-evidence",
     }),
@@ -2046,7 +2057,7 @@ test("commercial evidence writes stop while any fingerprint version needs reconc
       evidenceKind: "bank_transfer",
       reference: "UNRECONCILED-MEMBERSHIP-9005",
       amount: "28",
-      currency: "USD",
+      currency: "USDT",
       occurredAt: "2026-08-20T00:00:00Z",
       idempotencyKey: "unreconciled-membership-evidence",
     }),
@@ -2092,7 +2103,7 @@ test("commercial migration backfills N-1 decisions and reapplies subject constra
       ai_credit_grant,performance_fee_bps,legal_snapshot_json,status,idempotency_key,
       request_id,submitted_by_user_id,submitted_at
     ) VALUES(
-      'legacy-order','LEGACY-ORDER','customer2','membership_monthly_v1',28,'USD',30,
+      'legacy-order','LEGACY-ORDER','customer2','membership_monthly_v1',28,'USDT',30,
       1000,2000,'{}','pending_review','legacy-order','legacy-order','maker',now()
     );
     INSERT INTO memberships(id,customer_id,plan_code,status,starts_at,expires_at)
@@ -2116,7 +2127,7 @@ test("commercial migration backfills N-1 decisions and reapplies subject constra
       amount,currency,occurred_at,recorded_by_user_id
     ) VALUES(
       'legacy-order-evidence','legacy-order','bank_transfer','***9001',
-      $1,$2,28,'USD','2026-08-20T00:00:00Z','maker'
+      $1,$2,28,'USDT','2026-08-20T00:00:00Z','maker'
     )`,
     [
       fingerprintPaymentReference("LEGACY-ORDER-REFERENCE-9001"),
@@ -2297,7 +2308,7 @@ test("legacy trim-only fingerprints require controlled reconciliation without mu
       reference_fingerprint_version,amount,currency,occurred_at,recorded_by_user_id
     ) VALUES(
       'legacy-trim-fingerprint','legacy-order','bank_transfer','***9004',$1,$2,
-      28,'USD','2026-08-20T00:00:00Z','maker'
+      28,'USDT','2026-08-20T00:00:00Z','maker'
     )`,
     [legacyTrimFingerprint, PAYMENT_REFERENCE_FINGERPRINT_VERSION],
   );
@@ -2347,17 +2358,24 @@ test("legacy trim-only fingerprints require controlled reconciliation without mu
 // 而且它进来时就走过一次充值的双人复核。再要求第二个人批准「客户花自己的钱」，
 // 是没有对应风险的摩擦。
 
+/**
+ * 给钱包充值。币种固定 USDT——充值、会员、绩效分成三者统一（migration 0059）。
+ *
+ * 这个默认值曾经是 USD，恰好掩盖了一处真实缺陷：真实数据里客户充的是 USDT 而会员
+ * 按 USD 计价，wallet_balances 按 (user_id, currency) 分行，两者根本不通。
+ * 测试用同一个币种充和扣，于是永远通过。
+ */
 async function creditWallet(userId, amount) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const clearing = await ensurePlatformLedgerAccount(client, "platform_deposit_clearing", "USD");
-    const account = await ensureUserAvailableLedgerAccount(client, userId, "USD");
+    const clearing = await ensurePlatformLedgerAccount(client, "platform_deposit_clearing", "USDT");
+    const account = await ensureUserAvailableLedgerAccount(client, userId, "USDT");
     await postCommercialLedgerTransaction(client, {
       transactionType: "deposit_credit",
       sourceType: "deposit_order",
       sourceId: `seed-${userId}-${amount}`,
-      currency: "USD",
+      currency: "USDT",
       idempotencyKey: `seed-deposit:${userId}:${amount}`,
       requestId: `seed-${userId}`,
       createdByUserId: "maker",
@@ -2396,7 +2414,7 @@ async function freshCustomer(id) {
 
 async function walletAvailable(userId) {
   const row = (await pool.query(
-    "SELECT available_amount::text AS amount FROM wallet_balances WHERE user_id=$1 AND currency='USD'",
+    "SELECT available_amount::text AS amount FROM wallet_balances WHERE user_id=$1 AND currency='USDT'",
     [userId],
   )).rows[0];
   return row?.amount ?? null;
@@ -2538,4 +2556,152 @@ test("已开通的订单不能重复扣款", async () => {
     (error) => error.code === "ORDER_NOT_PAYABLE",
   );
   assert.equal(await walletAvailable(user), after, "第二次不得再扣一分");
+});
+
+// ---------------------------------------------------------------------------
+// 用钱包余额支付绩效分成账单。
+//
+// 比会员多一件事：**推进高水位线**。付了款却不推进，客户会被就同一段盈利重复收费；
+// 推进了却没收到款，平台白白放弃这一段的收费权。两者必须在同一个事务里。
+
+async function seedPayableStatement(userId, { statementId, fee = "40", cumulative = "200" }) {
+  await pool.query(
+    `INSERT INTO performance_fee_high_water_marks(user_id,cumulative_net_pnl,high_water_mark,version)
+     VALUES($1,0,0,1) ON CONFLICT (user_id) DO NOTHING`,
+    [userId],
+  );
+  // 账单外键指向真实的 membership 行。
+  await pool.query(
+    `INSERT INTO memberships(id,customer_id,plan_code,status,starts_at,expires_at)
+     VALUES($1||'-membership',$2,'membership_monthly_v1','active','2026-08-01','2026-09-01')
+     ON CONFLICT (id) DO NOTHING`,
+    [statementId, userId],
+  );
+  await pool.query(
+    `INSERT INTO performance_fee_statements(
+       id,user_id,membership_id,plan_version_id,week_start,week_end,strategy_codes_json,
+       week_net_pnl,cumulative_net_pnl,prior_high_water_mark,eligible_profit,loss_carry,
+       fee_bps,fee_amount,currency,status,generated_by_user_id,request_id)
+     VALUES($1,$2,$1||'-membership','membership_monthly_v1','2026-08-03','2026-08-10','["strategy-0"]',
+            $3,$3,0,$3,0,2000,$4,'USDT','payment_pending','maker',$1)`,
+    [statementId, userId, cumulative, fee],
+  );
+  await pool.query(
+    `INSERT INTO performance_fee_receivables(id,statement_id,amount,currency,status)
+     VALUES($1||'-recv',$1,$2,'USDT','unpaid')
+     ON CONFLICT DO NOTHING`,
+    [statementId, fee],
+  );
+  return statementId;
+}
+
+async function highWaterMark(userId) {
+  const row = (await pool.query(
+    "SELECT cumulative_net_pnl::text AS c, high_water_mark::text AS h, last_paid_statement_id AS last FROM performance_fee_high_water_marks WHERE user_id=$1",
+    [userId],
+  )).rows[0];
+  return row ?? null;
+}
+
+test("钱包支付绩效账单：扣款、结清、推进高水位线在同一事务", async () => {
+  const user = await freshCustomer("perf-wallet");
+  await creditWallet(user, "100");
+  const statementId = await seedPayableStatement(user, { statementId: "perf-wallet-1" });
+  const before = await walletAvailable(user);
+
+  const result = await payPerformanceStatementFromWallet(pool, {
+    statementId, userId: user,
+    idempotencyKey: "perf-wallet-pay-1", requestId: "perf-wallet-pay-1",
+  });
+  assert.equal(result.status, "paid");
+  assert.equal(Number(before) - Number(await walletAvailable(user)), 40);
+
+  const statement = (await pool.query(
+    "SELECT status FROM performance_fee_statements WHERE id=$1", [statementId])).rows[0];
+  assert.equal(statement.status, "paid");
+
+  // 高水位线必须推进到本期累计盈亏，否则下一期会就同一段盈利重复收费。
+  const hwm = await highWaterMark(user);
+  assert.equal(Number(hwm.c), 200);
+  assert.equal(Number(hwm.h), 200);
+  assert.equal(hwm.last, statementId);
+
+  // 分录：客户账户 借 / 手续费账户 贷
+  const postings = (await pool.query(
+    `SELECT account.account_type, posting.side FROM ledger_postings posting
+       JOIN ledger_accounts account ON account.id = posting.account_id
+      WHERE posting.transaction_id=$1`, [result.ledgerTransactionId])).rows;
+  assert.equal(postings.find((p) => p.side === "debit").account_type, "user_available");
+  assert.equal(postings.find((p) => p.side === "credit").account_type, "platform_fee");
+});
+
+test("余额不足时账单与高水位线都不变", async () => {
+  // 推进了却没收到款，等于平台白白放弃这一段的收费权。
+  const user = await freshCustomer("perf-poor");
+  await creditWallet(user, "5");
+  const statementId = await seedPayableStatement(user, { statementId: "perf-poor-1" });
+  const hwmBefore = await highWaterMark(user);
+
+  await assert.rejects(
+    () => payPerformanceStatementFromWallet(pool, {
+      statementId, userId: user,
+      idempotencyKey: "perf-poor-pay", requestId: "perf-poor-pay",
+    }),
+    (error) => error.code === "WALLET_BALANCE_INSUFFICIENT" && error.status === 402,
+  );
+  // 比数值不比字符串：numeric 的小数位数随列定义变化，断言字符串会在无关改动时假红。
+  assert.equal(Number(await walletAvailable(user)), 5);
+  const hwmAfter = await highWaterMark(user);
+  assert.equal(hwmAfter.c, hwmBefore.c, "失败后高水位线不得推进");
+  assert.equal(hwmAfter.last, null);
+  const statement = (await pool.query(
+    "SELECT status FROM performance_fee_statements WHERE id=$1", [statementId])).rows[0];
+  assert.equal(statement.status, "payment_pending");
+});
+
+test("不能付别人的账单", async () => {
+  const owner = await freshCustomer("perf-owner");
+  const stranger = await freshCustomer("perf-stranger");
+  await creditWallet(stranger, "100");
+  const statementId = await seedPayableStatement(owner, { statementId: "perf-owner-1" });
+  await assert.rejects(
+    () => payPerformanceStatementFromWallet(pool, {
+      statementId, userId: stranger,
+      idempotencyKey: "perf-other-pay", requestId: "perf-other-pay",
+    }),
+    (error) => error.code === "STATEMENT_NOT_FOUND",
+  );
+});
+
+test("已结清的账单不得重复扣款", async () => {
+  const user = await freshCustomer("perf-twice");
+  await creditWallet(user, "200");
+  const statementId = await seedPayableStatement(user, { statementId: "perf-twice-1" });
+  await payPerformanceStatementFromWallet(pool, {
+    statementId, userId: user,
+    idempotencyKey: "perf-twice-a", requestId: "perf-twice-a",
+  });
+  const after = await walletAvailable(user);
+  await assert.rejects(
+    () => payPerformanceStatementFromWallet(pool, {
+      statementId, userId: user,
+      idempotencyKey: "perf-twice-b", requestId: "perf-twice-b",
+    }),
+    (error) => error.code === "STATEMENT_NOT_PAYABLE",
+  );
+  assert.equal(await walletAvailable(user), after, "第二次不得再扣一分");
+});
+
+test("尚未批准的账单不能付", async () => {
+  const user = await freshCustomer("perf-early");
+  await creditWallet(user, "100");
+  const statementId = await seedPayableStatement(user, { statementId: "perf-early-1" });
+  await pool.query("UPDATE performance_fee_statements SET status='pending_review' WHERE id=$1", [statementId]);
+  await assert.rejects(
+    () => payPerformanceStatementFromWallet(pool, {
+      statementId, userId: user,
+      idempotencyKey: "perf-early-pay", requestId: "perf-early-pay",
+    }),
+    (error) => error.code === "STATEMENT_NOT_PAYABLE",
+  );
 });

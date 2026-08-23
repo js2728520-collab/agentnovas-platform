@@ -1,8 +1,8 @@
 export const commercialBetaPlans = [
-  { code: "monthly_v1", name: "月卡", priceUsd: "28.00", priceCurrency: "USD", durationDays: 30, aiCredits: 1_000, performanceFeeRate: "0.20", isLifetime: false },
-  { code: "quarterly_v1", name: "季卡", priceUsd: "58.00", priceCurrency: "USD", durationDays: 90, aiCredits: 3_000, performanceFeeRate: "0.20", isLifetime: false },
-  { code: "annual_v1", name: "年卡", priceUsd: "198.00", priceCurrency: "USD", durationDays: 365, aiCredits: 12_000, performanceFeeRate: "0.20", isLifetime: false },
-  { code: "lifetime_v1", name: "终身会员", priceUsd: "588.00", priceCurrency: "USD", durationDays: null, aiCredits: 36_000, performanceFeeRate: "0.16", isLifetime: true },
+  { code: "monthly_v1", name: "月卡", priceUsd: "28.00", priceCurrency: "USDT", durationDays: 30, aiCredits: 1_000, performanceFeeRate: "0.20", isLifetime: false },
+  { code: "quarterly_v1", name: "季卡", priceUsd: "58.00", priceCurrency: "USDT", durationDays: 90, aiCredits: 3_000, performanceFeeRate: "0.20", isLifetime: false },
+  { code: "annual_v1", name: "年卡", priceUsd: "198.00", priceCurrency: "USDT", durationDays: 365, aiCredits: 12_000, performanceFeeRate: "0.20", isLifetime: false },
+  { code: "lifetime_v1", name: "终身会员", priceUsd: "588.00", priceCurrency: "USDT", durationDays: null, aiCredits: 36_000, performanceFeeRate: "0.16", isLifetime: true },
 ] as const;
 
 export const betaPaperCapitalUsdt = "10000.00" as const;
@@ -113,7 +113,7 @@ export type CommercialPlan = {
   code: CommercialPlanCode;
   name: string;
   priceUsd: string;
-  priceCurrency: "USD";
+  priceCurrency: "USDT";
   durationDays: number | null;
   aiCredits: number;
   performanceFeeRate: string;

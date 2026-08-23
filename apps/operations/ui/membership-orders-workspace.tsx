@@ -238,7 +238,7 @@ function MembershipOrderDetailWorkspace({
         <header><div><small>{decisions.length} 条决定</small><h2>审批记录</h2></div></header>
         {!decisions.length ? <EmptyState title="尚无审批决定" description="提交后由不同 checker 记录批准或拒绝。" /> : <div className="rc-card-list">{decisions.map((item) => <article key={item.id}><header><b>{item.decision}</b><StatusBadge value="审批已记录" /></header><small>{item.reviewerUserId} · {formatDateTime(item.createdAt)} · 凭证 {item.paymentEvidenceId || "—"}</small></article>)}</div>}
       </section>
-      {showEvidence && <PaymentEvidenceForm currency="USD" busy={busy} onCancel={() => setShowEvidence(false)} onSubmit={(input) => void recordEvidence(input)} />}
+      {showEvidence && <PaymentEvidenceForm currency="USDT" busy={busy} onCancel={() => setShowEvidence(false)} onSubmit={(input) => void recordEvidence(input)} />}
       <ConfirmActionDialog
         open={Boolean(review)}
         title={review?.decision === "approve" ? "批准会员订单" : "拒绝会员订单"}
