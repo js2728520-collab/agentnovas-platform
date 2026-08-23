@@ -3,6 +3,16 @@ import {
   type OfficialTradingHallStrategy,
 } from "../../contracts/src/trading-hall.ts";
 
+/**
+ * 模拟盘的固定本金。
+ *
+ * 「所有人都从 10000 USDT 起步」是**模拟盘的产品规则**——它让不同客户的收益率
+ * 可以横向比较。它不是记账规则：均价、成本、已实现盈亏、手续费摊销、按本金百分比
+ * 计算的配置上限，这些数学对实盘一模一样，只是本金换成客户真实投入的资金。
+ *
+ * 所以这个常量只在**建仓模拟盘组合**时使用，不再参与任何记账计算。
+ * 记账一律读 state.principalUsdt。
+ */
 export const OFFICIAL_PAPER_PRINCIPAL_USDT = 10_000 as const;
 
 type StrategyCode = OfficialTradingHallStrategy["code"];
@@ -37,7 +47,14 @@ export type OfficialPaperFillState = {
 export type OfficialPaperPortfolioState = {
   strategyCode: StrategyCode;
   access: PortfolioAccess;
-  readonly principalUsdt: 10_000;
+  /**
+   * 本金。模拟盘恒为 10000，实盘是客户投入这张策略卡的真实资金。
+   *
+   * 曾经是字面量类型 `10_000`，于是整条记账路径在类型层面就被钉死在模拟盘上——
+   * 实盘无法复用同一套记账，只能另起一套并行实现，而两套实现的分成口径迟早分叉
+   * （INV-5）。放宽成 number 是让实盘走同一条路径的前提。
+   */
+  readonly principalUsdt: number;
   cashUsdt: number;
   equityUsdt: number;
   realizedGrossPnlUsdt: number;
@@ -114,7 +131,8 @@ export function markOfficialPaperPortfolio(
   });
   const unrealizedPnlUsdt = money(positions.reduce((sum, position) => sum + position.unrealizedPnlUsdt, 0));
   const equityUsdt = money(state.cashUsdt + positions.reduce((sum, position) => sum + position.marketValueUsdt, 0));
-  return { ...state, principalUsdt: OFFICIAL_PAPER_PRINCIPAL_USDT, positions, unrealizedPnlUsdt, equityUsdt };
+  // 保留 state 自己的本金。此前这里重新盖上常量，等于把实盘组合的真实本金抹成 10000。
+  return { ...state, positions, unrealizedPnlUsdt, equityUsdt };
 }
 
 export function applyOfficialPaperFill(
@@ -144,10 +162,13 @@ export function applyOfficialPaperFill(
     const existing = state.positions.find((position) => position.symbol === symbol);
     const currentCost = existing?.costBasisUsdt ?? 0;
     const currentEntryFees = existing?.entryFeesUsdt ?? 0;
-    const assetLimit = OFFICIAL_PAPER_PRINCIPAL_USDT * definition.risk.maxAssetAllocationPct / 100;
+    // 按本组合自己的本金算，不是按模拟盘常量。
+    // 写死常量时，一个 3000 USDT 的实盘组合会被允许买到 10000 的百分比额度——
+    // 风控上限静默放大 3 倍，而且不会报任何错。
+    const assetLimit = state.principalUsdt * definition.risk.maxAssetAllocationPct / 100;
     if (currentCost + quoteAmountUsdt > assetLimit + 1e-8) throw new Error("模拟买入超过官方合同的单资产配置上限");
     const totalCost = state.positions.reduce((sum, position) => sum + position.costBasisUsdt, 0);
-    const totalLimit = OFFICIAL_PAPER_PRINCIPAL_USDT * definition.risk.maxTotalAllocationPct / 100;
+    const totalLimit = state.principalUsdt * definition.risk.maxTotalAllocationPct / 100;
     if (totalCost + quoteAmountUsdt > totalLimit + 1e-8) throw new Error("模拟买入超过官方合同的组合配置上限");
     if (!existing && state.positions.length >= definition.risk.maxConcurrentAssets) throw new Error("模拟买入超过官方合同的并发资产上限");
     const day = input.filledAt.slice(0, 10);
@@ -181,7 +202,6 @@ export function applyOfficialPaperFill(
     }];
     return markOfficialPaperPortfolio({
       ...state,
-      principalUsdt: OFFICIAL_PAPER_PRINCIPAL_USDT,
       cashUsdt,
       feesUsdt: money(state.feesUsdt + feeUsdt),
       positions,
@@ -220,7 +240,6 @@ export function applyOfficialPaperFill(
   const nextRealizedNetPnlUsdt = money(state.realizedNetPnlUsdt + realizedNetPnlUsdt);
   return markOfficialPaperPortfolio({
     ...state,
-    principalUsdt: OFFICIAL_PAPER_PRINCIPAL_USDT,
     cashUsdt: money(state.cashUsdt + notionalUsdt - feeUsdt),
     realizedGrossPnlUsdt: nextRealizedGrossPnlUsdt,
     realizedNetPnlUsdt: nextRealizedNetPnlUsdt,

@@ -108,3 +108,50 @@ test("official paper portfolios reject short, derivatives, over-allocation and e
     filledAt: "2026-08-20T01:00:00.000Z",
   }), /只允许平仓/);
 });
+
+// —— 本金放宽之后的回归 ——
+//
+// 配置上限此前按常量 10000 计算，与组合自己的本金无关。模拟盘恒为 10000 时
+// 两者恰好相等，所以这个 bug 在模拟盘上永远看不出来；实盘一接上就会静默放大风控上限。
+
+test("配置上限按组合自己的本金算，不是按 10000 常量", () => {
+  const base = createOfficialPaperPortfolioState("ai_conservative");
+  const definition = officialTradingHallStrategies.find((item) => item.code === "ai_conservative");
+  const symbol = definition.symbols[0];
+  const cap = definition.risk.maxAssetAllocationPct / 100;
+
+  // 一个 3000 USDT 的实盘组合。按常量算，它能买到 10000 * cap；按本金算只能买 3000 * cap。
+  const live = { ...base, principalUsdt: 3_000, cashUsdt: 3_000, equityUsdt: 3_000 };
+  const overLimit = 3_000 * cap + 1;
+  assert.throws(
+    () => applyOfficialPaperFill(live, {
+      action: "buy", symbol, fillPrice: 100, quoteAmountUsdt: overLimit,
+      feeRate: 0.001, filledAt: new Date().toISOString(),
+    }),
+    /单资产配置上限/,
+    "按 10000 算的话这笔会被放行，等于风控上限静默放大 3 倍",
+  );
+
+  const withinLimit = applyOfficialPaperFill(live, {
+    action: "buy", symbol, fillPrice: 100, quoteAmountUsdt: 3_000 * cap - 1,
+    feeRate: 0.001, filledAt: new Date().toISOString(),
+  });
+  assert.equal(withinLimit.principalUsdt, 3_000, "记账不得把实盘本金重新盖成 10000");
+});
+
+test("模拟盘的行为不因放宽而改变", () => {
+  const state = createOfficialPaperPortfolioState("ai_conservative");
+  assert.equal(state.principalUsdt, 10_000);
+  const definition = officialTradingHallStrategies.find((item) => item.code === "ai_conservative");
+  const symbol = definition.symbols[0];
+  const cap = definition.risk.maxAssetAllocationPct / 100;
+  assert.throws(() => applyOfficialPaperFill(state, {
+    action: "buy", symbol, fillPrice: 100, quoteAmountUsdt: 10_000 * cap + 1,
+    feeRate: 0.001, filledAt: new Date().toISOString(),
+  }), /单资产配置上限/);
+  const ok = applyOfficialPaperFill(state, {
+    action: "buy", symbol, fillPrice: 100, quoteAmountUsdt: 10_000 * cap - 1,
+    feeRate: 0.001, filledAt: new Date().toISOString(),
+  });
+  assert.equal(ok.principalUsdt, 10_000);
+});

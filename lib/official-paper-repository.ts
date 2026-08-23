@@ -608,7 +608,9 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
     const state: OfficialPaperPortfolioState = {
       strategyCode: portfolio.strategy_code,
       access: settlementAccess,
-      principalUsdt: 10_000,
+      // 读组合自己的本金，不写死。实盘组合的本金是客户真实投入的资金，
+      // 而按本金百分比算的配置上限就在这个值上（applyOfficialPaperFill）。
+      principalUsdt: Number(portfolio.principal_usdt),
       cashUsdt: Number(portfolio.cash_usdt),
       equityUsdt: Number(portfolio.cash_usdt) + positions.rows.reduce((sum, row) => sum + Number(row.cost_basis_usdt), 0),
       realizedGrossPnlUsdt: Number(portfolio.realized_gross_pnl_usdt),
