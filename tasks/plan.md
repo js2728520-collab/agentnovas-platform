@@ -530,6 +530,27 @@ M-02 的 `PARTIAL` 状态保持一致。
 **验证：** 静态合同锁定 UI/API/inventory/数据库授权边界；生产 Chromium 覆盖搜索、品种索引、
 四断点、axe、无观察名单请求和无外部网络；三端空浏览器登录及 Maintenance 无确认弹窗一并回归。
 
+### T4.1c：AI 普通对话取消、重试与 Credits 单终态（对应任务看板 T4.3a）
+
+**状态：** 已完成（2026-08-24）。T4.3 总任务继续进行；固定 Credits 数值和模型/功能分档等待 P-08。
+
+**边界：** Client 只接收服务端签发的 inference ID，不能选择用户、reservation 或 Credits 数值。
+`POST /api/ai/inferences/:id/cancel` 按当前会话用户过滤所有权；跨租户与不存在统一 404。取消、完成和
+失败在 inference/reservation 行锁下竞争唯一终态：未结算预留只释放一次，完成先发生则保留回复和
+实际结算，已结算但结果不完整必须进入人工核对，迟到 provider 结果不能重开已取消请求。
+
+Client 收到 SSE meta 后直接显示“取消生成”，单击即中止当前流并确认服务端终态，不增加确认弹窗；
+结果不确定时“重试原请求”继续复用原 Idempotency-Key，不会再次调用模型、写入用户消息或重复扣费。
+provider 外部 AbortSignal 与既有 45 秒超时组合，首次生成及 DSL 修复调用均可中止。
+
+**规格：** `docs/specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md`。
+**验证：** provider/route/UI 合同、PostgreSQL 所有权与并发竞态、全量测试、静态/安全门禁、云端三端
+production build，以及 MFA 默认关闭、外部写入禁用的三端真实 Chromium 19/19。
+
+**实施证据：** 主实现提交 `b8b1bda`；首次 production Chromium 发现 AI 页眉 2.71:1 对比度并由
+`2faf8d8` 修正为高对比度 token。最终 `npm test` 1418/1418；固定 Node 22.21.1 云端构建为
+Client 67、Operations 62、Maintenance 51 页，production audit 0，最终浏览器 19/19。
+
 ### T4.2：策略准入与投稿状态机
 
 **描述：** 结构化策略、回测、模拟盘、风险指标、人工审核、披露和版本重审。

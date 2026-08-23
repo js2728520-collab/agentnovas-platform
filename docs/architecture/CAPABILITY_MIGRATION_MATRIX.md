@@ -106,7 +106,7 @@
 | C-05 | 品牌、Logo、域名、协议、多语言配置 | platform settings 与 disclosure 基础；没有六主题素材和正式域名消费者 | Maintenance settings/configurations + 三端 public config | `BLOCKED` | P-10/P-11；域名还影响 Cookie/CORS/TLS/邮件链接。 |
 | C-06 | Prompt/技能 CRUD、测试、双审、历史和回滚 | 7 个研究 prompt role、3 个 runtime explanation role、模型 Profile/绑定；没有 Skill 领域模型 | versioned configuration family + Maintenance models/configurations | `BLOCKED` | 发布治理已确认；`PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 的 PS-01–PS-06 尚需冻结 Skill 执行模型、可编辑范围、安全包络、测试、新任务生效与删除语义。 |
 | C-07 | 月/季/年/终身套餐、USDT 价格、权益版本 | `commercial_plan_versions` 和当前 Beta 四档基础；非完整 V3 价格消费者 | Maintenance 计费配置 + Client 会员 | `PARTIAL/BLOCKED` | P-07；历史订单必须 pin 原版本。 |
-| C-08 | 固定对话 Credits、不可变流水和用量分析 | AI reservation/ledger/daily usage 与可信 usage 基础 | Maintenance usage/price + Client AI | `PARTIAL/BLOCKED` | P-08；补组织/模型/Agent/功能/费用/失败率维度和版本引用。 |
+| C-08 | 固定对话 Credits、不可变流水和用量分析 | AI reservation/ledger/daily usage、可信 usage、取消单次 release、完成/取消竞态与同 key 重放 | Maintenance usage/price + Client AI | `PARTIAL/BLOCKED` | P-08；当前按可信用量结算，不是固定价；补组织/模型/Agent/功能/费用/失败率维度和版本引用。 |
 | C-09 | 人工退款、原渠道结果、优惠码/券 | 当前人工付款与审批基础；没有 V3 退款/优惠规则模型 | Client 订单 + Operations 复核 + Maintenance 规则 | `TARGET/BLOCKED` | P-07/P-09 及退款状态/渠道/provider 合同。 |
 | C-10 | 三浅三深、英语默认、偏好优先级 | 当前主题/局部 locale 基础 | 三端 token、图表、邮件/错误页和偏好持久化 | `BLOCKED` | P-10 设计稿/品牌 token；需 320/768/1024/1440 与 axe Gate。 |
 
@@ -114,7 +114,7 @@
 
 | ID | V3 能力 | Current 资产 | 目标位置 | 状态 | 剩余条件 |
 | --- | --- | --- | --- | --- | --- |
-| A-01 | AI 助手普通对话和策略生成 | 持久化 conversation/message、SSE、Credits reservation、Client `/assistant` 和 `/studio`；观察名单、助手分析标的选择和旧 8 卡片已退役，保留 4 个快捷问题 | 统一 Client AI 助手 | `PARTIAL` | 统一入口/信息架构，完成固定 Credits、取消/重试与幂等闭环。 |
+| A-01 | AI 助手普通对话和策略生成 | 持久化 conversation/message、SSE、Credits reservation/settle/release、稳定重放、服务端取消与 provider abort；Client `/assistant` 无弹窗取消；旧元素已退役并保留 4 个快捷问题 | 统一 Client AI 助手 | `CURRENT/PARTIAL` | 普通对话取消/重试/幂等已闭环；统一入口/信息架构和固定 Credits 仍待 P-04/P-08。 |
 | A-02 | QuantDinger 移植与差异验收 | 当前研究/DSL/AI 基础；未取得指定仓库和可移植版本 | AI assistant/research modules | `BLOCKED` | P-04 仓库、演示和验收样例。 |
 | A-03 | 文字建议、可编辑参数、结构化策略 | DSL v1–v3、strategy candidates/versions/validations 与确定性校验 | Client AI/studio + strategy domain | `PARTIAL` | 新市场/provider 字段、版本兼容与端到端浏览器旅程。 |
 | A-04 | 回测、模拟盘准入和风险门槛版本 | backtest/Paper/Research 基础和多类测试 | Client `/backtests` + admission service | `PARTIAL/BLOCKED` | P-05 时长、收益/回撤门槛；不能用开发默认值代替。 |

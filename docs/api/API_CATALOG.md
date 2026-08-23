@@ -97,6 +97,7 @@
 | `/api/ai/conversations/[id]/messages` | POST | C | CURRENT；平台 `report` Profile、可信 usage、Credits 预留/结算/失败释放与幂等重放 |
 | `/api/ai/conversations/[id]` | GET, PATCH | C | KEEP；所有权 |
 | `/api/ai/conversations` | GET, POST | C | KEEP；所有权 |
+| `/api/ai/inferences/[id]/cancel` | POST | C | CURRENT；`client.paper.view`、同源和 Idempotency-Key；仅本人请求，取消/完成竞态决定 Credits 唯一终态 |
 | `/api/strategy-research/roles` | GET | C | KEEP；安全视图 |
 | `/api/strategy-research/runs/**` | GET, POST | C | DISABLED/BETA；旧合同依赖客户永续账户，完成公共现货迁移前不可达 |
 | `/api/strategy-studio/chat` | POST | C | DISABLED/BETA；旧客户端历史透传接口固定 410，改用持久化对话 |

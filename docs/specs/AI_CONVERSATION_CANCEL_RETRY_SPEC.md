@@ -1,6 +1,6 @@
 # AI 对话取消、重试与幂等合同
 
-状态：`TARGET_TRUTH / T4.3a IMPLEMENTATION`
+状态：`TARGET_TRUTH / PARTIAL_CURRENT`
 
 日期：2026-08-24
 
@@ -13,6 +13,10 @@
 
 本切片不决定每次对话的固定 Credits 数值或模型/功能分档；该数值仍由 P-08 阻断。现有
 `token-cost-v1` 只能作为当前按可信用量结算机制，不能冒充需求方确认的固定价格。
+
+实现状态（2026-08-24）：本规格除固定 Credits 数值/分档外已由提交 `b8b1bda` 实现；AI 页眉
+可访问对比度修复提交为 `2faf8d8`。全量 1418/1418、云端三端 production build 与真实 Chromium
+19/19 通过。
 
 ## 2. 信任与威胁边界
 

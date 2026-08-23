@@ -2780,3 +2780,40 @@ watchlist API。nginx 配置沿用本切片此前同文件的官方 `nginx:1.29.
 `bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，未纳入任何提交。未启动
 远端服务、未执行生产迁移、未接触生产数据库、未推送、未部署。真实 WebSocket/provider adapter
 仍属于 M-02 后续任务，不能因本切片完成而标记为 CURRENT。
+
+## 77. 2026-08-24 T4.3a AI 普通对话取消、重试与 Credits 单终态
+
+已完成不依赖 P-08 具体数值的普通对话闭环。消息 SSE 在持久化用户问题后返回服务端拥有的
+`inferenceRequestId`；Client 随即显示“取消生成”，单击直接中断浏览器 stream 并调用
+`POST /api/ai/inferences/:id/cancel`，不增加确认弹窗。取消 API 需要当前 Client session、
+`client.paper.view`、same-origin 与 Idempotency-Key，只按当前用户查找 inference；浏览器不能提交
+user、reservation 或 Credits 数值。provider 外部 AbortSignal 与 45 秒超时组合，并传入首次回复及
+DSL 修复调用。
+
+Credits 终态在 inference/reservation 行锁下决定：取消未结算请求只写一次 release，完成先赢则保留
+结果和 settle，已结算但结果未完整持久化进入 `AI_RECONCILIATION_REQUIRED`，迟到 provider 成功
+不能重开 cancelled/failed 请求。网络结果不确定时 Client 的“重试原请求”继续复用同一
+Idempotency-Key，只查询已存在结果。用户问题一经持久化即保留；取消不会删除历史消息或流水。
+
+规格和实现提交为 `b8b1bda106e1ac72c6e0c39d73d6cc81717e863e`。首次云端产物 Chromium
+运行在新增 AI 页面 axe 检查中发现 eyebrow 白底对比度仅 2.71:1；未降低门禁，提交
+`2faf8d890624cee5ecb907cbfa9ee91e7a604630` 改用 `--rv-brand-ink` 后重建并复验。最终 tree 为
+`4af0d8f8afb9fb63926aa02c89ebab1fd0d5370e`，Git 归档 3087 个文件；本地与 `an-saas` 接收的源码
+SHA-256 均为 `1ef9bb0b540e9d9ed5550764ba4d90b5d2891a1f805770e555b4427c74acfee2`。
+
+固定 Node 22.21.1 云端容器完成 Client 67、Operations 62、Maintenance 51 页 production build；
+production-only audit 0，bundle budget 和三端 key-custody 通过。最终 standalone 归档 SHA-256 为
+`4c63d72d962467aa682b8bfc73ac56db28883cca22e9a02d3e8e3ecd628a4973`，下载前后一致。
+本地全量逻辑测试 1418/1418、TypeScript、全仓 ESLint、8 条架构边界、secret scan 和差异检查通过。
+
+同一云端 production 产物在 MFA 默认关闭、全部外部写入禁用、隔离 PostgreSQL 与端口偏移 10000
+下完成真实 Chromium 19/19：覆盖三端空浏览器登录、Host/Cookie audience、权限链接、五设备、
+Client AI SSE 取消一次请求/保留问题/零 dialog/axe，以及 Maintenance 配置全程无确认弹窗。
+质量 schema `quality_e2e_1787524814964_5996_1b49de94` 已删除，runtime secrets 已移除，清理失败为 0；
+本机原三端 build cache 已恢复。
+
+固定 Credits 每次对话数值及模型/功能分档仍由 P-08 阻断；当前 `token-cost-v1` 可信用量结算不能
+冒充目标固定价格。两份用户本地修改哈希仍为
+`103098cb5261603f7a43a262eedf34fe039daa8020fcbd35d0adf3e91c874c05` 与
+`bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，未纳入提交。未启动远端服务、
+未执行生产迁移、未接触生产数据库、未推送、未部署。

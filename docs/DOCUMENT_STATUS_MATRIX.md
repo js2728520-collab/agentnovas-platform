@@ -31,6 +31,7 @@
 | `specs/VERSIONED_CONFIGURATION_FRAMEWORK_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T3.1 通用发布合同；T3.1a 数据/API、T3.1b 工作台/Worker、T3.1c-FF1 全局与 FF2 定向功能开关已实现，其余配置族未完成 |
 | `specs/MARKET_DATA_CONTRACT_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.1a/T2.1b 合同、当前四市场兼容 API、T2.2a 流状态机、T2.3a 单周期仲裁与 T2.11a Runtime candle stale Gate 已实现；真实 provider/WebSocket adapter 与有状态切换等待 P-01/P-03 |
 | `specs/MARKET_SOURCE_BINDING_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.4a provider-independent 选择/解析、不可变绑定与双 fingerprint 已实现；T2.4b 持久化、UI、Runtime 和历史迁移等待 P-01/provider registry |
+| `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T4.3a 普通对话取消、provider abort、原请求重放与 Credits 单终态已实现；固定 Credits 价格等待 P-08 |
 | `quality/FULL_PLATFORM_V3_GATES.md` | `TARGET_TRUTH` | 分能力验收和发布门禁 |
 | `roadmap/FULL_PLATFORM_V3_ROADMAP.md` | `TARGET_TRUTH` | 分阶段升级顺序 |
 | `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md` | `TARGET_TRUTH` | 当前基础与 V3 差距 |
