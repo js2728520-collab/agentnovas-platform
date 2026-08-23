@@ -181,9 +181,19 @@
 
 **描述：** 定义市场、供应商能力、symbol 映射、时区、交易日历、K 线和授权元数据。
 
-**验收：** 每市场能力可查询；未知/无授权失败关闭；合同无 provider 特例泄漏到 UI。
-**验证：** contract/schema tests、provider fixture、日期边界。
-**依赖：** P0 P-01/P-03。
+**状态：** 正在进行。`docs/specs/MARKET_DATA_CONTRACT_SPEC.md` 已冻结 T2.1a/T2.1b 的
+provider 独立合同、API 兼容和新鲜度安全边界；真实 provider 注册仍等待 P-01/P-03。
+
+**子任务：**
+
+- T2.1a：公共值类型、严格 normalizer、事件 envelope 和服务端新鲜度/开仓资格派生。
+- T2.1b：当前静态目录的市场/标的映射，以及 `/api/market/instruments` 加法式升级。
+- T2.1c：真实 provider 授权、能力、symbol/calendar fixture 和优先级注册；等待外部结论。
+
+**验收：** 每市场能力可查询；未知/无授权失败关闭；合同无 provider 特例泄漏到 UI；
+旧 `instruments/updatedAt/source` 字段保持兼容；陈旧、非法和超延迟数据不能获得新开仓资格。
+**验证：** contract/schema tests、当前 provider fixture、日期/时区/sequence/latency/stale 边界。
+**依赖：** T2.1a/T2.1b 只依赖已确认 PRD；T2.1c 依赖 P-01/P-03。
 **规模：** M。
 
 ### T2.2：实时流、stale 与主备切换

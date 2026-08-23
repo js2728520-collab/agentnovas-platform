@@ -24,7 +24,7 @@
 - [!] P-11：正式域名冻结日。
 - [!] P-12：目标验收日期和业务节点。
 - [x] 生成 Current → V3 代码/数据库/页面/route/Worker/测试详细矩阵（203 route 文件、268 method route、72 页面 pattern、73 迁移和 7 个后台进程均已核对）。
-- [ ] 用户评审并批准 Phase 1 开发。
+- [x] 用户已确认需求并授权按分阶段计划推进；每个高风险能力仍需独立 Gate，不等于生产发布批准。
 
 ## Phase 1：身份、权限与注册链接
 
@@ -46,7 +46,10 @@
 
 ## Phase 2：多市场行情
 
-- [ ] 2.1 provider/market/symbol/calendar/capability 合同。
+- [-] 2.1 provider/market/symbol/calendar/capability 合同。
+  - [-] 2.1a provider 独立值类型、严格校验和行情新鲜度安全派生。
+  - [ ] 2.1b 当前行情目录与 instruments API 加法式兼容升级。
+  - [!] 2.1c 真实 provider/授权/优先级注册，等待 P-01/P-03。
 - [ ] 2.2 WebSocket sequence、延迟、stale、重连和缓存。
 - [ ] 2.3 主备源切换和价格/时间/完整性校验。
 - [ ] 2.4 加密行情账户一致源、独立选择和策略级绑定。
