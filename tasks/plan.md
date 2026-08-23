@@ -440,6 +440,8 @@ production audit 0、官方 nginx 1.29.8 检查通过；源码归档摘要在本
 
 ### T4.1a：可编辑结构化策略候选（对应任务看板 T4.4a）
 
+**状态：** 已完成。T4.4 总任务继续进行，4.4b 等待 T2.4/P-01。
+
 **描述：** 在不等待 QuantDinger 差异与真实 provider 的前提下，补齐 PRD 已明确的结果闭环：研发
 时间线提供文字建议，候选公开完整 DSL，客户首次保存前可编辑 JSON 参数；服务端重新执行 V1–V3
 白名单校验。任何语义修改都丢弃原回测资格并保存为 `UNVERIFIED`，格式变化不误降级。
@@ -451,6 +453,13 @@ UI 不保留 verified 样式；非法 JSON/DSL 不入库；只允许 shadow/pape
 **依赖：** 已完成 DSL V1–V3、多 Agent 候选与策略草稿；4.4b 的 provider 字段另依赖 T2.4/P-01。
 **规格：** `docs/specs/EDITABLE_STRATEGY_CANDIDATE_SPEC.md`。
 **规模：** 先服务端、后 UI 两个 M 以下纵向增量。
+
+**实施证据（2026-08-24）：** 服务端提交 `cffdd4b`，Client 提交 `795f552`，浏览器/质量夹具提交
+`e020240`、`31a8c0f`、`19e516e`。完整 DSL 由服务端重新规范化；格式等价保留标签，语义修改保存为
+`manual + UNVERIFIED`，原评分/回测不再展示；候选保存用事务锁、不可变版本重放和冲突失败关闭。
+最终 `npm test` 1394/1394 及全部静态/安全门禁通过。`ssh an-saas` Node 22.21.1 三端 production
+build 为 68/62/51 页；同一云端 standalone 在 MFA 关闭、外部写入禁用、隔离 PostgreSQL 下真实
+Chromium 18/18，通过三端登录、候选编辑/刷新/零真实订单请求和 Maintenance 无确认弹窗回归。
 
 ### T4.2：策略准入与投稿状态机
 

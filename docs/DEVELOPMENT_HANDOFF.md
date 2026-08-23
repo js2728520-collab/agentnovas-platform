@@ -2651,3 +2651,39 @@ T3.11a 云端产物已完成真实 Chromium 18/18，最终整体收口仍会在�
 已知 `listen ... http2` 兼容警告。远端 `/tmp/agentnovas-locale-db-build-G3BOpC` 与本地上传目录已
 逐项删除，只含可重建源码、依赖、构建和测试证书；未启动服务、未执行生产 migration、未接触
 生产数据库、未推送、未部署。
+
+## 73. 2026-08-24 T4.4a 可编辑结构化策略候选
+
+客户现在可以在多 Agent 研究候选首次保存前展开完整结构化 JSON 并编辑全部 DSL 白名单参数。
+浏览器本地 JSON 错误以内联 `role=alert` 呈现且不发请求；服务端仍按 V1–V3 重新规范化与校验，
+未知字段、任意代码和越界风险失败关闭。只改变格式或字段顺序保留原验证标签，任一语义变化都保存
+为 `manual + UNVERIFIED`，原评分与回测指标立即隐藏并明确显示“需重测”。保存后的版本不可原地
+覆盖，页面采用服务端 canonical 结果并锁定编辑器，轮询或刷新仍读取已保存版本。
+
+服务端提交为 `cffdd4b`，Client 提交为 `795f552`；候选级 PostgreSQL advisory transaction lock
+串行化并发保存，相同不可变输入重放同一版本，不同输入返回冲突，崩溃窗口恢复也必须核对实际 DSL
+与标签。浏览器/质量夹具提交为 `e020240`、`31a8c0f`、`19e516e`。关闭态质量 runner 没有为测试
+放宽 `STRATEGY_RESEARCH_ENABLED=false`：Chromium 用有状态本地路由投影验证 UI 请求体、201 响应、
+刷新保持和零 deployment 请求；服务端降级、所有权、不可变关联、幂等与事务并发由领域/PostgreSQL
+测试独立覆盖，未用浏览器 mock 冒充服务端持久化证据。
+
+最终本地 `npm test` 1394/1394、TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、
+repository secret scan（3083 个候选文件）、production dependency audit 0 和差异检查全部通过。
+首次全量运行遇到测试间临时 PostgreSQL role teardown 竞争，设备/Session 文件单独重跑 4/4，随后
+完整重跑 1394/1394；没有通过修改业务代码隐藏夹具竞争。
+
+云端使用提交 `e0202404167b6d2f4863593a4333bb42fd5fbf3c`、tree
+`bdbe698dd5391518fa176fc5c12bbef0572d2001` 的 3083 文件精确 Git 归档；本地与 `an-saas` 的归档
+SHA-256 均为 `d375229b0d6ec149c7e6e2f5878c23cd3235bc07b9a5d18510e46833c048785b`。固定 Node
+22.21.1 完成 Client 68、Operations 62、Maintenance 51 页 production build，production-only
+audit 为 0；官方 nginx 1.29.8 `-t` 通过并保留 8 条既有 http2 兼容警告。后续两个提交只修正
+Playwright 交互/投影夹具，没有改变云端 runtime 源码。
+
+三端 standalone 归档 SHA-256 为
+`a79cb4eff2df4ce084b0b427e4ef62e63b726cb1a655da0165f806c6de702573`，下载前后一致。本地以该云端
+产物、隔离 PostgreSQL、MFA 默认关闭和全部外部写入禁用运行真实 Chromium，最终 18/18 通过：覆盖
+三端空浏览器登录、Host/Cookie audience、权限链接、五设备、客户端候选编辑/降级/刷新、Operations
+权限和 Maintenance 无确认弹窗。质量 schema `quality_e2e_1787518971620_62772_16cabcf7`、运行时
+密钥、3740–3742 端口、本地/远端临时产物均已清理，测试前 cache 已恢复。两份用户本地修改未纳入
+提交；未启动远端服务、未执行生产迁移、未接触生产数据库、未推送、未部署。T4.4b 继续等待
+T2.4/P-01，不因 4.4a 完成而提前解除。

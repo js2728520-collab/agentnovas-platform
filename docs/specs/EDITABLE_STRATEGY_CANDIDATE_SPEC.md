@@ -1,6 +1,6 @@
 # T4.4a 可编辑结构化策略候选规格
 
-状态：`TARGET / APPROVED FOR IMPLEMENTATION`
+状态：`CURRENT / IMPLEMENTED (T4.4a)`
 
 依据：PRD 6.3“策略结果包含文字建议、可编辑参数和可回测的结构化策略”；用户已授权按已确认
 设计和任务清单直接推进。本文只细化既有 ADR-0001、ADR-0002、ADR-0004 和 ADR-0021，不选择
@@ -91,3 +91,30 @@ standalone、本地隔离 PostgreSQL 和真实 Chromium 验证，不以源码字
 只有服务端安全合同、UI 交互、PostgreSQL 幂等/不可变测试、全量质量门禁、云端三端构建和真实浏览器
 旅程全部有证据时，才可将 `tasks/todo.md` 的 4.4a 标为完成。T4.4 整体仍需新市场/provider 字段与
 完整策略结果端到端验收，不因本切片自动完成。
+
+## 7. 实施与验证证据（2026-08-24）
+
+- 服务端 `cffdd4b`：候选保存使用 32 KiB 有界 JSON、严格 `specification` 合同、V1–V3 服务端
+  规范化/重校验、语义变化 `manual + UNVERIFIED`、候选级 PostgreSQL advisory transaction lock、
+  不可变版本重放与不同输入 `409`。崩溃窗口只在实际 DSL 和标签一致时恢复关联。
+- Client `795f552`：候选提供完整 JSON 编辑器、本地错误 `role=alert`、保存 busy/失败关闭、服务端
+  canonical 结果接管、保存后锁定；编辑后的持久投影隐藏旧回测指标并显示“需重测”。网络失败或
+  无效响应不会伪造保存成功。
+- 浏览器与夹具 `e020240`、`31a8c0f`、`19e516e`：质量数据库包含隔离的完成态研究、已验证候选和
+  holdout 证据。关闭态质量环境不放宽 `STRATEGY_RESEARCH_ENABLED=false`，因此 Chromium 只对候选
+  读/写响应使用有状态本地投影；它仍检查浏览器实际请求体、201 结果、刷新投影和零 deployment
+  请求。真实 DSL 降级、所有权、不可变关联、重复关联与并发串行化由领域/PostgreSQL 测试覆盖。
+- 最终本地：`npm test` 1394/1394、TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、
+  repository secret scan（3083 个候选文件）、production dependency audit 0、`git diff --check`。
+  首次全量运行遇到跨文件临时 PostgreSQL role teardown 竞争；涉事文件单独 4/4、随后完整重跑
+  1394/1394，未修改业务代码掩盖夹具竞争。
+- 云端：`e0202404167b6d2f4863593a4333bb42fd5fbf3c` / tree
+  `bdbe698dd5391518fa176fc5c12bbef0572d2001` 的 3083 文件归档摘要为
+  `d375229b0d6ec149c7e6e2f5878c23cd3235bc07b9a5d18510e46833c048785b`；`ssh an-saas` 的固定
+  Node 22.21.1 完成 Client 68、Operations 62、Maintenance 51 页 production build，production
+  audit 为 0。官方 nginx 1.29.8 检查通过并保留 8 条既有 http2 兼容警告。
+- 三端 standalone 归档摘要
+  `a79cb4eff2df4ce084b0b427e4ef62e63b726cb1a655da0165f806c6de702573` 下载前后一致；本地隔离
+  PostgreSQL、MFA 默认关闭和全部外部写入禁用的真实 Chromium 最终 18/18，通过三端空浏览器登录、
+  audience/Cookie 隔离、新候选编辑旅程和 Maintenance 无确认弹窗回归。测试 schema、运行时密钥、
+  本地/远端一次性产物均已清理，原本机三端 cache 已恢复；未推送、未部署、未执行生产迁移。
