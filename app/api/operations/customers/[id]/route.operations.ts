@@ -1,5 +1,17 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { assertOperationsCustomerScope } from "@/lib/commercial-operations-scope";
+import {
+  availableCustomerPiiCategories,
+  CUSTOMER_PII_PERMISSION_KEYS,
+  customerPiiAccessRequest,
+  projectOperationsCustomerPii,
+  restrictCustomerPiiScope,
+} from "@/lib/operations-customer-pii";
+import {
+  loadOperationsCustomerPii,
+  operationsCustomerPiiOrEmpty,
+  recordOperationsCustomerPiiAudit,
+} from "@/lib/operations-customer-pii-service";
 import { maskOperationsEmail } from "@/lib/operations-access";
 import { getPostgresPool } from "@/lib/postgres";
 import { ResearchApiError, researchErrorResponse } from "@/lib/research-api";
@@ -7,9 +19,15 @@ import { ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, access, scope, organizationIds } = await requireAccessPermission(request, "ops.customers.view");
+    const piiAccess = customerPiiAccessRequest(request, access.permissions);
+    await Promise.all(piiAccess.categories.map((category) => requireAccessPermission(request, CUSTOMER_PII_PERMISSION_KEYS[category])));
+    const effectiveScope = piiAccess.categories.length ? restrictCustomerPiiScope({
+      base: { scope, organizationIds }, categories: piiAccess.categories, grants: access.grants,
+      identityOrganizationId: user.organizationId,
+    }) : { scope, organizationIds };
     const { id } = await params;
     const pool = await getPostgresPool();
-    await assertOperationsCustomerScope(pool, scope, { userId: user.id, organizationId: user.organizationId }, id, organizationIds);
+    await assertOperationsCustomerScope(pool, effectiveScope.scope, { userId: user.id, organizationId: user.organizationId }, id, effectiveScope.organizationIds);
     const customer = (await pool.query(`
       SELECT customer.id,customer.email,customer.status,customer.created_at,customer.updated_at,
              profile.display_name,profile.contact_note,profile.archived_at,
@@ -40,16 +58,26 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       pool.query(`SELECT note.id,note.content,note.created_at,note.author_user_id,author.email AS author_email FROM customer_handover_notes note LEFT JOIN users author ON author.id=note.author_user_id WHERE note.customer_id=$1 ORDER BY note.created_at DESC,note.id DESC LIMIT 50`, [id]),
       customer.branch_id ? pool.query(`SELECT id,email,role,reports_to_user_id FROM users WHERE organization_id=$1 AND role IN('manager','supervisor','employee') AND status='active' ORDER BY role,email LIMIT 500`, [customer.branch_id]) : Promise.resolve({ rows: [] }),
     ]);
+    const piiRows = await loadOperationsCustomerPii(pool, [id]);
+    const pii = projectOperationsCustomerPii(operationsCustomerPiiOrEmpty(piiRows, id), piiAccess.categories);
+    if (piiAccess.categories.length) {
+      await recordOperationsCustomerPiiAudit(pool, {
+        actorUserId: user.id, action: "customer.pii_viewed", subjectType: "customer", subjectId: id,
+        categories: piiAccess.categories, reason: piiAccess.reason!, scope: effectiveScope.scope, organizationIds: effectiveScope.organizationIds,
+        resultCount: 1, requestId: request.headers.get("x-request-id"),
+      });
+    }
     return Response.json({
       customer: {
         customerId: customer.id,
-        email: maskOperationsEmail(customer.email),
+        email: pii.contact.email ?? "***",
         status: customer.status,
         displayName: customer.display_name || null,
         contactNote: customer.contact_note || null,
         registeredAt: new Date(customer.created_at).toISOString(),
         updatedAt: new Date(customer.updated_at).toISOString(),
         archivedAt: customer.archived_at ? new Date(customer.archived_at).toISOString() : null,
+        pii,
       },
       attribution: customer.attribution_id ? {
         id: customer.attribution_id, branchId: customer.branch_id, organizationName: customer.organization_name,
@@ -100,6 +128,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         canTransfer: Boolean(access.permissions["ops.attributions.manage"]),
         canAdjustCredits: Boolean(access.permissions["ops.credits.adjust"]),
       },
+      piiAccess: { available: availableCustomerPiiCategories(access.permissions), revealed: piiAccess.categories },
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return researchErrorResponse(error, request);

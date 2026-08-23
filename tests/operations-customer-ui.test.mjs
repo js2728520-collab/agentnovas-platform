@@ -16,11 +16,17 @@ test("Operations customer detail aggregates commercial state and uses audited en
   assert.match(detail, /ai_credit_accounts/);
   assert.match(status, /changeOperationsCustomerStatus/);
   assert.match(notes, /customer_handover_notes/);
-  assert.match(list, /commercialCustomerScopePredicate/);
+  assert.match(list, /operationsCustomerFilter/);
+  assert.match(detail, /customerPiiAccessRequest/);
+  assert.match(detail, /recordOperationsCustomerPiiAudit/);
+  assert.match(list, /availableCustomerPiiCategories/);
   assert.match(list, /encodeCommercialCursor/);
   assert.match(ui, /window\.history\.replaceState/);
   assert.match(ui, /\/api\/operations\/customers\/\$\{selected\.customerId\}/);
   assert.match(ui, /备注历史/);
   assert.match(ui, /模拟组合/);
   assert.match(ui, /会员与 Credits/);
+  assert.match(ui, /敏感字段临时访问与导出/);
+  assert.match(ui, /x-customer-pii-reason/);
+  assert.match(ui, /operations\/customers\/export/);
 });

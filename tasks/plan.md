@@ -1,6 +1,6 @@
 # Implementation Plan：AgentNovas 全平台 V3 升级
 
-状态：Phase 1 进行中；T1.1–T1.5 已实现，G1 真实邮件与生产 MFA 开启态验收待完成
+状态：Phase 1 进行中；T1.1–T1.6 已实现，G1 真实邮件与生产 MFA 开启态验收待完成
 工作分支：`codex/platform-v3-doc-sync`
 需求真源：`docs/product/PRD.md`
 路线图：`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md`
@@ -155,12 +155,12 @@
 
 ### T1.6：Operations PII 字段权限与导出一致性
 
-**状态：** 未开始；Phase 1 当前代码/需求差异审计确认需要单独补齐。
+**状态：** 已完成；四类字段权限、同源列表/详情/CSV 投影、范围交集和敏感访问审计均已落地。
 
 **描述：** 建立客户 PII 字段级读取权限、列表/详情/导出同源投影和脱敏合同，避免页面与 CSV 导出出现权限漂移。
 
 **验收：** 无字段权限时列表、详情和导出采用相同脱敏；有权限只放开合同字段；CSV 继续防公式注入；审计不保存无关明文 PII。
-**验证：** maker/checker/跨组织正反例、API inventory、PostgreSQL scope、CSV 合同和四身份浏览器回归。
+**验证：** maker/checker/权限范围交集正反例、262 条 API inventory、完整迁移 PostgreSQL fixture、CSV 公式注入合同，以及本地生产 standalone 真实 Chromium 角色回归 2/2；三端登录另行复验 1/1。
 **依赖：** T1.1、T1.3。
 **涉及：** Operations customer APIs/UI、export projection、API Policy、PII tests。
 **规模：** M。
@@ -168,10 +168,10 @@
 ### Checkpoint P1
 
 - [ ] G1 通过。
-- [ ] 组织 UI 退休且 scope/PII 无回归。
+- [x] 组织 UI 退休且 scope/PII 无回归。
 - [ ] Beta 会员、Paper、Operations 审批回归全绿。
 - [ ] 正式生产 MFA 开启态专项与三端一致性通过。
-- [ ] Operations PII 字段权限与列表/详情/导出一致性通过。
+- [x] Operations PII 字段权限与列表/详情/导出一致性通过。
 
 ## 6. Phase 2：多市场行情
 

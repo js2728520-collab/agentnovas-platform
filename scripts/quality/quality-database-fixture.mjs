@@ -51,6 +51,11 @@ const ROLE_PERMISSIONS = {
   ],
   operationsChecker: [
     "ops.customers.view",
+    "ops.customers.pii_contact",
+    "ops.customers.pii_security",
+    "ops.customers.pii_financial",
+    "ops.customers.pii_trading",
+    "ops.customers.export",
     "ops.invitations.view",
     "ops.invitations.manage",
     "ops.membership_orders.view",

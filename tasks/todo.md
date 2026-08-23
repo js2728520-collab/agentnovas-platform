@@ -42,7 +42,7 @@
 - [-] 1.12 完成 G1、PostgreSQL 并发和多身份浏览器验收（本地关闭态 15/15、开启态三端登录预检 3/3；真实邮件与完整生产 MFA Gate 仍待）。
 - [x] 1.13 增加 `MFA_ENFORCEMENT_ENABLED`：当前默认关闭、能力和数据保留、三端 UI/API 显示真实状态。
 - [-] 1.14 正式生产前将三端 MFA 同时开启并完成首次绑定、验证、恢复码、recent MFA、密码重置及回滚 Gate（本地三端登录/绑定/TOTP/recovery 子集已通过；recent MFA、重置、同库回滚和目标环境证据待）。
-- [ ] 1.15 Operations 客户 PII 字段权限与列表/详情/CSV 导出使用同一脱敏投影。
+- [x] 1.15 Operations 客户 PII 字段权限与列表/详情/CSV 导出使用同一脱敏投影。
 
 ## Phase 2：多市场行情
 

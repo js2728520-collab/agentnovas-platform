@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { apiErrorMessage, formatDateTime, formatDecimal, type OperationsCustomer } from "@/packages/contracts/src/riverton-ui";
+import {
+  apiErrorMessage,
+  formatDateTime,
+  formatDecimal,
+  type OperationsCustomer,
+  type OperationsCustomerPiiCategory,
+} from "@/packages/contracts/src/riverton-ui";
 import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
@@ -21,6 +27,23 @@ type CustomerDetail = {
   notes: { id: string; content: string; createdAt: string; authorUserId: string; authorEmail: string | null }[];
   assignmentCandidates: { id: string; email: string | null; role: "manager" | "supervisor" | "employee"; reportsToUserId: string | null }[];
   capabilities: { canManage: boolean; canTransfer: boolean; canAdjustCredits: boolean };
+  piiAccess: { available: OperationsCustomerPiiCategory[]; revealed: OperationsCustomerPiiCategory[] };
+};
+
+type CustomerListPayload = {
+  customers: OperationsCustomer[];
+  total: string;
+  canManage: boolean;
+  canExport: boolean;
+  piiAccess: { available: OperationsCustomerPiiCategory[]; revealed: OperationsCustomerPiiCategory[] };
+  page: { nextCursor: string | null; hasMore: boolean };
+};
+
+const PII_LABELS: Record<OperationsCustomerPiiCategory, string> = {
+  contact: "完整联系方式",
+  security: "登录 IP 与设备",
+  financial: "累计充值与消费",
+  trading: "交易所账户与持仓",
 };
 
 export function CustomersWorkspace() {
@@ -37,6 +60,9 @@ export function CustomersWorkspace() {
   const [newNote, setNewNote] = useState("");
   const [transfer, setTransfer] = useState({ managerId: "", supervisorId: "", employeeId: "", effectiveAt: "" });
   const [transferConfirming, setTransferConfirming] = useState(false);
+  const [piiReason, setPiiReason] = useState("");
+  const [piiCategories, setPiiCategories] = useState<OperationsCustomerPiiCategory[]>([]);
+  const [piiMessage, setPiiMessage] = useState("");
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const params = new URLSearchParams(window.location.search);
@@ -55,7 +81,7 @@ export function CustomersWorkspace() {
     if (cursor) params.set("cursor", cursor);
     return `/api/operations/customers?${params}`;
   }, [appliedQuery, cursor, ready]);
-  const resource = useApiData<{ customers: OperationsCustomer[]; total: string; canManage: boolean; page: { nextCursor: string | null; hasMore: boolean } }>(resourceUrl, "客户读取失败");
+  const resource = useApiData<CustomerListPayload>(resourceUrl, "客户读取失败");
   useEffect(() => {
     if (!ready) return;
     const params = new URLSearchParams();
@@ -97,7 +123,7 @@ export function CustomersWorkspace() {
 
   async function addNote() {
     if (!selected || busy || !newNote.trim()) return;
-    setBusy(true); setMessage("");
+    setBusy(true); setPiiMessage("");
     try {
       const response = await fetch(`/api/operations/customers/${selected.customerId}/notes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content: newNote }) });
       const payload = await response.json().catch(() => ({}));
@@ -122,10 +148,77 @@ export function CustomersWorkspace() {
     finally { setBusy(false); }
   }
 
+  function piiHeaders(): Record<string, string> {
+    return piiCategories.length ? { "x-customer-pii-reason": encodeURIComponent(piiReason.trim()) } : {};
+  }
+
+  function piiUrl(path: string) {
+    const url = new URL(path, window.location.origin);
+    if (piiCategories.length) url.searchParams.set("pii", piiCategories.join(","));
+    return `${url.pathname}${url.search}`;
+  }
+
+  async function revealPii() {
+    if (!resourceUrl || !piiCategories.length || busy) return;
+    setBusy(true); setMessage("");
+    try {
+      const listResponse = await fetch(piiUrl(resourceUrl), { cache: "no-store", headers: piiHeaders() });
+      const listPayload = await listResponse.json().catch(() => ({}));
+      if (!listResponse.ok) throw new Error(apiErrorMessage(listPayload, "敏感字段读取失败"));
+      resource.setData(listPayload as CustomerListPayload);
+      if (selected) {
+        const detailResponse = await fetch(piiUrl(`/api/operations/customers/${selected.customerId}`), { cache: "no-store", headers: piiHeaders() });
+        const detailPayload = await detailResponse.json().catch(() => ({}));
+        if (!detailResponse.ok) throw new Error(apiErrorMessage(detailPayload, "客户敏感详情读取失败"));
+        detail.setData(detailPayload as CustomerDetail);
+      }
+      setPiiMessage("敏感字段已按所选分类临时展示，本次访问原因已记录审计。");
+    } catch (error) { setPiiMessage(error instanceof Error ? error.message : "敏感字段读取失败"); }
+    finally { setBusy(false); }
+  }
+
+  async function exportCustomers() {
+    if (busy) return;
+    setBusy(true); setPiiMessage("");
+    try {
+      const params = new URLSearchParams();
+      if (appliedQuery) params.set("query", appliedQuery);
+      if (piiCategories.length) params.set("pii", piiCategories.join(","));
+      const response = await fetch(`/api/operations/customers/export?${params}`, { method: "POST", cache: "no-store", headers: piiHeaders() });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(apiErrorMessage(payload, "客户导出失败"));
+      }
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = blobUrl;
+      anchor.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(blobUrl);
+      setPiiMessage("客户 CSV 已生成并下载；服务端未保留导出文件，生成与下载均已审计。");
+    } catch (error) { setPiiMessage(error instanceof Error ? error.message : "客户导出失败"); }
+    finally { setBusy(false); }
+  }
+
   if (resource.loading && !resource.data) return <LoadingState label="正在读取客户…" />;
   if (resource.error && !resource.data) return <ErrorState message={resource.error} retry={resource.refresh} />;
   return <>
     <PageHeading eyebrow="CUSTOMER OPERATIONS" title="客户管理" description="客户查看与管理权限分离，列表仅包含当前 RBAC 数据范围。" />
+    <section className="rc-panel">
+      <header><div><small>FIELD-LEVEL PII CONTROL</small><h2>敏感字段临时访问与导出</h2></div><StatusBadge value={resource.data?.piiAccess.revealed.length ? "已临时展示" : "默认遮罩"} /></header>
+      {!resource.data?.piiAccess.available.length ? <p className="rc-muted">当前角色没有客户敏感字段权限；列表、详情和导出都会保持遮罩或省略。</p> : <div className="rc-form">
+        <fieldset><legend>选择本次需要访问的字段分类</legend><div className="rc-action-row">
+          {resource.data.piiAccess.available.map((category) => <label key={category}><input type="checkbox" checked={piiCategories.includes(category)} onChange={(event) => setPiiCategories((current) => event.target.checked ? [...current, category] : current.filter((item) => item !== category))} /> {PII_LABELS[category]}</label>)}
+        </div></fieldset>
+        <label>业务原因（访问敏感字段时必填，8–500 字）<textarea rows={2} maxLength={500} value={piiReason} onChange={(event) => setPiiReason(event.target.value)} placeholder="例如：处理客户授权的账户核对工单" /></label>
+        <div className="rc-action-row">
+          <button className="rc-primary" type="button" disabled={busy || !piiCategories.length || piiReason.trim().length < 8} onClick={() => void revealPii()}>临时展示所选字段</button>
+          {resource.data.canExport ? <button className="rc-button" type="button" disabled={busy || (piiCategories.length > 0 && piiReason.trim().length < 8)} onClick={() => void exportCustomers()}>导出当前筛选 CSV</button> : null}
+        </div>
+      </div>}
+      <p className="rc-muted">访问只对本次请求生效；原因会脱敏后进入审计。CSV 最多 5000 行，并对电子表格公式注入做转义。</p>
+      <div className="rc-live" aria-live="polite">{piiMessage}</div>
+    </section>
     <section className="rc-panel">
       <header><div><small>{resource.data?.total ?? 0} 位客户</small><h2>客户目录</h2></div><form className="rc-search" onSubmit={(event) => { event.preventDefault(); setAppliedQuery(query.trim()); setCursor(""); setSelected(null); }}><label><span>搜索客户</span><input maxLength={120} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="邮箱、名称或客户 ID" /></label><button className="rc-button" type="submit">查询</button></form></header>
       {!customers.length ? <EmptyState title="没有匹配客户" description="调整搜索条件，或确认当前账户的数据范围。" /> : <div className="rc-table-wrap"><table><thead><tr><th>客户</th><th>状态</th><th>归属</th><th>注册时间</th><th>操作</th></tr></thead><tbody>
@@ -147,6 +240,12 @@ export function CustomersWorkspace() {
       <div className="rc-live" aria-live="polite">{message}</div>
     </section>}
     {selected && (detail.loading && !detail.data ? <LoadingState label="正在汇总客户商业状态…" /> : detail.error && !detail.data ? <ErrorState message={detail.error} retry={detail.refresh} /> : detail.data ? <>
+      <section className="rc-panel"><header><div><small>PROTECTED CUSTOMER DATA</small><h2>受控客户字段</h2></div><StatusBadge value={detail.data.piiAccess.revealed.length ? "本次已授权" : "遮罩"} /></header><div className="rc-card-grid">
+        <article className="rc-card"><h3>联系方式</h3><p>邮箱：{detail.data.customer.pii.contact.email ?? "—"}</p><p>电话：{detail.data.customer.pii.contact.phone ?? "—"}</p><p>Telegram：{detail.data.customer.pii.contact.telegram ?? "—"}</p><p>WhatsApp：{detail.data.customer.pii.contact.whatsapp ?? "—"}</p></article>
+        <article className="rc-card"><h3>登录安全</h3><p>注册网络：{detail.data.customer.pii.security.registrationIpAddress ?? "—"}</p><p>最近登录网络：{detail.data.customer.pii.security.lastLoginIpAddress ?? "—"}</p><p>设备：{detail.data.customer.pii.security.device ?? "未授权展示"}</p></article>
+        <article className="rc-card"><h3>财务汇总</h3><p>累计充值：{detail.data.customer.pii.financial.cumulativeDepositUsdt === null ? "未授权展示" : `${formatDecimal(detail.data.customer.pii.financial.cumulativeDepositUsdt)} USDT`}</p><p>累计消费：{detail.data.customer.pii.financial.cumulativeSpendUsdt === null ? "未授权展示" : `${formatDecimal(detail.data.customer.pii.financial.cumulativeSpendUsdt)} USDT`}</p></article>
+        <article className="rc-card"><h3>交易账户</h3><p>{detail.data.customer.pii.trading.exchangeAccounts.length ? `${detail.data.customer.pii.trading.exchangeAccounts.length} 个账户 · ${detail.data.customer.pii.trading.openPositions.length} 个持仓` : "未授权展示或暂无数据"}</p>{detail.data.customer.pii.trading.exchangeAccounts.map((account) => <p key={account.id}><b>{account.exchange}</b> · {account.label} · {account.environment} · {account.status}</p>)}</article>
+      </div></section>
       <section className="rc-panel"><header><div><small>COMMERCIAL ACCESS</small><h2>会员与 Credits</h2></div></header><div className="rc-card-grid">
         <article className="rc-card"><header><StatusBadge value={detail.data.membership?.status ?? "未开通"} /></header><h3>{detail.data.membership?.planCode ?? "无会员"}</h3><p>到期：{formatDateTime(detail.data.membership?.expiresAt)}</p></article>
         <article className="rc-card"><header><StatusBadge value={detail.data.credits ? "已开立" : "未开立"} /></header><h3>{formatDecimal(detail.data.credits?.available ?? "0", 0)} Credits</h3><p>冻结 {formatDecimal(detail.data.credits?.reserved ?? "0", 0)} · 版本 {detail.data.credits?.version ?? "—"}</p></article>

@@ -52,10 +52,21 @@ export type DepositOrder = {
 };
 export type NotificationItem = { id: string; category: string; templateKey: string; status: string; payload: Record<string, unknown>; createdAt: string; readAt: string | null };
 
+export type OperationsCustomerPiiCategory = "contact" | "security" | "financial" | "trading";
+export type OperationsCustomerPii = {
+  contact: { email: string | null; phone: string | null; telegram: string | null; whatsapp: string | null };
+  security: { registrationIpAddress: string | null; lastLoginIpAddress: string | null; device: string | null };
+  financial: { cumulativeDepositUsdt: string | null; cumulativeSpendUsdt: string | null };
+  trading: {
+    exchangeAccounts: Array<{ id: string; exchange: string; label: string; environment: string; status: string; canRead: boolean; canTrade: boolean; lastCheckedAt: string | null }>;
+    openPositions: Array<{ id: string; exchangeAccountId: string; symbol: string; side: string; quantity: string; entryValueUsdt: string; openedAt: string | null }>;
+  };
+};
 export type OperationsCustomer = {
   customerId: string; email: string; status: string; registeredAt: string; branchId: string | null;
   managerId: string | null; supervisorId: string | null; employeeId: string | null;
   displayName: string | null; contactNote: string | null;
+  pii: OperationsCustomerPii;
 };
 export type OperationsDeposit = {
   id: string; platformOrderNo: string; user: { id: string; email: string | null; phone: string | null; nickname: string };

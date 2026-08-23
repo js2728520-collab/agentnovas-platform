@@ -3411,8 +3411,8 @@ export const API_ROUTE_INVENTORY = [
     },
     "scope": "grant",
     "mfa": "none",
-    "pii": "none",
-    "sensitivity": "normal",
+    "pii": "full",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": false,
     "idempotency": false
   },
@@ -3433,8 +3433,8 @@ export const API_ROUTE_INVENTORY = [
     },
     "scope": "grant",
     "mfa": "none",
-    "pii": "none",
-    "sensitivity": "normal",
+    "pii": "full",
+    "sensitivity": "sensitive",
     "requiresSameOrigin": false,
     "idempotency": false
   },
@@ -3455,7 +3455,7 @@ export const API_ROUTE_INVENTORY = [
     },
     "scope": "grant",
     "mfa": "recent",
-    "pii": "none",
+    "pii": "full",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": false
@@ -3477,7 +3477,31 @@ export const API_ROUTE_INVENTORY = [
     },
     "scope": "grant",
     "mfa": "recent",
-    "pii": "none",
+    "pii": "full",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/operations/customers/export",
+    "source": "app/api/operations/customers/export/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.customers.export",
+      "ops.customers.view"
+    ],
+    "permissionMfa": {
+      "ops.customers.export": "recent",
+      "ops.customers.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "conditional",
+    "pii": "full",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": false

@@ -308,7 +308,8 @@ function sensitivePermissionKeys(source) {
 
 function piiForRoute(route) {
   if (["/api/account/profile", "/api/data-center", "/api/employee/tasks", "/api/organization/members"].includes(route)
-    || route.startsWith("/api/finance/payout-profiles") || route.startsWith("/api/operations/deposits")) return "full";
+    || route.startsWith("/api/finance/payout-profiles") || route.startsWith("/api/operations/deposits")
+    || route.startsWith("/api/operations/customers")) return "full";
   if (route.startsWith("/api/organization/customers") || route.startsWith("/api/team/")) return "masked";
   return "none";
 }

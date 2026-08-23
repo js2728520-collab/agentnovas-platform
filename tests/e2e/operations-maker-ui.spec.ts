@@ -23,3 +23,10 @@ test("maker commercial queues are responsive, accessible and audience-isolated",
     await expectAudienceNavigation(page, "operations");
   }
 });
+
+test("maker without customer PII grants stays masked in the customer workspace", async ({ page }) => {
+  await page.goto("/customers", { waitUntil: "networkidle" });
+  await page.getByText(/当前角色没有客户敏感字段权限/).waitFor();
+  await page.getByRole("button", { name: "临时展示所选字段" }).waitFor({ state: "detached" });
+  await page.getByRole("button", { name: "导出当前筛选 CSV" }).waitFor({ state: "detached" });
+});

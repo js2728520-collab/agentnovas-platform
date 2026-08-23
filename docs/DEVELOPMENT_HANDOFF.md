@@ -2153,3 +2153,47 @@ CSP 和 HMR 产生预期外噪声，不能作为发布证据；切回生产 stan
 最终专项命令以 `QUALITY_E2E_PORT_OFFSET=10` 使用本机 3010/3011/3012，结果为 1/1
 通过；测试器专项单元回归 17/17 通过。MFA 保持默认关闭，正式生产前的开启态完整 Gate
 仍按第 55 节要求执行。
+
+## 57. 2026-08-23 V3 Phase 1：Operations 客户 PII 字段权限与导出一致性
+
+T1.6 / todo 1.15 已完成。Operations 客户数据不再只有一条统一邮箱遮罩规则，而是拆成
+四类显式敏感权限：完整联系方式、登录 IP/设备、累计充值/消费、交易所账户/持仓；另设
+客户导出权限。五项权限均为 sensitive，默认运营角色不自动获得，现有 `hq_admin` 仍按
+平台管理员合同持有全部 Operations 权限。MFA 当前关闭时可使用这些能力；正式重新开启
+后，访问会自动恢复 recent MFA 门禁。
+
+- 列表、详情和 CSV 共用 `projectOperationsCustomerPii` 投影。未请求字段保持遮罩、`null`
+  或空集合；显式请求必须同时具备对应权限并提供 8–500 字业务原因。中文原因在请求头中
+  采用 percent encoding，审计前会移除明显邮箱、电话和 IP，避免把客户明文复制到日志。
+- PII 数据范围是 `ops.customers.view` 与每个所选字段权限范围的交集。范围或组织集合不相交
+  时直接 403，不能用一个窄范围的 PII 权限读取更宽的客户目录；完整邮箱搜索也只在本次
+  明确请求 contact 分类后启用。
+- 联系方式来自客户身份与已验证通知渠道；注册网络来自最早 `customer.registered` 审计，
+  最近网络/设备来自 Session；累计充值只统计 `CREDITED`，累计消费只统计 confirmed
+  revenue；交易视图只返回安全账户元数据和未关闭持仓，绝不读取或返回加密凭证引用、
+  提现凭证引用。
+- 客户 CSV 改为 POST，同列表使用相同筛选和 scope，最多 5000 行；所有单元格先做公式
+  注入防护再 RFC 风格引号转义。响应 `private, no-store`，服务端不保留文件，并分别记录
+  生成与下载审计。API inventory 将三条客户读取/导出路由登记为 full PII，导出要求
+  same-origin 与敏感权限。
+- 数据迁移 `0068_operations_customer_pii_permissions.sql` 只登记权限，不给既有业务角色
+  静默加权。Operations UI 提供字段分类、原因、临时展示和导出控件；无 PII grant 的
+  maker 只能看到遮罩，显式授权的 checker 才能揭示相应分类。
+
+浏览器验收期间发现并修复一个真实首屏 500：历史 `sessions.created_at` 为 text，后续
+`last_seen_at` 为 timestamptz，新 PII 查询直接 `COALESCE` 会触发 PostgreSQL `42804`。
+现在显式把历史时间转换为 timestamptz，并新增基于完整迁移链与质量 fixture 的回归测试；
+简化表测试不足以发现此类迁移期类型差异。还修复了 PII 成功提示只在选中客户详情时可见
+的问题，现使用独立全局 `aria-live` 区域。
+
+验证结果：最终 `npm test` 1288/1288、TypeScript 与 ESLint 均通过。Client、Operations、Maintenance
+生产 standalone 均在 `ssh an-saas` 的隔离目录 `/tmp/agentnovas-build-Yoc8mn`、固定
+Node 22.21.1 容器内构建成功，未启动远端服务、未推送、未部署；Operations 在两项浏览器
+修复后重新构建。最终本地生产产物真实 Chromium：三端空浏览器登录 1/1、maker 默认遮罩
+与 checker 填写原因后显式揭示 2/2，console/page error/failed request/非预期 HTTP 均为零。
+开发态 Host/HMR/CSP 失败仅作为无效尝试保留，不计发布证据。
+`npm audit --omit=dev --audit-level=high` 为 0；远端 `npm ci` 报告的 17 项来自开发依赖，
+未自动执行破坏性依赖升级。
+
+Phase 1 仍未关闭：真实邮件送达与正式生产 MFA on→off→on、recent MFA、密码重置及目标
+环境三端一致性 Gate 仍按第 55 节执行；不能用本节 MFA 关闭态证据替代。

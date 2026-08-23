@@ -319,7 +319,10 @@ export async function createIsolatedQualityBrowser(
         : consoleProblems).filter((message) => !isExpectedQualityBrowserWarning(message));
       try {
         expect(externalRequests, "isolated browser external requests").toEqual([]);
-        expect(unexpectedConsoleProblems, "isolated browser console errors/warnings").toEqual([]);
+        expect(
+          unexpectedConsoleProblems,
+          `isolated browser console errors/warnings; HTTP failures: ${safeEntry(unexpectedResponses)}`,
+        ).toEqual([]);
         expect(pageErrors, "isolated browser page errors").toEqual([]);
         expect(failedLocalRequests, "isolated browser failed local requests").toEqual([]);
         expect(unexpectedResponses, "isolated browser unexpected HTTP responses").toEqual([]);
