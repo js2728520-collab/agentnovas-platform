@@ -13,7 +13,7 @@
 .title p { margin: 0; color: var(--rv-muted-foreground); font-size: 0.8125rem; }
 .title time { color: var(--rv-subtle-foreground); font-size: 0.6875rem; }
 
-.eyebrow { color: var(--rv-primary); font-size: 0.625rem; letter-spacing: 0.14em; }
+.eyebrow { color: var(--rv-brand-ink); font-size: 0.625rem; font-weight: 800; letter-spacing: 0.14em; }
 
 .titleActions { display: flex; flex-wrap: wrap; gap: 0.625rem; align-items: center; }
 

@@ -143,6 +143,7 @@ export const test = base.extend<QualityFixtures>({
     });
 
     await use();
+    await context.unrouteAll({ behavior: "ignoreErrors" });
     await attachJson(testInfo, "network-summary", responses);
     await attachJson(testInfo, "console-summary", {
       consoleProblems,

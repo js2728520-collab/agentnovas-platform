@@ -105,7 +105,9 @@ test("confirmed Client cleanup removes watchlists and legacy assistant analysis 
   assert.equal(promptList.length, 4);
 
   assert.doesNotMatch(market, /\/api\/market\/watchlist|WatchlistItem|watchlist|watchedSymbols|toggleWatchlist/i);
+  assert.doesNotMatch(market, /new WebSocket|data-stream\.binance\.vision/);
   assert.doesNotMatch(marketStyles, /watchlist|watchButton/i);
+  assert.match(marketStyles, /\.eyebrow\s*\{[^}]*color:\s*var\(--rv-brand-ink\)/s);
   assert.match(portal, /route === "market"\) return <LiveMarket \/>/);
   assert.equal(inventory.API_ROUTE_INVENTORY.some((entry) => entry.route === "/api/market/watchlist"), false);
   assert.doesNotMatch(grants, /market_watchlist/);

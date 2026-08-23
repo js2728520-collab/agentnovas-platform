@@ -27,12 +27,13 @@ test("the browser suite covers every stable Client beta page", async () => {
     "/performance-statements",
     "/wallet",
     "/wallet/deposits",
+    "/market",
     "/notifications",
     "/account/security",
     "/support",
   ], "client-ui.spec.ts");
   assert.match(contents, /expectAudienceNavigation\(page,\s*"client"\)/);
-  assert.equal((contents.match(/\btest\(/g) ?? []).length, 3, "Client coverage must remain folded into three release-gate cases");
+  assert.equal((contents.match(/\btest\(/g) ?? []).length, 4, "Client coverage must remain folded into four release-gate cases");
 });
 
 test("Operations and Maintenance cases cover representative stable pages and audience-menu isolation", async () => {
