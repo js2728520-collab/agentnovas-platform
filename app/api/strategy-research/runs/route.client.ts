@@ -1,3 +1,5 @@
+import { researchPromptRoles } from "@/lib/research-prompt-registry";
+import { snapshotResearchPromptConfigurations } from "@/lib/prompt-skill-runtime";
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
@@ -131,6 +133,8 @@ export async function POST(request: Request) {
     };
 
     const roleSnapshot = await snapshotAgentRoleBindings(pool);
+    // PS-05：与模型绑定快照同时拍下 Prompt 配置版本。之后的激活或回滚不改变这次运行。
+    const promptSnapshot = await snapshotResearchPromptConfigurations(pool, researchPromptRoles);
     let run = await createResearchRun(pool, {
       ownerUserId: user.id,
       conversationId,
@@ -148,6 +152,7 @@ export async function POST(request: Request) {
         },
       },
       agentRoleSnapshot: roleSnapshot.roles,
+      promptConfigurationSnapshot: promptSnapshot,
       idempotencyKey,
     });
     const missing = roleSnapshot.missingRoles;

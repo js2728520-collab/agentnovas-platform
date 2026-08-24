@@ -71,6 +71,7 @@ import {
 } from "../packages/domain/src/runtime/market-cache.ts";
 import { completedRuntimeCandlesAt } from "../packages/domain/src/runtime/market-admission.ts";
 import { assertRoundBindingConsistency } from "./market-source-binding-repository.ts";
+import { loadPinnedPromptConfiguration } from "./prompt-skill-runtime.ts";
 import {
   callRuntimeExplanationAgent,
   resolveRuntimeExplanationPrompt,
@@ -773,7 +774,24 @@ export async function processNextRuntimeExplanation(
     const resolveConfig = dependencies.resolveConfig ?? resolveRuntimeExplanationRoleConfig;
     const config = await resolveConfig(database, job.explanationRole, { revisionId: job.profileRevisionId });
     if (!config) throw new Error("运行时解释任务引用的模型修订不可用");
-    const expectedPrompt = await resolveRuntimeExplanationPrompt(job.explanationRole);
+    // PS-05：按任务当初固定的那一版解析 Prompt，**不看当前生效的是哪一版**。
+    //
+    // 这正是这一步与「重新解析再比对」的区别：任务排队期间发生的激活或回滚不应该让它
+    // 失败，也不应该让它换一份 Prompt 继续跑——前者会让每次配置变更都清空队列，后者
+    // 会让历史解释说不清自己当时依据的是什么。
+    //
+    // 两条路径最后都落到同一个不变量上：**实际用的这段文字，必须与任务快照里的
+    // prompt_sha256 一致**。
+    const pinnedConfiguration = job.promptConfigurationVersionId && job.promptPayloadSha256
+      ? await loadPinnedPromptConfiguration(database, {
+          configurationVersionId: job.promptConfigurationVersionId,
+          payloadSha256: job.promptPayloadSha256,
+        })
+      : null;
+    const expectedPrompt = await resolveRuntimeExplanationPrompt(
+      job.explanationRole,
+      pinnedConfiguration?.instruction,
+    );
     if (expectedPrompt.version !== job.promptVersion || expectedPrompt.hash !== job.promptHash) {
       throw new Error("运行时解释 Prompt 版本与任务快照不一致");
     }

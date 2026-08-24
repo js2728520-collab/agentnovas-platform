@@ -266,9 +266,11 @@ Node 22.21.1 构建 Client 68 页、Operations 62 页、Maintenance 51 页全部
 ## 13. T3.1c-PS1 Prompt / Skill 家族合同
 
 需求方于 2026-08-24 把 PS-01–PS-06 全部按推荐方案冻结（见
-`../product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 第 0 节）。本节只描述**合同层**：
-严格 schema 与确定性测试器已实现，**运行时消费者尚未接入**，因此某个版本变成 active
-不代表它已经接管 Prompt 解析——这与 T3.1c-FF1 建立的规则一致：active 不等于业务已生效。
+`../product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 第 0 节）。本节描述**合同层**：
+严格 schema 与确定性测试器。
+
+**Prompt 的运行时消费者已由 PS2 接入**（见 13.7），Skill 的仍未接入——active 的 Skill 版本
+不代表它已经生效，这与 T3.1c-FF1 建立的规则一致：active 不等于业务已生效。
 
 ### 13.1 注册的配置流
 
@@ -342,8 +344,58 @@ payload 每次得到不同证据摘要，「确定性测试」也就名存实亡
 
 ### 13.6 本切片明确不做
 
-- 不接入运行时消费者：`resolveResearchPrompt` 与 `resolveRuntimeExplanationPrompt` 仍读代码
-  内定义，合同测试对此有断言，避免文档与实现脱节。
-- 因此 PS-05 的任务固定（新任务绑定 `configurationVersionId + payloadSha256`，已排队/执行中/
-  历史任务不受激活或回滚影响）留给 PS2。
+- ~~不接入运行时消费者~~ **PS2 已接入**：`resolveResearchPrompt` 与
+  `resolveRuntimeExplanationPrompt` 现在接受一个来自配置的角色说明，安全包络仍固定在代码里
+  （PS-03）。消费入口是 `lib/prompt-skill-runtime.ts`。
+- ~~PS-05 的任务固定留给 PS2~~ **PS2 已完成**：运行时解释任务在入队时固定
+  `configuration_version_id + payload_sha256`，研发运行在创建时按角色拍下同样的快照。
+  执行时按**版本 ID** 回读原版，不看当前生效的是哪一版，因此激活与回滚只影响随后创建的
+  新任务。
+- **Skill 仍无运行时消费者。** 合同与测试器就位，但没有任何 Agent 会加载技能包，
+  active 的 Skill 版本不等于已生效。
 - Maintenance 工作台留给 PS3。
+
+### 13.7 T3.1c-PS2 运行时消费与任务固定（PS-05）
+
+配置只替换**角色说明那一段**，安全包络仍固定在代码里（PS-03）。两个解析器都多了一个可选
+的 instruction 参数：`resolveResearchPrompt` 替换 `definitions[role].instruction`，
+`resolveRuntimeExplanationPrompt` 替换 `promptDefinitions[role].responsibility`；
+`baseContract` 与解释角色的那六行包络不在 payload 里，因此配置改不动它们。
+
+固定落在两处，形状不同是因为任务的形状不同：
+
+| | 固定时机 | 存放位置 |
+| --- | --- | --- |
+| 运行时解释 | 入队 | `strategy_runtime_explanation_jobs.prompt_configuration_version_id` + `prompt_payload_sha256` |
+| 策略研发 | 运行创建 | `strategy_research_runs.prompt_configuration_snapshot_json`（按角色） |
+
+解释任务是一次调用，逐个入队时固定即可。研发是一串步骤（需求整理 → 行情识别 → 提案 →
+反方 → 风控 → 报告），固定必须落在**运行**上：否则第 3 步与第 4 步之间发生一次激活，同
+一次研发的前后半段会依据两份不同的 Prompt，结论无法归因到任何一版。这与既有的
+`agent_role_snapshot_json`（固定模型修订）是同一时机、同一理由。
+
+**空值表示「用代码内定义的 Prompt」，不表示「未知」。** 当前没有任何 Prompt 配置被激活过，
+所以所有任务的固定列都是空的。编一个假的配置版本会让「这份解释依据哪份 Prompt」得到一个
+看似确定的错误答案（INV-6）。
+
+#### 两个网关
+
+- `prompt_configuration_active(key)`：入队时读当前生效版本，与 0071 / 0077 同形状。
+- `prompt_configuration_pinned(version_id)`：执行时按**版本 ID** 读一份可能早已被替换掉的
+  历史版本。这是与既有网关不同的一件事——它们都只返回当前生效版本，而 PS-05 恰恰要求读
+  历史版本。
+
+`prompt_configuration_pinned` 里的 `EXISTS (configuration_activations ...)` 不是多余的：
+没有它，任何能写任务行的路径都可以把任务指向一份**从未获批**的草稿，让 Worker 照着它调
+模型，双人审批就被绕过了。只有曾经真正激活过的版本才可被固定；回滚之后仍可读（那正是
+PS-05 要的），但从未上线过的草稿一律读不到。
+
+#### 执行时的不变量
+
+执行不再「重新解析当前版本再比对」，而是「按固定的版本解析」。两条路径最后落到同一条
+不变量上：**实际用的这段文字，必须与任务快照里的 `prompt_sha256` 一致**。摘要不符一律
+拒绝执行——payload 能被改写而任务照跑，等于「固定」只是个装饰。
+
+网关不可用时**回落到代码内 Prompt**而不是让任务失败：解释是只读旁路产物（INV-1：它不参与
+任何决策），停掉它换不来安全收益。这与固定的摘要校验不冲突——回落发生在「从来没固定过」
+的任务上，已固定的任务摘要不符仍然拒绝。

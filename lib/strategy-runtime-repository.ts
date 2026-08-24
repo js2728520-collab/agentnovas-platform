@@ -8,6 +8,7 @@ import {
   OFFICIAL_PAPER_EMERGENCY_REJECTION_CODE,
 } from "./official-paper-repository.ts";
 import { resolveRuntimeExplanationPrompt, type RuntimeExplanationOutput } from "./runtime-explanations.ts";
+import { loadActivePromptConfiguration } from "./prompt-skill-runtime.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
 
@@ -926,12 +927,17 @@ async function enqueueRuntimeExplanationJobs(client: PoolClient, input: {
   for (const binding of bindings.rows) {
     if (!requestedRoles.has(binding.role)) continue;
     const eventRole = runtimeExplanationEventRole[binding.role];
-    const prompt = await resolveRuntimeExplanationPrompt(binding.role);
+    // PS-05：入队时固定当前生效的 Prompt 配置版本。之后的激活或回滚不影响这份任务
+    // ——它执行时按 configuration_version_id 回读原版，而不是再看「当前是哪一版」。
+    // 没有已激活版本时两列为空，表示这份任务用代码内定义的 Prompt。
+    const configuration = await loadActivePromptConfiguration(client, `runtime.${binding.role}`);
+    const prompt = await resolveRuntimeExplanationPrompt(binding.role, configuration?.instruction);
     const inserted = await client.query<{ id: string }>(`
       INSERT INTO strategy_runtime_explanation_jobs (
         id, cycle_id, event_role, explanation_role, profile_revision_id,
-        prompt_version, prompt_sha256, decision_round_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        prompt_version, prompt_sha256, decision_round_id,
+        prompt_configuration_version_id, prompt_payload_sha256
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       -- 不指定冲突目标：这里有两条唯一约束在起作用。
       -- UNIQUE (cycle_id, event_role) 挡同一周期重复入队；
       -- 部分唯一索引 (decision_round_id, event_role) 挡同一决策轮下**不同部署**
@@ -940,7 +946,7 @@ async function enqueueRuntimeExplanationJobs(client: PoolClient, input: {
       ON CONFLICT DO NOTHING
       RETURNING id
     `, [crypto.randomUUID(), input.cycleId, eventRole, binding.role, binding.revision_id, prompt.version, prompt.hash,
-      input.decisionRoundId]);
+      input.decisionRoundId, configuration?.configurationVersionId ?? null, configuration?.payloadSha256 ?? null]);
     // pending 状态按决策轮设置，让该轮下所有部署的事件状态一致——
     // 否则只有第一个入队的部署显示「解释生成中」，其余客户看到的是空白。
     if (inserted.rows[0]) {
@@ -978,6 +984,8 @@ export async function leaseNextRuntimeExplanationJob(database: Pool, input: {
       profile_revision_id: string;
       prompt_version: string;
       prompt_sha256: string;
+      prompt_configuration_version_id: string | null;
+      prompt_payload_sha256: string | null;
       fencing_token: string;
       attempt_count: number;
       deterministic_conclusion: string;
@@ -1012,6 +1020,7 @@ export async function leaseNextRuntimeExplanationJob(database: Pool, input: {
         AND deployment.id = cycle.deployment_id
       RETURNING job.id, job.cycle_id, job.event_role, job.explanation_role,
                 job.profile_revision_id, job.prompt_version, job.prompt_sha256,
+                job.prompt_configuration_version_id, job.prompt_payload_sha256,
                 job.fencing_token, job.attempt_count,
                 event.conclusion AS deterministic_conclusion,
                 event.evidence_json AS deterministic_evidence,
@@ -1037,6 +1046,9 @@ export async function leaseNextRuntimeExplanationJob(database: Pool, input: {
       profileRevisionId: row.profile_revision_id,
       promptVersion: row.prompt_version,
       promptHash: row.prompt_sha256,
+      // PS-05：任务当初固定的配置版本。两列为空表示这份任务用的是代码内定义的 Prompt。
+      promptConfigurationVersionId: row.prompt_configuration_version_id,
+      promptPayloadSha256: row.prompt_payload_sha256,
       fencingToken: Number(row.fencing_token),
       attemptCount: row.attempt_count,
       context: {

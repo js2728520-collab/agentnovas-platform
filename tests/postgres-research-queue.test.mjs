@@ -52,6 +52,13 @@ test.before(async () => {
     "utf8",
   );
   await pool.query(conversationDecouplingMigration);
+  // 0080 给研发运行加了 Prompt 配置固定列（PS-05）。整份 0080 还会改运行时解释任务表并
+  // 引用 configuration_versions，两者都不在本套件的表子集里，因此只取这一条 ALTER。
+  // 与 0080 里的定义保持一致。
+  await pool.query(`
+    ALTER TABLE strategy_research_runs
+      ADD COLUMN IF NOT EXISTS prompt_configuration_snapshot_json jsonb NOT NULL DEFAULT '{}'::jsonb;
+  `);
   await pool.query(`
     CREATE TABLE community_strategies (
       id text PRIMARY KEY,

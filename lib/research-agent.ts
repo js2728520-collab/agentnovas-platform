@@ -244,12 +244,14 @@ export async function callStructuredResearchAgent(options: {
   config: ResolvedAgentRoleConfig;
   role: ResearchAgentRole;
   context: Record<string, unknown>;
+  /** 研发运行创建时固定的 Prompt 配置指令（PS-05）。省略则用代码内定义。 */
+  promptInstruction?: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   resolver?: (hostname: string) => Promise<Array<{ address: string }>>;
 }) {
   if (options.config.role !== options.role) throw new Error("Agent 角色与模型绑定不匹配");
-  const prompt = await resolveResearchPrompt(options.role);
+  const prompt = await resolveResearchPrompt(options.role, options.promptInstruction);
   const system = prompt.system;
   const user = `以下是只读上下文：\n<research_context>${boundedContext(options.context)}</research_context>`;
   const body = options.config.apiStyle === "responses"

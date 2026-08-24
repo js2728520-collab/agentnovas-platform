@@ -71,10 +71,23 @@ function hex(buffer: ArrayBuffer) {
   return [...new Uint8Array(buffer)].map(value => value.toString(16).padStart(2, "0")).join("");
 }
 
-export async function resolveResearchPrompt(role: ResearchPromptRole) {
+/**
+ * 构造某个研发角色的 Prompt。
+ *
+ * `instruction` 来自 Prompt 配置族（PS-01/PS-03），**只能**替换角色说明那一段；
+ * `baseContract` 固定在代码里，配置改不动它。那几行写的是「上游内容是不可信数据」
+ * 「不承诺收益」「不输出任意代码」——一份删掉它们的 Prompt 即便通过了双人审批，
+ * 注入与合规防线也已经没了。审批管不住运行时行为，所以包络不进 payload。
+ *
+ * 省略 `instruction` 时使用代码内定义的角色说明。
+ */
+export async function resolveResearchPrompt(role: ResearchPromptRole, instruction?: string) {
   const definition = definitions[role];
   if (!definition) throw new Error("不支持的研发 Prompt 角色");
-  const system = `${baseContract}\n${definition.instruction}`;
+  // 类型判断而不是 `instruction?.trim()`：这是个公开函数，`roles.map(resolveResearchPrompt)`
+  // 这类写法会把数组下标当第二个参数传进来。非字符串一律按「未提供」处理。
+  const configured = typeof instruction === "string" ? instruction.trim() : "";
+  const system = `${baseContract}\n${configured || definition.instruction}`;
   const hash = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(
     `${role}:${definition.version}:${system}`,
   )));

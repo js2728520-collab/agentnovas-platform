@@ -8,9 +8,12 @@ import { ResearchApiError } from "./research-errors.ts";
  * Prompt / Skill v1 配置族合同（T3.1c-PS1）。
  *
  * 需求方已冻结 PS-01–PS-06（见
- * `docs/product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 第 0 节）。这里只实现
- * 「合同 + 确定性测试器」这一层：**没有运行时消费者**。因此某个版本变成 active 不等于
- * 它已经接管 Prompt 解析——真正接管由后续切片完成，届时还要按 PS-05 把版本固定到任务上。
+ * `docs/product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 第 0 节）。这个模块是
+ * 「合同 + 确定性测试器」那一层；运行时消费与 PS-05 的任务固定在
+ * `lib/prompt-skill-runtime.ts`（T3.1c-PS2）。
+ *
+ * Skill 配置目前仍**没有**运行时消费者：合同与测试器就位，但没有任何 Agent 会加载技能
+ * 包。因此 Skill 版本变成 active 不等于它已经生效（框架规则：active ≠ 业务已生效）。
  *
  * PS-03 是这份合同里最硬的一条：平台安全包络固定在代码里，配置只能替换角色职责指令。
  * 这不是「双人审批之外的额外保险」，而是因为审批管不住运行时行为——一份删掉「不执行

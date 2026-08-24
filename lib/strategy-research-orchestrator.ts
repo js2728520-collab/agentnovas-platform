@@ -17,6 +17,7 @@ import {
   type PerpetualExchange,
 } from "./perpetual-market-adapters.ts";
 import { callStructuredResearchAgent } from "./research-agent.ts";
+import { loadPinnedPromptConfiguration } from "./prompt-skill-runtime.ts";
 import { buildResearchParameterVariants } from "./research-parameter-search.ts";
 import { runCheckpointedResearchStep } from "./research-steps.ts";
 import { canonicalJsonSha256 } from "../packages/domain/src/canonical-hash.ts";
@@ -63,6 +64,11 @@ type ResearchLease = {
     revisionId: string;
     revisionNumber: number;
     modelName: string;
+  }>>;
+  /** PS-05：运行创建时固定的 Prompt 配置版本，按角色。空表示用代码内定义的 Prompt。 */
+  promptConfigurationSnapshot?: Partial<Record<AgentRole, {
+    configurationVersionId: string;
+    payloadSha256: string;
   }>>;
   result: Record<string, unknown> | null;
   candidateBudget: number;
@@ -182,7 +188,15 @@ async function agentCall(database: Pool, run: ResearchLease, role: AgentRole, co
   const pinned = run.agentRoleSnapshot?.[role];
   const config = await resolveAgentRoleConfig(database, role, { revisionId: pinned?.revisionId });
   if (!config) throw new Error(`Agent 角色 ${role} 尚未配置`);
-  return callStructuredResearchAgent({ config, role, context });
+  // PS-05：按运行创建时固定的那一版解析 Prompt。研发是一串步骤，中途发生激活或回滚时
+  // 后半段仍用同一份 Prompt——否则同一次研发的前后半段依据不同，结论无法归因到任何一版。
+  const promptPin = run.promptConfigurationSnapshot?.[role];
+  const promptConfiguration = promptPin
+    ? await loadPinnedPromptConfiguration(database, promptPin)
+    : null;
+  return callStructuredResearchAgent({
+    config, role, context, promptInstruction: promptConfiguration?.instruction,
+  });
 }
 
 async function reservedAgentCall(

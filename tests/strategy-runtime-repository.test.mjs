@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { createHash } from "node:crypto";
+
 import pg from "pg";
 
 import {
@@ -17,6 +19,7 @@ import {
   OfficialStrategyModeSwitchOpenPositionError,
   renewStrategyRuntimeLease,
 } from "../lib/strategy-runtime-repository.ts";
+import { resolveRuntimeExplanationPrompt } from "../lib/runtime-explanations.ts";
 import {
   clearRoundBindingCache,
   processLeasedStrategyRuntimeDeployment,
@@ -221,6 +224,33 @@ test.before(async () => {
   const migration0078 = await readFile(new URL("../postgres/migrations/0078_strategy_market_source_bindings.sql", import.meta.url), "utf8");
   await pool.query(migration0078);
   await pool.query(migration0078);
+  // 解释任务入队时会固定 Prompt 配置版本（PS-05），固定列外键指向 configuration_versions，
+  // 0080 的两个网关还会读 configuration_activations。0069 整份迁移拖着 RBAC 依赖链，
+  // 本套件只挑选需要的迁移，因此按 0069 的形状补两张空表——形状要一致，否则网关的
+  // 列引用在创建时就通不过。
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS configuration_versions (
+      id text PRIMARY KEY,
+      kind text NOT NULL,
+      configuration_key text NOT NULL,
+      audience text NOT NULL,
+      version_number integer NOT NULL,
+      schema_version integer NOT NULL,
+      payload_json jsonb NOT NULL,
+      payload_sha256 text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS configuration_activations (
+      id text PRIMARY KEY,
+      sequence_no bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
+      configuration_version_id text NOT NULL REFERENCES configuration_versions(id) ON DELETE RESTRICT,
+      action text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  const migration0080 = await readFile(new URL("../postgres/migrations/0080_prompt_configuration_task_pinning.sql", import.meta.url), "utf8");
+  await pool.query(migration0080);
+  await pool.query(migration0080);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-official', $1)`, [JSON.stringify(platformStrategyDslV3("ai_conservative", "BTCUSDT"))]);
   await pool.query(`INSERT INTO exchange_accounts (id, exchange) VALUES ('account-a', 'binance')`);
@@ -1553,4 +1583,83 @@ test("同一轮上出现两个行情源时拒绝新开仓，离场不受影响",
   );
   assert.equal(intents.rows[0].count, 0, "分叉下不得产生开仓意图");
   clearRoundBindingCache();
+});
+
+test("PS-05：入队固定 Prompt 配置版本，随后的激活不改变这份任务", async () => {
+  // 解释角色绑定是入队前提，自己种，不依赖其它测试的执行顺序。
+  await pool.query(`
+    INSERT INTO llm_profiles (
+      id, name, provider_name, base_url, model_name, encrypted_api_key,
+      enabled, current_revision_id, created_by_user_id, updated_by_user_id
+    ) VALUES ('pin-profile','Pin','Private','https://llm.example.com/v1',
+              'pin-model','encrypted',true,'pin-revision','admin','admin')
+    ON CONFLICT (id) DO NOTHING;
+    INSERT INTO llm_profile_revisions (
+      id, profile_id, revision_number, name, provider_name, base_url,
+      model_name, encrypted_api_key, enabled, created_by_user_id
+    ) VALUES ('pin-revision','pin-profile',1,'Pin','Private','https://llm.example.com/v1',
+              'pin-model','encrypted',true,'admin')
+    ON CONFLICT (id) DO NOTHING;
+    INSERT INTO runtime_explanation_bindings (id, role, llm_profile_id, enabled, updated_by_user_id)
+    VALUES ('pin-binding-risk','risk_explanation','pin-profile',true,'admin')
+    ON CONFLICT (role) DO UPDATE SET enabled = true, llm_profile_id = 'pin-profile';
+  `);
+
+  const version = async (id, instruction, number) => {
+    const payload = JSON.stringify({ instruction });
+    const sha = createHash("sha256").update(payload).digest("hex");
+    await pool.query(`
+      INSERT INTO configuration_versions (
+        id, kind, configuration_key, audience, version_number, schema_version, payload_json, payload_sha256
+      ) VALUES ($1,'prompt','runtime.risk_explanation','shared',$2,1,$3::jsonb,$4)
+    `, [id, number, payload, sha]);
+    await pool.query(
+      "INSERT INTO configuration_activations (id, configuration_version_id, action) VALUES ($1,$2,'activate')",
+      [`activation-${id}`, id]);
+    return { id, sha, instruction };
+  };
+
+  const first = await version("pin-version-1", "第一版：解释风控边界为何允许或拒绝当前结论。", 1);
+  const expectedPrompt = await resolveRuntimeExplanationPrompt("risk_explanation", first.instruction);
+
+  const deployment = await seedOfficialDeployment("shadow");
+  const now = new Date(Date.now() + 60_000);
+  const lease = await leaseNextStrategyDeployment(pool, { workerId: "pin-runtime", now, leaseSeconds: 30 });
+  const events = [
+    "market_data", "technical_analysis", "strategy_decision", "adversarial_review",
+    "risk", "decision", "execution",
+  ].map((role, index) => ({
+    sequence: index + 1, role, conclusion: `deterministic:${role}`, evidence: {}, durationMs: 1, llmUsed: false,
+  }));
+  await completeStrategyRuntimeCycle(pool, {
+    cycleId: "cycle-pin", deploymentId: deployment.id, workerId: "pin-runtime", fencingToken: lease.fencingToken,
+    candleOpenTime: new Date(0), candleCloseTime: new Date(3_599_999), marketDataSnapshotId: "snapshot-pin",
+    decision: { action: "enter_long", riskApproved: false, rejectionReasons: ["最大回撤边界已触发"] },
+    orderIntent: null, events, traceId: "trace-pin", startedAt: now,
+    nextCycleAt: new Date(now.getTime() + 15_000), positionSizePct: 5,
+  });
+
+  const pinned = await pool.query(`
+    SELECT prompt_configuration_version_id, prompt_payload_sha256, prompt_sha256
+      FROM strategy_runtime_explanation_jobs
+     WHERE cycle_id = 'cycle-pin' AND explanation_role = 'risk_explanation'
+  `);
+  assert.equal(pinned.rows[0].prompt_configuration_version_id, first.id);
+  assert.equal(pinned.rows[0].prompt_payload_sha256, first.sha);
+  // 任务快照里的 prompt_sha256 覆盖最终 system 全文，因此它证明的是「用了配置那一版」，
+  // 而不只是「记了个版本号」。
+  assert.equal(pinned.rows[0].prompt_sha256, expectedPrompt.hash);
+
+  // 现在激活第二版。已入队的任务不受影响——PS-05 的全部内容。
+  const second = await version("pin-version-2", "第二版：换成一段完全不同的职责说明文本。", 2);
+  const secondPrompt = await resolveRuntimeExplanationPrompt("risk_explanation", second.instruction);
+  assert.notEqual(secondPrompt.hash, expectedPrompt.hash, "两版必须产出不同的 Prompt，否则本用例恒真");
+
+  const job = await leaseNextRuntimeExplanationJob(pool, {
+    workerId: "pin-explanation-worker", now: new Date(now.getTime() + 1_000), leaseSeconds: 30,
+  });
+  assert.equal(job.explanationRole, "risk_explanation");
+  assert.equal(job.promptConfigurationVersionId, first.id, "执行时读到的仍是入队时固定的那一版");
+  assert.equal(job.promptHash, expectedPrompt.hash);
+  assert.notEqual(job.promptHash, secondPrompt.hash);
 });

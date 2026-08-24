@@ -246,13 +246,21 @@ test("未注册的族、audience 或 schema 版本一律失败关闭", () => {
   );
 });
 
-test("本切片不声称已接管运行时 Prompt 解析", async () => {
-  // 框架规则：active 不等于业务配置已经生效。运行时消费者与 PS-05 的任务固定
-  // 留给后续切片；这里断言现有解析器仍读代码内定义，避免文档与实现脱节。
-  const research = await read("lib/research-prompt-registry.ts");
-  const runtime = await read("lib/runtime-explanations.ts");
-  assert.doesNotMatch(research, /prompt-skill-configuration/);
-  assert.doesNotMatch(runtime, /prompt-skill-configuration/);
+test("Skill 仍无运行时消费者，不得声称已生效", async () => {
+  // 框架规则：active 不等于业务配置已经生效。PS2 接入的是 **Prompt** 的消费者；
+  // Skill 的合同与测试器就位，但没有任何 Agent 会加载技能包。
   const contractModule = await read("lib/prompt-skill-configuration.ts");
-  assert.match(contractModule, /没有运行时消费者/);
+  assert.match(contractModule, /Skill 配置目前仍\*\*没有\*\*运行时消费者/);
+
+  // 断言方式是「没人调用技能规范化函数」，而不是「文档里写了没做」——
+  // 后者会在有人接入时继续为真，成为一条假绿。
+  const consumers = await Promise.all([
+    read("lib/strategy-research-orchestrator.ts"),
+    read("lib/strategy-runtime-worker.ts"),
+    read("lib/research-agent.ts"),
+    read("lib/runtime-explanations.ts"),
+  ]);
+  for (const source of consumers) {
+    assert.doesNotMatch(source, /normalizeSkillConfigurationV1|SKILL_CONFIGURATION_KEY/);
+  }
 });
