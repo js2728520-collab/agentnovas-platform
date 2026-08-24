@@ -66,7 +66,9 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 | 客户 USDT 充值 | `CURRENT` | 优盾专属地址、验签回调、maker/checker 入账；无二维码、无静态地址 |
 | 会员收款和 Paper 分成收款 | `CURRENT` | 外部人工收款、站内凭证和双人复核，不自动扣款 |
 | Payment Worker 和自动支付 | `SAFE_DISABLED` | 支付状态只读，不能从浏览器启用真实支付 |
-| 真实现货、永续、提现、划转 | `SAFE_DISABLED` | HTTP、Worker、运行时和迁移层共同关闭 |
+| 真实现货、永续、划转 | `SAFE_DISABLED` | HTTP、Worker、运行时和迁移层共同关闭 |
+| 平台服务余额提现 | `BLOCKED` | 产品已批准（ADR-0024 / P-09），G5 全部通过前接口固定拒绝 |
+| 客户交易所账户提现 | `SAFE_DISABLED` | INV-11 永久禁止；迁移 0045 数据库约束强制 |
 | 社区策略市场 | `RETIRED` | 当前 Beta 只提供三张官方策略 |
 | 不可变版本发布控制面 | `CURRENT` | 记录版本、验证、部署和回滚证据，但浏览器不执行基础设施命令 |
 
@@ -119,7 +121,9 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 - Client 可以在验证当前 TOTP/recovery code 后轮换 recovery codes；明文只显示一次，旧码立即失效；
 - 修改密码会撤销所有会话；修改登录标识需校验当前密码，并撤销其他会话；
 - 用户可以查看经过脱敏的设备和会话列表，并撤销本人非当前会话。
-- 同一账号最多 5 个并发设备；同设备重登轮换 Session，第 6 台当前失败关闭而不静默挤出；
+- 同一账号最多 5 个并发设备；同设备重登轮换 Session。第 6 台按 A-01（ADR-0024）自动挤出
+  最久未使用的那台，并向被挤出设备同时发送站内与 Email 安全通知——没有通知的自动挤出会让
+  攻击者登录后把本人悄悄挤下线，本人只当是掉线，形成无法自查的账号安全盲区；
 - 新设备和 IP 网段变化产生站内/Email 安全通知，用户可一键撤销包括当前设备在内的全部 Client 会话。
 
 ### 5.2 Operations / Maintenance 身份流程
@@ -195,10 +199,14 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 
 | 计划 | 价格 | 权益期 | 一次性 Credits | Paper 分成费率 |
 | --- | ---: | ---: | ---: | ---: |
-| 月卡 `monthly_v1` | USD 28 | 30 天 | 1,000 | 20% |
-| 季卡 `quarterly_v1` | USD 58 | 90 天 | 3,000 | 20% |
-| 年卡 `annual_v1` | USD 198 | 365 天 | 12,000 | 20% |
-| 终身 `lifetime_v1` | USD 588 | 无到期 | 36,000 | 16% |
+| 月卡 `monthly_v1` | USDT 59 | 30 天 | 1,000 | 20% |
+| 季卡 `quarterly_v1` | USDT 129 | 90 天 | 3,000 | 19% |
+| 年卡 `annual_v1` | USDT 499 | 365 天 | 12,000 | 18% |
+| 终身 `lifetime_v1` | USDT 1999 | 无到期 | 36,000 | 16% |
+
+价格与费率于 2026-08-24 按 P-07 冻结（唯一真源 `packages/contracts/src/product-parameters.ts`），
+分成费率随期限递减。运营端可调整，但改价是资金相关变更，仍走 maker/checker 与版本化发布；
+历史订单引用原快照，不受后续调价影响（INV-5）。
 
 客户流程：
 

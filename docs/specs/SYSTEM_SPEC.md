@@ -23,7 +23,9 @@ Execution Service：独立进程、独立网段、不接受公网入站；唯一
   构建产物不含凭证加解密代码；真实订单仍由 isLiveExecutionReady() 单一命名闸门关闭（ADR-0020）
 Payment Worker：不部署 unit；优盾充值由同步地址 API + 验签 Webhook + Ops 双审完成
 Legacy Research Worker：Beta 不启动，HTTP/租约/orchestrator/systemd 均硬关闭
-真实交易/提现/划转/自动扣款：代码路径硬关闭
+真实交易/划转/自动扣款：代码路径硬关闭
+平台服务余额提现：产品已批准（ADR-0024 / P-09），G5 前接口固定拒绝；
+  客户交易所账户提现权限永久禁止（INV-11，迁移 0045）
 ```
 
 三个 Web 进程使用相同代码但独立 `RIVERTON_APP_AUDIENCE`、域名、端口、构建目录、Session Cookie、最小 env 和数据库角色。共享数据库不是共享授权；所有入口重新解析 audience、会话、MFA enforcement、权限与 assignment-bound data scope。
@@ -54,7 +56,7 @@ Client 的两个连接是不同的能力边界，不是同一高权角色的两�
 - Client：`/`、`/login`、`/dashboard`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements[/id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/work-records[/id]`、`/market`、`/assistant`、`/studio`、`/backtests`、`/notifications`、`/account/security`、`/support`、`/wallet`、`/wallet/deposits`。
 - Operations：`/`、`/customers`、`/accounts`、`/invitations`、`/team`、`/data-center`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/kill-switches`、`/live-routing`、`/access`、`/access/audit`。组织树、上下级关系图和关系编辑页面已按 T1.1 退休，后端 organization/归属事实只供 scope resolver、报表和审计使用。
 
-优盾充值数据流固定为：Client 同源+RBAC+幂等请求 → Client Web 使用安全 provider 视图和运行时 secret 调用专属 `*.udun.io` 节点生成地址 → Maintenance 公网 webhook 使用独立数据库角色验签/去重并推进 `MANUAL_REVIEW` → Operations maker/checker → 同事务平衡账本、钱包版本、订单、审计和通知。配置缺失返回 503；提现、划转和自动扣款 endpoint 不存在。
+优盾充值数据流固定为：Client 同源+RBAC+幂等请求 → Client Web 使用安全 provider 视图和运行时 secret 调用专属 `*.udun.io` 节点生成地址 → Maintenance 公网 webhook 使用独立数据库角色验签/去重并推进 `MANUAL_REVIEW` → Operations maker/checker → 同事务平衡账本、钱包版本、订单、审计和通知。配置缺失返回 503；划转和自动扣款 endpoint 不存在。平台服务余额提现已由 ADR-0024 纳入产品范围，在 G5 全部通过前接口固定拒绝，UI 显示真实 blocker 而不是可用入口；客户交易所账户的提现权限永久禁止（INV-11）。
 - Maintenance：`/`、`/models`、`/ai-usage`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/readiness`、`/safety`、`/settings`、`/settings/disclosures`、`/configurations`、`/releases`、`/access`、`/access/audit`、`/audit`。
 
 Beta 未完成或不在范围的旧策略市场、自动结算、团队经营分析入口 feature-gate 隐藏。
@@ -101,7 +103,8 @@ type ApiPolicy = {
 - Client 注册要求国际手机号和邮箱，邮箱验证前身份保持 pending；验证 token 只存摘要，
   Email outbox 只存加密 token，重发按邮箱与可信网络限流且撤销旧 token。
 - Client 设备 Cookie 与 Session Cookie 分离且只存摘要；同设备重登轮换，会话最多 5 个
-  设备身份，第 6 台当前拒绝。新设备/网段变化双通道提醒，支持单设备和全量撤销。
+  设备身份，第 6 台按 A-01（ADR-0024）自动挤出最久未使用者并强制通知被挤出设备。
+  新设备/网段变化双通道提醒，支持单设备和全量撤销。
 - 邮箱+audience 登录失败 5 次/15 分钟；IP 30 次/15 分钟；找回使用更严格小时限额，存储在 PostgreSQL 以覆盖多实例。
 - TOTP/recovery 完整实现与加密数据保留。当前 `MFA_ENFORCEMENT_ENABLED=false` 时三端直接发完整 session，内部 critical 操作不要求 recent MFA；正式生产三端统一设为 `true` 后，Operations/Maintenance 完成 TOTP 才发完整 session，critical 操作要求 15 分钟内 recent MFA。recovery code 始终单次使用并只保存 hash。
 - Client 可选启用 TOTP；一旦启用，后续登录必须完成 TOTP 或消耗一枚 recovery code。启用/轮换只显示一次恢复码，服务器只存 hash。
