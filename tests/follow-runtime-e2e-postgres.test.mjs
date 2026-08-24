@@ -241,3 +241,43 @@ test("累计盈亏取周末之前全部回执，不只本周", async () => {
     client.release();
   }
 });
+
+test("第 3 步：风控触发时写回订阅状态并留下事件", async () => {
+  // 只挡开仓不写回状态，客户与运营在界面上完全看不出这个跟随已经被风控停了——他们看到
+  // 的仍是「运行中，只是一直不开仓」。
+  await pool.query(`
+    UPDATE strategy_subscriptions SET status='active', paused_by=NULL, paused_at=NULL,
+           ended_by=NULL, ended_reason=NULL WHERE id='e2e-sub';
+    UPDATE strategy_deployments SET next_cycle_at='2026-07-31T00:00:00Z', lease_expires_at=NULL,
+           last_candle_close_at=NULL WHERE id='e2e-deployment';
+    -- 已实现净亏损 -1,500 / 本金 10,000 = 15% 回撤，超过合同止损线 10%。
+    UPDATE strategy_follow_paper_portfolios SET realized_net_pnl_usdt=-1500 WHERE id='e2e-portfolio';
+  `);
+  await processNextFollowRuntimeDeployment(pool, { workerId: "e2e-risk" }, deps(risingCandles(60)));
+
+  const subscription = await pool.query(
+    "SELECT status,paused_by,paused_reason FROM strategy_subscriptions WHERE id='e2e-sub'");
+  assert.equal(subscription.rows[0].status, "risk_blocked");
+  assert.equal(subscription.rows[0].paused_by, "automated_risk");
+  assert.match(subscription.rows[0].paused_reason, /drawdown_stop_loss/);
+
+  const events = await pool.query(`
+    SELECT authority,action,triggered_rules_json,evidence_json FROM strategy_follow_risk_events
+     WHERE subscription_id='e2e-sub' ORDER BY created_at DESC LIMIT 1`);
+  assert.equal(events.rows[0].authority, "automated_risk");
+  assert.equal(events.rows[0].action, "pause");
+  assert.deepEqual(events.rows[0].triggered_rules_json, ["drawdown_stop_loss"]);
+  // 证据带实际值与阈值，客户能核对而不是只看到「被风控停了」。
+  assert.equal(events.rows[0].evidence_json.stopLossPct, 10);
+});
+
+test("已阻断的跟随不重复写事件", async () => {
+  // 否则每一轮都会追加一条同样的事件。
+  const before = await pool.query(
+    "SELECT count(*)::int AS count FROM strategy_follow_risk_events WHERE subscription_id='e2e-sub'");
+  await pool.query("UPDATE strategy_deployments SET next_cycle_at='2026-07-31T00:00:00Z', lease_expires_at=NULL, last_candle_close_at=NULL WHERE id='e2e-deployment'");
+  await processNextFollowRuntimeDeployment(pool, { workerId: "e2e-risk-2" }, deps(risingCandles(72)));
+  const after = await pool.query(
+    "SELECT count(*)::int AS count FROM strategy_follow_risk_events WHERE subscription_id='e2e-sub'");
+  assert.equal(after.rows[0].count, before.rows[0].count);
+});

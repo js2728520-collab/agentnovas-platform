@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { Pool } from "pg";
 
 import { evaluateFollowSpotAdmission } from "../packages/domain/src/follow-spot-admission.ts";
@@ -83,6 +85,14 @@ export async function processFollowSpotRuntimeDeployment(
     listingStatus: listing.status,
     delistReason: listing.delistReason,
   });
+
+  // 风控触发时把订阅置成 risk_blocked 并留下事件。
+  //
+  // 只挡开仓不写回状态，客户与运营在界面上完全看不出这个跟随已经被风控停了——他们看到
+  // 的仍是「运行中，只是一直不开仓」。四方停止的意义正是让「谁停的」可查（PRD 6.6）。
+  if (risk.blocked && lease.subscriptionStatus === "active") {
+    await blockFollowByAutomatedRisk(database, lease.subscriptionId, risk);
+  }
 
   // 生命周期与风控共同决定能否新开仓；离场始终允许（INV-7）。
   const lifecycleAllows = isFollowLifecycleState(lease.subscriptionStatus)
@@ -185,6 +195,51 @@ export async function processNextFollowRuntimeDeployment(
       fencingToken: lease.fencingToken, now: new Date(), leaseSeconds,
     }).catch(() => undefined);
     throw error;
+  }
+}
+
+/**
+ * 自动风控阻断一个跟随。
+ *
+ * 只对 `active` 的订阅动手，且状态写回与事件在同一个事务里——写了状态没写事件，事后就说
+ * 不出为什么被停；写了事件没写状态，客户下一轮照样开仓。
+ *
+ * 幂等：已经是 risk_blocked 的不重复写，否则每一轮都会追加一条同样的事件。
+ */
+async function blockFollowByAutomatedRisk(
+  database: Pool,
+  subscriptionId: string,
+  risk: { triggeredRules: string[]; evidence: Record<string, unknown> },
+): Promise<void> {
+  const client = await database.connect();
+  try {
+    await client.query("BEGIN");
+    const current = (await client.query<{ status: string }>(
+      "SELECT status FROM strategy_subscriptions WHERE id=$1 FOR UPDATE", [subscriptionId],
+    )).rows[0];
+    if (!current || current.status !== "active") {
+      await client.query("COMMIT");
+      return;
+    }
+    const reason = `自动风控：${risk.triggeredRules.join("、")}`;
+    await client.query(`
+      UPDATE strategy_subscriptions
+         SET status='risk_blocked', paused_by='automated_risk', paused_at=now(),
+             paused_reason=$2, updated_at=now()
+       WHERE id=$1
+    `, [subscriptionId, reason.slice(0, 300)]);
+    await client.query(`
+      INSERT INTO strategy_follow_risk_events(
+        id, subscription_id, authority, action, reason, triggered_rules_json, evidence_json
+      ) VALUES ($1,$2,'automated_risk','pause',$3,$4::jsonb,$5::jsonb)
+    `, [randomUUID(), subscriptionId, reason.slice(0, 300),
+      JSON.stringify(risk.triggeredRules), JSON.stringify(risk.evidence)]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
   }
 }
 
