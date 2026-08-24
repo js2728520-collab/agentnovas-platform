@@ -8,6 +8,7 @@ test("maintenance health and audit workspaces are responsive, accessible and aud
     ["/audit", "技术审计"],
     ["/releases", "版本发布"],
     ["/configurations", "配置发布"],
+    ["/work-records", "工作记录导出"],
   ] as const) {
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "maintenance");

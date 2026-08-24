@@ -3013,3 +3013,63 @@ audience 隔离和 Maintenance 无确认弹窗一并回归。质量 schema
 未做：4.13b Maintenance security-barrier 脱敏导出，以及 4.13c-E2E 里属于导出旅程的部分。
 本轮没有云端三端构建（本地 production build 已通过，最终收口仍应在云端精确提交快照重跑）。
 未执行生产迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署。
+
+## 82. 2026-08-24 T4.13b Maintenance 工作记录脱敏导出
+
+看板 4.13b 已完成（WR4 安全投影 + WR5 受控导出）。Maintenance 新增 `/work-records` 导出页与
+`POST /api/maintenance/work-records/export`；真实订单路由不变，导出不触发任何外部写入。
+
+**这个切片的核心不是导出接口，是运维端的读权限边界。** Maintenance 的产品边界是「不展示客户
+业务信息」，导出工作记录是这条边界上的一个例外。如果直接让运维端读 `strategy_decision_rounds`
+等业务原表，就等于为了一个导出把整条客户决策链对运维端敞开。迁移 `0076` 因此建
+`maintenance_strategy_work_records_safe` security-barrier 视图作为唯一入口，只投影 21 个
+allowlist 字段，客户仅以 `md5(owner_user_id)` 单向伪名出现；同一迁移把
+`strategy_decision_rounds`、`strategy_runtime_cycles`、`strategy_runtime_events`、
+`strategy_subscription_periods`、`official_paper_order_intents`、`official_paper_fill_receipts`
+从 `agentnovas_maint_web` 撤权。实际 PostgreSQL 测试用一个只被授予视图 SELECT 的临时角色，
+逐张断言这些原表返回 42501——**视图存在不等于原表已经关上**，这条断言才是边界的实际证明。
+`security_barrier=true` 也单独断言：没有它，调用方传入的函数可能先于安全条件求值。
+
+视图字段用 `assert.deepEqual` 逐个列出而不是「不含某某」。后者只能挡住已经想到的泄露，前者
+要求以后每加一个字段都被显式复核一次。
+
+导出的准入口径与 Client 侧共用同一套 CASE：只有纯 `hold` 且无客户周期才是 `not_required`，
+其余缺周期一律 `not_recorded`。两边分别实现会让同一轮在客户页和导出里有两种解释。
+
+API 侧：独立敏感权限 `maint.work_records.export`（不搭在 `maint.ai_usage.view` 或
+`maint.audit.view` 上——能看聚合用量不等于能导出逐条客户决策记录），same-origin、
+`Idempotency-Key`、8 KiB 严格 body（多余字段一律 422，避免以后靠隐藏参数扩大导出范围）。
+日期两端包含、最多 31 天：`2026-02-30` 这类会被 `Date.parse` 静默归一到 3 月的输入被显式拒绝，
+否则导出范围会悄悄改变。命中 1,000 条上限时返回 `truncated=true` 并在页面上以 `role="alert"`
+说明「不是该区间的完整记录」（INV-6）。响应带 `content-disposition: attachment`、`no-store`、
+`x-export-retention: none`，服务端不落导出文件；审计只写日期、条数、截断状态、查询摘要和原因，
+不写导出正文。`reason` 进入幂等 payload——换一个原因就是另一次导出，必须重新留审计。
+
+Maintenance `/work-records` 是**导出页而不是逐条详情页**。路由合同按 audience 分块，
+maintenance 落在 `segments.length === 1`，`/work-records/:id` 返回 404；让运维端能打开详情页
+就等于给了它逐条查看客户决策的入口。
+
+三处实现过程中真实暴露的问题，都不是靠改断言绕过的：
+
+1. 新权限键必须先进 `permission_definitions`，否则 `role_permissions` 外键直接 23503。
+   `internal-member-provisioning` 测试因此变红——它手工列权限而不是走迁移链，已补齐。
+2. 导出测试第一版把全部迁移一次跑完再插夹具，结果 `0075` 的订阅期间回填看不到这些部署，
+   视图零行——测试会「通过」在空数据集上，什么都不证明。改为与既有工作记录测试同样的两阶段：
+   先跑到 `0074`，插夹具，再应用 `0075`/`0076` 并断言恰好这两个被应用。
+3. 首次浏览器 Gate 19/20：质量夹具的 maintenanceAdmin 身份没有新权限，页面渲染成无权访问，
+   标题断言失败。这正是这条巡检该抓的东西——补权限后 20/20。
+
+验证：`npm test` 1454/1454、TypeScript、全仓 ESLint 0、8 条架构边界、三端 key-custody、
+repository secret scan（3112 个候选文件）、API inventory 270 条与 Nginx 白名单同步、
+production dependency audit 0、`git diff --check` 通过。完整 77 个迁移在一次性库上 fresh 应用
+成功并可重放（第二次 0 applied / 77 skipped）。三端 production build 成功，bundle budget 通过
+（Client 204,171、Operations 192,720、Maintenance 192,915，均在 204,800 预算内；Maintenance
+本切片 +126 字节，导出工作区经 `next/dynamic` 懒加载）。本地隔离 PostgreSQL、MFA 默认关闭、
+外部写入全禁用、端口偏移 10000 下真实 Chromium **20/20**，`/work-records` 导出页已并入
+Maintenance 稳定页巡检，覆盖四断点、键盘、axe 与 console/network 零错误。质量 schema
+`quality_e2e_1787540902743_78967_98a92ed0` 已删除，运行时秘密已移除，清理失败为 0，
+两个一次性测试库已 drop。
+
+未做：4.13c-E2E 中「导出主旅程」的交互级用例（当前只覆盖页面巡检，未实际提交一次导出并断言
+审计与幂等重放），以及云端 `ssh an-saas` 精确提交快照的三端构建收口。未执行生产迁移、
+未接触生产数据库、未启动或切换远端服务、未推送、未部署。

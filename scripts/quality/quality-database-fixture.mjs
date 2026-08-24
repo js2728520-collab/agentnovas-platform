@@ -75,6 +75,7 @@ const ROLE_PERMISSIONS = {
     "maint.feature_flags.manage",
     "maint.system_health.view",
     "maint.ai_usage.view",
+    "maint.work_records.export",
     "maint.emergency_pause.execute",
     "maint.audit.view",
     "maint.roles.manage",

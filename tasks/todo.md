@@ -125,7 +125,7 @@
   - [x] 4.13a Client 历史列表/详情：公共七阶段、固定策略版本、行情摘要、个人准入、模拟意图/成交和审计标识；所有权、订阅时间窗、游标分页与统一 404 失败关闭。
     - [x] 4.13a-BE 不可变订阅区间、Client 列表/详情 API、安全投影、固定版本、统一 404、热路径索引/超时和 API/Nginx/OpenAPI 合同。
     - [x] 4.13a-UI `/work-records` 列表/详情、Client 导航入口、懒加载（初始 JS +79 字节）、「加载更多」游标累积去重、准入五态逐一区分、四断点/键盘/axe 与 20/20 真实 Chromium 通过。
-  - [ ] 4.13b Maintenance 脱敏导出：独立敏感权限、security-barrier 安全投影、伪名用户、31 天/1,000 条上限、页面内审计原因、same-origin/幂等与追加式审计。
+  - [x] 4.13b Maintenance 脱敏导出：迁移 0076 建 security-barrier 安全视图（21 个 allowlist 字段、单向伪名）并把 7 张工作记录原表从运维端角色撤权；独立敏感权限 `maint.work_records.export`、same-origin、Idempotency-Key、8 KiB 严格 body、31 天/1,000 条上限与 `truncated` 标注、不落导出文件、审计只记查询摘要与条数；Maintenance `/work-records` 只有导出页，路由合同拒绝逐条详情。
   - [-] 4.13c 至少六个月保留合同、PostgreSQL/API 安全测试、四断点/axe、云端三端构建和本地真实浏览器三端登录/主旅程 Gate。
     - [x] 4.13c-DB 六个月最低删除保护、所有权/空档/固定版本/纯 hold/非 hold 缺准入/IDOR/分页 PostgreSQL 回归。
     - [-] 4.13c-E2E Client 主旅程、四断点和 axe 已随 4.13a-UI 在本地真实 Chromium 20/20 通过；Maintenance 导出旅程等 4.13b 完成后补齐，届时在最新完整产物重跑。

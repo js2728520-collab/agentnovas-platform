@@ -98,7 +98,10 @@ test("工作记录是稳定路由，列表与详情各一层", async () => {
   assert.equal(isRivertonPagePath("client", "/work-records/round-1"), true);
   // 再深一层不是合同的一部分，必须 404 而不是落到详情页。
   assert.equal(isRivertonPagePath("client", "/work-records/round-1/extra"), false);
-  // 工作记录是客户自己的历史，内部端不提供该页面。
+  // Operations 不提供工作记录页面：客户历史决策不在运营端的职责范围内。
   assert.equal(isRivertonPagePath("operations", "/work-records"), false);
-  assert.equal(isRivertonPagePath("maintenance", "/work-records"), false);
+  // Maintenance 有的是受控导出页，**不是**逐条详情页。运维端只能拿脱敏投影，
+  // 让它能打开 /work-records/:id 就等于给了它逐条查看客户决策的入口。
+  assert.equal(isRivertonPagePath("maintenance", "/work-records"), true);
+  assert.equal(isRivertonPagePath("maintenance", "/work-records/round-1"), false);
 });

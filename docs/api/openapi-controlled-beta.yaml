@@ -134,6 +134,45 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/maintenance/work-records/export:
+    post:
+      tags: [Maintenance]
+      summary: 导出脱敏工作记录
+      description: >-
+        独立敏感权限 maint.work_records.export。只读取 security-barrier 安全视图：
+        用户仅以单向伪名出现，不返回原始用户 ID、客户 PII、交易所账户、原始 evidence、
+        模型名、provider 标识或错误原文。服务端不落导出文件；审计只记录日期、条数、
+        截断状态、查询摘要和原因。
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [from, to, reason]
+              properties:
+                from: { type: string, format: date, description: UTC 起始日，包含 }
+                to: { type: string, format: date, description: UTC 结束日，包含；区间最多 31 天 }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200':
+          description: >-
+            脱敏投影。命中 1,000 条上限时 truncated=true，明确表示结果不完整。
+            响应带 content-disposition: attachment、no-store 与 x-export-retention: none。
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MaintenanceWorkRecordExport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Idempotency-Key 已绑定其他导出请求，或同键请求正在处理中
+        '422': { $ref: '#/components/responses/ValidationError' }
   /api/membership/legal-consent:
     get:
       tags: [Membership]
@@ -1205,6 +1244,52 @@ components:
           properties:
             limit: { type: integer, minimum: 1, maximum: 50 }
             nextCursor: { type: [string, 'null'] }
+    MaintenanceWorkRecordExport:
+      type: object
+      additionalProperties: false
+      required: [from, to, rowCount, truncated, maxRows, realOrderRoutingEnabled, rows]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        rowCount: { type: integer, minimum: 0, maximum: 1000 }
+        truncated:
+          type: boolean
+          description: 命中上限时为 true，表示这不是该区间的完整结果
+        maxRows: { type: integer, const: 1000 }
+        realOrderRoutingEnabled: { type: boolean, const: false }
+        rows:
+          type: array
+          maxItems: 1000
+          items:
+            type: object
+            additionalProperties: false
+            required: [recordId, isSharedDecision, occurredAt, candleOpenAt, strategyCode, strategyVersionId, symbol, timeframe, decisionStatus, completeness, executionMode, admissionStatus, customerPseudonym, marketSource, candleCount, dataStart, dataEnd, orderIntentCount, fillReceiptCount, traceId]
+            properties:
+              recordId: { type: string, maxLength: 128 }
+              isSharedDecision: { type: boolean }
+              occurredAt: { type: string, format: date-time }
+              candleOpenAt: { type: string, format: date-time }
+              strategyCode: { type: string, enum: [ai_conservative, ai_balanced, ai_aggressive] }
+              strategyVersionId: { type: string }
+              symbol: { type: string }
+              timeframe: { type: string }
+              decisionStatus: { type: string }
+              completeness: { type: string, enum: [complete, partial, legacy] }
+              executionMode: { type: string, enum: [shadow, paper] }
+              admissionStatus:
+                type: string
+                enum: [not_required, not_recorded, recorded, risk_rejected, failed]
+                description: 与 Client 同一口径；not_required 与 not_recorded 不得合并
+              customerPseudonym:
+                type: string
+                description: 单向伪名，不可反推身份；不返回原始用户 ID、邮箱、手机号或客户名称
+              marketSource: { type: [string, 'null'] }
+              candleCount: { type: [integer, 'null'] }
+              dataStart: { type: [string, 'null'], format: date-time }
+              dataEnd: { type: [string, 'null'], format: date-time }
+              orderIntentCount: { type: integer, minimum: 0 }
+              fillReceiptCount: { type: integer, minimum: 0 }
+              traceId: { type: [string, 'null'], maxLength: 128 }
     StrategyWorkRecordDetail:
       allOf:
         - $ref: '#/components/schemas/StrategyWorkRecordSummary'

@@ -24,6 +24,7 @@ test.before(async () => {
     INSERT INTO permission_definitions (key, application_id, label, sensitive, status)
     VALUES
       ('maint.ai_usage.view', 'maintenance', '查看 AI 用量与可靠性', true, 'active'),
+      ('maint.work_records.export', 'maintenance', '导出脱敏工作记录', true, 'active'),
       ('maint.releases.view', 'maintenance', '查看发布版本', false, 'active'),
       ('maint.releases.manage', 'maintenance', '登记发布版本', true, 'active'),
       ('maint.configuration_versions.view', 'maintenance', '查看版本化配置', false, 'active'),

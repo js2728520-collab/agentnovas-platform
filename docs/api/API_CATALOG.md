@@ -3,7 +3,7 @@
 > 文档状态：`CURRENT_BASELINE`。本文只登记当前真实 route 和 Policy，不提前虚构 V3 endpoint。V3 目标 API 家族见 [`../specs/V3_SYSTEM_TARGET_SPEC.md`](../specs/V3_SYSTEM_TARGET_SPEC.md)；每个家族只有在合同、实现和 Gate 完成后才能写入本目录并改为 `CURRENT`。
 
 日期：2026-08-24
-范围：当前包含 203 个 route 文件、268 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。V3 Current→Target 的代码、数据库、页面、Worker 和 Gate 映射见 [`../architecture/CAPABILITY_MIGRATION_MATRIX.md`](../architecture/CAPABILITY_MIGRATION_MATRIX.md)。
+范围：当前包含 207 个 route 文件、270 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。V3 Current→Target 的代码、数据库、页面、Worker 和 Gate 映射见 [`../architecture/CAPABILITY_MIGRATION_MATRIX.md`](../architecture/CAPABILITY_MIGRATION_MATRIX.md)。
 
 ## 0. V3 目标接口族（尚不是当前合同）
 
@@ -233,6 +233,7 @@
 | `/api/trading-hall/paper/platform-demo-summary` | GET | C | KEEP；按 provider/card 的净化测试状态，不返回账户/订单/trace/secret，明确 customerImpact=false |
 | `/api/work-records` | GET | C | CURRENT；本人订阅期间的公共决策与组合准入摘要，游标分页、私有不缓存 |
 | `/api/work-records/[id]` | GET | C | CURRENT；公共七阶段与本人模拟意图/成交安全投影，越权与不存在统一 404 |
+| `/api/maintenance/work-records/export` | POST | M | CURRENT（T4.13b）；独立敏感权限 `maint.work_records.export`，same-origin + Idempotency-Key + 8 KiB body；只读 security-barrier 安全视图，单向伪名、31 天/1,000 条上限、命中上限标注 `truncated`；不落导出文件，审计只记日期/条数/截断/查询摘要/原因 |
 | `/api/operations/membership-orders` | GET | O | KEEP；scope/pagination/filter |
 | `/api/operations/membership-orders/[id]` | GET | O | KEEP；凭证脱敏/审批历史 |
 | `/api/operations/membership-orders/[id]/evidence` | POST | O | KEEP；maker/幂等/recent MFA |

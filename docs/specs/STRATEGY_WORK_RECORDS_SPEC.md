@@ -1,6 +1,7 @@
 # 策略工作记录与受控导出规格
 
-状态：`TARGET_TRUTH / IMPLEMENTING`。Client 历史列表/详情与 Maintenance 脱敏导出按 T4.13 分两个纵向增量实施；真实订单路由继续关闭。
+状态：`TARGET_TRUTH / PARTIAL_CURRENT`。Client 历史列表/详情（4.13a）与 Maintenance 脱敏导出（4.13b）已实现；
+剩余 4.13c-E2E 的导出旅程与云端收口。真实订单路由继续关闭。
 
 ## 1. 目标
 
@@ -111,6 +112,24 @@ Maintenance 数据库角色只能读取 `maintenance_strategy_work_records_safe`
 7. Maintenance Web 角色不能直接读取 Client 工作记录原表，只能读安全视图。
 8. 对六个月内任何受保护真源执行删除均失败；超过六个月的清理仍必须按外键顺序且不得删除永久追加式回执/审计。
 9. 三端 production build、三端空浏览器登录、Client 列表/详情、Maintenance 导出、四断点和 axe Gate 全部通过。
+
+## 8bis. 实施结果
+
+**4.13a（2026-08-24）：** WR1/WR2 后端与 0075 迁移已在 `7c047b6` 落地；WR3 Client
+`/work-records` 列表与详情已交付，详情按 §7 排序，准入五态逐一区分文案，明示
+`realOrderRoutingEnabled=false`。列表用「加载更多」累积不透明游标并按 `recordId` 去重。
+工作区经 `next/dynamic` 懒加载，Client 初始 JS 仅 +79 字节。
+
+**4.13b（2026-08-24）：** WR4 迁移 `0076` 新增 `maintenance_strategy_work_records_safe`
+security-barrier 视图，只投影 21 个 allowlist 字段，客户仅以 `md5(owner_user_id)` 单向伪名
+出现；同一迁移把 7 张工作记录原表从 `agentnovas_maint_web` 撤权，实际 PostgreSQL 测试逐张
+断言运维端角色读它们返回 42501。WR5 `POST /api/maintenance/work-records/export` 使用独立敏感
+权限 `maint.work_records.export`（`permission_definitions` 标 sensitive，MFA 强制开启后自动获得
+recent-MFA 门槛）、same-origin、`Idempotency-Key`、8 KiB 严格 body；日期两端包含、最多 31 天、
+最多 1,000 条，命中上限返回 `truncated=true`；响应带 `content-disposition: attachment`、
+`no-store`、`x-export-retention: none`，服务端不落文件；审计只记日期、条数、截断状态、
+查询摘要和原因。Maintenance `/work-records` 是**导出页而非逐条详情页**——路由合同拒绝
+`/work-records/:id`，避免运维端获得逐条查看客户决策的入口。
 
 ## 9. 明确不做
 

@@ -2917,6 +2917,28 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": true
   },
   {
+    "method": "POST",
+    "route": "/api/maintenance/work-records/export",
+    "source": "app/api/maintenance/work-records/export/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.work_records.export"
+    ],
+    "permissionMfa": {
+      "maint.work_records.export": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
     "method": "GET",
     "route": "/api/market/candles",
     "source": "app/api/market/candles/route.client.ts",

@@ -436,3 +436,38 @@ test("工作记录不得把「无需准入」与「未记录」混为一谈", as
   assert.match(workspace, /encodeURIComponent\(cursor\)/);
   assert.doesNotMatch(workspace, /offset=/);
 });
+
+test("Maintenance 导出页只做受控导出，不提供逐条客户详情", async () => {
+  const routeContract = await read("app/riverton-route-contract.ts");
+  const navigation = await read("apps/maintenance/ui/navigation.ts");
+  const dispatcher = await read("apps/maintenance/ui/maintenance-app.tsx");
+  const workspace = await read("apps/maintenance/ui/work-record-export-workspace.tsx");
+
+  assert.match(routeContract, /MAINTENANCE_ROUTES[\s\S]*"work-records"/);
+  assert.match(navigation, /href: "\/work-records", label: "工作记录导出"/);
+  assert.match(navigation, /maint\.work_records\.export/);
+  assert.match(dispatcher, /route === "work-records" \? \["maint\.work_records\.export"\]/);
+  assert.match(dispatcher, /const WorkRecordExportWorkspace = dynamic\(/);
+
+  // 导出是独立敏感权限，不能搭在既有 Maintenance 权限上顺带获得。
+  assert.doesNotMatch(navigation, /href: "\/work-records"[^}]*maint\.ai_usage\.view/);
+
+  // Maintenance 配置与控制流程一律页面内原因直接执行，不使用确认弹窗。
+  assert.doesNotMatch(workspace, /ConfirmActionDialog|window\.confirm/);
+  assert.match(workspace, /审计原因/);
+  // 幂等键必须在成功后才轮换：结果不确定时重试复用同一个键，否则一次导出写两条审计。
+  assert.match(workspace, /"Idempotency-Key": idempotencyKey/);
+  assert.match(workspace, /setIdempotencyKey\(crypto\.randomUUID\(\)\);/);
+});
+
+test("导出页如实呈现截断与模拟边界，不声称结果完整", async () => {
+  const workspace = await read("apps/maintenance/ui/work-record-export-workspace.tsx");
+  // 命中上限必须显式告知不完整；把 truncated 显示成普通条数会让人把抽样当全量。
+  assert.match(workspace, /result\.truncated/);
+  assert.match(workspace, /不是该区间的完整记录/);
+  assert.match(workspace, /realOrderRoutingEnabled/);
+  assert.match(workspace, /Paper 模拟/);
+  // 页面不得回显原始用户标识：只有单向伪名。
+  assert.match(workspace, /customerPseudonym/);
+  assert.doesNotMatch(workspace, /\bemail\b|\bphone\b|ownerUserId|userId/);
+});

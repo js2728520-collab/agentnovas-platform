@@ -91,3 +91,46 @@ export type StrategyWorkRecordPage = {
   data: StrategyWorkRecordSummary[];
   page: { limit: number; nextCursor: string | null };
 };
+
+/** Maintenance 受控导出（T4.13b）。字段与 `maintenance_strategy_work_records_safe` 安全视图一一对应。 */
+export type MaintenanceWorkRecordExportRequest = {
+  from: string;
+  to: string;
+  reason: string;
+  days: number;
+};
+
+export type MaintenanceWorkRecordExportRow = {
+  recordId: string;
+  isSharedDecision: boolean;
+  occurredAt: string;
+  candleOpenAt: string;
+  strategyCode: string;
+  strategyVersionId: string;
+  symbol: string;
+  timeframe: string;
+  decisionStatus: string;
+  completeness: string;
+  executionMode: string;
+  admissionStatus: string;
+  /** 单向伪名，不可反推用户身份；不返回原始用户 ID、邮箱、手机号或客户名称。 */
+  customerPseudonym: string;
+  marketSource: string | null;
+  candleCount: number | null;
+  dataStart: string | null;
+  dataEnd: string | null;
+  orderIntentCount: number;
+  fillReceiptCount: number;
+  traceId: string | null;
+};
+
+export type MaintenanceWorkRecordExportResult = {
+  from: string;
+  to: string;
+  rowCount: number;
+  /** 命中上限时为 true，明确表示这不是完整结果。 */
+  truncated: boolean;
+  maxRows: number;
+  realOrderRoutingEnabled: false;
+  rows: MaintenanceWorkRecordExportRow[];
+};
