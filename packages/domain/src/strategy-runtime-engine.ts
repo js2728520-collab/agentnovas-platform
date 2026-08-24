@@ -86,6 +86,16 @@ export function evaluateStrategyRuntimeCycle(input: {
    * 省略视为一致：只有查过并发现分叉才拒绝，避免调用方忘了传就静默停掉所有开仓。
    */
   sourceBinding?: { consistent: boolean };
+  /**
+   * 跟单生命周期是否允许新开仓（PRD 6.6 / T4.4）。
+   *
+   * 与 halted、unavailableFields、sourceBinding 分开表达，理由与它们相同：四者是四件不同
+   * 的事——熔断是风控生效，读数损坏是风控失效，绑定分叉是共享叙述不成立，这一条是**客户
+   * 或运营停了这个跟随**。运营端看到它们要做的事完全不同，合并成一个标志就查不出原因。
+   *
+   * 省略视为允许：只有调用方明确说不允许才拒绝，避免忘了传就静默停掉所有开仓。
+   */
+  followLifecycle?: { allowsNewEntry: boolean };
   lastDecisionCandleCloseTime?: number | null;
   marketData: RuntimeCandleAdmissionInput;
 }) {
@@ -191,6 +201,10 @@ export function evaluateStrategyRuntimeCycle(input: {
   // 允许离场——退出能力不能依赖这一判断，否则持仓客户会被卡在里面。
   if (isEntry && input.sourceBinding && !input.sourceBinding.consistent) {
     rejectionReasons.push("行情源绑定分叉，禁止新开仓");
+  }
+  // 失败安全（INV-7）：跟随被暂停、风控阻断或已终止时不开新仓，离场照常。
+  if (isEntry && input.followLifecycle && !input.followLifecycle.allowsNewEntry) {
+    rejectionReasons.push("跟随未处于运行状态，禁止新开仓");
   }
   // 失败安全（INV-7）：风控读数不可信时不开新仓。放在阈值判定之前——
   // 读数坏了就没有阈值可比，拿一个猜出来的 0 去比等于把风控关掉。

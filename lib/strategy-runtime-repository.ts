@@ -1200,3 +1200,88 @@ export async function deferStrategyRuntimeLease(database: Queryable, input: {
   `, [input.deploymentId, input.workerId, input.fencingToken, input.nextCycleAt]);
   if (result.rowCount !== 1) throw new Error("Runtime Worker 租约或 fencing token 已失效");
 }
+
+/**
+ * 租用一个待运行的社区策略现货模拟部署（T4.4 第 1 步）。
+ *
+ * 与 `leaseNextStrategyDeployment` 分开而不是加参数：两者的前置条件、锁的对象和返回的
+ * 上下文都不同——官方卡要检查会员权益，跟单要检查订阅生命周期与跟单合同。合成一个函数
+ * 会让两套前置条件互相渗透，而它们各自的失败关闭方向不一样。
+ *
+ * 租约包含 `paused` 与 `risk_blocked` 的订阅：**离场不能依赖跟随处于活跃状态**（INV-7）。
+ * 是否允许新开仓由 `allows_new_entry` 交给引擎判断，不在这里筛掉。
+ */
+export async function leaseNextFollowDeployment(database: Queryable, input: {
+  workerId: string;
+  now: Date;
+  leaseSeconds: number;
+}) {
+  if (!input.workerId.trim() || input.workerId.length > 120) throw new Error("Runtime Worker ID 无效");
+  if (!Number.isInteger(input.leaseSeconds) || input.leaseSeconds < 5 || input.leaseSeconds > 300) {
+    throw new Error("Runtime 租约时长无效");
+  }
+  const expiresAt = new Date(input.now.getTime() + input.leaseSeconds * 1_000);
+  const result = await database.query<{
+    id: string; owner_user_id: string; strategy_id: string; strategy_version_id: string;
+    subscription_id: string; follow_paper_portfolio_id: string; mode: "shadow" | "paper";
+    fencing_token: string; last_candle_close_at: Date | null; specification_json: string;
+    subscription_status: string; risk_json: Record<string, unknown> | null;
+    contract_id: string | null; performance_fee_bps: number | null;
+  }>(`
+    WITH picked AS (
+      SELECT id FROM strategy_deployments
+      WHERE status = 'active' AND execution_product = 'spot_usdt' AND next_cycle_at <= $1
+        AND (lease_expires_at IS NULL OR lease_expires_at <= $1)
+        -- 与官方卡那条对称：过滤必须在挑选 CTE 里，否则两条路径会互相饿死。
+        AND platform_strategy_code IS NULL
+        AND strategy_subscription_id IS NOT NULL
+      ORDER BY next_cycle_at, id
+      FOR UPDATE SKIP LOCKED
+      LIMIT 1
+    )
+    UPDATE strategy_deployments AS deployment
+    SET lease_owner = $2, lease_expires_at = $3,
+        fencing_token = deployment.fencing_token + 1, updated_at = $1
+    FROM picked, strategy_versions AS version, strategy_subscriptions AS subscription
+    WHERE deployment.id = picked.id
+      AND version.id = deployment.strategy_version_id
+      AND subscription.id = deployment.strategy_subscription_id
+      AND deployment.platform_strategy_code IS NULL
+      AND deployment.follow_paper_portfolio_id IS NOT NULL
+      -- 已终止的跟随不再跑周期；暂停与风控阻断仍然跑，因为离场不能被挡住。
+      AND subscription.status IN ('active', 'paused', 'risk_blocked')
+    RETURNING deployment.id, deployment.owner_user_id, deployment.strategy_id,
+              deployment.strategy_version_id,
+              deployment.strategy_subscription_id AS subscription_id,
+              deployment.follow_paper_portfolio_id, deployment.mode,
+              deployment.fencing_token, deployment.last_candle_close_at,
+              version.specification_json,
+              subscription.status AS subscription_status,
+              (SELECT contract.risk_json FROM strategy_follow_contracts AS contract
+                WHERE contract.subscription_id = deployment.strategy_subscription_id) AS risk_json,
+              (SELECT contract.id FROM strategy_follow_contracts AS contract
+                WHERE contract.subscription_id = deployment.strategy_subscription_id) AS contract_id,
+              (SELECT contract.performance_fee_bps FROM strategy_follow_contracts AS contract
+                WHERE contract.subscription_id = deployment.strategy_subscription_id) AS performance_fee_bps
+  `, [input.now, input.workerId, expiresAt]);
+
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    ownerUserId: row.owner_user_id,
+    strategyId: row.strategy_id,
+    strategyVersionId: row.strategy_version_id,
+    subscriptionId: row.subscription_id,
+    portfolioId: row.follow_paper_portfolio_id,
+    mode: row.mode,
+    fencingToken: Number(row.fencing_token),
+    lastCandleCloseAt: row.last_candle_close_at,
+    specification: JSON.parse(row.specification_json) as Record<string, unknown>,
+    subscriptionStatus: row.subscription_status,
+    // 跟单合同缺失时不猜风险参数。合同是客户同意过的东西，猜一组数字去跑等于替他决定。
+    contractId: row.contract_id,
+    risk: row.risk_json,
+    performanceFeeBps: row.performance_fee_bps,
+  };
+}

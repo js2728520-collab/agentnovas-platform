@@ -264,3 +264,46 @@ test("一致时照常开仓；省略该字段视为一致", () => {
   });
   assert.equal(omitted.decision.riskApproved, true);
 });
+
+test("跟随未处于运行状态时拒绝开仓，理由与其它三种各自独立", () => {
+  // 四者是四件不同的事：熔断是风控生效，读数损坏是风控失效，绑定分叉是共享叙述不成立，
+  // 这一条是客户或运营停了这个跟随。运营端看到它们要做的事完全不同。
+  const result = evaluate({
+    candles: candles({ high: 112, close: 111 }),
+    riskState: resolveRuntimeRiskState({ drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0 }),
+    followLifecycle: { allowsNewEntry: false },
+  });
+  assert.equal(result.decision.riskApproved, false);
+  assert.ok(result.decision.rejectionReasons.includes("跟随未处于运行状态，禁止新开仓"),
+    `实际拒绝理由：${JSON.stringify(result.decision.rejectionReasons)}`);
+  assert.equal(result.orderIntent, null);
+  assert.equal(result.decision.rejectionReasons.includes("运行部署已触发熔断"), false);
+  assert.equal(result.decision.rejectionReasons.includes("行情源绑定分叉，禁止新开仓"), false);
+});
+
+test("跟随停用不挡平仓——客户不会被困在仓位里", () => {
+  const result = evaluate({
+    candles: candles({ open: 100, close: 96, low: 95 }),
+    position: { side: "long", entryPrice: 100, quantity: 1 },
+    riskState: resolveRuntimeRiskState({ drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0 }),
+    followLifecycle: { allowsNewEntry: false },
+  });
+  assert.equal(result.decision.action, "exit");
+  assert.equal(result.decision.riskApproved, true);
+  assert.ok(result.orderIntent);
+});
+
+test("省略 followLifecycle 视为允许", () => {
+  // 调用方忘了传就静默停掉所有开仓，是比放行更难发现的故障。
+  const omitted = evaluate({
+    candles: candles({ high: 112, close: 111 }),
+    riskState: resolveRuntimeRiskState({ drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0 }),
+  });
+  assert.equal(omitted.decision.riskApproved, true);
+  const allowed = evaluate({
+    candles: candles({ high: 112, close: 111 }),
+    riskState: resolveRuntimeRiskState({ drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0 }),
+    followLifecycle: { allowsNewEntry: true },
+  });
+  assert.equal(allowed.decision.riskApproved, true);
+});
