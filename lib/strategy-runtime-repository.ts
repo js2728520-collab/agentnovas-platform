@@ -349,6 +349,10 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
       SELECT id FROM strategy_deployments
       WHERE status = 'active' AND execution_product = 'spot_usdt' AND next_cycle_at <= $1
         AND (lease_expires_at IS NULL OR lease_expires_at <= $1)
+        -- 官方卡专用路径。这条过滤**必须在挑选 CTE 里**，不能只写在下面的 UPDATE 上：
+        -- CTE 每次只取一行，若取到的是社区部署，UPDATE 不匹配、整条语句返回空，而排在它
+        -- 后面的官方部署永远轮不到——是饿死，不是「这次没有」。
+        AND platform_strategy_code IS NOT NULL
       ORDER BY next_cycle_at, id
       FOR UPDATE SKIP LOCKED
       LIMIT 1

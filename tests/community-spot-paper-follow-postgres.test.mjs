@@ -135,6 +135,24 @@ test("官方卡的 Runtime 路径不会租走社区部署——门开了但房�
   assert.match(leaseSql, /deployment\.paper_portfolio_id IS NOT NULL/);
 });
 
+test("社区部署不得饿死官方部署", async () => {
+  // 租约的挑选 CTE 每次只取一行。若 platform_strategy_code IS NOT NULL 只写在 UPDATE 上，
+  // CTE 取到社区部署时 UPDATE 不匹配、整条语句返回空，排在后面的官方部署永远轮不到。
+  // 这是 0087 允许社区现货部署存在之后才可能发生的——放宽约束时必须一并检查所有
+  // 「先挑一行再筛」的查询。
+  await pool.query(`
+    UPDATE strategy_deployments SET next_cycle_at = now() - interval '1 hour', lease_expires_at = NULL
+     WHERE id IN ('spot-deployment','spot-official')
+  `);
+  // 社区部署的 id 排在官方前面，且 next_cycle_at 相同——CTE 会先选中它。
+  assert.ok("spot-deployment" < "spot-official", "夹具必须让社区部署排在前面，否则测不到饿死");
+
+  const leased = await leaseNextStrategyDeployment(pool, {
+    workerId: "starve-worker", now: new Date(), leaseSeconds: 30,
+  });
+  assert.equal(leased?.id, "spot-official", "官方部署必须仍能被租到");
+});
+
 test("一次订阅只有一个生效中的部署", async () => {
   // 没有它，同一个跟随可以被两个部署驱动，模拟组合上会记两倍仓位。
   await assert.rejects(
