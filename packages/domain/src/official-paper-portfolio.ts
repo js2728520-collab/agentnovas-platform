@@ -45,7 +45,8 @@ export type OfficialPaperFillState = {
 };
 
 export type OfficialPaperPortfolioState = {
-  strategyCode: StrategyCode;
+  /** 官方卡代号；社区策略跟单为 null——它不属于任何官方卡。 */
+  strategyCode: StrategyCode | null;
   access: PortfolioAccess;
   /**
    * 本金。模拟盘恒为 10000，实盘是客户投入这张策略卡的真实资金。
@@ -65,6 +66,26 @@ export type OfficialPaperPortfolioState = {
   feesUsdt: number;
   positions: OfficialPaperPositionState[];
   fills: OfficialPaperFillState[];
+  /**
+   * 这个组合能交易什么、受什么上限约束。
+   *
+   * 官方卡从策略卡定义来；社区策略跟单从跟单合同的风险参数快照来（客户当初同意的那组
+   * 数字）。**提成显式字段而不是按 strategyCode 查表**，理由与上面 `principalUsdt` 那条
+   * 相同：不这么做，社区跟单只能另起一套并行记账，而两套实现的盈亏口径迟早分叉——
+   * 而盈亏正是绩效分成的计算基础（INV-5）。
+   */
+  contract: PaperBookContract;
+};
+
+/** 记账所需的合同约束。字段与官方策略卡的 risk 一一对应，社区跟单填自己合同里的值。 */
+export type PaperBookContract = {
+  symbols: readonly string[];
+  risk: {
+    maxAssetAllocationPct: number;
+    maxTotalAllocationPct: number;
+    maxConcurrentAssets: number;
+    maxNewEntriesPerDay: number;
+  };
 };
 
 function definitionFor(code: StrategyCode) {
@@ -97,10 +118,73 @@ export function officialPaperPortfolioSeeds(input: { membershipId: string; custo
   }));
 }
 
+/** 从官方策略卡定义取合同。重建 state 的调用方用它，保证与从前逐字一致。 */
+export function officialPaperBookContract(strategyCode: StrategyCode): PaperBookContract {
+  const definition = definitionFor(strategyCode);
+  return { symbols: [...definition.symbols], risk: { ...definition.risk } };
+}
+
+/**
+ * 社区策略跟单的记账合同。
+ *
+ * 与官方卡走**同一套记账**（`applyOfficialPaperFill`），只是合同来源不同：官方卡来自策略卡
+ * 定义，跟单来自客户当初同意的风险参数快照。另起一套并行记账会让两边的盈亏口径迟早分叉，
+ * 而盈亏正是绩效分成的计算基础（INV-5）。
+ *
+ * `maxAssetAllocationPct` 直接用客户同意的每单占比。另外三项**必须由调用方显式给出**，
+ * 这里不编默认值：它们是平台侧的操作护栏，不是客户同意过的条款，把它们藏进域层的默认值
+ * 会让「客户到底同意了什么」变得说不清。
+ */
+export function followPaperBookContract(input: {
+  symbols: readonly string[];
+  capitalPct: number;
+  maxTotalAllocationPct: number;
+  maxConcurrentAssets: number;
+  maxNewEntriesPerDay: number;
+}): PaperBookContract {
+  if (!input.symbols.length) throw new Error("跟单记账合同必须至少包含一个现货品种");
+  if (!Number.isFinite(input.capitalPct) || input.capitalPct <= 0 || input.capitalPct > 100) {
+    throw new Error("跟单每单占比无效");
+  }
+  return {
+    symbols: [...input.symbols],
+    risk: {
+      maxAssetAllocationPct: input.capitalPct,
+      maxTotalAllocationPct: positive(input.maxTotalAllocationPct, "跟单总仓位上限"),
+      maxConcurrentAssets: positive(input.maxConcurrentAssets, "跟单并发资产上限"),
+      maxNewEntriesPerDay: positive(input.maxNewEntriesPerDay, "跟单每日开仓上限"),
+    },
+  };
+}
+
+export function createFollowPaperPortfolioState(input: {
+  contract: PaperBookContract;
+  principalUsdt: number;
+}): OfficialPaperPortfolioState {
+  const principal = positive(input.principalUsdt, "跟单模拟盘本金");
+  return {
+    // 社区跟单不属于任何官方卡。这里放一个官方卡代号只是为了满足类型，会让下游误判——
+    // 因此故意留空并由 contract 承载全部约束。
+    strategyCode: null,
+    contract: input.contract,
+    access: "active",
+    principalUsdt: principal,
+    cashUsdt: principal,
+    equityUsdt: principal,
+    realizedGrossPnlUsdt: 0,
+    realizedNetPnlUsdt: 0,
+    realizedPnlUsdt: 0,
+    unrealizedPnlUsdt: 0,
+    feesUsdt: 0,
+    positions: [],
+    fills: [],
+  };
+}
+
 export function createOfficialPaperPortfolioState(strategyCode: StrategyCode): OfficialPaperPortfolioState {
-  definitionFor(strategyCode);
   return {
     strategyCode,
+    contract: officialPaperBookContract(strategyCode),
     access: "active",
     principalUsdt: OFFICIAL_PAPER_PRINCIPAL_USDT,
     cashUsdt: OFFICIAL_PAPER_PRINCIPAL_USDT,
@@ -156,9 +240,9 @@ export function applyOfficialPaperFill(
     filledAt: string;
   },
 ): OfficialPaperPortfolioState {
-  const definition = definitionFor(state.strategyCode);
+  const definition = state.contract;
   if (input.action !== "buy" && input.action !== "sell") throw new Error("官方模拟盘仅支持多头现货买卖");
-  if (!(definition.symbols as readonly string[]).includes(input.symbol)) throw new Error("该策略卡仅支持其合同内的 BTC/ETH/SOL USDT 现货");
+  if (!definition.symbols.includes(input.symbol)) throw new Error("该策略卡仅支持其合同内的现货品种");
   if (!Number.isFinite(Date.parse(input.filledAt))) throw new Error("模拟成交时间无效");
   const symbol = input.symbol as SpotSymbol;
   const fillPrice = positive(input.fillPrice, "模拟成交价格");

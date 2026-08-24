@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { membershipAccess } from "./membership-rules.ts";
 import {
   applyOfficialPaperFill,
+  officialPaperBookContract,
   officialPaperPortfolioSeeds,
   type OfficialPaperPortfolioState,
 } from "../packages/domain/src/official-paper-portfolio.ts";
@@ -631,6 +632,8 @@ export async function settlePendingOfficialPaperOrder(database: Pool, input: {
     `, [portfolio.id]);
     const state: OfficialPaperPortfolioState = {
       strategyCode: portfolio.strategy_code,
+      // 官方卡的合同来自策略卡定义，与从前逐字一致。
+      contract: officialPaperBookContract(portfolio.strategy_code),
       access: settlementAccess,
       // 读组合自己的本金，不写死。实盘组合的本金是客户真实投入的资金，
       // 而按本金百分比算的配置上限就在这个值上（applyOfficialPaperFill）。

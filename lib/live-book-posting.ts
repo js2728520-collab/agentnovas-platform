@@ -23,6 +23,7 @@ import type { Pool } from "pg";
 
 import {
   applyOfficialPaperFill,
+  officialPaperBookContract,
   type OfficialPaperPortfolioState,
 } from "../packages/domain/src/official-paper-portfolio.ts";
 import {
@@ -184,8 +185,13 @@ async function postNextLiveFill(database: Pool, deploymentId: string): Promise<L
       ORDER BY opened_at, id FOR UPDATE
     `, [portfolio.id]);
 
+    // 实盘记账只走官方卡。没有卡代号的组合不该出现在这条路径上——真到了这里说明
+    // 上游的筛选漏了，宁可失败关闭也不要用一个猜出来的合同去记账。
+    if (!portfolio.strategy_code) throw new Error("实盘记账组合缺少官方策略卡代号");
     const state: OfficialPaperPortfolioState = {
       strategyCode: portfolio.strategy_code,
+      // 官方卡的合同来自策略卡定义，与从前逐字一致。
+      contract: officialPaperBookContract(portfolio.strategy_code),
       access: portfolio.access_status,
       principalUsdt: Number(portfolio.principal_usdt),
       cashUsdt: Number(portfolio.cash_usdt),
