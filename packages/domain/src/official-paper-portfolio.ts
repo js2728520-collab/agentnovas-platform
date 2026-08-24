@@ -16,11 +16,17 @@ import {
 export const OFFICIAL_PAPER_PRINCIPAL_USDT = 10_000 as const;
 
 type StrategyCode = OfficialTradingHallStrategy["code"];
-type SpotSymbol = OfficialTradingHallStrategy["symbols"][number];
 type PortfolioAccess = "active" | "close_only" | "read_only";
 
 export type OfficialPaperPositionState = {
-  symbol: SpotSymbol;
+  /**
+   * 可交易品种的约束在 `contract.symbols` 上，不在这个类型上。
+   *
+   * 曾经是 `SpotSymbol`（三个官方品种的联合），于是整套记账在类型层面钉死在官方卡上——
+   * 与 `principalUsdt` 从前被钉死成 10_000 是同一个问题，后果也一样：社区跟单只能另起
+   * 一套并行记账，而两套实现的盈亏口径迟早分叉（INV-5）。
+   */
+  symbol: string;
   side: "long";
   quantity: number;
   averageEntryPrice: number;
@@ -33,7 +39,8 @@ export type OfficialPaperPositionState = {
 
 export type OfficialPaperFillState = {
   action: "buy" | "sell";
-  symbol: SpotSymbol;
+  /** 同 `OfficialPaperPositionState.symbol`：约束在 `contract.symbols` 上。 */
+  symbol: string;
   quantity: number;
   fillPrice: number;
   notionalUsdt: number;
@@ -201,7 +208,8 @@ export function createOfficialPaperPortfolioState(strategyCode: StrategyCode): O
 
 export function markOfficialPaperPortfolio(
   state: OfficialPaperPortfolioState,
-  prices: Partial<Record<SpotSymbol, number>>,
+  /** 按品种给标记价。键是 string 而非官方三品种——社区跟单的持仓品种由合同决定。 */
+  prices: Readonly<Record<string, number | undefined>>,
 ): OfficialPaperPortfolioState {
   const positions = state.positions.map((position) => {
     const marketPrice = positive(Number(prices[position.symbol] ?? position.marketPrice), "现货标记价格");
@@ -244,7 +252,7 @@ export function applyOfficialPaperFill(
   if (input.action !== "buy" && input.action !== "sell") throw new Error("官方模拟盘仅支持多头现货买卖");
   if (!definition.symbols.includes(input.symbol)) throw new Error("该策略卡仅支持其合同内的现货品种");
   if (!Number.isFinite(Date.parse(input.filledAt))) throw new Error("模拟成交时间无效");
-  const symbol = input.symbol as SpotSymbol;
+  const symbol = input.symbol;
   const fillPrice = positive(input.fillPrice, "模拟成交价格");
   // 费率与金额二选一，不接受同时给或都不给——两者不一致时无法判断该信哪个。
   const hasRate = input.feeRate !== undefined;
