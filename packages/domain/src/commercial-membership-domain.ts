@@ -63,3 +63,48 @@ export function calculateWeeklyPerformanceFee(input: {
     feeAmount: unitsToDecimal(fee),
   };
 }
+
+/**
+ * 把一笔绩效费拆成平台与作者两份（P-06 / T4.3）。
+ *
+ * 拆分在**已算好的绩效费**上做，不重新算费：费率、高水位线与周期已经由
+ * `calculateWeeklyPerformanceFee` 决定，这里只负责分账。两件事分开，改分账比例才不会
+ * 意外改动计费口径。
+ *
+ * 两条不变量：
+ *
+ * - **平台份 + 作者份恒等于总额。** 用整数单位做，先算一边再相减，绝不两边各自取整
+ *   ——那会漏出一个谁也不属于的尾差，而账本要求借贷必平（INV-4）。
+ * - **尾差归作者。** 取整方向必须写死在一处并说明白。让平台承接尾差意味着系统性地
+ *   偏向自己一侧，即便每笔只有 1e-18，也是一个不该由实现细节决定的立场。
+ *
+ * 自用策略不产生平台收入：作者跟自己的策略，平台没有中介角色可言。
+ */
+export function splitFollowPerformanceFee(input: {
+  feeAmount: string;
+  platformShareBps: number;
+  publicationMode: "marketplace" | "self_use";
+}) {
+  if (!Number.isInteger(input.platformShareBps) || input.platformShareBps < 0 || input.platformShareBps > 10_000) {
+    throw new Error("PLATFORM_SHARE_BPS_INVALID");
+  }
+  const fee = decimalToUnits(input.feeAmount);
+  if (fee < BigInt(0)) throw new Error("FOLLOW_FEE_NEGATIVE");
+  if (input.publicationMode === "self_use") {
+    return {
+      feeAmount: unitsToDecimal(fee),
+      platformAmount: unitsToDecimal(BigInt(0)),
+      authorAmount: unitsToDecimal(fee),
+      eligibleRevenue: unitsToDecimal(BigInt(0)),
+    };
+  }
+  const platform = fee * BigInt(input.platformShareBps) / BigInt(10_000);
+  const author = fee - platform;
+  return {
+    feeAmount: unitsToDecimal(fee),
+    platformAmount: unitsToDecimal(platform),
+    authorAmount: unitsToDecimal(author),
+    // 只有平台那一份进分销收入池；作者那一份是付给作者的成本，不是平台收入。
+    eligibleRevenue: unitsToDecimal(platform),
+  };
+}
