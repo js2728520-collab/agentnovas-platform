@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
 
+import {
+  isRegisteredPromptSkillFamily,
+  normalizeRegisteredPromptSkillPayload,
+  runPromptSkillConfigurationTest,
+} from "./prompt-skill-configuration.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 const FEATURE_FLAG_FAMILY = Object.freeze({
@@ -158,6 +163,11 @@ export function normalizeRegisteredFeatureFlagPayload(schemaVersion: number, pay
 }
 
 export function normalizeConfigurationFamilyPayload(input: ConfigurationFamilyInput): Record<string, unknown> {
+  // Prompt/Skill v1（T3.1c-PS1）。注册后 normalize 就必须走严格 schema，不能再落回
+  // 「原样保存 payload」——否则未注册期间写进去的宽松草稿会绕过安全包络检查。
+  if (input.kind === "prompt" || input.kind === "skill") {
+    return normalizeRegisteredPromptSkillPayload(input);
+  }
   if (input.kind !== "feature_flag") return input.payload;
   if (!isRegisteredFeatureFlag(input)) {
     throw new ResearchApiError("CONFIGURATION_FAMILY_UNREGISTERED", "该功能开关配置族或 schema 尚未注册", 422);
@@ -166,6 +176,9 @@ export function normalizeConfigurationFamilyPayload(input: ConfigurationFamilyIn
 }
 
 export function runRegisteredConfigurationFamilyTest(input: ConfigurationFamilyInput) {
+  if (isRegisteredPromptSkillFamily(input)) {
+    return runPromptSkillConfigurationTest(input);
+  }
   if (!isRegisteredFeatureFlag(input)) {
     throw new ResearchApiError("CONFIGURATION_FAMILY_UNREGISTERED", "该配置族没有确定性测试器", 422);
   }

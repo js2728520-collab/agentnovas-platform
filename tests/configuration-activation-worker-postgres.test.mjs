@@ -52,7 +52,7 @@ async function scheduledVersion({ key, scheduledFor, now = new Date(Date.now() -
     idempotencyKey: `worker-create-${suffix}`,
     requestId: `worker-create-${suffix}`,
     version: {
-      kind: "prompt",
+      kind: "brand",
       key,
       audience: "shared",
       schemaVersion: 1,

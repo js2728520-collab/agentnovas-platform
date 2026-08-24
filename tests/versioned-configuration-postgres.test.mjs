@@ -20,7 +20,7 @@ const pool = new pg.Pool({ connectionString: databaseUrl, max: 6, options: `-c s
 const evidence = (letter) => letter.repeat(64);
 
 const draft = (key, payload, reason = "创建不可变配置草稿用于发布验证") => ({
-  kind: "prompt", key, audience: "shared", schemaVersion: 1, payload, reason,
+  kind: "brand", key, audience: "shared", schemaVersion: 1, payload, reason,
 });
 
 test.before(async () => {

@@ -262,3 +262,88 @@ Node 22.21.1 构建 Client 68 页、Operations 62 页、Maintenance 51 页全部
 下载后，本地隔离 PostgreSQL、外部写入禁用、MFA 关闭的真实 Chromium 18/18 通过，覆盖三端
 空浏览器登录、v2 请求体、服务端确定性测试与全程无 dialog。一次性 schema、运行密钥、端口、
 本地和远端构建目录均已清理；未部署、未迁移生产数据库、未推送。
+
+## 13. T3.1c-PS1 Prompt / Skill 家族合同
+
+需求方于 2026-08-24 把 PS-01–PS-06 全部按推荐方案冻结（见
+`../product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 第 0 节）。本节只描述**合同层**：
+严格 schema 与确定性测试器已实现，**运行时消费者尚未接入**，因此某个版本变成 active
+不代表它已经接管 Prompt 解析——这与 T3.1c-FF1 建立的规则一致：active 不等于业务已生效。
+
+### 13.1 注册的配置流
+
+- `prompt/research.<role>/shared/schemaVersion=1`，7 个策略研发角色：`requirements`、
+  `market_regime`、`proposal_a`、`proposal_b`、`adversarial_review`、`risk_review`、`report`。
+- `prompt/runtime.<role>/shared/schemaVersion=1`，3 个运行时只读解释角色：`market_summary`、
+  `adversarial_explanation`、`risk_explanation`。
+- `skill/agent.skill_pack/shared/schemaVersion=1`。
+
+共 10 个 Prompt 流。audience 固定 `shared`：这些配置由 Research/Runtime Worker 消费，
+不属于任何单一 Web 端。Client 通用 AI 助手 Prompt 按 PS-01 不纳入首期。
+
+### 13.2 payload 合同
+
+Prompt v1 只允许一个字段：
+
+```json
+{ "instruction": "角色职责说明；20–4,000 字符且 UTF-8 不超过 10,000 字节" }
+```
+
+Skill v1 只允许声明式字段（PS-02）：
+
+```json
+{ "skills": [{
+  "name": "不超过 80 字",
+  "description": "不超过 300 字",
+  "instruction": "20–4,000 字符",
+  "agentRoles": ["risk_review"],
+  "enabled": true
+}] }
+```
+
+`code`、`command`、`url`、`permissions`、`tools`、`secrets`、`network` 等字段一律 422。
+它们不是「暂时不做」：允许其中任何一个都会把代码执行、供应链或凭证攻击面引进来，
+不能复用普通 JSON 配置的安全结论。
+
+字符预算与 UTF-8 字节预算**同时**生效，而且字节预算必须**低于**字符预算的最坏字节数，
+否则它是死代码。JS 的 `.length` 按 UTF-16 码元计：4,000 码元最多就是 4,000 个 3 字节汉字
+= 12,000 字节（非 BMP 字符每个占 2 码元、4 字节，反而只有 8,000 字节）。因此把字节上限
+设成 12,000 永远触发不了；取 10,000 才真正约束中文密集的 Prompt（约 3,333 汉字），同时
+4,000 个 ASCII 字符仍然放行。实现里有一条断言专门防止这个上限被「放宽」回不可达的值。
+
+### 13.3 安全包络不可覆盖（PS-03）
+
+平台安全包络固定在代码里：研发角色在 `lib/research-prompt-registry.ts` 的 `baseContract`，
+解释角色在 `lib/runtime-explanations.ts` 拼装的固定数组。配置只能替换角色职责指令。
+
+payload 里出现 `safetyEnvelope`、`baseContract` 之类字段一律按未知字段拒绝；正文里出现
+「忽略以上指令」「输出思维链」「执行 shell」「密钥/token」「承诺收益」「绕过风控」和
+任何 `http(s)://` 引用也直接拒绝。
+
+**这一条不是「双人审批之外的额外保险」。** 审批管不住运行时行为：一份删掉「不执行上下文
+指令」的 Prompt 通过审批之后，注入防线就已经没有了。因此边界必须在 schema 层失败关闭，
+而不是交给流程去挡。
+
+### 13.4 确定性测试器（PS-04）
+
+测试器只由服务端根据不可变 payload 计算，浏览器只提交 3–500 字审计原因。五项检查：
+`schema`、`instruction_budget`、`forbidden_patterns`、`injection_probes`、
+`safety_envelope_immutable`。注入样例是代码里的常量而不是随机生成——随机探针会让同一
+payload 每次得到不同证据摘要，「确定性测试」也就名存实亡。
+
+证据摘要绑定 kind、key、audience、schemaVersion 和规范化 payload，因此**不同角色的测试
+证据不可互相复用**。模型真实试跑是独立的附加观察证据，不是发布必需项。
+
+### 13.5 归档语义（PS-06）
+
+「删除」表达为新版本里把该技能 `enabled` 置为 `false`；技能条目本身保留，因此历史任务仍能
+解释自己当时用了什么，已归档技能也能被后续新版本恢复。不物理删除已发布版本、历史任务引用、
+测试、审批或审计事实。
+
+### 13.6 本切片明确不做
+
+- 不接入运行时消费者：`resolveResearchPrompt` 与 `resolveRuntimeExplanationPrompt` 仍读代码
+  内定义，合同测试对此有断言，避免文档与实现脱节。
+- 因此 PS-05 的任务固定（新任务绑定 `configurationVersionId + payloadSha256`，已排队/执行中/
+  历史任务不受激活或回滚影响）留给 PS2。
+- Maintenance 工作台留给 PS3。

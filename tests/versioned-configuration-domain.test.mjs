@@ -11,16 +11,16 @@ import {
 
 test("configuration drafts are canonical, bounded and reject secret-bearing fields", () => {
   const left = normalizeConfigurationDraft({
-    kind: "prompt",
-    key: "research.market",
+    kind: "brand",
+    key: "platform.brand",
     audience: "shared",
     schemaVersion: 1,
     payload: { rollout: 25, enabled: false, nested: { b: 2, a: 1 } },
     reason: "建立首个受控功能开关草稿",
   });
   const right = normalizeConfigurationDraft({
-    kind: "prompt",
-    key: "research.market",
+    kind: "brand",
+    key: "platform.brand",
     audience: "shared",
     schemaVersion: 1,
     payload: { nested: { a: 1, b: 2 }, enabled: false, rollout: 25 },
@@ -29,11 +29,11 @@ test("configuration drafts are canonical, bounded and reject secret-bearing fiel
   assert.equal(left.payloadCanonical, right.payloadCanonical);
   assert.equal(left.payloadSha256, right.payloadSha256);
   assert.throws(() => normalizeConfigurationDraft({
-    kind: "prompt", key: "research.market", audience: "shared", schemaVersion: 1,
+    kind: "brand", key: "platform.brand", audience: "shared", schemaVersion: 1,
     payload: { apiKey: "must-not-be-stored" }, reason: "不得把供应商密钥写入通用配置",
   }), (error) => error.code === "CONFIGURATION_SECRET_FIELD_FORBIDDEN" && error.status === 422);
   assert.throws(() => normalizeConfigurationDraft({
-    kind: "prompt", key: "research.market", audience: "shared", schemaVersion: 1,
+    kind: "brand", key: "platform.brand", audience: "shared", schemaVersion: 1,
     payload: { content: "x".repeat(70_000) }, reason: "验证配置正文大小上限",
   }), (error) => error.code === "CONFIGURATION_PAYLOAD_TOO_LARGE" && error.status === 422);
 });
