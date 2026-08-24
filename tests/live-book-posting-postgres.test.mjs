@@ -3,6 +3,7 @@ import test, { after, before, beforeEach } from "node:test";
 import pg from "pg";
 
 import { postLiveFillsToBook } from "../lib/live-book-posting.ts";
+import { withGlobalRoleLock } from "./helpers/postgres-global-roles.mjs";
 
 // 实盘成交落账。LIVE_EXECUTION_BLOCKERS 前三条的验证点：
 // 仓位、风控读数、绩效分成三者都读账本，这条路不通它们同时是错的，且都不报错。
@@ -16,10 +17,21 @@ let pool;
 
 async function migrate() {
   const { execFileSync } = await import("node:child_process");
-  execFileSync(process.execPath, ["--experimental-strip-types", "scripts/apply-postgres-migrations.mjs"], {
-    env: { ...process.env, DATABASE_URL: new URL(`/${dbName}`, databaseUrl.replace(/\/[^/]*$/, "/")).toString() },
-    stdio: "pipe",
-  });
+  // 这条链跑在本文件自建的数据库里，而 PostgreSQL advisory lock 是按数据库隔离的——
+  // 迁移器在那个库里拿到的锁，看不见其他测试文件在协调库里做的角色 DDL。角色却是
+  // 集群全局的：0043/0072 仍会 REVOKE 一个被并行文件中途删掉的角色。所以显式在协调库
+  // 上取同一把锁。
+  const coordinator = new pg.Pool({ connectionString: databaseUrl, max: 1 });
+  try {
+    await withGlobalRoleLock(coordinator, () => {
+      execFileSync(process.execPath, ["--experimental-strip-types", "scripts/apply-postgres-migrations.mjs"], {
+        env: { ...process.env, DATABASE_URL: new URL(`/${dbName}`, databaseUrl.replace(/\/[^/]*$/, "/")).toString() },
+        stdio: "pipe",
+      });
+    });
+  } finally {
+    await coordinator.end();
+  }
 }
 
 before(async () => {

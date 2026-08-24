@@ -4,10 +4,11 @@ import test from "node:test";
 import pg from "pg";
 
 import { readClientCreditBalance } from "../lib/client-credit-view.ts";
+import { createTestRole, dropTestRole, testRoleName } from "./helpers/postgres-global-roles.mjs";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
 const schema = `client_credit_${process.pid}_${Date.now()}`;
-const clientRole = `agentnovas_credit_reader_${process.pid}_${Date.now()}`;
+const clientRole = testRoleName("credit_reader");
 const adminPool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
 const pool = new pg.Pool({ connectionString: databaseUrl, max: 1, options: `-c search_path=${schema}` });
 
@@ -31,7 +32,7 @@ test.before(async () => {
       ('grant-1','account-1','grant',1000,0),
       ('settle-1','account-1','settle',-100,0);
   `);
-  await adminPool.query(`CREATE ROLE "${clientRole}" NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`);
+  await createTestRole(adminPool, clientRole);
   await pool.query(`
     GRANT USAGE ON SCHEMA "${schema}" TO "${clientRole}";
     GRANT SELECT ON ai_credit_accounts,ai_credit_ledger_entries TO "${clientRole}";
@@ -45,7 +46,7 @@ test.before(async () => {
 test.after(async () => {
   await pool.end();
   await adminPool.query(`DROP SCHEMA "${schema}" CASCADE`);
-  await adminPool.query(`DROP ROLE "${clientRole}"`);
+  await dropTestRole(adminPool, clientRole);
   await adminPool.end();
 });
 

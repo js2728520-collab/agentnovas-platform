@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 
 const MIGRATION_FILE = /^\d+_[a-z0-9_]+\.sql$/;
-const MIGRATION_LOCK_KEY = "agentnovas:postgres-migrations:v1";
+// Cluster-global DDL mutex. Migrations converge ACLs by enumerating pg_roles, so
+// anything that creates or drops a cluster-global role has to take this same lock
+// or the enumeration can outlive the role it snapshotted.
+export const POSTGRES_MIGRATION_LOCK_KEY = "agentnovas:postgres-migrations:v1";
 const MIGRATION_SCHEMA = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/;
 const SYSTEM_SCHEMAS = new Set(["pg_catalog", "information_schema"]);
 
@@ -97,7 +100,7 @@ export async function runPostgresMigrations(pool, {
   const client = await pool.connect();
   let locked = false;
   try {
-    await client.query("SELECT pg_advisory_lock(hashtext($1))", [MIGRATION_LOCK_KEY]);
+    await client.query("SELECT pg_advisory_lock(hashtext($1))", [POSTGRES_MIGRATION_LOCK_KEY]);
     locked = true;
     const schema = await resolveMigrationSchema(client, migrationSchema);
     const registry = `${quotedIdentifier(schema)}."_agentnovas_migrations"`;
@@ -129,7 +132,7 @@ export async function runPostgresMigrations(pool, {
       total: migrations.length,
     };
   } finally {
-    if (locked) await client.query("SELECT pg_advisory_unlock(hashtext($1))", [MIGRATION_LOCK_KEY]);
+    if (locked) await client.query("SELECT pg_advisory_unlock(hashtext($1))", [POSTGRES_MIGRATION_LOCK_KEY]);
     client.release();
   }
 }

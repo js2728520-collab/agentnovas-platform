@@ -5,11 +5,12 @@ import test from "node:test";
 import pg from "pg";
 
 import { loadMaintenanceAiUsage } from "../lib/maintenance-ai-usage.ts";
+import { createTestRole, dropTestRole, testRoleName } from "./helpers/postgres-global-roles.mjs";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
 const suffix = `${process.pid}_${Date.now()}`;
 const schema = `maintenance_ai_usage_${suffix}`;
-const readerRole = `maintenance_ai_usage_reader_${suffix}`;
+const readerRole = testRoleName("ai_usage_reader");
 const admin = new pg.Pool({ connectionString: databaseUrl, max: 1 });
 const pool = new pg.Pool({ connectionString: databaseUrl, max: 2, options: `-c search_path=${schema}` });
 let readerPool;
@@ -18,7 +19,7 @@ test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
   assert.match(readerRole, /^[a-z0-9_]+$/);
   await admin.query(`CREATE SCHEMA "${schema}"`);
-  await admin.query(`CREATE ROLE "${readerRole}" NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`);
+  await createTestRole(admin, readerRole);
   await pool.query(`
     CREATE TABLE organizations (id text PRIMARY KEY,name text NOT NULL);
     CREATE TABLE llm_profile_revisions (
@@ -89,7 +90,7 @@ test.after(async () => {
   await readerPool?.end();
   await pool.end();
   await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
-  await admin.query(`DROP ROLE "${readerRole}"`);
+  await dropTestRole(admin, readerRole);
   await admin.end();
 });
 

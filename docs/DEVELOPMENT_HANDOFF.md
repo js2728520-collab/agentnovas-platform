@@ -3701,115 +3701,6 @@ T4.3 的订阅用例用的是旧词表（`status='ended'`），随重命名更�
 自动风控还没有调用点）；跟单参数的 configuring → user_confirmed 确认流程与界面；结算的
 盈亏来源接线（见条目 90，仍然刻意不接）；Paper 跟单的实际下单扇出。
 
-## 92. 2026-08-24 修 `npm test` 的间歇红：集群全局角色与 pg_roles 收敛竞态
-
-未提交。只动测试基础设施，不动业务代码，也不动任何已应用的迁移。
-
-### 现象与真因
-
-`npm test` 干净时全绿，否则随机 2–5 个用例失败，集中在 versioned-configuration 一带，
-单独跑那些文件永远通过。典型报错：
-
-```
-error: role "maintenance_ai_usage_reader_65184_1787571153486" does not exist
-where: 'SQL statement "REVOKE ALL ON FUNCTION client_login_identity(text,text,text)
-        FROM maintenance_ai_usage_reader_65184_1787571153486"'
-```
-
-**schema 能隔离 fixture，角色不能。** `CREATE ROLE`/`DROP ROLE` 改的是集群唯一的目录，
-而多条迁移是「先读 pg_roles，再对读到的名字动手」：
-
-| 迁移 | 形态 | 是否已容错 |
-| --- | --- | --- |
-| 0043（两处）、0072 | `FOR ... IN SELECT rolname FROM pg_roles` 后逐个 REVOKE | 否 |
-| 0066 | 同上，但带 `EXCEPTION WHEN undefined_object` | 是 |
-| 0063 / 0076–0080 | `IF EXISTS (SELECT 1 FROM pg_roles ...)` 后 GRANT | 窗口更窄，仍是 TOCTOU |
-
-快照与执行之间被并行文件删掉的角色，就是 42704。它不是让那一条语句失败，是让**另一个
-测试文件的整条迁移链回滚**，于是失败的用例看上去与角色毫无关系。
-
-直接验证（探针跑 12 秒，一个协程反复应用 0043，另一个反复建删角色）：
-
-```
-unguarded: 1 convergences, 2471 failures     # 首个失败即上面那条 42704
-guarded:   625 convergences, 0 failures
-```
-
-### 为什么不能在迁移里修
-
-0043/0072 已经应用。迁移器按 checksum 失败（`SYSTEM_SPEC.md` 第 129 行），改文本会让
-本地 `agentnovas_dev` 与任何已迁移的库直接拒绝启动，也会作废恢复演练证据。所以
-**0066 的 `EXCEPTION` 写法不能反向补到 0043/0072 上**——这是本次唯一被否掉的方案。
-
-### 也不能只堵读的一侧
-
-一开始只包了走 `runPostgresMigrations` 的 14 个文件（迁移器自带 advisory lock）。
-仍然红，因为**另有约二十多个测试文件直接 `pool.query(migrationSql)` 逐个应用迁移**，
-根本不经过迁移器（例如 `client-account-mfa-postgres`）。逐个包住既漏又难守。
-
-### 最终形态：跑的时候不删角色
-
-规则从「加锁」换成「排期」：**测试运行期间不删除任何集群全局角色。**
-
-- 角色统一命名 `agentnovas_test_<用途>_<运行令牌>_<创建时刻>`（`testRoleName`）。
-- fixture 的 `after` 不再删角色（`dropTestRole` 在套件模式下是空操作）。
-- `tests/global-setup.mjs` 经 `--test-global-setup` 在**第一个测试进程启动前**和
-  **最后一个退出后**各清扫一次。
-- 清扫按**运行令牌**限定范围，另加「超过 1 小时」的陈旧兜底。中途踩过一次坑：
-  第一版按前缀无差别清扫，结果**并发的另一次 `npm test` 把本次运行的角色扫掉了**，
-  症状与原 bug 一模一样。令牌化之后两次套件互不干扰。
-- 单文件手跑没有令牌，`dropTestRole` 照常删，并持有 advisory lock 兜底。
-
-一个仍需知道的作用域细节：**advisory lock 按数据库隔离，角色按集群全局。**
-`live-book-posting-postgres` 是唯一自建数据库跑整条链的文件，它在那个库里拿到的锁看不见
-协调库里的角色 DDL，所以显式在协调库上取同一把锁；`clean-ci-contract` 有一条断言守住
-「自建数据库 + 不取锁」这个组合。
-
-### 顺带修掉的一处产品名污染
-
-`client-identity-database-boundary-postgres` 原本直接建删 `agentnovas_client_web` /
-`agentnovas_client_auth` 这两个**生产角色名**。别的文件的迁移会 GRANT 给它们，于是
-`DROP ROLE` 还会撞上 `dependent objects still exist`。改为像已有的 migrator / ops_web
-一样，由 `prepareMigration` 重写字面量到本次运行的专属角色名——迁移自己的
-expected-role 判断照旧被执行，断言一条没动。
-
-### 守规则的断言（`clean-ci-contract`）
-
-- 测试文件里不得出现可执行形态的 `CREATE ROLE`/`DROP ROLE`（正则字面量里的源码文本
-  断言仍然允许）。
-- `test:all` 必须挂 `--test-global-setup`，`global-setup` 必须导出令牌。
-- 清扫范围是纯函数 `selectSweepableRoles`，单测直接断言「扫自己的、扫弃置的、
-  不碰并发运行的」。
-- 角色名长度必须 ≤ 63 字节——PostgreSQL 会静默截断，截断后就会与别的 fixture 撞名。
-
-### 验证
-
-- 竞态定点压测（4 个建角色文件 + 9 个跑迁移链的文件）连跑 **30 次全绿**，
-  结束后 `agentnovas_test_%` 角色残留 0。
-- 完整 `npm test` 连跑 **12 次**：0 次 42704、0 次 shared memory、0 残留角色。
-  其中 8 次有 1 个失败，是并发进行中的 `ops.follow_risk.manage` 权限键尚未注册
-  （`app/api/operations/follow-risk/` 当时还是未跟踪文件），与本条改动无关。
-- `tsc`、ESLint 0、8 条架构边界通过。
-
-### 另一个仍然存在、本次没修的间歇红
-
-同一轮排查里复现出**第二个、机制完全不同**的偶发失败：
-
-```
-error: out of shared memory
-hint: You might need to increase "max_locks_per_transaction".
-```
-
-约二十多个测试文件各自把整份 `0000_business_schema.sql` 作为**单个事务**应用，实测
-**一个事务持有 546 把锁**。默认 `max_locks_per_transaction=64`、`max_connections=100`
-只给锁表 6400 个槽位，而实测整轮 `npm test` 峰值 **9774**——平时靠共享内存里的余量兜着，
-余量不够那一刻就报错。降 `--test-concurrency` 不可靠（实测 c=4 峰值 7996 通过、
-c=6 峰值 5724 反而失败）。
-
-唯一可靠的修法是把集群的 `max_locks_per_transaction` 调大（例如 512）并重启 PostgreSQL，
-属于环境配置而不是代码。**未做，需要机主决定。** 条目 60 把这个现象记成
-「测试基础设施容量波动」，它其实有确定的量化原因，记在这里。
-
 ## 92. 2026-08-24 T4.4b 三方停止入口与下架原因区分
 
 提交：`5c8e6d2`。四方停止里此前只有客户那一方有调用点，其余三方现在都有了。
@@ -3939,3 +3830,128 @@ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'xxx_check') THEN
 
 **未做：** 上述三步；跟单参数的 configuring → user_confirmed 确认流程与界面；运营端风控
 工作台界面。
+
+## 94. 2026-08-24 修 `npm test` 的间歇红：集群全局角色与 pg_roles 收敛竞态
+
+只动测试基础设施，不动业务代码，也不动任何已应用的迁移。
+
+（本条最初误编为 92，与 T4.4b 撞号——`150765a` 把当时还在工作区的草稿一并提交了进去。
+现移到末尾重编为 94，那份重复的 92 在本次提交里删除。）
+
+### 现象与真因
+
+`npm test` 干净时全绿，否则随机 2–5 个用例失败，集中在 versioned-configuration 一带，
+单独跑那些文件永远通过。典型报错：
+
+```
+error: role "maintenance_ai_usage_reader_65184_1787571153486" does not exist
+where: 'SQL statement "REVOKE ALL ON FUNCTION client_login_identity(text,text,text)
+        FROM maintenance_ai_usage_reader_65184_1787571153486"'
+```
+
+**schema 能隔离 fixture，角色不能。** `CREATE ROLE`/`DROP ROLE` 改的是集群唯一的目录，
+而多条迁移是「先读 pg_roles，再对读到的名字动手」：
+
+| 迁移 | 形态 | 是否已容错 |
+| --- | --- | --- |
+| 0043（两处）、0072 | `FOR ... IN SELECT rolname FROM pg_roles` 后逐个 REVOKE | 否 |
+| 0066 | 同上，但带 `EXCEPTION WHEN undefined_object` | 是 |
+| 0063 / 0076–0080 | `IF EXISTS (SELECT 1 FROM pg_roles ...)` 后 GRANT | 窗口更窄，仍是 TOCTOU |
+
+快照与执行之间被并行文件删掉的角色，就是 42704。它不是让那一条语句失败，是让**另一个
+测试文件的整条迁移链回滚**，于是失败的用例看上去与角色毫无关系。
+
+直接验证（探针跑 12 秒，一个协程反复应用 0043，另一个反复建删角色）：
+
+```
+unguarded: 1 convergences, 2471 failures     # 首个失败即上面那条 42704
+guarded:   625 convergences, 0 failures
+```
+
+### 为什么不能在迁移里修
+
+0043/0072 已经应用。迁移器按 checksum 失败（`SYSTEM_SPEC.md` 第 129 行），改文本会让
+本地 `agentnovas_dev` 与任何已迁移的库直接拒绝启动，也会作废恢复演练证据。所以
+**0066 的 `EXCEPTION` 写法不能反向补到 0043/0072 上**——这是本次唯一被否掉的方案。
+
+### 也不能只堵读的一侧
+
+一开始只包了走 `runPostgresMigrations` 的 14 个文件（迁移器自带 advisory lock）。
+仍然红，因为**另有约二十多个测试文件直接 `pool.query(migrationSql)` 逐个应用迁移**，
+根本不经过迁移器（例如 `client-account-mfa-postgres`）。逐个包住既漏又难守。
+
+### 最终形态：跑的时候不删角色
+
+规则从「加锁」换成「排期」：**测试运行期间不删除任何集群全局角色。**
+
+- 角色统一命名 `agentnovas_test_<用途>_<运行令牌>_<创建时刻>`（`testRoleName`）。
+- fixture 的 `after` 不再删角色（`dropTestRole` 在套件模式下是空操作）。
+- `tests/global-setup.mjs` 经 `--test-global-setup` 在**第一个测试进程启动前**和
+  **最后一个退出后**各清扫一次。
+- 清扫按**运行令牌**限定范围，另加「超过 1 小时」的陈旧兜底。中途踩过一次坑：
+  第一版按前缀无差别清扫，结果**并发的另一次 `npm test` 把本次运行的角色扫掉了**，
+  症状与原 bug 一模一样。令牌化之后两次套件互不干扰。
+- 单文件手跑没有令牌，`dropTestRole` 照常删，并持有 advisory lock 兜底。
+
+一个仍需知道的作用域细节：**advisory lock 按数据库隔离，角色按集群全局。**
+`live-book-posting-postgres` 是唯一自建数据库跑整条链的文件，它在那个库里拿到的锁看不见
+协调库里的角色 DDL，所以显式在协调库上取同一把锁；`clean-ci-contract` 有一条断言守住
+「自建数据库 + 不取锁」这个组合。
+
+### 顺带修掉的一处产品名污染
+
+`client-identity-database-boundary-postgres` 原本直接建删 `agentnovas_client_web` /
+`agentnovas_client_auth` 这两个**生产角色名**。别的文件的迁移会 GRANT 给它们，于是
+`DROP ROLE` 还会撞上 `dependent objects still exist`。改为像已有的 migrator / ops_web
+一样，由 `prepareMigration` 重写字面量到本次运行的专属角色名——迁移自己的
+expected-role 判断照旧被执行，断言一条没动。
+
+### 守规则的断言（`clean-ci-contract`）
+
+- 测试文件里不得出现可执行形态的 `CREATE ROLE`/`DROP ROLE`（正则字面量里的源码文本
+  断言仍然允许）。
+- `test:all` 必须挂 `--test-global-setup`，`global-setup` 必须导出令牌。
+- 清扫范围是纯函数 `selectSweepableRoles`，单测直接断言「扫自己的、扫弃置的、
+  不碰并发运行的」。
+- 角色名长度必须 ≤ 63 字节——PostgreSQL 会静默截断，截断后就会与别的 fixture 撞名。
+
+### 验证
+
+- 竞态定点压测（4 个建角色文件 + 9 个跑迁移链的文件）连跑 **30 次全绿**，
+  结束后 `agentnovas_test_%` 角色残留 0。
+- 完整 `npm test` 连跑 **12 次**：0 次 42704、0 次 shared memory、0 残留角色。
+  其中 8 次有 1 个失败，是并发进行中的 `ops.follow_risk.manage` 权限键尚未注册
+  （`app/api/operations/follow-risk/` 当时还是未跟踪文件），与本条改动无关。
+- `tsc`、ESLint 0、8 条架构边界通过。
+
+### 另一个仍然存在、本次没修的间歇红
+
+同一轮排查里复现出**第二个、机制完全不同**的偶发失败：
+
+```
+error: out of shared memory
+hint: You might need to increase "max_locks_per_transaction".
+```
+
+约二十多个测试文件各自把整份 `0000_business_schema.sql` 作为**单个事务**应用，实测
+**一个事务持有 546 把锁**。默认 `max_locks_per_transaction=64`、`max_connections=100`
+只给锁表 6400 个槽位，而实测整轮 `npm test` 峰值 **9774**——平时靠共享内存里的余量兜着，
+余量不够那一刻就报错。降 `--test-concurrency` 不可靠（实测 c=4 峰值 7996 通过、
+c=6 峰值 5724 反而失败）。
+
+唯一可靠的修法是把集群的 `max_locks_per_transaction` 调大并重启 PostgreSQL，属于环境
+配置而不是代码。**经机主同意后已执行**：本机 `ALTER SYSTEM SET
+max_locks_per_transaction = 512` 并重启 `postgresql@17`，锁表槽位 6400 → 51200，
+对实测峰值 9774 有 5 倍余量。这是本机设置，**不在仓库里，换一台机器要重做**。
+
+条目 60 把这个现象记成「测试基础设施容量波动」，它其实有确定的量化原因，记在这里。
+
+### 验证（调完锁表之后）
+
+完整 `npm test` 连跑 10 次：**9 次 1636/1636 全绿**，0 次 42704、0 次 shared memory。
+唯一一次失败是 `architecture-boundaries` 看到了另一个并发 `npm test` 写在工作区里的
+`apps/client/ui/__boundary_probe__.ts` 临时探针——两次套件同时跑就会互相看见对方的探针
+文件，与本条改动无关，但**说明那个测试往仓库里写临时文件这件事本身不并发安全**。
+
+同一轮里清扫按运行令牌隔离也得到了实证：10 次运行每次都只删掉自己的 7 个角色，
+并发那次运行的 6 个角色一个没碰。

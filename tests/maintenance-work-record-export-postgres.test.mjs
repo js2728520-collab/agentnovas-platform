@@ -11,11 +11,12 @@ import {
   MAINTENANCE_WORK_RECORD_EXPORT_MAX_ROWS,
 } from "../lib/maintenance-work-record-export.ts";
 import { runPostgresMigrations } from "../scripts/postgres-migration-runner.mjs";
+import { createTestRole, dropTestRole, testRoleName } from "./helpers/postgres-global-roles.mjs";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
 const suffix = `${process.pid}_${Date.now()}`;
 const schema = `maintenance_work_record_export_${suffix}`;
-const readerRole = `maintenance_work_record_reader_${suffix}`;
+const readerRole = testRoleName("work_record_reader");
 const admin = new pg.Pool({ connectionString: databaseUrl, max: 1 });
 const pool = new pg.Pool({ connectionString: databaseUrl, max: 3, options: `-c search_path=${schema}` });
 let migrationDirectory;
@@ -35,7 +36,7 @@ test.before(async () => {
   assert.match(readerRole, /^[a-z0-9_]+$/);
   migrationDirectory = await mkdtemp(join(tmpdir(), "agentnovas-work-record-export-migrations-"));
   await admin.query(`CREATE SCHEMA "${schema}"`);
-  await admin.query(`CREATE ROLE "${readerRole}" NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`);
+  await createTestRole(admin, readerRole);
   // 0075 会从既有部署回填订阅期间。夹具必须在它之前落库，否则回填看不到这些部署，
   // 视图也就没有任何行——那样测试会「通过」在一个空数据集上，什么都证明不了。
   await copyMigrations(74);
@@ -120,7 +121,7 @@ test.after(async () => {
   await readerPool?.end();
   await pool.end();
   await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
-  await admin.query(`DROP ROLE "${readerRole}"`);
+  await dropTestRole(admin, readerRole);
   await admin.end();
   await rm(migrationDirectory, { recursive: true, force: true });
 });
