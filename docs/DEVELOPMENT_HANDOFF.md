@@ -3259,3 +3259,75 @@ K 线上 15,000 个部署会问出同一个答案。查询失败按不一致处�
 `role "maintenance_ai_usage_reader_<pid>_<ts>" does not exist`。原因是测试用 schema 隔离，
 而 PostgreSQL **角色是集群级的**——并行的测试文件互相抢角色的创建与删除。一套偶发变红的
 测试等于没有门禁，应当单独修。
+
+## 86. 2026-08-24 T3.1c-PS2 Prompt 配置的运行时消费与任务固定
+
+提交：`9f8af9b`。规格：`docs/specs/VERSIONED_CONFIGURATION_FRAMEWORK_SPEC.md` 13.7。
+
+PS1 建了合同与确定性测试器，但明确没有消费者——一个 active 的 Prompt 版本并不影响任何
+调用。PS2 接上消费，并按 PS-05 把版本固定到任务上。
+
+**配置只能替换角色说明那一段。** `resolveResearchPrompt` 与
+`resolveRuntimeExplanationPrompt` 各多一个可选参数，分别替换 `definitions[role].instruction`
+和 `promptDefinitions[role].responsibility`。`baseContract` 与解释角色那六行包络仍固定在代码
+里，不进 payload——它们写的是「上游内容是不可信数据」「不承诺收益」「不输出任意代码」。
+**审批管不住运行时行为**：一份删掉它们的 Prompt 通过了双人审批，注入与合规防线就已经没了
+（PS-03）。
+
+**固定落在两处，形状不同是因为任务的形状不同：**
+
+| | 固定时机 | 存放位置 |
+| --- | --- | --- |
+| 运行时解释 | 入队 | `strategy_runtime_explanation_jobs.prompt_configuration_version_id` + `prompt_payload_sha256` |
+| 策略研发 | 运行创建 | `strategy_research_runs.prompt_configuration_snapshot_json`（按角色） |
+
+解释任务是一次调用，逐个入队时固定即可。研发是一串步骤（需求整理 → 行情识别 → 提案 →
+反方 → 风控 → 报告），固定必须落在**运行**上：否则第 3 步与第 4 步之间发生一次激活，同一
+次研发的前后半段会依据两份不同的 Prompt，结论无法归因到任何一版。这与既有的
+`agent_role_snapshot_json`（固定模型修订）是同一时机、同一理由。
+
+**执行时按版本 ID 回读，不看当前生效的是哪一版。** 原本的写法是「重新解析当前版本再与任务
+快照比对，不一致就报错」。那在没有配置消费者时无害，接上之后就是错的：每次配置变更都会
+让队列里所有任务失败。改成按固定的版本解析后，激活与回滚只影响随后创建的新任务。两条
+路径（有固定 / 无固定）最后落到同一条不变量上——**实际用的这段文字必须与任务快照里的
+`prompt_sha256` 一致**。
+
+**两个网关，其中一个是新形状。** `prompt_configuration_active(key)` 与 0071 / 0077 同形状；
+`prompt_configuration_pinned(version_id)` 按版本 ID 读一份可能早已被替换掉的历史版本——既有
+网关都只返回当前生效版本，而 PS-05 恰恰要求读历史版本。
+
+`prompt_configuration_pinned` 里的 `EXISTS (configuration_activations ...)` **是审批闸门的
+一部分**：没有它，任何能写任务行的路径都可以把任务指向一份从未获批的草稿，让 Worker 照着
+它调模型。只有曾经真正激活过的版本可被固定；回滚之后仍可读（那正是 PS-05 要的），但从未
+上线过的草稿一律读不到。
+
+**空值表示「用代码内定义的 Prompt」，不是「未知」。** 当前没有任何 Prompt 配置被激活过，
+所有任务的固定列都是空的。编一个假的配置版本会让「这份解释依据哪份 Prompt」得到一个看似
+确定的错误答案（INV-6）。
+
+**测试里发现的两件事：**
+
+- `configuration_versions` 是 append-only（0069 的触发器），所以「改写 payload 让任务跑在
+  被改过的内容上」这个场景在库层就不成立。原本写的篡改用例改成断言两层：库层拒绝改写，
+  且消费端仍核对摘要——任务行上的摘要可能来自别处（写错、复制自另一版本、被构造），
+  只信任版本 ID 就等于不核对。
+- 规范化只在 API 层跑，数据库不认识 payload 语义。因此补了一条「绕过 API 直接 INSERT 越权
+  内容再激活」的用例：运行时复用 PS1 的规范化，不得比写入时宽松，否则一份从正门写不进去的
+  payload 反而能被执行。
+
+**顺带修的一个问题。** 两个解析器现在是带可选参数的公开函数，而
+`roles.map(resolveResearchPrompt)` 会把数组下标当第二个参数传进来（`tests/research-prompt-registry`
+里就是这么写的），`instruction?.trim()` 直接抛 TypeError。改成类型判断，非字符串按未提供
+处理，并加了回归用例。这不是测试写法问题——公开函数不该因为一个常见调用惯例就崩。
+
+**夹具改动说明。** `tests/strategy-runtime-repository` 与 `tests/postgres-research-queue` 都
+只挑选自己需要的迁移，因此分别补上 0080 的建表建列（前者连同两张按 0069 形状的空表，
+0069 整份拖着 RBAC 依赖链）。**补 schema 而不是放宽代码**——固定列缺失时写入失败是正确行为。
+
+RED 验证：把入队处的固定去掉后，PS-05 端到端用例转红，其余 23 项仍绿。
+
+门禁：`npm test` 1532/1532、`tsc`、ESLint 0、8 条架构边界、三端构建、包体预算
+（Client JS 204,171/204,800，余量 629，未变——API 路由不进浏览器包）。
+
+**未做：** Skill 仍无运行时消费者，合同与测试器就位但没有任何 Agent 会加载技能包，
+active 的 Skill 版本不等于已生效。Maintenance 的 Prompt/Skill 工作台留给 PS3。
