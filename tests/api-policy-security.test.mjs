@@ -549,3 +549,18 @@ test("内联脚本必须带 CSP nonce——否则被我们自己的策略挡掉"
   assert.match(proxy, /requestHeaders\.set\("x-nonce", nonce\)/);
   assert.match(proxy, /contentSecurityPolicy\(nonce/);
 });
+
+test("共用路由不得跨 audience 读它无权访问的表", async () => {
+  // /api/auth/me 三端共用，原来无条件查 memberships，而运维端的数据库角色没有这张
+  // 表的权限——运维端不该看客户商业数据。表现是**输完 MFA 验证码跳回登录页**：
+  // 验证其实成功了，是紧接着的会话加载 42501，被上层当成未登录。
+  //
+  // 修法不是给运维端开读权限（那会扩大它对客户商业数据的可见范围），是按 audience
+  // 收窄查询。
+  const source = await readFile(new URL("../app/api/auth/me/route.shared.ts", import.meta.url), "utf8");
+  assert.match(source, /resolveAppAudienceStrict/, "共用路由必须能判断自己在哪一端");
+  assert.match(source, /audience === "client"/, "会员查询只能在客户端执行");
+  // 不能退回成无条件查询
+  assert.doesNotMatch(source, /const membership = user \?\s*\(await getDb\(\)/,
+    "membership 不得再无条件解析");
+});
