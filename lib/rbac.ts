@@ -61,6 +61,10 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   // 放行策略上架的权限。只给总部角色——上架是平台级决定，不是分公司的。
   { key: "ops.strategy_listing.view", appId: "operations", label: "查看策略上架审核", sensitive: false },
   { key: "ops.strategy_listing.review", appId: "operations", label: "审核策略上架", sensitive: true },
+  // 与 ops.trading.manage 分开：那条管交易所/账户/策略卡维度的熔断，这条管单个客户对
+  // 单个社区策略的跟随。合并会让能挂全局熔断的人顺带获得逐客户操作权。
+  { key: "ops.follow_risk.view", appId: "operations", label: "查看跟单风控状态", sensitive: false },
+  { key: "ops.follow_risk.manage", appId: "operations", label: "阻断或恢复客户跟单", sensitive: true },
   { key: "ops.attributions.manage", appId: "operations", label: "管理客户归属", sensitive: true },
   { key: "ops.finance.manage", appId: "operations", label: "执行财务操作", sensitive: true },
   { key: "ops.invitations.view", appId: "operations", label: "查看邀请码" },

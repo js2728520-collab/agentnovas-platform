@@ -65,7 +65,7 @@ ALTER TABLE strategy_subscriptions
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'strategy_subscriptions_ended_reason_check') THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'strategy_subscriptions_ended_reason_check' AND conrelid = 'strategy_subscriptions'::regclass) THEN
     ALTER TABLE strategy_subscriptions
       ADD CONSTRAINT strategy_subscriptions_ended_reason_check CHECK (
         ended_reason IS NULL OR ended_reason IN (
@@ -133,7 +133,7 @@ ALTER TABLE strategy_author_earnings
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'strategy_author_earnings_dispute_check') THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'strategy_author_earnings_dispute_check' AND conrelid = 'strategy_author_earnings'::regclass) THEN
     ALTER TABLE strategy_author_earnings
       ADD CONSTRAINT strategy_author_earnings_dispute_check CHECK (
         dispute_status IN ('none','opened','upheld','rejected')

@@ -3839,6 +3839,28 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": false
   },
   {
+    "method": "POST",
+    "route": "/api/operations/follow-risk/:id/decision",
+    "source": "app/api/operations/follow-risk/[id]/decision/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.follow_risk.manage"
+    ],
+    "permissionMfa": {
+      "ops.follow_risk.manage": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
     "method": "GET",
     "route": "/api/operations/kill-switches",
     "source": "app/api/operations/kill-switches/route.operations.ts",

@@ -2,6 +2,7 @@ import { requireAccessPermission } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { applyStrategyListingTransition, type StrategyListingTransition } from "@/packages/domain/src/strategy-listing-state";
+import { isPlatformRiskDelist } from "@/packages/domain/src/strategy-follow-risk";
 
 const REVIEW_PERMISSION = "ops.strategy_listing.review";
 
@@ -32,6 +33,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const note = typeof body.note === "string" ? body.note.trim() : "";
     const transition = OPERATIONS_TRANSITIONS[action];
     if (!transition) throw new ResearchApiError("STRATEGY_REVIEW_ACTION_INVALID", "审核动作无效", 422);
+    // 下架必须说明原因：作者主动下架与平台因风险下架对存量跟随者的处理完全相反
+    // （需求方确认）。合并成一个「下架」动作会让其中一种处理错。
+    const delistReason = transition === "delist" ? String(body.delistReason ?? "") : null;
+    if (transition === "delist"
+      && !["author_request", "inactivity", "platform_risk", "platform_compliance"].includes(delistReason ?? "")) {
+      throw new ResearchApiError("STRATEGY_DELIST_REASON_INVALID", "下架原因无效", 422);
+    }
     if (note.length < 3 || note.length > 500) {
       throw new ResearchApiError("STRATEGY_REVIEW_NOTE_INVALID", "审核说明需要 3–500 个字符", 422);
     }
@@ -93,12 +101,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
                review_claimed_at=CASE WHEN $4 THEN $6 ELSE review_claimed_at END,
                listed_at=CASE WHEN $2='listed' THEN $6 ELSE listed_at END,
                delisted_at=CASE WHEN $2='delisted' THEN $6 ELSE delisted_at END,
+               delist_reason=CASE WHEN $2='delisted' THEN $7 ELSE NULL END,
                rejection_reason=CASE WHEN $2='rejected' THEN $5 ELSE rejection_reason END,
                approved_at=CASE WHEN $2='approved' THEN to_char($6 AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') ELSE approved_at END,
                published_at=CASE WHEN $2='listed' THEN to_char($6 AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') ELSE published_at END,
                updated_at=to_char($6 AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
          WHERE id=$1
-      `, [id, applied.nextState, claimedBy, transition === "claim_review", note, now]);
+      `, [id, applied.nextState, claimedBy, transition === "claim_review", note, now, delistReason]);
+
+      // 平台因风险或合规下架：自动阻断全部存量跟随（需求方确认）。作者主动下架与自动
+      // 下架不在此列——它们走 7 天通知缓冲期，客户的跟随不受影响。
+      if (applied.nextState === "delisted" && isPlatformRiskDelist(delistReason)) {
+        const blocked = await client.query<{ id: string }>(`
+          UPDATE strategy_subscriptions
+             SET status='risk_blocked', paused_by='operations_risk', paused_at=$2,
+                 paused_reason=$3, updated_at=$2
+           WHERE strategy_id=$1 AND status IN ('configuring','user_confirmed','active','paused')
+          RETURNING id
+        `, [id, now, `策略因${delistReason === "platform_risk" ? "风险" : "合规"}原因下架：${note}`]);
+        for (const row of blocked.rows) {
+          await client.query(`
+            INSERT INTO strategy_follow_risk_events(id,subscription_id,authority,action,reason,triggered_rules_json)
+            VALUES($1,$2,'operations_risk','pause',$3,$4::jsonb)
+          `, [crypto.randomUUID(), row.id, `策略下架：${delistReason}`, JSON.stringify(["platform_risk_delisting"])]);
+        }
+      }
 
       await client.query(`
         INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json,created_at)

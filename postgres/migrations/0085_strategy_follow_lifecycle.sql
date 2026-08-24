@@ -26,7 +26,7 @@ ALTER TABLE strategy_subscriptions
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'strategy_subscriptions_stop_authority_check') THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'strategy_subscriptions_stop_authority_check' AND conrelid = 'strategy_subscriptions'::regclass) THEN
     ALTER TABLE strategy_subscriptions
       ADD CONSTRAINT strategy_subscriptions_stop_authority_check CHECK (
         (paused_by IS NULL OR paused_by IN ('customer','operations_risk','automated_risk','global_circuit_breaker'))
