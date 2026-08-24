@@ -3177,3 +3177,65 @@ git bundle verify <目标>.bundle
 没有执行，因此追加从未发生；`AGENTS.md` 的修改走的是 Edit 工具，不受影响，于是提交 `9522e0d`
 只含规则纠正而不含云端证据。教训是：把「写文件」和「提交」放进同一条 shell 调用，调用被拦时
 两者一起丢，而中途的口头结论会与磁盘实际状态不一致。分开执行并逐项复核落盘结果。
+
+## 85. 2026-08-24 T2.4b-2 行情源选择的作用范围与 Client 接线
+
+提交：`8a5a607`（合同/迁移/解析/API）、`6f8e4b7`（Client 面板）。ADR：`docs/adr/0025-market-source-scope-and-official-card-rounds.md`。
+
+**先解决的是一个设计问题，不是功能。** T2.4b-1 把解析结果不可变地固定到部署上之后，
+ADR-0018 的一个潜在缺陷变得必须回答：决策轮身份是
+`(strategy_code, symbol, timeframe, candle_close_time)`，**不含数据源**。两位订阅同一张
+官方卡的客户若选了不同的源，那一轮就会拿 A 源的判断去解释 B 源的行情，而且是静默的。
+
+数据模型先回答了一半：`strategy_decision_rounds.strategy_code` 有
+`CHECK IN ('ai_conservative','ai_balanced','ai_aggressive')`——**共享轮只可能属于官方卡**，
+自定义策略各自独立成轮。剩下的是产品问题：客户能不能给官方卡换源。需求方确认**不能**。
+
+因此 **ADR-0018 的决策轮身份不需要修改**。T2.4b-1 里那条「等模型改之前的临时防线」
+`assertRoundBindingConsistency` 含义随之改变：同一张官方卡上出现两个不同的 source policy
+fingerprint，现在意味着有代码或数据违反了 ADR-0025，Runtime 必须失败关闭。它是常驻不变量
+检查，不是待办事项。
+
+**新增的偏好表与 0078 的绑定表是两件事。** 混淆它们会直接毁掉 0078 存在的理由：
+
+| | 可变性 | 含义 |
+| --- | --- | --- |
+| `customer_market_source_preferences`（0079） | 可变 | 客户当前想用哪个源 |
+| `strategy_market_source_bindings`（0078） | 不可变 | 某个部署当初实际解析到了哪个源 |
+
+改偏好不动既有绑定——这正是「同一段历史决策不会在事后被换个数据源解释」的来源，
+由 `tests/market-source-preference-postgres.test.mjs` 的跨表用例守住。
+
+偏好按 **市场** 存而不按策略存，因此这张表在结构上就无法表达「给某张官方卡换源」——
+没有 `strategy_code` 列可写。模式与标识由 CHECK 强制配对（`account_aligned` 恰好带
+`account_id`，`independent` 恰好带 `provider_id`）：两个都填会让「客户选的到底是哪个」
+出现两个答案，而解析只读其中一个，另一个成为看不见的错误配置。
+
+**当前偏好实际只作用于展示与研发。** 0053 的 `strategy_deployments_official_binding_check`
+要求 `execution_product = 'spot_usdt'` 的部署必须有 `platform_strategy_code`——库层就决定了
+今天所有现货部署都是官方卡，客户自定义策略走永续而永续路由关闭。ADR-0025 第 2 条里的
+「客户自己投稿的策略部署」是为将来准备的路径，不是现在跑着的路径。这一点写进了 ADR，
+避免以后有人按文字以为它已经在跑。
+
+**能力快照如实报告未配置。** `capabilitySnapshotFromRegistry` 直接取注册表的
+`configured`，当前全部为 `false`——没有任何 provider 被真正接通过，解析一律返回
+`source_not_configured`。测试里有一条 `providers.filter(p => p.configured)` 为空的断言，
+第一个源真正接通时它会提醒更新（INV-6）。
+
+**界面上三处刻意的区分。** 「已选择」与「平台默认」不合并显示（把默认值显示成当前选择，
+客户无从知道自己选没选过）；「官方卡不跟随此设置」是常驻说明而非保存后的提示；保存失败
+时不改本地选择（显示一个没有落库的选择比报错更糟）。官方卡代码由服务端响应携带，界面
+不硬编码，测试断言面板源码里不出现这三个代码。
+
+**RED 验证。** 删掉 `selectionForDeployment` 里的官方卡分支后，
+「官方卡忽略客户偏好」用例转红，其余四条仍绿——确认这条断言测的是规则本身而不是恒真式。
+夹具里客户偏好特意选 `exchange-okx`，与平台源 `exchange-binance` 不同，并有一条断言守住
+这个前提。
+
+门禁：`npm test` 1517/1517（新增 17 项）、`tsc`、ESLint 0、8 条架构边界、三端构建、
+包体预算。Client JS 204,171/204,800，余量 752 → 629 字节（面板 123 字节，因为
+`live-market` 本就走 `next/dynamic`，只有共享块的增量落到公开落地页）。
+
+**未做，留给后续：** Runtime Worker 尚未在开仓前调用 `assertRoundBindingConsistency`，
+守卫目前只有直接测试覆盖，没有接进决策周期；`app/api/market/*` 的报价与 K 线仍走既有
+公共源，没有按偏好取数——那要等真实 provider 接入（T2.2b/T2.5），现在接会变成伪装就绪。
