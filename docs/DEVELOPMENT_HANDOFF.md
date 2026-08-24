@@ -3236,6 +3236,26 @@ fingerprint，现在意味着有代码或数据违反了 ADR-0025，Runtime 必�
 包体预算。Client JS 204,171/204,800，余量 752 → 629 字节（面板 123 字节，因为
 `live-market` 本就走 `next/dynamic`，只有共享块的增量落到公开落地页）。
 
-**未做，留给后续：** Runtime Worker 尚未在开仓前调用 `assertRoundBindingConsistency`，
-守卫目前只有直接测试覆盖，没有接进决策周期；`app/api/market/*` 的报价与 K 线仍走既有
-公共源，没有按偏好取数——那要等真实 provider 接入（T2.2b/T2.5），现在接会变成伪装就绪。
+**守卫已接进决策周期**（提交 `ebd6745`，本条目写成时尚未完成，故一并补记）。引擎新增
+`sourceBinding` 输入，走既有的 `isEntry` 模式：分叉时拒绝新开仓、离场照常（INV-7）。
+拒绝理由与「已触发熔断」「风控读数不可用」各自独立——三者分别是风控生效、风控失效、
+共享叙述不成立，运营端要做的事完全不同。省略该字段视为一致，只有查过并发现分叉才
+拒绝：调用方忘了传就静默停掉所有开仓，比放行更难发现。
+
+一致性按决策轮缓存（`roundBindingCache`），条目带 `candleCloseTime`，新 K 线一收盘即
+失效——与行情缓存同样按 K 线桶而非固定 TTL。它是**轮**的属性不是部署的属性：同一根
+K 线上 15,000 个部署会问出同一个答案。查询失败按不一致处理并清掉条目。
+
+`tests/strategy-runtime-repository.test.mjs` 此前只挑选需要的迁移，不含 0078。补上建表
+与 0010 的映射表存根，而不是放宽守卫：表不存在时守卫拒绝开仓是正确行为。RED 验证为
+删掉 Worker 里的 `sourceBinding` 传参，分叉用例转红、其余 22 项仍绿。
+
+**未做，留给后续：** `app/api/market/*` 的报价与 K 线仍走既有公共源，没有按偏好取数
+——那要等真实 provider 接入（T2.2b/T2.5），现在接会变成伪装就绪。
+
+**一处与本切片无关但需要记下的问题：** 整套 `npm test` 偶发 2–5 项红，集中在版本化配置
+区域（`configuration-activation-worker-postgres`、`versioned-configuration-*`），单独跑这些
+文件恒绿，且 `git stash` 掉本切片改动后同样复现。报错形如
+`role "maintenance_ai_usage_reader_<pid>_<ts>" does not exist`。原因是测试用 schema 隔离，
+而 PostgreSQL **角色是集群级的**——并行的测试文件互相抢角色的创建与删除。一套偶发变红的
+测试等于没有门禁，应当单独修。
