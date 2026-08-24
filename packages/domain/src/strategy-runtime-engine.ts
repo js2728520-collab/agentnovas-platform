@@ -76,6 +76,16 @@ export function evaluateStrategyRuntimeCycle(input: {
      */
     unavailableFields?: readonly string[];
   };
+  /**
+   * 该决策轮涉及的部署是否解析到了同一个行情源（ADR-0025）。
+   *
+   * 与 halted、unavailableFields 分开表达，因为它们是三件不同的事：熔断是风控生效，
+   * 读数损坏是风控失效，绑定分叉是**这一轮的共享叙述本身不成立**——同一段七阶段判断
+   * 会被拿去解释两份不同的行情。运营端需要能区分它们，合并成一个标志就查不出原因。
+   *
+   * 省略视为一致：只有查过并发现分叉才拒绝，避免调用方忘了传就静默停掉所有开仓。
+   */
+  sourceBinding?: { consistent: boolean };
   lastDecisionCandleCloseTime?: number | null;
   marketData: RuntimeCandleAdmissionInput;
 }) {
@@ -177,6 +187,11 @@ export function evaluateStrategyRuntimeCycle(input: {
       : "行情时间无效，禁止新开仓");
   }
   if (isEntry && input.riskState.halted) rejectionReasons.push("运行部署已触发熔断");
+  // 失败安全（INV-7）：同一决策轮上的部署解析到了不同的行情源时不开新仓。
+  // 允许离场——退出能力不能依赖这一判断，否则持仓客户会被卡在里面。
+  if (isEntry && input.sourceBinding && !input.sourceBinding.consistent) {
+    rejectionReasons.push("行情源绑定分叉，禁止新开仓");
+  }
   // 失败安全（INV-7）：风控读数不可信时不开新仓。放在阈值判定之前——
   // 读数坏了就没有阈值可比，拿一个猜出来的 0 去比等于把风控关掉。
   if (isEntry && input.riskState.unavailableFields?.length) {

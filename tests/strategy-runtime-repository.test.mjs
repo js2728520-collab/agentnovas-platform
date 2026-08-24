@@ -18,6 +18,7 @@ import {
   renewStrategyRuntimeLease,
 } from "../lib/strategy-runtime-repository.ts";
 import {
+  clearRoundBindingCache,
   processLeasedStrategyRuntimeDeployment,
   processNextRuntimeExplanation,
 } from "../lib/strategy-runtime-worker.ts";
@@ -200,6 +201,26 @@ test.before(async () => {
   await pool.query(migration0048);
   await pool.query(migration0048);
   await initializeEmergencyAccessSchema(pool);
+  // 0078 的绑定表：Worker 现在会在开仓前查这一轮的绑定一致性（ADR-0025）。表不存在时
+  // 守卫按不一致处理并拒绝开仓——「查不了就算过」的守卫等于没有守卫，所以这里必须建表，
+  // 不能靠放宽守卫让测试变绿。0078 的回填 LEFT JOIN 这张映射表（0010），本套件只挑选
+  // 需要的迁移，因此按原定义补一张空表。
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS platform_strategy_migration_map (
+      strategy_code text NOT NULL,
+      symbol text NOT NULL,
+      strategy_id text NOT NULL,
+      strategy_version_id text NOT NULL,
+      conversion_contract_sha256 text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (strategy_code, symbol),
+      UNIQUE (strategy_id),
+      UNIQUE (strategy_version_id)
+    );
+  `);
+  const migration0078 = await readFile(new URL("../postgres/migrations/0078_strategy_market_source_bindings.sql", import.meta.url), "utf8");
+  await pool.query(migration0078);
+  await pool.query(migration0078);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-a', $1)`, [JSON.stringify(dsl)]);
   await pool.query(`INSERT INTO strategy_versions (id, specification_json) VALUES ('version-official', $1)`, [JSON.stringify(platformStrategyDslV3("ai_conservative", "BTCUSDT"))]);
   await pool.query(`INSERT INTO exchange_accounts (id, exchange) VALUES ('account-a', 'binance')`);
@@ -1456,4 +1477,80 @@ test("daily-loss halts reset on a new UTC day while persistent halt reasons rema
   });
   assert.equal(persistent.halted, true);
   assert.deepEqual(persistent.haltReasons, ["manual"]);
+});
+
+test("同一轮上出现两个行情源时拒绝新开仓，离场不受影响", async () => {
+  // ADR-0025：官方卡统一用平台指定源。同一张卡上出现两个不同的 source policy
+  // fingerprint 说明有代码或数据违反了这条边界，此时共享叙述会被拿去解释两份不同的
+  // 行情。Worker 必须失败关闭，而不是悄悄让两个源共享一轮。
+  clearRoundBindingCache();
+  await pool.query(`INSERT INTO users (id, organization_id) VALUES ('owner-fork-a', NULL), ('owner-fork-b', NULL)`);
+  await pool.query(`INSERT INTO memberships (id, customer_id, status, expires_at, grace_ends_at)
+                    VALUES ('membership-fork-a', 'owner-fork-a', 'active', NULL, NULL),
+                           ('membership-fork-b', 'owner-fork-b', 'active', NULL, NULL)`);
+
+  const makeDeployment = async (owner, membership, key) => {
+    const portfolios = await ensureOfficialPaperPortfolios(pool, { membershipId: membership, customerId: owner });
+    const portfolio = portfolios.find((item) => item.strategyCode === "ai_conservative");
+    return createStrategyDeployment(pool, {
+      ownerUserId: owner,
+      strategyId: "strategy-official",
+      strategyVersionId: "version-official",
+      exchangeAccountId: null,
+      mode: "paper",
+      validationLabel: "UNVERIFIED",
+      idempotencyKey: key,
+      riskAcknowledged: true,
+      executionProduct: "spot_usdt",
+      platformStrategyCode: "ai_conservative",
+      membershipId: membership,
+      paperPortfolioId: portfolio.id,
+    });
+  };
+  const a = await makeDeployment("owner-fork-a", "membership-fork-a", "binding-fork-a");
+  const b = await makeDeployment("owner-fork-b", "membership-fork-b", "binding-fork-b");
+
+  const pin = (id, deploymentId, ownerUserId, fingerprint, instance) => pool.query(`
+    INSERT INTO strategy_market_source_bindings(
+      id,deployment_id,owner_user_id,strategy_version_id,market_id,instrument_id,selection_mode,
+      provider_id,provider_symbol,account_id,source_account_id,requested_usage,authorization_kind,
+      capability_version_id,source_policy_fingerprint,binding_instance_fingerprint,pinning
+    ) VALUES ($1,$2,$3,'version-official','crypto-global','BTCUSDT','independent',
+      'exchange-binance','BTCUSDT',NULL,NULL,'research','public','capability-1',$4,$5,'pinned')
+  `, [id, deploymentId, ownerUserId, fingerprint, instance]);
+  await pin("fork-binding-a", a.id, "owner-fork-a", "a".repeat(64), "b".repeat(64));
+  await pin("fork-binding-b", b.id, "owner-fork-b", "d".repeat(64), "e".repeat(64));
+
+  const shift = 200 * 24 * 3_600_000;
+  const rows = officialEntryCandles().map((candle) => ({
+    ...candle, openTime: candle.openTime + shift, closeTime: candle.closeTime + shift,
+  }));
+  const dependencies = {
+    createSpotAdapter: () => ({
+      async getCandles() { return { items: rows, provider: "fixture" }; },
+      async getFeeSchedule() { return { makerRate: 0.001, takerRate: 0.001, source: "fixture" }; },
+    }),
+    saveSnapshot: async (_database, input) => ({
+      id: input.sourceId, candleSha256: "a", fundingSha256: "b", datasetSha256: "c",
+    }),
+  };
+
+  const now = new Date(rows.at(-1).closeTime + 1_000);
+  const lease = await leaseNextStrategyDeployment(pool, { workerId: "fork-worker", now, leaseSeconds: 30 });
+  assert.ok([a.id, b.id].includes(lease.id), "本测试假定分叉的部署之一被租走");
+  const processed = await processLeasedStrategyRuntimeDeployment(pool, lease, "fork-worker", {
+    ...dependencies, now: () => now,
+  });
+
+  // 这批 K 线本来会触发开仓（同一份夹具在共享轮用例里产出 enter_long）。
+  assert.equal(processed.decision.action, "enter_long");
+  assert.equal(processed.decision.riskApproved, false, "分叉下不得批准开仓");
+  assert.ok(processed.decision.rejectionReasons.includes("行情源绑定分叉，禁止新开仓"),
+    `实际拒绝理由：${JSON.stringify(processed.decision.rejectionReasons)}`);
+
+  const intents = await pool.query(
+    "SELECT count(*)::int AS count FROM official_paper_order_intents WHERE deployment_id = $1", [lease.id],
+  );
+  assert.equal(intents.rows[0].count, 0, "分叉下不得产生开仓意图");
+  clearRoundBindingCache();
 });

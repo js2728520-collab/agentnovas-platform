@@ -218,3 +218,49 @@ test("覆盖不修改原规格对象", () => {
   applyDeploymentRiskOverrides(baseSpec, { positionSizePct: 1, stopLossPct: 1 });
   assert.equal(JSON.stringify(baseSpec), before);
 });
+
+test("行情源绑定分叉时拒绝开仓，理由与熔断、读数损坏各自独立", () => {
+  // 分叉意味着同一决策轮的共享叙述会被拿去解释两份不同的行情（ADR-0025）。
+  const result = evaluate({
+    candles: candles({ high: 112, close: 111 }),
+    riskState: resolveRuntimeRiskState({ drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0 }),
+    sourceBinding: { consistent: false },
+  });
+  assert.equal(result.decision.riskApproved, false);
+  assert.ok(result.decision.rejectionReasons.includes("行情源绑定分叉，禁止新开仓"),
+    `实际拒绝理由：${JSON.stringify(result.decision.rejectionReasons)}`);
+  assert.equal(result.orderIntent, null);
+
+  // 运营端看到这三种情况要做的事完全不同，合并成一个标志就查不出原因。
+  assert.equal(result.decision.rejectionReasons.includes("运行部署已触发熔断"), false);
+  assert.ok(!result.decision.rejectionReasons.some((reason) => reason.includes("风控读数不可用")));
+});
+
+test("绑定分叉不挡平仓——客户不会被困在仓位里", () => {
+  const result = evaluate({
+    candles: candles({ open: 100, close: 96, low: 95 }),
+    position: { side: "long", entryPrice: 100, quantity: 1 },
+    riskState: resolveRuntimeRiskState({ drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0 }),
+    sourceBinding: { consistent: false },
+  });
+  assert.equal(result.decision.action, "exit");
+  assert.equal(result.decision.riskApproved, true);
+  assert.ok(result.orderIntent, "离场意图必须照常产生");
+});
+
+test("一致时照常开仓；省略该字段视为一致", () => {
+  const consistent = evaluate({
+    candles: candles({ high: 112, close: 111 }),
+    riskState: resolveRuntimeRiskState({ drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0 }),
+    sourceBinding: { consistent: true },
+  });
+  assert.equal(consistent.decision.action, "enter_long");
+  assert.equal(consistent.decision.riskApproved, true);
+
+  // 省略不等于「查过且不一致」。调用方忘了传就静默停掉所有开仓，是比放行更难发现的故障。
+  const omitted = evaluate({
+    candles: candles({ high: 112, close: 111 }),
+    riskState: resolveRuntimeRiskState({ drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0 }),
+  });
+  assert.equal(omitted.decision.riskApproved, true);
+});

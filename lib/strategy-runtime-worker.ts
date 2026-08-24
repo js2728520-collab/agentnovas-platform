@@ -70,6 +70,7 @@ import {
   marketCacheKey,
 } from "../packages/domain/src/runtime/market-cache.ts";
 import { completedRuntimeCandlesAt } from "../packages/domain/src/runtime/market-admission.ts";
+import { assertRoundBindingConsistency } from "./market-source-binding-repository.ts";
 import {
   callRuntimeExplanationAgent,
   resolveRuntimeExplanationPrompt,
@@ -128,6 +129,45 @@ const spotCandleCache = new Map<string, { fetchedAt: number; payload: Promise<Sp
 /** 供测试与运维重置。缓存只有 6 个 key，不会无限增长。 */
 export function clearSpotCandleCache() {
   spotCandleCache.clear();
+}
+
+/**
+ * 决策轮的绑定一致性缓存。
+ *
+ * 一致性是**决策轮**的属性，不是部署的属性：同一张卡、同一品种、同一根已收盘 K 线上
+ * 15,000 个部署会问出同一个答案。不缓存就是每根 K 线 15,000 次相同查询。
+ *
+ * 条目里带 candleCloseTime，新 K 线一收盘即失效——与行情缓存同样按 K 线桶失效，
+ * 不用固定 TTL。key 本身只有 6 种组合，缓存不会随时间增长。
+ */
+const roundBindingCache = new Map<string, { candleCloseTime: number; consistent: Promise<boolean> }>();
+
+/** 供测试与运维重置。 */
+export function clearRoundBindingCache() {
+  roundBindingCache.clear();
+}
+
+function roundBindingConsistency(database: Pool, input: {
+  strategyCode: string;
+  symbol: string;
+  strategyVersionId: string;
+  candleCloseTime: number;
+}): Promise<boolean> {
+  const key = `${input.strategyCode}:${input.symbol}:${input.strategyVersionId}`;
+  const cached = roundBindingCache.get(key);
+  if (cached && cached.candleCloseTime === input.candleCloseTime) return cached.consistent;
+  const consistent = assertRoundBindingConsistency(database, {
+    strategyCode: input.strategyCode,
+    symbol: input.symbol,
+    strategyVersionId: input.strategyVersionId,
+  }).then((result) => result.consistent);
+  roundBindingCache.set(key, { candleCloseTime: input.candleCloseTime, consistent });
+  // 查询失败不能留下一个会被反复复用的坏条目，也不能因为查不到就放行开仓：
+  // 「查不了就算过」的守卫等于没有守卫。失败按不一致处理。
+  consistent.catch(() => {
+    if (roundBindingCache.get(key)?.consistent === consistent) roundBindingCache.delete(key);
+  });
+  return consistent.catch(() => false);
 }
 
 function createPublicSpotRuntimeAdapter(now: () => Date): RuntimeSpotMarketAdapter {
@@ -296,6 +336,17 @@ async function processOfficialSpotRuntimeDeployment(
     },
   };
 
+  // 绑定一致性：同一轮上的部署必须解析到同一个行情源（ADR-0025）。分叉意味着这一轮的
+  // 共享叙述会被拿去解释两份不同的行情，此时只拒绝新开仓，离场不受影响（INV-7）。
+  const sourceBinding = {
+    consistent: await roundBindingConsistency(database, {
+      strategyCode: specification.strategyCode,
+      symbol: specification.symbol,
+      strategyVersionId: lease.strategyVersionId,
+      candleCloseTime: selected.closeTime,
+    }),
+  };
+
   // 阶段 5 有两半（ADR-0018）。
   //
   // 卡级：用中性风控状态算，产出的是共享决策轮——同一张卡的所有客户看同一份
@@ -304,12 +355,14 @@ async function processOfficialSpotRuntimeDeployment(
   const cardEvaluation = evaluateStrategyRuntimeCycle({
     ...evaluationInput,
     riskState: neutralRuntimeRiskState(),
+    sourceBinding,
   });
 
   // 组合级：用这个客户真实的风控状态与访问状态算准入。引擎是纯函数，
   // 跑两次的代价是亚毫秒级，换来的是共享单元里没有客户数据。
   const evaluated = evaluateStrategyRuntimeCycle({
     ...evaluationInput,
+    sourceBinding,
     riskState: {
       ...resolveRuntimeRiskState(currentRiskState),
       halted: currentRiskState.halted === true || runtimeAccess.access !== "active",
