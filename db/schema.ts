@@ -389,7 +389,9 @@ export const communityStrategies = sqliteTable("community_strategies", {
   market: text("market").notNull().default("crypto"),
   symbolsJson: text("symbols_json").notNull().default("[]"),
   riskLevel: text("risk_level", { enum: ["low", "medium", "high"] }).notNull().default("medium"),
-  status: text("status", { enum: ["draft", "testing", "submitted", "approved", "rejected", "published", "paused"] }).notNull().default("draft"),
+  // 取值与 packages/domain/src/strategy-listing-state.ts 的 STRATEGY_LISTING_STATES 及
+  // 0081 的 CHECK 约束一一对应，由 tests/strategy-listing-state 对齐。
+  status: text("status", { enum: ["draft", "testing", "submitted", "under_review", "approved", "listed", "delisted", "rejected"] }).notNull().default("draft"),
   publicationMode: text("publication_mode", { enum: ["marketplace", "self_use"] }).notNull().default("marketplace"),
   validationLabel: text("validation_label", { enum: ["UNVERIFIED", "EXPLORATION_ONLY", "STANDARD_FAILED", "STANDARD_VERIFIED"] }).notNull().default("UNVERIFIED"),
   researchRunId: text("research_run_id"),

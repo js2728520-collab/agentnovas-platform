@@ -5,7 +5,10 @@ import {
   auditLogs,
   communityStrategies,
 } from "@/db/schema";
+import { getPostgresPool } from "@/lib/postgres";
 import { requireUser, responseError } from "@/lib/session";
+import { evaluateAndRecordAdmission } from "@/lib/strategy-admission-repository";
+import { applyStrategyListingTransition } from "@/packages/domain/src/strategy-listing-state";
 
 export async function POST(
   request: Request,
@@ -31,9 +34,33 @@ export async function POST(
     if (strategy.validationLabel !== "STANDARD_VERIFIED") {
       return Response.json({ error: "只有通过标准/深度验证的策略版本才能提交策略广场审核" }, { status: 409 });
     }
-    if (!["draft", "testing", "rejected"].includes(strategy.status)) {
-      return Response.json({ error: "策略当前状态不能提交审核" }, { status: 409 });
+    // 状态迁移由状态机判定，不再是路由里的一句 includes。
+    const transition = applyStrategyListingTransition(strategy.status, "submit");
+    if (!transition.allowed) {
+      return Response.json({
+        error: "策略当前状态不能提交审核",
+        currentStatus: strategy.status,
+        allowedTransitions: transition.allowed === false ? transition.allowedTransitions : [],
+      }, { status: 409 });
     }
+
+    // P-05 准入门槛。PRD 6.5「不得用口头结论替代」：判定是确定性的，逐项结果落库，
+    // 未达标的返回具体哪几条不达标，而不是一句「不符合要求」。
+    const admission = await evaluateAndRecordAdmission(await getPostgresPool(), {
+      strategyId: id,
+      strategyVersion: strategy.version,
+      riskLevel: strategy.riskLevel,
+      validationLabel: strategy.validationLabel,
+    });
+    if (!admission.result.meetsThresholds) {
+      return Response.json({
+        error: "策略未达到广场准入门槛",
+        code: "STRATEGY_ADMISSION_NOT_MET",
+        failedChecks: admission.result.failedCheckIds,
+        checks: admission.result.checks,
+      }, { status: 409 });
+    }
+
     const approvalId = crypto.randomUUID();
     const now = new Date().toISOString();
     const evidence = {
@@ -41,12 +68,16 @@ export async function POST(
       authorUserId: me.id,
       submittedAt: now,
       reviewMode: "human_review",
+      // 审核人要能复核这次投稿当初按的是哪套门槛、依据哪份回测。
+      admissionEvaluationId: admission.evaluationId,
+      validationId: admission.validationId,
+      admissionThresholdsVersionId: admission.configurationVersionId,
     };
 
     await db.batch([
       db.update(communityStrategies)
         .set({
-          status: "submitted",
+          status: transition.nextState,
           publicationMode: "marketplace",
           submittedAt: now,
           rejectionReason: null,

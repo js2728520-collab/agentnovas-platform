@@ -4279,6 +4279,28 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": true
   },
   {
+    "method": "POST",
+    "route": "/api/operations/strategy-listing-reviews/:id/decision",
+    "source": "app/api/operations/strategy-listing-reviews/[id]/decision/route.operations.ts",
+    "audiences": [
+      "operations"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "ops.strategy_listing.review"
+    ],
+    "permissionMfa": {
+      "ops.strategy_listing.review": "recent"
+    },
+    "scope": "grant",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
     "method": "GET",
     "route": "/api/organization/customers",
     "source": "app/api/organization/customers/route.operations.ts",

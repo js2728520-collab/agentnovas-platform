@@ -56,6 +56,11 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "ops.support.manage", appId: "operations", label: "处理客服工单" },
   { key: "ops.approvals.view", appId: "operations", label: "查看审批中心" },
   { key: "ops.approvals.decide", appId: "operations", label: "处理审批", sensitive: true },
+  // 与 ops.approvals.* 分开：那两条覆盖的是汇报关系变更这类内部事务，而上架审核决定的是
+  // 哪些策略能被客户跟随并投入真实资金。合成一条等于让任何能处理内部审批的人顺带获得
+  // 放行策略上架的权限。只给总部角色——上架是平台级决定，不是分公司的。
+  { key: "ops.strategy_listing.view", appId: "operations", label: "查看策略上架审核", sensitive: false },
+  { key: "ops.strategy_listing.review", appId: "operations", label: "审核策略上架", sensitive: true },
   { key: "ops.attributions.manage", appId: "operations", label: "管理客户归属", sensitive: true },
   { key: "ops.finance.manage", appId: "operations", label: "执行财务操作", sensitive: true },
   { key: "ops.invitations.view", appId: "operations", label: "查看邀请码" },

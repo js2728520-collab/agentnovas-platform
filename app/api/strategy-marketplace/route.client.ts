@@ -57,7 +57,7 @@ export async function GET(request: Request) {
       .select(fields)
       .from(communityStrategies)
       .innerJoin(users, eq(users.id, communityStrategies.authorUserId))
-      .where(and(eq(communityStrategies.status, "published"), eq(communityStrategies.publicationMode, "marketplace")))
+      .where(and(eq(communityStrategies.status, "listed"), eq(communityStrategies.publicationMode, "marketplace")))
       .orderBy(asc(communityStrategies.featuredRank), desc(communityStrategies.rankingScore), desc(communityStrategies.publishedAt))
       .limit(60);
     const featured = all

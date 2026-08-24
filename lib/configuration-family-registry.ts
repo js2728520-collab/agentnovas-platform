@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
 import {
+  isStrategyAdmissionFamily,
+  normalizeStrategyAdmissionPayload,
+  runStrategyAdmissionTest,
+} from "./strategy-admission-configuration.ts";
+import {
   isMarketVisibilityFamily,
   normalizeMarketVisibilityPayload,
   runMarketVisibilityTest,
@@ -180,6 +185,13 @@ export function normalizeConfigurationFamilyPayload(input: ConfigurationFamilyIn
     }
     return normalizeMarketVisibilityPayload(input.payload);
   }
+  // 准入门槛（T4.2）。同样是注册后必须走严格 schema。
+  if (input.kind === "strategy_admission") {
+    if (!isStrategyAdmissionFamily(input)) {
+      throw new ResearchApiError("CONFIGURATION_FAMILY_UNREGISTERED", "该准入门槛配置族或 schema 尚未注册", 422);
+    }
+    return normalizeStrategyAdmissionPayload(input.payload) as unknown as Record<string, unknown>;
+  }
   if (input.kind !== "feature_flag") return input.payload;
   if (!isRegisteredFeatureFlag(input)) {
     throw new ResearchApiError("CONFIGURATION_FAMILY_UNREGISTERED", "该功能开关配置族或 schema 尚未注册", 422);
@@ -193,6 +205,9 @@ export function runRegisteredConfigurationFamilyTest(input: ConfigurationFamilyI
   }
   if (isMarketVisibilityFamily(input)) {
     return runMarketVisibilityTest(input);
+  }
+  if (isStrategyAdmissionFamily(input)) {
+    return runStrategyAdmissionTest(input);
   }
   if (!isRegisteredFeatureFlag(input)) {
     throw new ResearchApiError("CONFIGURATION_FAMILY_UNREGISTERED", "该配置族没有确定性测试器", 422);
