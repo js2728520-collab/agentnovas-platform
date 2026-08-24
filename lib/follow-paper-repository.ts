@@ -276,3 +276,107 @@ async function upsertPosition(
   `, [id, portfolioId, symbol, position.quantity, position.averageEntryPrice, position.costBasisUsdt, position.entryFeesUsdt, at]);
   return id;
 }
+
+/**
+ * 落库一个跟单运行周期，并在有订单意图时入队。
+ *
+ * 与官方卡的 `completeStrategyRuntimeCycle` 分开：那一条深度耦合官方组合与共享决策轮
+ * （硬编码 10,000 本金、写 official_paper_order_intents、锁官方组合的访问状态），跟单这条
+ * 都不适用。**引擎与记账共用，编排不共用**——把两套编排硬合成一个函数会让各自的前置条件
+ * 互相渗透。
+ *
+ * 不写共享决策轮：ADR-0018 的共享轮只属于三张官方卡。
+ *
+ * 幂等按 (部署, K 线收盘时间) 判定——同一根 K 线重跑返回原周期且不重复入队，否则一次决策
+ * 会记两笔成交。
+ */
+export async function completeFollowRuntimeCycle(database: Pool, input: {
+  cycleId: string;
+  deploymentId: string;
+  portfolioId: string;
+  fencingToken: number;
+  candleOpenTime: Date;
+  candleCloseTime: Date;
+  decision: Record<string, unknown>;
+  orderIntent: Record<string, unknown> | null;
+  events: Array<{
+    sequence: number; role: string; conclusion: string; evidence: Record<string, unknown>;
+    durationMs: number; llmUsed: boolean;
+  }>;
+  traceId: string;
+  startedAt: Date;
+  nextCycleAt: Date;
+  symbol: string;
+  shadow: boolean;
+  /** 单笔名义金额，由本金 × 客户同意的每单占比算出。 */
+  quoteAmountUsdt: number;
+  feeRate: number;
+}) {
+  if (input.events.length !== 7) throw new Error("每个运行周期必须保存七个 Agent 事件");
+  const client = await database.connect();
+  try {
+    await client.query("BEGIN");
+    const existing = (await client.query<{ id: string }>(
+      "SELECT id FROM strategy_runtime_cycles WHERE deployment_id=$1 AND candle_close_time=$2",
+      [input.deploymentId, input.candleCloseTime],
+    )).rows[0];
+    if (existing) {
+      await client.query("COMMIT");
+      return { id: existing.id, duplicate: true };
+    }
+    const sequence = (await client.query<{ last_cycle_sequence: number }>(`
+      UPDATE strategy_deployments
+         SET last_cycle_sequence = last_cycle_sequence + 1,
+             last_candle_close_at = $2, next_cycle_at = $3, lease_expires_at = NULL, updated_at = now()
+       WHERE id = $1
+      RETURNING last_cycle_sequence
+    `, [input.deploymentId, input.candleCloseTime, input.nextCycleAt])).rows[0].last_cycle_sequence;
+
+    await client.query(`
+      INSERT INTO strategy_runtime_cycles (
+        id, deployment_id, sequence, fencing_token, candle_open_time, candle_close_time,
+        status, decision_json, order_intent_json, trace_id, started_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,'completed',$7::jsonb,$8::jsonb,$9,$10)
+    `, [input.cycleId, input.deploymentId, sequence, input.fencingToken,
+      input.candleOpenTime, input.candleCloseTime, JSON.stringify(input.decision),
+      input.orderIntent ? JSON.stringify(input.orderIntent) : null, input.traceId, input.startedAt]);
+
+    for (const event of input.events) {
+      await client.query(`
+        INSERT INTO strategy_runtime_events (
+          id, cycle_id, sequence, role, event_type, conclusion, evidence_json, duration_ms, llm_used
+        ) VALUES ($1,$2,$3,$4,'agent_completed',$5,$6::jsonb,$7,$8)
+      `, [randomUUID(), input.cycleId, event.sequence, event.role, event.conclusion,
+        JSON.stringify(event.evidence), event.durationMs, event.llmUsed]);
+    }
+
+    if (input.orderIntent) {
+      const action = String(input.orderIntent.action);
+      // 现货只能做多。空头意图到这里说明准入漏了，失败关闭而不是悄悄丢弃。
+      if (action === "enter_short") throw new Error("现货跟单不得生成空头意图");
+      if (action !== "enter_long" && action !== "exit") throw new Error("现货跟单订单动作无效");
+      await client.query(`
+        INSERT INTO strategy_follow_paper_order_intents (
+          id, portfolio_id, deployment_id, runtime_cycle_id, idempotency_key,
+          symbol, action, execution_timing, requested_price, status, payload_json
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)
+        ON CONFLICT (idempotency_key) DO NOTHING
+      `, [
+        randomUUID(), input.portfolioId, input.deploymentId, input.cycleId,
+        String(input.orderIntent.idempotencyKey), input.symbol,
+        action === "enter_long" ? "buy" : "sell",
+        String(input.orderIntent.executionTiming ?? "next_candle_open"),
+        input.orderIntent.requestedPrice ?? null,
+        input.shadow ? "shadowed" : "pending",
+        JSON.stringify({ quoteAmountUsdt: input.quoteAmountUsdt, feeRate: input.feeRate }),
+      ]);
+    }
+    await client.query("COMMIT");
+    return { id: input.cycleId, duplicate: false };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}

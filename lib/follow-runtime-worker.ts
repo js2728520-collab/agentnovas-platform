@@ -6,8 +6,8 @@ import { followAllowsNewEntry, isFollowLifecycleState } from "../packages/domain
 import { completedRuntimeCandlesAt } from "../packages/domain/src/runtime/market-admission.ts";
 import { evaluateStrategyRuntimeCycle } from "../packages/domain/src/strategy-runtime-engine.ts";
 import { neutralRuntimeRiskState } from "../packages/domain/src/runtime/risk-state.ts";
-import { recordFollowPaperOrderIntent, settlePendingFollowPaperOrder } from "./follow-paper-repository.ts";
-import { leaseNextFollowDeployment } from "./strategy-runtime-repository.ts";
+import { completeFollowRuntimeCycle, settlePendingFollowPaperOrder } from "./follow-paper-repository.ts";
+import { leaseNextFollowDeployment, renewStrategyRuntimeLease } from "./strategy-runtime-repository.ts";
 
 type FollowLease = NonNullable<Awaited<ReturnType<typeof leaseNextFollowDeployment>>>;
 
@@ -33,7 +33,7 @@ export async function processFollowSpotRuntimeDeployment(
   database: Pool,
   lease: FollowLease,
   dependencies: FollowRuntimeDependencies = {},
-): Promise<{ status: string; reason?: string; cycleId?: string; decision?: unknown }> {
+): Promise<{ status: string; reason?: string; cycleId?: string; duplicate?: boolean; decision?: unknown }> {
   const now = dependencies.now?.() ?? new Date();
 
   // 现货准入。双向与做空策略在现货上跑不了，杠杆策略跑起来也不是作者写的那个策略。
@@ -109,11 +109,83 @@ export async function processFollowSpotRuntimeDeployment(
     followLifecycle: { allowsNewEntry },
   });
 
+  // 单笔名义金额 = 本金 × 客户同意的每单占比。本金取组合自己的值，不写死。
+  const portfolio = await loadPortfolio(database, lease.portfolioId);
+  const capitalPct = Number((lease.risk as { capitalPct?: unknown }).capitalPct ?? 0);
+  const quoteAmountUsdt = portfolio.principalUsdt * capitalPct / 100;
+
+  const completion = await completeFollowRuntimeCycle(database, {
+    cycleId: `follow:${lease.id}:${selected.closeTime}`,
+    deploymentId: lease.id,
+    portfolioId: lease.portfolioId,
+    fencingToken: lease.fencingToken,
+    candleOpenTime: new Date(selected.openTime),
+    candleCloseTime: new Date(selected.closeTime),
+    decision: evaluated.decision as Record<string, unknown>,
+    orderIntent: (evaluated.orderIntent ?? null) as Record<string, unknown> | null,
+    events: evaluated.events,
+    traceId: crypto.randomUUID(),
+    startedAt: now,
+    // 下一轮在下一根 K 线收盘之后。
+    nextCycleAt: new Date(selected.closeTime + timeframeMs(admission.timeframe)),
+    symbol: admission.symbol,
+    shadow: lease.mode === "shadow",
+    quoteAmountUsdt,
+    feeRate: 0.001,
+  });
+
   return {
-    status: "evaluated",
+    status: "completed",
+    cycleId: completion.id,
+    duplicate: completion.duplicate,
     decision: evaluated.decision,
     reason: risk.blocked ? risk.triggeredRules.join(",") : undefined,
   };
+}
+
+const TIMEFRAME_MS: Record<string, number> = {
+  "1m": 60_000, "5m": 300_000, "15m": 900_000, "30m": 1_800_000,
+  "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000,
+};
+
+function timeframeMs(timeframe: string): number {
+  const value = TIMEFRAME_MS[timeframe];
+  // 未知周期回落到 1 小时而不是 0：0 会让下一轮立刻可租，把 Worker 变成忙等。
+  return value ?? 3_600_000;
+}
+
+async function loadPortfolio(database: Pool, portfolioId: string) {
+  const result = await database.query<{ principal_usdt: string }>(
+    "SELECT principal_usdt FROM strategy_follow_paper_portfolios WHERE id = $1", [portfolioId]);
+  return { principalUsdt: Number(result.rows[0]?.principal_usdt ?? 0) };
+}
+
+/**
+ * Worker 主循环：租一个跟单部署并跑完它的周期。
+ *
+ * 与官方卡的主循环分开，两者各自租各自的部署——租约的挑选 CTE 互相排斥（一条筛
+ * `platform_strategy_code IS NOT NULL`，一条筛 IS NULL），因此不会互相饿死。
+ */
+export async function processNextFollowRuntimeDeployment(
+  database: Pool,
+  input: { workerId: string; leaseSeconds?: number },
+  dependencies: FollowRuntimeDependencies = {},
+) {
+  const now = dependencies.now?.() ?? new Date();
+  const leaseSeconds = input.leaseSeconds ?? 60;
+  const lease = await leaseNextFollowDeployment(database, { workerId: input.workerId, now, leaseSeconds });
+  if (!lease) return null;
+  try {
+    return await processFollowSpotRuntimeDeployment(database, lease, dependencies);
+  } catch (error) {
+    // 失败也要把租约放开并推后下一轮，否则这个部署会占着租约直到过期，而每次过期后
+    // 又立刻被同一个坏状态卡住。
+    await renewStrategyRuntimeLease(database, {
+      deploymentId: lease.id, workerId: input.workerId,
+      fencingToken: lease.fencingToken, now: new Date(), leaseSeconds,
+    }).catch(() => undefined);
+    throw error;
+  }
 }
 
 async function loadOpenPosition(database: Pool, portfolioId: string, symbol: string) {
@@ -148,5 +220,3 @@ async function loadListingState(database: Pool, strategyId: string) {
   const row = result.rows[0];
   return { status: row?.status ?? "unknown", delistReason: row?.delist_reason ?? null };
 }
-
-export { recordFollowPaperOrderIntent };
