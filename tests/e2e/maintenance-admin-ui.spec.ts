@@ -1,4 +1,4 @@
-import { createIsolatedQualityBrowser, exerciseResponsiveWidths, expect, expectAudienceNavigation, test } from "./support/quality-test";
+import { createIsolatedQualityBrowser, exerciseResponsiveWidths, expect, expectAudienceNavigation, expectCriticalAccessibility, expectResponsivePage, test } from "./support/quality-test";
 import { readQualityRuntime } from "./support/runtime";
 
 test("maintenance health and audit workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
@@ -172,4 +172,74 @@ test("maintenance AI usage is truthful, accessible, dialog-free, and recoverable
   } finally {
     await isolated.close({ allowedStatuses: [400] });
   }
+});
+
+test("maintenance work record export submits inline, stays desensitised and reports truncation honestly", async ({ page }) => {
+  await page.goto("/work-records", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "工作记录导出" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // 原因未填时按钮必须禁用，并说明还差什么——否则用户只能猜为什么点不动。
+  const submit = page.getByRole("button", { name: "导出", exact: true });
+  await expect(submit).toBeDisabled();
+  await expect(page.getByText(/审计原因还需要/)).toBeVisible();
+
+  // 区间上限是产品合同，不是性能调参：超过 31 天必须在提交前就挡住。
+  await page.getByLabel("开始日期（UTC）").fill("2026-01-01");
+  await page.getByLabel("结束日期（UTC）").fill("2026-03-01");
+  await page.getByLabel("审计原因（3–500 字）").fill("浏览器验证受控导出主旅程");
+  await expect(submit).toBeDisabled();
+  await expect(page.getByText(/超过 31 天上限/)).toBeVisible();
+
+  const today = new Date();
+  const to = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const from = new Date(to.getTime() - 6 * 86_400_000);
+  await page.getByLabel("开始日期（UTC）").fill(from.toISOString().slice(0, 10));
+  await page.getByLabel("结束日期（UTC）").fill(to.toISOString().slice(0, 10));
+  await expect(submit).toBeEnabled();
+
+  const exported = page.waitForResponse((response) =>
+    response.url().endsWith("/api/maintenance/work-records/export")
+    && response.request().method() === "POST");
+  await submit.click();
+  const response = await exported;
+  expect(response.status()).toBe(200);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // 请求体只允许三个字段；浏览器不能提交 limit、customerId 之类扩大范围的参数。
+  const request = response.request();
+  expect(request.postDataJSON()).toEqual({
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+    reason: "浏览器验证受控导出主旅程",
+  });
+  expect(request.headerValue("idempotency-key")).resolves.toMatch(/^[0-9a-f-]{36}$/);
+
+  // 结果不落盘：响应头明确 attachment + no-store + 不保留。
+  expect(response.headers()["content-disposition"]).toContain("attachment");
+  expect(response.headers()["cache-control"]).toContain("no-store");
+  expect(response.headers()["x-export-retention"]).toBe("none");
+
+  const payload = await response.json();
+  expect(payload.truncated).toBe(false);
+  expect(payload.realOrderRoutingEnabled).toBe(false);
+  expect(payload.rows.length).toBeGreaterThan(0);
+  // 导出正文只带单向伪名，不含原始用户标识或客户 PII。
+  const serialised = JSON.stringify(payload);
+  expect(serialised).not.toContain("@");
+  for (const row of payload.rows) {
+    expect(row.customerPseudonym).toMatch(/^[a-f0-9]{32}$/);
+    expect(row).not.toHaveProperty("ownerUserId");
+    expect(row).not.toHaveProperty("customerId");
+  }
+  // 两轮夹具：一轮有客户准入，一轮是纯 hold。「无需准入」与「未记录」不能被合并。
+  const admissions = new Set(payload.rows.map((row: { admissionStatus: string }) => row.admissionStatus));
+  expect(admissions.has("recorded")).toBe(true);
+  expect(admissions.has("not_required")).toBe(true);
+
+  await expect(page.getByRole("heading", { name: "导出结果" })).toBeVisible();
+  await expect(page.getByText(/不是该区间的完整记录/)).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "导出记录表格" })).toBeVisible();
+  await expectResponsivePage(page);
+  await expectCriticalAccessibility(page);
 });

@@ -53,7 +53,11 @@ test("Operations and Maintenance cases cover representative stable pages and aud
   assert.match(maintenance, /expectAudienceNavigation\(page,\s*"maintenance"\)/);
   assert.match(maintenance, /运行确定性测试/);
   assert.match(maintenance, /postDataJSON\(\)/);
-  assert.equal((maintenance.match(/\btest\(/g) ?? []).length, 4, "Maintenance coverage includes dialog-free configuration and AI usage recovery flows");
+  assert.equal((maintenance.match(/\btest\(/g) ?? []).length, 5, "Maintenance coverage includes dialog-free configuration, AI usage recovery and the controlled work record export journey");
+  // 导出旅程必须实际提交一次并检查请求体与响应头，而不只是打开页面看标题。
+  assert.match(maintenance, /work-records\/export/);
+  assert.match(maintenance, /x-export-retention/);
+  assert.match(maintenance, /customerPseudonym/);
 });
 
 test("every stable-page navigation uses the shared browser quality exercise", async () => {

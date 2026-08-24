@@ -131,6 +131,18 @@ BEGIN
   END IF;
 END $$;
 
+-- 幂等操作名在数据库里也有 allowlist（0039）。只在 TypeScript 侧加枚举不够：
+-- 应用层认为合法，数据库直接 23514 拒绝，表现是导出接口 500。
+ALTER TABLE maintenance_idempotency_records
+  DROP CONSTRAINT IF EXISTS maintenance_idempotency_records_operation_check;
+ALTER TABLE maintenance_idempotency_records
+  ADD CONSTRAINT maintenance_idempotency_records_operation_check
+  CHECK (operation IN (
+    'maintenance.source_integration.test',
+    'maintenance.trading.emergency_stop',
+    'maintenance.work_records.export'
+  ));
+
 -- 导出是按天筛选的，热路径是 occurred_at 上的范围扫描。
 CREATE INDEX IF NOT EXISTS idx_strategy_decision_rounds_export_day
   ON strategy_decision_rounds (candle_close_time DESC, id DESC);

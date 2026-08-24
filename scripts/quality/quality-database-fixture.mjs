@@ -436,6 +436,116 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
       sha256(`quality-data-${schema}`),
     ]);
 
+    // 工作记录链。没有这段，Client /work-records 与 Maintenance 导出页在浏览器里
+    // 只会渲染空态——表格标记、伪名、准入文案和可滚动区的 axe 都不会被真正跑到。
+    // 订阅期间由 0075 从既有部署回填，而夹具在迁移之后运行，所以这里直接写入一段。
+    const workRecord = {
+      strategyId: `quality-work-strategy-${schema.slice(-12)}`,
+      versionId: `quality-work-version-${schema.slice(-12)}`,
+      membershipId: `quality-work-membership-${schema.slice(-12)}`,
+      portfolioId: `quality-work-portfolio-${schema.slice(-12)}`,
+      subscriptionId: `quality-work-subscription-${schema.slice(-12)}`,
+      deploymentId: `quality-work-deployment-${schema.slice(-12)}`,
+      periodId: `quality-work-period-${schema.slice(-12)}`,
+      roundId: `quality-work-round-${schema.slice(-12)}`,
+      holdRoundId: `quality-work-hold-${schema.slice(-12)}`,
+      cycleId: `quality-work-cycle-${schema.slice(-12)}`,
+      intentId: `quality-work-intent-${schema.slice(-12)}`,
+      receiptId: `quality-work-receipt-${schema.slice(-12)}`,
+    };
+    const periodStart = new Date(now.getTime() - 3 * 86_400_000);
+    const candleClose = new Date(now.getTime() - 2 * 86_400_000);
+    const holdClose = new Date(now.getTime() - 86_400_000);
+    // 挂在 clientSecurity 而不是主客户身上：「每位会员恰好三张 10,000 USDT 组合」是
+    // 产品不变量，商业闭环用例对主客户直接断言它，夹具再造一张会把不变量测成假阳性。
+    // 数据库又要求官方 spot 部署必须绑定组合与会员（0024 的 official binding check），
+    // 所以整条链换一个只用于登录、没有组合断言的客户身份。
+    const workRecordCustomerId = identities.clientSecurity.userId;
+    await client.query(`
+      INSERT INTO memberships(id,customer_id,plan_code,status)
+      VALUES ($1,$2,'quality-fixture','active')
+    `, [workRecord.membershipId, workRecordCustomerId]);
+    await client.query(`
+      INSERT INTO official_paper_portfolios(id,membership_id,customer_id,strategy_code,risk_json)
+      VALUES ($1,$2,$3,'ai_conservative','{}'::jsonb)
+    `, [workRecord.portfolioId, workRecord.membershipId, workRecordCustomerId]);
+    await client.query(`
+      INSERT INTO community_strategies(id,author_user_id,name) VALUES ($1,$2,'Quality work record strategy')
+    `, [workRecord.strategyId, workRecordCustomerId]);
+    await client.query(`
+      INSERT INTO strategy_versions(id,strategy_id,version,specification_json,created_by_user_id)
+      VALUES ($1,$2,1,'{}'::jsonb,$3)
+    `, [workRecord.versionId, workRecord.strategyId, workRecordCustomerId]);
+    await client.query(`
+      INSERT INTO strategy_subscriptions(
+        id,strategy_id,customer_id,status,started_at,ended_at,
+        strategy_version_id,run_mode,runtime_status
+      ) VALUES ($1,$2,$3,'active',$4,NULL,$5,'paper','active')
+    `, [workRecord.subscriptionId, workRecord.strategyId, workRecordCustomerId, periodStart.toISOString(), workRecord.versionId]);
+    await client.query(`
+      INSERT INTO platform_strategy_migration_map(
+        strategy_code,symbol,strategy_id,strategy_version_id,conversion_contract_sha256
+      ) VALUES ('ai_conservative','BTCUSDT',$1,$2,$3)
+      ON CONFLICT DO NOTHING
+    `, [workRecord.strategyId, workRecord.versionId, sha256(`quality-work-map-${schema}`)]);
+    await client.query(`
+      INSERT INTO strategy_deployments(
+        id,owner_user_id,strategy_id,strategy_version_id,strategy_subscription_id,
+        exchange_account_id,mode,status,validation_label,idempotency_key,
+        execution_product,platform_strategy_code,membership_id,paper_portfolio_id
+      ) VALUES ($1,$2,$3,$4,$5,NULL,'paper','active','UNVERIFIED',$6,'spot_usdt','ai_conservative',$7,$8)
+    `, [
+      workRecord.deploymentId, workRecordCustomerId, workRecord.strategyId, workRecord.versionId,
+      workRecord.subscriptionId, `quality-work-deployment-key-${schema}`,
+      workRecord.membershipId, workRecord.portfolioId,
+    ]);
+    await client.query(`
+      INSERT INTO strategy_subscription_periods(
+        id,subscription_id,customer_id,deployment_id,strategy_code,strategy_version_id,
+        symbol,mode,started_at,ended_at
+      ) VALUES ($1,$2,$3,$4,'ai_conservative',$5,'BTCUSDT','paper',$6,NULL)
+    `, [
+      workRecord.periodId, workRecord.subscriptionId, workRecordCustomerId,
+      workRecord.deploymentId, workRecord.versionId, periodStart.toISOString(),
+    ]);
+    // 两轮：一轮有客户准入与模拟成交，一轮是纯 hold（准入状态「无需准入」）。
+    // 两种状态都要在浏览器里出现，否则「无需准入 ≠ 未记录」这条文案边界没被看过。
+    await client.query(`
+      INSERT INTO strategy_decision_rounds(
+        id,strategy_code,symbol,timeframe,strategy_version_id,candle_open_time,candle_close_time,
+        decision_json,trace_id,completeness
+      ) VALUES
+        ($1,'ai_conservative','BTCUSDT','1h',$2,$3,$4,$5::jsonb,$6,'complete'),
+        ($7,'ai_conservative','BTCUSDT','1h',$2,$8,$9,$10::jsonb,$11,'complete')
+    `, [
+      workRecord.roundId, workRecord.versionId,
+      new Date(candleClose.getTime() - 3_600_000).toISOString(), candleClose.toISOString(),
+      JSON.stringify({ action: "enter_long", riskApproved: true }), `quality-work-trace-${schema.slice(-8)}`,
+      workRecord.holdRoundId,
+      new Date(holdClose.getTime() - 3_600_000).toISOString(), holdClose.toISOString(),
+      JSON.stringify({ action: "hold", riskApproved: true }), `quality-work-hold-trace-${schema.slice(-8)}`,
+    ]);
+    await client.query(`
+      INSERT INTO strategy_runtime_cycles(
+        id,deployment_id,sequence,fencing_token,candle_open_time,candle_close_time,status,
+        decision_json,trace_id,started_at,completed_at,decision_round_id
+      ) VALUES ($1,$2,1,1,$3,$4,'completed',$5::jsonb,$6,$4,$4,$7)
+    `, [
+      workRecord.cycleId, workRecord.deploymentId,
+      new Date(candleClose.getTime() - 3_600_000).toISOString(), candleClose.toISOString(),
+      JSON.stringify({ action: "enter_long", riskApproved: true, riskState: { drawdownPct: 1.25 } }),
+      `quality-work-trace-${schema.slice(-8)}`, workRecord.roundId,
+    ]);
+    await client.query(`
+      INSERT INTO strategy_runtime_events(
+        id,cycle_id,decision_round_id,sequence,role,event_type,conclusion,evidence_json,
+        duration_ms,llm_used,explanation_status,created_at
+      ) VALUES ($1,NULL,$2,6,'decision','agent_completed','允许进入模拟准入',$3::jsonb,12,false,'not_requested',$4)
+    `, [
+      `quality-work-event-${schema.slice(-12)}`, workRecord.roundId,
+      JSON.stringify({ action: "enter_long", riskApproved: true }), candleClose.toISOString(),
+    ]);
+
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");

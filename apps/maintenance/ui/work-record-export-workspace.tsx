@@ -159,7 +159,7 @@ export function WorkRecordExportWorkspace() {
         /* jsx-a11y 不允许非交互元素带 tabIndex，而 axe 的 scrollable-region-focusable
            要求可滚动区域必须能被键盘聚焦。两条规则在这里冲突，以实际行为为准。 */
         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-        : <div className="rc-table-scroll" tabIndex={0} role="region" aria-labelledby="work-record-export-result-title">
+        : <div className="rc-table-scroll" tabIndex={0} role="region" aria-label="导出记录表格">
           <table className="rc-table">
             <thead><tr>
               <th>发生时间（UTC）</th><th>客户伪名</th><th>策略</th><th>品种/周期</th>

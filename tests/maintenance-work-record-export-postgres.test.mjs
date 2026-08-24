@@ -235,3 +235,34 @@ test("超过上限时如实标记 truncated，不静默声称完整", async () =
   assert.equal(result.rows.length, MAINTENANCE_WORK_RECORD_EXPORT_MAX_ROWS);
   assert.equal(result.maxRows, MAINTENANCE_WORK_RECORD_EXPORT_MAX_ROWS);
 });
+
+test("幂等操作名在应用层与数据库 allowlist 之间不得脱节", async () => {
+  // 只在 TypeScript 侧加枚举、忘了改数据库 CHECK，应用层会认为合法而数据库 23514
+  // 拒绝——表现是接口 500，且错误被安全信封折叠后看不出真因。这条守卫要求两处同步。
+  const { MAINTENANCE_IDEMPOTENCY_OPERATIONS_FOR_TEST } = await import("../lib/maintenance-idempotency.ts");
+  const constraint = (await pool.query(`
+    SELECT pg_get_constraintdef(constraint_entry.oid) AS definition
+      FROM pg_constraint AS constraint_entry
+      JOIN pg_class AS table_entry ON table_entry.oid = constraint_entry.conrelid
+     WHERE constraint_entry.conname='maintenance_idempotency_records_operation_check'
+       AND table_entry.relnamespace = $1::regnamespace
+  `, [schema])).rows[0]?.definition ?? "";
+  assert.ok(constraint, "幂等操作 CHECK 约束必须存在");
+  for (const operation of MAINTENANCE_IDEMPOTENCY_OPERATIONS_FOR_TEST) {
+    assert.ok(
+      constraint.includes(`'${operation}'`),
+      `幂等操作 ${operation} 在应用层已注册，但数据库 CHECK 不接受它`,
+    );
+  }
+
+  // 正向验证：新操作名确实能落库。
+  await pool.query(`
+    INSERT INTO maintenance_idempotency_records(
+      id,operation,actor_user_id,idempotency_key_hash,subject_type,subject_id,canonical_payload_sha256
+    ) VALUES ('export-idempotency-probe','maintenance.work_records.export','customer-a',
+      repeat('a',64),'maintenance_work_record_export','2026-08-05..2026-08-07',repeat('b',64))
+  `);
+  assert.equal((await pool.query(
+    "SELECT count(*)::int AS total FROM maintenance_idempotency_records WHERE operation='maintenance.work_records.export'",
+  )).rows[0].total, 1);
+});

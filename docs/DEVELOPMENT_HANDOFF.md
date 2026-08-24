@@ -3073,3 +3073,44 @@ Maintenance 稳定页巡检，覆盖四断点、键盘、axe 与 console/network
 未做：4.13c-E2E 中「导出主旅程」的交互级用例（当前只覆盖页面巡检，未实际提交一次导出并断言
 审计与幂等重放），以及云端 `ssh an-saas` 精确提交快照的三端构建收口。未执行生产迁移、
 未接触生产数据库、未启动或切换远端服务、未推送、未部署。
+
+## 83. 2026-08-24 T4.13c-E2E 导出主旅程与工作记录夹具
+
+4.13c-E2E 已完成，4.13 整体收口。新增 Maintenance 导出的交互级浏览器用例，并让质量夹具第一次
+带上真实工作记录数据——在此之前 Client `/work-records` 与导出页在浏览器里都只渲染空态，
+表格标记、伪名、准入文案和可滚动区的 axe 从未被真正跑到。
+
+导出用例不只是打开页面看标题：它先验证按钮在原因未填、区间超过 31 天时保持禁用并说明原因，
+再实际提交一次导出，断言请求体**恰好**是 `{from,to,reason}`（浏览器不能夹带 limit、customerId
+之类扩大范围的参数）、带 `Idempotency-Key`、响应头有 `attachment`/`no-store`/
+`x-export-retention: none`，正文里每行都是 32 位十六进制伪名且不含 `@`、不含 `ownerUserId`
+或 `customerId`，`recorded` 与 `not_required` 两种准入状态同时出现（「无需准入 ≠ 未记录」
+这条边界要在浏览器里被看到），全程零确认弹窗，最后跑四断点与 axe。
+
+**夹具怎么挂是这轮真正花时间的地方，三次都被产品不变量挡回来。** 第一版把工作记录链挂在主
+客户身上并新建一份 active 会员，商业闭环用例立刻红：会员激活会拒绝「客户存在多个当前会员
+权益」。改成 `expired` 会员后又红在另一处——`expect(portfolios.data).toHaveLength(3)`，
+「每位会员恰好三张 10,000 USDT 组合」是产品不变量，夹具再造一张就把它测成了 4 张。第三次
+索性不建组合，数据库直接拒绝：0024 的 `strategy_deployments_official_binding_check` 要求官方
+spot 部署必须绑定组合与会员。最终把整条链换到 `clientSecurity`——一个只用于登录和设备用例、
+没有组合断言的客户身份。**三次失败都是既有断言在正确工作，没有一次是靠放宽断言解决的。**
+
+导出接口在浏览器里 500，根因是我只在 TypeScript 侧加了幂等操作枚举，忘了同步 0039 建的数据库
+CHECK allowlist：应用层认为合法，数据库 23514 拒绝，而错误被安全信封折叠成 `INTERNAL_ERROR`
+看不出真因。迁移 0076 补上约束，并新增一条守卫测试——从 `lib/maintenance-idempotency.ts` 读出
+应用层枚举，逐个断言数据库 CHECK 接受它，避免下一个人再踩。该测试先以 RED 复现过这个缺口。
+
+还有两处小修：`getByLabel(/审计原因/)` 的正则同时命中两个元素（strict mode violation），改用
+精确标签；导出结果面板与内部滚动区共用同一个 `aria-labelledby`，`getByRole("region")` 因此
+解析出两个元素——两者语义本就不同，滚动区改用自己的 `aria-label="导出记录表格"`。中途还遇到
+一次「改了源码但浏览器跑的是 standalone 产物」，重建 Maintenance 后才生效。
+
+验证：`npm test` 1455/1455、TypeScript、全仓 ESLint 0、8 条架构边界、repository secret scan
+（3112 个候选文件）、API inventory 270 条与 Nginx 白名单同步、`git diff --check` 通过；
+三端 production build 成功、bundle budget 通过。本地隔离 PostgreSQL、MFA 默认关闭、外部写入
+全禁用、端口偏移 10000 下真实 Chromium **21/21**。质量 schema
+`quality_e2e_1787545987383_7430_41eebe0c` 已删除，运行时秘密已移除，清理失败为 0，
+一次性测试库已全部 drop。
+
+未做：云端 `ssh an-saas` 精确提交快照的三端构建收口（本地 production build 已通过）。
+未执行生产迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署。
