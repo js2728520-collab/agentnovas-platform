@@ -3395,3 +3395,103 @@ Prompt 与 Skill 此前只能通过裸 JSON textarea 编辑（除 feature_flag �
 **未做：** Skill 仍无运行时消费者（PS2 已说明）。工作台没有做「按角色对比当前生效版本与
 草稿的指令差异」——现有的 `changedTopLevelKeys` 只比顶层字段名，对只有一个 `instruction`
 字段的 payload 没有信息量。真正有用的是逐行 diff，那是独立一块。
+
+## 88. 2026-08-24 T4.2 策略上架状态机与 P-05 准入门槛
+
+提交：`03750ee`。
+
+**这个切片修的是一个「功能看起来存在但从未跑通」的洞，值得单独记下来是怎么发现的。**
+
+投稿路由 `app/api/strategy-marketplace/[id]/submit` 会创建一张 `approval_requests` 行，
+`type = 'strategy_listing'`。全仓库搜索这个类型，只有两处命中：写入它的那一行，以及
+`tests/operations-commercial-closeout` 里一条断言运营端工作台**不得**出现它的用例。
+再看唯一的审批决定端点 `app/api/approvals/[id]/decision`，第一件事是：
+
+```ts
+if (approval.type !== "reporting_line_change") throw new ResearchApiError("LEGACY_APPROVAL_DISABLED", ..., 503);
+```
+
+于是：提交之后没有任何路径能让策略走到 `approved`，而广场列表查的是上架态。**整个策略
+广场从未真正跑通过**——投稿能成功，返回「已提交平台双人审核」，然后永远停在那里。
+
+### 补上的三件事
+
+**1. 运营端审核路径。** 新增 `/api/operations/strategy-listing-reviews/[id]/decision`，
+支持认领 / 通过 / 驳回 / 上架 / 下架。作者不能审核自己的策略（INV-3），认领之后由认领人
+决定，换人要先重新认领。权限 `ops.strategy_listing.review` 与 `ops.approvals.decide` 分开
+登记：后者覆盖的是汇报关系变更这类内部事务，而上架审核决定的是哪些策略能被客户跟随并
+投入真实资金。只给总部角色——上架是平台级决定，不是分公司的。
+
+**2. P-05 门槛判定。** 投稿此前只校验 `validationLabel`，180 天回测、30 笔成交、收益为正、
+按档位的回撤上限一条都没判。现在判定是确定性纯函数
+（`packages/contracts/src/strategy-admission.ts`），逐项结果落进
+`strategy_admission_evaluations`，连同依据的回测、风险档位与门槛版本一起——PRD 6.5 要求
+「不得用口头结论替代」，事后要能复核当时按的是哪套标准。
+
+几处刻意的判定方向：
+
+- **未达标返回哪几条不达标**，不是一句「不符合要求」。作者要能知道差在哪里。
+- **没有通过的回测时返回 `STRATEGY_BACKTEST_REQUIRED`**，不是「判定为不达标」。两者对
+  作者是不同的指引：前者是「先去跑回测」，后者是「你的策略不行」。
+- **缺失或损坏的事实一律判为不达标**，不是跳过该条检查。跳过等于放行。
+- **未知 risk_level 归入最严格档位**。归入宽松档等于让一个拼错的字段值放宽风控门槛。
+- **净收益必须严格为正**。确认值 `minimumNetReturnPct: 0` 表达的是「收益为正」，而 0%
+  不是正数。设成 5 就是「必须高于 5%」，语义一致。
+
+**3. 门槛配置只能收紧，不能放宽。** P-05 的 `operatorConfigurableThresholds: true` 要求门槛
+可由运维调整，因此新增 `strategy_admission` 配置族。确定性测试器里唯一的产品断言就是
+**不得放宽已冻结的 P-05**——没有它，运维能把回撤上限从 15% 调到 60%，让一批本该被拒的
+策略进入广场，而整个 draft/test/approve 流程会显示一切正常。消费端同向取更严的值：
+测试器挡的是「不该被批准」，消费端挡的是「已经被批准了怎么办」。
+
+### 状态机收敛
+
+状态此前是自由文本列，合法迁移散在六个路由文件的 `.includes()` 里，没有任何地方写明状态
+全集与合法迁移。现在收敛到 `packages/domain/src/strategy-listing-state.ts`。
+
+两处刻意的设计：
+
+- **`delisted` 是终态。** 不能直接回到 `listed`——允许原地复活会让「下架」变成一个可以被
+  悄悄撤销的动作，而跟随者当初正是看着上架状态做的决定。重新上架必须走新版本重新审核
+  （PRD 6.5「重大版本更新后重新审核」）。
+- **`approved` 与 `listed` 分开。** 通过审核不等于立刻对外可见，因此「已通过但未上架」是
+  一个可观察的状态，而不是审批事务里的隐含瞬间。
+
+**`paused` → `delisted` 是语义修正而不只是改名。** 自动下架与作者下架此前都写 `paused`，
+而 `paused` 在订阅与部署上表示「可恢复的暂停」。两个不同的概念共用一个词，读代码的人无从
+分辨哪一种。
+
+### 又一次枚举漂移
+
+状态清单有四份副本：状态机、数据库 CHECK、Drizzle enum、以及散在路由里的字面量。前三份
+现在由 `tests/strategy-listing-state` 对齐，第四份已收敛到状态机上。
+
+**这是本项目第四次撞上「应用枚举与数据库约束错开」**（前三次：`maintenance.work_records.export`
+的 23514、`market` 配置类型、0046 的官方卡代码）。加新枚举值时同步加对齐测试，已经不是
+建议而是惯例。
+
+### 测试契约变更
+
+`tests/strategy-marketplace` 里原本有一条 `strategy submission accepts drafts without
+prerequisite reports`，断言投稿源码里**不得**出现任何前置报告检查。那条契约成立于 P-05
+尚未冻结时——门槛数值未定，代码里没有可依据的标准，把关只能交给人工审核。P-05 现已冻结，
+PRD 6.5 明确要求确定性判定，因此这是**契约本身变了**，不是写法变了。已替换为正面断言新
+契约，并在测试注释里写明变更理由。
+
+### 一处路径选择
+
+审核路由放在 `/api/operations/` 下而不是 `/api/strategy-listing-reviews`。后者会落进
+`CLIENT_PREFIXES` 里那条刻意宽泛的 `"/api/strategy-"` 前缀，被判成 client audience，
+需要在生成器里开一个例外；路径本身表明 audience 更稳，也不会让下一个 `strategy-*` 运营
+路由再踩一次。架构边界检查在第一次生成清单时就报了这个不一致。
+
+门禁：`npm test` 1572/1572、`tsc`、ESLint 0、8 条架构边界、三端构建、包体预算（未变——
+新增的都是服务端代码与运营端路由）。
+
+**未做，留给 T4.3 / T4.4：** 广场浏览与详情的界面仍是旧的（只是查询条件从 published 改成
+listed）；运营端没有审核工作台界面，审核目前只有 API；作者侧看不到自己的准入判定结果，
+只有投稿被拒时返回的那一份；订阅费与作者分账（P-06）尚未接线。
+
+**协作注意：** 本条目与 `03750ee` 提交期间，修测试并发红的后台任务正在**同一个工作树**里
+工作（它改 `scripts/postgres-migration-runner.mjs`、`tests/helpers/`、`tests/global-setup.mjs`
+与几个 postgres 测试）。本切片提交时只暂存了自己的文件；全量测试结果包含了它的在途改动。
