@@ -23,6 +23,7 @@ const NotificationWorkspace = dynamic(() => import("./notification-workspace").t
 const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace));
 const TradingExperience = dynamic(() => import("./trading-experience"));
 const WalletWorkspace = dynamic(() => import("./wallet-workspace").then((module) => module.WalletWorkspace));
+const WorkRecordsWorkspace = dynamic(() => import("./work-records-workspace").then((module) => module.WorkRecordsWorkspace));
 const AccountSecurityWorkspace = dynamic(() => import("./account-security-workspace").then((module) => module.AccountSecurityWorkspace));
 const SupportWorkspace = dynamic(() => import("./support-workspace").then((module) => module.SupportWorkspace));
 
@@ -85,6 +86,12 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
   if (route === "trading-hall") {
     if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
     return segments[1] === "meeting" ? <DecisionMeeting /> : <DecisionHall />;
+  }
+  // 工作记录：决策轮的长期可追溯视图。公共七阶段按 ADR-0018 共享，准入与模拟成交
+  // 按当前用户所有权隔离；服务端对越权与不存在统一返回 404。
+  if (route === "work-records") {
+    if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
+    return <WorkRecordsWorkspace recordId={segments[1]} />;
   }
   if (route === "paper") {
     if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;

@@ -62,3 +62,43 @@ test("Proxy rejects invalid page routes before App Router can stream a soft 404"
   assert.match(source, /NextResponse\.rewrite\(destination/);
   assert.match(source, /status:\s*404/);
 });
+
+test("每条 Client 白名单路由都必须在分发里有分支——白名单与分发是两份真源", async () => {
+  // 服务端白名单（riverton-route-contract.ts）与 client-portal.tsx 的 if/else 分发是两份
+  // 真源。只加白名单不加分支不会报错，请求会静默落到兜底的「资产与账本」——用户点
+  // 导航看到的是钱包页而不是 404，这种错误在浏览器里很难认出来。
+  const contract = await read("app/riverton-route-contract.ts");
+  const dispatcher = await read("apps/client/ui/client-portal.tsx");
+
+  const clientRoutes = contract.match(/const CLIENT_ROUTES = new Set\(\[([^\]]+)\]\)/)?.[1];
+  assert.ok(clientRoutes, "未能从路由合同中解析 CLIENT_ROUTES");
+  const roots = [...clientRoutes.matchAll(/"([a-z0-9-]+)"/g)].map((match) => match[1]);
+  assert.ok(roots.length >= 15, `解析到的 Client 路由过少：${roots.length}`);
+
+  // 两个刻意的例外，都在 portal 之外解决，不是遗漏：
+  // - login 由 client-portal-root.tsx 在进入 portal 之前分流到 AppLogin；
+  // - wallet 是 portal 末尾刻意的兜底分支。
+  const dispatchedElsewhere = new Set(["login", "wallet"]);
+  const portalRoot = await read("app/audience/client-portal-root.tsx");
+  assert.match(portalRoot, /segments\[0\] === "login"/, "login 必须在 portal 之前分流");
+  assert.match(dispatcher, /return <WalletWorkspace \/>;/, "wallet 仍是刻意兜底分支");
+
+  for (const root of roots) {
+    if (dispatchedElsewhere.has(root)) continue;
+    assert.ok(
+      dispatcher.includes(`route === "${root}"`),
+      `路由 "${root}" 在白名单里但 client-portal.tsx 没有分支，会静默落到兜底的钱包页`,
+    );
+  }
+});
+
+test("工作记录是稳定路由，列表与详情各一层", async () => {
+  const { isRivertonPagePath } = await import("../app/riverton-route-contract.ts");
+  assert.equal(isRivertonPagePath("client", "/work-records"), true);
+  assert.equal(isRivertonPagePath("client", "/work-records/round-1"), true);
+  // 再深一层不是合同的一部分，必须 404 而不是落到详情页。
+  assert.equal(isRivertonPagePath("client", "/work-records/round-1/extra"), false);
+  // 工作记录是客户自己的历史，内部端不提供该页面。
+  assert.equal(isRivertonPagePath("operations", "/work-records"), false);
+  assert.equal(isRivertonPagePath("maintenance", "/work-records"), false);
+});

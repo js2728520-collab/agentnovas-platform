@@ -24,6 +24,7 @@ const navigationGroups: ConsoleNavigationGroup[] = [
   { label: "交易", items: [
     { href: "/dashboard", label: "交易总览", icon: "dashboard" },
     { href: "/trading-hall", label: "交易大厅", icon: "hall", requiredPermissions: ["client.paper.view"] },
+    { href: "/work-records", label: "工作记录", icon: "book", requiredPermissions: ["client.paper.view"] },
     { href: "/paper", label: "模拟组合", icon: "paper", requiredPermissions: ["client.paper.view"] },
     { href: "/market", label: "行情", icon: "chart" },
     { href: "/assistant", label: "AI 助手", icon: "activity" },

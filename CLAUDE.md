@@ -320,7 +320,9 @@ npm run quality:boundaries # 架构边界（跨端 import、资金写入口、�
 这些边界是替代 code review 的，单人 + AI 协作没有第二双眼睛。
 
 **动了任何客户端代码，`npm run quality:bundle` 是必跑的。**
-Client 的 JS 预算余量只有约 160 字节（204,636 / 204,800）。
+Client 的 JS 预算余量只有几百字节（`7c047b6` 实测 204,048 / 204,800，余量 752）。
+一个新工作区只要走 `next/dynamic`，代价就只有导航项和分发分支那几十字节
+（工作记录页实测 +79）；静态 import 则会把整个工作区打进公开落地页的包。
 根因是公开落地页会下载约 14KB 它用不到的 Portal 外壳 JS——分包问题，未修复。
 
 `npm run test:smoke` 起一个生产 Next 服务，断言客户端的**两个入口**都能服务端渲染：

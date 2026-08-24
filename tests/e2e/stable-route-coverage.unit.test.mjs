@@ -24,6 +24,7 @@ test("the browser suite covers every stable Client beta page", async () => {
     "/credits",
     "/paper",
     "/trading-hall",
+    "/work-records",
     "/performance-statements",
     "/wallet",
     "/wallet/deposits",

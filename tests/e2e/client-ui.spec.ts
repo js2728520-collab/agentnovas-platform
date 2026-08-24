@@ -418,6 +418,7 @@ test("client commercial and paper workspaces are responsive, accessible and audi
     // /paper 是「交易中心」，/trading-hall 是「交易大厅」——两个页面两个标题，
     // 原来两条都写成「交易中心」。
     ["/trading-hall", "交易大厅"],
+    ["/work-records", "工作记录"],
     ["/performance-statements", "绩效账单"],
     ["/legal/consent", "商业披露与版本确认"],
   ] as const) {

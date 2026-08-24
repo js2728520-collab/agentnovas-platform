@@ -397,3 +397,42 @@ test("maintenance model workspaces separate read access from write controls", as
   assert.match(source, /canManageProfiles/);
   assert.match(source, /canManageBindings/);
 });
+
+test("工作记录页面同时说明公共决策与个人准入，并按需懒加载", async () => {
+  const routeContract = await read("app/riverton-route-contract.ts");
+  const portal = await read("apps/client/ui/client-portal.tsx");
+  const navigation = await read("apps/client/ui/client-portal-shell.tsx");
+  const workspace = await read("apps/client/ui/work-records-workspace.tsx");
+
+  assert.match(routeContract, /CLIENT_ROUTES[\s\S]*"work-records"/);
+  assert.match(navigation, /href: "\/work-records"/);
+  assert.match(portal, /route === "work-records"/);
+  assert.match(portal, /client\.paper\.view/);
+  // 根 layout 被所有页面共享，Client 初始 JS 预算余量只有约 160 字节；
+  // 新工作区必须按需加载，静态 import 会直接把它打进公开落地页的包。
+  assert.match(portal, /const WorkRecordsWorkspace = dynamic\(\(\) => import\("\.\/work-records-workspace"\)/);
+
+  // 客户不能把共享的七阶段叙述误解成「平台为我一个人跑了七次 Agent」，
+  // 也不能误以为所有订阅者仓位相同（STRATEGY_WORK_RECORDS_SPEC §2）。
+  assert.match(workspace, /公共/);
+  assert.match(workspace, /你的组合准入/);
+  assert.match(workspace, /只判断一次/);
+});
+
+test("工作记录不得把「无需准入」与「未记录」混为一谈", async () => {
+  const workspace = await read("apps/client/ui/work-records-workspace.tsx");
+  // 合并这两种状态会让「证据缺失」看起来像「产品规则如此」，违反 INV-6。
+  // 只有纯 hold 且无客户周期才是 not_required，其余缺周期一律 not_recorded。
+  assert.match(workspace, /not_required: "本轮无需准入"/);
+  assert.match(workspace, /not_recorded: "未记录准入"/);
+  assert.match(workspace, /not_recorded:[\s\S]*不表示无需准入，也不表示已经执行/);
+  assert.match(workspace, /risk_rejected/);
+
+  // 模拟成交不得被描述成真实成交，页面必须明示真实订单路由关闭。
+  assert.match(workspace, /不是真实交易所成交/);
+  assert.match(workspace, /realOrderRoutingEnabled/);
+
+  // 分页游标是服务端编码的不透明位置，不得由浏览器构造或猜测。
+  assert.match(workspace, /encodeURIComponent\(cursor\)/);
+  assert.doesNotMatch(workspace, /offset=/);
+});

@@ -2956,3 +2956,60 @@ ADR/spec → git 状态，并显式标注 §3–§9 描述的是已被 P4 删除
 
 验证：`npm test` 1435/1435、`npx tsc --noEmit`、`npm run lint`、`git diff --check` 通过。纯文档提交
 不触发构建产物、bundle 预算或浏览器 Gate 变化，也未执行迁移、未接触数据库、未推送、未部署。
+
+## 81. 2026-08-24 T4.13a-UI Client 工作记录页面
+
+看板 4.13a-UI 已完成，4.13a 整体收口。新增 `/work-records` 列表与 `/work-records/:id` 详情，
+消费 `7c047b6` 落地的两个 Client API，不新增 route、迁移或权限，也不触发任何外部写入。
+
+**先说这个切片最容易静默出错的地方。** 路由白名单（`app/riverton-route-contract.ts`）与
+`client-portal.tsx` 的 if/else 分发是两份真源，而分发的兜底分支是 `<WalletWorkspace />`。
+`work-records` 在 4.13a-BE 时就已经进了白名单但没有分支——只加白名单不会报错，用户点导航
+会看到「资产与账本」而不是 404，在浏览器里几乎认不出来。因此本轮除了补分支，还加了一条
+通用守卫测试：从合同里解析 `CLIENT_ROUTES`，逐条断言分发里存在对应 `route === "..."`，
+只放行两个有据可查的例外（`login` 由 `client-portal-root.tsx` 在进入 portal 前分流、
+`wallet` 是刻意兜底）。该测试先以 RED 验证过——删掉分支后它准确报出「会静默落到兜底的钱包页」。
+
+详情按规格 §7 排序为公共决策 → 行情摘要 → 七阶段 → 你的组合准入 → 模拟意图/成交 → 审计边界。
+准入五种状态逐一给文案，**刻意不合并 `not_required` 与 `not_recorded`**：前者是「纯 hold 且无
+客户周期，本轮不需要准入」的产品规则，后者是「没查到你的准入记录」的证据缺失，合并会让缺证据
+看起来像规则如此（INV-6）。页面同时说明公共七阶段由订阅同一张卡的所有客户共享、准入与模拟成交
+按本人组合单独计算，并明示 `realOrderRoutingEnabled=false`、Paper 盈亏不可提取。
+
+分页用「加载更多」而不是页码——游标是服务端编码的不透明位置，跳页无意义。这里没有复用
+`useApiData`：它每次取数替换整个结果，而追加分页需要累积，把累积放进 effect 会变成
+「effect 内同步 setState」（ESLint 实际报了这条）。改为局部 `useWorkRecordFeed`，取消、
+序号防陈旧和 401 跳转与 `useApiData` 保持一致，并按 `recordId` 去重，让「不重复不跳项」
+不依赖服务端游标在边界上的行为。
+
+包体是这个切片的硬约束。工作区经 `next/dynamic` 懒加载，实测 Client 初始 JS 从基线
+204,048 增加到 204,127 字节（预算 204,800，余量 673），**净增 79 字节**——只有导航项和分发
+分支的体积，工作区本体没有进初始包。基线值是本轮实测的：`CLAUDE.md` 原写「余量约 160 字节
+（204,636）」已过期，已按实测更新。
+
+两处让步都记录原因：可滚动表格容器带 `tabIndex={0}` 与 `jsx-a11y/no-noninteractive-tabindex`
+冲突，但 axe 的 `scrollable-region-focusable` 要求可滚动区必须能被键盘聚焦——窄屏下这张表要
+横向滚动，没有 tabIndex 用键盘就读不到右侧的列。沿用 `decision-hall.tsx` 已有的处理：
+`role="region"` 加逐行说明的 eslint-disable，不放宽规则本身。
+
+验证：`npm test` 1440/1440、TypeScript、全仓 ESLint 0、8 条架构边界、三端 key-custody、
+repository secret scan（3106 个候选文件）、API inventory 269 条与 Nginx 白名单同步、
+production dependency audit 0、`git diff --check` 通过。三端 production build 成功，
+bundle budget 通过。本地隔离 PostgreSQL、MFA 默认关闭、外部写入全禁用、端口偏移 10000 下
+真实 Chromium **20/20**：`/work-records` 已并入 Client 稳定页巡检，在 320/768/1024/1440
+四档断言「工作记录」标题可见（分发若漏配会落到钱包页、标题不匹配即失败），并覆盖键盘可达、
+axe critical/serious、资源预算与 console/network 零错误；三端空浏览器登录、Host/Cookie
+audience 隔离和 Maintenance 无确认弹窗一并回归。质量 schema
+`quality_e2e_1787534226442_27288_7b6a4ae0` 已删除，运行时秘密已移除，清理失败为 0，
+一次性测试库已 drop。
+
+全量测试期间出现过 `tests/configuration-activation-worker-postgres.test.mjs` 的 2 项失败，
+错误是 `role "maintenance_ai_usage_reader_*" does not exist`。该角色由
+`tests/maintenance-ai-usage-postgres.test.mjs` 创建，而 PostgreSQL 角色是集群级的，两个测试
+文件共用同一个集群时存在 teardown 竞争。已确认这是既有夹具问题而非本轮引入：在**移除本轮
+全部改动**的基线上连跑三次，第一次同样复现。没有改业务代码或测试断言去掩盖它；这属于
+§73 记录过的同一类跨文件临时角色竞争，值得单独做一次夹具隔离。
+
+未做：4.13b Maintenance security-barrier 脱敏导出，以及 4.13c-E2E 里属于导出旅程的部分。
+本轮没有云端三端构建（本地 production build 已通过，最终收口仍应在云端精确提交快照重跑）。
+未执行生产迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署。
