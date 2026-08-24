@@ -3331,3 +3331,67 @@ RED 验证：把入队处的固定去掉后，PS-05 端到端用例转红，其�
 
 **未做：** Skill 仍无运行时消费者，合同与测试器就位但没有任何 Agent 会加载技能包，
 active 的 Skill 版本不等于已生效。Maintenance 的 Prompt/Skill 工作台留给 PS3。
+
+## 87. 2026-08-24 T3.1c-PS3 运维端 Prompt / Skill 工作台
+
+提交：`a5132a2`。
+
+**先修了一个真源漂移，它比工作台本身更值得记。** 配置类型有三份副本：
+`lib/versioned-configuration-domain.ts` 的 `CONFIGURATION_KINDS`、
+`apps/maintenance/ui/configuration-version-ui.ts` 的 `configurationKinds`、以及数据库的
+`configuration_versions_kind_check`。三者之间**没有任何东西对齐**，而且已经漂了——0077
+给 DB 加了 `'market'`，两份应用副本都没跟上。后果是 T2.1c 建的市场可见性配置族根本无法
+通过任何 API 创建：DB 允许而应用侧校验拒绝。
+
+现在三份对齐，`tests/versioned-configuration-kinds` 从迁移里解析出 CHECK 的允许值逐一比对。
+UI 那份仍然是副本——从 lib import 值会把家族注册表和 `ResearchApiError` 拖进客户端包——
+但漂移会红。RED 验证：拿掉应用侧的 `market`，守卫转红。
+
+**这类漏是有模式的。** 应用枚举与数据库约束错开，本项目已经撞过三次
+（`maintenance.work_records.export` 的 23514、这次的 market、以及 0046 的官方卡代码）。
+方向有两种：应用少一个 → 该功能整条路径不可达且不报错；应用多一个 → 到 INSERT 才炸成
+23514 并被折叠成 INTERNAL_ERROR。两种都很难从症状反推。**加新枚举值时同步加对齐测试**。
+
+### 工作台本身
+
+Prompt 与 Skill 此前只能通过裸 JSON textarea 编辑（除 feature_flag 外的所有族都走那条
+兜底路径）。PS3 给这两族结构化编辑：
+
+- **key 走下拉而不是自由输入。** 拼错的 key 会创建一份没有任何消费者的配置，而它照样
+  能走完 draft → test → approve → activate，看起来像生效了。audience 与 schemaVersion 由
+  合同固定，不给运维选。
+- **字符与字节双计数。** 中文一字三节，4,000 字符以内也可能越过 10,000 字节上限。两条
+  限制分别判定——合并判定会让字节上限在中文正文上永远够不着，成为一条永不生效的规则。
+- **安全包络原文显示在编辑器里（PS-03）**，并由测试断言那几行 verbatim 出现在
+  `research-prompt-registry.ts` / `runtime-explanations.ts` 中。写成近似的复述，这块展示就
+  成了装饰：包络改了而展示没改时，运维依据的是一段已经不存在的文字。RED 验证过。
+- **Skill 面板明说「尚无运行时消费者」。** 合同与测试器就位但没有任何 Agent 会加载技能包，
+  激活不等于生效。停用写成「归档（停用，不删除）」而不是删除按钮（PS-06）。
+- **列出 v1 只有五个字段**，没有 code / command / url / permissions / tools / secrets。
+
+### 任务固定情况（PS-05）
+
+新增只读接口 `/api/maintenance/configuration-versions/[id]/pinned-tasks`，返回某个 Prompt
+版本上还固定着多少任务。**在途与历史分开计数**：运维在激活或回滚前真正要问的是「旧版还在
+跑吗」，合并成一个数字就无法判断影响面。接口只返回计数不返回任务内容——它回答的是影响面，
+不是排查单个任务。
+
+读不到时明说读不到，不显示 0：「没有任务固定在这一版」与「查不到」是两个不同的结论，把
+后者显示成前者会让运维以为可以放心改动（INV-6 的同一类错误）。
+
+### 测试断言改写
+
+`tests/versioned-configuration-ui` 里两条断言匹配的是 payload 构造的旧写法。PS3 把它抽成
+`structuredPayload()` 让三族共用一条提交路径，**契约未变**——注册族的 schemaVersion 仍由
+发布范围决定而不是运维填写，定向规则仍走 `targetedPayload()`——因此改的是断言写法而不是
+契约。按 CLAUDE.md 的要求在提交信息里写明了原因。
+
+门禁：`npm test` 1542/1542、`tsc`、ESLint 0、8 条架构边界、三端构建、包体预算。
+
+**包体说明要准确：** Client 与 Maintenance 的数字都没变，但那不是「没有体积」。预算测的是
+`/page` 首屏首次加载，而工作台挂在 `[...segments]` 下并走 `next/dynamic`——它落在测量范围
+之外。同理新加的那几条 `riverton-console.css` 规则也不进 `/page`。
+
+**未做：** Skill 仍无运行时消费者（PS2 已说明）。工作台没有做「按角色对比当前生效版本与
+草稿的指令差异」——现有的 `changedTopLevelKeys` 只比顶层字段名，对只有一个 `instruction`
+字段的 payload 没有信息量。真正有用的是逐行 diff，那是独立一块。
