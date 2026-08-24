@@ -3114,3 +3114,66 @@ CHECK allowlist：应用层认为合法，数据库 23514 拒绝，而错误被�
 
 未做：云端 `ssh an-saas` 精确提交快照的三端构建收口（本地 production build 已通过）。
 未执行生产迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署。
+
+## 84. 2026-08-24 T4.13 云端构建收口、提交署名与协作规则纠正
+
+4.13 的云端 production build 收口已完成。需求方明确授权可以操作云端主机（该环境尚未按其
+要求进入生产），并要求提交不带个人信息、可走 git bundle 交接，同时指出 `AGENTS.md` 的部分
+规则不合理、可以纠正。
+
+**云端构建证据。** `ssh an-saas` 为 root@198.44.36.154，Docker 29.7.1，宿主本身没有 node。
+以提交 `3a79b3f3eeb25939db99d5a73b56e17d0cafa28a`、tree
+`92a289538c4af4927a7fb0276836ba0d037ec3fd` 的 3,112 文件精确 Git 归档构建；本地与 `an-saas`
+接收的源码 archive SHA-256 均为
+`ee3b3ffeb63ac8d9039eee3ea4a9fd20041e4925fa898cba6c3db58c285ae767`。容器为 `node:22.21.1`，
+镜像摘要 `sha256:b84d52cd45bfe261096ccbf886955d431b8b9ed01b72eaef588e8886bda09e78`，容器内
+`node --version` 实测 v22.21.1。`npm ci` 后三端 production build 全部成功；构建产物
+`app-path-routes-manifest.json` 记录 Client 100、Operations 91、Maintenance 74 条路由；
+云端 production-only audit 为 0 vulnerability。
+
+**页数口径提醒。** 历史条目里的「Client 68 页」等数字来自 Next 构建输出的路由表，本轮改用
+构建产物 manifest 的条目数，两者口径不同、不可直接比较。后续要么统一改读 manifest，要么
+明确标注口径，不要把两种口径的数字并排对比。
+
+一次性远端目录 `/tmp/agentnovas-wr-build-ricGNW` 已删除并验证不存在，本地归档也已删除。
+未启动远端服务、未执行生产迁移、未接触生产数据库、未切流、未部署。宿主 `/tmp` 下另有三个
+历史部署遗留文件（`agentnovas-backend-postdeploy.log`、`agentnovas-backend-v5.1.0.env`、
+`agentnovas-backup-sha.out`），不属于本轮产物，未动。
+
+**提交署名。** 接管的前五个提交原本由本机默认身份 `Kevin <kevin@KevindeMac-mini.local>`
+署名。按需求方要求已 filter-branch 改写为 `Claude <noreply@anthropic.com>`，新 SHA 依次为
+`6ca3a0c`、`d449b24`、`87256c2`、`1663357`、`4a69e52`；worktree 的 `user.name`/`user.email`
+也已设为同一身份。改写前确认过这五个 SHA 没有被任何文档引用（条目 80–83 只引用起点
+`7c047b6`），因此证据链没有断。
+
+**继承的 169 个 Codex 提交刻意不改写。** 它们的 SHA 被 handoff 与 spec 当作实施证据引用了
+26 处，改写会让这些引用全部悬空。对一个以「证据可复核」为纪律的项目，这个代价大于把
+hostname 从历史里抹掉的收益。它们仍署名 `Kevin <kevin@KevindeMac-mini.local>`——是本机
+hostname，不含真实邮箱。
+
+**交接方式：git bundle，不推送。** 远端 `js2728520-collab/agentnovas-platform` 是**公开
+仓库**，推送会把作者身份与全部文档永久公开。需求方因此选择 bundle：零公开风险，且所有 SHA
+原样保留，上述 26 处证据引用继续可复核。生成方式与校验：
+
+```bash
+git bundle create <目标>.bundle claude/platform-v3-doc-sync
+git bundle verify <目标>.bundle
+```
+
+首个交接件为 `agentnovas-platform3/agentnovas-4.13.bundle`，12.87 MiB、8,849 个对象，
+`git bundle verify` 报告 "records a complete history … is okay"，可直接
+`git clone -b claude/platform-v3-doc-sync <bundle> <目录>` 还原。**注意该 bundle 生成于提交
+`9522e0d`，不含本条目；追加本条目后需要重新生成才能把这份证据带进交接件。**
+
+**规则纠正。** `AGENTS.md` 原有两条与实际脱节。一条要求「未经许可不得推送」，但没有说明这个
+远端是公开仓库——真正需要提醒的是推送会把作者身份和全部文档永久公开且无法撤回，而不是笼统
+禁止；另一条把「本地提交」写成需逐次请求，与按切片提交并留证据的实际工作方式相反。现改为：
+本地提交是常态；首次推送某分支前与需求方确认范围，之后按约定继续；提交一律使用
+`Claude <noreply@anthropic.com>`，并说明身份必须在首次提交前就设好（事后改写会改变所有 SHA
+并破坏 handoff 的证据引用）；同时把「在远端一次性目录里构建」与「部署」明确区分开——前者
+不是部署，后者仍需针对具体动作的批准。
+
+**一处需要记下的过程事实。** 本条目原本写在一个被权限分类器拦下的 Bash 调用里，那次调用整体
+没有执行，因此追加从未发生；`AGENTS.md` 的修改走的是 Edit 工具，不受影响，于是提交 `9522e0d`
+只含规则纠正而不含云端证据。教训是：把「写文件」和「提交」放进同一条 shell 调用，调用被拦时
+两者一起丢，而中途的口头结论会与磁盘实际状态不一致。分开执行并逐项复核落盘结果。
