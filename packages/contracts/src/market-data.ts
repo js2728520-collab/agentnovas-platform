@@ -1,7 +1,7 @@
 export const MARKET_DATA_CONTRACT_VERSION = 1 as const;
 
 export type MarketAssetClass = "crypto" | "equity" | "forex" | "metal";
-export type MarketRegion = "global" | "us" | "cn" | "hk" | "kr" | "jp";
+export type MarketRegion = "global" | "us" | "cn" | "hk" | "kr" | "jp" | "au";
 export type MarketCalendarKind = "continuous" | "provider_managed" | "exchange_managed";
 export type MarketCapability = "instrument_search" | "quote_snapshot" | "candle_history" | "realtime_stream";
 export type MarketProtocol = "rest" | "websocket";
@@ -61,7 +61,7 @@ export type MarketDataEventEnvelope = {
 };
 
 const ASSET_CLASSES = ["crypto", "equity", "forex", "metal"] as const;
-const REGIONS = ["global", "us", "cn", "hk", "kr", "jp"] as const;
+const REGIONS = ["global", "us", "cn", "hk", "kr", "jp", "au"] as const;
 const CALENDAR_KINDS = ["continuous", "provider_managed", "exchange_managed"] as const;
 const CAPABILITIES = ["instrument_search", "quote_snapshot", "candle_history", "realtime_stream"] as const;
 const PROTOCOLS = ["rest", "websocket"] as const;
