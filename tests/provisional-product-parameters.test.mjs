@@ -85,10 +85,10 @@ test("占位价格沿用当前生产快照，不另造一套数字", () => {
 });
 
 test("占位参数集中在唯一真源，不散落成硬编码", async () => {
-  const module = await read("packages/contracts/src/provisional-product-parameters.ts");
-  assert.match(module, /P-01/);
-  assert.match(module, /P-12/);
+  const source = await read("packages/contracts/src/provisional-product-parameters.ts");
+  assert.match(source, /P-01/);
+  assert.match(source, /P-12/);
   // 补真值时改这一个文件；这条断言防止有人在别处再复制一份占位常量。
-  assert.match(module, /单一真源/);
-  assert.match(module, /生产失败关闭/);
+  assert.match(source, /单一真源/);
+  assert.match(source, /生产失败关闭/);
 });
