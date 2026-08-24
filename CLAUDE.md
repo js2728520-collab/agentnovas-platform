@@ -115,8 +115,9 @@ apps/*  →  packages/*  →  lib/
   | `route.internal.ts` | 内部端 | operations + maintenance |
   | `route.shared.ts` | 三端共享 | 全部 |
 
-  实测结果：client 87 条、operations 75 条、maintenance 56 条（此前三端各 182 条）。
-  **别的 audience 的路由不是被拒绝，是根本不在这个构建里。**
+  实测（`7c047b6`，共 206 个路由文件）：进 client 构建 93 条、operations 84 条、maintenance 66 条
+  （拆分前三端各 182 条）。**别的 audience 的路由不是被拒绝，是根本不在这个构建里。**
+  这些数字随切片增长，以 `find app/api -name "route.*.ts"` 和生成后的 inventory 为准，不要手工递增。
 
   **加新 API 必须带后缀**，裸 `route.ts` 会被架构边界检查拒绝。后缀与
   `lib/api-route-inventory.ts` 的 audience 必须一致，不一致也会红——
@@ -309,7 +310,7 @@ bash scripts/dev/start-local.sh stop
 ```bash
 npx tsc --noEmit          # 类型
 npm run lint              # ESLint
-npm test                  # 776 项，node --test，不需要数据库
+npm test                  # 1435 项（`7c047b6` 实测，随切片增长），node --test，不需要数据库
 npm run test:apps         # 三端 production build
 npm run quality:bundle    # 包体预算（见下，余量极小）
 npm run quality:boundaries # 架构边界（跨端 import、资金写入口、遗留扩散、硬编码色值）

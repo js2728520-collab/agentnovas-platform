@@ -124,9 +124,10 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 
 ### 5.2 Operations / Maintenance 身份流程
 
-- 内部端只有登录入口，不提供公开注册；
-- 首次登录必须完成 TOTP 注册和六位动态码确认；
-- 系统只在注册时展示 8 枚 recovery codes，后续不可回显；
+- 内部端不提供公开注册；账号通过 Operations 权限注册链接自助注册，或由一次性 CLI 建立首个管理员；
+- MFA 强制由服务端 `MFA_ENFORCEMENT_ENABLED` 控制。开启时首次登录必须完成 TOTP 注册和六位动态码确认；
+  当前准备阶段默认关闭，登录直接创建完整 audience Session，TOTP/recovery 能力与数据完整保留（ADR-0023）；
+- TOTP 注册时只展示一次 8 枚 recovery codes，后续不可回显；
 - 内部会话最长 12 小时，闲置超过 1 小时失效；
 - 关键操作在 MFA 生产强制开关开启时要求最近 15 分钟内完成 MFA；当前关闭阶段仍执行权限、原因、幂等和审计；
 - 内部账号冻结、密码重置或撤权后，相关会话会被撤销；
@@ -431,7 +432,8 @@ Maintenance 发布的模型 Profile 是唯一模型配置来源。Client 只能�
 | --- | --- | --- |
 | `/` | 运营概览 | 基于真实查询展示客户、充值、审批和业务状态，不用静态 KPI 回退 |
 | `/customers` | 客户管理 | 客户列表、搜索、筛选、详情、脱敏、备注、冻结/恢复、归属 |
-| `/organization` | 组织架构 | 组织树、成员、邀请、启停、上下级关系和邀请码 |
+| `/accounts` | 运营账号 | scope 内平面账号目录、停用/恢复；组织树与关系编辑已按 T1.1 退休 |
+| `/invitations` | 注册链接 | 五级权限注册链接生成、复制、作废、重生成；客户可复用邀请码 |
 | `/team` | 团队目标 | 日常任务、每日简报、月度目标、跟进历史和受控 CSV |
 | `/data-center` | 数据中心 | 客户、会员、Paper、应收等真实运营指标和 drill-down |
 | `/membership-orders` | 会员订单 | 凭证录入、提交、checker 决定和激活回执 |
@@ -441,6 +443,8 @@ Maintenance 发布的模型 Profile 是唯一模型配置来源。Client 只能�
 | `/ledger` | 账本查询 | 不可变交易、分录详情、币种/类型/时间筛选和游标分页 |
 | `/finance` | 财务结算 | 会员订单、Paper 应收和账本的真实业务投影 |
 | `/approvals` | 审批中心 | 跨业务安全投影，决定仍由各领域事务执行 |
+| `/kill-switches` | 熔断控制 | 按 provider/账户/策略查看与操作 kill switch，解除不自动恢复 |
+| `/live-routing` | 实盘路由授权 | 按 (交易所, 环境) 逐条查看授权事实；开通走 maker/checker，关停单人即时 |
 | `/access` | 角色权限 | 权限目录、模板、角色、发布、分配和敏感变更 |
 | `/access/audit` | 授权审计 | Operations audience 授权事件筛选和详情 |
 | `/account/security` | 账号安全 | MFA、recovery codes、密码和会话 |
@@ -456,15 +460,17 @@ Maintenance 发布的模型 Profile 是唯一模型配置来源。Client 只能�
 - 客户归属变更使用 maker-checker、版本锁和完整历史链；
 - 不提供不可恢复的客户物理删除。
 
-### 10.3 组织和邀请
+### 10.3 运营账号和邀请
 
-- 查看 assignment-bound scope 内的组织树和成员；
-- 创建内部或客户邀请时只生成一次性 set-password 链接；
-- API、通知和页面不返回临时密码；
-- 成员停用可恢复，不能通过物理删除绕过审计；
-- 上下级变更检查关系环、跨组织和授权范围；
-- 高风险关系变更先提交，交由不同 checker 决定；
-- 邀请码具有有效期、撤销、使用次数和审计记录。
+- 查看 assignment-bound scope 内的平面账号目录；组织树、上下级关系图和关系编辑页面已按 T1.1 退休，
+  后端仍保留 organization、分公司、归属和 assignment 事实供 scope resolver、报表和审计使用；
+- 内部账号使用五级权限注册链接自助注册：长期可重复使用、手动作废、重生成即撤销旧链接、
+  注册成功立即获得链接冻结的 assignment 与 scope，无人工审批；生成者只能生成低于自身层级的链接；
+- 客户邀请码与内部角色 token 使用不同类型、权限边界和审计事件，二者不可互换；
+- 历史一次性 set-password 邀请只作兼容保留；API、通知和页面不返回临时密码；
+- 成员停用可恢复，不能通过物理删除绕过审计；停用立即撤销 Session、令牌和该账号签发的注册链接；
+- 逐人创建成员和汇报关系写接口已返回 `410 Retired`，不再作为账号创建路径；
+- 注册链接和客户邀请码均记录生成、复制、使用、失败、作废和重生成审计。
 
 ### 10.4 会员付款复核
 
@@ -615,7 +621,12 @@ checker 可以：
 - Demo Execution Worker；
 - Strategy Research Worker；
 - Strategy Runtime Worker；
+- Configuration Activation Worker（到期配置版本的最小权限激活器）；
 - 保持关闭的 Payment Worker。
+
+Execution Service 是独立进程而不是 Worker：它不接受公网入站，是唯一长期持有客户交易凭证解密
+能力的进程；其健康、provider 激活、live blocker 和对账队列在 Maintenance 单独呈现。真实订单
+仍由 `isLiveExecutionReady()` 一道命名闸门关闭，进程存在不等于实盘已解锁。
 
 每个 Worker 上报实例、commit SHA、启动时间、heartbeat、最后成功/失败、当前任务和队列年龄。页面区分：
 
@@ -860,6 +871,11 @@ Operations 支持：
 恢复任一退休功能必须单独建立 PRD、Spec、API Policy、数据迁移、安全评审、发布 Gate 和回滚方案，不能只恢复旧菜单。
 
 ## 18. 标准验收旅程
+
+以下旅程中的「完成 MFA」「recent MFA」步骤按 ADR-0023 受服务端 `MFA_ENFORCEMENT_ENABLED` 约束：
+当前准备阶段默认关闭，内部端登录直接进入完整 Session，敏感操作不额外要求 recent MFA，但权限、
+原因、幂等、maker/checker 和审计一律照常执行；正式生产三端统一开启后，这些步骤按字面执行并需
+通过 MFA 专项 Gate。
 
 ### 18.1 Client 旅程
 

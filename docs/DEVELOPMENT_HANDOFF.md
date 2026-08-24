@@ -6,17 +6,23 @@
 
 ## 1. 接管入口
 
-本文档是新开发环境和新 Codex 任务的第一入口。聊天记录不会自动随代码迁移，因此接管时必须依次阅读：
+本文档是新开发环境和新接管任务的第一入口。聊天记录不会自动随代码迁移，因此接管时必须依次阅读：
 
-1. `AGENTS.md`
-2. 本文档
-3. `README.md`
-4. `docs/adr/0003-postgresql-multi-agent-research-pipeline.md`
-5. `docs/adr/0004-unified-dsl-v3-shadow-paper-runtime.md`
-6. `docs/runbooks/self-hosted-strategy-research.md`
-7. `git log -1 --stat` 与 `git status --short --branch`
+1. `AGENTS.md` 与 `CLAUDE.md`（不可违反的业务不变量 INV-1–INV-11、架构边界、已知陷阱）
+2. `docs/README.md`（文档入口与按角色的阅读路径）
+3. `docs/DOCUMENT_STATUS_MATRIX.md`（哪份文档是 Target、哪份是 Current，冲突时以谁为准）
+4. `docs/product/PRD.md`（V3 目标产品真源）与 `docs/specs/SYSTEM_SPEC.md`（当前运行与硬关闭边界）
+5. `tasks/plan.md` 与 `tasks/todo.md`（任务执行真源；注意两者的 Phase 4 编号不同，见 plan 的映射表）
+6. 本文档**最新编号条目**（每个切片的实施与验证证据按时间追加，越靠后越接近现状）
+7. 与当前切片相关的 ADR 和 `docs/specs/*`
+8. `git log -1 --stat` 与 `git status --short --branch`
 
-当前开发分支已从 `codex/multi-agent-strategy-research` 切到 `codex/three-app-riverton-split`。交接版本以本文件所在的最新本地提交为准，不依赖未提交文件。
+**本文 §3–§9 描述的是 2026-08-19 前后的历史交接内容，其中多数文件（`app/client-app.tsx`、
+`app/globals.css`、`app/globals-beta.css`、`/workspace` 路由等）已在 P4 清理中删除。**
+这些章节保留为历史记录，不是当前代码结构说明；现状以 §51 起的最新条目和上述文档为准。
+
+当前工作分支见 `tasks/plan.md` 顶部；`codex/three-app-riverton-split` 是最后一个推送到 origin 的
+分支，不是当前开发分支。交接版本以本文件所在的最新本地提交为准，不依赖未提交文件。
 
 未经用户明确授权，禁止推送远程、创建 PR 或把仓库发布到任何托管平台。代码交接优先使用本地 Git bundle。
 
@@ -2906,3 +2912,47 @@ production build 完成 Client 68、Operations 62、Maintenance 52 页；三端�
 `bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，未纳入本轮提交。未执行生产
 迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署。下一切片是 4.13a-UI；之后才是
 4.13b Maintenance security-barrier 脱敏导出与最终浏览器 Gate。
+
+## 80. 2026-08-24 文档与现状对齐（接管切片）
+
+从 `7c047b6` 接管后先做纯文档同步，不改任何运行时代码。本轮只修正文档与代码事实不符之处，
+不改变任何产品决策、安全边界或 Gate 结论；六处修正均以仓库实际代码/迁移/测试输出为依据。
+
+`docs/product/FUNCTIONAL_DESCRIPTION.md` 有三处内部矛盾：§3.1 已写「MFA 当前不强制」，
+§5.2 却仍写「首次登录必须完成 TOTP」，§18 三条旅程也以 MFA 开启为前提。现按 ADR-0023 统一为
+「由 `MFA_ENFORCEMENT_ENABLED` 控制，当前默认关闭、能力与数据完整保留」，并在 §18 开头一次性
+说明关闭态语义，不逐条改写旅程。§10.1 路由表的 `/organization` 组织架构行与 T1.1 的退休结论冲突，
+改为 `/accounts` 平面账号目录并补 `/invitations`、`/kill-switches`、`/live-routing`；§10.3 标题与正文
+同步改为「运营账号和邀请」，明确后端 organization/归属事实仍供 scope resolver 使用，逐人创建成员
+写接口已 `410 Retired`。§11.6 Worker 清单补 Configuration Activation Worker，并单列 Execution Service
+为独立进程（不接受公网入站、唯一持有凭证解密能力、实盘仍由命名闸门关闭）。
+
+`docs/specs/SYSTEM_SPEC.md` 的拓扑图缺 Configuration Activation Worker 与 Execution Service，已补。
+§2 三份稳定路由清单全部过期，按 `app/riverton-route-contract.ts` 实况更新：Client 补 `/dashboard`、
+`/work-records[/id]`、`/market`、`/assistant`、`/studio`、`/backtests`；Operations 去 `/organization`、
+补 `/accounts`/`/invitations`/`/kill-switches`/`/live-routing`；Maintenance 补 `/ai-usage`、`/readiness`、
+`/configurations`、`/releases`。§6 原写「恢复证据只覆盖至 `0042` 的 43 个迁移」，与
+`QUALITY_RELEASE_EVIDENCE.md` 记录的 2026-08-23 演练（至 `0062`、63 个迁移、146 张表）互相矛盾，
+而当前目录已有 76 个迁移文件（至 `0075`）——两个数字都不是现状。现改为明确声明**恢复 Gate 处于
+失效状态**：引用真实演练范围，指出此后新增 `0063`–`0075` 共 13 个迁移使其不再覆盖完整集合，
+必须重跑 fresh/N-1/rerun/concurrent 与隔离 backup/restore 才能恢复 Gate。固定迁移清单不再复制
+全部 76 条，保留 Beta 基线 `0021`–`0043` 并按能力分组概述 `0044`–`0075`，声明目录本身是真源。
+
+`tasks/plan.md` 的 Phase 4 与 `tasks/todo.md` 看板是两套编号：计划 T4.2/T4.3/T4.4 是准入状态机/
+策略广场/跟单闭环，看板 4.2/4.3/4.4 是移除观察名单/AI 取消/候选编辑，此前只能靠
+「T4.1b（对应任务看板 T4.2）」这类行内注释自救，容易照数字做错任务。现在 Phase 4 开头给出完整
+映射表，并要求新增条目同时登记两侧编号。
+
+`CLAUDE.md` 是每次会话都加载的文件，两个数字已明显过期：`npm test` 写 776 项（本轮在 `7c047b6`
+实测 1435/1435），三端路由条数写 87/75/56（现为 206 个路由文件，进 client 93、operations 84、
+maintenance 66）。已更新并注明这些数字随切片增长、以命令输出为准不要手工递增。`AGENTS.md` 的
+「Continue feature work on `codex/three-app-riverton-split`」已失效，改为以 `tasks/plan.md` 顶部
+分支为准，并说明该分支只是最后一个推送到 origin 的分支。
+
+本文 §1 接管入口清单仍指向 ADR-0003/0004 与旧分支，与顶部 V3 更正注冲突。已改为
+AGENTS/CLAUDE → docs/README → 文档状态矩阵 → PRD/SYSTEM_SPEC → tasks → 本文最新条目 → 相关
+ADR/spec → git 状态，并显式标注 §3–§9 描述的是已被 P4 删除的历史代码结构，保留为历史记录而非
+现状说明。
+
+验证：`npm test` 1435/1435、`npx tsc --noEmit`、`npm run lint`、`git diff --check` 通过。纯文档提交
+不触发构建产物、bundle 预算或浏览器 Gate 变化，也未执行迁移、未接触数据库、未推送、未部署。

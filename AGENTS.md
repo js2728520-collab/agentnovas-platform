@@ -11,7 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # AgentNovas project rules
 
 - Before changing code, read `docs/DEVELOPMENT_HANDOFF.md`, the relevant ADRs, and the latest Git commit; then inspect `git status` so existing user changes are preserved.
-- Continue feature work on `codex/three-app-riverton-split` unless the user explicitly requests another branch.
+- Continue feature work on the branch named at the top of `tasks/plan.md` unless the user explicitly requests another branch. `codex/three-app-riverton-split` is the last pushed branch, not the current working branch.
 - Never push a branch, create a pull request, or otherwise publish repository changes without the user's explicit permission. Local commits are allowed only when requested.
 - The target runtime is self-hosted Linux with Node.js, PostgreSQL, Research Worker, Runtime Worker, Nginx, and Certbot. Do not add Cloudflare Runtime or Redis dependencies.
 - Real perpetual order routing is out of scope and must remain disabled. LLM output may explain or propose, but deterministic code owns validation, backtesting, scoring, risk gates, and simulated order intents.

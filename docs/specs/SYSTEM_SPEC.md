@@ -14,8 +14,13 @@ Operations Web ─────┼── PostgreSQL（共享数据、逻辑隔离
 Maintenance Web ────┘       ├─ Notification Worker
                              ├─ Paper Runtime Worker
                              ├─ Demo Execution Worker
+                             ├─ Configuration Activation Worker（独立最小权限 DB role）
                              └─ Payment Webhook（独立 DB role）
 
+Execution Service：独立进程、独立网段、不接受公网入站；唯一持有
+  EXCHANGE_CREDENTIAL_ENCRYPTION_KEY 的进程（ADR-0019）。三个 Web 应用改由
+  lib/execution/client.ts 经 EXECUTION_SERVICE_SHARED_SECRET 发内网请求，
+  构建产物不含凭证加解密代码；真实订单仍由 isLiveExecutionReady() 单一命名闸门关闭（ADR-0020）
 Payment Worker：不部署 unit；优盾充值由同步地址 API + 验签 Webhook + Ops 双审完成
 Legacy Research Worker：Beta 不启动，HTTP/租约/orchestrator/systemd 均硬关闭
 真实交易/提现/划转/自动扣款：代码路径硬关闭
@@ -46,11 +51,11 @@ Client 的两个连接是不同的能力边界，不是同一高权角色的两�
 
 稳定路由：
 
-- Client：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements[/id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/notifications`、`/account/security`、`/support`、`/wallet`、`/wallet/deposits`。
-- Operations：`/`、`/customers`、`/organization`、`/team`、`/data-center`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
+- Client：`/`、`/login`、`/dashboard`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements[/id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/work-records[/id]`、`/market`、`/assistant`、`/studio`、`/backtests`、`/notifications`、`/account/security`、`/support`、`/wallet`、`/wallet/deposits`。
+- Operations：`/`、`/customers`、`/accounts`、`/invitations`、`/team`、`/data-center`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/kill-switches`、`/live-routing`、`/access`、`/access/audit`。组织树、上下级关系图和关系编辑页面已按 T1.1 退休，后端 organization/归属事实只供 scope resolver、报表和审计使用。
 
 优盾充值数据流固定为：Client 同源+RBAC+幂等请求 → Client Web 使用安全 provider 视图和运行时 secret 调用专属 `*.udun.io` 节点生成地址 → Maintenance 公网 webhook 使用独立数据库角色验签/去重并推进 `MANUAL_REVIEW` → Operations maker/checker → 同事务平衡账本、钱包版本、订单、审计和通知。配置缺失返回 503；提现、划转和自动扣款 endpoint 不存在。
-- Maintenance：`/`、`/models`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/access`、`/access/audit`、`/audit`。
+- Maintenance：`/`、`/models`、`/ai-usage`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/readiness`、`/safety`、`/settings`、`/settings/disclosures`、`/configurations`、`/releases`、`/access`、`/access/audit`、`/audit`。
 
 Beta 未完成或不在范围的旧策略市场、自动结算、团队经营分析入口 feature-gate 隐藏。
 
@@ -120,7 +125,7 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 
 `postgres/migrations` 是唯一生产 schema 真源。迁移器维护 `_agentnovas_migrations(version, checksum, applied_at, commit_sha)`，使用 advisory lock；每文件独立事务，已应用跳过，checksum 变化失败。必须验证 fresh、N-1、rerun、checksum mismatch、并发和恢复。
 
-本 Beta 固定迁移：
+迁移目录本身是唯一真源，本节不复制完整清单。受控 Beta 基线固定为 `0021`–`0043`：
 
 - `0021_identity_access_hardening.sql`
 - `0022_ledger_approval_invariants.sql`
@@ -148,9 +153,13 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 
 `0041` 增加 Maintenance-only 的不可变版本、验证与部署事实。版本状态和环境 current 由追加事实投影；production 要求同版本 staging 成功，失败记录不改变 current，三表禁止更新/删除。`0042` 增加优盾 deposit-only 配置安全视图、签名回调证据、重放/地址/开放订单唯一约束和独立 payment webhook 角色。`0043` 以显式数据库角色 allowlist、强制 RLS 和精确 SECURITY DEFINER ACL 撤销 Client 对身份/邀请表的直接能力，并使未知/遗留数据库角色失败关闭。
 
+Beta 基线之后按 V3 阶段继续前向新增，当前目录共 76 个迁移（至 `0075`）。按能力分组：`0044`/`0049`/`0064` 审计哈希链、链尾锚定与 owner 执行；`0045` 由数据库约束强制 INV-11 无提现权限；`0046`–`0048` 共享决策轮与解释任务（ADR-0018）；`0050`–`0053`、`0060`–`0062` 执行对账、kill switch、实盘路由授权、live 部署与 live book 记账（ADR-0019/0020，实盘仍由命名闸门关闭）；`0055`–`0058`、`0065` 客户可复用邀请与内部权限注册链接；`0066`–`0067`、`0072` Client 邮箱/五设备安全、MFA opt-in 与密码重置网关修复；`0068` Operations 客户 PII 字段权限；`0069`–`0071` 版本化配置框架、到期激活 Worker 与最小权限 current 网关；`0073` 平台语言默认；`0074` Maintenance AI 用量安全投影；`0075` 工作记录订阅期间与六个月删除保护。这些迁移改变了本文多处 Beta 描述的适用范围，具体合同以对应 ADR 与 spec 为准。
+
 数据库角色至少拆分为 migrator、client_web、client_auth、ops_web、maint_web、notification_worker、runtime_worker、demo_execution_worker 和 payment_webhook；legacy research 和 Payment Worker 不获得 Beta 业务写权限。
 
-当前恢复证据只覆盖至 `0042` 的 43 个迁移。新增、改名或 checksum 变化的迁移会立即使该证据失效；必须重新执行 fresh/N-1/rerun/concurrent 与隔离 backup/restore，按实际输出更新迁移数、表数和 checksum 后才能恢复 Gate 通过状态。
+**当前恢复 Gate 处于失效状态。** 最近一次隔离 backup/restore 演练在 2026-08-23 完成，覆盖至 `0062` 的 63 个迁移和 146 张表，迁移 registry checksum、表集合与逐表行数在恢复前后完全一致（证据见 `../quality/QUALITY_RELEASE_EVIDENCE.md`）。此后新增了 `0063`–`0075` 共 13 个迁移，当前目录为 76 个迁移文件，因此该演练不再覆盖完整迁移集合。
+
+新增、改名或 checksum 变化的迁移会立即使恢复证据失效；恢复 Gate 通过状态必须重新执行 fresh/N-1/rerun/concurrent 与隔离 backup/restore，并按实际输出更新迁移数、表数和 checksum，不能手工递增文档数字。
 
 ## 7. 账本、会员和 credits
 
