@@ -303,3 +303,11 @@
 .refreshRate[data-streaming] { color: var(--rv-success-ink); }
 
 .chartFooter { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; font-size: 0.6875rem; }
+
+/* 行情源偏好面板。图表与新闻之间——它是这一页的设置，不是新闻的一部分。 */
+.sourcePreference {
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { ProductIcon } from "./coin-icon";
+import MarketSourcePreference from "./market-source-preference";
 import styles from "./live-market.module.css";
 import {
   deriveMarketFeedStatus,
@@ -131,6 +132,7 @@ export default function LiveMarket() {
       </div>
       <footer className={styles.chartFooter}><span><i className={styles.legendUp} />上涨</span><span><i className={styles.legendDown} />下跌</span><small>{marketStreamLabel} · 左右拖动回看历史 · 拖到左端自动加载更早 K 线</small></footer>
     </section>
+    <section className={styles.sourcePreference}><MarketSourcePreference /></section>
     <section className={styles.newsFeed}><header><div><span className={styles.eyebrow}>NEWS &amp; EVENTS</span><h2>新闻与事件</h2><p>聚合市场快讯、资金流向和平台公告，每 60 秒重新检查来源与内容新鲜度。</p></div><span className={newsFreshness === "fresh" ? "market-news-status is-live" : "market-news-status is-fallback"}><i />{newsStatusLabel}{newsObservedAt && <time title="最近检查时间">检查于 {new Date(newsObservedAt).toLocaleTimeString("zh-CN")}</time>}</span></header>{newsMessage && <div className={styles.newsMessage}>{newsMessage}</div>}<div className={styles.newsGrid}>{news.length ? news.slice(0, 8).map(item => <NewsCard item={item} key={item.id} />) : <div className={styles.newsEmpty}><b>{newsFreshness === "unavailable" ? "新闻源暂不可用" : "当前没有新闻条目"}</b><span>来源恢复或返回新内容后将在这里自动显示。</span></div>}</div></section>
   </div>;
 }
