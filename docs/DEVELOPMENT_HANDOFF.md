@@ -3881,3 +3881,61 @@ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'xxx_check') THEN
 
 同样未做：跟单参数的 configuring → user_confirmed 确认流程与界面、运营端风控工作台界面
 （目前是 API-only）、Paper 跟单的实际下单扇出。
+
+## 93. 2026-08-24 客户投稿策略在 paper 下走现货
+
+提交：`39cc3c3`。需求方确认的产品决策。
+
+### 解开的是什么
+
+条目 90 记过：T4.3b 的结算链没有盈亏来源，因为客户自定义策略部署走 `usdt_perpetual`
+（0053 的约束规定「现货部署必须是官方卡」），而永续路由硬关闭。所以社区策略的跟单**一笔
+成交都产生不了**。
+
+需求方确认改走现货。这同时也更安全：CLAUDE.md 的「只有现货可路由」是一条不许做成配置项
+的规则，把社区策略从永续挪到现货是**朝着它走**，不是绕开它。
+
+### 三条边界写死在约束里
+
+0053 的绑定约束增加第三个分支（社区策略现货模拟），三条边界不靠代码自觉：
+
+1. 社区部署**没有** `platform_strategy_code`——否则分不清它是不是官方卡；
+2. `mode` 只能是 `shadow` 或 `paper`——**实盘对社区策略仍然关闭**；
+3. 不绑交易所账户——paper 不碰真实账户。
+
+另有唯一索引 `uq_strategy_deployments_active_follow`：一次订阅只有一个生效中的部署。没有
+它，同一个跟随会被两个部署驱动，模拟组合上记两倍仓位。
+
+### 为什么另起一张组合表
+
+不复用 `official_paper_portfolios`：它的 `strategy_code` 被 CHECK 限定为三张官方卡，
+`principal_usdt` 锁死为 10000。两条都是**官方卡的产品定义**——为了塞进社区策略而放宽
+它们，等于让「这是不是官方卡」不再能从数据判断。
+
+新表 `strategy_follow_paper_portfolios` 的本金默认同为 10,000（保持客户对模拟盘本金的
+一致预期）但**不 CHECK 锁死**：是否允许客户自选名义本金是一个尚未做出的产品决策，锁死会
+让将来改动需要迁移数据。
+
+### 门开了，但通向的房间还没建好
+
+放宽约束让社区现货部署可以**存在**，但 `processOfficialSpotRuntimeDeployment` 是为官方卡
+写的（读 `platform_strategy_code`、写 `official_paper_portfolios`）。把社区部署放进那条
+路径会出错或——更糟——静默写错组合。
+
+租约的 `platform_strategy_code IS NOT NULL` 过滤已经挡住它们。**这是失败关闭，不是遗漏**：
+社区 Runtime 路径建好之前，它们本来就不该被租走。
+
+测试写法上留了个坑要避开：只断言「社区部署不被租走」会在夹具恰好不满足其它租约前置条件
+时**恒真**——守不住任何东西。因此同时断言那条过滤仍在源码里。这与条目 91 记的教训是同一
+类：一条恒真的断言和一条有效的断言长得一模一样。
+
+### 下一步的实际顺序
+
+1. 社区策略的 Runtime 路径（读 follow contract 的风险参数、写
+   `strategy_follow_paper_portfolios`），并在租约里放行社区部署；
+2. 该路径产出的盈亏接上 T4.3b 的 `settleFollowContractWeek`——到这一步整条结算链才真的
+   跑通，在那之前仍然不该编盈亏数字；
+3. 自动风控（条目 92 的判定函数）在该路径的每个周期上调用。
+
+**未做：** 上述三步；跟单参数的 configuring → user_confirmed 确认流程与界面；运营端风控
+工作台界面。
