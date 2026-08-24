@@ -236,3 +236,34 @@ export function marketAllowsExecution(marketId: string): boolean {
   if (!market) return false;
   return market.usage.includes("execution") && market.executionPolicy !== "display_only";
 }
+
+/**
+ * 三张官方策略卡的代码。
+ *
+ * 与 `strategy_decision_rounds.strategy_code` 的 CHECK 约束一致——共享决策轮只可能属于
+ * 官方卡，自定义策略各自独立成轮。
+ */
+export const OFFICIAL_CARD_STRATEGY_CODES = ["ai_conservative", "ai_balanced", "ai_aggressive"] as const;
+
+export type OfficialCardStrategyCode = (typeof OFFICIAL_CARD_STRATEGY_CODES)[number];
+
+export function isOfficialCardStrategyCode(code: string | null | undefined): code is OfficialCardStrategyCode {
+  return typeof code === "string" && (OFFICIAL_CARD_STRATEGY_CODES as readonly string[]).includes(code);
+}
+
+/**
+ * 官方策略卡统一使用的行情源（ADR-0025）。
+ *
+ * 客户不能为官方卡换源。ADR-0018 让同一张卡在同一根 K 线上只判断一次，而决策轮身份不含
+ * 数据源；按客户换源就会让同一张卡产生多份互相矛盾的公开叙述，客户之间无法再互相印证。
+ *
+ * 这里写成常量而不是版本化配置是刻意的：ADR-0025 要求换源必须走策略版本升级（历史绑定
+ * 与新绑定不同，不能就地改），而可改的配置项恰好会诱导「就地改一下」。改这个常量是代码
+ * 变更，会连带策略版本一起走评审。
+ */
+export const OFFICIAL_CARD_PROVIDER_ID = "exchange-binance";
+
+/** 官方卡的源选择恒为平台指定源，与客户偏好无关。 */
+export function officialCardSourceSelection(): { mode: "independent"; providerId: string } {
+  return { mode: "independent", providerId: OFFICIAL_CARD_PROVIDER_ID };
+}

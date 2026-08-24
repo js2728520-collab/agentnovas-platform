@@ -3012,6 +3012,46 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/market/source-preference",
+    "source": "app/api/market/source-preference/route.client.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireCurrentSession"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "PUT",
+    "route": "/api/market/source-preference",
+    "source": "app/api/market/source-preference/route.client.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireCurrentSession"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/market/ticker",
     "source": "app/api/market/ticker/route.client.ts",
     "audiences": [
