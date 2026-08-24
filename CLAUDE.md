@@ -405,8 +405,17 @@ P4 之后仓库里没有需要围住的遗留件了。已删除：`app/client-ap
 
 `docs/创始人待办清单与真实交易闭环接入指南.md` 标记为 `RETIRED`，**禁止执行**。
 
-领域参数（套餐价格、策略卡风控阈值、Demo provider）的唯一真源是
-`packages/contracts/src/commercial-beta.ts`。**前端不得复制第二份常量。**
+**已确认产品参数（P-01–P-12）的真源是 `packages/contracts/src/product-parameters.ts`。**
+它是需求方 2026-08-24 冻结的确认值。`packages/contracts/src/commercial-beta.ts` 仍保留
+面向展示的套餐字段（name、isLifetime），但价格与费率必须与 P-07 一致——由
+`tests/commercial-plan-pricing` 对齐。两者曾长期矛盾（月卡 28 vs 59、年卡费率 0.20 vs
+0.18），需求方裁定以 P-07 为准。
+
+策略卡风控阈值与 Demo provider 仍在 `commercial-beta.ts`。**前端不得复制第二份常量。**
+
+**改价不改历史（INV-5）。** 运行时费率来自 `commercial_membership_orders.performance_fee_bps`
+——下单时快照。改价要新建 `commercial_plan_versions` 版本并把旧版标 retired，绝不就地改
+旧行：已激活订单通过 `plan_version_id` 指向它们。
 
 ---
 
