@@ -441,7 +441,17 @@ export const strategySubscriptions = sqliteTable("strategy_subscriptions", {
   capitalPct: real("capital_pct").notNull().default(5),
   stopLossPct: real("stop_loss_pct").notNull().default(10),
   executionMode: text("execution_mode", { enum: ["proportional", "fixed_risk"] }).notNull().default("proportional"),
-  status: text("status", { enum: ["pending", "active", "paused", "ended"] }).notNull().default("pending"),
+  // 取值与 packages/domain/src/strategy-follow-lifecycle.ts 的 FOLLOW_LIFECYCLE_STATES
+  // 及 0085 的 CHECK 一一对应，由 tests/strategy-follow-lifecycle-postgres 对齐。
+  status: text("status", { enum: ["configuring", "user_confirmed", "active", "paused", "risk_blocked", "stopped"] }).notNull().default("configuring"),
+  // 0007 加的运行模式；0082/0085 加的四方停止记录。此前 Drizzle schema 一直没跟上，
+  // 于是这些列在类型层面不存在，代码只能绕开它们。
+  runMode: text("run_mode", { enum: ["shadow", "paper", "live"] }),
+  pausedBy: text("paused_by", { enum: ["customer", "operations_risk", "automated_risk", "global_circuit_breaker"] }),
+  pausedAt: text("paused_at"),
+  pausedReason: text("paused_reason"),
+  endedBy: text("ended_by", { enum: ["customer", "operations_risk", "automated_risk", "global_circuit_breaker"] }),
+  endedReason: text("ended_reason", { enum: ["customer_stopped", "change_request", "risk_blocked", "operations_terminated"] }),
   riskConsentAt: text("risk_consent_at"), lastRiskCheckAt: text("last_risk_check_at"), riskCheckJson: text("risk_check_json").notNull().default("{}"), startedAt: text("started_at"), endedAt: text("ended_at"), ...timestamps,
 }, (t) => [uniqueIndex("idx_strategy_subscription_unique").on(t.strategyId, t.customerId), index("idx_strategy_subscriptions_customer").on(t.customerId, t.status)]);
 

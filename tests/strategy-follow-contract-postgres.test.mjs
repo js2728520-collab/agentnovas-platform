@@ -129,23 +129,23 @@ test("下架不改历史订阅，但客户随时可以自己停止", async () =>
 
   // 不写理由的结束正是「下架时顺手改掉」的形态：没人知道是谁、因为什么结束了客户的跟随。
   await assert.rejects(
-    pool.query("UPDATE strategy_subscriptions SET status='ended' WHERE id='follow-subscription'"),
+    pool.query("UPDATE strategy_subscriptions SET status='stopped',ended_by='customer' WHERE id='follow-subscription'"),
     (error) => /SUBSCRIPTION_END_REASON_REQUIRED/.test(error.message),
   );
   // 光把理由填成 change_request 也不行，必须真的走完通知缓冲期。
   await assert.rejects(
-    pool.query("UPDATE strategy_subscriptions SET status='ended',ended_reason='change_request' WHERE id='follow-subscription'"),
+    pool.query("UPDATE strategy_subscriptions SET status='stopped',ended_by='customer',ended_reason='change_request' WHERE id='follow-subscription'"),
     (error) => /SUBSCRIPTION_CHANGE_REQUEST_NOT_COMPLETED/.test(error.message),
   );
 
   // 但客户自己停止必须畅通——一个把客户困在已下架策略里的守卫比它要防的问题更糟。
   await pool.query(
-    "UPDATE strategy_subscriptions SET status='ended',ended_reason='customer_stopped' WHERE id='follow-subscription'",
+    "UPDATE strategy_subscriptions SET status='stopped',ended_by='customer',ended_reason='customer_stopped' WHERE id='follow-subscription'",
   );
   const ended = await pool.query(
     "SELECT status,ended_reason FROM strategy_subscriptions WHERE id='follow-subscription'",
   );
-  assert.equal(ended.rows[0].status, "ended");
+  assert.equal(ended.rows[0].status, "stopped");
   assert.equal(ended.rows[0].ended_reason, "customer_stopped");
 });
 
@@ -158,10 +158,10 @@ test("走完通知缓冲期后可按变更申请终止", async () => {
             '2026-08-01T00:00:00Z','2026-08-08T00:00:00Z','2026-08-08T00:00:00Z');
   `);
   await pool.query(
-    "UPDATE strategy_subscriptions SET status='ended',ended_reason='change_request' WHERE id='follow-subscription-2'",
+    "UPDATE strategy_subscriptions SET status='stopped',ended_by='operations_risk',ended_reason='change_request' WHERE id='follow-subscription-2'",
   );
   const ended = await pool.query("SELECT status FROM strategy_subscriptions WHERE id='follow-subscription-2'");
-  assert.equal(ended.rows[0].status, "ended");
+  assert.equal(ended.rows[0].status, "stopped");
 });
 
 test("结束理由只允许四种，且必须说得出是谁结束的", async () => {
@@ -170,7 +170,7 @@ test("结束理由只允许四种，且必须说得出是谁结束的", async ()
     VALUES ('follow-subscription-3','follow-strategy','follow-third','active','2026-08-01T00:00:00Z','follow-version','paper','active')
   `);
   await assert.rejects(
-    pool.query("UPDATE strategy_subscriptions SET status='ended',ended_reason='strategy_delisted' WHERE id='follow-subscription-3'"),
+    pool.query("UPDATE strategy_subscriptions SET status='stopped',ended_by='customer',ended_reason='strategy_delisted' WHERE id='follow-subscription-3'"),
     (error) => /strategy_subscriptions_ended_reason_check/.test(error.message),
     "「因为下架所以结束」根本不在允许的理由里",
   );

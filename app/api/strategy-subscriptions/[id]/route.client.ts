@@ -6,6 +6,7 @@ import {
 } from "@/db/schema";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireUser, responseError } from "@/lib/session";
+import { pauseFollow, resumeFollow, stopFollow } from "@/packages/domain/src/strategy-follow-lifecycle";
 import { isCustomerTradingEmergencyStopped } from "@/lib/trading-emergency";
 
 type LifecycleAction = "pause" | "resume" | "stop";
@@ -34,22 +35,50 @@ export async function PATCH(
     }
 
     const now = new Date().toISOString();
-    let nextStatus: "active" | "paused" | "ended";
-    let riskCheck: Record<string, unknown> | undefined;
+    const riskCheck: Record<string, unknown> | undefined = undefined;
 
+    // 客户对自己的跟随行使的是 PRD 6.6 四方里最弱的那一方：可以暂停与终止自己的跟随，
+    // 但解除不了风控阻断。判定交给状态机，路由不自己写 if。
+    let transition;
     if (body.action === "pause") {
-      if (subscription.status !== "active") return Response.json({ error: "只有运行中的策略可以暂停" }, { status: 409 });
-      nextStatus = "paused";
+      transition = pauseFollow(subscription.status, "customer");
     } else if (body.action === "stop") {
-      if (subscription.status === "ended") return Response.json({ id, status: "ended", message: "跟随已停止" });
-      nextStatus = "ended";
+      if (subscription.status === "stopped") return Response.json({ id, status: "stopped", message: "跟随已停止" });
+      transition = stopFollow(subscription.status, "customer");
+    } else if (body.action === "resume") {
+      // 实盘跟随仍然关闭；Paper 跟随可以恢复（T4.4）。
+      if (subscription.runMode === "live") {
+        return Response.json({ error: "实盘跟单尚未开放；当前不能恢复实盘跟随" }, { status: 403 });
+      }
+      transition = resumeFollow(subscription.status, {
+        pausedBy: subscription.pausedBy, authority: "customer",
+      });
     } else {
-      return Response.json({ error: "实盘跟单尚未开放；当前不能恢复模拟跟单" }, { status: 403 });
+      return Response.json({ error: "不支持的跟随操作" }, { status: 422 });
     }
+
+    if (!transition.allowed) {
+      // 风控阻断与「状态不对」是两回事，报错要分开：前者要告诉客户去找运营，
+      // 后者只是操作时机不对。
+      const riskBlocked = transition.reason === "insufficient_authority";
+      return Response.json({
+        error: riskBlocked
+          ? "该跟随由风控阻断，需要运营风控解除后才能恢复"
+          : "跟随当前状态不允许该操作",
+        code: riskBlocked ? "FOLLOW_RISK_BLOCKED" : "FOLLOW_TRANSITION_INVALID",
+        status: subscription.status,
+        pausedBy: subscription.pausedBy ?? null,
+      }, { status: 409 });
+    }
+    const nextStatus = transition.nextState;
 
     const update = {
       status: nextStatus,
-      endedAt: nextStatus === "ended" ? now : null,
+      pausedBy: transition.pausedBy,
+      pausedAt: transition.pausedBy ? now : null,
+      endedAt: nextStatus === "stopped" ? now : null,
+      endedBy: nextStatus === "stopped" ? ("customer" as const) : null,
+      endedReason: nextStatus === "stopped" ? ("customer_stopped" as const) : null,
       lastRiskCheckAt: riskCheck ? now : subscription.lastRiskCheckAt,
       riskCheckJson: riskCheck ? JSON.stringify(riskCheck) : subscription.riskCheckJson,
       updatedAt: now,
