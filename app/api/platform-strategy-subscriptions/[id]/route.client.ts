@@ -27,6 +27,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`platform-follow:${user.id}`]);
       if (action === "stop") {
         const open = Number((await client.query<{ count: string }>(`
           SELECT count(*)::text AS count FROM (
@@ -44,19 +45,27 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         if (open > 0) throw new ResearchApiError("OPEN_POSITION_EXISTS", "仍有模拟持仓，必须先由策略退出或执行紧急平仓流程", 409);
       }
       const status = action === "pause" ? "paused" : "ended";
+      const transitionedAt = new Date().toISOString();
       await client.query(`
         UPDATE strategy_subscriptions
         SET status = $2, runtime_status = $2,
             ended_at = CASE WHEN $2 = 'ended' THEN $3 ELSE ended_at END,
             updated_at = $3
         WHERE id = $1 AND customer_id = $4
-      `, [subscriptionId, status, new Date().toISOString(), user.id]);
+      `, [subscriptionId, status, transitionedAt, user.id]);
       await client.query(`
         UPDATE strategy_deployments
         SET status = $2, lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
         WHERE strategy_subscription_id = $1 AND owner_user_id = $3
           AND status IN ('active', 'paused')
       `, [subscriptionId, status, user.id]);
+      if (action === "stop") {
+        await client.query(`
+          UPDATE strategy_subscription_periods
+          SET ended_at = $3
+          WHERE subscription_id = $1 AND customer_id = $2 AND ended_at IS NULL
+        `, [subscriptionId, user.id, transitionedAt]);
+      }
       await client.query("COMMIT");
       return Response.json({ id: subscriptionId, status, message: status === "ended" ? "模拟策略运行已停止" : "策略已暂停，不再处理新 K 线" });
     } catch (error) {

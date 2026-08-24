@@ -5649,5 +5649,49 @@ export const API_ROUTE_INVENTORY = [
     "sensitivity": "normal",
     "requiresSameOrigin": false,
     "idempotency": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/work-records",
+    "source": "app/api/work-records/route.client.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
+    ],
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/work-records/:id",
+    "source": "app/api/work-records/[id]/route.client.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "client.paper.view"
+    ],
+    "permissionMfa": {
+      "client.paper.view": "none"
+    },
+    "scope": "grant",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
   }
 ] as const satisfies readonly ApiRouteInventoryEntry[];

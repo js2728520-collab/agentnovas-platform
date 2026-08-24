@@ -2869,3 +2869,40 @@ Host/Cookie audience、权限链接注册、五设备、客户/运营/维护工�
 `bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，不会纳入本轮提交。未执行
 生产迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署。P-08 固定 Credits 数值与
 模型/功能分档仍保持阻断。
+
+## 79. 2026-08-24 T4.13a-BE Client 工作记录后端与保留基础
+
+本轮完成工作记录的后端纵向基础，不包含 Client 页面或 Maintenance 导出。新增
+`GET /api/work-records` 与 `GET /api/work-records/:id`，统一使用 `client.paper.view`、私有不缓存响应、
+最多 50 条不透明游标和非法/未知/他人/订阅空档统一 404。详情只返回公共七阶段 allowlist 证据、行情
+安全摘要，以及当前客户部署链下的组合准入、模拟意图和模拟成交；明确
+`realOrderRoutingEnabled=false`，不调用 LLM、不触发订单或外部写入。
+
+0075 迁移新增不可变 `strategy_subscription_periods`。共享轮必须同时匹配客户、部署 owner、策略卡、
+品种、固定策略版本和订阅期间；启用、停止和模式切换使用同一用户 advisory lock 串行化，暂停不关闭
+期间。数据库触发器证明客户/订阅/部署/版本/卡片/品种/模式属于同一事实，拒绝区间重叠和除首次关闭
+之外的改写；旧部署缺 migration map 时失败关闭，不再用无目标 `ON CONFLICT DO NOTHING` 静默丢
+历史。legacy text 时间由带订阅 ID 的安全解析函数校验。决策轮、事件、周期、行情快照、模拟意图和
+期间在六个月内禁止删除，模拟成交继续沿用更强的永久追加式保护。
+
+提交前多 Agent 只读安全审查发现并修正三项 P1：固定版本未参与共享轮 join、所有无 cycle 的轮都被
+误报“无需准入”、列表缺少热路径索引和语句超时。现在只有纯 `hold` 且无 cycle 才标记
+`not_required`，其他无 cycle 公共轮标记 `not_recorded`；列表与详情均使用 5 秒只读事务超时，并为
+决策轮、准入周期和模拟意图增加索引。PostgreSQL 反例覆盖跨客户 IDOR、订阅空档、版本错配、纯
+hold、非 hold 缺准入、连续分页、跨事实插入、区间重叠和六个月删除保护。
+
+本地最终 `npm test` 1436/1436、TypeScript、全仓 ESLint、8 条架构边界、API inventory、Nginx
+allowlist 和差异检查全部通过。云端以证据回填前的最终运行时暂存树
+`5fb966a713ebd111549b554b491a9e27b43b43b8` 的 3104 文件归档构建，本地/`an-saas` 源码 SHA-256
+均为 `c5af4fbeb5408c5746ed7cfd5956180da02c867bdf2d8a8a55a78348cbdd2f32`。固定 Node 22.21.1
+production build 完成 Client 68、Operations 62、Maintenance 52 页；三端构建镜像摘要依次为
+`sha256:3f95947275c19e2c1c81aaf7c49c6abe3bf807825c39ef764bbbcaa5add786ff`、
+`sha256:f5c74448b4382dc1c0fef3bb0c955b3f24d110c8cd0a25de583b7cecba72cb56`、
+`sha256:bc5a0f86bfb4a1928b6ef6d3343b9815dc34d04d36d2765d2e0067903cadef95`。production-only audit
+为 0，三端 server JavaScript 不含交易所凭证加解密能力；临时源码和镜像已删除。
+
+两份用户自有修改哈希保持为
+`103098cb5261603f7a43a262eedf34fe039daa8020fcbd35d0adf3e91c874c05` 与
+`bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，未纳入本轮提交。未执行生产
+迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署。下一切片是 4.13a-UI；之后才是
+4.13b Maintenance security-barrier 脱敏导出与最终浏览器 Gate。

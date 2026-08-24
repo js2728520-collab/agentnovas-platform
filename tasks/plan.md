@@ -578,6 +578,8 @@ Client 67、Operations 62、Maintenance 51 页，production audit 0，最终浏�
 4. WR4 Maintenance 投影：新增 security-barrier 安全视图，只暴露伪名用户和 allowlist 字段；Maintenance DB role 只获得该视图 SELECT，新敏感权限不得覆盖显式撤权墓碑。
 5. WR5 Maintenance 导出：使用 `POST /api/maintenance/work-records/export`，日期最多 31 天、最多 1,000 条、请求体严格、same-origin、幂等与页面内 3–500 字审计原因；返回无公式注入风险的 JSON，不落本地文件、不回显原始用户 ID/PII/模型凭证/错误原文。
 
+**当前进度：** WR1、WR2 与六个月数据库删除保护已完成。共享轮严格匹配订阅期间固定版本；只有纯 `hold` 且无客户周期才显示“无需准入”，其他缺周期轮显示“未记录”。订阅区间由数据库校验客户/订阅/部署/版本/卡片/品种/模式一致性并拒绝重叠，启停使用同一 advisory lock 串行化；列表查询使用热路径索引和 5 秒只读事务超时。WR3–WR5 仍待后续切片。
+
 **验收：** 跨客户 IDOR 返回统一 404；纯 hold 与有组合准入两类记录均可追溯；列表分页不重复不遗漏；导出调用写入追加式审计且重放不重复生成审计事件；记录保留合同至少六个月，任何清理器不得提前删除关联决策、事件、意图和回执。
 
 **验证：** 纯合同、PostgreSQL ownership/时间窗/并发/保留、API Policy/RBAC/最小权限、TypeScript、ESLint、架构与 secret Gate、云端三端 production build、本地真实 Chromium/axe 三端登录和工作记录主旅程。

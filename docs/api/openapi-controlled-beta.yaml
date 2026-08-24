@@ -94,6 +94,46 @@ paths:
                 $ref: '#/components/schemas/TradingHall'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /api/work-records:
+    get:
+      tags: [Trading Hall]
+      summary: 查询本人订阅期间的策略工作记录
+      description: 公共决策按不可变订阅期间授权；组合准入、模拟意图与成交只属于当前客户。
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+        - in: query
+          name: cursor
+          schema: { type: string, maxLength: 512 }
+      responses:
+        '200':
+          description: 私有、不缓存的工作记录分页
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StrategyWorkRecordPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/work-records/{id}:
+    get:
+      tags: [Trading Hall]
+      summary: 查询本人可见的单条策略工作记录
+      description: 非法、未知、他人记录或订阅空档统一返回 404；明确不启用真实订单路由。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      responses:
+        '200':
+          description: 公共决策与当前客户组合事实的安全投影
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StrategyWorkRecordDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/membership/legal-consent:
     get:
       tags: [Membership]
@@ -1131,6 +1171,66 @@ components:
           type: array
           items: { $ref: '#/components/schemas/DecisionRound' }
         generatedAt: { type: string, format: date-time }
+    StrategyWorkRecordSummary:
+      type: object
+      additionalProperties: false
+      required: [recordId, strategyCode, strategyName, strategyVersion, symbol, timeframe, decisionStatus, completeness, executionMode, admissionStatus, hasOrderIntent, hasFillReceipt, occurredAt, isSharedDecision]
+      properties:
+        recordId: { type: string, minLength: 1, maxLength: 128 }
+        strategyCode: { type: string, enum: [ai_conservative, ai_balanced, ai_aggressive] }
+        strategyName: { type: string }
+        strategyVersion: { type: string }
+        symbol: { type: string, enum: [BTCUSDT, ETHUSDT, SOLUSDT] }
+        timeframe: { type: string, enum: [5m, 15m, 1h, 4h, 1d] }
+        decisionStatus: { type: string }
+        completeness: { type: string, enum: [complete, partial, legacy] }
+        executionMode: { type: string, enum: [shadow, paper] }
+        admissionStatus: { type: string, enum: [not_required, not_recorded, recorded, risk_rejected, failed] }
+        hasOrderIntent: { type: boolean }
+        hasFillReceipt: { type: boolean }
+        occurredAt: { type: string, format: date-time }
+        isSharedDecision: { type: boolean }
+    StrategyWorkRecordPage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/StrategyWorkRecordSummary' }
+        page:
+          type: object
+          additionalProperties: false
+          required: [limit, nextCursor]
+          properties:
+            limit: { type: integer, minimum: 1, maximum: 50 }
+            nextCursor: { type: [string, 'null'] }
+    StrategyWorkRecordDetail:
+      allOf:
+        - $ref: '#/components/schemas/StrategyWorkRecordSummary'
+        - type: object
+          required: [candleOpenAt, traceId, sharedDecisionRoundId, marketSnapshot, events, admission, orderIntents, fillReceipts, realOrderRoutingEnabled]
+          properties:
+            candleOpenAt: { type: string, format: date-time }
+            traceId: { type: [string, 'null'], maxLength: 128 }
+            sharedDecisionRoundId: { type: [string, 'null'] }
+            marketSnapshot: { type: [object, 'null'], description: 不含账户、完整交易规则或费用配置的行情安全投影 }
+            events:
+              type: array
+              maxItems: 7
+              items:
+                type: object
+                description: 七阶段 allowlist 结论、证据与公开解释
+            admission:
+              type: object
+              description: 仅当前客户组合的准入状态与 allowlist 风险摘要
+            orderIntents:
+              type: array
+              items: { type: object, description: 仅当前客户的模拟订单意图安全投影 }
+            fillReceipts:
+              type: array
+              items: { type: object, description: 仅当前客户的模拟成交安全投影 }
+            realOrderRoutingEnabled: { type: boolean, const: false }
     TradingHallStrategy:
       type: object
       required: [code, name, positioning, targetMarket, symbols, regimeTimeframe, decisionTimeframes, executionObservationTimeframe, typicalHoldingPeriod, normalParentOrderTarget, risk, status, executionMode, dataAvailable, openPositions]

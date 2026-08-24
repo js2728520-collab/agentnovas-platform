@@ -144,6 +144,9 @@ function basePolicy(route, method) {
   if (route === "/api/trading-hall" || route.startsWith("/api/trading-hall/paper/")) {
     return { audiences: ["client"], authentication: "permission", sameOrigin: mutation };
   }
+  if (route === "/api/work-records" || route === "/api/work-records/:id") {
+    return { audiences: ["client"], authentication: "permission", sameOrigin: mutation };
+  }
   if (route === "/api/platform-strategies/:code/follow" || route === "/api/platform-strategy-subscriptions/:id") {
     return { audiences: ["client"], authentication: "permission", sameOrigin: true };
   }

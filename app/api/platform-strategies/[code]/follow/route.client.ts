@@ -68,6 +68,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     try {
       await client.query("BEGIN");
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`platform-follow:${user.id}`]);
+      const activatedAt = new Date().toISOString();
       const portfolios = await ensureOfficialPaperPortfolios(client, {
         membershipId: membership.id,
         customerId: user.id,
@@ -85,9 +86,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
       if (switched.endedSubscriptionIds.length) {
         await client.query(`
           UPDATE strategy_subscriptions
-          SET status = 'ended', runtime_status = 'ended', ended_at = now(), updated_at = now()
+          SET status = 'ended', runtime_status = 'ended', ended_at = $3, updated_at = $3
           WHERE id = ANY($1::text[]) AND customer_id = $2
-        `, [switched.endedSubscriptionIds, user.id]);
+        `, [switched.endedSubscriptionIds, user.id, activatedAt]);
+      }
+      if (switched.endedDeploymentIds.length) {
+        await client.query(`
+          UPDATE strategy_subscription_periods
+          SET ended_at = $3
+          WHERE deployment_id = ANY($1::text[]) AND customer_id = $2 AND ended_at IS NULL
+        `, [switched.endedDeploymentIds, user.id, activatedAt]);
       }
       const activeCount = Number((await client.query<{ count: string }>(`
         SELECT count(*)::text AS count FROM strategy_subscriptions
@@ -102,7 +110,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
         throw new ResearchApiError("ACTIVE_STRATEGY_LIMIT", `当前会员最多同时运行 ${membership.maxActiveStrategies} 个策略`, 409);
       }
       subscriptionId = existing?.id ?? crypto.randomUUID();
-      const activatedAt = new Date().toISOString();
       await client.query(`
         INSERT INTO strategy_subscriptions (
           id, strategy_id, customer_id, exchange_account_id, capital_pct, stop_loss_pct,
@@ -151,6 +158,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
       `, [deployment.id, user.id]);
       if (!reactivated.rows[0]) throw new Error("平台策略部署激活失败");
       deployment = { ...deployment, status: "active" };
+      await client.query(`
+        INSERT INTO strategy_subscription_periods (
+          id, subscription_id, customer_id, deployment_id, strategy_code,
+          strategy_version_id, symbol, mode, started_at
+        )
+        SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9
+        WHERE NOT EXISTS (
+          SELECT 1 FROM strategy_subscription_periods
+          WHERE subscription_id = $2 AND deployment_id = $4 AND ended_at IS NULL
+        )
+      `, [
+        crypto.randomUUID(), subscriptionId, user.id, deployment.id, code,
+        mapped.strategy_version_id, symbol, mode, activatedAt,
+      ]);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

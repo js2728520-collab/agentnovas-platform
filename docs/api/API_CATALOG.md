@@ -231,6 +231,8 @@
 | `/api/trading-hall/paper/portfolio` | GET | C | KEEP；每卡 10,000 USDT 独立组合 |
 | `/api/trading-hall/paper/trades` | GET | C | KEEP；服务端 paper history/cursor |
 | `/api/trading-hall/paper/platform-demo-summary` | GET | C | KEEP；按 provider/card 的净化测试状态，不返回账户/订单/trace/secret，明确 customerImpact=false |
+| `/api/work-records` | GET | C | CURRENT；本人订阅期间的公共决策与组合准入摘要，游标分页、私有不缓存 |
+| `/api/work-records/[id]` | GET | C | CURRENT；公共七阶段与本人模拟意图/成交安全投影，越权与不存在统一 404 |
 | `/api/operations/membership-orders` | GET | O | KEEP；scope/pagination/filter |
 | `/api/operations/membership-orders/[id]` | GET | O | KEEP；凭证脱敏/审批历史 |
 | `/api/operations/membership-orders/[id]/evidence` | POST | O | KEEP；maker/幂等/recent MFA |
