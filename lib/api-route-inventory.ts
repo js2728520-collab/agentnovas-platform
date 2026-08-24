@@ -2403,6 +2403,28 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": true
   },
   {
+    "method": "GET",
+    "route": "/api/maintenance/configuration-versions/:id/pinned-tasks",
+    "source": "app/api/maintenance/configuration-versions/[id]/pinned-tasks/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.configuration_versions.view"
+    ],
+    "permissionMfa": {
+      "maint.configuration_versions.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
     "method": "POST",
     "route": "/api/maintenance/configuration-versions/:id/schedule",
     "source": "app/api/maintenance/configuration-versions/[id]/schedule/route.maintenance.ts",

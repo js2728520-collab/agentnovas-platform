@@ -3,7 +3,10 @@ import { createHash } from "node:crypto";
 import { normalizeConfigurationFamilyPayload } from "./configuration-family-registry.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
-export const CONFIGURATION_KINDS = ["brand", "domain", "protocol", "feature_flag", "prompt", "skill", "pricing"] as const;
+// 与 configuration_versions_kind_check 的允许值一一对应（0069 建立，0077 加入 market）。
+// 两侧错开会得到一种很难查的故障：DB 允许而应用拒绝，于是某个配置族根本无法被创建；
+// 反向则是应用放行到 DB 才炸成 23514。由 tests/versioned-configuration-kinds 守住。
+export const CONFIGURATION_KINDS = ["brand", "domain", "protocol", "feature_flag", "prompt", "skill", "pricing", "market"] as const;
 export const CONFIGURATION_AUDIENCES = ["client", "operations", "maintenance", "shared"] as const;
 export const CONFIGURATION_TEST_RESULTS = ["passed", "failed"] as const;
 export const CONFIGURATION_APPROVAL_DECISIONS = ["approve", "reject"] as const;

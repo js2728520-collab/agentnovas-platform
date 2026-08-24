@@ -55,8 +55,11 @@ test("registered strategy research flag uses a constrained draft form and server
   assert.match(create, /灰度百分比/);
   assert.match(create, /独立开始时间/);
   assert.match(create, /独立结束时间/);
-  assert.match(create, /schemaVersion:\s*targetedFeatureFlag\s*\?\s*2\s*:\s*1/);
-  assert.match(create, /payload:\s*targetedFeatureFlag\s*\?\s*targetedPayload\(\)\s*:\s*\{ enabled: featureEnabled \}/);
+  // PS3 把 payload 构造抽成 structuredPayload()，Prompt/Skill 与开关共用一条提交路径。
+  // 契约没变——注册族的 schemaVersion 仍由发布范围决定而不是运维填写，定向规则仍走
+  // targetedPayload()——只是不再是两个并列的三元分支，所以断言跟着改写法。
+  assert.match(create, /registeredFeatureFlag && targetedFeatureFlag \? 2/);
+  assert.match(create, /if \(registeredFeatureFlag\) return targetedFeatureFlag \? targetedPayload\(\) : \{ enabled: featureEnabled \}/);
   assert.match(create, /readOnly=\{registeredFeatureFlag\}/);
   assert.match(detail, /\[1, 2\]\.includes\(version\.schemaVersion\)/);
   assert.match(workspace, /\[1, 2\]\.includes\(version\.schemaVersion\)/);

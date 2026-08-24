@@ -1,4 +1,7 @@
-export const configurationKinds = ["brand", "domain", "protocol", "feature_flag", "prompt", "skill", "pricing"] as const;
+// 这是 CONFIGURATION_KINDS 的第二份副本，刻意如此：lib/versioned-configuration-domain
+// 会把家族注册表和错误类型一起拖进客户端包。副本由 tests/versioned-configuration-kinds
+// 与真源对齐。
+export const configurationKinds = ["brand", "domain", "protocol", "feature_flag", "prompt", "skill", "pricing", "market"] as const;
 export const configurationAudiences = ["client", "operations", "maintenance", "shared"] as const;
 
 export function commandKey(prefix: string) {

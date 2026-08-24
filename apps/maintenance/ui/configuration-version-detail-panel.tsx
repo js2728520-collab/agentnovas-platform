@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 
 import type { ConfigurationActivationAction, ConfigurationApprovalDecision, ConfigurationTestResult } from "@/lib/versioned-configuration-domain";
 import type { ConfigurationVersion } from "@/packages/contracts/src/versioned-configuration";
-import { formatDateTime } from "@/packages/contracts/src/riverton-ui";
+import { apiErrorMessage, formatDateTime } from "@/packages/contracts/src/riverton-ui";
 import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { StatusBadge } from "@/packages/ui/src/page-state";
 import { changedTopLevelKeys, defaultScheduleLocal, localDateTimeWithOffset, offsetForLocalDateTime, shortHash } from "./configuration-version-ui";
+
+type PinnedUsage = { inFlight: number; historical: number; researchRuns: number };
 
 export function ConfigurationVersionDetailPanel({ version, current, currentUserId, canManage, canApprove, canActivate, busy, onTest, onRegisteredTest, onReview, onSchedule, onActivation }: {
   version: ConfigurationVersion;
@@ -36,6 +38,38 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
     const timer = window.setInterval(() => setReferenceNow(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+  // PS-05：这一版上还固定着多少任务。运维在激活或回滚前真正要问的是「旧版还在跑吗」。
+  // 只对 prompt 族请求——其它配置族没有任务固定这个概念，多发一次请求只会制造噪声。
+  // 结果带上它属于哪个版本，切换选中项时靠 id 不匹配自然作废，不需要在 effect 里
+  // 同步重置 state。
+  const [pinned, setPinned] = useState<{ versionId: string; usage: PinnedUsage | null; error: string } | null>(null);
+  const promptVersionId = version.kind === "prompt" ? version.id : null;
+  useEffect(() => {
+    if (!promptVersionId) return;
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/maintenance/configuration-versions/${encodeURIComponent(promptVersionId)}/pinned-tasks`,
+          { cache: "no-store" },
+        );
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(apiErrorMessage(body, "任务固定情况读取失败"));
+        if (active) setPinned({ versionId: promptVersionId, usage: body as PinnedUsage, error: "" });
+      } catch (error) {
+        // 读不到就明说读不到，不显示 0——「没有任务固定在这一版」与「查不到」是两个
+        // 不同的结论，把后者显示成前者会让运维以为可以放心改动。
+        if (active) {
+          setPinned({
+            versionId: promptVersionId, usage: null,
+            error: error instanceof Error ? error.message : "任务固定情况读取失败",
+          });
+        }
+      }
+    })();
+    return () => { active = false; };
+  }, [promptVersionId]);
+  const pinnedForVersion = pinned && pinned.versionId === promptVersionId ? pinned : null;
   const changed = changedTopLevelKeys(current?.payload ?? null, version.payload);
   const scheduledFor = localDateTimeWithOffset(scheduleLocal, offsetForLocalDateTime(scheduleLocal));
   const scheduleUtc = scheduledFor ? new Date(scheduledFor).toISOString() : "";
@@ -59,6 +93,17 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
       <div><dt>计划时间</dt><dd>{version.schedule ? formatDateTime(version.schedule.scheduledFor) : "未调度"}</dd></div>
       <div><dt>控制面 current</dt><dd>{version.isCurrent ? "是" : "否"}</dd></div>
     </dl>
+    {promptVersionId && <div className="rc-callout">
+      <b>任务固定情况（PS-05）</b>
+      {pinnedForVersion?.error ? <p className="rc-warning">{pinnedForVersion.error}</p>
+        : !pinnedForVersion?.usage ? <p className="rc-muted">正在读取…</p>
+        : <ul>
+          <li>在途解释任务 <strong>{pinnedForVersion.usage.inFlight}</strong> 个——它们会用这一版跑完，激活或回滚都不影响。</li>
+          <li>历史解释任务 <strong>{pinnedForVersion.usage.historical}</strong> 个的结论依据这一版。</li>
+          <li>研发运行 <strong>{pinnedForVersion.usage.researchRuns}</strong> 次固定在这一版上。</li>
+        </ul>}
+      <p className="rc-muted">激活与回滚只影响随后创建的新任务；已固定的任务不会中途换 Prompt。</p>
+    </div>}
     <details><summary>查看不可变 payload</summary><pre className="rc-config-payload"><code>{JSON.stringify(version.payload, null, 2)}</code></pre></details>
 
     {canManage && !version.approval ? registeredFeatureFlag

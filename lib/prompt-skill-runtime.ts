@@ -120,3 +120,47 @@ export async function snapshotResearchPromptConfigurations(
   }
   return snapshot;
 }
+
+export type PromptVersionTaskUsage = {
+  /** 还在排队或执行中的任务：它们会跑完在这一版上，激活或回滚都不影响。 */
+  inFlight: number;
+  /** 已完成或失败的任务：它们的历史依据是这一版。 */
+  historical: number;
+  /** 固定在这一版上的研发运行数（运行级固定，不区分步骤）。 */
+  researchRuns: number;
+};
+
+/**
+ * 统计有多少任务固定在某个 Prompt 配置版本上（PS-05）。
+ *
+ * 运维激活新版本时真正要知道的是「旧版还在跑吗」。把在途与历史分开：前者回答
+ * 「现在还有多少任务会用旧 Prompt 跑完」，后者回答「有多少历史结论依据这一版」。
+ * 合并成一个数字，运维就无法判断这次变更的影响面。
+ */
+export async function countPromptVersionTaskUsage(
+  database: Queryable,
+  configurationVersionId: string,
+): Promise<PromptVersionTaskUsage> {
+  const jobs = await database.query<{ in_flight: string; historical: string }>(`
+    SELECT
+      count(*) FILTER (WHERE status IN ('pending','running','retry_wait'))::text AS in_flight,
+      count(*) FILTER (WHERE status IN ('completed','failed'))::text AS historical
+    FROM strategy_runtime_explanation_jobs
+    WHERE prompt_configuration_version_id = $1
+  `, [configurationVersionId]);
+
+  const runs = await database.query<{ total: string }>(`
+    SELECT count(*)::text AS total
+      FROM strategy_research_runs
+     WHERE EXISTS (
+       SELECT 1 FROM jsonb_each(prompt_configuration_snapshot_json) AS entry
+        WHERE entry.value->>'configurationVersionId' = $1
+     )
+  `, [configurationVersionId]);
+
+  return {
+    inFlight: Number(jobs.rows[0]?.in_flight ?? 0),
+    historical: Number(jobs.rows[0]?.historical ?? 0),
+    researchRuns: Number(runs.rows[0]?.total ?? 0),
+  };
+}
