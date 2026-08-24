@@ -139,3 +139,48 @@ export async function settleFollowContractWeek(
 
   return view(inserted, false);
 }
+
+/**
+ * 从模拟盘账本读出某一周的已实现盈亏（T4.4 第 2 步）。
+ *
+ * 周盈亏取该周内的成交回执之和；累计盈亏取**周末之前全部**回执之和——高水位线比的是累计
+ * 值，只算本周会让每一周都从零开始，亏损周之后的反弹会被重复计费（INV-5）。
+ *
+ * 只算**已实现**盈亏：未平仓位的浮盈不计费。浮盈可能在下一周变成浮亏，按它收费等于对
+ * 一笔尚未发生的收益预收。
+ */
+export async function loadFollowWeekRealizedPnl(
+  client: PoolClient,
+  input: { portfolioId: string; weekStart: string; weekEnd: string },
+): Promise<{ weekNetPnl: string; cumulativeNetPnl: string }> {
+  const result = await client.query<{ week: string; cumulative: string }>(`
+    SELECT
+      COALESCE(SUM(realized_net_pnl_usdt) FILTER (
+        WHERE filled_at >= $2::timestamptz AND filled_at < $3::timestamptz
+      ), 0)::text AS week,
+      COALESCE(SUM(realized_net_pnl_usdt) FILTER (WHERE filled_at < $3::timestamptz), 0)::text AS cumulative
+    FROM strategy_follow_paper_fill_receipts
+    WHERE portfolio_id = $1
+  `, [input.portfolioId, input.weekStart, input.weekEnd]);
+  const row = result.rows[0];
+  return { weekNetPnl: row.week, cumulativeNetPnl: row.cumulative };
+}
+
+/**
+ * 按账本结算某份跟单合同的某一周。
+ *
+ * 这是把 T4.3b 的结算与 T4.4 的模拟盘账本接起来的那一环——在此之前 `weekNetPnl` 由调用方
+ * 给，而没有任何调用方，因为社区策略跑不出成交。
+ */
+export async function settleFollowWeekFromBook(
+  client: PoolClient,
+  input: { contractId: string; portfolioId: string; weekStart: string; weekEnd: string },
+): Promise<FollowSettlementRecord> {
+  const pnl = await loadFollowWeekRealizedPnl(client, input);
+  return settleFollowContractWeek(client, {
+    contractId: input.contractId,
+    weekStart: input.weekStart,
+    weekEnd: input.weekEnd,
+    ...pnl,
+  });
+}

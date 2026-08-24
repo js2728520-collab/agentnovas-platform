@@ -8,6 +8,7 @@ import pg from "pg";
 
 import { processNextFollowRuntimeDeployment } from "../lib/follow-runtime-worker.ts";
 import { completeFollowRuntimeCycle, settlePendingFollowPaperOrder } from "../lib/follow-paper-repository.ts";
+import { loadFollowWeekRealizedPnl, settleFollowWeekFromBook } from "../lib/strategy-follow-settlement-repository.ts";
 import { runPostgresMigrations } from "../scripts/postgres-migration-runner.mjs";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
@@ -191,4 +192,52 @@ test("暂停的跟随仍然被租走——离场不能被挡住", async () => {
   const leased = await processNextFollowRuntimeDeployment(pool, { workerId: "e2e-worker-4" }, deps(risingCandles(48)));
   assert.ok(leased, "风控阻断的跟随仍应被租走以便离场");
   assert.notEqual(leased.status, "not_admitted");
+});
+
+test("第 2 步：账本盈亏接上周结算", async () => {
+  // 在此之前 settleFollowContractWeek 的 weekNetPnl 由调用方给，而没有任何调用方——
+  // 社区策略跑不出成交。现在盈亏来自真实的成交回执。
+  const week = { weekStart: "2026-07-27T00:00:00.000Z", weekEnd: "2026-08-03T00:00:00.000Z" };
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const pnl = await loadFollowWeekRealizedPnl(client, { portfolioId: "e2e-portfolio", ...week });
+    // 只有买入成交时已实现盈亏为 0——浮盈不计费。
+    assert.equal(typeof pnl.weekNetPnl, "string");
+    assert.equal(typeof pnl.cumulativeNetPnl, "string");
+
+    const settlement = await settleFollowWeekFromBook(client, {
+      contractId: "e2e-contract", portfolioId: "e2e-portfolio", ...week,
+    });
+    await client.query("COMMIT");
+    assert.equal(settlement.contractId, "e2e-contract");
+    // 只买未卖时本周没有已实现盈利，因此零费用——浮盈不计费，它可能在下一周变成浮亏。
+    assert.equal(Number(settlement.feeAmount), 0);
+    assert.equal(settlement.status, "no_fee");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+});
+
+test("累计盈亏取周末之前全部回执，不只本周", async () => {
+  // 高水位线比的是累计值。只算本周会让每一周都从零开始，亏损周之后的反弹被重复计费。
+  const client = await pool.connect();
+  try {
+    const wide = await loadFollowWeekRealizedPnl(client, {
+      portfolioId: "e2e-portfolio",
+      weekStart: "2026-08-03T00:00:00.000Z", weekEnd: "2026-08-10T00:00:00.000Z",
+    });
+    const early = await loadFollowWeekRealizedPnl(client, {
+      portfolioId: "e2e-portfolio",
+      weekStart: "2026-07-27T00:00:00.000Z", weekEnd: "2026-08-03T00:00:00.000Z",
+    });
+    // 后一周的本周盈亏为 0（没有新成交），但累计值必须包含之前那笔。
+    assert.equal(Number(wide.weekNetPnl), 0);
+    assert.equal(Number(wide.cumulativeNetPnl), Number(early.cumulativeNetPnl));
+  } finally {
+    client.release();
+  }
 });
