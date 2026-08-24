@@ -69,6 +69,9 @@
 - [-] 2.11 陈旧行情阻断自动新开仓。
   - [x] 2.11a 当前 Runtime 只使用已收盘 K 线，并按周期 cadence 失败关闭陈旧/非法行情的新开仓。
   - [!] 2.11b 接入真实 stream envelope 的 latency/stale/sequence 综合准入，等待 2.2b/P-01/P-03。
+- [x] 2.1c-Visibility 市场可见性配置族：迁移 0077 加 `market` kind 与最小权限 current 网关；
+  严格 schema 只接受已注册市场 ID、拼错 ID 拒绝而非忽略；确定性测试器禁止隐藏加密市场；
+  消费者只能收窄不能新增，非法配置回落默认可见而不是全部隐藏。
 - [ ] 2.12 完成每市场 G2、压测和故障注入。
 
 ## Phase 3：Maintenance 配置、计费、主题与语言

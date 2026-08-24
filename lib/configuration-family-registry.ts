@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
 import {
+  isMarketVisibilityFamily,
+  normalizeMarketVisibilityPayload,
+  runMarketVisibilityTest,
+} from "./market-visibility-configuration.ts";
+import {
   isRegisteredPromptSkillFamily,
   normalizeRegisteredPromptSkillPayload,
   runPromptSkillConfigurationTest,
@@ -168,6 +173,13 @@ export function normalizeConfigurationFamilyPayload(input: ConfigurationFamilyIn
   if (input.kind === "prompt" || input.kind === "skill") {
     return normalizeRegisteredPromptSkillPayload(input);
   }
+  // 市场可见性（T2.1c 收口）。注册后同样必须走严格 schema，不能落回原样保存。
+  if (input.kind === "market") {
+    if (!isMarketVisibilityFamily(input)) {
+      throw new ResearchApiError("CONFIGURATION_FAMILY_UNREGISTERED", "该市场配置族或 schema 尚未注册", 422);
+    }
+    return normalizeMarketVisibilityPayload(input.payload);
+  }
   if (input.kind !== "feature_flag") return input.payload;
   if (!isRegisteredFeatureFlag(input)) {
     throw new ResearchApiError("CONFIGURATION_FAMILY_UNREGISTERED", "该功能开关配置族或 schema 尚未注册", 422);
@@ -178,6 +190,9 @@ export function normalizeConfigurationFamilyPayload(input: ConfigurationFamilyIn
 export function runRegisteredConfigurationFamilyTest(input: ConfigurationFamilyInput) {
   if (isRegisteredPromptSkillFamily(input)) {
     return runPromptSkillConfigurationTest(input);
+  }
+  if (isMarketVisibilityFamily(input)) {
+    return runMarketVisibilityTest(input);
   }
   if (!isRegisteredFeatureFlag(input)) {
     throw new ResearchApiError("CONFIGURATION_FAMILY_UNREGISTERED", "该配置族没有确定性测试器", 422);
