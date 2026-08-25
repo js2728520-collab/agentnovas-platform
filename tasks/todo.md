@@ -3,6 +3,8 @@
 分支：`codex/platform-v3-doc-sync`
 状态说明：`[x]` 已完成并有证据；`[-]` 正在进行；`[ ]` 未开始；`[!]` 等待需求方/外部条件；`[B]` 安全或规则阻断。
 
+> **当前发布范围（2026-08-25 已确认）：** 只推进 S0——受控的 Paper/Demo 商业平台。Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 不属于当前发布范围，继续保持关闭，并作为后续独立切片分别通过 ADR、Gate、授权和发布评审。任务完成状态不等于生产启用或发布批准。
+
 ## Phase 0：文档、参数与计划
 
 - [x] V3 PRD、冲突解释和待补参数清单。
@@ -185,7 +187,7 @@
 - [B] 8.6 参数注入、回放、乱序、失败和控制面失陷测试。
 - [B] 8.7 G7 和应急回退到“只登记证据”。
 
-## Phase 9：全平台收口与发布
+## Phase 9：后续全平台收口与发布（当前 S0 之外）
 
 - [ ] 9.1 Current Spec、API Catalog、OpenAPI、ADR、Runbook 全部回填真实状态。
 - [ ] 9.2 全量 unit/contract/PostgreSQL/security/browser/axe/performance。

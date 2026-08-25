@@ -4,6 +4,8 @@
 日期：2026-08-23
 上位真源：`../product/PRD.md`、ADR-0021
 
+> **当前发布边界（2026-08-25）：** 本文是 V3 目标规格，不是当前发布授权。当前唯一发布范围是 S0——受控的 Paper/Demo 商业平台；Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 均为后续独立切片，继续保持关闭，必须分别通过自己的 Gate、授权和发布评审。
+
 ## 1. 目标架构
 
 目标运行环境保持自托管 Linux、Node.js 22.21+、PostgreSQL、Nginx、Certbot 和独立 Worker/服务。不引入 Cloudflare Runtime 或 Redis。

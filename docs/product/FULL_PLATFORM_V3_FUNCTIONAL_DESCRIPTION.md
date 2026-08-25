@@ -10,6 +10,8 @@
 
 当前已部署系统仍是受控 Beta/Paper 基线。本文出现的真实交易、提现、划转和部署触发能力均为目标，不是当前上线证明。
 
+> **当前发布边界（2026-08-25）：** 本文是 V3 目标功能说明，不是当前发布授权。当前唯一发布范围是 S0——受控的 Paper/Demo 商业平台；Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 均为后续独立切片，继续保持关闭。
+
 ## 2. 产品组成
 
 ### 2.1 Client

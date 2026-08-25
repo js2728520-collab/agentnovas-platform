@@ -4,9 +4,9 @@
 
 > 最新文档入口为 `docs/README.md`。本文第 13 节对前文“全部完成”的表述进行了状态校正；接管者应以最新 PRD、Spec、系统评估和任务清单为准。
 
-## 1. 接管入口
+> **当前发布范围（2026-08-25）：** 本交接文档保留历史交接证据；当前唯一发布范围已确认是 S0——受控的 Paper/Demo 商业平台。Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 继续关闭，均为后续独立切片。历史章节和历史验证不得解读为当前 S0 发布批准。
 
-本文档是新开发环境和新接管任务的第一入口。聊天记录不会自动随代码迁移，因此接管时必须依次阅读：
+## 1. 接管入口聊天记录不会自动随代码迁移，因此接管时必须依次阅读：
 
 1. `AGENTS.md` 与 `CLAUDE.md`（不可违反的业务不变量 INV-1–INV-11、架构边界、已知陷阱）
 2. `docs/README.md`（文档入口与按角色的阅读路径）
@@ -4284,3 +4284,10 @@ inventory，检查该接口在该端构建里存在且未被停用。RED 验证�
 - 新增目录测试覆盖 Binance public source 和 CoinGecko 的配置入口、缺失变量、server-only 方法及 secret 不回显；修复并保留未知/浏览器控制目标的 fail-closed 测试。
 - 聚焦配置/行情测试：11/11 通过；`npm test`：1730/1730 通过；`npx tsc --noEmit`：通过；`npm run lint`：通过；`npm run quality:bundle`：通过；`npm run quality:boundaries`：通过（8 条）；`git diff --check`：通过。
 - 本地验证不是 provider 授权、连通性、SLA、实时行情或目标环境证据；没有把“有配置入口”写成 configured/healthy/ready，也未执行迁移、部署、生产数据库操作或推送。
+
+## 101. 2026-08-25 S0 当前发布范围裁决
+
+- 需求方确认当前唯一发布范围为 S0：受控的 Paper/Demo 商业平台，覆盖 Client、Operations、Maintenance 以及具有独立当前证据的 Paper/Demo、AI、策略市场、会员/Credits 和受控通知能力。
+- Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 不属于 S0，继续保持关闭，并作为后续独立切片分别通过 ADR、Gate、授权和发布评审。
+- 本条目只记录文档范围裁决，不代表 S0 已通过发布 Gate，不授权部署、生产迁移、外部 provider 激活或生产切流。
+- 受影响文档：`docs/quality/V3_RELEASE_SCOPE.md`（当前范围记录）、`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md`、`docs/product/PRD.md`、Current/Target 功能说明、System/三端目标规格、Gate/Evidence、`tasks/todo.md` 和能力迁移矩阵；历史证据未被改写。

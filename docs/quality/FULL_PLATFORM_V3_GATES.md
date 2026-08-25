@@ -4,6 +4,8 @@
 日期：2026-08-23
 上位真源：PRD V3.0、ADR-0021
 
+> **当前发布范围（2026-08-25）：** 本文件描述完整 V3 的后续解锁 Gate，不是当前发布授权。当前唯一发布范围是 S0——受控的 Paper/Demo 商业平台；Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 继续 disabled，并须分别作为独立切片通过对应 Gate、授权和发布评审。
+
 ## 1. Gate 原则
 
 - Gate 优先于日期、演示效果和功能开关。

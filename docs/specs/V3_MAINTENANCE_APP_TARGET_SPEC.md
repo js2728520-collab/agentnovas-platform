@@ -3,6 +3,8 @@
 状态：`TARGET`
 日期：2026-08-23
 
+> **当前发布边界（2026-08-25）：** 本文是目标应用规格。S0 当前只允许受控 Paper/Demo 商业平台所需且已独立过 Gate 的 Maintenance 能力；Maintenance CI/CD trigger 不属于 S0，继续 disabled，并作为后续独立切片评审和发布。
+
 ## 1. 职责与边界
 
 Maintenance 负责系统、品牌、模型、技能、Prompt、Token、套餐、支付配置、优惠、外部集成、日志、任务、安全、版本和 CI/CD 控制面。

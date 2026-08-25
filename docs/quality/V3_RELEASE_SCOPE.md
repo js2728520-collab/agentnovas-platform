@@ -1,24 +1,26 @@
 # V3 Release Scope
 
-Status: `TARGET`
-Date: 2026-08-24
+Status: `CURRENT_SCOPE`
+Date: 2026-08-25
 Owner: `unassigned`
 Approver: `unassigned`
 Rollback owner: `unassigned`
-Scope freeze: `not frozen`
-Go / no-go: `NO-GO — documentation slice only`
-Purpose: record the narrow release slice that this documentation pass covers.
+Scope freeze: `frozen — scope decision only; release approval remains separate`
+Go / no-go: `NO-GO — scope is agreed, release evidence and approval are still incomplete`
+Purpose: record the current release boundary and distinguish it from later V3 target slices.
+
+> **Current release decision (2026-08-25): S0 is the sole release scope for the current documentation and development tranche.** S0 means a controlled Paper/Demo commercial platform across Client, Operations, and Maintenance, with only independently gated capabilities that have current evidence. Spot Live, USDT perpetual, Withdrawal/Transfer, and Maintenance CI/CD triggers remain disabled and are later independent slices. This scope decision does not authorize deployment, production migration, external provider activation, or a go decision.
 
 ## Candidate release slices
 
 | Slice | Intended capability | Current decision |
 | --- | --- | --- |
-| S0 | In-app Client/Operations/Maintenance with only independently gated Paper/Demo, AI, strategy-marketplace, membership/Credits, and in-app-only notification degradation | `NO-GO`; each dependency gate and external capability state still requires fresh evidence; external Email/notification writes remain disabled or unverified |
-| S1 | One explicitly named `(provider, production, spot)` canary | `BLOCKED`; G4/G4A, explicit authorization, and all three named live blockers remain prerequisites |
-| S2 | Additional spot providers | `BLOCKED`; approved independently per provider/environment/product after S1 |
-| S3 | Perpetual, withdrawal/transfer, or CI/CD control plane | `BLOCKED`; each requires a separate ADR, threat model, gate, approval, and release |
+| S0 | In-app Client/Operations/Maintenance with only independently gated Paper/Demo, AI, strategy-marketplace, membership/Credits, and in-app-only notification degradation | `CURRENT SCOPE — NOT YET GO`; each dependency gate and external capability state still requires fresh evidence; external Email/notification writes remain disabled or unverified |
+| S1 | One explicitly named `(provider, production, spot)` canary | `LATER INDEPENDENT SLICE — BLOCKED`; G4/G4A, explicit authorization, and all three named live blockers remain prerequisites |
+| S2 | Additional spot providers | `LATER INDEPENDENT SLICE — BLOCKED`; approved independently per provider/environment/product after S1 |
+| S3 | Perpetual, withdrawal/transfer, or CI/CD control plane | `LATER INDEPENDENT SLICES — BLOCKED`; each requires a separate ADR, threat model, gate, approval, and release |
 
-This document does not enable any slice. S0 is the recommended first candidate shape, not an assertion that Paper, Demo, Email, payment, or other external effects are production-approved.
+This document records the agreed current scope but does not enable any slice. S0 is the sole current release scope; it is not an assertion that Paper, Demo, Email, payment, or other external effects are production-approved. S1, S2, and S3 are later independent slices, not implicit contents of S0.
 
 ## Capability matrix
 
@@ -69,8 +71,8 @@ Exact providers, products, markets, audiences, environments, owners, monitoring 
 
 - Fresh current proof for every V3 gate is not available from this slice.
 - Migration bodies beyond the file names were not audited here.
-- Whether the current release tranche should advance beyond documentation only is unknown and blocked on separate validation work.
+- Whether S0 should advance to a go decision remains unknown and blocked on candidate-specific validation and approval; advancing beyond S0 is outside the current release scope.
 
 ## Release boundary
 
-This slice is documentation-only. It narrows the release conversation to the gate ledger, evidence index, and rollback/runbook pointers without changing implementation state.
+This documentation decision freezes S0 as the sole current release scope. It narrows the release conversation to S0 gates, evidence, and rollback/runbook pointers without changing implementation state or authorizing a go decision.

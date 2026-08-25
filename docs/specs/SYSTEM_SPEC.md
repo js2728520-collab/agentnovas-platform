@@ -2,9 +2,10 @@
 
 > 文档状态：`CURRENT_BASELINE`。本文描述当前运行和硬关闭边界；V3 目标系统见 [`V3_SYSTEM_TARGET_SPEC.md`](V3_SYSTEM_TARGET_SPEC.md)。目标文档不自动解锁本文关闭的真实交易、资金出站或自动部署。
 
-版本：2.0
-状态：目标规格；以测试和 Gate 证据判定完成度
+> **当前发布范围（2026-08-25）：** 本当前基线只支持 S0——受控的 Paper/Demo 商业平台。Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 保持关闭，属于后续独立切片；本文描述的当前实现与硬关闭边界不得被 V3 目标文档解释为当前启用授权。
 
+版本：2.0
+状态：`CURRENT_BASELINE`；以测试和 Gate 证据判定完成度
 ## 1. 拓扑与信任边界
 
 ```text

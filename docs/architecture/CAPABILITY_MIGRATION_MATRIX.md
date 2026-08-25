@@ -139,7 +139,9 @@
 | R-01 | 不可变发布身份、验证、部署/回滚证据 | release tables/API、Maintenance `/releases`；只登记事实 | 保持 current 控制面 | `CURRENT` | 不得宣称已能触发部署。 |
 | R-02 | Maintenance 受限 CI/CD workflow trigger | 当前明确不执行 Shell/SSH/DB script | 固定 workflow API、短期凭证、回调和审计 | `BLOCKED` | 新 ADR/威胁模型、人员分离、artifact/migration/rollback 校验和 G7。 |
 
-## 8. Phase 9：体验、运维和正式发布收口
+## 8. Phase 9：后续体验、运维和正式发布收口
+
+> **当前范围边界（2026-08-25）：** 本节是完整 V3 的后续迁移矩阵，不是当前发布范围。当前只推进 S0 受控 Paper/Demo 商业平台；Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 均保持关闭并分别进入后续独立切片。
 
 | ID | V3 能力 | Current 资产 | 状态 | 剩余条件 |
 | --- | --- | --- | --- | --- |

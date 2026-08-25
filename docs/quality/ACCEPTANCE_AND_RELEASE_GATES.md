@@ -4,6 +4,8 @@
 
 状态：强制 Gate；任何否决项不得豁免为“先上线再修”
 
+> **当前发布范围（2026-08-25）：** 当前 Gate 评审只服务于 S0——受控的 Paper/Demo 商业平台。Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 不是 S0 的可启用能力，均保留为后续独立 Gate；本文件覆盖全平台安全否决项，但通过某个 Gate 不会隐式打开这些能力。
+
 ## 1. Gate 0：产品合同、披露与范围
 
 - PRD、七智能体合同、System/三端 Spec、API Catalog/OpenAPI、ADR 和 Runbook 经责任角色评审。
