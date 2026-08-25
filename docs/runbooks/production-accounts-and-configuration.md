@@ -350,7 +350,37 @@ sudo shred -u /root/agentnovas-config/platform-demo-accounts.json
 
 后续仍按以下顺序：临时启用 `PLATFORM_DEMO_VERIFICATION_ENABLED`；逐 provider 验证；关闭验证开关；确认 15 分钟内验证；按 provider/card 解除停控；启动 Demo Worker 但保留 `PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false`；最后才在 staging 小额窗口单独授权外部写。客户 Paper 结果始终不因 Demo 成败改变。
 
-## 8. 服务重启、验收与清理
+## 8. W1/G1 MFA 目标环境演练与证据
+
+本节是操作清单，不是生产通过证明。执行前必须冻结候选 commit、制品 SHA-256、完整迁移版本/校验和、当前版本与同环境回滚制品，并记录独立的发布 owner、approver 和 rollback owner。未获得目标环境授权、维护窗口和真实测试账号前，不得执行切换。
+
+### 8.1 启用前检查
+
+1. Client、Operations、Maintenance 使用同一候选制品；三端 env 均显式设置 `MFA_ENFORCEMENT_ENABLED=true`，不得接受缺失、空值、大小写变体或带空格值。
+2. 运行 `scripts/audit-production-config.sh`，确认三端 enforcement 值一致、Operations 与 Maintenance 的 `MFA_TOTP_ENCRYPTION_KEY` 一致；只保存不含值的审计摘要。
+3. 确认既有 MFA 凭证可由目标服务解密；不得导出 TOTP seed、恢复码明文或密钥。确认健康、Host、Cookie、TLS、Nginx 和目标进程 `current_user` smoke 均有对应证据。
+4. 准备允许名单中的真实测试邮箱、四身份浏览器矩阵、request/idempotency correlation id、时间戳和证据哈希；浏览器 trace、截图、日志和工单不得包含 secret、cookie、恢复码或原始 PII。
+
+### 8.2 三端同步启用与旅程
+
+将三份 env 在同一变更窗口切换并逐端重启；任一端未达到预期状态不得切流。按顺序执行并记录脱敏结果：
+
+- Client 首次登录/按现行策略绑定，已绑定账号 TOTP 登录和 recovery code 单次消费；
+- Operations、Maintenance 首次登录 enrollment、已绑定 TOTP 登录和 recovery code 登录；
+- TOTP 重放拒绝、recent MFA 15 分钟窗口与过期后的敏感权限拒绝；
+- Client 与内部端密码重置、旧 session 撤销、五设备上限/第六设备拒绝；
+- Client、Operations maker/checker、Maintenance 的 Host/Cookie/audience、撤权、scope、PII 投影和注册链接；
+- 邮件事件与登录安全通知仅在 Email readiness 已通过且发送开关获单独授权时验证；HTTP `202` 仅代表 queued，不代表 sent 或 delivered。
+
+每条证据必须绑定环境、候选 commit、制品/迁移哈希、时间、owner、reviewer 和结果；`unknown`、`unverified`、`blocked`、`not_anchored` 均不得升级为 pass。
+
+### 8.3 回滚与清理
+
+若认证、跨端隔离、恢复码、撤权或健康检查任一失败：三端同时将 enforcement 改回 `false` 并重启，复做直接登录、audience/Cookie 和撤权 smoke；不删除凭证、恢复码哈希、审计或 session 历史，不运行回滚迁移。回滚目标必须是同环境已验证 immutable artifact。临时测试账号、测试邮箱和 root-only 文件按本手册清理规则销毁；证据包只保留脱敏摘要和哈希。
+
+目标环境未完成本节全套演练前，G1 仍为 `PARTIAL`，本地 `test:e2e:mfa-on` 与 `test:e2e:mfa-rollout` 只能作为实现证据。
+
+## 9. 服务重启、验收与清理
 
 每次配置变化后：
 

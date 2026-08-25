@@ -4229,3 +4229,25 @@ inventory，检查该接口在该端构建里存在且未被停用。RED 验证�
 - `node --test --experimental-strip-types tests/strategy-work-records-postgres.test.mjs`：6/6 通过。
 - `node --test --experimental-strip-types tests/live-book-posting-postgres.test.mjs`：12/12 通过。
 - 本条目描述的是工作树验证，不是发布证据；完整迁移 fresh/N-1/rerun/checksum/concurrent/backup/restore 证据仍缺。
+
+## 98. 2026-08-25 W1/G1 MFA 开关语义与目标环境演练边界
+
+本切片保留 `8cb3385`，未 push、未部署、未切换任何目标环境配置。目标环境 MFA 与真实 Email 仍需独立授权、维护窗口和新鲜证据，G1 不因本地测试通过而升级。
+
+### MFA 开关一致性
+
+- `lib/mfa.ts` 现在只把精确字符串 `MFA_ENFORCEMENT_ENABLED=true` 视为开启；缺失、`false`、大小写变体、前后空格、`1` 和其他值均保持关闭。
+- 该语义与 ADR-0023 及 `scripts/audit-production-config.sh` 的 exact-boolean 校验一致，避免运行时在绕过配置审计时意外开启。
+- `tests/client-account-mfa.test.mjs` 增加了非精确值的 fail-closed 断言；聚焦 MFA 合同/安全测试共 11/11 通过。
+
+### W1 操作边界
+
+- `docs/runbooks/production-accounts-and-configuration.md` 新增 W1/G1 目标环境清单：三端同一候选制品和窗口切换、内部密钥一致性、健康/Host/Cookie/TLS/Nginx/current_user smoke、首次绑定/已绑定/recovery/recent-MFA/密码重置/旧 session/设备/跨 audience 与 maker-checker 旅程，以及三端同步回滚。
+- 清单明确证据需绑定环境、commit、制品/迁移哈希、时间、owner/reviewer，且不得保留 seed、恢复码明文、cookie、密钥或原始 PII；`202` 只代表 Email queued，不代表 sent/delivered。
+- 回滚只将三端 enforcement 同时设为 `false` 并重启，保留凭证、恢复码哈希、审计和 session 历史；目标环境未完成演练前 G1 仍为 `PARTIAL`。
+
+### 验证与未完成项
+
+- `node --experimental-strip-types --test tests/client-account-mfa.test.mjs tests/mfa-security.test.mjs tests/mfa-route-contract.test.mjs`：11/11 通过。
+- `git diff --check`：通过。
+- 本地 `mfa-on` / rollout、真实 provider 邮件投递、目标环境三端启用与回滚、四身份浏览器和 Nginx/TLS/current_user 证据仍未在本切片执行；不得将其写成 G1 通过。

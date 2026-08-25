@@ -10,6 +10,13 @@ test("MFA enforcement is off by default while the complete login contract remain
   assert.equal(mfaEnforcementEnabled({}), false);
   assert.equal(mfaEnforcementEnabled({ MFA_ENFORCEMENT_ENABLED: "false" }), false);
   assert.equal(mfaEnforcementEnabled({ MFA_ENFORCEMENT_ENABLED: "true" }), true);
+  for (const value of ["TRUE", " true", "true ", "1", "yes", ""]) {
+    assert.equal(
+      mfaEnforcementEnabled({ MFA_ENFORCEMENT_ENABLED: value }),
+      false,
+      `non-exact MFA flag ${JSON.stringify(value)} must remain disabled`,
+    );
+  }
   assert.deepEqual(mfaLoginRequirement("client", false), {
     required: false,
     enrollmentRequired: false,

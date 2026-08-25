@@ -10,7 +10,7 @@ const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 export function mfaEnforcementEnabled(
   environment: Record<string, string | undefined> = process.env,
 ) {
-  return environment.MFA_ENFORCEMENT_ENABLED?.trim().toLowerCase() === "true";
+  return environment.MFA_ENFORCEMENT_ENABLED === "true";
 }
 
 export function mfaLoginRequirement(
