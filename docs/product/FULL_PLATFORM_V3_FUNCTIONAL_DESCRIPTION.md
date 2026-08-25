@@ -96,7 +96,7 @@ Operations 不显示组织树。后端保留分公司、角色归属、客户归
 
 ## 9. 真实交易与执行
 
-首期目标交易所为 Binance、OKX、Coinbase、Crypto.com、Kraken；MetaMask 作为独立钱包集成。Bybit、Bitget、Gate.io、HTX 为后续候选。
+目标交易所共八家，按 P-01 顺序为 Binance、OKX、Coinbase、Crypto.com、Kraken、Gate.io、Bitget、HTX；MetaMask 首期不接入。八家目标范围不等于 provider 已完成认证或真实交易已获授权，每家仍须独立通过 G4/G4A Gate。
 
 目标产品覆盖加密货币现货、USDT 永续、外汇和贵金属。每个 provider 独立完成签名、精度、限流、幂等、部分成交、查单、对账和故障恢复。
 
@@ -169,7 +169,7 @@ T3.9a 的失败率不包含 preflight 拒绝、用户取消或处理中请求，
 - 角色权限注册链接与隐藏组织架构页面的迁移。
 - 多市场实时行情与供应商授权。
 - 客户策略市场、作者合同和收费。
-- 五家首期交易所及 MetaMask 的正式适配范围。
+- 八家目标交易所的正式适配范围与逐 provider Gate；MetaMask 首期不接入。
 - 实盘 blocker、真实交易所验收和逐 provider 灰度。
 - 提现/划转独立资金产品。
 - Maintenance 的完整产品配置和 CI/CD 触发控制面。

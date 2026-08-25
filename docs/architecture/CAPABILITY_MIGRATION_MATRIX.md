@@ -129,7 +129,7 @@
 | --- | --- | --- | --- | --- | --- |
 | L-01 | Execution Service 独立凭证和唯一订单边界 | `scripts/execution-service.mjs`、独立协议/credential access/handler、key-custody quality Gate | 独立 Linux service 与专用 DB/network role | `PARTIAL/BLOCKED` | 生产密钥域、轮换、网络、审计和 provider 认证。 |
 | L-02 | 客户交易账户、只读+交易权限、IP 白名单 | `exchange_accounts` 与 verification/credential 基础；Client route 当前 disabled | Client 交易中心 + Execution Service | `PARTIAL/BLOCKED` | P-01、每 provider 权限/API/IP 验证；浏览器永不取回 Secret。 |
-| L-03 | 五家首期 provider | Binance/OKX adapter 与测试基础；Coinbase/Crypto.com/Kraken 未达到执行合同 | Execution provider ports/adapters | `BLOCKED` | P-01 优先顺序、沙箱/生产认证；每家独立 G4A。 |
+| L-03 | 八家目标 provider | Binance/OKX adapter 与测试基础；Coinbase/Crypto.com/Kraken/Gate.io/Bitget/HTX 未达到执行合同 | Execution provider ports/adapters | `BLOCKED` | P-01 八家顺序已冻结；每家仍需沙箱/生产认证和独立 G4A。 |
 | L-04 | balance/position/live book 持续对账 | live book/reconciliation tables、worker/repository 与测试基础 | Execution Service reconciliation | `PARTIAL` | 真实 provider unknown/partial fill/fee/precision/timeout 故障注入。 |
 | L-05 | pre-trade risk、account/provider/strategy/global kill switch | kill switch、live routing、emergency close 和 Operations/Maintenance UI 基础 | 确定性 risk kernel + 双控制面 | `PARTIAL` | live 账户/策略 scope、恢复审批和生产演练。 |
 | L-06 | 真实现货与自动跟单扇出 | named gate 和意图/回执基础；当前真实订单硬关闭 | Runtime → Execution Service；Client/Operations 只看安全投影 | `BLOCKED` | G4/G4A、单 provider canary、首小时监控；不设置一次性全局解锁。 |

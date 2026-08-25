@@ -40,7 +40,7 @@
 
 ### 2.3 仍需确认或外部证据
 
-- P-01：首期加密交易所优先顺序、账户一致源与 Coinbase fallback 的精确优先级。
+- P-01：八家目标交易所的已冻结 rollout 顺序见 `packages/contracts/src/product-parameters.ts`；真实账户一致源、provider fallback 优先级及各家认证仍须独立 Gate。
 - P-03：A/HK/KR/JP 供应商、授权范围、数据保存/再分发条件与 SLA。
 - 每个供应商的 symbol、复权、停牌、交易日历和流量限制 fixture。
 
