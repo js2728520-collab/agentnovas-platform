@@ -117,7 +117,7 @@
 | A-01 | AI 助手普通对话和策略生成 | 持久化 conversation/message、SSE、Credits reservation/settle/release、稳定重放、服务端取消与 provider abort；Client `/assistant` 无弹窗取消；旧元素已退役并保留 4 个快捷问题 | 统一 Client AI 助手 | `CURRENT/PARTIAL` | 普通对话取消/重试/幂等已闭环；P-04 已冻结为按 AgentNovas 现有方向演进，不再等待外部移植基准；统一入口/信息架构仍需独立验收，固定 Credits 属于 S0 外 T3.9b。 |
 | A-02 | QuantDinger 移植参考 | P-04 已冻结为不做移植参考；现有 AgentNovas 研究/DSL/AI 基础继续原生演进 | 不建立移植模块或差异验收任务 | `RETIRED` | 若未来重新引入第三方参考，须先确认指定版本、授权与验收样例，并以新 PRD/ADR/Gate 单独立项。 |
 | A-03 | 文字建议、可编辑参数、结构化策略 | DSL v1–v3、strategy candidates/versions/validations 与确定性校验 | Client AI/studio + strategy domain | `PARTIAL` | 新市场/provider 字段、版本兼容与端到端浏览器旅程。 |
-| A-04 | 回测、模拟盘准入和风险门槛版本 | backtest/Paper/Research 基础和多类测试 | Client `/backtests` + admission service | `PARTIAL/BLOCKED` | P-05 时长、收益/回撤门槛；不能用开发默认值代替。 |
+| A-04 | 回测、Paper/Demo 准入和风险门槛版本 | backtest/Paper/Research 基础和多类测试 | Client `/backtests` + admission service | `PARTIAL/BLOCKED` | P-05 至少 180 天回测、至少 30 笔成交、正收益、10%/15%/20% 回撤边界和人工审核仍需在完整 G3 证据中核验；不设置强制模拟盘时长，未达门槛必须为 `NOT_QUALIFIED`。 |
 | A-05 | 客户投稿、平台审核、上/下架、重大版本重审 | `community_strategies/strategy_change_requests/author_earnings` 等历史基础；marketplace route 当前 disabled | Client 策略广场 + Operations 策略审核 | `PARTIAL/TARGET` | S0 仅在独立 G3 证据通过后纳入 Paper/Demo 策略市场；真实作者/平台结算与收益分成另需商业/账本 Gate；旧 disabled route 不直接复活。 |
 | A-06 | 跟单配置、不可变快照、Paper/Demo 先验收 | 官方卡 Paper subscription、portfolio/fills 和 pause/stop 已可达 | Client 策略详情/跟单配置 + Runtime | `PARTIAL` | S0 仅在独立 G3 证据通过后纳入 Paper/Demo 跟单配置；真实订单跟单须通过 G4/G4A 及单 provider canary。 |
 | A-07 | 订阅费、收益分成、作者/平台分账 | 当前会员、Paper performance fee、高水位与 revenue allocation 基础 | 策略商业合同 + Operations/Client | `PARTIAL/BLOCKED` | S0 可保存不可变费用合同快照并展示 Paper-only 模拟收益分成/作者平台模拟分配（标注模拟、不可提现、未实际结算）；禁止真实应收/发票/余额/支付/退款/资金账本分录；真实结算须独立商业/账本 Gate。 |
