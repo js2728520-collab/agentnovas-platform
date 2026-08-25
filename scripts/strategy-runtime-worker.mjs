@@ -7,6 +7,8 @@ import {
   processNextRuntimeExplanation,
   processNextStrategyRuntimeDeployment,
 } from "../lib/strategy-runtime-worker.ts";
+import { processNextFollowRuntimeDeployment } from "../lib/follow-runtime-worker.ts";
+import { processNextFollowSettlement } from "../lib/strategy-follow-settlement-repository.ts";
 import { createWorkerHeartbeatReporter } from "../lib/worker-observability.ts";
 
 const connectionString = researchDatabaseUrl();
@@ -43,7 +45,17 @@ try {
     try {
       const result = await processNextStrategyRuntimeDeployment(pool, { workerId });
       const explanation = await processNextRuntimeExplanation(pool, { workerId: `${workerId}-explanation` });
-      if (!result && !explanation) await delay(1_000);
+      // 社区策略跟单走自己的租约与周期（T4.4）。两条租约的挑选条件互斥，不会互相饿死。
+      const follow = await processNextFollowRuntimeDeployment(pool, { workerId: `${workerId}-follow` });
+      // 周结算：每次只处理一个 (合同, 周)，绝大多数轮次返回 null。
+      const settlement = await processNextFollowSettlement(pool);
+      if (settlement) console.info("Follow week settled", {
+        contractId: settlement.contractId,
+        weekStart: settlement.weekStart,
+        feeAmount: settlement.feeAmount,
+        replayed: settlement.replayed,
+      });
+      if (!result && !explanation && !follow && !settlement) await delay(1_000);
       else if (result?.status === "waiting_for_candle" && !explanation) await delay(250);
       else {
         heartbeat.setCurrentJob(result?.cycleId || explanation?.jobId || null);

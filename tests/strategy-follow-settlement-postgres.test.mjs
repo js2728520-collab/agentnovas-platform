@@ -7,7 +7,7 @@ import test from "node:test";
 import pg from "pg";
 
 import { pinFollowContract } from "../lib/strategy-follow-contract.ts";
-import { settleFollowContractWeek } from "../lib/strategy-follow-settlement-repository.ts";
+import { processNextFollowSettlement, settleFollowContractWeek } from "../lib/strategy-follow-settlement-repository.ts";
 import { runPostgresMigrations } from "../scripts/postgres-migration-runner.mjs";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
@@ -295,5 +295,52 @@ test("run_mode 缺失时按不收费处理", async () => {
     throw error;
   } finally {
     client.release();
+  }
+});
+
+test("Worker 逐周补齐未结算的周，已走完的才结算", async () => {
+  // 对一个还没结束的周计费，等于按半周的盈亏收全周的费。
+  await pool.query(`
+    INSERT INTO users(id,email,password_hash,role,status)
+      VALUES ('scan-customer','scan-customer@quality.invalid','test-only-hash','customer','active');
+    INSERT INTO strategy_subscriptions(id,strategy_id,customer_id,status,started_at,strategy_version_id,run_mode,runtime_status)
+      VALUES ('scan-subscription','settle-strategy','scan-customer','active','2026-08-01T00:00:00Z','settle-version','paper','active');
+    INSERT INTO strategy_follow_paper_portfolios(id,subscription_id,customer_id,strategy_id)
+      VALUES ('scan-portfolio','scan-subscription','scan-customer','settle-strategy');
+    INSERT INTO strategy_follow_contracts(
+      id,subscription_id,strategy_id,customer_id,author_user_id,strategy_version_id,
+      strategy_version,performance_fee_bps,platform_share_bps,publication_mode,risk_json,disclosure_sha256,confirmed_at
+    ) VALUES ('scan-contract','scan-subscription','settle-strategy','scan-customer','settle-author','settle-version',
+      1,1800,5000,'marketplace','{"capitalPct":3}'::jsonb,repeat('e',64),'2026-08-03T00:00:00Z');
+  `);
+
+  // 2026-08-03 是周一。到 08-17 为止走完了两周：08-03～08-10 与 08-10～08-17。
+  const asOf = new Date("2026-08-19T00:00:00.000Z");
+  const first = await processNextFollowSettlement(pool, { now: asOf });
+  assert.equal(first.contractId, "scan-contract");
+  assert.equal(first.weekStart, "2026-08-03T00:00:00.000Z", "最早的未结算周先结");
+
+  const second = await processNextFollowSettlement(pool, { now: asOf });
+  assert.equal(second.weekStart, "2026-08-10T00:00:00.000Z");
+
+  // 第三周（08-17～08-24）在 08-19 时还没走完，不该被结算。
+  const third = await processNextFollowSettlement(pool, { now: asOf });
+  assert.equal(third, null, "未走完的周不得结算");
+
+  const rows = await pool.query(
+    "SELECT count(*)::int AS count FROM strategy_follow_settlements WHERE contract_id='scan-contract'");
+  assert.equal(rows.rows[0].count, 2);
+});
+
+test("模拟盘的周也结算，只是不收费", async () => {
+  // 盈亏要记录、高水位线要推进——否则将来转实盘时基准从零开始，客户会为一段模拟期的
+  // 涨幅重复付费（INV-5）。
+  const settlements = await pool.query(`
+    SELECT fee_amount::text, status FROM strategy_follow_settlements
+     WHERE contract_id='scan-contract' ORDER BY week_start`);
+  assert.equal(settlements.rowCount, 2);
+  for (const row of settlements.rows) {
+    assert.equal(Number(row.fee_amount), 0);
+    assert.equal(row.status, "no_fee");
   }
 });

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import { settleFollowWeek } from "../packages/domain/src/strategy-follow-settlement.ts";
 import { ResearchApiError } from "./research-errors.ts";
@@ -189,4 +189,71 @@ export async function settleFollowWeekFromBook(
     weekEnd: input.weekEnd,
     ...pnl,
   });
+}
+
+/**
+ * 找出下一个待结算的 (合同, 周) 并结算它（T4.4）。
+ *
+ * 每次只处理一个，返回 null 表示没有待结算的——与其它 Worker 循环同一形态。
+ *
+ * 候选是「合同确认之后、已经走完的 UTC 自然周里，还没有结算单的最早一周」。已走完才结算：
+ * 对一个还没结束的周计费，等于按半周的盈亏收全周的费。
+ *
+ * **模拟盘的周同样要结算。** 它们不产生费用（P-06），但盈亏要记录、高水位线要推进——
+ * 否则将来转实盘时基准从零开始，客户会为一段模拟期的涨幅重复付费（INV-5）。
+ */
+export async function processNextFollowSettlement(
+  pool: Pool,
+  input: { now?: Date } = {},
+): Promise<FollowSettlementRecord | null> {
+  const now = input.now ?? new Date();
+  const candidate = (await pool.query<{
+    contract_id: string; portfolio_id: string; week_start: string; week_end: string;
+  }>(`
+    WITH weeks AS (
+      SELECT contract.id AS contract_id,
+             portfolio.id AS portfolio_id,
+             -- 从合同确认所在周的周一起算，逐周展开到当前。
+             generate_series(
+               date_trunc('week', contract.confirmed_at AT TIME ZONE 'UTC'),
+               date_trunc('week', $1::timestamptz AT TIME ZONE 'UTC'),
+               interval '7 days'
+             ) AS week_start
+        FROM strategy_follow_contracts AS contract
+        JOIN strategy_follow_paper_portfolios AS portfolio
+          ON portfolio.subscription_id = contract.subscription_id
+    )
+    SELECT weeks.contract_id,
+           weeks.portfolio_id,
+           to_char(weeks.week_start, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS week_start,
+           to_char(weeks.week_start + interval '7 days', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS week_end
+      FROM weeks
+     WHERE weeks.week_start + interval '7 days' <= $1::timestamptz
+       AND NOT EXISTS (
+         SELECT 1 FROM strategy_follow_settlements AS settlement
+          WHERE settlement.contract_id = weeks.contract_id
+            AND settlement.week_start = weeks.week_start AT TIME ZONE 'UTC'
+       )
+     ORDER BY weeks.week_start, weeks.contract_id
+     LIMIT 1
+  `, [now.toISOString()])).rows[0];
+  if (!candidate) return null;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const settlement = await settleFollowWeekFromBook(client, {
+      contractId: candidate.contract_id,
+      portfolioId: candidate.portfolio_id,
+      weekStart: candidate.week_start,
+      weekEnd: candidate.week_end,
+    });
+    await client.query("COMMIT");
+    return settlement;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
