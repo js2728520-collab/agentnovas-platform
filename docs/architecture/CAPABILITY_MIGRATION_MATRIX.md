@@ -44,7 +44,7 @@
 
 | 进程 | Current | V3 去向 | 状态 |
 | --- | --- | --- | --- |
-| Strategy Research Worker | 自托管研究编排、状态机和持久化 | AI 策略生成与测试队列；需迁移 QuantDinger 差异和新市场合同 | `PARTIAL/BLOCKED` |
+| Strategy Research Worker | 自托管研究编排、状态机和持久化 | AI 策略生成与测试队列；按 AgentNovas 自有决策链、受限 DSL 和新市场合同演进 | `PARTIAL` |
 | Strategy Runtime Worker | 确定性策略周期、风险 Gate、Paper/受控 live wiring | 跟单编排；不得直接获得客户凭证明文 | `PARTIAL` |
 | Notification Worker | inbox/email、偏好、suppression、heartbeat | 三端业务/交易/安全通知 | `CURRENT/PARTIAL` |
 | Payment Worker | 默认 disabled，当前不是收费路径 | 不复用为提现或自动退款；是否保留由新支付设计决定 | `RETIRED`（当前合同） |
@@ -114,8 +114,8 @@
 
 | ID | V3 能力 | Current 资产 | 目标位置 | 状态 | 剩余条件 |
 | --- | --- | --- | --- | --- | --- |
-| A-01 | AI 助手普通对话和策略生成 | 持久化 conversation/message、SSE、Credits reservation/settle/release、稳定重放、服务端取消与 provider abort；Client `/assistant` 无弹窗取消；旧元素已退役并保留 4 个快捷问题 | 统一 Client AI 助手 | `CURRENT/PARTIAL` | 普通对话取消/重试/幂等已闭环；统一入口/信息架构和固定 Credits 仍待 P-04/P-08。 |
-| A-02 | QuantDinger 移植与差异验收 | 当前研究/DSL/AI 基础；未取得指定仓库和可移植版本 | AI assistant/research modules | `BLOCKED` | P-04 仓库、演示和验收样例。 |
+| A-01 | AI 助手普通对话和策略生成 | 持久化 conversation/message、SSE、Credits reservation/settle/release、稳定重放、服务端取消与 provider abort；Client `/assistant` 无弹窗取消；旧元素已退役并保留 4 个快捷问题 | 统一 Client AI 助手 | `CURRENT/PARTIAL` | 普通对话取消/重试/幂等已闭环；P-04 已冻结为按 AgentNovas 现有方向演进，不再等待外部移植基准；统一入口/信息架构仍需独立验收，固定 Credits 属于 S0 外 T3.9b。 |
+| A-02 | QuantDinger 移植参考 | P-04 已冻结为不做移植参考；现有 AgentNovas 研究/DSL/AI 基础继续原生演进 | 不建立移植模块或差异验收任务 | `RETIRED` | 若未来重新引入第三方参考，须先确认指定版本、授权与验收样例，并以新 PRD/ADR/Gate 单独立项。 |
 | A-03 | 文字建议、可编辑参数、结构化策略 | DSL v1–v3、strategy candidates/versions/validations 与确定性校验 | Client AI/studio + strategy domain | `PARTIAL` | 新市场/provider 字段、版本兼容与端到端浏览器旅程。 |
 | A-04 | 回测、模拟盘准入和风险门槛版本 | backtest/Paper/Research 基础和多类测试 | Client `/backtests` + admission service | `PARTIAL/BLOCKED` | P-05 时长、收益/回撤门槛；不能用开发默认值代替。 |
 | A-05 | 客户投稿、平台审核、上/下架、重大版本重审 | `community_strategies/strategy_change_requests/author_earnings` 等历史基础；marketplace route 当前 disabled | Client 策略广场 + Operations 策略审核 | `PARTIAL/TARGET` | S0 仅在独立 G3 证据通过后纳入 Paper/Demo 策略市场；真实作者/平台结算与收益分成另需商业/账本 Gate；旧 disabled route 不直接复活。 |
@@ -186,7 +186,7 @@
 | 2 | Prompt/Skill 可编辑边界确认与 family v1 | M | PS-01–PS-06 已冻结；当前继续收口 Prompt evidence/Gate 与 T3.10 Skill runtime consumer |
 | 3 | market/provider/symbol/calendar schema 与只读 API | M | P-01/P-03 可分市场冻结 |
 | 4 | 单一市场 WebSocket + stale Gate | L，拆 provider 接入/前端/风险三片 | M-01 和 provider sandbox |
-| 5 | QuantDinger 差异清单与 AI 入口收敛 | M | P-04 |
+| 5 | AI 助手统一入口与信息架构收敛 | M | P-04 已冻结为按现有方向原生演进；不依赖 QuantDinger 移植参考 |
 | 6 | 策略投稿→审核→Paper 上架纵向切片 | L，拆状态机/审核/Client 三片 | P-05/P-06 |
 | 7 | 首个 provider 账户 readiness + reconcile | L，按 provider 拆 | P-01、密钥与网络环境 |
 | 8 | 单 provider 现货最小 canary | L，继续拆订单/恢复/监控 | G4/G4A |

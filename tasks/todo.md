@@ -113,7 +113,7 @@
 
 ## Phase 4：AI 助手与策略市场
 
-- [ ] 4.1 QuantDinger 差异清单和验收样例。
+- [-] 4.1 AI 助手统一入口与信息架构收敛；P-04 已确认不做 QuantDinger 移植参考，剩余工作按 AgentNovas 现有决策链、DSL、回测和准入合同验收。
 - [x] 4.2 移除观察名单、分析标的选择和旧 8 卡片。
 - [-] 4.3 AI 对话、固定 Credits、取消/重试/幂等。
   - [x] 4.3a 普通对话服务端取消、provider abort、同 key 安全重放、Credits 单终态和无弹窗 Client 交互。

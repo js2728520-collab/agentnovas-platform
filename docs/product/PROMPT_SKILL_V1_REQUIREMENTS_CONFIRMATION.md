@@ -37,8 +37,7 @@ PS-01 至 PS-06 全部采用本文第 2 节的推荐方案，据此冻结为 v1 
 
 ### PS-01：首期管理哪些 Prompt
 
-**推荐：** 首期管理现有七个策略研发角色和三个运行时只读解释角色；Client 通用 AI 助手 Prompt
-等待 QuantDinger / Credits 范围冻结后单独接入。
+**推荐：** 首期管理现有七个策略研发角色和三个运行时只读解释角色；Client 通用 AI 助手 Prompt 按 AgentNovas 现有方向单独接入，不依赖 QuantDinger 移植参考；Credits 计费边界按 P-08/T3.9b 独立管理。
 
 需要确认：
 
