@@ -4416,3 +4416,11 @@ S0 不得因这些目标合同或配置入口扣客户服务余额或 Credits，
 目标规格继续保持 `TARGET`/`PARTIAL` 边界：Prompt 仍须独立证据/Gate；Skill runtime consumer 尚未实现并归入当前 S0 之外的 T3.10；配置 `ACTIVE` 不表示 Agent 已加载 Skill、运行时接管或发布获准。未把控制面、测试或配置状态提升为外部成功或生产证据。
 
 本次仅修改两份 V3 目标规格与本交接记录，未修改业务代码、数据库迁移、配置消费者、生产配置或发布范围。验证覆盖目标规格 diff、文档-only 范围和 `git diff --check`；未执行生产迁移、未接触生产数据库、未推送、未部署。
+
+## 117. 2026-08-26 策略广场筛选排序与 G3 浏览器用例接线
+
+本切片完成 T4.7b 的最小 S0 范围：Client 策略广场直接使用公开 API 已返回的 `symbols`、`riskLevel`、最新回测与 `activeFollowers`，增加按品种、风险档和收益区间的本地筛选，以及平台推荐、净收益、跟随人数和最大回撤排序；默认仍保持服务端推荐顺序，筛选无结果显示真实空态。没有新增 API、路由、DSL 披露、真实订单或商业账本副作用，模拟跟单披露和不可提取边界不变。
+
+G3 浏览器用例同步增加筛选/排序真实交互和零 order/deployment POST 断言；既有质量用例已覆盖策略广场与我的跟单四断点、键盘、axe、历史表现、披露勾选和 Paper-only 文案。定向 Node 合同 27/27、TypeScript、ESLint、架构边界与 `git diff --check` 通过。尝试运行聚焦真实 Chromium Gate 时，Playwright 在启动前发现非本项目进程占用 `localhost:3002` 而固定拒绝；未终止未知进程、未伪造浏览器通过，因此 T4.12 与 G3 仍保持进行中，待端口释放后重跑。
+
+未执行生产迁移、未接触生产数据库、未打开 Spot Live/Perpetual/Withdrawal/CI-CD、未推送、未部署。
