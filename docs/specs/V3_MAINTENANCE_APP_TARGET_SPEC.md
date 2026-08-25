@@ -44,7 +44,7 @@ Gate。多规则优先级尚未定义，必须通过未来新 schema 扩展，�
 
 - 模型 Profile、供应商、Key、模型 ID、连通性和 Agent 绑定。
 - Key 只写不读，只返回 `hasSecret` 与版本。
-- 技能和 Prompt 支持草稿编辑、测试、双人审批、发布、历史和回滚。
+- 技能和 Prompt 支持草稿编辑、测试、双人审批、发布、历史和回滚；其中 Skill v1 仅允许声明式字段，当前 S0 不启用可编辑 Skill runtime consumer。Prompt consumer 与 Skill runtime consumer 均须遵守各自独立 Gate；Skill runtime consumer 需在 PS-01–PS-06 已冻结的基础上通过 T3.10 后才可启用。
 - 已发布版本只读，历史执行引用版本 ID。
 
 ## 5. Token、套餐、Credits、支付和优惠

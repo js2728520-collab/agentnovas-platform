@@ -104,7 +104,7 @@
 | C-03 | 全局策略研究功能开关 | `feature_flag/client.strategy_research` v1；严格 schema、确定性 tester、最小权限 active consumer、双 Gate | `/configurations` + strategy research route | `CURRENT` | v1 全局 bool 保持兼容；环境 Gate 始终是上限。 |
 | C-04 | 用户/组织/版本/百分比/独立时窗 targeting | schema v2 单规则；服务端用户/组织/部署版本/时间；稳定 SHA-256 分桶；严格规范化、测试、current、回滚和无弹窗 UI | feature flag family v2 + strategy research consumer | `CURRENT` | 多规则优先级不属于 v2；未来扩展必须新建 schema。 |
 | C-05 | 品牌、Logo、域名、协议、多语言配置 | platform settings 与 disclosure 基础；没有六主题素材和正式域名消费者 | Maintenance settings/configurations + 三端 public config | `BLOCKED` | P-10/P-11；域名还影响 Cookie/CORS/TLS/邮件链接。 |
-| C-06 | Prompt/技能 CRUD、测试、双审、历史和回滚 | 7 个研究 prompt role、3 个 runtime explanation role、模型 Profile/绑定；没有 Skill 领域模型 | versioned configuration family + Maintenance models/configurations | `BLOCKED` | 发布治理已确认；`PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 的 PS-01–PS-06 尚需冻结 Skill 执行模型、可编辑范围、安全包络、测试、新任务生效与删除语义。 |
+| C-06 | Prompt/技能 CRUD、测试、双审、历史和回滚 | 7 个研究 prompt role、3 个 runtime explanation role、Prompt 配置合同/确定性 tester 与 PS2 任务固定已接入；Skill 仅有声明式 schema/tester，仍无 runtime consumer | Prompt/Skill versioned configuration family + Maintenance models/configurations | `PARTIAL/BLOCKED` | PS-01–PS-06 已冻结；Prompt consumer 仍需独立 Gate，Skill runtime consumer、任务加载与 T3.10 尚未完成。当前 S0 不启用可编辑 Skill 执行；active 的 Skill 版本不等于业务已生效。 |
 | C-07 | 月/季/年/终身套餐、USDT 价格、权益版本 | `commercial_plan_versions` 和当前 Beta 四档基础；P-07 唯一参数源为 `packages/contracts/src/product-parameters.ts`，历史订单/权益/收费事实必须 pin 不可变版本或参数快照 | Maintenance 计费配置 + Client 会员 | `PARTIAL/BLOCKED` | P-07 参数已冻结；仍缺完整价格消费者、双审发布/回滚和目标 Gate，不能覆盖历史版本。 |
 | C-08 | 固定对话 Credits、不可变流水和用量分析 | AI reservation/ledger、可信 usage、取消单次 release、完成/取消竞态与同 key 重放；P-08 唯一参数源为 `packages/contracts/src/product-parameters.ts`；T3.9a `/ai-usage` 和 Maintenance-only GET 按 UTC 请求创建 cohort 聚合已预留 inference，提供可信成功 Token、settled Credits、已记录非取消失败率、组织请求级快照/legacy 质量、稳定伪名用户、模型 revision、Agent、功能和日期；90 天/Top 50 有界 | Maintenance `/ai-usage` + Client AI；T3.9b 固定 Credits consumer/价格分档/`provider_usage` 模式切换 | `CURRENT/PARTIAL/BLOCKED` | P-08 参数已冻结，但 T3.9b 固定 Credits/模型功能分档/`provider_usage` runtime consumer 与切换、价格版本引用和独立 Gate 尚未完成；这些不属于当前 S0，也不是后续 S0 增量；当前可信用量结算不是固定价或可切换模式。 |
 | C-09 | 人工退款、原渠道结果、优惠码/券 | 当前人工付款与审批基础；没有 V3 退款/优惠规则模型 | Client 订单 + Operations 复核 + Maintenance 规则 | `TARGET/BLOCKED` | P-07/P-09 及退款状态/渠道/provider 合同。 |
@@ -183,7 +183,7 @@
 | 顺序 | 切片 | 规模 | 当前依赖 |
 | ---: | --- | --- | --- |
 | 1 | G1 目标环境真实邮件、三端 MFA rollout 与回滚证据 | M | 生产变更窗口/真实邮件授权 |
-| 2 | Prompt/Skill 可编辑边界确认与 family v1 | M | 需求方对 C-06 五项确认 |
+| 2 | Prompt/Skill 可编辑边界确认与 family v1 | M | PS-01–PS-06 已冻结；当前继续收口 Prompt evidence/Gate 与 T3.10 Skill runtime consumer |
 | 3 | market/provider/symbol/calendar schema 与只读 API | M | P-01/P-03 可分市场冻结 |
 | 4 | 单一市场 WebSocket + stale Gate | L，拆 provider 接入/前端/风险三片 | M-01 和 provider sandbox |
 | 5 | QuantDinger 差异清单与 AI 入口收敛 | M | P-04 |

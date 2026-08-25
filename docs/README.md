@@ -24,7 +24,7 @@
 
 - `DOCUMENT_STATUS_MATRIX.md`：全部文档的 Target、Current、Foundation、Historical 与 Retired 分类。
 - `product/PRD.md`：需求方已确认的完整三端平台产品真源，覆盖行情、AI、策略市场、真实交易目标、权限注册链接、运营和运维；高风险能力仍受 ADR、安全评审和发布 Gate 约束。
-- `product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md`：Prompt/Skill 高层发布治理已经确认后，仍需需求方冻结的六项运行时实施边界与推荐回复格式。
+- `product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md`：PS-01–PS-06 已冻结的 Prompt/Skill v1 实施边界；Prompt 版本治理与现有 consumer 按独立 Gate 管理，Skill runtime consumer 不属于当前 S0，须通过 T3.10 后再启用。
 - `product/FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md`：V3 跨团队功能说明。
 - `product/FUNCTIONAL_DESCRIPTION.md`：当前 Beta/Paper 已实现功能基线。
 - `product/SEVEN_AGENT_TRADING_HALL.md`：由《七智能体动态策略系统_用户说明书》提炼的交易大厅产品真源。

@@ -242,8 +242,7 @@ Operations 不展示组织架构树、上下级关系图或组织关系页面。
 - AI 技能支持查看、新增、修改和删除。
 - 已发布版本只读；允许编辑草稿，测试并经双人审批后发布。
 - 保留版本历史并支持回滚到已验证版本。
-- 上述产品能力已确认；Prompt 可编辑角色范围、Skill 是否仅声明式、安全包络、测试方式、新任务生效和删除语义仍需按
-  `PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 的 PS-01–PS-06 冻结后才能接入真实运行时，不由研发猜测。
+- 上述产品能力已确认；Prompt/Skill v1 的 PS-01–PS-06 已冻结，但版本治理、Prompt consumer 与 Skill runtime consumer 仍须分别满足实现与发布 Gate。Skill runtime consumer 当前不属于 S0，须通过独立 T3.10 后才能启用；不得把配置版本 `ACTIVE` 解释为 Skill 已接管任务。
 
 ### 9.3 Token、套餐与 Credits
 

@@ -22,7 +22,7 @@
 | `README.md` | `TARGET_TRUTH` | 文档入口与阅读路径 |
 | `DOCUMENT_STATUS_MATRIX.md` | `TARGET_TRUTH` | 全部文档生命周期与同步规则 |
 | `product/PRD.md` | `TARGET_TRUTH` | 完整需求、首期范围、P-01–P-12 冻结参数及 P-07/P-08 真源/快照边界、冲突解释和待补参数 |
-| `product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` | `TARGET_TRUTH/DECISION_REQUIRED` | Prompt/Skill 已确认治理之外的 PS-01–PS-06 运行时实施边界 |
+| `product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` | `TARGET_TRUTH/CONFIRMED` | PS-01–PS-06 已冻结；Prompt 版本治理与已接入的 Prompt consumer 仍按独立 Gate 管理，Skill runtime consumer 不属于当前 S0，须通过 T3.10 后再启用 |
 | `product/FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md` | `TARGET_TRUTH` | 跨团队功能说明 |
 | `specs/V3_SYSTEM_TARGET_SPEC.md` | `TARGET_TRUTH` | V3 系统、数据、安全和执行边界 |
 | `specs/V3_CLIENT_APP_TARGET_SPEC.md` | `TARGET_TRUTH` | Client 目标规格 |
