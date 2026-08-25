@@ -113,7 +113,7 @@ Operations 不显示组织树。后端保留分公司、角色归属、客户归
 - 月、季、年和终身套餐，以 USDT 计价。
 - 终身会员不等于无限 Credits 或无限增值服务。
 - 价格、权益、Credits、费用和生效时间版本化，历史订单、权益和收费事实保留创建时的不可变版本/参数快照；改价只能创建新版本，不能覆盖历史。
-- P-07/P-08 参数唯一以 `packages/contracts/src/product-parameters.ts` 为准；参数冻结不等于定价/固定 Credits 消费者、provider usage 切换、支付、退款或优惠已经接入或启用。
+- P-07/P-08 参数唯一以 `packages/contracts/src/product-parameters.ts` 为准；现有可信 provider usage 只是计量/结算事实，不表示 `provider_usage` 已成为可选择的运行时模式。固定 Credits consumer、模型/功能分档和 `provider_usage` 模式切换统一归入 T3.9b，不属于当前 S0，也不是后续 S0 增量；参数冻结不等于这些能力或支付、退款、优惠已经接入或启用。
 - 退款原则上不退；例外由人工审核并退回原渠道。
 - 优惠码、折扣码和优惠券支持有效期、次数、套餐、用户/组织范围、叠加与退款恢复。
 
@@ -140,7 +140,7 @@ Operations 不显示组织树。后端保留分公司、角色归属、客户归
 - 应用、Nginx、WAF/防火墙多层安全控制。
 - 通过受限 CI/CD 工作流触发部署和回滚；浏览器不执行任意基础设施命令。
 
-T3.9a 的失败率不包含 preflight 拒绝、用户取消或处理中请求，只描述已记录 cohort，不能代表系统/provider 可用率；它只证明可信用量与已结算事实，不证明 P-08 固定价格已生效。查询最多 90 天，高基数维度最多返回请求量 Top 50。固定 Credits 消费者、模型/功能分档和计费模式切换仍需独立接入与 Gate。
+T3.9a 的失败率不包含 preflight 拒绝、用户取消或处理中请求，只描述已记录 cohort，不能代表系统/provider 可用率；它只证明可信用量与已结算事实，不证明 P-08 固定价格或可切换 `provider_usage` 模式已生效。查询最多 90 天，高基数维度最多返回请求量 Top 50。固定 Credits consumer、模型/功能分档和 `provider_usage` 模式切换统一属于当前 S0 之外的 T3.9b，仍需独立接入与 Gate。
 
 ## 14. 主题、语言与体验
 

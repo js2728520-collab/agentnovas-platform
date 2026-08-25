@@ -9,11 +9,13 @@
 ## 1. 目标与边界
 
 本切片完成 AI 普通对话的用户取消、结果不确定时的原请求重放、Credits 安全终态和浏览器错误恢复。
-现有可信 provider usage、reservation/settle/release 与不可变流水继续作为计费真源。
+现有可信 provider usage、reservation/settle/release 与不可变流水继续作为当前计量和结算事实；这些事实不表示
+`provider_usage` 已成为可选择、可切换的运行时计费模式。
 
 本切片不实现定价版本消费者或决定运行时切换策略。P-08 参数唯一以 `packages/contracts/src/product-parameters.ts`
-为准；固定 Credits、模型/功能分档和 `provider_usage` 的实际消费者仍需独立配置族、历史 pin、
-测试和 Gate。现有 `token-cost-v1` 只能作为当前按可信用量结算机制，不能冒充需求方确认的固定价格。
+为准；固定 Credits consumer、模型/功能分档以及可配置的 `provider_usage` 运行时 consumer/模式切换统一归入
+T3.9b，不属于当前 S0，也不是后续 S0 增量。T3.9b 仍需独立配置族、历史 pin、测试和 Gate。现有
+`token-cost-v1` 只能作为当前按可信用量结算机制，不能冒充需求方确认的固定价格或已启用的模式切换。
 
 实现状态（2026-08-24）：本规格除固定 Credits 数值/分档外已由提交 `b8b1bda` 实现；AI 页眉
 可访问对比度修复提交为 `2faf8d8`。全量 1418/1418、云端三端 production build 与真实 Chromium

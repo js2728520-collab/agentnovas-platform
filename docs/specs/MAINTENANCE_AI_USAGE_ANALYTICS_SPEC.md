@@ -1,15 +1,16 @@
 # Maintenance AI 用量分析规格
 
-状态：`TARGET_TRUTH / PARTIAL_CURRENT`。T3.9a 已实现并通过完整 Gate；P-08 参数已冻结，但 T3.9b 固定 Credits consumer 与价格分档仍未实现并通过独立 Gate。
+状态：`TARGET_TRUTH / PARTIAL_CURRENT`。T3.9a 已实现并通过完整 Gate；P-08 参数已冻结，但 T3.9b 固定 Credits consumer、价格分档与 `provider_usage` 模式切换不属于当前 S0，仍未实现并通过独立 Gate。
 
 ## 1. 目标
 
 Maintenance 提供只读 AI 用量与运行记录看板，基于当前付费 Client AI 运行时的可信计量事实，支持按日期、组织、用户、模型、Agent 和功能查看请求数、可信 Token、Credits 结算与已记录非取消失败率。
 
 本切片不实现固定 Credits/用量模式的运行时切换，也不决定独立的价格消费者。P-08 参数唯一以
-`packages/contracts/src/product-parameters.ts` 为准；固定 Credits 数值、模型/功能分档和
-`provider_usage` 运行时接线须另有版本化配置、历史 pin、确定性测试和 Gate。当前可信用量结算
-只能作为历史/当前计量事实，不能冒充已确认的固定价格。
+`packages/contracts/src/product-parameters.ts` 为准；固定 Credits consumer、模型/功能分档和可配置的
+`provider_usage` runtime consumer/模式切换统一归入 T3.9b，不属于当前 S0，也不是后续 S0 增量，仍须
+另有版本化配置、历史 pin、确定性测试和 Gate。当前可信 provider usage 与结算只能作为历史/当前
+计量事实，不能冒充已确认的固定价格或已经启用的可切换计费模式。
 
 ## 2. 真源与排除项
 
@@ -120,7 +121,7 @@ Maintenance 提供只读 AI 用量与运行记录看板，基于当前付费 Cli
 
 ## 10. 已知边界
 
-- P-08：参数已在 `packages/contracts/src/product-parameters.ts` 冻结；固定 Credits 消费者、模型/功能价格分档和计费模式切换仍未接入并通过 Gate，费用列不得标记为固定价格已生效。
+- P-08：参数已在 `packages/contracts/src/product-parameters.ts` 冻结；固定 Credits consumer、模型/功能价格分档和 `provider_usage` runtime consumer/模式切换统一属于 S0 之外的 T3.9b，仍未接入并通过 Gate。当前可信 provider usage 只作为计量/结算事实，费用列不得标记为固定价格或可切换计费模式已生效。
 - 迁移前记录没有原始请求时刻组织证据，只能以迁移时归属回填并显式保留 legacy 标记；不得把该回填描述成原始历史快照。
 - 当前付费 AI 仅覆盖 `assistant_message` 和 `strategy_generation`；后续新增操作必须显式扩展 operation-to-Agent 映射和测试，未知操作不得静默归类。
 

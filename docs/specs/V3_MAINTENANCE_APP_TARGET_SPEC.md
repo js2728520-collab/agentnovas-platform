@@ -51,7 +51,7 @@ Gate。多规则优先级尚未定义，必须通过未来新 schema 扩展，�
 
 - Token 按用户、组织、模型、Agent、日期、功能、费用和失败率统计。
 - P-07/P-08 产品参数唯一以 `packages/contracts/src/product-parameters.ts` 为准。套餐和 Credits 价格创建新版本，不覆盖旧版本；订单、权益、Credits 流水和账单事实固定所采用的版本/参数快照。仅产品负责人可提交，双人审批和定时生效。
-- 参数冻结不自动启用价格/固定 Credits 消费者、`provider_usage` 切换、支付 provider、退款或优惠；`active` 仅表示控制面版本状态，运行时接入仍须独立 schema、tester、最小权限 consumer 和 Gate。
+- 当前可信 provider usage 只表示计量/结算事实，不表示 `provider_usage` 是可选择的运行时模式。固定 Credits consumer、模型/功能分档和 `provider_usage` 模式切换统一归入 T3.9b，不属于当前 S0，也不是后续 S0 增量；参数冻结不自动启用这些能力、支付 provider、退款或优惠。`active` 仅表示控制面版本状态，运行时接入仍须独立 schema、tester、最小权限 consumer 和 Gate。
 - 管理 USDT 支付 provider、安全状态和人工退款工作流。
 - 管理优惠码、折扣码和优惠券的期限、次数、范围、叠加和恢复规则。
 - 不读取客户钱包、订单详情或客户 PII。
@@ -61,7 +61,8 @@ Gate。多规则优先级尚未定义，必须通过未来新 schema 扩展，�
 和已记录非取消失败率；组织使用请求级快照并区分请求时捕获、legacy 当前归属回填和无归属，
 用户只显示稳定伪名，模型固定到请求 revision，并提供 Agent、功能和日期维度。默认 30 天、最多
 90 天，高基数维度只返回请求量 Top 50。preflight 拒绝、用户取消和处理中请求不进入失败率口径，
-因此它不是系统/provider 可用率。P-08 参数已冻结，但固定 Credits 消费者、模型/功能分档和计费模式切换仍未接入并通过 Gate。
+因此它不是系统/provider 可用率。P-08 参数已冻结，但固定 Credits consumer、模型/功能分档和
+`provider_usage` 模式切换统一属于当前 S0 之外的 T3.9b，仍未接入并通过 Gate。
 
 ## 6. 外部集成
 
