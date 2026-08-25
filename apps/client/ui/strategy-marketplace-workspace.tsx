@@ -33,6 +33,8 @@ type Strategy = {
 
 type MarketplacePayload = { published?: Strategy[] };
 
+type SortKey = "featured" | "return" | "followers" | "drawdown";
+
 const riskLabels: Record<string, string> = { low: "保守", medium: "平衡", high: "激进" };
 
 /** 与服务端 follow 路由里的披露正文对应。客户确认的是这三条。 */
@@ -54,8 +56,32 @@ function pct(value: number | null | undefined) {
 export default function StrategyMarketplaceWorkspace() {
   const resource = useApiData<MarketplacePayload>("/api/strategy-marketplace", "策略广场读取失败");
   const [selectedId, setSelectedId] = useState("");
+  const [symbolFilter, setSymbolFilter] = useState("all");
+  const [riskFilter, setRiskFilter] = useState("all");
+  const [returnFilter, setReturnFilter] = useState("all");
+  const [sortKey, setSortKey] = useState<SortKey>("featured");
   const published = useMemo(() => resource.data?.published ?? [], [resource.data]);
-  const selected = published.find((item) => item.id === selectedId) ?? published[0] ?? null;
+  const symbols = useMemo(() => Array.from(new Set(published.flatMap((strategy) => strategy.symbols))).sort(), [published]);
+  const visiblePublished = useMemo(() => published
+    .filter((strategy) => symbolFilter === "all" || strategy.symbols.includes(symbolFilter))
+    .filter((strategy) => riskFilter === "all" || strategy.riskLevel === riskFilter)
+    .filter((strategy) => {
+      const netReturn = strategy.backtests[0]?.netReturnPct;
+      if (returnFilter === "positive") return netReturn !== null && netReturn !== undefined && netReturn > 0;
+      if (returnFilter === "non_positive") return netReturn !== null && netReturn !== undefined && netReturn <= 0;
+      return true;
+    })
+    .map((strategy, originalIndex) => ({ strategy, originalIndex }))
+    .sort((left, right) => {
+      if (sortKey === "return") return (right.strategy.backtests[0]?.netReturnPct ?? Number.NEGATIVE_INFINITY)
+        - (left.strategy.backtests[0]?.netReturnPct ?? Number.NEGATIVE_INFINITY);
+      if (sortKey === "followers") return right.strategy.activeFollowers - left.strategy.activeFollowers;
+      if (sortKey === "drawdown") return (left.strategy.backtests[0]?.maxDrawdownPct ?? Number.POSITIVE_INFINITY)
+        - (right.strategy.backtests[0]?.maxDrawdownPct ?? Number.POSITIVE_INFINITY);
+      return left.originalIndex - right.originalIndex;
+    })
+    .map(({ strategy }) => strategy), [published, returnFilter, riskFilter, sortKey, symbolFilter]);
+  const selected = visiblePublished.find((item) => item.id === selectedId) ?? visiblePublished[0] ?? null;
 
   if (resource.loading && !resource.data) return <LoadingState label="正在读取策略广场…" />;
   if (resource.error && !resource.data) return <ErrorState message={resource.error} retry={resource.refresh} />;
@@ -64,9 +90,48 @@ export default function StrategyMarketplaceWorkspace() {
     <PageHeading eyebrow="STRATEGY MARKETPLACE" title="策略广场" description="浏览已上架策略并开启模拟跟单。跟单为服务器记账的模拟成交，不产生真实订单。" />
     {published.length === 0
       ? <EmptyState title="暂无已上架策略" description="策略通过平台审核并上架后会出现在这里。" />
-      : <div className={styles.layout}>
-        <div className={styles.list}>
-          {published.map((strategy) => {
+      : <>
+        <section className={styles.filters} aria-label="策略筛选与排序">
+          <label>
+            交易品种
+            <select aria-label="按交易品种筛选" value={symbolFilter} onChange={(event) => setSymbolFilter(event.target.value)}>
+              <option value="all">全部品种</option>
+              {symbols.map((symbol) => <option value={symbol} key={symbol}>{symbol}</option>)}
+            </select>
+          </label>
+          <label>
+            风险档
+            <select aria-label="按风险档筛选" value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)}>
+              <option value="all">全部风险档</option>
+              <option value="low">保守</option>
+              <option value="medium">平衡</option>
+              <option value="high">激进</option>
+            </select>
+          </label>
+          <label>
+            收益区间
+            <select aria-label="按收益区间筛选" value={returnFilter} onChange={(event) => setReturnFilter(event.target.value)}>
+              <option value="all">全部收益</option>
+              <option value="positive">正收益</option>
+              <option value="non_positive">零或负收益</option>
+            </select>
+          </label>
+          <label>
+            排序
+            <select aria-label="策略排序" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
+              <option value="featured">平台推荐</option>
+              <option value="return">净收益从高到低</option>
+              <option value="followers">跟随人数从高到低</option>
+              <option value="drawdown">最大回撤从低到高</option>
+            </select>
+          </label>
+          <span className={styles.resultCount} role="status">显示 {visiblePublished.length} / {published.length} 个策略</span>
+        </section>
+        {visiblePublished.length === 0
+          ? <EmptyState title="没有符合条件的策略" description="请调整交易品种、风险档或收益区间。" />
+          : <div className={styles.layout}>
+            <div className={styles.list}>
+              {visiblePublished.map((strategy) => {
             const latest = strategy.backtests[0];
             return <button
               type="button"
@@ -94,10 +159,11 @@ export default function StrategyMarketplaceWorkspace() {
                 <span className={styles.metric}><small>样本</small><b>{latest?.sampleSize ?? "—"}</b></span>
               </span>
             </button>;
-          })}
-        </div>
-        {selected && <FollowPanel strategy={selected} onFollowed={resource.refresh} />}
-      </div>}
+              })}
+            </div>
+            {selected && <FollowPanel strategy={selected} onFollowed={resource.refresh} />}
+          </div>}
+        </>}
   </div>;
 }
 

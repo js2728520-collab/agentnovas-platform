@@ -51,6 +51,13 @@ async function exercisePublicLocalePreference(page: import("@playwright/test").P
  * 没人真的点过。源码断言证明不了控件真的被禁用、也证明不了 axe 能过。
  */
 async function exerciseStrategyMarketplace(page: import("@playwright/test").Page) {
+  const liveOrderRequests: string[] = [];
+  page.on("request", request => {
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === "POST" && (pathname.includes("/orders") || pathname.includes("/deployments"))) {
+      liveOrderRequests.push(pathname);
+    }
+  });
   await page.goto("/marketplace");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("策略广场");
 
@@ -75,6 +82,13 @@ async function exerciseStrategyMarketplace(page: import("@playwright/test").Page
   // 止损线的说明必须写清它就是自动风控的停机线。
   await expect(page.getByText(/累计回撤触及这条线时，系统自动阻断该跟单的新开仓/)).toBeVisible();
 
+  // 筛选和排序在浏览器中实际生效；当前质量夹具只有一条正收益策略，结果数仍必须可见。
+  await page.getByLabel("按收益区间筛选").selectOption("positive");
+  await expect(page.getByRole("status")).toContainText("显示 1 / 1 个策略");
+  await page.getByLabel("策略排序").selectOption("return");
+  await expect(page.getByRole("button", { name: /Quality 广场策略/ })).toBeVisible();
+
+  await expect(liveOrderRequests).toEqual([]);
   await expectCriticalAccessibility(page);
   await expectResponsivePage(page);
 }

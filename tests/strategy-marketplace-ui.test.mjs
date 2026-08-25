@@ -40,6 +40,18 @@ test("界面展示的披露与服务端固定的那份逐条一致", async () =>
   }
 });
 
+test("策略广场提供品种、风险、收益筛选与排序", async () => {
+  const workspace = await read("apps/client/ui/strategy-marketplace-workspace.tsx");
+  assert.match(workspace, /symbolFilter/);
+  assert.match(workspace, /riskFilter/);
+  assert.match(workspace, /returnFilter/);
+  assert.match(workspace, /sortKey/);
+  assert.match(workspace, /按交易品种筛选/);
+  assert.match(workspace, /按风险档筛选/);
+  assert.match(workspace, /按收益区间筛选/);
+  assert.match(workspace, /策略排序/);
+  assert.match(workspace, /没有符合条件的策略/);
+});
 test("止损线说明写清它就是自动风控的停机线", async () => {
   // 客户同意的是这个数字，不是某个他没看过的平台阈值（需求方 2026-08-24 确认）。
   const workspace = await read("apps/client/ui/strategy-marketplace-workspace.tsx");
