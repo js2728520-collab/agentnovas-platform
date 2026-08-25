@@ -4997,14 +4997,14 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
+    "authentication": "anonymous",
     "sessionAuthHelpers": [],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": false,
     "idempotency": false
   },
@@ -5033,14 +5033,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": false,
     "idempotency": false
   },
@@ -5051,14 +5053,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -5069,14 +5073,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -5087,14 +5093,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": false,
     "idempotency": false
   },
@@ -5105,14 +5113,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -5123,14 +5133,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -5141,14 +5153,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -5159,14 +5173,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -5177,14 +5193,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -5195,14 +5213,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
     "idempotency": false
   },
@@ -5399,14 +5419,16 @@ export const API_ROUTE_INVENTORY = [
     "audiences": [
       "client"
     ],
-    "authentication": "disabled",
-    "sessionAuthHelpers": [],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
     "permissionKeys": [],
     "permissionMfa": {},
     "scope": "none",
     "mfa": "none",
     "pii": "none",
-    "sensitivity": "sensitive",
+    "sensitivity": "normal",
     "requiresSameOrigin": true,
     "idempotency": false
   },

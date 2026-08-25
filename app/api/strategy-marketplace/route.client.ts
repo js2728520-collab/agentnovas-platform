@@ -46,10 +46,14 @@ export async function GET(request: Request) {
       publishedAt: communityStrategies.publishedAt,
       featuredRank: communityStrategies.featuredRank,
       rankingScore: communityStrategies.rankingScore,
-      authorEmail: users.email,
+      // 作者的**展示身份**，不含 PII。
+      //
+      // 这里曾经 select users.email 并原样 spread 进公开响应——策略广场对未登录访客开放，
+      // 等于把每位作者的邮箱公开。昵称与用户名是作者自己设定的公开标识，邮箱不是。
       authorNickname: users.nickname,
       authorUsername: users.username,
       authorAvatarUrl: users.avatarUrl,
+      // 内部角色枚举不外露；客户需要知道的只是「这是不是平台自营策略」。
       authorRole: users.role,
       publicationMode: communityStrategies.publicationMode,
     };
@@ -97,12 +101,20 @@ export async function GET(request: Request) {
     const followerMap = new Map(followers.map((row) => [row.strategyId, Number(row.count)]));
     return Response.json({
       featuredCount: featured.length,
-      published: published.map((row) => ({
-        ...row,
-        symbols: parseArray(row.symbolsJson),
-        backtests: backtests.filter((report) => report.strategyId === row.id),
-        activeFollowers: followerMap.get(row.id) || 0,
-      })),
+      published: published.map((row) => {
+        // 逐字段列出而不是 spread：spread 会让将来往 fields 里加的任何列自动变成公开数据，
+        // 而 authorEmail 正是这么泄露出去的。
+        const { authorRole, symbolsJson, ...rest } = row;
+        void symbolsJson;
+        return {
+          ...rest,
+          symbols: parseArray(row.symbolsJson),
+          // 平台自营与用户投稿对客户是有意义的区分；内部角色枚举不是。
+          isPlatformAuthor: authorRole !== "customer",
+          backtests: backtests.filter((report) => report.strategyId === row.id),
+          activeFollowers: followerMap.get(row.id) || 0,
+        };
+      }),
       mine: mine.map((row) => ({
         ...row,
         symbols: parseArray(row.symbolsJson),

@@ -20,11 +20,14 @@ type Strategy = {
   id: string;
   name: string;
   summary: string;
-  authorName?: string | null;
-  authorUserId?: string;
+  /** 作者的展示身份。**没有邮箱**——广场对未登录访客开放。 */
+  authorNickname: string | null;
+  authorUsername: string | null;
+  isPlatformAuthor: boolean;
   riskLevel: "low" | "medium" | "high";
   symbols: string[];
   activeFollowers: number;
+  publishedAt: string | null;
   backtests: Backtest[];
 };
 
@@ -38,6 +41,11 @@ const DISCLOSURE = [
   "策略表现不代表未来收益；作者可能修改或下架策略。",
   "绩效分成按 UTC 自然周与高水位线结算，亏损周不计费。",
 ];
+
+function backtestPeriod(backtest: Backtest | undefined) {
+  if (!backtest?.periodStart || !backtest.periodEnd) return "回测区间：未记录";
+  return `回测区间：${backtest.periodStart.slice(0, 10)} 至 ${backtest.periodEnd.slice(0, 10)}`;
+}
 
 function pct(value: number | null | undefined) {
   return Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}%` : "—";
@@ -69,7 +77,11 @@ export default function StrategyMarketplaceWorkspace() {
             >
               <span className={styles.cardHead}>
                 <span className={styles.cardName}>{strategy.name}</span>
-                <span className={styles.cardAuthor}>{riskLabels[strategy.riskLevel] ?? strategy.riskLevel} · {strategy.activeFollowers} 人跟随</span>
+                <span className={styles.cardAuthor}>
+                  {strategy.isPlatformAuthor ? "平台自营" : (strategy.authorNickname || strategy.authorUsername || "平台用户")}
+                  {" · "}{riskLabels[strategy.riskLevel] ?? strategy.riskLevel}
+                  {" · "}{strategy.activeFollowers} 人跟随
+                </span>
               </span>
               <span className={styles.cardSummary}>{strategy.summary}</span>
               <span className={styles.metrics}>
@@ -130,6 +142,22 @@ function FollowPanel({ strategy, onFollowed }: { strategy: Strategy; onFollowed:
       <h2>{strategy.name}</h2>
       <p>{strategy.summary}</p>
       <p>交易品种：{strategy.symbols.join("、") || "—"}</p>
+      {/* 只展示历史表现，不展示策略逻辑（需求方 2026-08-24 确认：不公开 DSL）。
+          公开条件树等于让人不跟单就能抄走策略。 */}
+      <p>{backtestPeriod(strategy.backtests[0])}</p>
+    </div>
+
+    <div className={styles.metrics}>
+      <span className={styles.metric}><small>跟随人数</small><b>{strategy.activeFollowers}</b></span>
+      <span className={styles.metric}>
+        <small>回测净收益</small>
+        <b className={Number(strategy.backtests[0]?.netReturnPct) >= 0 ? styles.up : styles.down}>
+          {pct(strategy.backtests[0]?.netReturnPct)}
+        </b>
+      </span>
+      <span className={styles.metric}><small>最大回撤</small><b>{pct(strategy.backtests[0]?.maxDrawdownPct)}</b></span>
+      <span className={styles.metric}><small>胜率</small><b>{pct(strategy.backtests[0]?.winRatePct)}</b></span>
+      <span className={styles.metric}><small>成交样本</small><b>{strategy.backtests[0]?.sampleSize ?? "—"}</b></span>
     </div>
 
     <label className={styles.field}>

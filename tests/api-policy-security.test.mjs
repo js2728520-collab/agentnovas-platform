@@ -142,8 +142,15 @@ test("session metadata names a method-level enforcing helper and public routes s
   ]) {
     assert.equal(apiPolicyForRoute(route, method).authentication, "anonymous", `${method} ${route}`);
   }
-  assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "GET").authentication, "disabled");
+  // 广场列表 T4.4 启用：它是 Phase 4 的产品目标，跟单链路已端到端跑通。启用前先移除了
+  // 公开响应里的作者邮箱——那是真正该挡的东西，而 disabled 只是把它一起挡住了。
+  // 投稿（POST）仍然停用：那条写入路径还没有对应的审核界面。
+  assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "GET").authentication, "anonymous");
+  assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "GET").pii, "none");
   assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "POST").authentication, "disabled");
+  // 客户暂停/恢复/终止自己的跟随随 T4.4 启用：四方停止的客户那一方本来就该畅通，
+  // 且状态机在服务端把关（客户解除不了风控阻断）。停用它等于客户连自己的跟单都停不掉。
+  assert.equal(apiPolicyForRoute("/api/strategy-subscriptions/:id", "PATCH").authentication, "session");
 });
 
 test("commercial and official paper client routes declare exact RBAC permissions", () => {
@@ -268,8 +275,6 @@ test("commercial beta rejects legacy customer credentials, funding, and trading 
     ["GET", "/api/strategy-deployments/:id/cycles"],
     ["POST", "/api/strategy-deployments/:id/pause"],
     ["POST", "/api/strategy-deployments/:id/resume"],
-    ["PATCH", "/api/strategy-subscriptions/:id"],
-    ["GET", "/api/strategy-marketplace"],
     ["POST", "/api/simulated-orders"],
     ["GET", "/api/portfolio"],
     ["POST", "/api/trading/emergency-stop"],

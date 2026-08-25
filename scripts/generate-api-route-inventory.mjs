@@ -49,7 +49,8 @@ const BETA_DISABLED_CLIENT_ROUTES = [
   "/api/risk/status",
   "/api/simulated-orders",
   "/api/strategy-deployments",
-  "/api/strategy-marketplace",
+  // /api/strategy-marketplace 已启用（T4.4）：策略广场是 Phase 4 的产品目标，跟单链路
+  // 已端到端跑通。启用前先移除了公开响应里的作者邮箱——它曾被原样 spread 给未登录访客。
   "/api/strategy-research/runs",
   "/api/trading/emergency-stop",
 ];
@@ -132,7 +133,8 @@ function basePolicy(route, method) {
   }
   if (BETA_DISABLED_CLIENT_ROUTES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
     || route === "/api/strategies/:strategyId/versions/:versionId/deployments"
-    || (route === "/api/strategy-subscriptions/:id" && method === "PATCH")) {
+    // 投稿写入路径仍停用：还没有对应的审核界面。列表（GET）已随 T4.4 启用。
+    || (route === "/api/strategy-marketplace" && method === "POST")) {
     return { audiences: ["client"], authentication: "disabled", sameOrigin: mutation };
   }
   if (route === "/api/membership/legal-consent") {
