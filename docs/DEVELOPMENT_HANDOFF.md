@@ -4251,3 +4251,20 @@ inventory，检查该接口在该端构建里存在且未被停用。RED 验证�
 - `node --experimental-strip-types --test tests/client-account-mfa.test.mjs tests/mfa-security.test.mjs tests/mfa-route-contract.test.mjs`：11/11 通过。
 - `git diff --check`：通过。
 - 本地 `mfa-on` / rollout、真实 provider 邮件投递、目标环境三端启用与回滚、四身份浏览器和 Nginx/TLS/current_user 证据仍未在本切片执行；不得将其写成 G1 通过。
+
+## 99. 2026-08-25 W2/G2 行情 quote/candle 路由契约收口
+
+本切片只做本地架构与契约收口，未连接真实 Provider、未接入行情源偏好、未增加 WebSocket 或执行能力，未改变任何生产配置。G2 继续为 `PARTIAL`。
+
+### 路由与服务边界
+
+- `app/api/market/quote/route.client.ts` 与 `app/api/market/candles/route.client.ts` 现在只负责解析请求、调用可复用服务、返回 no-store 响应，并在异常时以 503 和 `unavailable` 结果 fail closed。
+- 新增 `lib/market-quotes.ts` 与 `lib/market-candles.ts`，承接当前公共 REST display/research 逻辑；现有 symbol、category、interval、before、limit 语义保持不变。
+- 当前公共源仍只用于展示/研究，不声明实时流、执行或 provider readiness；没有把 source preference 接入运行路径，避免未配置源被误报为已就绪。
+
+### 契约与验证
+
+- `tests/market-route-contract.test.mjs` 增加路由薄层、无 provider-specific 分支/URL、503 fallback、display-only 与 fail-closed 契约断言。
+- 聚焦行情契约测试：9/9 通过。
+- `npm test`：1729/1729 通过；`npx tsc --noEmit`：通过；`npm run lint`：通过；`git diff --check`：通过。
+- 本条目是本地工作树验证，不是目标环境或发布证据；真实 provider 授权/配置、WebSocket、序列与 gap/replay/backfill、stateful failover/switchback、stale-pressure、延迟/连接状态 UI 和目标环境 SLA 证据仍缺。

@@ -79,6 +79,29 @@ test("the Next route delegates to the catalog payload without provider-specific 
   assert.match(routeSource, /cache-control["']:\s*["']no-store["']/);
 });
 
+test("quote and candle routes delegate public-source behavior to reusable services", () => {
+  const quoteRoute = readFileSync(new URL("../app/api/market/quote/route.client.ts", import.meta.url), "utf8");
+  const candleRoute = readFileSync(new URL("../app/api/market/candles/route.client.ts", import.meta.url), "utf8");
+  assert.match(quoteRoute, /getMarketQuote/);
+  assert.match(candleRoute, /getMarketCandles/);
+  for (const routeSource of [quoteRoute, candleRoute]) {
+    assert.doesNotMatch(routeSource, /binance|yahoo|coinbase/i);
+    assert.doesNotMatch(routeSource, /https?:\/\//i);
+    assert.match(routeSource, /cache-control["']:\s*["']no-store["']/);
+    assert.match(routeSource, /status:\s*503/);
+  }
+});
+
+test("current public quote and candle services stay display-only and fail closed", () => {
+  const quoteService = readFileSync(new URL("../lib/market-quotes.ts", import.meta.url), "utf8");
+  const candleService = readFileSync(new URL("../lib/market-candles.ts", import.meta.url), "utf8");
+  for (const serviceSource of [quoteService, candleService]) {
+    assert.doesNotMatch(serviceSource, /canOpenPosition|executionPolicy|source-preference/);
+    assert.match(serviceSource, /live:\s*false/);
+    assert.match(serviceSource, /source:\s*["']unavailable["']/);
+  }
+});
+
 test("catalog payload timestamps must be bounded UTC input", () => {
   assert.throws(() => createMarketInstrumentsPayload("2026-08-24T09:02:03+08:00"), /UTC timestamp/i);
   assert.throws(() => createMarketInstrumentsPayload(`${"1".repeat(200)}Z`), /UTC timestamp/i);
