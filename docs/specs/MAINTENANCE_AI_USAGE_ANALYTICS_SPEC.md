@@ -6,7 +6,10 @@
 
 Maintenance 提供只读 AI 用量与运行记录看板，基于当前付费 Client AI 运行时的可信计量事实，支持按日期、组织、用户、模型、Agent 和功能查看请求数、可信 Token、Credits 结算与已记录非取消失败率。
 
-本切片不决定每次对话的固定 Credits 数值、模型分档或功能分档。P-08 未确认前，界面必须明确显示“固定费用规则待确认”，不得把现有 `token-cost-v1` 用量结算冒充已确认的固定价格。
+本切片不实现固定 Credits/用量模式的运行时切换，也不决定独立的价格消费者。P-08 参数唯一以
+`packages/contracts/src/product-parameters.ts` 为准；固定 Credits 数值、模型/功能分档和
+`provider_usage` 运行时接线须另有版本化配置、历史 pin、确定性测试和 Gate。当前可信用量结算
+只能作为历史/当前计量事实，不能冒充已确认的固定价格。
 
 ## 2. 真源与排除项
 
@@ -117,7 +120,7 @@ Maintenance 提供只读 AI 用量与运行记录看板，基于当前付费 Cli
 
 ## 10. 已知边界
 
-- P-08：固定 Credits 数值和模型/功能价格分档未确认，费用列不得标记为已完成。
+- P-08：参数已在 `packages/contracts/src/product-parameters.ts` 冻结；固定 Credits 消费者、模型/功能价格分档和计费模式切换仍未接入并通过 Gate，费用列不得标记为固定价格已生效。
 - 迁移前记录没有原始请求时刻组织证据，只能以迁移时归属回填并显式保留 legacy 标记；不得把该回填描述成原始历史快照。
 - 当前付费 AI 仅覆盖 `assistant_message` 和 `strategy_generation`；后续新增操作必须显式扩展 operation-to-Agent 映射和测试，未知操作不得静默归类。
 

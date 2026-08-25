@@ -22,7 +22,7 @@
 1. 通用 payload 只保存非秘密 JSON；`secret/password/token/apiKey/privateKey` 等字段必须在边界拒绝。模型、支付和集成密钥继续留在既有只写不读专用表。
 2. T3.1a 交付数据库状态机、服务与受控 API；到期版本由有权限人员显式激活，不引入常驻调度 Worker。
 3. T3.1b 交付 Maintenance 工作台和到期激活 Worker；Worker 只消费数据库中已测试通过、已审批且到期的版本，不能自行测试、审批、调度或回滚。
-4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；`client.strategy_research` 的全局 v1 与定向 v2 功能开关已接入，具体价格、域名和设计资源继续受 P-07/P-08/P-10/P-11 阻断。
+4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；`client.strategy_research` 的全局 v1 与定向 v2 功能开关已接入，具体价格、域名和设计资源继续受 P-07/P-08/P-10/P-11 阻断。P-07/P-08 的数字唯一以 `packages/contracts/src/product-parameters.ts` 为准；价格/权益/固定 Credits 的运行时版本必须从该真源派生并保存不可变历史快照，不能由通用配置 payload 另行定义一套数字。
 5. audience 固定为 `client/operations/maintenance/shared`；配置流以 `(kind, key, audience)` 唯一识别。
 6. T3.1b 分为 UI 与 Worker 两个可独立验收的切片：工作台先行，自动到期激活器随后交付。工作台把人工提交明确称为“登记测试证据”，不能冒充自动测试；在 T3.1c 消费者接入前，active 只代表控制面 current 投影。
 
@@ -115,7 +115,10 @@ SQL 只使用参数化查询；动态配置 key 永不参与 SQL 标识符、She
 
 **始终执行：** 服务端授权与输入校验；追加式审计；参数化 SQL；安全响应 allowlist；失败关闭；提交前测试/类型/Lint/secret scan。
 
-**需要另行确认：** 具体域名、价格、Credits、主题资产和各配置族 schema。Worker 当前采用可配置的 5 秒扫描、60 秒 warning、300 秒 critical 工程默认值；生产容量验证后可在受限范围内调整，不改变发布状态机。
+- **历史不变性：** 会员订单、权益、AI Credits 流水和账单/收费事实必须引用创建时采用的配置版本或参数快照；改价、改规则或计费纠正只能创建后续版本/追加事实，不能更新或删除旧版本、历史订单或已结算事实。
+- **P-07/P-08 边界：** 参数冻结不自动接入定价消费者、固定 Credits 消费者、`provider_usage` 切换、支付、退款或优惠。配置版本 `active` 只代表控制面状态；没有经过独立 schema、tester、最小权限 consumer 和 Gate 的接入，不得对外描述为已生效。
+
+**需要另行确认或实现：** 具体域名、主题资产和各配置族 schema；P-07/P-08 的价格与 Credits 数字已经冻结，但对应运行时消费者、版本引用和切换 Gate 尚未完成。Worker 当前采用可配置的 5 秒扫描、60 秒 warning、300 秒 critical 工程默认值；生产容量验证后可在受限范围内调整，不改变发布状态机。
 
 **绝不执行：** 在通用 payload 保存 secret/PII；允许创建者自审；覆盖或删除历史；让浏览器传 SQL/Shell/任意 workflow 参数；通过配置绕过真实交易、资金或部署 Gate。
 

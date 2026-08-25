@@ -78,7 +78,7 @@ Maintenance：`/`、`/models`、`/ai-usage`、`/integrations`、`/integrations/e
 - 支付未配置或测试功能关闭时保留 API 的 503 原因，不生成地址、二维码或成功提示。
 - 邮件测试成功入队时显示 `queued` 并明确“请求已记录”；只有 Worker/Resend 回执才能显示 `sent` 或 `delivered`。Gate 未满足时显示 `configured_not_sent` 或具体 503 原因，不能写成已发送。
 - 运维页面只展示 `hasSecret`、配置状态和最近测试时间；密钥、完整端点和 Webhook payload 不得回显。
-- AI 用量页只展示安全聚合：日期按 UTC 请求创建 cohort，默认 30 天、最多 90 天；可信 Token 只来自成功请求，Credits 只显示 settled 数值。组织快照的 legacy 质量必须可见，用户只能显示稳定伪名，模型按请求 revision。页面所称“已记录非取消失败率”排除 preflight 拒绝、用户取消和处理中请求，不可用作系统/provider 可用率；P-08 未确认前不可显示固定费用规则已完成。
+- AI 用量页只展示安全聚合：日期按 UTC 请求创建 cohort，默认 30 天、最多 90 天；可信 Token 只来自成功请求，Credits 只显示 settled 数值。组织快照的 legacy 质量必须可见，用户只能显示稳定伪名，模型按请求 revision。页面所称“已记录非取消失败率”排除 preflight 拒绝、用户取消和处理中请求，不可用作系统/provider 可用率；P-08 参数虽已冻结，但固定费用消费者和计费模式切换未通过独立 Gate 前不可显示固定费用规则已生效。
 - AI 用量日期在页面内直接应用，不弹出确认对话框。当前 MFA Gate 默认关闭；正式生产重新开启后仍需满足 `maint.ai_usage.view` 的 recent MFA 策略，不得为免弹窗绕过服务端 Gate。
 - 真实永续订单始终关闭。
 - 运维紧急暂停按当前 RBAC 数据范围生效，必须填写原因并审计；它只把官方 Paper 组合限制为 `close_only/read_only` 并拒绝待处理买入，不发送任何订单，也不改变平台 Demo kill switch。解除后组合不会自动恢复，必须由显式会员/客户状态流程重新核验。

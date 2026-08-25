@@ -4291,3 +4291,13 @@ inventory，检查该接口在该端构建里存在且未被停用。RED 验证�
 - Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 不属于 S0，继续保持关闭，并作为后续独立切片分别通过 ADR、Gate、授权和发布评审。
 - 本条目只记录文档范围裁决，不代表 S0 已通过发布 Gate，不授权部署、生产迁移、外部 provider 激活或生产切流。
 - 受影响文档：`docs/quality/V3_RELEASE_SCOPE.md`（当前范围记录）、`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md`、`docs/product/PRD.md`、Current/Target 功能说明、System/三端目标规格、Gate/Evidence、`tasks/todo.md` 和能力迁移矩阵；历史证据未被改写。
+
+## 102. 2026-08-25 P-07/P-08 真源与历史快照文档对齐
+
+需求方已确认：`packages/contracts/src/product-parameters.ts` 是 P-07/P-08 产品参数唯一真源。`commercial-beta.ts` 只保留展示字段，价格、Credits、时长和费率必须由测试与该真源对齐；其它文档和通用配置 payload 不得形成第二套可编辑数字。
+
+会员套餐、AI 定价和权益进入运行时前必须使用不可变版本；历史会员订单、权益、Credits grant/reserve/settle/release、账单和收费事实必须固定所采用的版本或参数快照。改价或规则更正只能创建新版本、追加事实、反向分录或新 revision，不能覆盖旧版本、历史订单、流水或已结算事实。
+
+本次仅同步文档，没有修改业务代码、数据库迁移或生产配置。更新了 PRD、版本化配置规格、Client/Maintenance 目标规格、AI 取消/重试规格、AI 用量分析规格、跨团队功能说明、能力迁移矩阵、三端 UI runbook 和文档状态矩阵。同步后的共同边界是：P-07/P-08 数字已冻结，但固定 Credits/价格消费者、模型/功能分档、`provider_usage` 切换、支付、退款和优惠仍需独立 schema、tester、最小权限 consumer、历史 pin 与 Gate；`active` 只表示控制面状态，不能写成运行时或生产已生效。
+
+验证：`git diff --check` 通过；过时“P-08 未确认”及将固定价格写成已完成/已生效的文档表述已修正；PRD 原冻结前清单顺延为 `15.2` 且章节连续。当前 diff 仅包含文档文件。未执行生产迁移、未接触生产数据库、未推送、未部署。后续需单独确认下一个文档冲突后再继续代码开发。

@@ -43,8 +43,9 @@ provider 选择、WebSocket、延迟展示和主备切换仍属于后续 T2.2–
 - 生成结果进入校验、回测和准入，不直接执行订单。
 
 实施状态（2026-08-24）：普通对话的持久历史、SSE、服务端所有权取消、provider abort、原请求幂等
-重放和 Credits 预留/结算/释放单终态已实现；Client 点击“取消生成”直接执行且不弹确认框。固定
-Credits 数值及模型/功能分档仍等待 P-08，当前按 provider 可信用量结算不能作为固定价格验收。
+重放和 Credits 预留/结算/释放单终态已实现；Client 点击“取消生成”直接执行且不弹确认框。P-08
+参数已冻结于 `packages/contracts/src/product-parameters.ts`，但固定 Credits 消费者、模型/功能分档和
+计费模式切换尚未接入并通过 Gate；当前按 provider 可信用量结算不能作为固定价格已生效的证据。
 
 ## 5. 交易大厅
 
