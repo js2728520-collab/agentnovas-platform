@@ -85,9 +85,8 @@ MFA 上线策略见 ADR-0023。
 5. 套餐、Credits、USDT 支付、退款和优惠版本。
 6. Token 用量多维统计。
 
-实施快照（2026-08-25）：通用版本内核、Maintenance 工作台、最小权限到期激活 Worker，以及
-`client.strategy_research` 全局 v1 与用户/组织/版本/稳定百分比/独立时窗定向 v2 已完成；
-品牌/域名、Prompt/技能、价格/Credits 仍按任务清单和产品参数依赖推进。支付、人工退款和优惠保留目标设计及服务端安全配置入口，但真实 runtime consumer、外部结果和任何余额/Credits/应收/发票/作者余额/资金账本副作用不属于 S0，须独立商业/账本 Gate；Phase 3 尚未满足退出条件。
+实施快照（2026-08-26）：通用版本内核、Maintenance 工作台、最小权限到期激活 Worker，以及
+`client.strategy_research` 全局 v1 与用户/组织/版本/稳定百分比/独立时窗定向 v2 已完成；Prompt/Skill 的 PS1 合同/tester、PS2 Prompt consumer/任务版本固定和 PS3 Maintenance 工作台也已有实现资产。Prompt 仍须独立证据/Gate，配置 `ACTIVE` 不代表运行时或发布已通过；Skill runtime consumer 尚未实现，归入 S0 之外的 T3.10。品牌/域名、价格/Credits 仍按任务清单和各自依赖推进。支付、人工退款和优惠保留目标设计及服务端安全配置入口，但真实 runtime consumer、外部结果和任何余额/Credits/应收/发票/作者余额/资金账本副作用不属于 S0，须独立商业/账本 Gate；Phase 3 尚未满足退出条件。
 
 退出条件：配置历史不可覆盖，所有高风险变更可回滚。
 

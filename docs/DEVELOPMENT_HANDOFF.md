@@ -4400,3 +4400,11 @@ S0 不得因这些目标合同或配置入口扣客户服务余额或 Credits，
 本切片修正 PRD、跨团队目标功能说明、System/Client/Operations 目标规格、能力迁移矩阵、G3 Gate 和 Phase 4 任务计划中仍把固定策略订阅费写成目标能力，或没有完整列出 P-06 周期、高水位线、分账和退款语义的现行表述。S0 仍只允许在独立 G3 证据通过后展示明确标注“模拟、不可提现、未实际结算”的 Paper-only 模拟分配；不得扣客户服务余额，不得生成真实应收、发票、作者或平台余额、支付/退款效果或资金账本分录。真实订单跟单仍等待 G4/G4A，真实绩效分成与作者/平台结算仍等待独立商业/账本 Gate。
 
 本次仅修改文档，未修改费用/分账业务代码、产品参数代码、数据库迁移、provider、生产配置或 UI。验证覆盖 P-06 现行文档检索、相关收费/高水位/分账合同定向测试、`git diff --check` 和文档-only diff 审查；未执行生产迁移、未接触生产数据库、未推送、未部署。
+
+## 115. 2026-08-26 Prompt/Skill 实施状态同步
+
+本切片只修正当前任务与路线图中落后于已有证据的 Prompt/Skill 状态：PS-01–PS-06 已冻结；PS1 Prompt/声明式 Skill 合同与确定性 tester、PS2 Prompt runtime consumer 与 `configurationVersionId + payloadSha256` 任务固定、PS3 Maintenance 结构化工作台均已有实现资产，分别由既有提交和第 86、87 条交接记录证明。任务看板不再把 PS2/PS3 写成未开始。
+
+状态仍保持分层：上述实现资产不表示 Prompt 独立证据/Gate 已通过，配置版本 `ACTIVE` 也不表示运行时或生产已获准；Skill runtime consumer 尚未实现，没有 Agent 加载 active Skill，继续归入当前 S0 之外的 T3.10。Prompt/Skill 总任务因此保持 `PARTIAL/BLOCKED`，未改写为整体完成；品牌/域名、Pricing/Credits 也继续按各自依赖和 Gate 推进。
+
+本次仅同步 `tasks/plan.md`、`tasks/todo.md`、V3 roadmap 与本交接记录，未修改业务代码、数据库迁移、配置消费者、生产配置或发布范围。验证覆盖 Prompt/Skill 现行状态关键词、文档-only diff 和 `git diff --check`；未执行生产迁移、未接触生产数据库、未推送、未部署。

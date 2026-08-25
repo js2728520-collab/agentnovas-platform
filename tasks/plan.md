@@ -409,7 +409,7 @@ Gate。市场不按“优先/随后”改变冻结范围，provider、交易日�
    `docs/product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 的 PS-01–PS-06、P-07/P-08
    参数确认后接入，禁止占位值生效。
 
-**当前状态：** T3.1c-FF1 与 FF2 已完成（2026-08-24）；品牌/域名、Prompt/Skill 与 Pricing 配置族仍为 Target/Blocked。Prompt/Skill 的发布治理已经确认，但具体角色范围、Skill 执行模型、安全包络、测试器、新任务生效和删除语义仍待 PS-01–PS-06 冻结。注册族固定为 `client.strategy_research` 与 Client audience；schema v1 保留严格 `{enabled:boolean}` 全局语义，schema v2 提供单条显式 targeting 规则。服务端生成确定性测试证据，Client 只通过最小权限 current 网关读取，并在 GET/POST 共用“环境 Gate AND active 配置”的判定。没有 active 版本时保持现有环境开关行为；active 配置只能进一步收窄，不能打开被环境或能力 Gate 禁用的功能。Maintenance 使用受限字段与页面内原因直接操作，无二次弹窗。
+**当前状态：** T3.1c-FF1 与 FF2 已完成（2026-08-24）；PS-01–PS-06 已冻结，Prompt/Skill 的 PS1 合同/tester、PS2 Prompt consumer/任务版本固定和 PS3 Maintenance 工作台实现资产已完成（见 `9f8af9b`、`a5132a2` 及交接证据）。Prompt 配置与 consumer 仍需独立证据/Gate，不能由配置 `ACTIVE` 推导为运行时或发布已通过；Skill runtime consumer 尚未实现，归入 T3.10 且不属于当前 S0。品牌/域名和 Pricing 仍按 P-10/P-11、P-07/P-08 及各自 Gate 保持 Target/Blocked。注册族固定为 `client.strategy_research` 与 Client audience；schema v1 保留严格 `{enabled:boolean}` 全局语义，schema v2 提供单条显式 targeting 规则。服务端生成确定性测试证据，Client 只通过最小权限 current 网关读取，并在 GET/POST 共用“环境 Gate AND active 配置”的判定。没有 active 版本时保持现有环境开关行为；active 配置只能进一步收窄，不能打开被环境或能力 Gate 禁用的功能。Maintenance 使用受限字段与页面内原因直接操作，无二次弹窗。
 
 **FF1 验证：** family/服务/PostgreSQL/角色/回滚与 UI 合同、1326 项全量测试、TypeScript、ESLint、架构边界、secret scan、production audit；`ssh an-saas` Node 22.21.1 三端 production build；本地隔离 PostgreSQL + 真实 Chromium 18/18，覆盖三端空浏览器登录和仅提交 `{reason}` 的服务端确定性测试。
 
