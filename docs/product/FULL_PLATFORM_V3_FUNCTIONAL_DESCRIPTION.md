@@ -115,7 +115,7 @@ Operations 不显示组织树。后端保留分公司、角色归属、客户归
 - 月、季、年和终身套餐，以 USDT 计价。
 - 终身会员不等于无限 Credits 或无限增值服务。
 - 价格、权益、Credits、费用和生效时间版本化，历史订单、权益和收费事实保留创建时的不可变版本/参数快照；改价只能创建新版本，不能覆盖历史。
-- P-07/P-08 参数唯一以 `packages/contracts/src/product-parameters.ts` 为准；现有可信 provider usage 只是计量/结算事实，不表示 `provider_usage` 已成为可选择的运行时模式。固定 Credits consumer、模型/功能分档和 `provider_usage` 模式切换统一归入 T3.9b，不属于当前 S0，也不是后续 S0 增量；参数冻结不等于这些能力或支付、退款、优惠已经接入或启用。
+- P-07/P-08 参数唯一以 `packages/contracts/src/product-parameters.ts` 为准；现有会员、Credits reservation/settle/release、可信 provider usage 和不可变 Credits ledger 仅作为已有计量/结算事实，不表示固定 Credits consumer 或 `provider_usage` 已成为可选择的运行时模式。Paper-only 模拟费用分成与作者/平台模拟分配不得进入 Credits、服务余额或资金账本。固定 Credits consumer、模型/功能分档和 `provider_usage` 模式切换统一归入 T3.9b，不属于当前 S0，也不是后续 S0 增量；参数冻结不等于这些能力或支付、退款、优惠已经接入或启用。
 - 退款原则上不退；例外由人工审核并退回原渠道。
 - 优惠码、折扣码和优惠券支持有效期、次数、套餐、用户/组织范围、叠加与退款恢复。
 

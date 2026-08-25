@@ -44,7 +44,7 @@ provider 选择、WebSocket、延迟展示和主备切换仍属于后续 T2.2–
 
 实施状态（2026-08-24）：普通对话的持久历史、SSE、服务端所有权取消、provider abort、原请求幂等
 重放和 Credits 预留/结算/释放单终态已实现；Client 点击“取消生成”直接执行且不弹确认框。P-08
-参数已冻结于 `packages/contracts/src/product-parameters.ts`，但固定 Credits consumer、模型/功能分档和
+参数已冻结于 `packages/contracts/src/product-parameters.ts`，S0 仅保留已有且具备独立证据的 Credits 事实；固定 Credits consumer、模型/功能分档和
 `provider_usage` 模式切换统一归入 T3.9b，不属于当前 S0，也不是后续 S0 增量，且尚未接入并通过 Gate；
 当前 provider 可信用量与结算只是计量事实，不能作为固定价格或可切换计费模式已生效的证据。
 
