@@ -29,6 +29,7 @@ export const navigation: ConsoleNavigationGroup[] = [
   ] },
   { label: "风控", items: [
     { href: "/kill-switches", label: "交易熔断", icon: "shield", requiredPermissions: ["ops.trading.manage"] },
+    { href: "/follow-risk", label: "跟单风控", icon: "shield", requiredPermissions: ["ops.follow_risk.view"] },
     { href: "/live-routing", label: "实盘路由", icon: "shield", requiredPermissions: ["ops.trading.manage"] },
   ] },
   { label: "治理", items: [

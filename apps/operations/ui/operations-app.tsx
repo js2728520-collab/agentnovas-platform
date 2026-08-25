@@ -12,6 +12,7 @@ const CustomersWorkspace = dynamic(() => import("./customers-workspace").then((m
 const CreditsWorkspace = dynamic(() => import("./credits-workspace").then((module) => module.CreditsWorkspace));
 const InvitationsWorkspace = dynamic(() => import("./invitations-workspace").then((module) => module.InvitationsWorkspace));
 const KillSwitchWorkspace = dynamic(() => import("./kill-switch-workspace").then((module) => module.KillSwitchWorkspace));
+const FollowRiskWorkspace = dynamic(() => import("./follow-risk-workspace").then((module) => module.FollowRiskWorkspace));
 const LiveRoutingWorkspace = dynamic(() => import("./live-routing-workspace").then((module) => module.LiveRoutingWorkspace));
 const DepositsWorkspace = dynamic(() => import("./deposits-workspace").then((module) => module.DepositsWorkspace));
 const FinanceWorkspace = dynamic(() => import("./finance-workspace").then((module) => module.FinanceWorkspace));
@@ -37,6 +38,7 @@ const routePermissions: Record<string, string[] | undefined> = {
   access: ["ops.roles.manage", "ops.roles.assign", "ops.roles.approve_sensitive"],
   invitations: ["ops.invitations.view", "ops.invitations.manage"],
   "kill-switches": ["ops.trading.manage"],
+  "follow-risk": ["ops.follow_risk.view"],
   "live-routing": ["ops.trading.manage"],
 };
 
@@ -76,6 +78,7 @@ export default function OperationsApp({ segments }: { segments: string[] }) {
     : route === "approvals" ? <ApprovalsWorkspace canApproveDeposits={Boolean(permissions["ops.deposits.action_approve"])} canManageAccess={Boolean(permissions["ops.roles.manage"] || permissions["ops.roles.approve_sensitive"])} canApproveCredits={Boolean(permissions["ops.credits.approve"])} canManageAttributions={Boolean(permissions["ops.attributions.manage"])} canApproveMembership={Boolean(permissions["ops.membership_orders.approve"])} canApprovePerformance={Boolean(permissions["ops.performance_fees.approve"] || permissions["ops.performance_fees.payment_approve"])} canReviewOrganization={Boolean(permissions["ops.approvals.view"] || permissions["ops.approvals.decide"])} />
     : route === "invitations" ? <InvitationsWorkspace canManage={Boolean(permissions["ops.invitations.manage"])} />
     : route === "kill-switches" ? <KillSwitchWorkspace canManage={Boolean(permissions["ops.trading.manage"])} />
+    : route === "follow-risk" ? <FollowRiskWorkspace canManage={Boolean(permissions["ops.follow_risk.manage"])} />
     : route === "live-routing" ? <LiveRoutingWorkspace canManage={Boolean(permissions["ops.trading.manage"])} />
     : route === "access" ? <AccessCenter appId="operations" permissions={permissions} auditOnly={segments[1] === "audit"} />
     : overview;
