@@ -118,9 +118,9 @@
 | A-02 | QuantDinger 移植与差异验收 | 当前研究/DSL/AI 基础；未取得指定仓库和可移植版本 | AI assistant/research modules | `BLOCKED` | P-04 仓库、演示和验收样例。 |
 | A-03 | 文字建议、可编辑参数、结构化策略 | DSL v1–v3、strategy candidates/versions/validations 与确定性校验 | Client AI/studio + strategy domain | `PARTIAL` | 新市场/provider 字段、版本兼容与端到端浏览器旅程。 |
 | A-04 | 回测、模拟盘准入和风险门槛版本 | backtest/Paper/Research 基础和多类测试 | Client `/backtests` + admission service | `PARTIAL/BLOCKED` | P-05 时长、收益/回撤门槛；不能用开发默认值代替。 |
-| A-05 | 客户投稿、平台审核、上/下架、重大版本重审 | `community_strategies/strategy_change_requests/author_earnings` 等历史基础；marketplace route 当前 disabled | Client 策略广场 + Operations 策略审核 | `PARTIAL/TARGET` | 重建 V3 状态机、权限、风险披露和 G3；旧 disabled route 不直接复活。 |
-| A-06 | 跟单配置、不可变快照、Paper/Demo 先验收 | 官方卡 Paper subscription、portfolio/fills 和 pause/stop 已可达 | Client 策略详情/跟单配置 + Runtime | `PARTIAL` | 新策略版本/账户/费用/风险快照和 Paper/Demo E2E。 |
-| A-07 | 订阅费、收益分成、作者/平台分账 | 当前会员、Paper performance fee、高水位与 revenue allocation 基础 | 策略商业合同 + Operations/Client | `PARTIAL/BLOCKED` | P-06；作者、平台、退款和历史版本快照。 |
+| A-05 | 客户投稿、平台审核、上/下架、重大版本重审 | `community_strategies/strategy_change_requests/author_earnings` 等历史基础；marketplace route 当前 disabled | Client 策略广场 + Operations 策略审核 | `PARTIAL/TARGET` | S0 仅在独立 G3 证据通过后纳入 Paper/Demo 策略市场；真实作者/平台结算与收益分成另需商业/账本 Gate；旧 disabled route 不直接复活。 |
+| A-06 | 跟单配置、不可变快照、Paper/Demo 先验收 | 官方卡 Paper subscription、portfolio/fills 和 pause/stop 已可达 | Client 策略详情/跟单配置 + Runtime | `PARTIAL` | S0 仅在独立 G3 证据通过后纳入 Paper/Demo 跟单配置；真实订单跟单须通过 G4/G4A 及单 provider canary。 |
+| A-07 | 订阅费、收益分成、作者/平台分账 | 当前会员、Paper performance fee、高水位与 revenue allocation 基础 | 策略商业合同 + Operations/Client | `PARTIAL/BLOCKED` | S0 不包含真实订阅费、收益分成结算或作者/平台真实分账；须独立完成商业/账本版本、历史快照、审批和 Gate。 |
 | A-08 | 完整决策/行情/风控/订单工作记录，保留 ≥6 月 | decision rounds/events/runtime explanations/audit 基础，Client trading hall 可见部分状态 | Client 工作记录详情 + Maintenance 受控导出 | `PARTIAL` | 统一 trace、保留策略、脱敏导出与浏览器验收。 |
 
 ## 7. Phase 5–8：真实交易、衍生品、资金出站和发布
