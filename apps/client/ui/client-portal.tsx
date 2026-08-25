@@ -16,6 +16,7 @@ const MembershipExperience = dynamic(() => import("./membership-experience"));
 const AiAssistantChat = dynamic(() => import("./ai-assistant-chat"));
 const DecisionHall = dynamic(() => import("./decision-hall"));
 const StrategyStudio = dynamic(() => import("./strategy-studio"));
+const StrategyMarketplaceWorkspace = dynamic(() => import("./strategy-marketplace-workspace"));
 const BacktestWorkspace = dynamic(() => import("./backtest-workspace"));
 const DecisionMeeting = dynamic(() => import("./decision-hall").then((module) => module.DecisionMeeting));
 const LiveMarket = dynamic(() => import("./live-market"));
@@ -52,6 +53,8 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
   // 行情页此前只存在于遗留 /workspace 的内部字符串路由（?page=market），
   // 落地页的「行情」链接因此把匿名访客送进一个要求登录的页面。
   if (route === "market") return <LiveMarket />;
+  // 策略广场：浏览已上架策略并开启模拟跟单。跟单入口此前只有 API，没有界面。
+  if (route === "marketplace") return <StrategyMarketplaceWorkspace />;
   // AI 助手：行情分析、决策解读、平台与会员规则问答。
   // 策略实验室：多智能体研发流水线（检查点式、样本外验证、确定性准入）。
   // 服务端一直都在，此前唯一的入口是运行时不可达的遗留页面。

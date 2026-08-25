@@ -1,0 +1,78 @@
+/* 策略广场：浏览、详情与模拟跟单确认。 */
+
+.page { display: grid; gap: 1rem; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 1rem; align-items: start; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.list { display: grid; gap: 0.625rem; }
+
+.card {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card:hover { border-color: var(--rv-border-strong); background: var(--rv-row-hover); }
+.card[data-selected="true"] { border-color: var(--rv-primary-strong); background: var(--rv-primary-soft); }
+
+.cardHead { display: flex; flex-wrap: wrap; gap: 0.375rem 0.625rem; align-items: baseline; justify-content: space-between; }
+.cardName { font-size: 0.9375rem; font-weight: 600; }
+.cardAuthor { font-size: 0.75rem; color: var(--rv-subtle-foreground); }
+.cardSummary { font-size: 0.8125rem; color: var(--rv-muted-foreground); }
+
+.metrics { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.8125rem; }
+.metric { display: grid; gap: 0.125rem; }
+.metric small { color: var(--rv-subtle-foreground); font-size: 0.6875rem; }
+.metric b { font-variant-numeric: tabular-nums; }
+.up { color: var(--rv-up); }
+.down { color: var(--rv-down); }
+
+.detail {
+  display: grid;
+  gap: 0.875rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.detailHead { display: grid; gap: 0.25rem; }
+.detailHead h2 { margin: 0; font-size: 1.0625rem; }
+.detailHead p { margin: 0; font-size: 0.8125rem; color: var(--rv-muted-foreground); }
+
+.field { display: grid; gap: 0.25rem; font-size: 0.8125rem; }
+.field input { max-width: 10rem; }
+.field small { color: var(--rv-subtle-foreground); }
+
+.disclosure {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--rv-border);
+  border-left: 3px solid var(--rv-warning);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-warning-soft);
+  color: var(--rv-warning-ink);
+  font-size: 0.8125rem;
+}
+
+.disclosure ul { margin: 0; padding-left: 1.125rem; }
+.consent { display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.8125rem; }
+.consent input { width: 16px !important; min-height: 16px !important; margin-top: 2px; }
+
+.message { padding: 0.5rem 0.75rem; border-radius: var(--rv-radius-sm); font-size: 0.8125rem; }
+.message[data-kind="success"] { background: var(--rv-success-soft); color: var(--rv-success-ink); }
+.message[data-kind="error"] { background: var(--rv-danger-soft); color: var(--rv-danger-ink); }
+
+.empty { padding: 1.25rem; color: var(--rv-muted-foreground); font-size: 0.875rem; text-align: center; }
