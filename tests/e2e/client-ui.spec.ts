@@ -67,7 +67,7 @@ async function exerciseStrategyMarketplace(page: import("@playwright/test").Page
   await card.click();
 
   // 只展示历史表现，不展示策略逻辑（需求方 2026-08-24 确认）。
-  await expect(page.getByText("跟随人数")).toBeVisible();
+  await expect(page.getByText("跟随人数", { exact: true })).toBeVisible();
   await expect(page.getByText("回测净收益")).toBeVisible();
   await expect(page.getByText(/回测区间：\d{4}-\d{2}-\d{2}/)).toBeVisible();
   // 条件树、DSL 字段一律不得出现在页面上。

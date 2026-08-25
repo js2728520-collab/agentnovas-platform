@@ -4424,3 +4424,13 @@ S0 不得因这些目标合同或配置入口扣客户服务余额或 Credits，
 G3 浏览器用例同步增加筛选/排序真实交互和零 order/deployment POST 断言；既有质量用例已覆盖策略广场与我的跟单四断点、键盘、axe、历史表现、披露勾选和 Paper-only 文案。定向 Node 合同 27/27、TypeScript、ESLint、架构边界与 `git diff --check` 通过。尝试运行聚焦真实 Chromium Gate 时，Playwright 在启动前发现非本项目进程占用 `localhost:3002` 而固定拒绝；未终止未知进程、未伪造浏览器通过，因此 T4.12 与 G3 仍保持进行中，待端口释放后重跑。
 
 未执行生产迁移、未接触生产数据库、未打开 Spot Live/Perpetual/Withdrawal/CI-CD、未推送、未部署。
+
+## 118. 2026-08-26 T4.7b / T4.12 策略市场筛选排序与 G3 focused 浏览器证据
+
+T4.7b 已在 Client 策略广场加入交易品种、风险档和收益区间筛选，以及平台推荐、净收益、跟随人数、最大回撤排序。默认 `featured` 保留服务端已排序结果，不在浏览器复制推荐规则；缺失指标排序置后，筛选无结果显示真实空态。没有新增 API、路由、DSL 暴露、账本写入或实盘路径，跟单仍明确是 Paper/Demo 模拟且不产生真实订单。
+
+G3 focused 浏览器旅程以端口偏移 `1000` 运行，避开本机非项目进程占用的 `localhost:3002`；真实 Chromium 1/1 通过，覆盖策略广场与我的跟单、披露复选框禁用/启用、筛选/排序、历史表现不公开 DSL、Paper-only 文案、零 POST `/orders` 或 `/deployments`、四断点、键盘与 axe。测试中发现新增排序选项使 `getByText("跟随人数")` 命中下拉选项和详情指标两个元素，已改为精确文本定位；这不是放宽断言，而是恢复原本要验证的详情指标语义。
+
+验证：`node --test tests/strategy-marketplace-ui.test.mjs tests/follow-results-ui.test.mjs tests/follow-entry-contract.test.mjs` 27/27；`npm test` 命令完成；`npx tsc --noEmit`、全仓 ESLint、`npm run quality:bundle`、`npm run quality:boundaries`、`npm run test:apps`、`git diff --check` 通过；focused `QUALITY_E2E_PORT_OFFSET=1000 npm run test:e2e -- --grep "strategy marketplace and follow results"` 1/1 通过。三端 production build 成功。全量 npm test 输出需以本次最终命令结果核对；历史上配置激活测试存在临时 PostgreSQL 角色竞争，不把并发夹具问题误记为本轮回归。
+
+本轮未执行生产迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署；G3 全量 release evidence、云端构建和正式发布批准仍不因 focused 旅程自动完成。
