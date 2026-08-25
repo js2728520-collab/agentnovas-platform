@@ -54,6 +54,7 @@ Gate。多规则优先级尚未定义，必须通过未来新 schema 扩展，�
 - 当前可信 provider usage 只表示计量/结算事实，不表示 `provider_usage` 是可选择的运行时模式。固定 Credits consumer、模型/功能分档和 `provider_usage` 模式切换统一归入 T3.9b，不属于当前 S0，也不是后续 S0 增量；参数冻结不自动启用这些能力、支付 provider、退款或优惠。`active` 仅表示控制面版本状态，运行时接入仍须独立 schema、tester、最小权限 consumer 和 Gate。
 - 管理 USDT 支付 provider、安全状态和人工退款工作流。
 - 管理优惠码、折扣码和优惠券的期限、次数、范围、叠加和恢复规则。
+- S0 仅保留这些目标能力的服务端安全配置入口和脱敏状态投影；未通过独立商业/账本 Gate 时，运行时消费者及外部写入保持 `disabled`/`not_configured`/`unverified`。`ACTIVE` 配置、人工审批或连通测试不得被解释为支付成功、退款完成或优惠已应用；不得由 Maintenance 直接产生余额、Credits、应收、发票、作者余额或资金账本副作用。
 - 不读取客户钱包、订单详情或客户 PII。
 
 实施快照（2026-08-24）：T3.9a 已形成 `/ai-usage` 与 `GET /api/maintenance/ai-usage` 的只读
@@ -66,7 +67,7 @@ Gate。多规则优先级尚未定义，必须通过未来新 schema 扩展，�
 
 ## 6. 外部集成
 
-管理交易所、券商、行情、通知、支付、WAF/防火墙和 CI/CD 集成。页面仅显示 configured/enabled/healthy、最近测试、延迟、安全错误码和版本。
+管理交易所、券商、行情、通知、支付、WAF/防火墙和 CI/CD 集成。页面仅显示 configured/enabled/healthy、最近测试、延迟、安全错误码和版本；对 S0 之外的支付、退款和优惠运行时效果还必须显示 `not_configured`、`disabled` 或 `unverified`，不得把配置、测试或健康状态提升为外部成功事实。
 
 完整 endpoint、Key、Secret、Webhook payload、签名材料和长期 token 不进入响应。
 
