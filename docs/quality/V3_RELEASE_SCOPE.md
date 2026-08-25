@@ -15,12 +15,12 @@ Purpose: record the current release boundary and distinguish it from later V3 ta
 
 | Slice | Intended capability | Current decision |
 | --- | --- | --- |
-| S0 | In-app Client/Operations/Maintenance with only independently gated Paper/Demo, AI, strategy-marketplace, membership/Credits, and in-app-only notification degradation | `CURRENT SCOPE — NOT YET GO`; each dependency gate and external capability state still requires fresh evidence; external Email/notification writes remain disabled or unverified |
+| S0 | In-app Client/Operations/Maintenance with only independently gated Paper/Demo, AI, strategy-marketplace, existing membership/Credits facts, and in-app-only notification degradation; fixed Credits consumer, model/function price tiers, and `provider_usage` switching are excluded | `CURRENT SCOPE — NOT YET GO`; each dependency gate and external capability state still requires fresh evidence; external Email/notification writes remain disabled or unverified |
 | S1 | One explicitly named `(provider, production, spot)` canary | `LATER INDEPENDENT SLICE — BLOCKED`; G4/G4A, explicit authorization, and all three named live blockers remain prerequisites |
 | S2 | Additional spot providers | `LATER INDEPENDENT SLICE — BLOCKED`; approved independently per provider/environment/product after S1 |
 | S3 | Perpetual, withdrawal/transfer, or CI/CD control plane | `LATER INDEPENDENT SLICES — BLOCKED`; each requires a separate ADR, threat model, gate, approval, and release |
 
-This document records the agreed current scope but does not enable any slice. S0 is the sole current release scope; it is not an assertion that Paper, Demo, Email, payment, or other external effects are production-approved. S1, S2, and S3 are later independent slices, not implicit contents of S0.
+This document records the agreed current scope but does not enable any slice. S0 is the sole current release scope; it is not an assertion that Paper, Demo, Email, payment, or other external effects are production-approved. Its membership/Credits wording covers only existing independently evidenced membership and immutable Credits facts; it expressly excludes the fixed Credits consumer, model/function price tiers, and `provider_usage` mode switching. Those form the separate T3.9b slice and require their own strict schema, deterministic tester, immutable historical pin, least-privilege consumer, rollback, and Gate. S1, S2, and S3 are later independent slices, not implicit contents of S0.
 
 ## Capability matrix
 

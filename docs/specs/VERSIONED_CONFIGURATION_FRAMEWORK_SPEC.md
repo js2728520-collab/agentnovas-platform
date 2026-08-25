@@ -22,7 +22,7 @@
 1. 通用 payload 只保存非秘密 JSON；`secret/password/token/apiKey/privateKey` 等字段必须在边界拒绝。模型、支付和集成密钥继续留在既有只写不读专用表。
 2. T3.1a 交付数据库状态机、服务与受控 API；到期版本由有权限人员显式激活，不引入常驻调度 Worker。
 3. T3.1b 交付 Maintenance 工作台和到期激活 Worker；Worker 只消费数据库中已测试通过、已审批且到期的版本，不能自行测试、审批、调度或回滚。
-4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；`client.strategy_research` 的全局 v1 与定向 v2 功能开关已接入，具体价格、域名和设计资源继续受 P-07/P-08/P-10/P-11 阻断。P-07/P-08 的数字唯一以 `packages/contracts/src/product-parameters.ts` 为准；价格/权益/固定 Credits 的运行时版本必须从该真源派生并保存不可变历史快照，不能由通用配置 payload 另行定义一套数字。
+4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；`client.strategy_research` 的全局 v1 与定向 v2 功能开关已接入，具体价格、域名和设计资源继续受各自实现与 Gate 阻断。P-07/P-08 的数字唯一以 `packages/contracts/src/product-parameters.ts` 为准；价格/权益/固定 Credits 的运行时版本必须从该真源派生并保存不可变历史快照，不能由通用配置 payload 另行定义一套数字。固定 Credits consumer、模型/功能分档和 `provider_usage` 切换另立 T3.9b，不属于当前 S0。
 5. audience 固定为 `client/operations/maintenance/shared`；配置流以 `(kind, key, audience)` 唯一识别。
 6. T3.1b 分为 UI 与 Worker 两个可独立验收的切片：工作台先行，自动到期激活器随后交付。工作台把人工提交明确称为“登记测试证据”，不能冒充自动测试；在 T3.1c 消费者接入前，active 只代表控制面 current 投影。
 

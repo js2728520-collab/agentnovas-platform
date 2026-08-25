@@ -23,7 +23,7 @@ Maintenance 管理模型 Profile/Agent 绑定、AI 用量安全聚合、Email、
 - 日期按 `client_ai_inference_requests.created_at` 的 UTC 请求创建 cohort，默认 30 天、最多 90 天；组织使用请求级归属快照并显示 legacy 证据质量，用户只显示稳定伪名，模型固定到请求 revision。
 - 可信 Token 只累计成功请求，Credits 只累计真实 settled 数值；“已记录非取消失败率”排除 preflight 拒绝、用户取消和处理中请求，不等同系统或 provider 可用率。
 - 日期在页面内单击应用，不增加确认弹窗。当前 MFA Gate 默认关闭；正式生产重新开启后仍按敏感权限策略要求 recent MFA。
-- 固定对话 Credits 数值和模型/功能价格分档等待 P-08，当前页面不得宣称固定费用规则已经完成。
+- P-08 参数已冻结，但固定对话 Credits consumer 和模型/功能价格分档属于独立 T3.9b；当前页面不得宣称固定费用规则已经完成。
 
 ## 3. Email 与支付
 

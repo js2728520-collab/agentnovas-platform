@@ -1,6 +1,6 @@
 # Maintenance AI 用量分析规格
 
-状态：`TARGET_TRUTH / PARTIAL_CURRENT`。T3.9a 已实现并通过完整 Gate；T3.9b 仍由 P-08 固定价格阻断。
+状态：`TARGET_TRUTH / PARTIAL_CURRENT`。T3.9a 已实现并通过完整 Gate；P-08 参数已冻结，但 T3.9b 固定 Credits consumer 与价格分档仍未实现并通过独立 Gate。
 
 ## 1. 目标
 

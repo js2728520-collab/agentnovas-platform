@@ -4300,4 +4300,15 @@ inventory，检查该接口在该端构建里存在且未被停用。RED 验证�
 
 本次仅同步文档，没有修改业务代码、数据库迁移或生产配置。更新了 PRD、版本化配置规格、Client/Maintenance 目标规格、AI 取消/重试规格、AI 用量分析规格、跨团队功能说明、能力迁移矩阵、三端 UI runbook 和文档状态矩阵。同步后的共同边界是：P-07/P-08 数字已冻结，但固定 Credits/价格消费者、模型/功能分档、`provider_usage` 切换、支付、退款和优惠仍需独立 schema、tester、最小权限 consumer、历史 pin 与 Gate；`active` 只表示控制面状态，不能写成运行时或生产已生效。
 
+
+## 103. 2026-08-25 T3.9b 不属于 S0
+
+需求方进一步确认：固定 Credits consumer 不属于当前 S0，另立 T3.9b。P-08 的产品数字仍已冻结于 `packages/contracts/src/product-parameters.ts`；本次裁决只冻结发布范围，不代表固定 Credits、模型/功能价格分档或 `provider_usage` 模式切换已经实现、接入或通过 Gate。
+
+因此，S0 中的 membership/Credits 仅指已有且具备独立当前证据的会员、Credits 事实与可信用量结算，不得被解释为固定 Credits runtime consumer 已启用。T3.9b 必须独立完成 schema、确定性 tester、历史版本 pin、最小权限 consumer、回滚和完整 Gate 后，才能进入后续发布范围。
+
+本次仅同步 `V3_RELEASE_SCOPE.md`、README、任务看板/计划、PRD、roadmap、Current/Target 状态说明和相关规格；未修改业务代码、数据库迁移或生产配置。保留此前历史条目中当时“等待 P-08”的原文，因为它们记录的是旧时间点；当前状态改为“P-08 参数已冻结，T3.9b consumer 待实现”。
+
+验证：`git diff --check`、文档过时措辞检索和文档-only 文件范围检查通过；未执行生产迁移、未接触生产数据库、未推送、未部署。按一次只处理一个文档冲突的约定，下一步需先确认新的文档冲突后再继续代码开发。
+
 验证：`git diff --check` 通过；过时“P-08 未确认”及将固定价格写成已完成/已生效的文档表述已修正；PRD 原冻结前清单顺延为 `15.2` 且章节连续。当前 diff 仅包含文档文件。未执行生产迁移、未接触生产数据库、未推送、未部署。后续需单独确认下一个文档冲突后再继续代码开发。

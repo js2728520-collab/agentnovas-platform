@@ -35,8 +35,8 @@
 - `specs/VERSIONED_CONFIGURATION_FRAMEWORK_SPEC.md`：通用配置 draft/test/approve/schedule/activate/rollback 合同；T3.1a 内核/API、T3.1b 工作台/最小权限自动激活 Worker、功能开关全局 v1 与定向 v2 已实现，其余配置族仍为 Target/Blocked。
 - `specs/MARKET_DATA_CONTRACT_SPEC.md`：T2.1/T2.2a/T2.3a/T2.11a 多市场合同；provider 独立类型、当前四市场兼容 API、流状态机、单周期仲裁及 Runtime candle stale Gate 已实现，真实供应商、WebSocket adapter 与 stream 综合准入仍待授权和优先级结论。
 - `specs/MARKET_SOURCE_BINDING_SPEC.md`：T2.4 行情源选择与策略级绑定合同；provider-independent 选择/解析、不可变绑定和双 fingerprint 已实现，持久化、UI 与 Runtime 接入等待 P-01/provider registry。
-- `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md`：T4.3a 普通对话取消、provider abort、原请求安全重放和 Credits 唯一终态合同；固定 Credits 数值与模型/功能分档仍等待 P-08。
-- `specs/MAINTENANCE_AI_USAGE_ANALYTICS_SPEC.md`：T3.9a Maintenance AI 用量安全聚合合同；按 UTC 请求创建 cohort 展示可信成功 Token、settled Credits、已记录非取消失败率和脱敏多维分析，固定价格仍等待 P-08。
+- `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md`：T4.3a 普通对话取消、provider abort、原请求安全重放和 Credits 唯一终态合同；P-08 参数已冻结，固定 Credits consumer 与模型/功能分档属于尚未实现的 T3.9b。
+- `specs/MAINTENANCE_AI_USAGE_ANALYTICS_SPEC.md`：T3.9a Maintenance AI 用量安全聚合合同；按 UTC 请求创建 cohort 展示可信成功 Token、settled Credits、已记录非取消失败率和脱敏多维分析；P-08 参数已冻结，但固定价格 consumer 属于尚未实现的 T3.9b。
 - `architecture/CAPABILITY_MIGRATION_MATRIX.md`：Current→V3 详细能力矩阵，覆盖 route、数据库、三端页面、Worker/Execution Service、测试、Gate、共享热点与退休项。
 - `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md`：V3 当前准备度、主要差距和风险优先级。
 - `review/SYSTEM_ASSESSMENT_2026-08-20.md`：历史商业 Beta 基线评估。
