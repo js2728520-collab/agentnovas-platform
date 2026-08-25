@@ -23,8 +23,18 @@
   cursor: pointer;
 }
 
-.card:hover { border-color: var(--rv-border-strong); background: var(--rv-row-hover); }
-.card[data-selected="true"] { border-color: var(--rv-primary-strong); background: var(--rv-primary-soft); }
+/* 悬停与选中都**不改背景色**，只改边框。
+ *
+ * 涨跌色是按白底调的（design-tokens.css：--rv-up 在白底 4.84:1，只富余 0.34）。卡片背景
+ * 一旦带色就把它压到 AA 线以下——浅蓝 --rv-primary-soft 是 4.33，浅灰 --rv-row-hover 是
+ * 4.42，两个都被 axe 判 serious。指标数字是这些卡片的主要信息，不能为了标记状态而牺牲
+ * 它们的可读性，所以状态全部由边框承担。 */
+.card:hover { border-color: var(--rv-border-strong); }
+.card[data-selected="true"] {
+  border-color: var(--rv-primary-strong);
+  border-left-width: 3px;
+  padding-left: calc(1rem - 2px);
+}
 
 .cardHead { display: flex; flex-wrap: wrap; gap: 0.375rem 0.625rem; align-items: baseline; justify-content: space-between; }
 .cardName { font-size: 0.9375rem; font-weight: 600; }

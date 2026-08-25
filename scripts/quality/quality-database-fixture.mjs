@@ -546,6 +546,51 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
       JSON.stringify({ action: "enter_long", riskApproved: true }), candleClose.toISOString(),
     ]);
 
+    // 策略广场：一条已上架、带回测结果的社区策略。
+    //
+    // 没有它，`/marketplace` 只会渲染空态——卡片、指标、跟单确认面板与披露勾选全都不会
+    // 被真正跑到，axe 也扫不到那些控件。作者用 clientSecurity，跟随者是主客户：作者不能
+    // 跟随自己的策略，两者必须是不同的人。
+    const marketplace = {
+      strategyId: `quality-market-strategy-${schema.slice(-12)}`,
+      versionId: `quality-market-version-${schema.slice(-12)}`,
+      backtestId: `quality-market-backtest-${schema.slice(-12)}`,
+    };
+    // 只做多、无杠杆——现货模拟跟单只准入 long_only（需求方 2026-08-24 确认）。
+    const marketplaceDsl = {
+      schemaVersion: 3, name: "Quality marketplace strategy", market: "usdt_perpetual",
+      marginMode: "isolated", leverage: 1, symbol: "BTCUSDT", timeframe: "1h", direction: "long_only",
+      legs: {
+        long: {
+          entry: { all: [{ type: "price_ema", period: 10, operator: "above" }] },
+          exit: { any: [{ type: "candle_direction", direction: "bearish" }] },
+          stopLossPct: 2, takeProfitPct: 4,
+        },
+      },
+      risk: { positionSizePct: 5, maxDrawdownPct: 12, maxDailyLossPct: 3, maxConsecutiveLosses: 4 },
+    };
+    await client.query(`
+      INSERT INTO community_strategies(
+        id,author_user_id,name,summary,status,version,validation_label,
+        publication_mode,risk_level,symbols_json,specification_json,published_at
+      ) VALUES ($1,$2,'Quality 广场策略','质量夹具用的已上架策略，只做多。','listed',1,
+        'STANDARD_VERIFIED','marketplace','medium','["BTC/USDT"]',$3,$4)
+    `, [marketplace.strategyId, identities.clientSecurity.userId,
+      JSON.stringify(marketplaceDsl), new Date(now.getTime() - 7 * 86_400_000).toISOString()]);
+    await client.query(`
+      INSERT INTO strategy_versions(id,strategy_id,version,specification_json,created_by_user_id)
+      VALUES ($1,$2,1,$3::jsonb,$4)
+    `, [marketplace.versionId, marketplace.strategyId, JSON.stringify(marketplaceDsl),
+      identities.clientSecurity.userId]);
+    await client.query(`
+      INSERT INTO strategy_validations(
+        id,strategy_id,kind,status,period_start,period_end,sample_size,
+        net_return_pct,max_drawdown_pct,win_rate_pct,strategy_version,completed_at
+      ) VALUES ($1,$2,'backtest','passed',$3,$4,42,12.5,9,58,1,$4)
+    `, [marketplace.backtestId, marketplace.strategyId,
+      new Date(now.getTime() - 400 * 86_400_000).toISOString(),
+      new Date(now.getTime() - 30 * 86_400_000).toISOString()]);
+
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");

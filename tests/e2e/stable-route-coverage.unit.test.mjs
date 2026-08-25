@@ -32,9 +32,17 @@ test("the browser suite covers every stable Client beta page", async () => {
     "/notifications",
     "/account/security",
     "/support",
+    "/marketplace",
+    "/follows",
   ], "client-ui.spec.ts");
   assert.match(contents, /expectAudienceNavigation\(page,\s*"client"\)/);
-  assert.equal((contents.match(/\btest\(/g) ?? []).length, 4, "Client coverage must remain folded into four release-gate cases");
+  // 折叠是有上限的：一条用例跑十来个路由 × 4 断点 × axe 就会顶到 Playwright 的 60 秒
+  // 单测预算，而症状是最后一个断言「找不到元素」——看起来像功能坏了，实际是前面的页面
+  // 把时间用光了。调大超时会掩盖这个信号，因此这里只约束**上限**：用例可以拆，但不该
+  // 拆成每个路由一条，那会让发布门禁变慢且难读。
+  const clientCases = (contents.match(/\btest\(/g) ?? []).length;
+  assert.ok(clientCases >= 4 && clientCases <= 8,
+    `Client 发布门禁用例数应在 4–8 之间，当前 ${clientCases}；低于 4 说明覆盖被删，高于 8 说明拆得过碎`);
 });
 
 test("Operations and Maintenance cases cover representative stable pages and audience-menu isolation", async () => {

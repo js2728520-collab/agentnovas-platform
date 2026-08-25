@@ -44,6 +44,50 @@ async function exercisePublicLocalePreference(page: import("@playwright/test").P
   await expect(page.getByLabel("Language")).toHaveValue("en-US");
 }
 
+/**
+ * 策略广场与我的跟单的真实浏览器旅程（4.12）。
+ *
+ * 这两个工作区此前只有源码契约断言——「披露未勾选时按钮不可用」是靠正则匹配源码验证的，
+ * 没人真的点过。源码断言证明不了控件真的被禁用、也证明不了 axe 能过。
+ */
+async function exerciseStrategyMarketplace(page: import("@playwright/test").Page) {
+  await page.goto("/marketplace");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("策略广场");
+
+  // 夹具里有一条已上架策略。空态说明夹具没生效，那会让下面所有断言变成假阳性。
+  const card = page.getByRole("button", { name: /Quality 广场策略/ });
+  await expect(card).toBeVisible();
+  await card.click();
+
+  // 只展示历史表现，不展示策略逻辑（需求方 2026-08-24 确认）。
+  await expect(page.getByText("跟随人数")).toBeVisible();
+  await expect(page.getByText("回测净收益")).toBeVisible();
+  await expect(page.getByText(/回测区间：\d{4}-\d{2}-\d{2}/)).toBeVisible();
+  // 条件树、DSL 字段一律不得出现在页面上。
+  await expect(page.getByText(/price_ema|candle_direction|schemaVersion/)).toHaveCount(0);
+
+  // 披露未勾选时按钮不可用——这条此前只有源码断言。
+  const follow = page.getByRole("button", { name: "开启模拟跟单" });
+  await expect(follow).toBeDisabled();
+  await page.getByLabel("我已阅读并理解上述风险披露").check();
+  await expect(follow).toBeEnabled();
+
+  // 止损线的说明必须写清它就是自动风控的停机线。
+  await expect(page.getByText(/累计回撤触及这条线时，系统自动阻断该跟单的新开仓/)).toBeVisible();
+
+  await expectCriticalAccessibility(page);
+  await expectResponsivePage(page);
+}
+
+async function exerciseFollowResults(page: import("@playwright/test").Page) {
+  await page.goto("/follows");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("我的跟单");
+  // 还没跟单时是空态；模拟盘的性质无论有没有跟单都要说清。
+  await expect(page.getByText(/不产生真实订单，也不可提取/)).toBeVisible();
+  await expectCriticalAccessibility(page);
+  await expectResponsivePage(page);
+}
+
 async function exerciseEditableStrategyCandidate(page: import("@playwright/test").Page) {
   const runtime = await readQualityRuntime();
   const { runId, candidateId, exchangeAccountId } = runtime.researchFixture;
@@ -425,5 +469,38 @@ test("client commercial and paper workspaces are responsive, accessible and audi
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "client");
   }
+});
+
+/**
+ * 策略广场与我的跟单单独成一条用例。
+ *
+ * 不并进上面那条商业/模拟盘用例：它已经跑 11 个路由 × 4 断点 × axe，再加两个页面会超过
+ * Playwright 的 60 秒单测预算——症状是候选编辑器「找不到元素」，看起来像功能坏了，实际
+ * 是前面的页面把时间用光了。调大超时会掩盖这个信号：一条 60 秒的用例本身就在说它做得太多。
+ */
+test("client strategy marketplace and follow results are responsive, accessible and audience-isolated", async ({ page }) => {
+  for (const [path, heading] of [
+    ["/marketplace", "策略广场"],
+    ["/follows", "我的跟单"],
+  ] as const) {
+    await exerciseResponsiveWidths(page, path, heading);
+    await expectAudienceNavigation(page, "client");
+  }
+  await exerciseStrategyMarketplace(page);
+  await exerciseFollowResults(page);
+});
+
+/**
+ * 可编辑策略候选单独成一条用例。
+ *
+ * 它原本挂在上面那条商业/模拟盘用例的末尾，而那条已经跑 11 个路由 × 4 断点 × axe，
+ * 逼近 Playwright 的 60 秒单测预算。启用策略广场接口后 `/paper` 那几页从「503 秒回」
+ * 变成真的查数据，累计时间被顶出预算——症状是候选编辑器「找不到元素」，实际页面还停在
+ * 「正在验证客户端会话…」。
+ *
+ * 调大超时会掩盖这个信号：一条 60 秒的用例本身就在说它做得太多。拆开之后每条各有预算，
+ * 而且下次谁超时了一眼能看出是哪一段。
+ */
+test("client editable strategy candidate saves an immutable draft without deploying", async ({ page }) => {
   await exerciseEditableStrategyCandidate(page);
 });
