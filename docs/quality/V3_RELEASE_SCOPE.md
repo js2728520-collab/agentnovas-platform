@@ -13,7 +13,7 @@ Purpose: record the narrow release slice that this documentation pass covers.
 
 | Slice | Intended capability | Current decision |
 | --- | --- | --- |
-| S0 | In-app Client/Operations/Maintenance with only independently gated Paper/Demo, AI, strategy-marketplace, membership/Credits, and controlled notification capabilities | `NO-GO`; each dependency gate and external capability state still requires fresh evidence |
+| S0 | In-app Client/Operations/Maintenance with only independently gated Paper/Demo, AI, strategy-marketplace, membership/Credits, and in-app-only notification degradation | `NO-GO`; each dependency gate and external capability state still requires fresh evidence; external Email/notification writes remain disabled or unverified |
 | S1 | One explicitly named `(provider, production, spot)` canary | `BLOCKED`; G4/G4A, explicit authorization, and all three named live blockers remain prerequisites |
 | S2 | Additional spot providers | `BLOCKED`; approved independently per provider/environment/product after S1 |
 | S3 | Perpetual, withdrawal/transfer, or CI/CD control plane | `BLOCKED`; each requires a separate ADR, threat model, gate, approval, and release |
@@ -60,7 +60,8 @@ Exact providers, products, markets, audiences, environments, owners, monitoring 
 - USDT perpetual must remain disabled under the repository rules; it cannot inherit a real-spot approval.
 - Withdrawal/transfer endpoints must remain absent or fixed-rejection until the independent G5 funds-movement gate passes; the Execution Service must never gain withdrawal permission.
 - Maintenance-triggered CI/CD remains blocked under G7.
-- The latest visible migration file in this worktree is `postgres/migrations/0089_strategy_work_record_truncate_retention.sql`. Existing documented backup/restore evidence covers only through `0062`, so it is invalid for this candidate until the complete current chain and checksums are rerun.
+- The committed migration tail is `postgres/migrations/0088_follow_paper_book.sql`; `0089_strategy_work_record_truncate_retention.sql` is a preserved uncommitted worktree change and is not part of the committed W0 candidate.
+- The current evidence records 17 high/moderate development-toolchain vulnerabilities, including 9 high, with a 2026-08-28 exception deadline before paid Beta invitations; this remains a release blocker pending remediation and re-scan.
 - `docs/quality/FULL_PLATFORM_V3_GATES.md` remains the principal gate reference.
 - `docs/DEVELOPMENT_HANDOFF.md` remains historical evidence, not a fresh validation run for this slice.
 

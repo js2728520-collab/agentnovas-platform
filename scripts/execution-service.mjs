@@ -30,6 +30,9 @@ import { drainReconciliations } from "../lib/execution/server/reconciliation-wor
 
 const port = Number(process.env.EXECUTION_SERVICE_PORT ?? 3020);
 const host = process.env.EXECUTION_SERVICE_HOST ?? "127.0.0.1";
+const MAX_REQUEST_BODY_BYTES = 64 * 1024;
+const BODY_READ_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 // 配置缺失时拒绝启动，而不是「没配就不鉴权」地放行。
 const secret = assertExecutionSecretConfigured(process.env.EXECUTION_SERVICE_SHARED_SECRET);
@@ -68,6 +71,12 @@ const server = createServer((request, response) => {
   if (request.method !== "POST" || request.url !== "/execute") {
     return sendJson(response, 404, { ok: false, code: "NOT_FOUND", message: "未知端点" });
   }
+  const contentLength = Number(request.headers["content-length"] ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BODY_BYTES) {
+    sendJson(response, 413, { ok: false, code: "REQUEST_TOO_LARGE", message: "请求体过大" });
+    request.destroy();
+    return;
+  }
   if (!isAuthorizedExecutionRequest(request.headers[EXECUTION_AUTH_HEADER], secret)) {
     // 不记录提供的密钥值，也不区分「没带」和「带错了」。
     console.error(`[execution] 拒绝未授权请求 from=${request.socket.remoteAddress}`);
@@ -75,8 +84,29 @@ const server = createServer((request, response) => {
   }
 
   const chunks = [];
-  request.on("data", (chunk) => chunks.push(chunk));
+  let bodyBytes = 0;
+  let bodyTooLarge = false;
+  const bodyTimer = setTimeout(() => {
+    if (!request.complete) {
+      bodyTooLarge = true;
+      sendJson(response, 408, { ok: false, code: "REQUEST_BODY_TIMEOUT", message: "请求体读取超时" });
+      request.destroy();
+    }
+  }, BODY_READ_TIMEOUT_MS);
+  request.on("data", (chunk) => {
+    bodyBytes += chunk.length;
+    if (bodyBytes > MAX_REQUEST_BODY_BYTES && !bodyTooLarge) {
+      bodyTooLarge = true;
+      sendJson(response, 413, { ok: false, code: "REQUEST_TOO_LARGE", message: "请求体过大" });
+      request.destroy();
+      return;
+    }
+    if (!bodyTooLarge) chunks.push(chunk);
+  });
+  request.on("error", () => clearTimeout(bodyTimer));
   request.on("end", async () => {
+    clearTimeout(bodyTimer);
+    if (bodyTooLarge) return;
     let parsed;
     try {
       parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -94,6 +124,11 @@ const server = createServer((request, response) => {
     }
   });
 });
+
+server.headersTimeout = 10_000;
+server.requestTimeout = REQUEST_TIMEOUT_MS;
+server.timeout = REQUEST_TIMEOUT_MS;
+server.keepAliveTimeout = 5_000;
 
 server.listen(port, host, () => {
   console.log(`[execution] 执行服务已启动 http://${host}:${port}（唯一持有凭证解密能力的进程）`);

@@ -4206,3 +4206,26 @@ inventory，检查该接口在该端构建里存在且未被停用。RED 验证�
 **未做：** 公开的单策略详情页（需求方确认只展示历史表现，广场列表已覆盖，是否还需要独立
 详情页待定）；实盘跟单的账本分录（paper 不收费，实盘开放时再做）；策略实验室的入口指向
 停用功能（已开后台任务单独处理，不是本轮范围）。
+
+## 97. 2026-08-25 Phase 9 安全收口：LLM / Execution Service 出站边界与工作记录 TRUNCATE 防线
+
+本地工作树保留了上一轮安全整改，并在本切片完成了两类收口；未推送、未部署、未执行生产迁移。
+
+### 出站 AI 与 Execution Service
+
+- LLM endpoint 在运行时强制 HTTPS；provider 与 Execution Service 客户端拒绝 HTTP redirect。
+- provider 和执行服务响应体采用 256 KiB 流式上限，避免错误配置或失陷上游用超大响应拖垮 Web 进程；执行服务请求体仍有 64 KiB 上限及 HTTP/body 超时。
+- 客户取消信号与 provider 45 秒上限合并，并由测试确认请求开始后可传播到 fetch。
+- 这些改动不宣称已消除 DNS preflight 与实际 socket 解析之间的 TOCTOU/rebinding 风险；默认 DNS 查询的超时/取消也仍是后续专项。
+
+### 工作记录保留边界
+
+- 新增迁移 `0089_strategy_work_record_truncate_retention.sql`：用 `TG_RELID` 绑定的 schema/relation 身份查询，避免调用方 `search_path` 的同名临时表绕过；为六个月可清理的根记录补 TRUNCATE 防线，并为 `official_paper_fill_receipts`、`official_paper_ledger_entries`、`live_execution_receipts`、`live_book_postings` 与跟单 paper fill receipts 的永久事实补 TRUNCATE 防线。
+- `strategy_deployments` 同时有六个月 DELETE/TRUNCATE 保护；永久回执/账本事实不再能通过直接或级联 TRUNCATE 删除。
+- PostgreSQL 测试覆盖同名临时表、部署直接 DELETE、旧记录清理、六个月 TRUNCATE、级联 TRUNCATE、永久 paper 回执/账本和迁移重复应用所需的幂等 DDL 路径。实盘账本测试夹具在隔离数据库中只为重建 fixture 临时禁用用户触发器，生产路径不使用该旁路。
+
+### 验证
+
+- `node --test --experimental-strip-types tests/strategy-work-records-postgres.test.mjs`：6/6 通过。
+- `node --test --experimental-strip-types tests/live-book-posting-postgres.test.mjs`：12/12 通过。
+- 本条目描述的是工作树验证，不是发布证据；完整迁移 fresh/N-1/rerun/checksum/concurrent/backup/restore 证据仍缺。

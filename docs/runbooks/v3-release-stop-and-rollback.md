@@ -23,7 +23,7 @@ The release owner may pause work for any listed condition; the incident commande
 ## Immediate actions
 
 1. Stop new release approvals and freeze new traffic/capability grants.
-2. Stop new worker claims and external writes; preserve queues, events, append-only audit records, and request IDs.
+2. Stop new opens, worker claims that create new external effects, and nonessential external writes; preserve queues, events, append-only audit records, and request IDs. Keep safe exits and reconciliation running unless their integrity is itself compromised.
 3. Keep the current environment observable; do not delete evidence or rewrite history.
 4. Preserve the existing worktree state for a documentation conflict.
 5. Re-read the authoritative sources listed in `docs/quality/V3_EVIDENCE_INDEX.md`.
@@ -35,10 +35,10 @@ For a real-live incident, the execution/service kill switch must block new opens
 ## Rollback procedure
 
 1. Confirm the incident timeline, request IDs, current version, intended previous version, and authority.
-2. Freeze new release actions and external writes; retain queues/events and audit evidence.
+2. Freeze new release actions, new opens, and nonessential external writes; retain queues/events and audit evidence. Keep safe exits and reconciliation active unless their integrity is compromised.
 3. Atomically switch `current` to the immutable, same-environment artifact previously recorded as `previous`.
 4. Do not reverse or delete applied forward-compatible migrations. Correct business facts with compensating/reversal entries; restore from backup only with explicit approval and validated RPO/RTO.
-5. Verify host/audience/login, readiness, critical API, queue/worker, ledger, and reconciliation smoke checks.
+5. Verify host/audience/login, readiness, critical API, queue/worker, ledger, and reconciliation smoke checks. Also verify the exact artifact passed same-version staging and that the migration set has compatible fresh, N-1, rerun, checksum, concurrent, and backup/restore evidence for the rollback boundary.
 6. Record exact version `from`/`to`, artifact and migration checksums, smoke output, approvers, and final environment state in the incident evidence.
 
 A rollback is invalid if staging did not succeed for that exact version, if the artifact is mutable/unhashed, or if the target was not a prior successful deployment in the same environment.

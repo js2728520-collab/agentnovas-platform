@@ -28,6 +28,11 @@ async function copyMigrations(maximumVersion) {
   }
 }
 
+async function copyMigration(name) {
+  const source = new URL("../postgres/migrations/", import.meta.url);
+  await writeFile(join(migrationDirectory, name), await readFile(new URL(name, source)));
+}
+
 test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
   migrationDirectory = await mkdtemp(join(tmpdir(), "agentnovas-work-record-migrations-"));
@@ -78,6 +83,17 @@ test.before(async () => {
     commitSha: "work-record-current",
   });
   assert.deepEqual(upgraded.applied, ["0075_strategy_work_record_retention.sql"]);
+  await copyMigration("0089_strategy_work_record_truncate_retention.sql");
+  const hardened = await runPostgresMigrations(pool, {
+    directory: new URL(`file://${migrationDirectory}/`),
+    commitSha: "work-record-truncate-retention",
+  });
+  assert.deepEqual(hardened.applied, ["0089_strategy_work_record_truncate_retention.sql"]);
+  const rerun = await runPostgresMigrations(pool, {
+    directory: new URL(`file://${migrationDirectory}/`),
+    commitSha: "work-record-truncate-retention-rerun",
+  });
+  assert.deepEqual(rerun.applied, []);
 });
 
 test.after(async () => {
@@ -216,4 +232,74 @@ test("work-record truth cannot be deleted before the six-month minimum retention
     () => pool.query("DELETE FROM strategy_decision_rounds WHERE id='round-a-hold'"),
     /six-month minimum retention/i,
   );
+  await assert.rejects(
+    () => pool.query("DELETE FROM strategy_deployments WHERE id='deployment-a'"),
+    /six-month minimum retention/i,
+  );
+
+  await pool.query(`
+    INSERT INTO strategy_decision_rounds(
+      id,strategy_code,symbol,timeframe,strategy_version_id,candle_open_time,candle_close_time,
+      decision_json,trace_id,completeness,created_at
+    ) VALUES (
+      'round-old-cleanable','ai_conservative','SOLUSDT','1h','version-a',
+      now() - interval '8 months',now() - interval '8 months' + interval '1 hour',
+      '{}','trace-old-cleanable','complete',now() - interval '7 months'
+    )
+  `);
+  await pool.query("DELETE FROM strategy_decision_rounds WHERE id='round-old-cleanable'");
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_decision_rounds WHERE id='round-old-cleanable'")).rows[0].count, 0);
+});
+
+test("TRUNCATE retention resolves the triggering relation by OID despite a shadow table", async () => {
+  await pool.query(`CREATE TEMP TABLE strategy_decision_rounds (created_at timestamptz)`);
+  await assert.rejects(
+    () => pool.query(`TRUNCATE ONLY "${schema}".strategy_decision_rounds CASCADE`),
+    /six-month minimum retention/i,
+  );
+});
+
+test("permanent paper receipts and ledger entries cannot be truncated", async () => {
+  await pool.query(`
+    INSERT INTO official_paper_order_intents(
+      id,portfolio_id,deployment_id,runtime_cycle_id,idempotency_key,symbol,action,
+      execution_timing,status,payload_json
+    ) VALUES (
+      'intent-retention','portfolio-a','deployment-a','cycle-a-admitted','retention-intent',
+      'BTCUSDT','buy','next_candle_open','pending','{}'
+    );
+    INSERT INTO official_paper_fill_receipts(
+      id,intent_id,portfolio_id,symbol,action,quantity,fill_price,notional_usdt,
+      fee_usdt,trace_id,filled_at
+    ) VALUES (
+      'receipt-retention','intent-retention','portfolio-a','BTCUSDT','buy',1,1,1,0,
+      'trace-retention',now()
+    );
+    INSERT INTO official_paper_ledger_entries(
+      id,portfolio_id,fill_receipt_id,entry_type,amount_usdt,balance_after_usdt,
+      symbol,trace_id,occurred_at
+    ) VALUES (
+      'ledger-retention','portfolio-a','receipt-retention','buy',1,9999,'BTCUSDT',
+      'trace-retention',now()
+    );
+  `);
+  await assert.rejects(
+    () => pool.query("TRUNCATE official_paper_fill_receipts, official_paper_ledger_entries CASCADE"),
+    /permanent work-record evidence cannot be truncated/i,
+  );
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM official_paper_fill_receipts WHERE id='receipt-retention'")).rows[0].count, 1);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM official_paper_ledger_entries WHERE id='ledger-retention'")).rows[0].count, 1);
+});
+
+test("TRUNCATE and TRUNCATE CASCADE cannot bypass the six-month minimum retention", async () => {
+  await assert.rejects(
+    () => pool.query("TRUNCATE strategy_decision_rounds CASCADE"),
+    /six-month minimum retention/i,
+  );
+  await assert.rejects(
+    () => pool.query("TRUNCATE strategy_deployments CASCADE"),
+    /six-month minimum retention/i,
+  );
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_decision_rounds WHERE id='round-a-hold'")).rows[0].count, 1);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM strategy_deployments WHERE id='deployment-a'")).rows[0].count, 1);
 });

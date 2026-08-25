@@ -53,12 +53,37 @@ after(async () => {
 const PRINCIPAL = 3_000;
 
 beforeEach(async () => {
+  // 0075/0089 deliberately reject truncating current work records. Test cleanup
+  // models the controlled retention job first, then uses TRUNCATE for unrelated
+  // fixture tables.
   await pool.query(`
+    UPDATE strategy_runtime_events SET created_at=now() - interval '7 months';
+    UPDATE strategy_runtime_cycles SET completed_at=now() - interval '7 months';
+    UPDATE official_paper_order_intents SET created_at=now() - interval '7 months';
+    UPDATE strategy_subscription_periods SET created_at=now() - interval '7 months';
+    UPDATE strategy_decision_rounds SET created_at=now() - interval '7 months';
+    UPDATE strategy_deployments SET created_at=now() - interval '7 months';
+  `);
+  // Permanent evidence is intentionally not truncatable in production. This
+  // privileged fixture reset disables user triggers only while rebuilding an
+  // isolated test fixture; the tests below verify the production triggers with
+  // normal session settings.
+  await pool.query(`
+    ALTER TABLE official_paper_fill_receipts DISABLE TRIGGER USER;
+    ALTER TABLE official_paper_ledger_entries DISABLE TRIGGER USER;
+    ALTER TABLE live_execution_receipts DISABLE TRIGGER USER;
+    ALTER TABLE live_book_postings DISABLE TRIGGER USER;
+    ALTER TABLE strategy_follow_paper_fill_receipts DISABLE TRIGGER USER;
     TRUNCATE live_book_postings, live_execution_receipts, execution_reconciliations,
       official_paper_ledger_entries, official_paper_fill_receipts,
       official_paper_order_intents, official_paper_positions,
       strategy_deployments, official_paper_portfolios, strategy_runtime_cycles,
-      strategy_versions, community_strategies, memberships, exchange_accounts, users CASCADE
+      strategy_versions, community_strategies, memberships, exchange_accounts, users CASCADE;
+    ALTER TABLE official_paper_fill_receipts ENABLE TRIGGER USER;
+    ALTER TABLE official_paper_ledger_entries ENABLE TRIGGER USER;
+    ALTER TABLE live_execution_receipts ENABLE TRIGGER USER;
+    ALTER TABLE live_book_postings ENABLE TRIGGER USER;
+    ALTER TABLE strategy_follow_paper_fill_receipts ENABLE TRIGGER USER
   `);
   await pool.query(`INSERT INTO users (id,email,password_hash,role,status)
     VALUES ('cust-1','live@example.com','x','customer','active')`);

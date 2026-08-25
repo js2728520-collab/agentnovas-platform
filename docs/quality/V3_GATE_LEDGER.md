@@ -15,7 +15,8 @@ This ledger is based on repository facts inspected in this worktree and the foll
 - `docs/adr/0020-live-accounting-and-the-named-gate.md`
 - `docs/adr/0021-full-platform-v3-gated-upgrade.md`
 - `docs/DEVELOPMENT_HANDOFF.md`
-- recent migration inventory ending at `postgres/migrations/0089_strategy_work_record_truncate_retention.sql`
+- committed migration inventory ending at `postgres/migrations/0088_follow_paper_book.sql`; the preserved worktree-only migration `0089_strategy_work_record_truncate_retention.sql` is not part of commit `74582a1`
+- `docs/quality/QUALITY_RELEASE_EVIDENCE.md`, including its recorded development-toolchain vulnerability exception
 
 Unknown or unverified items are marked explicitly below.
 
@@ -51,10 +52,10 @@ Every gate row must eventually carry: `gateName`, `gateStatus`, `environment`, `
 | G2 market data and multi-market gate | `PARTIAL` | `docs/quality/FULL_PLATFORM_V3_GATES.md` | Current provider coverage and stale-data behavior were not re-verified in this slice. |
 | G3 AI, strategy marketplace, and pricing gate | `PARTIAL` | `docs/quality/FULL_PLATFORM_V3_GATES.md`, `docs/adr/0021-full-platform-v3-gated-upgrade.md` | Strategy and commercial gating exist in target docs; current implementation evidence was not re-audited here. |
 | G4 real-trading shared gate | `PARTIAL` | `docs/quality/FULL_PLATFORM_V3_GATES.md`, `docs/adr/0019-ga-execution-service-and-key-custody.md`, `docs/adr/0020-live-accounting-and-the-named-gate.md` | Execution service and live-accounting design are documented; live readiness remains constrained by named blockers. |
-| G4A real spot gate | `BLOCKED` | `docs/quality/FULL_PLATFORM_V3_GATES.md` | The repo rules still keep real spot routing closed until explicit authorization and the remaining live blockers are cleared. |
+| G4A real spot gate | `BLOCKED` | `docs/quality/FULL_PLATFORM_V3_GATES.md`, `tasks/todo.md` | The repo rules still keep real spot routing closed until explicit authorization and the remaining live blockers are cleared. Phase 5 implementation is also incomplete, including continuous reconciliation, fork handling, activation entry, kill-switch/recovery drills, and canary evidence. |
 | G4B USDT perpetual gate | `BLOCKED` | `docs/quality/FULL_PLATFORM_V3_GATES.md`, `CLAUDE.md` | Real perpetual routing must remain disabled. |
 | G5 withdrawal, transfer, and service-fee gate | `BLOCKED` | `docs/quality/FULL_PLATFORM_V3_GATES.md`, `CLAUDE.md` | Client withdrawal permissions remain prohibited; service-fee or transfer exits are not opened by this slice. |
-| G6 Operations and Maintenance gate | `PARTIAL` | `docs/quality/FULL_PLATFORM_V3_GATES.md`, `docs/README.md` | Target docs exist; this slice did not re-audit UI and RBAC evidence. |
+| G6 Operations and Maintenance gate | `PARTIAL` | `docs/quality/FULL_PLATFORM_V3_GATES.md`, `docs/README.md`, `docs/quality/QUALITY_RELEASE_EVIDENCE.md` | Target docs exist; this slice did not re-audit UI and RBAC evidence. The recorded development-toolchain exception (17 high/moderate vulnerabilities, including 9 high) remains a named release blocker pending remediation/re-scan before paid Beta invitations. |
 | G7 CI/CD control-plane gate | `BLOCKED` | `docs/quality/FULL_PLATFORM_V3_GATES.md`, `docs/adr/0021-full-platform-v3-gated-upgrade.md` | The control-plane checklist is unpassed and Maintenance-triggered deployment remains unavailable. A target design is not implementation proof or authorization. |
 | G8 experience and public-release gate | `PARTIAL` | `docs/quality/FULL_PLATFORM_V3_GATES.md`, `docs/README.md` | Release/runbook evidence exists, but current browser and accessibility proof were not rechecked here. |
 
@@ -71,7 +72,8 @@ Status of those blockers is unchanged by this documentation slice.
 ## Evidence notes
 
 - `docs/DEVELOPMENT_HANDOFF.md` records multiple prior validation slices, but it is historical evidence, not a fresh re-run for this task.
-- The latest visible migration file is `0089_strategy_work_record_truncate_retention.sql`; this slice did not inspect migration bodies, so migration-level assertions remain unverified here.
+- The product parameter contract P-01–P-12 is frozen as a requirements baseline; this does not mean the referenced providers, adapters, credentials, authorization, or runtime validation are configured or ready.
+- The committed migration tail is `0088_follow_paper_book.sql`. `0089_strategy_work_record_truncate_retention.sql` is an uncommitted preserved worktree change whose body and cascade boundary are still under review; it is not evidence for commit `74582a1`.
 - No code, migration, or production-config changes were made in this slice.
 
 ## Open questions

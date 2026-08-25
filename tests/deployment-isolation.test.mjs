@@ -97,6 +97,17 @@ test("执行服务在每一份部署产物里都存在", async () => {
   assert.match(example, /^EXECUTION_SERVICE_SHARED_SECRET=/m);
 });
 
+test("执行服务限制请求体并配置 HTTP 资源超时", async () => {
+  const source = await read("scripts/execution-service.mjs");
+  assert.match(source, /MAX_REQUEST_BODY_BYTES\s*=\s*64 \* 1024/);
+  assert.match(source, /content-length/);
+  assert.match(source, /REQUEST_TOO_LARGE/);
+  assert.match(source, /bodyBytes/);
+  assert.match(source, /BODY_READ_TIMEOUT_MS/);
+  assert.match(source, /headersTimeout/);
+  assert.match(source, /requestTimeout/);
+  assert.match(source, /keepAliveTimeout/);
+});
 test("执行服务不挂 edge 网络", async () => {
   // 它的端口等价于「替任何客户下单」的能力。挂上 edge 就等于把它暴露到反向代理
   // 后面，ADR-0019 第 2 步收敛密钥的意义会被那一行抵消。

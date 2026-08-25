@@ -37,6 +37,42 @@ export class ExecutionServiceError extends Error {
 /** 单次调用上限。交易所自身的超时更短，这里只兜底防止请求悬挂占住 Web 进程。 */
 const REQUEST_TIMEOUT_MS = 30_000;
 
+/** 单次响应上限；执行服务是受信边界，但错误配置或失陷不能拖垮 Web 进程。 */
+const MAX_RESPONSE_BYTES = 256 * 1024;
+
+async function boundedExecutionResponse(response: Response) {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
+    throw new ExecutionServiceError(EXECUTION_UNAVAILABLE_CODE, "执行服务响应过大");
+  }
+  if (!response.body) throw new ExecutionServiceError(EXECUTION_UNAVAILABLE_CODE, "执行服务返回了空响应");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let bytesRead = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesRead += value.byteLength;
+      if (bytesRead > MAX_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw new ExecutionServiceError(EXECUTION_UNAVAILABLE_CODE, "执行服务响应过大");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new ExecutionServiceError(EXECUTION_UNAVAILABLE_CODE, "执行服务返回了无法解析的响应");
+  }
+}
+
 async function callExecutionService<T>(request: ExecutionRequest): Promise<T> {
   const baseUrl = process.env.EXECUTION_SERVICE_URL;
   const secret = process.env.EXECUTION_SERVICE_SHARED_SECRET;
@@ -53,6 +89,7 @@ async function callExecutionService<T>(request: ExecutionRequest): Promise<T> {
       method: "POST",
       headers: { "content-type": "application/json", [EXECUTION_AUTH_HEADER]: secret },
       body: JSON.stringify(request),
+      redirect: "error",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
@@ -71,8 +108,7 @@ async function callExecutionService<T>(request: ExecutionRequest): Promise<T> {
     throw new ExecutionServiceError(EXECUTION_UNAVAILABLE_CODE, `执行服务返回 ${response.status}`);
   }
 
-  const payload = await response.json().catch(() => null) as ExecutionResponse<T> | null;
-  if (!payload) throw new ExecutionServiceError(EXECUTION_UNAVAILABLE_CODE, "执行服务返回了无法解析的响应");
+  const payload = await boundedExecutionResponse(response) as ExecutionResponse<T>;
   if (!payload.ok) throw new ExecutionServiceError(payload.code, payload.message);
   return payload.result;
 }

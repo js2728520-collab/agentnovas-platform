@@ -20,9 +20,12 @@ const config = {
   profileId: "profile-1",
   revisionId: "revision-1",
 };
+const publicResolver = async () => [{ address: "93.184.216.34" }];
+
 
 test("provider output carries validated provider metering", async () => {
   const result = await requestAiText(config, [{ role: "user", content: "hello" }], {
+    resolver: publicResolver,
     fetchImpl: async () => Response.json({
       id: "chatcmpl-fixture-1",
       choices: [{ message: { content: "measured answer" } }],
@@ -49,6 +52,7 @@ test("provider output without a request id or reliable token usage fails closed"
   ]) {
     await assert.rejects(
       requestAiText(config, [{ role: "user", content: "hello" }], {
+        resolver: publicResolver,
         fetchImpl: async () => Response.json(payload),
       }),
       /可靠.*(?:请求|用量)|计量/,
@@ -56,11 +60,46 @@ test("provider output without a request id or reliable token usage fails closed"
   }
 });
 
+test("provider rejects private DNS results and redirects before sending credentials", async () => {
+  await assert.rejects(
+    requestAiText(config, [{ role: "user", content: "hello" }], {
+      resolver: async () => [{ address: "10.0.0.8" }, { address: "93.184.216.34" }],
+      fetchImpl: async () => {
+        throw new Error("request must not be sent");
+      },
+    }),
+    /内网或无效地址/,
+  );
+
+  let requestInit;
+  await assert.rejects(
+    requestAiText(config, [{ role: "user", content: "hello" }], {
+      resolver: publicResolver,
+      fetchImpl: async (_url, init) => {
+        requestInit = init;
+        throw new TypeError("redirect disallowed");
+      },
+    }),
+    /redirect disallowed/,
+  );
+  assert.equal(requestInit.redirect, "error");
+  assert.match(requestInit.headers.authorization, /^Bearer /);
+});
+test("provider endpoints require HTTPS before DNS or fetch", async () => {
+  await assert.rejects(
+    requestAiText({ ...config, endpoint: "http://llm.example.test/v1/chat/completions" }, [], {
+      resolver: publicResolver,
+      fetchImpl: async () => { throw new Error("request must not be sent"); },
+    }),
+    /HTTPS/,
+  );
+});
 test("provider requests combine user cancellation with the bounded timeout", async () => {
   const controller = new AbortController();
   let providerSignal;
   const request = requestAiText(config, [{ role: "user", content: "cancel me" }], {
     signal: controller.signal,
+    resolver: publicResolver,
     fetchImpl: async (_url, init) => {
       providerSignal = init?.signal;
       return new Promise((_resolve, reject) => {
@@ -69,6 +108,8 @@ test("provider requests combine user cancellation with the bounded timeout", asy
       });
     },
   });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(providerSignal, "provider fetch must start before cancellation");
   controller.abort(new DOMException("cancelled by customer", "AbortError"));
   await assert.rejects(request, (error) => error?.name === "AbortError");
   assert.equal(providerSignal?.aborted, true);

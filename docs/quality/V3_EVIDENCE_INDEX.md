@@ -41,7 +41,7 @@ Separate rows or sections are mandatory for current candidate evidence, historic
 
 ## Migration evidence boundary
 
-`QUALITY_RELEASE_EVIDENCE.md` records restore evidence only through migration `0062`. The visible worktree migration tail is `0089`; therefore the historical restore result is invalid for this candidate until fresh, N-1, rerun, checksum, concurrent, and backup/restore evidence covers the complete current chain. Do not infer coverage from the filename alone.
+`QUALITY_RELEASE_EVIDENCE.md` records restore evidence only through migration `0062`. The committed candidate migration tail is `0088_follow_paper_book.sql`; `0089_strategy_work_record_truncate_retention.sql` exists only as a preserved uncommitted worktree change. Therefore the historical restore result is invalid for either candidate state until fresh, N-1, rerun, checksum, concurrent, and backup/restore evidence covers the complete exact chain and commit.
 
 ## Evidence notes
 

@@ -28,6 +28,7 @@ export async function assertPublicLlmEndpoint(
   resolver?: (hostname: string) => Promise<LookupAddress[]>,
 ) {
   const target = new URL(endpoint);
+  if (target.protocol !== "https:") throw new Error("模型接口必须使用 HTTPS");
   await assertPublicDns(target.hostname, resolver);
 }
 
