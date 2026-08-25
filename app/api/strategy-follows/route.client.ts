@@ -63,6 +63,32 @@ export async function GET(request: Request) {
         `, [portfolioIds])).rows
       : [];
 
+    // 七阶段决策叙述。平台卖的是可解释、可审计的决策过程——跟单者要能看到每一轮为什么
+    // 动或不动，而不只是成交结果。
+    //
+    // 只取**本人跟单的部署**的周期。社区策略各自独立成轮（不像官方卡共享），别人的周期
+    // 与这位客户无关，也不该被他看到。
+    const subscriptionIds = follows.rows.map((row) => row.id);
+    const cycles = subscriptionIds.length
+      ? (await pool.query(`
+          SELECT deployment.strategy_subscription_id AS subscription_id,
+                 cycle.id, cycle.candle_close_time, cycle.decision_json, cycle.trace_id
+            FROM strategy_runtime_cycles AS cycle
+            JOIN strategy_deployments AS deployment ON deployment.id = cycle.deployment_id
+           WHERE deployment.strategy_subscription_id = ANY($1::text[])
+           ORDER BY cycle.candle_close_time DESC
+           LIMIT 60
+        `, [subscriptionIds])).rows
+      : [];
+    const events = cycles.length
+      ? (await pool.query(`
+          SELECT cycle_id, sequence, role, conclusion, llm_used
+            FROM strategy_runtime_events
+           WHERE cycle_id = ANY($1::text[])
+           ORDER BY cycle_id, sequence
+        `, [cycles.map((cycle) => cycle.id)])).rows
+      : [];
+
     return Response.json({
       follows: follows.rows.map((row) => ({
         subscriptionId: row.id,
@@ -98,6 +124,22 @@ export async function GET(request: Request) {
             filledAt: fill.filled_at,
           })),
         } : null,
+        cycles: cycles.filter((cycle) => cycle.subscription_id === row.id).slice(0, 10).map((cycle) => ({
+          candleCloseTime: cycle.candle_close_time,
+          traceId: cycle.trace_id,
+          action: cycle.decision_json?.action ?? null,
+          riskApproved: cycle.decision_json?.riskApproved ?? null,
+          // 被拒绝的理由是客户最需要看的——它解释了「为什么这一轮没动」。
+          rejectionReasons: Array.isArray(cycle.decision_json?.rejectionReasons)
+            ? cycle.decision_json.rejectionReasons
+            : [],
+          stages: events.filter((event) => event.cycle_id === cycle.id).map((event) => ({
+            sequence: event.sequence,
+            role: event.role,
+            conclusion: event.conclusion,
+            llmUsed: event.llm_used,
+          })),
+        })),
       })),
       // paper 不收费（P-06）。界面要说清这一点，否则客户看到费率会以为在扣钱。
       paperChargesFees: false,

@@ -10,6 +10,17 @@ type Fill = {
   feeUsdt: string; realizedNetPnlUsdt: string; filledAt: string;
 };
 
+type Stage = { sequence: number; role: string; conclusion: string; llmUsed: boolean };
+
+type Cycle = {
+  candleCloseTime: string;
+  traceId: string;
+  action: string | null;
+  riskApproved: boolean | null;
+  rejectionReasons: string[];
+  stages: Stage[];
+};
+
 type Follow = {
   subscriptionId: string;
   status: "configuring" | "user_confirmed" | "active" | "paused" | "risk_blocked" | "stopped";
@@ -25,6 +36,7 @@ type Follow = {
     positions: Array<{ symbol: string; quantity: string; averageEntryPrice: string; costBasisUsdt: string }>;
     fills: Fill[];
   } | null;
+  cycles: Cycle[];
 };
 
 /** 客户能自己恢复的只有自己暂停的那种。其余三方造成的阻断要找运营（PRD 6.6）。 */
@@ -33,6 +45,21 @@ const authorityLabels: Record<string, string> = {
   operations_risk: "运营风控",
   automated_risk: "系统自动风控",
   global_circuit_breaker: "全局熔断",
+};
+
+/** 七阶段的中文名。顺序固定，缺阶段要标 partial（INV-8）。 */
+const stageLabels: Record<string, string> = {
+  market_data: "行情数据",
+  technical_analysis: "技术分析",
+  strategy_decision: "策略判断",
+  adversarial_review: "反方审查",
+  risk: "风控",
+  decision: "决策",
+  execution: "执行",
+};
+
+const actionLabels: Record<string, string> = {
+  enter_long: "开多", exit: "离场", hold: "持仓不动",
 };
 
 const statusNotes: Record<string, string> = {
@@ -105,6 +132,31 @@ function FollowCard({ follow }: { follow: Follow }) {
         {follow.performanceFeeBps === null ? "尚未确定" : ` ${(follow.performanceFeeBps / 100).toFixed(0)}%`}
         将在实盘跟单开放后才适用。
       </p>
+
+      {follow.cycles.length > 0 && <details className={styles.cycles}>
+        <summary>决策记录（最近 {follow.cycles.length} 轮）</summary>
+        {follow.cycles.map((cycle) => <div className={styles.cycle} key={cycle.traceId}>
+          <div className={styles.cycleHead}>
+            <span>{formatDateTime(cycle.candleCloseTime)}</span>
+            <span>{actionLabels[cycle.action ?? ""] ?? cycle.action ?? "—"}</span>
+          </div>
+          {/* 被拒的理由是最需要看的——它解释了「为什么这一轮没动」。 */}
+          {cycle.rejectionReasons.length > 0 && <ul className={styles.reasons}>
+            {cycle.rejectionReasons.map((reason) => <li key={reason}>{reason}</li>)}
+          </ul>}
+          <ol className={styles.stages}>
+            {cycle.stages.map((stage) => <li key={stage.sequence}>
+              <b>{stageLabels[stage.role] ?? stage.role}</b>
+              <span>{stage.conclusion}</span>
+              {/* 确定性代码与模型解释要分得清（INV-1）。 */}
+              {stage.llmUsed && <em>模型解释</em>}
+            </li>)}
+          </ol>
+          {cycle.stages.length < 7 && <p className={styles.partial}>
+            本轮只记录了 {cycle.stages.length} 个阶段，叙述不完整。
+          </p>}
+        </div>)}
+      </details>}
 
       {portfolio.fills.length > 0 && <table className={styles.fills}>
         <thead><tr><th>时间</th><th>品种</th><th>方向</th><th>数量</th><th>成交价</th><th>手续费</th><th>已实现盈亏</th></tr></thead>
