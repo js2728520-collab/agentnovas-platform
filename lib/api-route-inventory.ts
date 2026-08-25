@@ -4972,6 +4972,26 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/strategy-follows",
+    "source": "app/api/strategy-follows/route.client.ts",
+    "audiences": [
+      "client"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireUser"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/strategy-marketplace",
     "source": "app/api/strategy-marketplace/route.client.ts",
     "audiences": [
