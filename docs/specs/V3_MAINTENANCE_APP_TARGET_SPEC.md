@@ -47,6 +47,13 @@ Gate。多规则优先级尚未定义，必须通过未来新 schema 扩展，�
 - 技能和 Prompt 支持草稿编辑、测试、双人审批、发布、历史和回滚；其中 Skill v1 仅允许声明式字段，当前 S0 不启用可编辑 Skill runtime consumer。Prompt consumer 与 Skill runtime consumer 均须遵守各自独立 Gate；Skill runtime consumer 需在 PS-01–PS-06 已冻结的基础上通过 T3.10 后才可启用。
 - 已发布版本只读，历史执行引用版本 ID。
 
+实施快照（2026-08-26）：PS1 已提供 10 个首期 Prompt 角色与声明式 Skill v1 的严格合同、双预算、
+不可覆盖安全包络和确定性 tester；PS2 Prompt consumer 只为新任务读取 active current，并固定
+`configurationVersionId + payloadSha256`，已排队、执行中和历史任务不受后续激活或回滚影响；
+PS3 已在 `/configurations` 提供结构化 Prompt/Skill 工作台、差异、测试证据、独立审批、调度、
+回滚与页面内审计原因。Prompt 仍须独立证据/Gate；Skill 面板不代表 Agent 已加载 active Skill，
+Skill runtime consumer 尚未实现并归入当前 S0 之外的 T3.10。配置 `ACTIVE` 不表示运行时或发布通过。
+
 ## 5. Token、套餐、Credits、支付和优惠
 
 - Token 按用户、组织、模型、Agent、日期、功能、费用和失败率统计。

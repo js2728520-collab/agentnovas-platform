@@ -4408,3 +4408,11 @@ S0 不得因这些目标合同或配置入口扣客户服务余额或 Credits，
 状态仍保持分层：上述实现资产不表示 Prompt 独立证据/Gate 已通过，配置版本 `ACTIVE` 也不表示运行时或生产已获准；Skill runtime consumer 尚未实现，没有 Agent 加载 active Skill，继续归入当前 S0 之外的 T3.10。Prompt/Skill 总任务因此保持 `PARTIAL/BLOCKED`，未改写为整体完成；品牌/域名、Pricing/Credits 也继续按各自依赖和 Gate 推进。
 
 本次仅同步 `tasks/plan.md`、`tasks/todo.md`、V3 roadmap 与本交接记录，未修改业务代码、数据库迁移、配置消费者、生产配置或发布范围。验证覆盖 Prompt/Skill 现行状态关键词、文档-only diff 和 `git diff --check`；未执行生产迁移、未接触生产数据库、未推送、未部署。
+
+## 116. 2026-08-26 Prompt/Skill 目标规格状态补齐
+
+本切片把第 115 条已经同步到任务与路线图的 Prompt/Skill 当前实现状态补入 System 与 Maintenance V3 目标规格：PS1 严格合同/确定性 tester、PS2 Prompt consumer 与 `configurationVersionId + payloadSha256` 新任务固定、PS3 Maintenance 结构化工作台均明确为已有实现资产。
+
+目标规格继续保持 `TARGET`/`PARTIAL` 边界：Prompt 仍须独立证据/Gate；Skill runtime consumer 尚未实现并归入当前 S0 之外的 T3.10；配置 `ACTIVE` 不表示 Agent 已加载 Skill、运行时接管或发布获准。未把控制面、测试或配置状态提升为外部成功或生产证据。
+
+本次仅修改两份 V3 目标规格与本交接记录，未修改业务代码、数据库迁移、配置消费者、生产配置或发布范围。验证覆盖目标规格 diff、文档-only 范围和 `git diff --check`；未执行生产迁移、未接触生产数据库、未推送、未部署。

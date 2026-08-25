@@ -137,14 +137,16 @@ S0 可以保留支付、退款和优惠的目标合同及服务端安全配置�
 
 高风险发布使用 draft/test/approve/schedule/activate/rollback 状态机，创建者不能批准自己。
 
-实施快照（2026-08-24）：T3.1a 已提供不含秘密的通用 JSON 配置版本、测试、独立审批、
+实施快照（2026-08-26）：T3.1a 已提供不含秘密的通用 JSON 配置版本、测试、独立审批、
 带时区调度、到期激活和历史回滚追加式内核/API；T3.1b 已提供 Maintenance 工作台、差异、
 测试证据、时区预览、调度、current、激活和回滚控制，以及使用全局租约、数据库复核、专用
 最小权限角色和健康告警的自动到期激活 Worker。T3.1c-FF1/FF2 已让
 `client.strategy_research` 全局 v1 与用户/组织/应用版本/稳定百分比/独立时窗定向 v2 通过严格
 schema、服务端确定性测试和 Client 最小权限网关接管策略研究 GET/POST；评估上下文由服务端
-身份、部署元数据和时间提供，环境 Gate 仍是上限，配置只能进一步收窄。其他配置消费者仍未实现，
-因此本节整体仍为 `PARTIAL/TARGET`，不能把其他控制面 current 当作业务配置已经接管运行时。
+身份、部署元数据和时间提供，环境 Gate 仍是上限，配置只能进一步收窄。Prompt/Skill 的 PS1
+合同与确定性 tester、PS2 Prompt consumer 和任务版本固定、PS3 Maintenance 工作台已有实现资产；
+Prompt 仍须独立证据/Gate，Skill runtime consumer 尚未实现并归入 S0 之外的 T3.10。其他配置
+消费者仍未实现，因此本节整体仍为 `PARTIAL/TARGET`；配置 `ACTIVE` 不表示运行时或发布已经通过。
 
 ## 11. Maintenance CI/CD 控制面
 
