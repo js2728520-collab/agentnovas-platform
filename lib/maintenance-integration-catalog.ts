@@ -30,6 +30,7 @@ export async function listMaintenanceSourceIntegrations(pool: Pick<Pool, "query"
   const latestById = new Map(latest.rows.map((row) => [row.subject_id, row]));
   return INTEGRATION_CATALOG.filter((item) => item.category === "market" || item.category === "news").map((item) => {
     const configuration = configurationStatus(item, environment);
+    const missingEnvKeys = item.envKeys.filter((key) => !environment[key]?.trim());
     const check = latestById.get(item.id);
     let result: Record<string, unknown> = {};
     if (check) {
@@ -50,6 +51,9 @@ export async function listMaintenanceSourceIntegrations(pool: Pick<Pool, "query"
       implementationStatus: item.status,
       configured: configuration.configured,
       hasSecret: configuration.hasSecret,
+      configurationEnvKeys: item.envKeys,
+      missingEnvKeys,
+      configurationMethod: item.serverOnly ? "server_environment" : "none",
       enabled: item.status === "wired" && configuration.configured,
       health,
       lastTestStatus,

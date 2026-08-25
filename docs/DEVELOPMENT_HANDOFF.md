@@ -4268,3 +4268,19 @@ inventory，检查该接口在该端构建里存在且未被停用。RED 验证�
 - 聚焦行情契约测试：9/9 通过。
 - `npm test`：1729/1729 通过；`npx tsc --noEmit`：通过；`npm run lint`：通过；`git diff --check`：通过。
 - 本条目是本地工作树验证，不是目标环境或发布证据；真实 provider 授权/配置、WebSocket、序列与 gap/replay/backfill、stateful failover/switchback、stale-pressure、延迟/连接状态 UI 和目标环境 SLA 证据仍缺。
+
+## 100. 2026-08-25 W3 配置入口与状态投影收口
+
+本切片只增加服务端配置入口的可见投影，不连接真实 provider、不写入浏览器配置、不改变任何生产配置；G2/G6 继续保持 `PARTIAL`。
+
+### 集成配置入口
+
+- Maintenance 数据与新闻集成目录现在为每项返回 `configurationEnvKeys`、`missingEnvKeys` 和 `configurationMethod`；入口明确为服务端环境变量，未登记入口不会被伪造为可配置。
+- `configured` 只表示所需环境变量均存在且非空白；`enabled` 仍要求实现已 wired；`health` 仍独立表示 `untested`、`healthy`、`stale` 或 `degraded`，三者不互相替代。
+- UI 只显示变量名和“存在/缺失”状态，不显示 secret value、完整 endpoint 或 provider 凭证。固定只读连通测试仍只访问代码内白名单端点，浏览器不能提交 URL。
+
+### 验证与边界
+
+- 新增目录测试覆盖 Binance public source 和 CoinGecko 的配置入口、缺失变量、server-only 方法及 secret 不回显；修复并保留未知/浏览器控制目标的 fail-closed 测试。
+- 聚焦配置/行情测试：11/11 通过；`npm test`：1730/1730 通过；`npx tsc --noEmit`：通过；`npm run lint`：通过；`npm run quality:bundle`：通过；`npm run quality:boundaries`：通过（8 条）；`git diff --check`：通过。
+- 本地验证不是 provider 授权、连通性、SLA、实时行情或目标环境证据；没有把“有配置入口”写成 configured/healthy/ready，也未执行迁移、部署、生产数据库操作或推送。
