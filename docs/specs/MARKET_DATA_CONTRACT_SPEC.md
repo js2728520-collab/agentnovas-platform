@@ -21,7 +21,7 @@
 
 ### 2.1 已确认范围
 
-1. 行情目标市场包括加密货币、A 股、港股、韩股、日股、外汇和贵金属；A/HK 优先，KR/JP 后续。
+1. 行情目标市场包括加密货币、六个股票市场（美国、A 股、港股、韩股、日股、澳股）、外汇和贵金属；股票首期按 P-03 以 15 分钟延迟提供，运维端可控可见性并可在授权后升级为实时。
 2. 加密货币支持账户一致源、独立选择和策略级绑定；无已配置源时 Coinbase 是目标 fallback。
 3. 实时链路目标为正常端到端延迟不高于 500ms、断线恢复不高于 10 秒；目标值必须可观测，不能冒充当前健康事实。
 4. UI 显示数据源、更新时间和连接状态；主源失败后只有通过 symbol、时间、价格和完整性校验的备源才可接管。
@@ -34,14 +34,14 @@
 - T2.1b 只把当前静态行情目录映射到新合同，并向 `/api/market/instruments` 增加版本化元数据；保留 `instruments/updatedAt/source` 既有字段。
 - 当前公共 Yahoo/Binance 数据路径统一标记为 `display/research`，不声明生产授权，也不具备 execution eligibility。
 - 时间戳统一为 ISO 8601 UTC；市场时区使用 IANA timezone；交易日历以稳定 ID 引用，不在浏览器复制节假日规则。
-- A/HK/KR/JP 仅在合同 taxonomy 中预留合法值，不在当前 API 虚构 provider 或 instrument availability。
+- 六个目标股票市场只在合同 taxonomy 中预留合法值，不在当前 API 虚构 provider 或 instrument availability。
 - WebSocket sequence、缓存和重连由 T2.2 实现，主备切换由 T2.3 实现；T2.4a 的
   provider-independent 绑定纯合同见 `MARKET_SOURCE_BINDING_SPEC.md`，持久化/UI/Runtime 属于 T2.4b。
 
 ### 2.3 仍需确认或外部证据
 
 - P-01：八家目标交易所的已冻结 rollout 顺序见 `packages/contracts/src/product-parameters.ts`；真实账户一致源、provider fallback 优先级及各家认证仍须独立 Gate。
-- P-03：A/HK/KR/JP 供应商、授权范围、数据保存/再分发条件与 SLA。
+- P-03 的六个股票市场与首期 15 分钟延迟已经冻结；各市场供应商、授权范围、数据保存/再分发条件、SLA 和未来实时升级仍需外部证据与独立 Gate。
 - 每个供应商的 symbol、复权、停牌、交易日历和流量限制 fixture。
 
 这些开放项阻断真实 provider 注册和上线，不阻断纯合同、当前兼容目录与失败关闭规则。
@@ -203,7 +203,7 @@ const quality = evaluateMarketDataFreshness({
 
 - 当前静态目录映射为统一市场/标的合同。
 - instruments API 保持旧字段并增加 `contractVersion/markets`。
-- 不返回虚构的 A/HK/KR/JP provider 或可用 instrument。
+- 不返回虚构的六个目标股票市场 provider 或可用 instrument。
 - 定向、全量、TypeScript、Lint、架构、安全与云端三端构建通过。
 
 T2.1a/T2.1b 完成只把 M-01 提升为 `CURRENT` 的合同底座；真实 provider、WebSocket、主备切换和 G2 仍分别属于后续任务。
@@ -217,7 +217,7 @@ T2.1a/T2.1b 完成只把 M-01 提升为 `CURRENT` 的合同底座；真实 provi
 
 当前 40 个静态标的映射为 `crypto-global/equities-us/forex-global/metals-global` 四个当前市场，
 只声明 REST、display/research 和 `display_only`。公共 Binance/Yahoo 映射使用稳定 provider ID，
-不声明生产授权、WebSocket 或 execution。A/HK/KR/JP 只保留类型 taxonomy，没有在当前 API
+不声明生产授权、WebSocket 或 execution。P-03 的六个目标股票市场只保留类型 taxonomy，没有在当前 API
 虚构 provider、市场或标的。
 
 `GET /api/market/instruments` 保留既有 `instruments/updatedAt/source` 字段和值，并加法式增加

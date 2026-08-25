@@ -91,7 +91,7 @@
 | M-02 | WebSocket sequence、≤500ms、10 秒恢复 | provider 独立 sequence/连接/重连/cache 纯状态机；Runtime 已过滤未收盘 K 线并以 cadence stale Gate 阻断新开仓、保留退出；尚无真实 WebSocket adapter | 市场数据服务、Runtime admission 与 Client 实时连接层 | `PARTIAL` | P-01/P-03、供应商 sequence/reset fixture、stream latency 综合准入、容量与故障注入；10 秒当前仅为退避上限/恢复目标。 |
 | M-03 | 主备源、stale 标记和开仓阻断 | freshness/cache/risk 基础存在；source integration 只能测试固定只读目标 | 市场服务 + Runtime/Execution deterministic Gate | `PARTIAL` | 每市场主备、序列/价格/时间校验和恢复条件。 |
 | M-04 | 加密行情源随账户或策略独立绑定；Coinbase fallback | provider-independent 选择/解析/不可变绑定与双 fingerprint 纯合同已完成；尚无持久化、UI、Runtime 与真实 provider registry | Client `/market`、策略部署绑定与 Runtime 决策证据 | `CURRENT/PARTIAL` | T2.4b 依赖 P-01 和账户/provider registry；Coinbase 只作加密 fallback，不能进入公共默认。 |
-| M-05 | A/HK/KR/JP 指数、股票搜索、K 线、实时行情 | 无满足 V3 授权与 SLA 的完整供应商实现 | 市场服务、Client `/market`、Maintenance `/integrations/sources` | `BLOCKED` | P-03 供应商、授权、SLA；A/HK 先行，KR/JP 后续但仍属目标。 |
+| M-05 | 六个股票市场（美国、A、港、韩、日、澳）指数、股票搜索、K 线、首期延迟行情 | 无满足 V3 授权与 SLA 的完整供应商实现 | 市场服务、Client `/market`、Maintenance `/integrations/sources` | `BLOCKED` | P-03 供应商、授权、SLA 和实时升级 Gate；六个市场均须独立验证。 |
 | M-06 | 外汇/贵金属只读行情 | 当前无冻结的场所/产品/杠杆与数据源合同 | 同 M-05，执行能力另属 Phase 6 | `BLOCKED` | P-02；先只读行情，不能由行情存在推导可交易。 |
 | M-07 | G2 多市场压测和故障注入 | 有 market data 单元测试，尚无各市场真实 provider Gate | `tests` + 独立质量 runner | `TARGET` | M-01–M-06 完成后逐市场验收。 |
 

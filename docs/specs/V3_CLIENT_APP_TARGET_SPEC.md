@@ -24,16 +24,13 @@
 
 ## 3. 行情
 
-- 市场入口覆盖加密、A/HK/KR/JP 股票、外汇和贵金属。
+- 市场入口覆盖加密、美国/A 股/港股/韩股/日股/澳股六个股票市场、外汇和贵金属。
 - 支持搜索、详情、K 线、provider 选择和连接状态。
 - 用户可按账户或独立选择数据源，策略可单独绑定。
 - 显示 provider、更新时间、延迟、stale 与切换状态。
 - 陈旧行情明确警告；自动策略暂停新开仓。
 
-实施状态（2026-08-24）：当前 instruments API 已在保持旧字段兼容的同时增加 contract v1、
-四个当前市场、canonical instrument ID、market/calendar/capability 与公共 provider symbol 映射；
-当前能力明确为 REST、display/research、display-only。Client UI 尚未消费新元数据，A/HK/KR/JP、
-provider 选择、WebSocket、延迟展示和主备切换仍属于后续 T2.2–T2.4。
+实施状态（2026-08-24）：当前 instruments API 已在保持旧字段兼容的同时增加 contract v1、当前四市场兼容目录、canonical instrument ID、market/calendar/capability 与公共 provider symbol 映射；当前能力明确为 REST、display/research、display-only。Client UI 尚未消费新元数据，六个股票市场、provider 选择、WebSocket、延迟展示和主备切换仍属于后续 T2.2–T2.4。
 
 ## 4. AI 助手
 
