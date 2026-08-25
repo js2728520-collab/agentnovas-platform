@@ -3,7 +3,9 @@ import test from "node:test";
 
 import { settleFollowWeek, utcWeekBounds } from "../packages/domain/src/strategy-follow-settlement.ts";
 
+// 默认用 live 测计费口径；paper 不收费单独测。
 const settle = (overrides = {}) => settleFollowWeek({
+  runMode: "live",
   weekNetPnl: "100",
   cumulativeNetPnl: "100",
   priorHighWaterMark: "0",
@@ -99,4 +101,36 @@ test("UTC 自然周边界从周一 00:00Z 起，含头不含尾", () => {
   // 按 UTC 判定，不受本地时区影响：本地时间的周日晚可能已是 UTC 周一。
   assert.equal(utcWeekBounds(new Date("2026-08-24T00:00:00.000Z")).weekStart,
     utcWeekBounds(new Date("2026-08-26T18:30:00.000Z")).weekStart);
+});
+
+test("paper 与 shadow 不收费，但仍然出单并推进高水位线", () => {
+  // 需求方 2026-08-24 确认：paper 跟单不收费——模拟盘没有真实收益，对它收分成等于对一笔
+  // 从未发生的盈利收钱。
+  for (const runMode of ["paper", "shadow"]) {
+    const result = settle({ runMode });
+    assert.equal(result.feeAmount, "0", `${runMode} 不应产生费用`);
+    assert.equal(result.platformAmount, "0");
+    assert.equal(result.authorAmount, "0");
+    assert.equal(result.hasFee, false);
+    // 费率按 0 传入而不是算完清零——结算单的算术必须自洽：feeBps=0 × eligibleProfit=100
+    // = feeAmount=0 三者相符；照常算完再清零会留下 feeBps=1800 却 feeAmount=0，读账的人
+    // 会以为记错了。
+    assert.equal(result.feeBps, 0);
+    // eligibleProfit 照常报告——「高水位线之上有多少利润」是客观事实，与收不收费无关。
+    assert.equal(result.eligibleProfit, "100");
+    // 盈亏仍然记录、高水位线仍然推进——否则将来转实盘时基准从零开始，客户会为一段
+    // 模拟期的涨幅重复付费。
+    assert.equal(result.weekNetPnl, "100");
+    assert.equal(result.nextHighWaterMark, "100");
+  }
+});
+
+test("同一周同样的盈亏，live 收费而 paper 不收", () => {
+  const live = settle({ runMode: "live" });
+  const paper = settle({ runMode: "paper" });
+  assert.equal(live.feeAmount, "18");
+  assert.equal(paper.feeAmount, "0");
+  // 两者的盈亏与高水位线一致——差别只在计费。
+  assert.equal(live.cumulativeNetPnl, paper.cumulativeNetPnl);
+  assert.equal(live.nextHighWaterMark, paper.nextHighWaterMark);
 });

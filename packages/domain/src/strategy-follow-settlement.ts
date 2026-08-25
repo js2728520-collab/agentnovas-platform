@@ -17,6 +17,14 @@ import {
  */
 
 export type FollowSettlementInput = {
+  /**
+   * 跟随的运行模式。
+   *
+   * **paper 不收费**（需求方 2026-08-24 确认）：模拟盘没有真实收益，对它收分成等于对一笔
+   * 从未发生的盈利收钱。写成必填参数而不是可选默认，是为了让调用方**必须**说清这是哪种
+   * 模式——漏传时静默按收费处理，是这里最坏的失败方向。
+   */
+  runMode: "shadow" | "paper" | "live";
   /** 本周该跟随实现的净盈亏（已扣手续费）。 */
   weekNetPnl: string;
   /** 含本周在内的累计净盈亏。 */
@@ -60,11 +68,20 @@ function maxDecimal(a: string, b: string): string {
 }
 
 export function settleFollowWeek(input: FollowSettlementInput): FollowSettlement {
+  // 只有实盘跟随产生分成。shadow 与 paper 仍然出结算单——盈亏要记录、高水位线要推进，
+  // 否则将来转实盘时基准从零开始，客户会为一段模拟期的涨幅重复付费。
+  const chargeable = input.runMode === "live";
   const fee = calculateWeeklyPerformanceFee({
     weekNetPnl: input.weekNetPnl,
     cumulativeNetPnl: input.cumulativeNetPnl,
     committedHighWaterMark: input.priorHighWaterMark,
-    feeBps: input.feeBps,
+    // 不收费时把**费率**按 0 传进去，而不是照常算完再把 feeAmount 清零。
+    //
+    // 差别在于结算单的算术是否自洽：前者留下 feeBps=0、eligibleProfit=100、feeAmount=0，
+    // 三者相符；后者留下 feeBps=1800、eligibleProfit=100、feeAmount=0，读账的人会以为
+    // 记错了。eligibleProfit 本身照常报告——「高水位线之上有多少利润」是客观事实，
+    // 与收不收费无关。
+    feeBps: chargeable ? input.feeBps : 0,
   });
   const split = splitFollowPerformanceFee({
     feeAmount: fee.feeAmount,
@@ -80,7 +97,7 @@ export function settleFollowWeek(input: FollowSettlementInput): FollowSettlement
     nextHighWaterMark: maxDecimal(fee.committedHighWaterMark, fee.cumulativeNetPnl),
     eligibleProfit: fee.eligibleProfit,
     lossCarry: fee.lossCarry,
-    feeBps: input.feeBps,
+    feeBps: chargeable ? input.feeBps : 0,
     feeAmount: fee.feeAmount,
     platformAmount: split.platformAmount,
     authorAmount: split.authorAmount,

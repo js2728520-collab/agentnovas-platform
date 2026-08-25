@@ -115,6 +115,28 @@ export const FOLLOW_FEES = Object.freeze({
   highWaterMark: true,
   /** 已结算的分成不退；结算前的计算错误通过重算修正，走既有 revision 机制。 */
   settledFeesRefundable: false,
+  /**
+   * **模拟盘不收费**（需求方 2026-08-24 确认）。
+   *
+   * 分成只对实盘跟单产生的收益收取。模拟盘没有真实收益，对它收分成等于对一笔从未发生的
+   * 盈利收钱。`shadow` 同理。
+   *
+   * 注意这与三张官方策略卡不同——官方卡的模拟组合确实产生真实绩效费，那是既有的商业模型
+   * （见 `performance_fee_statements`）。两者是不同的产品，不要互相套用。
+   */
+  chargeableRunModes: ["live"] as const,
+  /**
+   * 作者分账的归属与记账时点（需求方 2026-08-24 确认）。
+   *
+   * 作者可以是平台用户，也可以是平台公司自己——都汇总到同一个账户体系，靠分类记账区分，
+   * 不另起一套作者账户模型。分录在**结算单批准时**产生，不等收款确认。
+   */
+  authorPayout: Object.freeze({
+    account: "platform_balance" as const,
+    postAt: "settlement_approved" as const,
+    /** 策略归谁，跟单产生的收益分成就归谁。 */
+    followsStrategyOwnership: true,
+  }),
 });
 
 /** P-07：四档套餐。价格与分成费率均由运营端调整，权限为分公司总经理及以上。 */

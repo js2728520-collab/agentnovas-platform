@@ -56,7 +56,7 @@ test.before(async () => {
     INSERT INTO community_strategies(id,author_user_id,name,status,version,validation_label)
       VALUES ('settle-strategy','settle-author','结算策略','listed',1,'STANDARD_VERIFIED');
     INSERT INTO strategy_subscriptions(id,strategy_id,customer_id,status,started_at,strategy_version_id,run_mode,runtime_status)
-      VALUES ('settle-subscription','settle-strategy','settle-customer','active','2026-08-01T00:00:00Z','settle-version','paper','active');
+      VALUES ('settle-subscription','settle-strategy','settle-customer','active','2026-08-01T00:00:00Z','settle-version','live','active');
   `);
   const contract = await pinFollowContract(pool, {
     subscriptionId: "settle-subscription",
@@ -227,4 +227,73 @@ test("并发结算同一周只出一张单", async () => {
     "SELECT high_water_mark::text FROM strategy_follow_high_water_marks WHERE customer_id='settle-customer' AND strategy_id='settle-strategy'",
   );
   assert.equal(Number(mark.rows[0].high_water_mark), 180, "高水位线只应推进一次");
+});
+
+test("paper 跟随一分不收，即便这一周赚了", async () => {
+  // 需求方 2026-08-24 确认：paper 跟单不收费。这条要在库层端到端验一遍——域层的判定
+  // 再对，只要 run_mode 没被读出来传下去，实际仍会收费。
+  await pool.query(`
+    INSERT INTO users(id,email,password_hash,role,status)
+      VALUES ('paper-customer','paper-customer@quality.invalid','test-only-hash','customer','active');
+    INSERT INTO strategy_subscriptions(id,strategy_id,customer_id,status,started_at,strategy_version_id,run_mode,runtime_status)
+      VALUES ('paper-subscription','settle-strategy','paper-customer','active','2026-08-01T00:00:00Z','settle-version','paper','active');
+    INSERT INTO strategy_follow_contracts(
+      id,subscription_id,strategy_id,customer_id,author_user_id,strategy_version_id,
+      strategy_version,performance_fee_bps,platform_share_bps,publication_mode,risk_json,disclosure_sha256
+    ) VALUES ('paper-contract','paper-subscription','settle-strategy','paper-customer','settle-author','settle-version',
+      1,1800,5000,'marketplace','{"capitalPct":3}'::jsonb,repeat('c',64));
+  `);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await settleFollowContractWeek(client, {
+      contractId: "paper-contract",
+      weekStart: "2026-08-24T00:00:00.000Z", weekEnd: "2026-08-31T00:00:00.000Z",
+      weekNetPnl: "100", cumulativeNetPnl: "100",
+    });
+    await client.query("COMMIT");
+    assert.equal(Number(result.feeAmount), 0);
+    assert.equal(Number(result.platformAmount), 0);
+    assert.equal(Number(result.authorAmount), 0);
+    assert.equal(result.status, "no_fee");
+    // 盈亏仍然记录、高水位线仍然推进——否则将来转实盘时基准从零开始，客户会为一段
+    // 模拟期的涨幅重复付费。
+    assert.equal(Number(result.nextHighWaterMark), 100);
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+});
+
+test("run_mode 缺失时按不收费处理", async () => {
+  // 缺数据时的默认方向必须指向不收钱。
+  await pool.query(`
+    INSERT INTO users(id,email,password_hash,role,status)
+      VALUES ('null-customer','null-customer@quality.invalid','test-only-hash','customer','active');
+    INSERT INTO strategy_subscriptions(id,strategy_id,customer_id,status,started_at,strategy_version_id,runtime_status)
+      VALUES ('null-subscription','settle-strategy','null-customer','active','2026-08-01T00:00:00Z','settle-version','active');
+    INSERT INTO strategy_follow_contracts(
+      id,subscription_id,strategy_id,customer_id,author_user_id,strategy_version_id,
+      strategy_version,performance_fee_bps,platform_share_bps,publication_mode,risk_json,disclosure_sha256
+    ) VALUES ('null-contract','null-subscription','settle-strategy','null-customer','settle-author','settle-version',
+      1,1800,5000,'marketplace','{"capitalPct":3}'::jsonb,repeat('d',64));
+  `);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await settleFollowContractWeek(client, {
+      contractId: "null-contract",
+      weekStart: "2026-08-24T00:00:00.000Z", weekEnd: "2026-08-31T00:00:00.000Z",
+      weekNetPnl: "100", cumulativeNetPnl: "100",
+    });
+    await client.query("COMMIT");
+    assert.equal(Number(result.feeAmount), 0);
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 });

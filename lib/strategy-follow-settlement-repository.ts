@@ -78,10 +78,14 @@ export async function settleFollowContractWeek(
     id: string; customer_id: string; strategy_id: string; author_user_id: string;
     performance_fee_bps: number; platform_share_bps: number;
     publication_mode: "marketplace" | "self_use";
+    run_mode: "shadow" | "paper" | "live" | null;
   }>(`
-    SELECT id, customer_id, strategy_id, author_user_id,
-           performance_fee_bps, platform_share_bps, publication_mode
-      FROM strategy_follow_contracts WHERE id = $1
+    SELECT contract.id, contract.customer_id, contract.strategy_id, contract.author_user_id,
+           contract.performance_fee_bps, contract.platform_share_bps, contract.publication_mode,
+           subscription.run_mode
+      FROM strategy_follow_contracts AS contract
+      JOIN strategy_subscriptions AS subscription ON subscription.id = contract.subscription_id
+     WHERE contract.id = $1
   `, [input.contractId])).rows[0];
   if (!contract) throw new ResearchApiError("FOLLOW_CONTRACT_NOT_FOUND", "跟单合同不存在", 404);
 
@@ -104,6 +108,8 @@ export async function settleFollowContractWeek(
   `, [contract.customer_id, contract.strategy_id])).rows[0];
 
   const settlement = settleFollowWeek({
+    // run_mode 缺失时按 paper 处理——不收费。缺数据时的默认方向必须指向不收钱。
+    runMode: contract.run_mode ?? "paper",
     weekNetPnl: input.weekNetPnl,
     cumulativeNetPnl: input.cumulativeNetPnl,
     priorHighWaterMark: mark.high_water_mark,
