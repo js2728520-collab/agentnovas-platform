@@ -120,7 +120,7 @@
 | A-04 | 回测、Paper/Demo 准入和风险门槛版本 | backtest/Paper/Research 基础和多类测试 | Client `/backtests` + admission service | `PARTIAL/BLOCKED` | P-05 至少 180 天回测、至少 30 笔成交、正收益、10%/15%/20% 回撤边界和人工审核仍需在完整 G3 证据中核验；不设置强制模拟盘时长，未达门槛必须为 `NOT_QUALIFIED`。 |
 | A-05 | 客户投稿、平台审核、上/下架、重大版本重审 | `community_strategies/strategy_change_requests/author_earnings` 等历史基础；marketplace route 当前 disabled | Client 策略广场 + Operations 策略审核 | `PARTIAL/TARGET` | S0 仅在独立 G3 证据通过后纳入 Paper/Demo 策略市场；真实作者/平台结算与收益分成另需商业/账本 Gate；旧 disabled route 不直接复活。 |
 | A-06 | 跟单配置、不可变快照、Paper/Demo 先验收 | 官方卡 Paper subscription、portfolio/fills 和 pause/stop 已可达 | Client 策略详情/跟单配置 + Runtime | `PARTIAL` | S0 仅在独立 G3 证据通过后纳入 Paper/Demo 跟单配置；真实订单跟单须通过 G4/G4A 及单 provider canary。 |
-| A-07 | 订阅费、收益分成、作者/平台分账 | 当前会员、Paper performance fee、高水位与 revenue allocation 基础 | 策略商业合同 + Operations/Client | `PARTIAL/BLOCKED` | S0 可保存不可变费用合同快照并展示 Paper-only 模拟收益分成/作者平台模拟分配（标注模拟、不可提现、未实际结算）；禁止真实应收/发票/余额/支付/退款/资金账本分录；真实结算须独立商业/账本 Gate。 |
+| A-07 | 绩效分成、作者/平台分账 | 当前会员、Paper performance fee、高水位与 revenue allocation 基础 | 策略商业合同 + Operations/Client | `PARTIAL/BLOCKED` | P-06 固定为无策略订阅费、20% 实盘绩效分成、UTC 周、高水位线、作者/平台 50%/50% 和已结算不退；S0 仅可展示 Paper-only 模拟分成（标注模拟、不可提现、未实际结算），禁止真实应收/发票/余额/支付/退款/资金账本分录；真实结算须独立商业/账本 Gate。 |
 | A-08 | 完整决策/行情/风控/订单工作记录，保留 ≥6 月 | decision rounds/events/runtime explanations/audit 基础，Client trading hall 可见部分状态 | Client 工作记录详情 + Maintenance 受控导出 | `PARTIAL` | 统一 trace、保留策略、脱敏导出与浏览器验收。 |
 
 ## 7. Phase 5–8：真实交易、衍生品、资金出站和发布
