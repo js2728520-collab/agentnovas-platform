@@ -5,7 +5,7 @@ import {
   calculateTokenCost,
   calculateWeeklyPerformanceFee,
   requiredLegalDocumentTypes,
-} from "../lib/commercial-membership-domain.ts";
+} from "../packages/domain/src/commercial-membership-domain.ts";
 
 test("token cost is versioned, integer and rounded up", () => {
   assert.deepEqual(calculateTokenCost({

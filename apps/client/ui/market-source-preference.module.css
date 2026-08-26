@@ -1,0 +1,101 @@
+/* 行情源偏好。作用范围仅展示与研发——官方策略卡不跟随（ADR-0025）。 */
+
+.panel { display: grid; gap: 0.875rem; }
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rv-border);
+}
+
+.head h3 { margin: 0; font-size: 0.9375rem; }
+.head p { margin: 0; font-size: 0.8125rem; color: var(--rv-muted-foreground); }
+
+/* 官方卡不跟随偏好是这个面板最容易被误解的地方，所以它是一条常驻说明而不是提示条。 */
+.officialNotice {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--rv-border);
+  border-left: 3px solid var(--rv-info);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-info-soft);
+  color: var(--rv-info-ink);
+  font-size: 0.8125rem;
+}
+
+.officialNotice b { font-weight: 600; }
+.officialNotice code { font-family: var(--rv-font-mono); font-size: 0.75rem; }
+
+.markets { display: grid; gap: 0.625rem; }
+
+.market {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-card);
+}
+
+.marketHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.625rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.marketName { font-size: 0.875rem; font-weight: 600; }
+.assetClass { font-size: 0.75rem; color: var(--rv-subtle-foreground); }
+
+/* 「客户选了」与「还没选、正在用默认」必须看得出区别，否则默认值看起来像一次选择。 */
+.origin {
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-neutral-soft);
+  color: var(--rv-muted-foreground);
+  font-size: 0.75rem;
+}
+
+.origin[data-origin="customer_preference"] {
+  background: var(--rv-success-soft);
+  color: var(--rv-success-ink);
+}
+
+.sources { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+
+.source {
+  padding: 0.3125rem 0.625rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.source:hover:not(:disabled) { border-color: var(--rv-border-strong); background: var(--rv-row-hover); }
+.source:disabled { cursor: not-allowed; opacity: 0.6; }
+
+.source[data-selected="true"] {
+  border-color: var(--rv-primary-strong);
+  background: var(--rv-primary-soft);
+  color: var(--rv-primary-ink);
+  font-weight: 600;
+}
+
+.message {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--rv-radius-sm);
+  font-size: 0.8125rem;
+}
+
+.message[data-kind="success"] { background: var(--rv-success-soft); color: var(--rv-success-ink); }
+.message[data-kind="error"] { background: var(--rv-danger-soft); color: var(--rv-danger-ink); }
+
+.empty { font-size: 0.8125rem; color: var(--rv-muted-foreground); }

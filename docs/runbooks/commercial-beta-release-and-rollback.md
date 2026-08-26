@@ -1,5 +1,7 @@
 # Riverton Capital 付费 Beta 发布与回滚 Runbook
 
+> 适用状态：`CURRENT_BASELINE`。当前发布仍由 CI/CD/值班人员执行并登记证据；Maintenance 触发工作流属于 V3 `BLOCKED` 目标，Gate 完成前不得使用本手册推断其已可用。
+
 当前发布方式为 `deploy/container/compose.yml` 的版本化容器；`deploy/systemd/` 与 `deploy/nginx/` 只保留为旧环境迁移参考，新安装不得同时启动两套 Web/Worker。容器发布仍遵守本文件的数据库、角色、证据和外部副作用 Gate。
 
 ## 1. 发布前
@@ -36,9 +38,9 @@ node scripts/release/postgres-role-policy.mjs
 
 校验结果必须为 `findings: []`。Client/Operations 无 Maintenance 密钥表权限；Notification、Demo、Runtime Worker 只能访问各自允许清单；Payment/legacy Research 角色必须为 `NOLOGIN` 且无表权限。应用进程不得使用 migrator 或管理员连接串。Client 的 `DATABASE_URL` 必须为 `agentnovas_client_web`，`CLIENT_AUTH_DATABASE_URL` 必须为独立的 `agentnovas_client_auth`；后者只能执行精确登录身份投影，不能读表、创建会话或继承 Web 角色。
 
-`0040_client_identity_rls.sql` 与 `0043_client_identity_gateway_hardening.sql` 应用后，角色校验还会确认 `users`、`sessions`、`auth_tokens` 与两张 MFA 表已启用强制限制性 RLS、所有者为 `agentnovas_migrator`，策略的 USING/WITH CHECK、policy roles 和完整角色 allowlist 均匹配。Client 连接必须始终显示 `current_user = agentnovas_client_web`；不得通过连接池 GUC、请求 Header 或 JWT 切换数据库身份。Client Web/Auth 均无身份与邀请表直访，只能经各自精确 gateway 处理登录投影或当前有效 session 绑定的主体；Operations/Maintenance 使用各自连接角色。邀请注册读取内部汇报链只能调用 `client_registration_attribution(text,text)`，不得恢复 Client 对内部 `users` 行的可见性。
+`0040_client_identity_rls.sql`、`0043_client_identity_gateway_hardening.sql` 与 `0066_client_email_and_device_security.sql` 应用后，角色校验还会确认 `users`、`sessions`、`auth_tokens` 与两张 MFA 表已启用强制限制性 RLS、所有者为 `agentnovas_migrator`，策略的 USING/WITH CHECK、policy roles 和完整角色 allowlist 均匹配。Client 连接必须始终显示 `current_user = agentnovas_client_web`；不得通过连接池 GUC、请求 Header 或 JWT 切换数据库身份。Client Web/Auth 均无身份与邀请表直访，只能经各自精确 gateway 处理登录投影、邮箱验证签发或当前有效 session 绑定的主体；Operations/Maintenance 使用各自连接角色。邀请注册读取内部汇报链只能调用 `client_registration_attribution(text,text)`，不得恢复 Client 对内部 `users` 行的可见性。
 
-若登录、注册、MFA 或会话撤销在上线后返回 PostgreSQL `42501`，先停止 Client 切流，核对 migration registry 中 `0040`、`0043`，重新执行本节最小角色模板并运行 role policy；禁止临时关闭 RLS 或把 Client 改用 migrator/内部端连接串。修复后依次复测客户登录、邀请码注册、密码找回、MFA 启用/验证/恢复码轮换、其他设备会话撤销。用 Client Web 角色直查五张身份表、邀请表或调用 `client_login_identity` 必须得到 `42501`；用 Client Auth 角色调用 `client_complete_login` 也必须得到 `42501`。过期但未显式 revoked 的会话哈希不能调用任何 self gateway。
+若登录、注册、邮箱验证、MFA 或会话撤销在上线后返回 PostgreSQL `42501`，先停止 Client 切流，核对 migration registry 中 `0040`、`0043`、`0066`，重新执行本节最小角色模板并运行 role policy；禁止临时关闭 RLS 或把 Client 改用 migrator/内部端连接串。修复后依次复测客户登录、邀请码注册、验证邮件签发/消费、密码找回、MFA 启用/验证/恢复码轮换、单设备及全部设备撤销。用 Client Web 角色直查五张身份表、邀请表或调用 `client_login_identity` 必须得到 `42501`；用 Client Auth 角色调用 `client_complete_login_v3` 或 `client_revoke_all_sessions` 也必须得到 `42501`。过期但未显式 revoked 的会话哈希不能调用任何 self gateway。
 
 ### 1.2 本机隔离恢复演练
 

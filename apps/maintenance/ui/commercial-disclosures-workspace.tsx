@@ -4,9 +4,9 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import type { SystemSettings } from "@/lib/platform-settings-contract";
-import { requiredLegalDocumentTypes } from "@/lib/commercial-membership-domain";
+import { requiredLegalDocumentTypes } from "@/packages/domain/src/commercial-membership-domain";
 import { apiErrorMessage, formatDateTime } from "@/packages/contracts/src/riverton-ui";
-import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
+import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
@@ -59,8 +59,8 @@ function defaultDocuments(settings: SystemSettings) {
     privacy: `# 隐私与数据使用说明\n\n平台仅为身份、权限、Paper 组合、会员、通知与审计目的处理必要数据。密钥、密码和完整敏感字段不会在浏览器、日志或商业披露中回显。`,
     terms: "# 服务条款\n\n本产品提供策略研究、七阶段决策证据和 Paper 模拟结果。客户不得把模拟结果当作真实成交、收益承诺或托管资产证明；账户和权限不得转让。",
     risk_disclosure: "# Paper 模拟风险披露\n\nPaper 成交基于确定性模拟撮合与行情快照，可能与真实市场的流动性、滑点、延迟和成交结果不同。历史或模拟表现不保证未来结果。",
-    simulated_performance_fee_opinion: "# 模拟收益服务费说明\n\n服务费按 UTC 自然周、三张官方策略已平仓 Paper 净收益、高水位和亏损结转计算。账单由运营双人复核，不从客户钱包或交易账户自动扣款。",
-    refund_policy: `# 退款与取消规则\n\n会费通过外部人工付款并由运营双人复核。退款或取消需联系 ${support}，平台记录申请和处理结果；系统不会生成自动退款或链上退款成功状态。`,
+    simulated_performance_fee_opinion: "# 模拟收益服务费说明\n\n服务费按 UTC 自然周、三张官方策略已平仓 Paper 净收益、高水位和亏损结转计算。账单由运营双人复核后向客户出具。\n\n结清方式有两种：由客户在账单页主动使用钱包余额支付，或按运营指引在站外付款后由运营录入凭证。**平台不会在未经客户操作的情况下自动扣款**，也不会从客户的交易所账户扣款。",
+    refund_policy: `# 退款与取消规则\n\n## 钱包余额不可提现\n\n通过充值进入平台的 USDT 计入账户余额，**只能用于购买本平台服务**（开通会员、结算模拟收益服务费）。余额不可提现、不可转出至任何链上地址或第三方账户、不可退回原充值地址。\n\n充值即视为购买服务额度。请按实际需要充值，不要把本平台作为资金存放渠道。\n\n平台不接入任何提现、代付或划转接口，因此不存在「申请提现」这一流程——这不是暂缓开放，是产品边界。\n\n## 已购服务的退款\n\n会员开通后原则上不予退款。因平台原因导致服务不可用的，可联系 ${support} 说明情况，平台记录申请与处理结果；任何退款均为人工处理，系统不会生成自动退款或链上退款成功状态。\n\n## 取消\n\n未支付的订单可自行放弃，不产生费用。已生效的会员在到期前可停止使用，不按剩余天数折算退款。`,
   } satisfies Record<string, string>;
 }
 
@@ -98,7 +98,8 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
     ? Object.fromEntries(initial.activeBundle.documents.map((document) => [document.type, document.contentMarkdown]))
     : defaultDocuments(settings), [initial.activeBundle, settings]);
   const [documents, setDocuments] = useState<Record<string, string>>(initialDocuments);
-  const [dialog, setDialog] = useState<null | { kind: "submit" } | { kind: "decision"; request: DisclosureRequest; decision: "approve" | "reject" }>(null);
+  const [submitReason, setSubmitReason] = useState("");
+  const [reviewReason, setReviewReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const submitKey = useRef(newIdempotencyKey("disclosure-submit"));
@@ -124,7 +125,7 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, "商业披露提交失败"));
       submitKey.current = newIdempotencyKey("disclosure-submit");
-      setDialog(null);
+      setSubmitReason("");
       setMessage("发布申请已提交，必须由另一名有审批权限的运维人员复核后才会生效。");
       await refresh();
     } catch (error) {
@@ -149,7 +150,7 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, "商业披露复核失败"));
       reviewKeys.current.delete(key);
-      setDialog(null);
+      setReviewReason("");
       setMessage(decision === "approve" ? "商业披露已发布；所有客户必须确认这个新版本。" : "发布申请已拒绝，当前生效版本没有变化。");
       await refresh();
     } catch (error) {
@@ -162,6 +163,7 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
   return <>
     <PageHeading eyebrow="COMMERCIAL DISCLOSURE CONTROL" title="平台商业披露" description="平台维护版本化产品披露；发布采用提交人与复核人分离。这里记录商业合同与产品边界，不宣称外部法律意见。" actions={<StatusBadge value={initial.readiness.activeBundlePublished ? `生效版本 ${initial.activeBundle?.version}` : "尚未发布"} />} />
     <div className="rc-live" aria-live="polite">{message}</div>
+    {(canSubmit || canApprove) ? <section className="rc-panel"><header><div><small>INLINE AUDIT</small><h2>发布与复核原因</h2><p>填写对应原因后直接执行，不再弹出二次确认；提交人与复核人分离、不可变快照和服务端审计保持不变。</p></div></header><div className="rc-form rc-form-grid">{canSubmit ? <InlineAuditReasonField id="disclosure-submit-reason" value={submitReason} onChange={setSubmitReason} label="提交原因" hint="提交会保存七项正文、产品身份和内容哈希快照，等待另一人复核。" /> : null}{canApprove ? <InlineAuditReasonField id="disclosure-review-reason" value={reviewReason} onChange={setReviewReason} label="复核原因" hint="批准会发布新版本并要求所有客户重新确认；拒绝不会改变当前版本。" /> : null}</div></section> : null}
     <section className="rc-panel">
       <header><div><small>PUBLIC IDENTITY SNAPSHOT</small><h2>发布身份与就绪状态</h2></div><Link className="rc-button" href="/settings">修改平台身份</Link></header>
       <dl className="rc-description-list">
@@ -176,7 +178,7 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
       <header><div><small>SEVEN VERSIONED DOCUMENTS</small><h2>七项商业披露正文</h2></div><span>{documentSetComplete ? "正文已满足长度校验" : "正文未齐全"}</span></header>
       <div className="rc-form">
         {requiredLegalDocumentTypes.map((type) => <label className="rc-wide-field" key={type}>{labels[type] ?? type}<textarea rows={7} maxLength={200000} value={documents[type] ?? ""} disabled={!canSubmit || busy} onChange={(event) => setDocuments((current) => ({ ...current, [type]: event.target.value }))} /><small>{(documents[type] ?? "").trim().length} 字符 · 发布后内容不可修改</small></label>)}
-        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={!canSubmit || busy || !identityComplete || !documentSetComplete || initial.requests.some((request) => request.status === "PENDING")} onClick={() => setDialog({ kind: "submit" })}>提交另一人复核</button></div>
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={!canSubmit || busy || !identityComplete || !documentSetComplete || !hasValidAuditReason(submitReason) || initial.requests.some((request) => request.status === "PENDING")} onClick={() => void submit(submitReason.trim())}>提交另一人复核</button></div>
       </div>
     </section>
     <section className="rc-panel">
@@ -184,18 +186,9 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
       <div className="rc-card-grid">
         {initial.requests.length === 0 ? <p>暂无发布申请。</p> : initial.requests.map((request) => {
           const selfSubmitted = request.submittedByUserId === currentUserId;
-          return <article className="rc-card" key={request.id}><header><StatusBadge value={request.status} /><time>{formatDateTime(request.createdAt)}</time></header><h3>{request.productIdentity.operatorName} · {request.locale}</h3><p>{request.submissionReason}</p><dl><div><dt>正文</dt><dd>{request.documents.length} 项</dd></div><div><dt>快照</dt><dd title={request.snapshotSha256}>{request.snapshotSha256.slice(0, 12)}…</dd></div></dl>{request.reviewNote ? <p>复核说明：{request.reviewNote}</p> : null}{request.status === "PENDING" && selfSubmitted ? <p className="rc-muted">提交人不能复核自己的发布申请。</p> : null}{request.status === "PENDING" && canApprove && !selfSubmitted ? <footer className="rc-action-row"><button className="rc-button" type="button" disabled={busy} onClick={() => setDialog({ kind: "decision", request, decision: "reject" })}>拒绝</button><button className="rc-primary" type="button" disabled={busy} onClick={() => setDialog({ kind: "decision", request, decision: "approve" })}>批准发布</button></footer> : null}</article>;
+          return <article className="rc-card" key={request.id}><header><StatusBadge value={request.status} /><time>{formatDateTime(request.createdAt)}</time></header><h3>{request.productIdentity.operatorName} · {request.locale}</h3><p>{request.submissionReason}</p><dl><div><dt>正文</dt><dd>{request.documents.length} 项</dd></div><div><dt>快照</dt><dd title={request.snapshotSha256}>{request.snapshotSha256.slice(0, 12)}…</dd></div></dl>{request.reviewNote ? <p>复核说明：{request.reviewNote}</p> : null}{request.status === "PENDING" && selfSubmitted ? <p className="rc-muted">提交人不能复核自己的发布申请。</p> : null}{request.status === "PENDING" && canApprove && !selfSubmitted ? <footer className="rc-action-row"><button className="rc-button" type="button" disabled={busy || !hasValidAuditReason(reviewReason)} onClick={() => void decide(request, "reject", reviewReason.trim())}>拒绝</button><button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(reviewReason)} onClick={() => void decide(request, "approve", reviewReason.trim())}>批准发布</button></footer> : null}</article>;
         })}
       </div>
     </section>
-    <ConfirmActionDialog
-      open={dialog !== null}
-      title={dialog?.kind === "submit" ? "提交商业披露发布" : dialog?.decision === "approve" ? "批准商业披露发布" : "拒绝商业披露发布"}
-      description={dialog?.kind === "submit" ? "系统将保存七项正文、产品身份和内容哈希快照，另一名运维人员复核后才会生效。" : "复核决定会写入不可变审计；批准将使所有客户重新确认当前版本。"}
-      confirmLabel={dialog?.kind === "submit" ? "确认提交" : dialog?.decision === "approve" ? "确认批准" : "确认拒绝"}
-      busy={busy}
-      onCancel={() => setDialog(null)}
-      onConfirm={(reason) => { if (dialog?.kind === "submit") void submit(reason); else if (dialog?.kind === "decision") void decide(dialog.request, dialog.decision, reason); }}
-    />
   </>;
 }

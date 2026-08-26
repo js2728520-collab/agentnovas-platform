@@ -8,6 +8,7 @@ import { ErrorState, LoadingState, PageHeading, StatusBadge } from "./page-state
 import { useApiData } from "./use-api-data";
 
 type RecoveryStatus = {
+  enforcementEnabled: boolean;
   enrolled: boolean;
   enabledAt: string | null;
   remainingRecoveryCodes: number;
@@ -75,17 +76,18 @@ export function InternalAccountSecurity() {
   }
 
   return <>
-    <PageHeading eyebrow="ACCOUNT ASSURANCE" title="账号与双重验证" description="核对 TOTP、恢复码和仍然有效的内部登录设备。恢复码轮换要求最近 15 分钟内完成 MFA。" />
+    <PageHeading eyebrow="ACCOUNT ASSURANCE" title="账号与双重验证" description={status.data?.enforcementEnabled ? "核对 TOTP、恢复码和仍然有效的内部登录设备。恢复码轮换要求最近 15 分钟内完成 MFA。" : "双重验证能力与既有绑定数据均已保留，当前阶段暂不强制；正式投入生产后通过运行时开关启用。"} />
     <div ref={resultRef} className="rc-live" role="status" aria-live="polite" tabIndex={-1}>{message}</div>
     <section className="rc-panel">
-      <header><div><small>MFA RECOVERY</small><h2>恢复凭证</h2></div>{status.data ? <StatusBadge value={status.data.enrolled ? "TOTP 已启用" : "尚未启用"} /> : null}</header>
+      <header><div><small>MFA RECOVERY</small><h2>恢复凭证</h2></div>{status.data ? <StatusBadge value={status.data.enforcementEnabled ? (status.data.enrolled ? "TOTP 已启用" : "尚未启用") : "当前暂不强制"} /> : null}</header>
       {status.loading && !status.data ? <LoadingState label="正在读取双重验证状态…" /> : status.error && !status.data ? <ErrorState message={status.error} retry={status.refresh} /> : <>
         <dl className="rc-description-list">
           <div><dt>启用时间</dt><dd>{formatDateTime(status.data?.enabledAt)}</dd></div>
           <div><dt>剩余恢复码</dt><dd>{status.data?.remainingRecoveryCodes ?? 0} 枚</dd></div>
           <div><dt>最近轮换</dt><dd>{formatDateTime(status.data?.lastRotatedAt)}</dd></div>
         </dl>
-        <div className="rc-action-row"><button className="rc-primary" type="button" disabled={busy || !status.data?.enrolled} onClick={() => setDialog("rotate")}>轮换恢复码</button></div>
+        {!status.data?.enforcementEnabled ? <p className="rc-muted">强制校验关闭期间不开放内部恢复码轮换；开启后仍需最近 15 分钟内完成 MFA。</p> : null}
+        <div className="rc-action-row"><button className="rc-primary" type="button" disabled={busy || !status.data?.enrolled || !status.data.enforcementEnabled} onClick={() => setDialog("rotate")}>轮换恢复码</button></div>
       </>}
       {recoveryCodes ? <div className="rc-warning" role="alert">
         <strong>恢复码仅显示这一次</strong>

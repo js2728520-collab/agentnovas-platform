@@ -1,10 +1,14 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 
+import { deterministicDecisionRoundId } from "../packages/domain/src/runtime/cycle-planning.ts";
+import { shouldPersistAdmission } from "../packages/domain/src/runtime/admission.ts";
+
 import {
   lockOfficialPaperRuntimeAccess,
   OFFICIAL_PAPER_EMERGENCY_REJECTION_CODE,
 } from "./official-paper-repository.ts";
 import { resolveRuntimeExplanationPrompt, type RuntimeExplanationOutput } from "./runtime-explanations.ts";
+import { loadActivePromptConfiguration } from "./prompt-skill-runtime.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
 
@@ -18,7 +22,7 @@ type DeploymentRow = QueryResultRow & {
   platform_strategy_code: "ai_conservative" | "ai_balanced" | "ai_aggressive" | null;
   membership_id: string | null;
   paper_portfolio_id: string | null;
-  mode: "shadow" | "paper";
+  mode: "shadow" | "paper" | "live";
   status: "active" | "paused" | "ended" | "failed";
   validation_label: string;
   unverified_warning: boolean;
@@ -82,11 +86,11 @@ export async function endConflictingOfficialStrategyDeployments(database: Querya
   strategyCode: "ai_conservative" | "ai_balanced" | "ai_aggressive";
   strategyId: string;
   strategyVersionId: string;
-  mode: "shadow" | "paper";
+  mode: "shadow" | "paper" | "live";
   paperPortfolioId: string;
 }) {
   const active = await database.query<{
-    id: string; strategy_id: string; strategy_version_id: string; mode: "shadow" | "paper";
+    id: string; strategy_id: string; strategy_version_id: string; mode: "shadow" | "paper" | "live";
     paper_portfolio_id: string | null; strategy_subscription_id: string | null;
   }>(`
     SELECT id, strategy_id, strategy_version_id, mode,
@@ -136,7 +140,7 @@ export async function createStrategyDeployment(database: Queryable, input: {
   strategyId: string;
   strategyVersionId: string;
   exchangeAccountId?: string | null;
-  mode: "shadow" | "paper";
+  mode: "shadow" | "paper" | "live";
   validationLabel: "UNVERIFIED" | "EXPLORATION_ONLY" | "STANDARD_FAILED" | "STANDARD_VERIFIED";
   idempotencyKey: string;
   riskAcknowledged: boolean;
@@ -151,16 +155,30 @@ export async function createStrategyDeployment(database: Queryable, input: {
   if (input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) throw new Error("部署幂等键长度无效");
   const executionProduct = input.executionProduct ?? "usdt_perpetual";
   if (executionProduct === "spot_usdt") {
-    if (!input.platformStrategyCode || !input.membershipId || !input.paperPortfolioId || input.exchangeAccountId) {
+    // 这里曾经无条件拒绝携带交易账户的现货部署——第五处意外的 fail-closed，
+    // 也是「没有任何入口能建 mode='live' 部署」的那一处。
+    //
+    // 真正的规则不是「不许带账户」，而是「带不带账户由 mode 决定」，与 0053 的
+    // 数据库 CHECK 是同一条：live 必须带，paper/shadow 必须不带。
+    const requiresAccount = input.mode === "live";
+    if (!input.platformStrategyCode || !input.membershipId || !input.paperPortfolioId
+        || Boolean(input.exchangeAccountId) !== requiresAccount) {
       throw new Error("官方策略部署缺少安全组合绑定或错误使用客户交易账户");
     }
-    const portfolio = await database.query<{ present: boolean }>(`
-      SELECT true AS present
+    // 账本身份必须与 mode 一致：实盘部署指向模拟盘那本账，就是把真实成交记进一本
+    // 本金 10000 的假账，而这不会报错。数据库侧另有生成列外键挡同一件事（0060），
+    // 这里先拦一道是为了给出能看懂的错误。
+    const portfolio = await database.query<{ book: string }>(`
+      SELECT book
       FROM official_paper_portfolios
       WHERE id = $1 AND membership_id = $2 AND customer_id = $3 AND strategy_code = $4
       FOR KEY SHARE
     `, [input.paperPortfolioId, input.membershipId, input.ownerUserId, input.platformStrategyCode]);
-    if (portfolio.rows[0]?.present !== true) throw new Error("官方策略模拟组合与会员、客户归属不匹配");
+    const book = portfolio.rows[0]?.book;
+    if (!book) throw new Error("官方策略模拟组合与会员、客户归属不匹配");
+    if (book !== (input.mode === "live" ? "live" : "paper")) {
+      throw new Error("部署模式与组合账本不一致");
+    }
   } else if (
     !input.exchangeAccountId?.trim()
     || input.platformStrategyCode != null
@@ -319,7 +337,7 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
   const expiresAt = new Date(input.now.getTime() + input.leaseSeconds * 1_000);
   const result = await database.query<{
     id: string; owner_user_id: string; strategy_id: string; strategy_version_id: string;
-    exchange_account_id: string | null; mode: "shadow" | "paper"; validation_label: string;
+    exchange_account_id: string | null; mode: "shadow" | "paper" | "live"; validation_label: string;
     fencing_token: string; last_candle_close_at: Date | null; risk_state_json: Record<string, unknown>;
     specification_json: string; exchange: string | null; position_size_pct: number | null; stop_loss_pct_override: number | null;
     execution_product: "usdt_perpetual" | "spot_usdt";
@@ -331,6 +349,10 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
       SELECT id FROM strategy_deployments
       WHERE status = 'active' AND execution_product = 'spot_usdt' AND next_cycle_at <= $1
         AND (lease_expires_at IS NULL OR lease_expires_at <= $1)
+        -- 官方卡专用路径。这条过滤**必须在挑选 CTE 里**，不能只写在下面的 UPDATE 上：
+        -- CTE 每次只取一行，若取到的是社区部署，UPDATE 不匹配、整条语句返回空，而排在它
+        -- 后面的官方部署永远轮不到——是饿死，不是「这次没有」。
+        AND platform_strategy_code IS NOT NULL
       ORDER BY next_cycle_at, id
       FOR UPDATE SKIP LOCKED
       LIMIT 1
@@ -342,7 +364,15 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
     WHERE deployment.id = picked.id
       AND version.id = deployment.strategy_version_id
       AND deployment.execution_product = 'spot_usdt'
-      AND deployment.exchange_account_id IS NULL
+      -- 这里曾经有一条 exchange_account_id IS NULL，把所有实盘部署挡在租约之外。
+      --
+      -- 它是五处**意外**的 fail-closed 之一：没有任何注释说它是闸门，逐个看都像
+      -- 普通条件，逐个改都像修 bug——而全部改完之后打开的是一条真实交易通道。
+      --
+      -- 闸门应该只有一个，并且有名字：isLiveExecutionReady() 与
+      -- execution_live_routing 的逐交易所授权。实盘部署现在可以被租走、可以走完
+      -- 决策与记账，唯一停下来的地方是下发订单之前那道命名闸门。
+      -- 见 packages/domain/src/execution/live-readiness.ts。
       AND deployment.platform_strategy_code IS NOT NULL
       AND deployment.membership_id IS NOT NULL
       AND deployment.paper_portfolio_id IS NOT NULL
@@ -354,7 +384,9 @@ export async function leaseNextStrategyDeployment(database: Queryable, input: {
       deployment.execution_product, deployment.platform_strategy_code,
       deployment.membership_id, deployment.paper_portfolio_id,
       version.specification_json,
-      NULL::text AS exchange,
+      -- 实盘要知道下到哪家交易所。此前恒为 NULL，因为实盘部署根本租不走。
+      (SELECT account.exchange FROM exchange_accounts AS account
+        WHERE account.id = deployment.exchange_account_id) AS exchange,
       (SELECT membership.status FROM memberships AS membership
        WHERE membership.id = deployment.membership_id) AS membership_status,
       (SELECT membership.expires_at FROM memberships AS membership
@@ -405,7 +437,9 @@ export async function renewStrategyRuntimeLease(database: Queryable, input: {
     SET lease_expires_at = $5, updated_at = $4
     WHERE id = $1 AND lease_owner = $2 AND fencing_token = $3
       AND status = 'active' AND execution_product = 'spot_usdt'
-      AND exchange_account_id IS NULL AND lease_expires_at > $4
+      -- 续租条件必须与租约条件一致。留着 exchange_account_id IS NULL，实盘部署
+      -- 会租得到却续不上，跑到一半租约过期被别的 Worker 抢走——同一轮决策被执行两次。
+      AND lease_expires_at > $4
   `, [input.deploymentId, input.workerId, input.fencingToken, input.now, expiresAt]);
   if (result.rowCount !== 1) throw new Error("Runtime Worker 续租失败：租约或 fencing token 已失效");
   return { leaseExpiresAt: expiresAt };
@@ -625,6 +659,26 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
   takerFeeRate?: number;
   symbol?: "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
   riskPerTradePct?: number;
+  /**
+   * 官方策略卡的身份。给了就同时写一行共享决策轮并把周期与事件挂上去
+   * （ADR-0018 第 1 步：双写，不改读取）。永续部署没有卡，不传。
+   */
+  decisionRound?: {
+    strategyCode: "ai_conservative" | "ai_balanced" | "ai_aggressive";
+    timeframe: string;
+    strategyVersionId: string;
+    /**
+     * 卡级结论与卡级七阶段叙述。**必须用中性风控状态算出**，不含任何客户的
+     * 风控读数——共享轮会展示给该卡的所有客户，带上就是把一位客户的回撤、
+     * 当日亏损、熔断状态给别人看（见 ADR-0018 与 DEVELOPMENT_HANDOFF §47）。
+     */
+    decision: Record<string, unknown>;
+    orderIntent: Record<string, unknown> | null;
+    events: Array<{
+      sequence: number; role: string; conclusion: string; evidence: Record<string, unknown>;
+      durationMs: number; llmUsed: boolean; modelName?: string | null;
+    }>;
+  };
 }) {
   if (input.events.length !== 7) throw new Error("每个运行周期必须保存七个 Agent 事件");
   const client = await database.connect();
@@ -644,7 +698,7 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
       return { id: existing.rows[0].id, sequence: Number(existing.rows[0].sequence), duplicate: true };
     }
     const deployment = await client.query<{
-      last_cycle_sequence: string; mode: "shadow" | "paper";
+      last_cycle_sequence: string; mode: "shadow" | "paper" | "live";
       execution_product: "usdt_perpetual" | "spot_usdt";
       paper_portfolio_id: string | null;
     }>(`
@@ -659,27 +713,84 @@ export async function completeStrategyRuntimeCycle(database: Pool, input: {
     `, [input.deploymentId, input.workerId, input.fencingToken, input.candleCloseTime, input.nextCycleAt]);
     if (!deployment.rows[0]) throw new Error("Runtime Worker 租约或 fencing token 已失效");
     const sequence = Number(deployment.rows[0].last_cycle_sequence);
-    await client.query(`
-      INSERT INTO strategy_runtime_cycles (
-        id, deployment_id, sequence, fencing_token, candle_open_time, candle_close_time,
-        market_data_snapshot_id, status, decision_json, order_intent_json,
-        trace_id, started_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8::jsonb, $9::jsonb, $10, $11)
-    `, [input.cycleId, input.deploymentId, sequence, input.fencingToken, input.candleOpenTime, input.candleCloseTime,
-      input.marketDataSnapshotId, JSON.stringify(input.decision), input.orderIntent ? JSON.stringify(input.orderIntent) : null,
-      input.traceId, input.startedAt]);
-    for (const event of input.events) {
+
+    // 共享决策轮。同一张卡、同一品种、同一根已收盘 K 线只有一行——
+    // ON CONFLICT DO NOTHING 让并发的 N 个部署里第一个写入，其余复用（INV-8）。
+    let decisionRoundId: string | null = null;
+    let roundIsNew = false;
+    if (input.decisionRound && input.symbol) {
+      decisionRoundId = deterministicDecisionRoundId({
+        strategyCode: input.decisionRound.strategyCode,
+        symbol: input.symbol,
+        timeframe: input.decisionRound.timeframe,
+        candleCloseTime: input.candleCloseTime.getTime(),
+      });
+      const insertedRound = await client.query<{ id: string }>(`
+        INSERT INTO strategy_decision_rounds (
+          id, strategy_code, symbol, timeframe, strategy_version_id,
+          candle_open_time, candle_close_time, market_data_snapshot_id,
+          decision_json, order_intent_json, trace_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11)
+        ON CONFLICT (strategy_code, symbol, timeframe, candle_close_time) DO NOTHING
+        RETURNING id
+      `, [decisionRoundId, input.decisionRound.strategyCode, input.symbol, input.decisionRound.timeframe,
+        input.decisionRound.strategyVersionId, input.candleOpenTime, input.candleCloseTime,
+        input.marketDataSnapshotId, JSON.stringify(input.decisionRound.decision),
+        input.decisionRound.orderIntent ? JSON.stringify(input.decisionRound.orderIntent) : null, input.traceId]);
+      // 让数据库决定谁是这一轮的创建者：只有插入成功的那个部署写七阶段事件。
+      // 其余部署（同卡的其他客户）复用同一套叙述——它不含任何客户数据。
+      // 用「查一下有没有」代替这个判断会有竞态：两个 worker 可能同时查到空。
+      roundIsNew = insertedRound.rows.length > 0;
+    }
+
+    // 纯 hold 不为每个组合留痕（ADR-0018 的已定决策）：卡级结论就是本轮不动作，
+    // 客户视图从共享决策轮读到同样的信息。只要发生了对这个客户特有的事
+    // ——产生意图、风控拒绝、访问状态降级——就必须留痕，那是「为什么我没成交
+    // 而他成交了」的唯一答案。
+    //
+    // 没有决策轮的部署（永续）照旧每轮都写：它们没有可回落的共享记录。
+    const persistAdmission = !decisionRoundId || shouldPersistAdmission({
+      action: String(input.decision.action ?? "hold"),
+      riskApproved: input.decision.riskApproved !== false,
+      hasOrderIntent: Boolean(input.orderIntent),
+      rejectionReasons: Array.isArray(input.decision.rejectionReasons)
+        ? input.decision.rejectionReasons.filter((value): value is string => typeof value === "string")
+        : [],
+    });
+    if (persistAdmission) {
+      await client.query(`
+        INSERT INTO strategy_runtime_cycles (
+          id, deployment_id, sequence, fencing_token, candle_open_time, candle_close_time,
+          market_data_snapshot_id, status, decision_json, order_intent_json,
+          trace_id, started_at, decision_round_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8::jsonb, $9::jsonb, $10, $11, $12)
+      `, [input.cycleId, input.deploymentId, sequence, input.fencingToken, input.candleOpenTime, input.candleCloseTime,
+        input.marketDataSnapshotId, JSON.stringify(input.decision), input.orderIntent ? JSON.stringify(input.orderIntent) : null,
+        input.traceId, input.startedAt, decisionRoundId]);
+    }
+    // 七阶段叙述属于共享单元。同一轮里只有创建者写这 7 行，其余部署不重复写——
+    // 5,000 会员 × 3 张卡下这是 105,000 行降到 7 行。
+    // 读取路径已优先按 decision_round_id 取（见 app/api/trading-hall），
+    // 因此不写重复行不会让任何客户看不到结论。
+    // 七阶段叙述属于共享轮：有轮时由创建者写一次，与该客户是否留痕无关。
+    // 纯 hold 的那一轮同样需要叙述——那正是客户看「为什么没有动作」的地方。
+    const shouldWriteEvents = decisionRoundId ? roundIsNew : persistAdmission;
+    // 共享轮写卡级叙述，没有轮时（永续部署）写这个部署自己的。
+    const eventsToWrite = decisionRoundId ? (input.decisionRound?.events ?? []) : input.events;
+    for (const event of shouldWriteEvents ? eventsToWrite : []) {
       await client.query(`
         INSERT INTO strategy_runtime_events (
           id, cycle_id, sequence, role, event_type, conclusion, evidence_json,
-          duration_ms, llm_used, model_name
-        ) VALUES ($1, $2, $3, $4, 'agent_completed', $5, $6::jsonb, $7, $8, $9)
-      `, [crypto.randomUUID(), input.cycleId, event.sequence, event.role, event.conclusion,
-        JSON.stringify(event.evidence), event.durationMs, event.llmUsed, event.modelName ?? null]);
+          duration_ms, llm_used, model_name, decision_round_id
+        ) VALUES ($1, $2, $3, $4, 'agent_completed', $5, $6::jsonb, $7, $8, $9, $10)
+      `, [crypto.randomUUID(), persistAdmission ? input.cycleId : null, event.sequence, event.role, event.conclusion,
+        JSON.stringify(event.evidence), event.durationMs, event.llmUsed, event.modelName ?? null, decisionRoundId]);
     }
     await enqueueRuntimeExplanationJobs(client, {
       deploymentId: input.deploymentId,
       cycleId: input.cycleId,
+      decisionRoundId,
+      cycleHasRow: persistAdmission,
       candleCloseTime: input.candleCloseTime,
       decision: input.decision,
       events: input.events,
@@ -760,6 +871,14 @@ type RuntimeExplanationRole = keyof typeof runtimeExplanationEventRole;
 async function enqueueRuntimeExplanationJobs(client: PoolClient, input: {
   deploymentId: string;
   cycleId: string;
+  /**
+   * 有决策轮时，解释任务按轮建：同一张卡在同一根 K 线上的解释内容完全相同
+   * （它解释的是卡级结论，不含任何客户数据），每轮每角色只需要一次 LLM 调用。
+   * 否则 15,000 个部署会把同一段解释生成上万次。
+   */
+  decisionRoundId: string | null;
+  /** 该部署这一轮是否真的写了周期行——纯 hold 不留痕时为 false。 */
+  cycleHasRow: boolean;
   candleCloseTime: Date;
   decision: Record<string, unknown>;
   events: Array<{ role: string; evidence: Record<string, unknown> }>;
@@ -812,21 +931,38 @@ async function enqueueRuntimeExplanationJobs(client: PoolClient, input: {
   for (const binding of bindings.rows) {
     if (!requestedRoles.has(binding.role)) continue;
     const eventRole = runtimeExplanationEventRole[binding.role];
-    const prompt = await resolveRuntimeExplanationPrompt(binding.role);
+    // PS-05：入队时固定当前生效的 Prompt 配置版本。之后的激活或回滚不影响这份任务
+    // ——它执行时按 configuration_version_id 回读原版，而不是再看「当前是哪一版」。
+    // 没有已激活版本时两列为空，表示这份任务用代码内定义的 Prompt。
+    const configuration = await loadActivePromptConfiguration(client, `runtime.${binding.role}`);
+    const prompt = await resolveRuntimeExplanationPrompt(binding.role, configuration?.instruction);
     const inserted = await client.query<{ id: string }>(`
       INSERT INTO strategy_runtime_explanation_jobs (
         id, cycle_id, event_role, explanation_role, profile_revision_id,
-        prompt_version, prompt_sha256
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (cycle_id, event_role) DO NOTHING
+        prompt_version, prompt_sha256, decision_round_id,
+        prompt_configuration_version_id, prompt_payload_sha256
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      -- 不指定冲突目标：这里有两条唯一约束在起作用。
+      -- UNIQUE (cycle_id, event_role) 挡同一周期重复入队；
+      -- 部分唯一索引 (decision_round_id, event_role) 挡同一决策轮下**不同部署**
+      -- 重复入队——后者才是省下上万次 LLM 调用的那条。指定单一目标会让另一条
+      -- 直接抛唯一冲突。
+      ON CONFLICT DO NOTHING
       RETURNING id
-    `, [crypto.randomUUID(), input.cycleId, eventRole, binding.role, binding.revision_id, prompt.version, prompt.hash]);
+    `, [crypto.randomUUID(), input.cycleId, eventRole, binding.role, binding.revision_id, prompt.version, prompt.hash,
+      input.decisionRoundId, configuration?.configurationVersionId ?? null, configuration?.payloadSha256 ?? null]);
+    // pending 状态按决策轮设置，让该轮下所有部署的事件状态一致——
+    // 否则只有第一个入队的部署显示「解释生成中」，其余客户看到的是空白。
     if (inserted.rows[0]) {
-      await client.query(`
-        UPDATE strategy_runtime_events
-        SET explanation_status = 'pending', explanation_updated_at = now()
-        WHERE cycle_id = $1 AND role = $2
-      `, [input.cycleId, eventRole]);
+      await client.query(
+        input.decisionRoundId
+          ? `UPDATE strategy_runtime_events
+             SET explanation_status = 'pending', explanation_updated_at = now()
+             WHERE decision_round_id = $1 AND role = $2`
+          : `UPDATE strategy_runtime_events
+             SET explanation_status = 'pending', explanation_updated_at = now()
+             WHERE cycle_id = $1 AND role = $2`,
+        [input.decisionRoundId ?? input.cycleId, eventRole]);
     }
   }
 }
@@ -852,6 +988,8 @@ export async function leaseNextRuntimeExplanationJob(database: Pool, input: {
       profile_revision_id: string;
       prompt_version: string;
       prompt_sha256: string;
+      prompt_configuration_version_id: string | null;
+      prompt_payload_sha256: string | null;
       fencing_token: string;
       attempt_count: number;
       deterministic_conclusion: string;
@@ -886,6 +1024,7 @@ export async function leaseNextRuntimeExplanationJob(database: Pool, input: {
         AND deployment.id = cycle.deployment_id
       RETURNING job.id, job.cycle_id, job.event_role, job.explanation_role,
                 job.profile_revision_id, job.prompt_version, job.prompt_sha256,
+                job.prompt_configuration_version_id, job.prompt_payload_sha256,
                 job.fencing_token, job.attempt_count,
                 event.conclusion AS deterministic_conclusion,
                 event.evidence_json AS deterministic_evidence,
@@ -911,6 +1050,9 @@ export async function leaseNextRuntimeExplanationJob(database: Pool, input: {
       profileRevisionId: row.profile_revision_id,
       promptVersion: row.prompt_version,
       promptHash: row.prompt_sha256,
+      // PS-05：任务当初固定的配置版本。两列为空表示这份任务用的是代码内定义的 Prompt。
+      promptConfigurationVersionId: row.prompt_configuration_version_id,
+      promptPayloadSha256: row.prompt_payload_sha256,
       fencingToken: Number(row.fencing_token),
       attemptCount: row.attempt_count,
       context: {
@@ -945,24 +1087,38 @@ export async function completeRuntimeExplanationJob(database: Pool, input: {
   const client = await database.connect();
   try {
     await client.query("BEGIN");
-    const updated = await client.query<{ cycle_id: string; event_role: string }>(`
+    const updated = await client.query<{ cycle_id: string; event_role: string; decision_round_id: string | null }>(`
       UPDATE strategy_runtime_explanation_jobs
       SET status = 'completed', lease_owner = NULL, lease_expires_at = NULL,
           last_error_code = NULL, last_error_message = NULL,
           completed_at = now(), updated_at = now()
       WHERE id = $1 AND lease_owner = $2 AND fencing_token = $3 AND status = 'running'
-      RETURNING cycle_id, event_role
+      RETURNING cycle_id, event_role, decision_round_id
     `, [input.jobId, input.workerId, input.fencingToken]);
     const row = updated.rows[0];
     if (!row) throw new Error("运行时解释 Worker 租约或 fencing token 已失效");
-    await client.query(`
+    // 一次 LLM 调用，扇出写回该决策轮下所有部署周期的同角色事件——
+    // 解释的是卡级结论，对同卡客户完全相同。没有决策轮的（永续部署）走原路径。
+    await client.query(
+      row.decision_round_id
+        ? `
+      UPDATE strategy_runtime_events
+      SET explanation_status = 'completed', explanation_json = $3::jsonb,
+          explanation_model_name = $4, explanation_duration_ms = $5,
+          explanation_error_code = NULL, explanation_updated_at = now(),
+          llm_used = true, model_name = $4
+      WHERE decision_round_id = $1 AND role = $2
+    `
+        : `
       UPDATE strategy_runtime_events
       SET explanation_status = 'completed', explanation_json = $3::jsonb,
           explanation_model_name = $4, explanation_duration_ms = $5,
           explanation_error_code = NULL, explanation_updated_at = now(),
           llm_used = true, model_name = $4
       WHERE cycle_id = $1 AND role = $2
-    `, [row.cycle_id, row.event_role, JSON.stringify(input.output), input.modelName.slice(0, 160), Math.max(0, Math.round(input.durationMs))]);
+    `,
+      [row.decision_round_id ?? row.cycle_id, row.event_role, JSON.stringify(input.output),
+        input.modelName.slice(0, 160), Math.max(0, Math.round(input.durationMs))]);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -1043,4 +1199,89 @@ export async function deferStrategyRuntimeLease(database: Queryable, input: {
     WHERE id = $1 AND lease_owner = $2 AND fencing_token = $3
   `, [input.deploymentId, input.workerId, input.fencingToken, input.nextCycleAt]);
   if (result.rowCount !== 1) throw new Error("Runtime Worker 租约或 fencing token 已失效");
+}
+
+/**
+ * 租用一个待运行的社区策略现货模拟部署（T4.4 第 1 步）。
+ *
+ * 与 `leaseNextStrategyDeployment` 分开而不是加参数：两者的前置条件、锁的对象和返回的
+ * 上下文都不同——官方卡要检查会员权益，跟单要检查订阅生命周期与跟单合同。合成一个函数
+ * 会让两套前置条件互相渗透，而它们各自的失败关闭方向不一样。
+ *
+ * 租约包含 `paused` 与 `risk_blocked` 的订阅：**离场不能依赖跟随处于活跃状态**（INV-7）。
+ * 是否允许新开仓由 `allows_new_entry` 交给引擎判断，不在这里筛掉。
+ */
+export async function leaseNextFollowDeployment(database: Queryable, input: {
+  workerId: string;
+  now: Date;
+  leaseSeconds: number;
+}) {
+  if (!input.workerId.trim() || input.workerId.length > 120) throw new Error("Runtime Worker ID 无效");
+  if (!Number.isInteger(input.leaseSeconds) || input.leaseSeconds < 5 || input.leaseSeconds > 300) {
+    throw new Error("Runtime 租约时长无效");
+  }
+  const expiresAt = new Date(input.now.getTime() + input.leaseSeconds * 1_000);
+  const result = await database.query<{
+    id: string; owner_user_id: string; strategy_id: string; strategy_version_id: string;
+    subscription_id: string; follow_paper_portfolio_id: string; mode: "shadow" | "paper";
+    fencing_token: string; last_candle_close_at: Date | null; specification_json: string;
+    subscription_status: string; risk_json: Record<string, unknown> | null;
+    contract_id: string | null; performance_fee_bps: number | null;
+  }>(`
+    WITH picked AS (
+      SELECT id FROM strategy_deployments
+      WHERE status = 'active' AND execution_product = 'spot_usdt' AND next_cycle_at <= $1
+        AND (lease_expires_at IS NULL OR lease_expires_at <= $1)
+        -- 与官方卡那条对称：过滤必须在挑选 CTE 里，否则两条路径会互相饿死。
+        AND platform_strategy_code IS NULL
+        AND strategy_subscription_id IS NOT NULL
+      ORDER BY next_cycle_at, id
+      FOR UPDATE SKIP LOCKED
+      LIMIT 1
+    )
+    UPDATE strategy_deployments AS deployment
+    SET lease_owner = $2, lease_expires_at = $3,
+        fencing_token = deployment.fencing_token + 1, updated_at = $1
+    FROM picked, strategy_versions AS version, strategy_subscriptions AS subscription
+    WHERE deployment.id = picked.id
+      AND version.id = deployment.strategy_version_id
+      AND subscription.id = deployment.strategy_subscription_id
+      AND deployment.platform_strategy_code IS NULL
+      AND deployment.follow_paper_portfolio_id IS NOT NULL
+      -- 已终止的跟随不再跑周期；暂停与风控阻断仍然跑，因为离场不能被挡住。
+      AND subscription.status IN ('active', 'paused', 'risk_blocked')
+    RETURNING deployment.id, deployment.owner_user_id, deployment.strategy_id,
+              deployment.strategy_version_id,
+              deployment.strategy_subscription_id AS subscription_id,
+              deployment.follow_paper_portfolio_id, deployment.mode,
+              deployment.fencing_token, deployment.last_candle_close_at,
+              version.specification_json,
+              subscription.status AS subscription_status,
+              (SELECT contract.risk_json FROM strategy_follow_contracts AS contract
+                WHERE contract.subscription_id = deployment.strategy_subscription_id) AS risk_json,
+              (SELECT contract.id FROM strategy_follow_contracts AS contract
+                WHERE contract.subscription_id = deployment.strategy_subscription_id) AS contract_id,
+              (SELECT contract.performance_fee_bps FROM strategy_follow_contracts AS contract
+                WHERE contract.subscription_id = deployment.strategy_subscription_id) AS performance_fee_bps
+  `, [input.now, input.workerId, expiresAt]);
+
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    ownerUserId: row.owner_user_id,
+    strategyId: row.strategy_id,
+    strategyVersionId: row.strategy_version_id,
+    subscriptionId: row.subscription_id,
+    portfolioId: row.follow_paper_portfolio_id,
+    mode: row.mode,
+    fencingToken: Number(row.fencing_token),
+    lastCandleCloseAt: row.last_candle_close_at,
+    specification: JSON.parse(row.specification_json) as Record<string, unknown>,
+    subscriptionStatus: row.subscription_status,
+    // 跟单合同缺失时不猜风险参数。合同是客户同意过的东西，猜一组数字去跑等于替他决定。
+    contractId: row.contract_id,
+    risk: row.risk_json,
+    performanceFeeBps: row.performance_fee_bps,
+  };
 }

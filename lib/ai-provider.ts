@@ -1,5 +1,9 @@
 import type { ResolvedLlmConfig } from "@/lib/client-platform-llm";
 
+import { assertPublicLlmEndpoint } from "./llm-profile-connection.ts";
+
+type LlmDnsResolver = (hostname: string) => Promise<Array<{ address: string }>>;
+
 export type AiProviderMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -39,8 +43,39 @@ function responseOutputText(data: {
     || "";
 }
 
+const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
+
+async function boundedJson(response: Response) {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_PROVIDER_RESPONSE_BYTES) {
+    throw new Error("AI 服务响应过大");
+  }
+  if (!response.body) return JSON.parse("") as Record<string, unknown>;
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let bytesRead = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesRead += value.byteLength;
+      if (bytesRead > MAX_PROVIDER_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw new Error("AI 服务响应过大");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+  return JSON.parse(text) as Record<string, unknown>;
+}
+
 async function safeProviderError(response: Response, providerName: string) {
-  const body = await response.json().catch(() => null) as {
+  const body = await boundedJson(response).catch(() => null) as {
     error?: { message?: string } | string;
     message?: string;
   } | null;
@@ -57,8 +92,13 @@ export async function requestAiText(
     maxOutputTokens?: number;
     temperature?: number;
     fetchImpl?: typeof fetch;
+    resolver?: LlmDnsResolver;
+    signal?: AbortSignal;
   } = {},
 ) {
+  if (options.signal?.aborted) throw options.signal.reason;
+  await assertPublicLlmEndpoint(config.endpoint, options.resolver);
+  if (options.signal?.aborted) throw options.signal.reason;
   const maxOutputTokens = options.maxOutputTokens ?? 500;
   const body = config.apiStyle === "responses"
     ? { model: config.model, input: messages, max_output_tokens: maxOutputTokens }
@@ -68,6 +108,10 @@ export async function requestAiText(
         temperature: options.temperature ?? 0.2,
         max_tokens: maxOutputTokens,
       };
+  const timeoutSignal = AbortSignal.timeout(45_000);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeoutSignal])
+    : timeoutSignal;
   const response = await (options.fetchImpl ?? fetch)(config.endpoint, {
     method: "POST",
     headers: {
@@ -75,11 +119,12 @@ export async function requestAiText(
       accept: "application/json",
       authorization: `Bearer ${config.apiKey}`,
     },
+    redirect: "error",
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(45_000),
+    signal,
   });
   if (!response.ok) throw new Error(await safeProviderError(response, config.providerName));
-  const data = await response.json() as {
+  const data = await boundedJson(response) as {
     id?: string;
     choices?: Array<{ message?: { content?: string } }>;
     output_text?: string;

@@ -8,11 +8,17 @@ import { ResearchApiError } from "./research-errors.ts";
 const MAINTENANCE_IDEMPOTENCY_OPERATIONS = new Set([
   "maintenance.source_integration.test",
   "maintenance.trading.emergency_stop",
+  "maintenance.work_records.export",
 ] as const);
+
+/** 供测试断言应用层枚举与数据库 CHECK allowlist 同步，不参与运行时逻辑。 */
+export const MAINTENANCE_IDEMPOTENCY_OPERATIONS_FOR_TEST: readonly string[] =
+  [...MAINTENANCE_IDEMPOTENCY_OPERATIONS];
 
 export type MaintenanceIdempotencyOperation =
   | "maintenance.source_integration.test"
-  | "maintenance.trading.emergency_stop";
+  | "maintenance.trading.emergency_stop"
+  | "maintenance.work_records.export";
 
 export type MaintenanceIdempotencyDescriptor = {
   operation: MaintenanceIdempotencyOperation;

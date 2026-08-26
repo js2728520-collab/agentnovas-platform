@@ -1,8 +1,11 @@
 # Riverton Capital 受邀付费 Beta 系统规格
 
-版本：2.0
-状态：目标规格；以测试和 Gate 证据判定完成度
+> 文档状态：`CURRENT_BASELINE`。本文描述当前运行和硬关闭边界；V3 目标系统见 [`V3_SYSTEM_TARGET_SPEC.md`](V3_SYSTEM_TARGET_SPEC.md)。目标文档不自动解锁本文关闭的真实交易、资金出站或自动部署。
 
+> **当前发布范围（2026-08-25）：** 本当前基线只支持 S0——受控的 Paper/Demo 商业平台。Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 保持关闭，属于后续独立切片；本文描述的当前实现与硬关闭边界不得被 V3 目标文档解释为当前启用授权。
+
+版本：2.0
+状态：`CURRENT_BASELINE`；以测试和 Gate 证据判定完成度
 ## 1. 拓扑与信任边界
 
 ```text
@@ -12,14 +15,21 @@ Operations Web ─────┼── PostgreSQL（共享数据、逻辑隔离
 Maintenance Web ────┘       ├─ Notification Worker
                              ├─ Paper Runtime Worker
                              ├─ Demo Execution Worker
+                             ├─ Configuration Activation Worker（独立最小权限 DB role）
                              └─ Payment Webhook（独立 DB role）
 
+Execution Service：独立进程、独立网段、不接受公网入站；唯一持有
+  EXCHANGE_CREDENTIAL_ENCRYPTION_KEY 的进程（ADR-0019）。三个 Web 应用改由
+  lib/execution/client.ts 经 EXECUTION_SERVICE_SHARED_SECRET 发内网请求，
+  构建产物不含凭证加解密代码；真实订单仍由 isLiveExecutionReady() 单一命名闸门关闭（ADR-0020）
 Payment Worker：不部署 unit；优盾充值由同步地址 API + 验签 Webhook + Ops 双审完成
 Legacy Research Worker：Beta 不启动，HTTP/租约/orchestrator/systemd 均硬关闭
-真实交易/提现/划转/自动扣款：代码路径硬关闭
+真实交易/划转/自动扣款：代码路径硬关闭
+平台服务余额提现：产品已批准（ADR-0024 / P-09），G5 前接口固定拒绝；
+  客户交易所账户提现权限永久禁止（INV-11，迁移 0045）
 ```
 
-三个 Web 进程使用相同代码但独立 `RIVERTON_APP_AUDIENCE`、域名、端口、构建目录、Session Cookie、最小 env 和数据库角色。共享数据库不是共享授权；所有入口重新解析 audience、会话、MFA、权限与 assignment-bound data scope。
+三个 Web 进程使用相同代码但独立 `RIVERTON_APP_AUDIENCE`、域名、端口、构建目录、Session Cookie、最小 env 和数据库角色。共享数据库不是共享授权；所有入口重新解析 audience、会话、MFA enforcement、权限与 assignment-bound data scope。
 
 Client 使用两个不可继承、不可链式放大的数据库角色。`agentnovas_client_web` 只通过绑定当前有效 Client session token hash 的 `SECURITY DEFINER` gateway 完成会话、自助资料、MFA、注册 claim 和 reset consume，不能直接读取身份/邀请表；`agentnovas_client_auth` 只可执行登录身份投影、当前主体密码投影和找回密码发行三个精确 gateway，不能创建/完成 session、消费 reset 或继承 Web 角色。所有 gateway 由 migrator 持有、固定 `search_path`，过期但未 revoked 的 session 也必须失败关闭。Next 构建不打开数据库连接；运行时第一条 SQL 前同时校验 URL 用户名和 `current_user` 与 audience 一致。
 
@@ -44,11 +54,11 @@ Client 的两个连接是不同的能力边界，不是同一高权角色的两�
 
 稳定路由：
 
-- Client：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements[/id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/notifications`、`/account/security`、`/support`、`/wallet`、`/wallet/deposits`。
-- Operations：`/`、`/customers`、`/organization`、`/team`、`/data-center`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
+- Client：`/`、`/login`、`/dashboard`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements[/id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/work-records[/id]`、`/market`、`/assistant`、`/studio`、`/backtests`、`/notifications`、`/account/security`、`/support`、`/wallet`、`/wallet/deposits`。
+- Operations：`/`、`/customers`、`/accounts`、`/invitations`、`/team`、`/data-center`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/kill-switches`、`/live-routing`、`/access`、`/access/audit`。组织树、上下级关系图和关系编辑页面已按 T1.1 退休，后端 organization/归属事实只供 scope resolver、报表和审计使用。
 
-优盾充值数据流固定为：Client 同源+RBAC+幂等请求 → Client Web 使用安全 provider 视图和运行时 secret 调用专属 `*.udun.io` 节点生成地址 → Maintenance 公网 webhook 使用独立数据库角色验签/去重并推进 `MANUAL_REVIEW` → Operations maker/checker → 同事务平衡账本、钱包版本、订单、审计和通知。配置缺失返回 503；提现、划转和自动扣款 endpoint 不存在。
-- Maintenance：`/`、`/models`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/access`、`/access/audit`、`/audit`。
+优盾充值数据流固定为：Client 同源+RBAC+幂等请求 → Client Web 使用安全 provider 视图和运行时 secret 调用专属 `*.udun.io` 节点生成地址 → Maintenance 公网 webhook 使用独立数据库角色验签/去重并推进 `MANUAL_REVIEW` → Operations maker/checker → 同事务平衡账本、钱包版本、订单、审计和通知。配置缺失返回 503；划转和自动扣款 endpoint 不存在。平台服务余额提现已由 ADR-0024 纳入产品范围，在 G5 全部通过前接口固定拒绝，UI 显示真实 blocker 而不是可用入口；客户交易所账户的提现权限永久禁止（INV-11）。
+- Maintenance：`/`、`/models`、`/ai-usage`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/readiness`、`/safety`、`/settings`、`/settings/disclosures`、`/configurations`、`/releases`、`/access`、`/access/audit`、`/audit`。
 
 Beta 未完成或不在范围的旧策略市场、自动结算、团队经营分析入口 feature-gate 隐藏。
 
@@ -91,8 +101,13 @@ type ApiPolicy = {
 - 新密码使用 Argon2id：memory `19,456 KiB`、iterations `2`、parallelism `1`、32-byte output；旧 PBKDF2 登录成功后 lazy rehash。
 - 不存在账号执行等价 dummy verify，登录和找回不泄露账户存在性。
 - Client session：absolute 7 天、idle 24 小时；内部 session：absolute 12 小时、idle 1 小时。
+- Client 注册要求国际手机号和邮箱，邮箱验证前身份保持 pending；验证 token 只存摘要，
+  Email outbox 只存加密 token，重发按邮箱与可信网络限流且撤销旧 token。
+- Client 设备 Cookie 与 Session Cookie 分离且只存摘要；同设备重登轮换，会话最多 5 个
+  设备身份，第 6 台按 A-01（ADR-0024）自动挤出最久未使用者并强制通知被挤出设备。
+  新设备/网段变化双通道提醒，支持单设备和全量撤销。
 - 邮箱+audience 登录失败 5 次/15 分钟；IP 30 次/15 分钟；找回使用更严格小时限额，存储在 PostgreSQL 以覆盖多实例。
-- Operations/Maintenance 完成 TOTP 才发完整 session；recovery code 单次使用并保存 hash。critical 操作要求 15 分钟内 recent MFA。
+- TOTP/recovery 完整实现与加密数据保留。当前 `MFA_ENFORCEMENT_ENABLED=false` 时三端直接发完整 session，内部 critical 操作不要求 recent MFA；正式生产三端统一设为 `true` 后，Operations/Maintenance 完成 TOTP 才发完整 session，critical 操作要求 15 分钟内 recent MFA。recovery code 始终单次使用并只保存 hash。
 - Client 可选启用 TOTP；一旦启用，后续登录必须完成 TOTP 或消耗一枚 recovery code。启用/轮换只显示一次恢复码，服务器只存 hash。
 - 密码修改/重置、冻结、撤权和恢复码重置撤销相关 session。
 - HTTP bootstrap 在生产 404；CLI 仅在无内部管理员时一次成功并留审计。
@@ -114,7 +129,7 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 
 `postgres/migrations` 是唯一生产 schema 真源。迁移器维护 `_agentnovas_migrations(version, checksum, applied_at, commit_sha)`，使用 advisory lock；每文件独立事务，已应用跳过，checksum 变化失败。必须验证 fresh、N-1、rerun、checksum mismatch、并发和恢复。
 
-本 Beta 固定迁移：
+迁移目录本身是唯一真源，本节不复制完整清单。受控 Beta 基线固定为 `0021`–`0043`：
 
 - `0021_identity_access_hardening.sql`
 - `0022_ledger_approval_invariants.sql`
@@ -142,9 +157,13 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 
 `0041` 增加 Maintenance-only 的不可变版本、验证与部署事实。版本状态和环境 current 由追加事实投影；production 要求同版本 staging 成功，失败记录不改变 current，三表禁止更新/删除。`0042` 增加优盾 deposit-only 配置安全视图、签名回调证据、重放/地址/开放订单唯一约束和独立 payment webhook 角色。`0043` 以显式数据库角色 allowlist、强制 RLS 和精确 SECURITY DEFINER ACL 撤销 Client 对身份/邀请表的直接能力，并使未知/遗留数据库角色失败关闭。
 
+Beta 基线之后按 V3 阶段继续前向新增，当前目录共 76 个迁移（至 `0075`）。按能力分组：`0044`/`0049`/`0064` 审计哈希链、链尾锚定与 owner 执行；`0045` 由数据库约束强制 INV-11 无提现权限；`0046`–`0048` 共享决策轮与解释任务（ADR-0018）；`0050`–`0053`、`0060`–`0062` 执行对账、kill switch、实盘路由授权、live 部署与 live book 记账（ADR-0019/0020，实盘仍由命名闸门关闭）；`0055`–`0058`、`0065` 客户可复用邀请与内部权限注册链接；`0066`–`0067`、`0072` Client 邮箱/五设备安全、MFA opt-in 与密码重置网关修复；`0068` Operations 客户 PII 字段权限；`0069`–`0071` 版本化配置框架、到期激活 Worker 与最小权限 current 网关；`0073` 平台语言默认；`0074` Maintenance AI 用量安全投影；`0075` 工作记录订阅期间与六个月删除保护。这些迁移改变了本文多处 Beta 描述的适用范围，具体合同以对应 ADR 与 spec 为准。
+
 数据库角色至少拆分为 migrator、client_web、client_auth、ops_web、maint_web、notification_worker、runtime_worker、demo_execution_worker 和 payment_webhook；legacy research 和 Payment Worker 不获得 Beta 业务写权限。
 
-当前恢复证据只覆盖至 `0042` 的 43 个迁移。新增、改名或 checksum 变化的迁移会立即使该证据失效；必须重新执行 fresh/N-1/rerun/concurrent 与隔离 backup/restore，按实际输出更新迁移数、表数和 checksum 后才能恢复 Gate 通过状态。
+**当前恢复 Gate 处于失效状态。** 最近一次隔离 backup/restore 演练在 2026-08-23 完成，覆盖至 `0062` 的 63 个迁移和 146 张表，迁移 registry checksum、表集合与逐表行数在恢复前后完全一致（证据见 `../quality/QUALITY_RELEASE_EVIDENCE.md`）。此后新增了 `0063`–`0075` 共 13 个迁移，当前目录为 76 个迁移文件，因此该演练不再覆盖完整迁移集合。
+
+新增、改名或 checksum 变化的迁移会立即使恢复证据失效；恢复 Gate 通过状态必须重新执行 fresh/N-1/rerun/concurrent 与隔离 backup/restore，并按实际输出更新迁移数、表数和 checksum，不能手工递增文档数字。
 
 ## 7. 账本、会员和 credits
 

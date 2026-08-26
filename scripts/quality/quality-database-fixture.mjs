@@ -30,6 +30,14 @@ const ROLE_PERMISSIONS = {
     "client.paper.manage",
     "client.wallet.view",
   ],
+  clientSecurity: [
+    "client.membership.view",
+    "client.membership.order",
+    "client.credits.view",
+    "client.paper.view",
+    "client.paper.manage",
+    "client.wallet.view",
+  ],
   operationsMaker: [
     "ops.customers.view",
     "ops.organization.view",
@@ -43,6 +51,13 @@ const ROLE_PERMISSIONS = {
   ],
   operationsChecker: [
     "ops.customers.view",
+    "ops.customers.pii_contact",
+    "ops.customers.pii_security",
+    "ops.customers.pii_financial",
+    "ops.customers.pii_trading",
+    "ops.customers.export",
+    "ops.invitations.view",
+    "ops.invitations.manage",
     "ops.membership_orders.view",
     "ops.membership_orders.approve",
     "ops.credits.view",
@@ -59,6 +74,8 @@ const ROLE_PERMISSIONS = {
     "maint.email_integrations.manage",
     "maint.feature_flags.manage",
     "maint.system_health.view",
+    "maint.ai_usage.view",
+    "maint.work_records.export",
     "maint.emergency_pause.execute",
     "maint.audit.view",
     "maint.roles.manage",
@@ -75,11 +92,16 @@ const ROLE_PERMISSIONS = {
     "maint.releases.view",
     "maint.releases.manage",
     "maint.releases.approve",
+    "maint.configuration_versions.view",
+    "maint.configuration_versions.manage",
+    "maint.configuration_versions.approve",
+    "maint.configuration_versions.activate",
   ],
 };
 
 const IDENTITY_DEFINITIONS = {
   client: { audience: "client", domain: "agentnovas.com", cookieName: "rc_client_session", legacyRole: "customer", scope: "SELF" },
+  clientSecurity: { audience: "client", domain: "agentnovas.com", cookieName: "rc_client_session", legacyRole: "customer", scope: "SELF", seedSession: false },
   operationsMaker: { audience: "operations", domain: "zht.agentnovas.com", cookieName: "rc_ops_session", legacyRole: "employee", scope: "ORGANIZATION" },
   operationsChecker: { audience: "operations", domain: "zht.agentnovas.com", cookieName: "rc_ops_session", legacyRole: "manager", scope: "ORGANIZATION" },
   maintenanceAdmin: { audience: "maintenance", domain: "xm.agentnovas.com", cookieName: "rc_maint_session", legacyRole: "hq_admin", scope: "PLATFORM" },
@@ -91,6 +113,15 @@ function sha256(value) {
 
 function randomSecret(bytes = 24) {
   return randomBytes(bytes).toString("base64url");
+}
+
+function qualityResearchFixtureIds(schema) {
+  const suffix = schema.slice(-12);
+  return {
+    runId: `quality-run-${suffix}`,
+    candidateId: `quality-candidate-${suffix}`,
+    exchangeAccountId: `quality-exchange-${suffix}`,
+  };
 }
 
 function assertLoopbackBaseUrls(baseUrls) {
@@ -192,23 +223,25 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
         now.toISOString(),
         JSON.stringify(definition.audience === "operations" ? [organizationId] : []),
       ]);
-      await client.query(`
-        INSERT INTO sessions (
-          id,user_id,token_hash,app_audience,expires_at,mfa_level,mfa_verified_at,
-          last_seen_at,idle_expires_at,absolute_expires_at,ip_address,user_agent
-        ) VALUES (
-          $1,$2,$3,$4,$5::text,$6,$7::timestamptz,$7::timestamptz,
-          $5::timestamptz,$5::timestamptz,'127.0.0.1','AgentNovas Quality E2E'
-        )
-      `, [
-        randomUUID(),
-        userId,
-        sha256(token),
-        definition.audience,
-        expiresAt.toISOString(),
-        internal ? "totp" : "primary",
-        internal ? now.toISOString() : null,
-      ]);
+      if (definition.seedSession !== false) {
+        await client.query(`
+          INSERT INTO sessions (
+            id,user_id,token_hash,app_audience,expires_at,mfa_level,mfa_verified_at,
+            last_seen_at,idle_expires_at,absolute_expires_at,ip_address,user_agent
+          ) VALUES (
+            $1,$2,$3,$4,$5::text,$6,$7::timestamptz,$7::timestamptz,
+            $5::timestamptz,$5::timestamptz,'127.0.0.1','AgentNovas Quality E2E'
+          )
+        `, [
+          randomUUID(),
+          userId,
+          sha256(token),
+          definition.audience,
+          expiresAt.toISOString(),
+          internal ? "totp" : "none",
+          internal ? now.toISOString() : null,
+        ]);
+      }
       identities[name] = {
         userId,
         email,
@@ -232,6 +265,74 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
       identities.operationsChecker.userId,
       identities.operationsMaker.userId,
       now.toISOString(),
+    ]);
+
+    const aiProfileId = `quality-ai-profile-${schema.slice(-12)}`;
+    const aiRevisionId = `quality-ai-revision-${schema.slice(-12)}`;
+    const aiCreditAccountId = `quality-ai-credits-${schema.slice(-12)}`;
+    const aiSuccessReservationId = `quality-ai-reservation-success-${schema.slice(-10)}`;
+    const aiFailureReservationId = `quality-ai-reservation-failure-${schema.slice(-10)}`;
+    await client.query(`
+      INSERT INTO llm_profiles(
+        id,name,provider_name,base_url,model_name,encrypted_api_key,masked_api_key,
+        enabled,current_revision_id,created_by_user_id,updated_by_user_id
+      ) VALUES ($1,'Quality AI profile','Quality Provider','https://quality.invalid/v1',
+        'quality-model','quality-fixture-non-secret','***fixture',true,$2,$3,$3)
+    `, [aiProfileId, aiRevisionId, identities.maintenanceAdmin.userId]);
+    await client.query(`
+      INSERT INTO llm_profile_revisions(
+        id,profile_id,revision_number,name,provider_name,base_url,model_name,
+        encrypted_api_key,masked_api_key,enabled,created_by_user_id
+      ) VALUES ($1,$2,1,'Quality AI revision','Quality Provider','https://quality.invalid/v1',
+        'quality-model','quality-fixture-non-secret','***fixture',true,$3)
+    `, [aiRevisionId, aiProfileId, identities.maintenanceAdmin.userId]);
+    await client.query(`
+      INSERT INTO ai_credit_accounts(id,user_id,available_credits,reserved_credits)
+      VALUES ($1,$2,100,0)
+    `, [aiCreditAccountId, identities.client.userId]);
+    await client.query(`
+      INSERT INTO ai_credit_reservations(
+        id,account_id,estimated_credits,settled_credits,status,idempotency_key,expires_at
+      ) VALUES
+        ($1,$3,9,7,'settled',$4,$6),
+        ($2,$3,5,NULL,'released',$5,$6)
+    `, [
+      aiSuccessReservationId,
+      aiFailureReservationId,
+      aiCreditAccountId,
+      `quality-ai-success-reservation-${schema}`,
+      `quality-ai-failure-reservation-${schema}`,
+      new Date(now.getTime() + 15 * 60_000).toISOString(),
+    ]);
+    await client.query(`
+      INSERT INTO client_ai_inference_requests(
+        id,user_id,operation,idempotency_key,payload_sha256,profile_revision_id,status,
+        reservation_id,result_json,error_code,error_message,error_status,
+        provider_request_id,usage_id,input_tokens,output_tokens,request_id,
+        organization_id,organization_attribution_mode,created_at,completed_at,updated_at
+      ) VALUES
+        ($1,$2,'assistant_message',$3,$4,$5,'succeeded',$6,'{"quality":true}'::jsonb,
+          NULL,NULL,NULL,$7,$7,120,30,$8,$9,'captured_at_request',$10,$10,$10),
+        ($11,$2,'strategy_generation',$12,$13,$5,'failed',$14,NULL,
+          'QUALITY_PROVIDER_UNAVAILABLE','Synthetic quality failure',503,NULL,NULL,NULL,NULL,
+          $15,$9,'captured_at_request',$16,$16,$16)
+    `, [
+      `quality-ai-success-${schema.slice(-12)}`,
+      identities.client.userId,
+      `quality-ai-success-request-${schema}`,
+      sha256(`quality-ai-success-payload-${schema}`),
+      aiRevisionId,
+      aiSuccessReservationId,
+      `quality-provider-request-${schema}`,
+      `quality-ai-request-id-success-${schema}`,
+      organizationId,
+      new Date(now.getTime() - 2 * 60 * 60_000).toISOString(),
+      `quality-ai-failure-${schema.slice(-12)}`,
+      `quality-ai-failure-request-${schema}`,
+      sha256(`quality-ai-failure-payload-${schema}`),
+      aiFailureReservationId,
+      `quality-ai-request-id-failure-${schema}`,
+      new Date(now.getTime() - 60 * 60_000).toISOString(),
     ]);
 
     for (const [index, documentType] of LEGAL_DOCUMENT_TYPES.entries()) {
@@ -263,6 +364,233 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
       ]);
     }
 
+    const researchFixture = qualityResearchFixtureIds(schema);
+    const candidateSpecification = {
+      schemaVersion: 3,
+      name: "Quality BTC trend candidate",
+      market: "usdt_perpetual",
+      marginMode: "isolated",
+      leverage: 1,
+      symbol: "BTCUSDT",
+      timeframe: "1h",
+      direction: "long_only",
+      legs: {
+        long: {
+          entry: { all: [{ type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bullish" }] },
+          exit: { any: [{ type: "ema_cross", fastPeriod: 20, slowPeriod: 60, direction: "bearish" }] },
+          stopLossPct: 2,
+          takeProfitPct: 4,
+        },
+      },
+      risk: {
+        positionSizePct: 3,
+        maxDrawdownPct: 10,
+        maxDailyLossPct: 2,
+        maxConsecutiveLosses: 3,
+      },
+    };
+    await client.query(`
+      INSERT INTO strategy_research_runs (
+        id,owner_user_id,conversation_id,exchange_account_id,mode,stage,status,progress,
+        brief_json,agent_role_snapshot_json,result_json,final_conclusion,idempotency_key,
+        candidate_budget,backtest_budget,model_call_budget,backtests_used,model_calls_used,
+        started_at,completed_at
+      ) VALUES (
+        $1,$2,NULL,$3,'standard','completed','completed',100,
+        $4::jsonb,'{}'::jsonb,$5::jsonb,'QUALIFIED',$6,
+        6,60,24,60,24,$7,$7
+      )
+    `, [
+      researchFixture.runId,
+      identities.client.userId,
+      researchFixture.exchangeAccountId,
+      JSON.stringify({
+        name: "Quality editable candidate research",
+        target: { instrumentId: "BTC-USDT-SWAP", symbol: "BTCUSDT", timeframe: "1h", direction: "long_only" },
+      }),
+      JSON.stringify({ qualityFixture: true }),
+      `quality-research-${schema}`,
+      now.toISOString(),
+    ]);
+    await client.query(`
+      INSERT INTO strategy_candidates (
+        id,run_id,candidate_key,strategy_family,source_role,dsl_json,status,rank,score,
+        rejection_reasons_json,validation_label
+      ) VALUES ($1,$2,'quality-primary','EMA trend','proposal_a',$3::jsonb,'qualified',1,88.5,'[]'::jsonb,'STANDARD_VERIFIED')
+    `, [researchFixture.candidateId, researchFixture.runId, JSON.stringify(candidateSpecification)]);
+    await client.query(`
+      INSERT INTO strategy_evaluations (
+        id,run_id,candidate_id,evaluation_kind,window_index,period_start,period_end,
+        metrics_json,data_quality_json,parameter_set_sha256,data_slice_sha256,
+        backtest_engine_version,cost_scenario,passed,is_final_holdout
+      ) VALUES ($1,$2,$3,'holdout',0,$4,$5,$6::jsonb,$7::jsonb,$8,$9,'quality-engine-v1','quality-cost-v1',true,true)
+    `, [
+      `quality-evaluation-${schema.slice(-12)}`,
+      researchFixture.runId,
+      researchFixture.candidateId,
+      new Date(now.getTime() - 24 * 60 * 60_000).toISOString(),
+      now.toISOString(),
+      JSON.stringify({ netReturnPct: 12.5, maxDrawdownPct: 7.25, profitFactor: 1.8, sampleSize: 120 }),
+      JSON.stringify({ qualityFixture: true }),
+      sha256(JSON.stringify(candidateSpecification)),
+      sha256(`quality-data-${schema}`),
+    ]);
+
+    // 工作记录链。没有这段，Client /work-records 与 Maintenance 导出页在浏览器里
+    // 只会渲染空态——表格标记、伪名、准入文案和可滚动区的 axe 都不会被真正跑到。
+    // 订阅期间由 0075 从既有部署回填，而夹具在迁移之后运行，所以这里直接写入一段。
+    const workRecord = {
+      strategyId: `quality-work-strategy-${schema.slice(-12)}`,
+      versionId: `quality-work-version-${schema.slice(-12)}`,
+      membershipId: `quality-work-membership-${schema.slice(-12)}`,
+      portfolioId: `quality-work-portfolio-${schema.slice(-12)}`,
+      subscriptionId: `quality-work-subscription-${schema.slice(-12)}`,
+      deploymentId: `quality-work-deployment-${schema.slice(-12)}`,
+      periodId: `quality-work-period-${schema.slice(-12)}`,
+      roundId: `quality-work-round-${schema.slice(-12)}`,
+      holdRoundId: `quality-work-hold-${schema.slice(-12)}`,
+      cycleId: `quality-work-cycle-${schema.slice(-12)}`,
+      intentId: `quality-work-intent-${schema.slice(-12)}`,
+      receiptId: `quality-work-receipt-${schema.slice(-12)}`,
+    };
+    const periodStart = new Date(now.getTime() - 3 * 86_400_000);
+    const candleClose = new Date(now.getTime() - 2 * 86_400_000);
+    const holdClose = new Date(now.getTime() - 86_400_000);
+    // 挂在 clientSecurity 而不是主客户身上：「每位会员恰好三张 10,000 USDT 组合」是
+    // 产品不变量，商业闭环用例对主客户直接断言它，夹具再造一张会把不变量测成假阳性。
+    // 数据库又要求官方 spot 部署必须绑定组合与会员（0024 的 official binding check），
+    // 所以整条链换一个只用于登录、没有组合断言的客户身份。
+    const workRecordCustomerId = identities.clientSecurity.userId;
+    await client.query(`
+      INSERT INTO memberships(id,customer_id,plan_code,status)
+      VALUES ($1,$2,'quality-fixture','active')
+    `, [workRecord.membershipId, workRecordCustomerId]);
+    await client.query(`
+      INSERT INTO official_paper_portfolios(id,membership_id,customer_id,strategy_code,risk_json)
+      VALUES ($1,$2,$3,'ai_conservative','{}'::jsonb)
+    `, [workRecord.portfolioId, workRecord.membershipId, workRecordCustomerId]);
+    await client.query(`
+      INSERT INTO community_strategies(id,author_user_id,name) VALUES ($1,$2,'Quality work record strategy')
+    `, [workRecord.strategyId, workRecordCustomerId]);
+    await client.query(`
+      INSERT INTO strategy_versions(id,strategy_id,version,specification_json,created_by_user_id)
+      VALUES ($1,$2,1,'{}'::jsonb,$3)
+    `, [workRecord.versionId, workRecord.strategyId, workRecordCustomerId]);
+    await client.query(`
+      INSERT INTO strategy_subscriptions(
+        id,strategy_id,customer_id,status,started_at,ended_at,
+        strategy_version_id,run_mode,runtime_status
+      ) VALUES ($1,$2,$3,'active',$4,NULL,$5,'paper','active')
+    `, [workRecord.subscriptionId, workRecord.strategyId, workRecordCustomerId, periodStart.toISOString(), workRecord.versionId]);
+    await client.query(`
+      INSERT INTO platform_strategy_migration_map(
+        strategy_code,symbol,strategy_id,strategy_version_id,conversion_contract_sha256
+      ) VALUES ('ai_conservative','BTCUSDT',$1,$2,$3)
+      ON CONFLICT DO NOTHING
+    `, [workRecord.strategyId, workRecord.versionId, sha256(`quality-work-map-${schema}`)]);
+    await client.query(`
+      INSERT INTO strategy_deployments(
+        id,owner_user_id,strategy_id,strategy_version_id,strategy_subscription_id,
+        exchange_account_id,mode,status,validation_label,idempotency_key,
+        execution_product,platform_strategy_code,membership_id,paper_portfolio_id
+      ) VALUES ($1,$2,$3,$4,$5,NULL,'paper','active','UNVERIFIED',$6,'spot_usdt','ai_conservative',$7,$8)
+    `, [
+      workRecord.deploymentId, workRecordCustomerId, workRecord.strategyId, workRecord.versionId,
+      workRecord.subscriptionId, `quality-work-deployment-key-${schema}`,
+      workRecord.membershipId, workRecord.portfolioId,
+    ]);
+    await client.query(`
+      INSERT INTO strategy_subscription_periods(
+        id,subscription_id,customer_id,deployment_id,strategy_code,strategy_version_id,
+        symbol,mode,started_at,ended_at
+      ) VALUES ($1,$2,$3,$4,'ai_conservative',$5,'BTCUSDT','paper',$6,NULL)
+    `, [
+      workRecord.periodId, workRecord.subscriptionId, workRecordCustomerId,
+      workRecord.deploymentId, workRecord.versionId, periodStart.toISOString(),
+    ]);
+    // 两轮：一轮有客户准入与模拟成交，一轮是纯 hold（准入状态「无需准入」）。
+    // 两种状态都要在浏览器里出现，否则「无需准入 ≠ 未记录」这条文案边界没被看过。
+    await client.query(`
+      INSERT INTO strategy_decision_rounds(
+        id,strategy_code,symbol,timeframe,strategy_version_id,candle_open_time,candle_close_time,
+        decision_json,trace_id,completeness
+      ) VALUES
+        ($1,'ai_conservative','BTCUSDT','1h',$2,$3,$4,$5::jsonb,$6,'complete'),
+        ($7,'ai_conservative','BTCUSDT','1h',$2,$8,$9,$10::jsonb,$11,'complete')
+    `, [
+      workRecord.roundId, workRecord.versionId,
+      new Date(candleClose.getTime() - 3_600_000).toISOString(), candleClose.toISOString(),
+      JSON.stringify({ action: "enter_long", riskApproved: true }), `quality-work-trace-${schema.slice(-8)}`,
+      workRecord.holdRoundId,
+      new Date(holdClose.getTime() - 3_600_000).toISOString(), holdClose.toISOString(),
+      JSON.stringify({ action: "hold", riskApproved: true }), `quality-work-hold-trace-${schema.slice(-8)}`,
+    ]);
+    await client.query(`
+      INSERT INTO strategy_runtime_cycles(
+        id,deployment_id,sequence,fencing_token,candle_open_time,candle_close_time,status,
+        decision_json,trace_id,started_at,completed_at,decision_round_id
+      ) VALUES ($1,$2,1,1,$3,$4,'completed',$5::jsonb,$6,$4,$4,$7)
+    `, [
+      workRecord.cycleId, workRecord.deploymentId,
+      new Date(candleClose.getTime() - 3_600_000).toISOString(), candleClose.toISOString(),
+      JSON.stringify({ action: "enter_long", riskApproved: true, riskState: { drawdownPct: 1.25 } }),
+      `quality-work-trace-${schema.slice(-8)}`, workRecord.roundId,
+    ]);
+    await client.query(`
+      INSERT INTO strategy_runtime_events(
+        id,cycle_id,decision_round_id,sequence,role,event_type,conclusion,evidence_json,
+        duration_ms,llm_used,explanation_status,created_at
+      ) VALUES ($1,NULL,$2,6,'decision','agent_completed','允许进入模拟准入',$3::jsonb,12,false,'not_requested',$4)
+    `, [
+      `quality-work-event-${schema.slice(-12)}`, workRecord.roundId,
+      JSON.stringify({ action: "enter_long", riskApproved: true }), candleClose.toISOString(),
+    ]);
+
+    // 策略广场：一条已上架、带回测结果的社区策略。
+    //
+    // 没有它，`/marketplace` 只会渲染空态——卡片、指标、跟单确认面板与披露勾选全都不会
+    // 被真正跑到，axe 也扫不到那些控件。作者用 clientSecurity，跟随者是主客户：作者不能
+    // 跟随自己的策略，两者必须是不同的人。
+    const marketplace = {
+      strategyId: `quality-market-strategy-${schema.slice(-12)}`,
+      versionId: `quality-market-version-${schema.slice(-12)}`,
+      backtestId: `quality-market-backtest-${schema.slice(-12)}`,
+    };
+    // 只做多、无杠杆——现货模拟跟单只准入 long_only（需求方 2026-08-24 确认）。
+    const marketplaceDsl = {
+      schemaVersion: 3, name: "Quality marketplace strategy", market: "usdt_perpetual",
+      marginMode: "isolated", leverage: 1, symbol: "BTCUSDT", timeframe: "1h", direction: "long_only",
+      legs: {
+        long: {
+          entry: { all: [{ type: "price_ema", period: 10, operator: "above" }] },
+          exit: { any: [{ type: "candle_direction", direction: "bearish" }] },
+          stopLossPct: 2, takeProfitPct: 4,
+        },
+      },
+      risk: { positionSizePct: 5, maxDrawdownPct: 12, maxDailyLossPct: 3, maxConsecutiveLosses: 4 },
+    };
+    await client.query(`
+      INSERT INTO community_strategies(
+        id,author_user_id,name,summary,status,version,validation_label,
+        publication_mode,risk_level,symbols_json,specification_json,published_at
+      ) VALUES ($1,$2,'Quality 广场策略','质量夹具用的已上架策略，只做多。','listed',1,
+        'STANDARD_VERIFIED','marketplace','medium','["BTC/USDT"]',$3,$4)
+    `, [marketplace.strategyId, identities.clientSecurity.userId,
+      JSON.stringify(marketplaceDsl), new Date(now.getTime() - 7 * 86_400_000).toISOString()]);
+    await client.query(`
+      INSERT INTO strategy_versions(id,strategy_id,version,specification_json,created_by_user_id)
+      VALUES ($1,$2,1,$3::jsonb,$4)
+    `, [marketplace.versionId, marketplace.strategyId, JSON.stringify(marketplaceDsl),
+      identities.clientSecurity.userId]);
+    await client.query(`
+      INSERT INTO strategy_validations(
+        id,strategy_id,kind,status,period_start,period_end,sample_size,
+        net_return_pct,max_drawdown_pct,win_rate_pct,strategy_version,completed_at
+      ) VALUES ($1,$2,'backtest','passed',$3,$4,42,12.5,9,58,1,$4)
+    `, [marketplace.backtestId, marketplace.strategyId,
+      new Date(now.getTime() - 400 * 86_400_000).toISOString(),
+      new Date(now.getTime() - 30 * 86_400_000).toISOString()]);
+
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -272,8 +600,8 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
   }
 
   await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
-  for (const identity of Object.values(identities)) {
-    const cookies = [{
+  for (const [name, identity] of Object.entries(identities)) {
+    const cookies = IDENTITY_DEFINITIONS[name].seedSession === false ? [] : [{
       name: identity.cookieName,
       value: identity.token,
       domain: identity.domain,
@@ -283,7 +611,7 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
       secure: true,
       sameSite: "Strict",
     }];
-    if (identity.audience === "client") cookies.push({ ...cookies[0], name: "an_session" });
+    if (identity.audience === "client" && cookies.length) cookies.push({ ...cookies[0], name: "an_session" });
     await writeFile(identity.storageState, JSON.stringify({ cookies, origins: [] }), { mode: 0o600 });
   }
   const runtime = {
@@ -294,6 +622,7 @@ async function seedFixture(pool, outputDirectory, schema, baseUrls) {
     expiresAt: expiresAt.toISOString(),
     baseUrls,
     identities,
+    researchFixture: qualityResearchFixtureIds(schema),
   };
   await writeFile(join(outputDirectory, "runtime.json"), JSON.stringify(runtime, null, 2), { mode: 0o600 });
   return runtime;

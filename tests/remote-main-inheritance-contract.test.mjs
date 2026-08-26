@@ -13,7 +13,7 @@ test("inherits scoped emergency-stop storage in the PostgreSQL migration chain",
 });
 
 test("maintenance emergency control is RBAC protected and limited to official Paper access", async () => {
-  const route = await read("app/api/maintenance/trading/emergency-stop/route.ts");
+  const route = await read("app/api/maintenance/trading/emergency-stop/route.maintenance.ts");
   const paperRepository = await read("lib/official-paper-repository.ts");
   const implementation = `${route}\n${paperRepository}`;
   assert.match(route, /maint\.emergency_pause\.execute/);
@@ -32,9 +32,9 @@ test("maintenance emergency control is RBAC protected and limited to official Pa
 
 test("platform strategy activation respects platform and organization emergency scopes", async () => {
   const { emergencyScopeForAccess } = await import("../lib/trading-emergency-scope.ts");
-  const follow = await read("app/api/platform-strategies/[code]/follow/route.ts");
-  const communityFollow = await read("app/api/strategy-marketplace/[id]/follow/route.ts");
-  const communityLifecycle = await read("app/api/strategy-subscriptions/[id]/route.ts");
+  const follow = await read("app/api/platform-strategies/[code]/follow/route.client.ts");
+  const communityFollow = await read("app/api/strategy-marketplace/[id]/follow/route.client.ts");
+  const communityLifecycle = await read("app/api/strategy-subscriptions/[id]/route.client.ts");
   const emergency = await read("lib/trading-emergency.ts");
   assert.deepEqual(emergencyScopeForAccess("PLATFORM", null), { scopeKey: "platform", scopeType: "platform", organizationId: null });
   assert.deepEqual(emergencyScopeForAccess("ORGANIZATION", "org-1"), { scopeKey: "organization:org-1", scopeType: "organization", organizationId: "org-1" });
@@ -48,11 +48,13 @@ test("platform strategy activation respects platform and organization emergency 
 });
 
 test("maintenance exposes explicit emergency controls through its own navigation", async () => {
-  const app = await read("apps/maintenance/ui/maintenance-app.tsx");
+  const app = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/navigation.ts")]).then((parts) => parts.join("\n"));
   const workspace = await read("apps/maintenance/ui/emergency-control-workspace.tsx");
   assert.match(app, /href: "\/safety"/);
   assert.match(app, /maint\.emergency_pause\.execute/);
-  assert.match(workspace, /ConfirmActionDialog/);
+  assert.match(workspace, /InlineAuditReasonField/);
+  assert.match(workspace, /hasValidAuditReason\(reason\)/);
+  assert.doesNotMatch(workspace, /ConfirmActionDialog/);
   assert.match(workspace, /官方 Paper/);
   assert.match(workspace, /平台 Demo/);
   assert.match(workspace, /\/integrations\/demo-exchanges/);
@@ -70,8 +72,8 @@ test("support configuration only accepts allowlisted Telegram HTTPS URLs", async
 });
 
 test("maintenance owns support settings while the client receives a public safe view", async () => {
-  const maintenanceRoute = await read("app/api/maintenance/platform-settings/route.ts");
-  const publicRoute = await read("app/api/platform/settings/route.ts");
+  const maintenanceRoute = await read("app/api/maintenance/platform-settings/route.maintenance.ts");
+  const publicRoute = await read("app/api/platform/settings/route.client.ts");
   const workspace = await read("apps/maintenance/ui/platform-settings-workspace.tsx");
   assert.match(maintenanceRoute, /maint\.feature_flags\.manage/);
   assert.match(maintenanceRoute, /maintenanceReason/);
@@ -82,17 +84,19 @@ test("maintenance owns support settings while the client receives a public safe 
 });
 
 test("client support entry uses Riverton branding and never fakes a ticket submission", async () => {
-  const client = await read("app/client-app.tsx");
-  const support = await read("app/support-floating.tsx");
+  // 品牌断言原本落在遗留 SPA 的外壳上；外壳现在是 client-portal-shell。
+  const client = await read("apps/client/ui/client-portal-shell.tsx");
+  const support = await read("apps/client/ui/support-workspace.tsx");
   const layout = await read("app/layout.tsx");
   const metadata = await read("lib/riverton-metadata.ts");
-  assert.match(client, /\/api\/platform\/settings/);
-  assert.match(client, /telegramSupportUrl/);
   assert.match(client, /Riverton Capital/);
+  assert.match(support, /\/api\/platform\/settings/);
+  assert.match(support, /telegramSupportUrl/);
   assert.match(layout, /rivertonMetadata/);
   assert.match(metadata, /Riverton Capital 客户端/);
   assert.match(support, /supportEmail/);
-  assert.match(support, /Telegram 客服链接尚未配置/);
+  // 未配置时的措辞（活文案）：明说未配置，且不提供替代账号或验证码。
+  assert.match(support, /Telegram 尚未配置，不提供替代账号或验证码/);
   assert.doesNotMatch(support, /提交工单|Create ticket/);
 });
 

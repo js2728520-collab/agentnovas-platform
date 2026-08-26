@@ -1,5 +1,7 @@
 # 七智能体交易大厅产品与技术合同
 
+> 文档状态：`FOUNDATION`。七阶段、确定性风控和证据链继续作为 V3 基础；策略市场、自动跟单和 Live book 扩展见 [`FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md`](FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md) 与 [`../specs/V3_SYSTEM_TARGET_SPEC.md`](../specs/V3_SYSTEM_TARGET_SPEC.md)。
+
 状态：Beta 产品真源；实现以仓库版本化合同为准
 来源：《七智能体动态策略系统_用户说明书》v1.0（2026 年 8 月）
 适用范围：Client 三张官方策略卡、paper runtime、平台 Demo 证据

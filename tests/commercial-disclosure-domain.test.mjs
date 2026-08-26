@@ -5,7 +5,7 @@ import {
   commercialDisclosureSnapshotHash,
   normalizeCommercialDisclosureSubmission,
 } from "../lib/commercial-disclosure.ts";
-import { requiredLegalDocumentTypes } from "../lib/commercial-membership-domain.ts";
+import { requiredLegalDocumentTypes } from "../packages/domain/src/commercial-membership-domain.ts";
 
 const content = (type) => `# ${type}\n\n本正文用于说明 Riverton Capital Paper SaaS 的产品边界、客户权利、操作流程与风险，不包含真实交易或资金托管。`;
 

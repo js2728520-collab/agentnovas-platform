@@ -7,7 +7,7 @@ import {
   settleAiCreditReservationInTransaction,
 } from "./ai-credit-service.ts";
 import type { TrustedAiUsage } from "./ai-provider.ts";
-import { calculateTokenCost } from "./commercial-membership-domain.ts";
+import { calculateTokenCost } from "../packages/domain/src/commercial-membership-domain.ts";
 import { canonicalPayloadHash } from "./commercial-idempotency.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
@@ -241,8 +241,17 @@ export async function beginClientAiInference(pool: Pool, input: {
       const id = randomUUID();
       const inserted = await client.query<{ id: string }>(`
         INSERT INTO client_ai_inference_requests(
-          id,user_id,operation,idempotency_key,payload_sha256,profile_revision_id,request_id
-        ) VALUES($1,$2,$3,$4,$5,$6,$7)
+          id,user_id,operation,idempotency_key,payload_sha256,profile_revision_id,request_id,
+          organization_id
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,(
+          SELECT active_attribution.branch_id
+          FROM customer_attributions AS active_attribution
+          WHERE active_attribution.customer_id=$2 AND active_attribution.status='active'
+          ORDER BY active_attribution.effective_at DESC NULLS LAST,
+                   active_attribution.created_at DESC,
+                   active_attribution.id DESC
+          LIMIT 1
+        ))
         ON CONFLICT(user_id,operation,idempotency_key) DO NOTHING
         RETURNING id
       `, [id, input.userId, input.operation, input.idempotencyKey, payloadHash, input.modelRevisionId, input.requestId]);
@@ -388,4 +397,85 @@ export async function failClientAiInference(pool: Pool, input: {
     `, [input.requestId, errorCode, errorMessage, input.errorStatus]);
     return { state: "failed" as const, created: true };
   });
+}
+
+export type ClientAiCancellationResult =
+  | { id: string; state: "cancelled"; creditsDisposition: "released"; created: boolean }
+  | { id: string; state: "succeeded"; creditsDisposition: "settled" }
+  | { id: string; state: "failed"; creditsDisposition: "released" };
+
+export async function cancelClientAiInference(pool: Pool, input: {
+  userId: string;
+  inferenceRequestId: string;
+  requestId: string;
+}): Promise<ClientAiCancellationResult> {
+  const inferenceRequestId = input.inferenceRequestId.trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(inferenceRequestId)) {
+    throw new ResearchApiError("AI_REQUEST_NOT_FOUND", "AI 请求不存在", 404);
+  }
+  const correlationRequestId = input.requestId.trim().slice(0, 160) || randomUUID();
+  const outcome = await inTransaction(pool, async (client) => {
+    const row = (await client.query<ReconciliationRow>(`
+      SELECT req.id,req.user_id,req.operation,req.idempotency_key,req.payload_sha256,
+             req.profile_revision_id,req.status,req.reservation_id,req.result_json,
+             req.error_code,req.error_message,req.error_status,
+             reservation.status AS reservation_status,
+             reservation.expires_at AS reservation_expires_at
+        FROM client_ai_inference_requests AS req
+        JOIN ai_credit_reservations AS reservation ON reservation.id=req.reservation_id
+       WHERE req.id=$1 AND req.user_id=$2
+       FOR UPDATE OF req,reservation
+    `, [inferenceRequestId, input.userId])).rows[0];
+    if (!row) throw new ResearchApiError("AI_REQUEST_NOT_FOUND", "AI 请求不存在", 404);
+
+    if (row.status === "succeeded") {
+      return { id: row.id, state: "succeeded", creditsDisposition: "settled" } as const;
+    }
+    if (row.status === "failed") {
+      if (row.error_code === "AI_RECONCILIATION_REQUIRED" || row.reservation_status !== "released") {
+        return { id: row.id, state: "requires_review" } as const;
+      }
+      if (row.error_code === "AI_REQUEST_CANCELLED") {
+        return { id: row.id, state: "cancelled", creditsDisposition: "released", created: false } as const;
+      }
+      return { id: row.id, state: "failed", creditsDisposition: "released" } as const;
+    }
+
+    if (row.reservation_status === "settled") {
+      const errorMessage = "AI 请求已结算但结果尚未完整持久化，需要平台人工核对；取消不会自动退款";
+      await client.query(`
+        UPDATE client_ai_inference_requests
+           SET status='failed',error_code='AI_RECONCILIATION_REQUIRED',error_message=$2,
+               error_status=409,completed_at=now(),updated_at=now()
+         WHERE id=$1 AND status='processing'
+      `, [row.id, errorMessage]);
+      return { id: row.id, state: "requires_review" } as const;
+    }
+    if (row.reservation_status === "reserved") {
+      await releaseAiCreditReservationInTransaction(client, {
+        reservationId: row.reservation_id!,
+        idempotencyKey: `client-ai:${row.id}:cancel-release`,
+        requestId: correlationRequestId,
+      });
+    }
+    const errorMessage = "AI 请求已由用户取消，Credits 预留已释放";
+    const updated = await client.query(`
+      UPDATE client_ai_inference_requests
+         SET status='failed',error_code='AI_REQUEST_CANCELLED',error_message=$2,
+             error_status=409,completed_at=now(),updated_at=now()
+       WHERE id=$1 AND status='processing'
+    `, [row.id, errorMessage]);
+    if (updated.rowCount !== 1) {
+      throw new ResearchApiError("AI_REQUEST_STATE_CONFLICT", "AI 请求取消状态冲突", 409);
+    }
+    return { id: row.id, state: "cancelled", creditsDisposition: "released", created: true } as const;
+  });
+  if (outcome.state === "requires_review") {
+    throw new ResearchApiError(
+      "AI_RECONCILIATION_REQUIRED",
+      "AI 请求已结算但结果状态需要平台人工核对，不能自动取消或退款",
+      409,
+    );
+  }
+  return outcome;
 }

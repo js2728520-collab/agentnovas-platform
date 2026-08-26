@@ -4,22 +4,29 @@ import test from "node:test";
 
 import pg from "pg";
 
+import { createTestRole, dropTestRole, testRoleName, withGlobalRoleLock } from "./helpers/postgres-global-roles.mjs";
+
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
 const suffix = `${process.pid}_${Date.now()}`;
 const schema = `client_identity_rls_${suffix}`;
-const internalRole = `agentnovas_test_internal_${suffix}`;
-const clientRole = "agentnovas_client_web";
-const clientAuthRole = "agentnovas_client_auth";
-const legacyRole = `agentnovas_test_legacy_${suffix}`;
+const internalRole = testRoleName("identity_internal");
+// Roles are cluster-global. Binding this fixture to the production role names would
+// create and drop `agentnovas_client_web`/`agentnovas_client_auth` underneath every
+// other test file's migration chain — the ACL convergence in 0043/0063/0072/0076-0080
+// reads pg_roles and then grants to the names it read. The migration's own
+// expected-role logic is still exercised: prepareMigration rewrites the literals, the
+// same way it already does for the migrator and Operations roles.
+const clientRole = testRoleName("identity_client_web");
+const clientAuthRole = testRoleName("identity_client_auth");
+const legacyRole = testRoleName("identity_legacy");
 const clientToken1 = "1".repeat(64);
 const clientToken2 = "2".repeat(64);
 const expiredClientToken = "3".repeat(64);
 const adminPool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
 const pool = new pg.Pool({ connectionString: databaseUrl, max: 3, options: `-c search_path=${schema}` });
-let createdClientRole = false;
-let createdInternalRole = false;
-let createdClientAuthRole = false;
-let createdLegacyRole = false;
+
+const fixtureRoles = [clientRole, clientAuthRole, internalRole, legacyRole];
+const fixtureRoleAttributes = "NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT";
 
 const quotedIdentifier = (value) => `"${value.replaceAll('"', '""')}"`;
 
@@ -40,7 +47,7 @@ async function withRole(role, callback) {
 
 test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
-  assert.match(internalRole, /^[a-z0-9_]+$/);
+  for (const role of fixtureRoles) assert.match(role, /^[a-z0-9_]+$/);
   await adminPool.query(`CREATE SCHEMA ${quotedIdentifier(schema)}`);
   await pool.query(`
     CREATE TABLE users (
@@ -111,27 +118,20 @@ test.before(async () => {
       .replaceAll("pg_catalog, public", `pg_catalog, ${quotedIdentifier(schema)}`)
       .replaceAll("public.", `${quotedIdentifier(schema)}.`)
       .replaceAll("'agentnovas_migrator'", `'${ownerName}'`)
-      .replaceAll("'agentnovas_ops_web'", `'${internalRole}'`);
+      .replaceAll("'agentnovas_ops_web'", `'${internalRole}'`)
+      .replaceAll("'agentnovas_client_auth'", `'${clientAuthRole}'`)
+      .replaceAll("'agentnovas_client_web'", `'${clientRole}'`);
   const identityMigration = prepareMigration(await readFile(new URL("../postgres/migrations/0040_client_identity_rls.sql", import.meta.url), "utf8"));
   const hardeningMigration = prepareMigration(await readFile(new URL("../postgres/migrations/0043_client_identity_gateway_hardening.sql", import.meta.url), "utf8"));
-  await pool.query(identityMigration);
-  await pool.query(hardeningMigration);
-  await pool.query(hardeningMigration);
-
-  const role = await adminPool.query("SELECT 1 FROM pg_roles WHERE rolname=$1", [clientRole]);
-  if (!role.rowCount) {
-    await adminPool.query(`CREATE ROLE ${quotedIdentifier(clientRole)} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`);
-    createdClientRole = true;
-  }
-  const authRole = await adminPool.query("SELECT 1 FROM pg_roles WHERE rolname=$1", [clientAuthRole]);
-  if (!authRole.rowCount) {
-    await adminPool.query(`CREATE ROLE ${quotedIdentifier(clientAuthRole)} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`);
-    createdClientAuthRole = true;
-  }
-  await adminPool.query(`CREATE ROLE ${quotedIdentifier(internalRole)} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`);
-  createdInternalRole = true;
-  await adminPool.query(`CREATE ROLE ${quotedIdentifier(legacyRole)} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`);
-  createdLegacyRole = true;
+  // 0043 rebuilds every gateway ACL by looping over pg_roles and revoking from each
+  // role it finds there. Hold the global role lock so no parallel test file drops a
+  // role between that snapshot and the REVOKE that names it.
+  await withGlobalRoleLock(adminPool, async () => {
+    await pool.query(identityMigration);
+    await pool.query(hardeningMigration);
+    await pool.query(hardeningMigration);
+  });
+  for (const role of fixtureRoles) await createTestRole(adminPool, role, fixtureRoleAttributes);
   await pool.query(`
     GRANT USAGE ON SCHEMA ${quotedIdentifier(schema)} TO ${quotedIdentifier(clientRole)},${quotedIdentifier(clientAuthRole)},${quotedIdentifier(internalRole)},${quotedIdentifier(legacyRole)};
     GRANT SELECT,INSERT,UPDATE,DELETE ON users,sessions,auth_tokens,user_mfa_totp_credentials,user_mfa_recovery_codes,invitations TO ${quotedIdentifier(internalRole)};
@@ -147,10 +147,7 @@ test.before(async () => {
 test.after(async () => {
   await pool.end();
   await adminPool.query(`DROP SCHEMA ${quotedIdentifier(schema)} CASCADE`);
-  if (createdInternalRole) await adminPool.query(`DROP ROLE ${quotedIdentifier(internalRole)}`);
-  if (createdLegacyRole) await adminPool.query(`DROP ROLE ${quotedIdentifier(legacyRole)}`);
-  if (createdClientAuthRole) await adminPool.query(`DROP ROLE ${quotedIdentifier(clientAuthRole)}`);
-  if (createdClientRole) await adminPool.query(`DROP ROLE ${quotedIdentifier(clientRole)}`);
+  for (const role of fixtureRoles) await dropTestRole(adminPool, role);
   await adminPool.end();
 });
 

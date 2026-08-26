@@ -1,5 +1,7 @@
 # Spec: AI 对话结构化展示与快捷确认 V3
 
+> 文档状态：`FOUNDATION`。结构化消息与确认体验继续复用；V3 AI 助手信息架构和策略执行边界见 `product/FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md`。
+
 ## Objective
 
 为客户账号的普通 Agent 对话和策略研究对话提供一致的结构化阅读与确认体验：

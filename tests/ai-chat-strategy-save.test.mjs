@@ -114,11 +114,11 @@ test("does not silently turn a provider short strategy into a long-only draft", 
 
 test("agent chat exposes message-level strategy saving and model-only attribution", async () => {
   const [chat, content, conversationRoute, persistence, saveRoute] = await Promise.all([
-    readFile(new URL("../app/agent-chat.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/ai-message-content.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/ai/conversations/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../apps/client/ui/ai-assistant-chat.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../apps/client/ui/ai-message-content.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/ai/conversations/[id]/route.client.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/ai-conversations.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.client.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(content, /保存到我的策略/);
@@ -136,17 +136,20 @@ test("agent chat exposes message-level strategy saving and model-only attributio
 });
 
 test("agent chat renders generation progress as a new assistant reply, not button text", async () => {
+  // 样式已从 globals-beta.css 转成组件自己的 CSS Module（P4 收尾）。
   const [chat, styles] = await Promise.all([
-    readFile(new URL("../app/agent-chat.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../apps/client/ui/ai-assistant-chat.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../apps/client/ui/ai-assistant-chat.module.css", import.meta.url), "utf8"),
   ]);
 
-  assert.match(chat, /agent-chat-generating-dots/);
+  assert.match(chat, /styles\.generatingDots/);
   assert.match(chat, /正在生成回复/);
   assert.match(chat, />发送问题 →<\/button>/);
   assert.doesNotMatch(chat, /\{sending \? "生成中…" : "发送问题 →"\}/);
-  assert.match(styles, /\.agent-chat-generating-dots/);
-  assert.match(styles, /@keyframes ai-generating-dot/);
+  assert.match(styles, /\.generatingDots/);
+  assert.match(styles, /@keyframes assistant-generating-dot/);
+  // 动画必须尊重 prefers-reduced-motion。
+  assert.match(styles, /prefers-reduced-motion/);
 });
 
 test("assistant prompt gives the provider the exact canonical strategy DSL contract", async () => {

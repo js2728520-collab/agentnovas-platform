@@ -5,6 +5,7 @@ export async function consumePasswordReset(pool: Pool, input: {
   tokenHash: string;
   passwordHash: string;
   audience: AppAudience;
+  mfaEnforced?: boolean;
   primarySession?: {
     id: string;
     tokenHash: string;
@@ -97,7 +98,8 @@ export async function consumePasswordReset(pool: Pool, input: {
     }
     const accountActivated = row.status === "pending";
     const internal = true;
-    if (internal && (row.role === "customer" || !row.has_assignment || !input.primarySession)) {
+    const primarySessionRequired = input.mfaEnforced !== false;
+    if (internal && (row.role === "customer" || !row.has_assignment || (primarySessionRequired && !input.primarySession))) {
       await client.query("ROLLBACK");
       return { ok: false as const, code: "INTERNAL_ACCESS_NOT_READY" as const };
     }
@@ -132,14 +134,14 @@ export async function consumePasswordReset(pool: Pool, input: {
     `, [
       crypto.randomUUID(), candidate.rows[0].user_id,
       accountActivated ? "auth.internal_account_activated" : "auth.password_reset",
-      JSON.stringify({ sessionsRevoked: true, accountActivated, appAudience: input.audience, primarySessionCreated: internal }), nowIso,
+      JSON.stringify({ sessionsRevoked: true, accountActivated, appAudience: input.audience, primarySessionCreated: Boolean(input.primarySession) }), nowIso,
     ]);
     await client.query("COMMIT");
     return {
       ok: true as const,
       accountActivated,
-      primarySessionCreated: internal,
-      mfaEnrollmentRequired: internal && !row.has_active_mfa,
+      primarySessionCreated: Boolean(input.primarySession),
+      mfaEnrollmentRequired: Boolean(input.primarySession) && !row.has_active_mfa,
     };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);

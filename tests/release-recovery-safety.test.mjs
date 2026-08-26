@@ -136,6 +136,147 @@ test("database role policy rejects elevated roles, broad PUBLIC grants, and disa
   assert.ok(findings.some((finding) => finding.code === "WORKER_TABLE_GRANT" && finding.roleName === "agentnovas_payment_webhook"));
 });
 
+test("configuration activation worker grants are checked at table and privilege level", () => {
+  const roles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
+    roleName,
+    canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
+    superuser: false,
+    createRole: false,
+    createDatabase: false,
+    replication: false,
+    bypassRls: false,
+  }));
+  const base = {
+    roles,
+    schemaGrants: [],
+    sequenceGrants: [],
+    routineGrants: [{ grantee: "agentnovas_configuration_activation_worker", routineName: "configuration_activation_worker_activate", privilegeType: "EXECUTE" }],
+    memberships: [],
+  };
+  const safeGrants = [
+    ["configuration_versions", "SELECT"],
+    ["configuration_test_results", "SELECT"],
+    ["configuration_approvals", "SELECT"],
+    ["configuration_schedules", "SELECT"],
+    ["configuration_activations", "SELECT"],
+    ["worker_instances", "SELECT"],
+    ["worker_instances", "INSERT"],
+    ["worker_instances", "UPDATE"],
+  ].map(([tableName, privilegeType]) => ({ grantee: "agentnovas_configuration_activation_worker", tableName, privilegeType }));
+  assert.deepEqual(evaluatePostgresRolePolicy({ ...base, grants: safeGrants }), []);
+  for (const [tableName, privilegeType] of [["configuration_approvals", "INSERT"], ["configuration_versions", "UPDATE"], ["configuration_activations", "INSERT"], ["configuration_activations", "DELETE"], ["audit_logs", "INSERT"]]) {
+    const findings = evaluatePostgresRolePolicy({
+      ...base,
+      grants: [...safeGrants, { grantee: "agentnovas_configuration_activation_worker", tableName, privilegeType }],
+    });
+    const expectedCode = tableName === "audit_logs" ? "WORKER_TABLE_GRANT" : "WORKER_TABLE_PRIVILEGE";
+    assert.ok(findings.some((finding) => finding.code === expectedCode));
+  }
+  const sequenceFindings = evaluatePostgresRolePolicy({
+    ...base,
+    grants: safeGrants,
+    sequenceGrants: [...base.sequenceGrants, {
+      grantee: "agentnovas_configuration_activation_worker",
+      sequenceName: "configuration_activations_sequence_no_seq",
+      privilegeType: "USAGE",
+    }],
+  });
+  assert.ok(sequenceFindings.some((finding) => finding.code === "WORKER_SEQUENCE_GRANT"));
+  const routineFindings = evaluatePostgresRolePolicy({
+    ...base,
+    grants: safeGrants,
+    routineGrants: [...base.routineGrants, {
+      grantee: "agentnovas_configuration_activation_worker",
+      routineName: "protect_versioned_configuration_append_only",
+      privilegeType: "EXECUTE",
+    }],
+  });
+  assert.ok(routineFindings.some((finding) => finding.code === "WORKER_ROUTINE_GRANT"));
+});
+
+test("configuration activation gateway stays owner-controlled with a pinned path", () => {
+  const roles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
+    roleName,
+    canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
+    superuser: false,
+    createRole: false,
+    createDatabase: false,
+    replication: false,
+    bypassRls: false,
+  }));
+  const gateway = {
+    signature: "configuration_activation_worker_activate(text)",
+    ownerName: "agentnovas_migrator",
+    securityDefiner: true,
+    config: ["search_path=public, pg_catalog"],
+    executeGrantees: ["agentnovas_configuration_activation_worker", "agentnovas_migrator"],
+  };
+  const input = {
+    roles,
+    grants: [],
+    schemaGrants: [],
+    routineGrants: [],
+    memberships: [],
+    configurationActivationRoutines: [gateway],
+  };
+  assert.deepEqual(evaluatePostgresRolePolicy(input), []);
+  for (const unsafe of [
+    { ...gateway, ownerName: "agentnovas_configuration_activation_worker" },
+    { ...gateway, securityDefiner: false },
+    { ...gateway, config: null },
+    { ...gateway, executeGrantees: [...gateway.executeGrantees, "PUBLIC"] },
+  ]) {
+    const findings = evaluatePostgresRolePolicy({ ...input, configurationActivationRoutines: [unsafe] });
+    assert.ok(findings.some((finding) => finding.code === "CONFIGURATION_ACTIVATION_GATEWAY_UNSAFE"));
+  }
+});
+
+test("Client feature flag gateway stays read-only, owner-controlled and narrowly granted", () => {
+  const roles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
+    roleName,
+    canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
+    superuser: false,
+    createRole: false,
+    createDatabase: false,
+    replication: false,
+    bypassRls: false,
+  }));
+  const gateway = {
+    signature: "configuration_client_active_feature_flag(text)",
+    ownerName: "agentnovas_migrator",
+    securityDefiner: true,
+    config: ["search_path=public, pg_catalog"],
+    executeGrantees: ["agentnovas_client_web", "agentnovas_migrator"],
+  };
+  const input = {
+    roles,
+    grants: [],
+    schemaGrants: [],
+    routineGrants: [{ grantee: "agentnovas_client_web", routineName: "configuration_client_active_feature_flag", privilegeType: "EXECUTE" }],
+    memberships: [],
+    configurationConsumerRoutines: [gateway],
+  };
+  assert.deepEqual(evaluatePostgresRolePolicy(input), []);
+  for (const unsafe of [
+    { ...gateway, ownerName: "agentnovas_client_web" },
+    { ...gateway, securityDefiner: false },
+    { ...gateway, config: null },
+    { ...gateway, executeGrantees: [...gateway.executeGrantees, "PUBLIC"] },
+  ]) {
+    const findings = evaluatePostgresRolePolicy({ ...input, configurationConsumerRoutines: [unsafe] });
+    assert.ok(findings.some((finding) => finding.code === "CONFIGURATION_CONSUMER_GATEWAY_UNSAFE"));
+  }
+  const broadGrant = evaluatePostgresRolePolicy({
+    ...input,
+    routineGrants: [...input.routineGrants, {
+      grantee: "agentnovas_client_web",
+      routineName: "configuration_client_arbitrary_reader",
+      privilegeType: "EXECUTE",
+    }],
+  });
+  assert.ok(broadGrant.some((finding) => finding.code === "CONFIGURATION_CONSUMER_ROUTINE_GRANT"));
+});
+
 test("database role policy verifies Client identity RLS ownership and restrictive policies", () => {
   const identityTables = [
     "users",
@@ -264,6 +405,11 @@ test("least-privilege bootstrap is database-bound and leaves Payment and legacy 
   assert.match(sql, /GRANT SELECT, INSERT ON membership_access_events TO agentnovas_notification_worker/i);
   assert.match(sql, /GRANT SELECT, INSERT, UPDATE ON notification_deliveries TO agentnovas_notification_worker/i);
   assert.match(sql, /GRANT INSERT ON audit_logs TO agentnovas_notification_worker/i);
+  assert.match(sql, /internal_registration_links,[\s\S]*internal_registration_link_uses[\s\S]*TO agentnovas_ops_web/i);
+  assert.match(sql, /GRANT INSERT ON organizations, internal_registration_link_uses\s+TO agentnovas_ops_web/i);
+  assert.match(sql, /internal_registration_link_acl_convergence/);
+  const maintenanceGrantStatements = sql.split(";").filter((statement) => /\bGRANT\b[\s\S]*\bTO agentnovas_maint_web\s*$/i.test(statement.trim()));
+  assert.equal(maintenanceGrantStatements.some((statement) => /\binternal_registration_link(?:s|_uses)\b/i.test(statement)), false);
   assert.match(sql, /class\.relkind\s*<>\s*'S'[\s\S]+pg_depend[\s\S]+dependency\.deptype\s+IN\s*\('a','i'\)/i);
 
   const migrator = await read("deploy/env/migrator.env.example");
@@ -303,4 +449,70 @@ test("recovery script uses non-shell PostgreSQL tools and exact owned cleanup ta
   assert.doesNotMatch(source, /rm\s+-rf|DROP\s+SCHEMA|DROP\s+DATABASE/i);
   assert.match(source, /assertControlledRehearsalDatabaseName/);
   assert.match(source, /mkdtemp/);
+});
+
+test("触发器读不到自己要读的表时，发布闸门必须拦下来", () => {
+  // 客户注册就是这样在生产上整体失效的：0044 给 audit_logs 加了防篡改哈希链，
+  // 接链要先读出链尾，而写审计日志的进程角色只有 INSERT——审计表存着全平台的
+  // 操作记录，公网进程本就不该读得到。于是任何「插一条审计日志」都 42501。
+  //
+  // 这一类在开发机上完全看不见：本地用超级用户跑，读一路放行。只有配了最小权限
+  // 角色的环境才会暴露，也就是生产。所以它必须由闸门在发布前查出来，而不是由客户
+  // 在注册页上撞出来。
+  const base = {
+    roles: EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
+      roleName, canLogin: true, superuser: false, createRole: false,
+      createDatabase: false, replication: false, bypassRls: false,
+    })),
+    grants: [], schemaGrants: [], memberships: [],
+    identityTables: undefined, identityPolicies: undefined, identityRoutines: undefined,
+  };
+
+  // 只比较增量：基线里本来就有几条与本用例无关的 finding（例如被停用的
+  // payment worker 仍可登录），把它们钉进断言只会让这条用例随无关改动一起红。
+  const baseCodes = evaluatePostgresRolePolicy(base).map((item) => item.code);
+  assert.ok(!baseCodes.includes("TRIGGER_READ_PRIVILEGE_GAP"), "基线不该有触发器缺口");
+
+  const findings = evaluatePostgresRolePolicy({
+    ...base,
+    triggerReadGaps: [{
+      grantee: "agentnovas_client_web",
+      writeTable: "audit_logs",
+      functionName: "audit_logs_append_chain",
+      readTable: "audit_logs",
+      privilege: "SELECT",
+    }],
+  });
+  const gaps = findings.filter((item) => item.code === "TRIGGER_READ_PRIVILEGE_GAP");
+  assert.equal(gaps.length, 1);
+  findings[0] = gaps[0];
+  // 报告必须同时说清「谁」「写哪张表」「触发器要读哪张表」——少任何一个，
+  // 看到告警的人都得再去数据库里翻一遍才知道要改什么。
+  for (const fragment of ["agentnovas_client_web", "audit_logs", "audit_logs_append_chain", "SELECT"]) {
+    assert.match(findings[0].message, new RegExp(fragment));
+  }
+});
+
+test("审计链触发器必须是 SECURITY DEFINER", async () => {
+  // 迁移 0064 的结论不能被后来的迁移悄悄改回去：一旦改回 SECURITY INVOKER，
+  // 接链的那条 SELECT 又会跑在调用方权限下，注册再次整体失效。
+  const migration = await read("postgres/migrations/0064_audit_chain_runs_as_owner.sql");
+  assert.match(migration, /CREATE OR REPLACE FUNCTION audit_logs_append_chain\(\)/);
+  assert.match(migration, /SECURITY DEFINER/);
+  // SECURITY DEFINER 函数不钉 search_path，调用方可以用同名对象劫持函数体。
+  assert.match(migration, /SET search_path/);
+});
+
+test("角色脚本拒绝执行时必须以非零码退出", async () => {
+  // 原来三处拒绝用的是 \quit，psql 以 0 退出——「脚本跑成功了」和「脚本什么都没做」
+  // 在调用方看来完全一样。部署脚本据此判断成功，实际一条 GRANT 都没执行，
+  // 而故障要等到某个进程角色第一次写库时才以 42501 的形式冒出来。
+  //
+  // 我自己就被这个坑误导过一次：拿到一个「脚本显示成功、实际什么都没授」的库，
+  // 据此把注册失败的根因判到了错误的地方。
+  const script = await read("deploy/postgres/least-privilege-roles.sql");
+  assert.match(script, /\\set ON_ERROR_STOP on/, "抛异常要生效，必须先开 ON_ERROR_STOP");
+  assert.doesNotMatch(script, /^\s*\\quit\s*$/m, "裸 \\quit 会以 0 退出");
+  // 三处守卫（缺参数、库名不符、库名不受控）都要真的报错
+  assert.equal((script.match(/RAISE EXCEPTION '(?:agentnovas_database is required|Refusing)/g) ?? []).length, 3);
 });

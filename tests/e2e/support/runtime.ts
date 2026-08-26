@@ -20,9 +20,14 @@ export type QualityRuntime = {
   expiresAt: string;
   baseUrls: Record<"client" | "operations" | "maintenance", string>;
   identities: Record<
-    "client" | "operationsMaker" | "operationsChecker" | "maintenanceAdmin",
+    "client" | "clientSecurity" | "operationsMaker" | "operationsChecker" | "maintenanceAdmin",
     QualityIdentity
   >;
+  researchFixture: {
+    runId: string;
+    candidateId: string;
+    exchangeAccountId: string;
+  };
 };
 
 export async function readQualityRuntime(): Promise<QualityRuntime> {

@@ -30,7 +30,7 @@ test("operations finance uses the commercial Paper contract and exposes no legac
 
 test("internal member lifecycle is bounded, scoped, audited and session revoking", async () => {
   const [route, workspace] = await Promise.all([
-    read("app/api/organization/members/[id]/status/route.ts"),
+    read("app/api/organization/members/[id]/status/route.operations.ts"),
     read("apps/operations/ui/organization-workspace.tsx"),
   ]);
   assert.match(route, /readResearchJson\(request, 4_096\)/);
@@ -46,7 +46,7 @@ test("internal member lifecycle is bounded, scoped, audited and session revoking
 test("unified approvals project commercial and organization queues without community governance", async () => {
   const [workspace, decision] = await Promise.all([
     read("apps/operations/ui/approvals-workspace.tsx"),
-    read("app/api/approvals/[id]/decision/route.ts"),
+    read("app/api/approvals/[id]/decision/route.operations.ts"),
   ]);
   assert.match(workspace, /membership-orders\?status=SUBMITTED/);
   assert.match(workspace, /performance-statements\?status=SUBMITTED/);

@@ -1,5 +1,5 @@
-import type { HistoricalFundingRate } from "./backtest-engine.ts";
-import type { StrategyCandle } from "./strategy-dsl.ts";
+import type { HistoricalFundingRate } from "../packages/domain/src/backtest-engine.ts";
+import type { StrategyCandle } from "../packages/domain/src/strategy-dsl.ts";
 
 export type PerpetualExchange = "okx" | "binance" | "bybit";
 

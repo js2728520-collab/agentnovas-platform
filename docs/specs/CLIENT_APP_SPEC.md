@@ -1,5 +1,7 @@
 # Client 付费 Beta 应用规格
 
+> 文档状态：`CURRENT_BASELINE`。V3 Client 目标见 [`V3_CLIENT_APP_TARGET_SPEC.md`](V3_CLIENT_APP_TARGET_SPEC.md)；未完成对应任务和 Gate 前，本文件仍是当前可达合同。
+
 ## 1. 目标与导航
 
 Client 为受邀用户提供登录/设置密码、商业披露确认、试用与会员、AI credits、三张官方 paper 组合、七智能体记录、平台 Demo 证据、研究/回测、只读钱包和通知。保留多语言与 Riverton 深色视觉，不做无关改版。
@@ -10,8 +12,15 @@ Client 为受邀用户提供登录/设置密码、商业披露确认、试用与
 
 ## 2. 身份与商业披露
 
-- 仅邀请注册；邀请和找回链接单次使用、过期失效，不回显 token。
+- 仅邀请注册；客户邮箱与国际手机号必填，注册身份在 24 小时邮箱验证前保持 pending。
+- 验证和找回 bearer token 只存摘要，邮件 outbox 只存加密值；验证 URL 使用 fragment，
+  重发会撤销旧验证 token，公开响应不泄露邮箱是否存在。
 - 登录失败和找回结果不泄露邮箱是否存在。
+- Client 同时最多 5 个设备身份；同设备重登轮换 Session。第 6 台按 A-01（ADR-0024）自动挤出最久
+  未使用的那台，并强制向被挤出设备发送站内 + Email 安全通知。
+- 新设备和 IP 网段变化产生站内/Email 提醒；账户安全页显示脱敏网络位置，支持单设备和
+  全部设备撤销。城市级定位与第 6 台最终交互见 ADR-0022。
+- TOTP/recovery 能力与既有绑定数据保留；当前登录不强制 MFA，正式生产按 ADR-0023 三端统一开启。
 - 创建新会员订单前必须阅读产品身份、地区、隐私、条款、风险、Paper 收费和退款/不退款规则七份正文，再保存 document ID/version/hash/time、可信代理提供的请求 IP 与 user-agent 摘要。
 - `0028_commercial_legal_content.sql` 与 `0030_commercial_disclosure_trial.sql` 提供版本化 locale/正文、maker-checker 发布和用户确认；七份正文任一缺失、长度异常或 SHA-256 不匹配时，计划、试用与订单服务同时失败关闭。
 - 披露未发布或未确认时拒绝创建会员订单，并返回真实缺失原因；不得借此阻断身份、Paper 工作台、行情、通知、钱包只读或账户安全。正文由平台 Maintenance 工作台维护。

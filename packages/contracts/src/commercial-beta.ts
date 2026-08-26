@@ -1,8 +1,19 @@
+/**
+ * 四档套餐（P-07）。
+ *
+ * 价格与费率以 `product-parameters.ts` 的 `MEMBERSHIP_PLANS` 为准——那是需求方 2026-08-24
+ * 冻结的确认值。这里保留独立字面量是因为本模块还带着面向展示的 name/isLifetime，
+ * 由 `tests/commercial-plan-pricing` 与冻结值逐项对齐。
+ *
+ * **改价不改历史。** 运行时费率来自 `commercial_membership_orders.performance_fee_bps`
+ * ——下单时快照。改价要新建 `commercial_plan_versions` 版本并把旧版标 retired，绝不就地
+ * 改旧行（INV-5）。
+ */
 export const commercialBetaPlans = [
-  { code: "monthly_v1", name: "月卡", priceUsd: "28.00", priceCurrency: "USD", durationDays: 30, aiCredits: 1_000, performanceFeeRate: "0.20", isLifetime: false },
-  { code: "quarterly_v1", name: "季卡", priceUsd: "58.00", priceCurrency: "USD", durationDays: 90, aiCredits: 3_000, performanceFeeRate: "0.20", isLifetime: false },
-  { code: "annual_v1", name: "年卡", priceUsd: "198.00", priceCurrency: "USD", durationDays: 365, aiCredits: 12_000, performanceFeeRate: "0.20", isLifetime: false },
-  { code: "lifetime_v1", name: "终身会员", priceUsd: "588.00", priceCurrency: "USD", durationDays: null, aiCredits: 36_000, performanceFeeRate: "0.16", isLifetime: true },
+  { code: "monthly_v1", name: "月卡", priceUsd: "59.00", priceCurrency: "USDT", durationDays: 30, aiCredits: 1_000, performanceFeeRate: "0.20", isLifetime: false },
+  { code: "quarterly_v1", name: "季卡", priceUsd: "129.00", priceCurrency: "USDT", durationDays: 90, aiCredits: 3_000, performanceFeeRate: "0.19", isLifetime: false },
+  { code: "annual_v1", name: "年卡", priceUsd: "499.00", priceCurrency: "USDT", durationDays: 365, aiCredits: 12_000, performanceFeeRate: "0.18", isLifetime: false },
+  { code: "lifetime_v1", name: "终身会员", priceUsd: "1999.00", priceCurrency: "USDT", durationDays: null, aiCredits: 36_000, performanceFeeRate: "0.16", isLifetime: true },
 ] as const;
 
 export const betaPaperCapitalUsdt = "10000.00" as const;
@@ -113,7 +124,7 @@ export type CommercialPlan = {
   code: CommercialPlanCode;
   name: string;
   priceUsd: string;
-  priceCurrency: "USD";
+  priceCurrency: "USDT";
   durationDays: number | null;
   aiCredits: number;
   performanceFeeRate: string;

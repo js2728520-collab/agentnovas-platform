@@ -4,7 +4,7 @@ import {
   normalizeStrategyDsl,
   strategyDslFromBrief,
   type StrategyRule,
-} from "./strategy-dsl.ts";
+} from "../packages/domain/src/strategy-dsl.ts";
 import type { ResolvedLlmConfig } from "./client-platform-llm.ts";
 
 const allowedBriefFields = new Set([

@@ -48,19 +48,25 @@ const credentialDocument = {
       email: credentials.client.email,
       password: credentials.client.password,
       loginUrl: "https://agentnovas.com/login",
-      mfa: "Optional; enrollment is available in account security settings.",
+      mfa: process.env.MFA_ENFORCEMENT_ENABLED === "true"
+        ? "Optional; enrollment is available in account security settings."
+        : "Available but not enforced in the current pre-production rollout.",
     },
     operations: {
       email: credentials.operations.email,
       password: credentials.operations.password,
       loginUrl: "https://zht.agentnovas.com/login",
-      mfa: "TOTP enrollment is required immediately after primary authentication.",
+      mfa: process.env.MFA_ENFORCEMENT_ENABLED === "true"
+        ? "TOTP enrollment is required immediately after primary authentication."
+        : "Available but not enforced in the current pre-production rollout.",
     },
     maintenance: {
       email: credentials.maintenance.email,
       password: credentials.maintenance.password,
       loginUrl: "https://xm.agentnovas.com/login",
-      mfa: "TOTP enrollment is required immediately after primary authentication.",
+      mfa: process.env.MFA_ENFORCEMENT_ENABLED === "true"
+        ? "TOTP enrollment is required immediately after primary authentication."
+        : "Available but not enforced in the current pre-production rollout.",
     },
   },
 };

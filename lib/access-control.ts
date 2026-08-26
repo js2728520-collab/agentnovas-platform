@@ -4,6 +4,7 @@ import { currentSession, type CurrentUser } from "@/lib/session";
 import { ResearchApiError } from "@/lib/research-errors";
 import { getPostgresPool } from "@/lib/postgres";
 import { loadEffectiveAccess, type EffectivePermissionGrant } from "@/lib/effective-access";
+import { mfaEnforcementEnabled } from "@/lib/mfa";
 import { resolveAppAudienceStrict, type AppAudience } from "@/lib/riverton-apps";
 import {
   PERMISSION_DEFINITIONS,
@@ -32,7 +33,7 @@ export async function requireAccessPermission(request: Request, permissionKey: s
   if (!definition) throw new ResearchApiError("PERMISSION_UNKNOWN", "权限未注册", 500, { permissionKey });
   const requestAudience = currentRequestAudience(request);
   if (requestAudience !== definition.appId) throw new ResearchApiError("NOT_FOUND", "接口在当前应用不可用", 404);
-  if (definition.sensitive && definition.appId !== "client" && !current.recentMfa) {
+  if (mfaEnforcementEnabled() && definition.sensitive && definition.appId !== "client" && !current.recentMfa) {
     throw new ResearchApiError("RECENT_MFA_REQUIRED", "请在 15 分钟内重新完成双重验证", 403, { maxAgeSeconds: 900 });
   }
   const pool = await getPostgresPool();

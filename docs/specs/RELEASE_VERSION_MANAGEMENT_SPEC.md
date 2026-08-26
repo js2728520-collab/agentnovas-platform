@@ -1,5 +1,7 @@
 # Release Version Management Spec
 
+> 文档状态：`CURRENT_BASELINE`。本文定义当前不可变发布证据控制面；V3 的受限 CI/CD 触发扩展见 [`V3_MAINTENANCE_APP_TARGET_SPEC.md`](V3_MAINTENANCE_APP_TARGET_SPEC.md)，不会覆盖本文历史事实或允许任意基础设施命令。
+
 状态：Approved for implementation
 目标版本：`v1.0.0-beta.1`
 所有者：Maintenance / Release manager
@@ -30,7 +32,7 @@
 | `maint.releases.manage` | 登记新的不可变版本身份 |
 | `maint.releases.approve` | 独立复核版本、登记部署/回滚结果 |
 
-`maint.releases.manage` 与 `maint.releases.approve` 为敏感权限：写请求必须通过 Maintenance session、recent MFA、Origin/CSRF、严格输入、幂等键、reason 和审计策略。版本创建者不能复核自己的版本。
+`maint.releases.manage` 与 `maint.releases.approve` 为敏感权限：写请求必须通过 Maintenance session、Origin/CSRF、严格输入、幂等键、reason 和审计策略；正式生产 MFA 开关开启后同时要求 recent MFA。版本创建者不能复核自己的版本。
 
 ## 4. 状态与规则
 

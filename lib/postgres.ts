@@ -52,6 +52,23 @@ export function expectedWebDatabaseRole(environment: Record<string, string | und
   return null;
 }
 
+/**
+ * 执行服务的数据库身份。
+ *
+ * 它不是三个 Web audience 中的任何一个——它是第四类进程，唯一持有凭证解密密钥。
+ * 让它冒用 client 角色就等于放弃了「角色 ↔ 进程身份」这条控制：一旦复用，
+ * 数据库层面再也分不清「客户端 Web 读了凭证密文」和「执行服务读了凭证密文」。
+ *
+ * 独立角色也是后续把 exchange_accounts.encrypted_credential_ref 的列权限从三个
+ * Web 角色上收回的前提——那一步之后，Web 层连密文都取不到，「拿不到凭证」将由
+ * 数据库强制，而不再依赖构建产物的洁净（ADR-0019）。
+ */
+export function expectedExecutionDatabaseRole(
+  environment: Record<string, string | undefined> = process.env,
+) {
+  return environment.RIVERTON_EXECUTION_SERVICE === "true" ? "agentnovas_execution_service" : null;
+}
+
 function configuredDatabaseRole(connectionString: string, label: string) {
   try {
     return decodeURIComponent(new URL(connectionString).username);
@@ -82,9 +99,9 @@ export function isolatedQualityDatabaseRoleBypass(
 export function resolveWebDatabaseConfiguration(
   environment: Record<string, string | undefined> = process.env,
 ) {
-  const expectedRole = expectedWebDatabaseRole(environment);
+  const expectedRole = expectedExecutionDatabaseRole(environment) ?? expectedWebDatabaseRole(environment);
   if (!expectedRole) {
-    throw new Error("RIVERTON_APP_AUDIENCE 必须明确配置为 client、operations 或 maintenance");
+    throw new Error("RIVERTON_APP_AUDIENCE 必须明确配置为 client、operations 或 maintenance；执行服务请设置 RIVERTON_EXECUTION_SERVICE=true");
   }
   const connectionString = businessDatabaseUrl(environment);
   if (!connectionString) throw new Error("Web DATABASE_URL 尚未配置");

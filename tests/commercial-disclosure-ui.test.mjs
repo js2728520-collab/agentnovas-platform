@@ -5,7 +5,7 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("Maintenance exposes a permission-gated maker-checker commercial disclosure workspace", async () => {
-  const app = await read("apps/maintenance/ui/maintenance-app.tsx");
+  const app = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/navigation.ts")]).then((parts) => parts.join("\n"));
   const workspace = await read("apps/maintenance/ui/commercial-disclosures-workspace.tsx");
   assert.match(app, /\/settings\/disclosures/);
   assert.match(app, /maint\.commercial_disclosures\.view/);

@@ -9,12 +9,7 @@ import type {
   PerformanceFeeStatement,
   PerformanceStatementTimelineEvent,
 } from "@/packages/contracts/src/commercial-beta";
-import {
-  formatDateTime,
-  formatDecimal,
-  type EffectiveAccessPayload,
-  type ViewerPayload,
-} from "@/packages/contracts/src/riverton-ui";
+import { formatDateTime, formatDecimal } from "@/packages/contracts/src/riverton-ui";
 import {
   EmptyState,
   ErrorState,
@@ -24,7 +19,6 @@ import {
 } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
-import { ClientPortalShell } from "./client-portal-shell";
 import styles from "./performance-statements-workspace.module.css";
 
 const statementStatusLabels: Record<PerformanceFeeStatement["status"], string> = {
@@ -117,11 +111,55 @@ function StatementDetail({ statementId }: { statementId: string }) {
     `/api/membership/performance-statements/${encodeURIComponent(statementId)}`,
     "绩效账单详情读取失败",
   );
+  const [paying, setPaying] = useState(false);
+  const [payMessage, setPayMessage] = useState("");
+
+  async function payFromWallet() {
+    if (paying) return;
+    setPaying(true);
+    setPayMessage("");
+    try {
+      const response = await fetch(
+        `/api/membership/performance-statements/${encodeURIComponent(statementId)}/pay-from-wallet`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          // 幂等键在客户端生成：支付路径上网络重试是常态。
+          body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
+        },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.code === "WALLET_BALANCE_INSUFFICIENT"
+          ? "钱包余额不足，请先到「钱包」充值后再支付。"
+          : String(payload.error ?? "支付失败"));
+      }
+      setPayMessage(String(payload.message ?? "账单已结清"));
+      await resource.refresh();
+    } catch (error) {
+      setPayMessage(error instanceof Error ? error.message : "支付失败");
+    } finally {
+      setPaying(false);
+    }
+  }
+
   if (resource.loading && !resource.data) return <LoadingState label="正在读取绩效账单证据链…" />;
   if (resource.error && !resource.data) return <ErrorState message={resource.error} retry={resource.refresh} />;
   if (!resource.data) return <ErrorState message="绩效账单详情不可用" retry={resource.refresh} />;
   const { statement, timeline } = resource.data;
   return <>
+    {statement.status === "INVOICED" ? (
+      <section className={styles.walletPayPanel}>
+        <div>
+          <strong>应付 {formatDecimal(statement.feeAmount)} USDT</strong>
+          <p>从钱包余额扣除，立即结清。余额不足时可先到「钱包」充值。</p>
+        </div>
+        <button type="button" className={styles.walletPay} disabled={paying} onClick={() => void payFromWallet()}>
+          {paying ? "扣款中…" : "用余额支付"}
+        </button>
+        {payMessage ? <p role="status" className={styles.payMessage}>{payMessage}</p> : null}
+      </section>
+    ) : null}
     <PageHeading
       eyebrow={`PAPER PERFORMANCE · REVISION ${statement.revision}`}
       title="绩效账单详情"
@@ -163,15 +201,11 @@ function StatementDetail({ statementId }: { statementId: string }) {
 }
 
 export function PerformanceStatementsWorkspace({
-  viewer,
-  access,
   statementId,
 }: {
-  viewer: ViewerPayload;
-  access: EffectiveAccessPayload;
   statementId?: string;
 }) {
-  return <ClientPortalShell viewer={viewer} access={access}>
+  return <>
     {statementId ? <StatementDetail statementId={statementId} /> : <StatementList />}
-  </ClientPortalShell>;
+  </>;
 }

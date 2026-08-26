@@ -69,7 +69,7 @@ test("produces a deterministic explanation without a return promise", () => {
 });
 
 test("strategy generation route reads owned server history and validates provider output", async () => {
-  const source = await readFile(new URL("../app/api/strategy-studio/generate/route.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/api/strategy-studio/generate/route.client.ts", import.meta.url), "utf8");
   assert.match(source, /getOwnedAiConversation/);
   assert.match(source, /getConversationMessages/);
   assert.match(source, /generateStrategyProposal/);

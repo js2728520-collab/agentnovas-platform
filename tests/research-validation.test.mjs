@@ -9,7 +9,7 @@ import {
   resampleTradeSequence,
   selectExtremeDrawdownWindow,
   splitResearchCandles,
-} from "../lib/research-validation.ts";
+} from "../packages/domain/src/research-validation.ts";
 
 const passing = {
   netReturnPct: 4.2,

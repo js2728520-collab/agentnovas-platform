@@ -10,7 +10,7 @@ import type {
 } from "@/lib/release-version-domain";
 import type { ReleaseManagementPayload, ReleaseVersion } from "@/packages/contracts/src/release-management";
 import { apiErrorMessage, formatDateTime } from "@/packages/contracts/src/riverton-ui";
-import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
+import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
@@ -23,7 +23,7 @@ type Registration = {
   releaseNotes: string;
 };
 
-type PendingAction =
+type ReleaseAction =
   | { kind: "register" }
   | { kind: "verify"; release: ReleaseVersion; decision: ReleaseDecision }
   | { kind: "deployment"; release: ReleaseVersion };
@@ -77,7 +77,7 @@ function ReleaseManagementControl({ initial, currentUserId, canManage, canApprov
   const [deploymentAction, setDeploymentAction] = useState<ReleaseDeploymentAction>("deploy");
   const [deploymentStatus, setDeploymentStatus] = useState<ReleaseDeploymentStatus>("succeeded");
   const [deploymentEvidence, setDeploymentEvidence] = useState("");
-  const [pending, setPending] = useState<PendingAction | null>(null);
+  const [auditReason, setAuditReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const registerKey = useRef(commandKey("release-register"));
@@ -97,12 +97,11 @@ function ReleaseManagementControl({ initial, currentUserId, canManage, canApprov
     return payload;
   }
 
-  async function confirm(reason: string) {
-    if (!pending) return;
+  async function execute(actionToRun: ReleaseAction, reason: string) {
     setBusy(true);
     setMessage("");
     try {
-      if (pending.kind === "register") {
+      if (actionToRun.kind === "register") {
         const response = await fetch("/api/maintenance/releases", {
           method: "POST",
           headers: { "content-type": "application/json", "idempotency-key": registerKey.current },
@@ -112,25 +111,24 @@ function ReleaseManagementControl({ initial, currentUserId, canManage, canApprov
         if (!response.ok) throw new Error(apiErrorMessage(payload, "版本登记失败"));
         registerKey.current = commandKey("release-register");
         setMessage("版本身份已登记为 draft；必须由另一名有审批权限的运维人员复核。");
-      } else if (pending.kind === "verify") {
-        await mutation(`/api/maintenance/releases/${encodeURIComponent(pending.release.id)}/verification`, {
-          decision: pending.decision,
+      } else if (actionToRun.kind === "verify") {
+        await mutation(`/api/maintenance/releases/${encodeURIComponent(actionToRun.release.id)}/verification`, {
+          decision: actionToRun.decision,
           evidenceSha256: verificationEvidence,
           ciRunUrl: ciRunUrl || undefined,
           reason,
-        }, `release-verify:${pending.release.id}:${pending.decision}`);
-        setMessage(pending.decision === "approve" ? "版本验证证据已批准；这不代表任何环境已完成部署。" : "版本已拒绝，不能登记成功部署。");
+        }, `release-verify:${actionToRun.release.id}:${actionToRun.decision}`);
+        setMessage(actionToRun.decision === "approve" ? "版本验证证据已批准；这不代表任何环境已完成部署。" : "版本已拒绝，不能登记成功部署。");
       } else {
-        await mutation(`/api/maintenance/releases/${encodeURIComponent(pending.release.id)}/deployments`, {
+        await mutation(`/api/maintenance/releases/${encodeURIComponent(actionToRun.release.id)}/deployments`, {
           environment,
           action: deploymentAction,
           status: deploymentStatus,
           evidenceSha256: deploymentEvidence,
           reason,
-        }, `release-deployment:${pending.release.id}:${environment}:${deploymentAction}:${deploymentStatus}`);
+        }, `release-deployment:${actionToRun.release.id}:${environment}:${deploymentAction}:${deploymentStatus}`);
         setMessage(`已登记 ${environment} ${deploymentAction} 的 ${deploymentStatus} 证据；平台未从浏览器执行服务器切换或迁移。`);
       }
-      setPending(null);
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "版本管理操作失败");
@@ -138,16 +136,6 @@ function ReleaseManagementControl({ initial, currentUserId, canManage, canApprov
       setBusy(false);
     }
   }
-
-  const dialogTitle = pending?.kind === "register" ? "登记不可变发布版本"
-    : pending?.kind === "verify" ? `${pending.decision === "approve" ? "批准" : "拒绝"}版本验证`
-    : pending?.kind === "deployment" ? `登记 ${environment} ${deploymentAction} 结果`
-    : "确认版本操作";
-  const dialogDescription = pending?.kind === "register"
-    ? "Git、构建产物与迁移身份登记后不可修改，后续差异必须创建新版本。"
-    : pending?.kind === "verify"
-      ? "复核决定和证据摘要不可修改；批准仅表示候选版本通过独立验证。"
-      : "这里只登记已由发布流程产生的证据，不会执行 SSH、迁移、切流或 Git 操作。";
 
   return <>
     <PageHeading eyebrow="RELEASE EVIDENCE CONTROL" title="版本发布" description="平台控制面只登记证据，不从浏览器执行部署、迁移、切流或回滚命令。" actions={<StatusBadge value={initial.currentByEnvironment.production ? "production 已登记" : "production 未登记"} />} />
@@ -158,6 +146,7 @@ function ReleaseManagementControl({ initial, currentUserId, canManage, canApprov
       <article><small>Staging current</small><strong className="rc-kpi-status">{initial.currentByEnvironment.staging?.versionTag ?? "未登记"}</strong><span>{shortHash(initial.currentByEnvironment.staging?.commitSha)}</span></article>
       <article><small>Production current</small><strong className="rc-kpi-status">{initial.currentByEnvironment.production?.versionTag ?? "未登记"}</strong><span>{shortHash(initial.currentByEnvironment.production?.commitSha)}</span></article>
     </section>
+    {(canManage || canApprove) ? <section className="rc-panel"><header><div><small>INLINE AUDIT</small><h2>本轮版本操作</h2><p>登记、复核和部署证据都在页面内填写原因后直接执行；不可变记录、maker/checker、幂等和权限边界不变。</p></div></header><div className="rc-form"><InlineAuditReasonField id="release-action-reason" value={auditReason} onChange={setAuditReason} label="版本操作原因" hint="浏览器只登记既有证据，不执行 SSH、迁移、切流、Git 或部署命令。" /></div></section> : null}
 
     {canManage ? <section className="rc-panel">
       <header><div><small>IMMUTABLE RELEASE IDENTITY</small><h2>登记候选版本</h2></div><StatusBadge value="maker" /></header>
@@ -168,7 +157,7 @@ function ReleaseManagementControl({ initial, currentUserId, canManage, canApprov
         <label>Artifact SHA-256<input spellCheck={false} value={registration.artifactSha256} onChange={(event) => setRegistration({ ...registration, artifactSha256: event.target.value })} maxLength={64} /></label>
         <label>Migration version<input spellCheck={false} value={registration.migrationVersion} onChange={(event) => setRegistration({ ...registration, migrationVersion: event.target.value })} /></label>
         <label className="rc-wide-field">发布说明<textarea rows={4} maxLength={10000} value={registration.releaseNotes} onChange={(event) => setRegistration({ ...registration, releaseNotes: event.target.value })} placeholder="说明用户可见变化、风险边界和已知限制" /></label>
-        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy} onClick={() => setPending({ kind: "register" })}>检查并登记</button></div>
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(auditReason)} onClick={() => void execute({ kind: "register" }, auditReason.trim())}>检查并登记</button></div>
       </div>
     </section> : null}
 
@@ -196,18 +185,17 @@ function ReleaseManagementControl({ initial, currentUserId, canManage, canApprov
       {!selected.verification && canApprove && selected.createdByUserId !== currentUserId ? <div className="rc-form rc-form-grid">
         <label>验证证据 SHA-256<input spellCheck={false} value={verificationEvidence} onChange={(event) => setVerificationEvidence(event.target.value)} maxLength={64} /></label>
         <label>GitHub Actions run URL（可选）<input type="url" value={ciRunUrl} onChange={(event) => setCiRunUrl(event.target.value)} placeholder="https://github.com/org/repo/actions/runs/123" /></label>
-        <div className="rc-action-row rc-wide-field"><button className="rc-button" type="button" disabled={busy || verificationEvidence.length !== 64} onClick={() => setPending({ kind: "verify", release: selected, decision: "reject" })}>拒绝版本</button><button className="rc-primary" type="button" disabled={busy || verificationEvidence.length !== 64} onClick={() => setPending({ kind: "verify", release: selected, decision: "approve" })}>批准验证</button></div>
+        <div className="rc-action-row rc-wide-field"><button className="rc-button" type="button" disabled={busy || verificationEvidence.length !== 64 || !hasValidAuditReason(auditReason)} onClick={() => void execute({ kind: "verify", release: selected, decision: "reject" }, auditReason.trim())}>拒绝版本</button><button className="rc-primary" type="button" disabled={busy || verificationEvidence.length !== 64 || !hasValidAuditReason(auditReason)} onClick={() => void execute({ kind: "verify", release: selected, decision: "approve" }, auditReason.trim())}>批准验证</button></div>
       </div> : null}
       {canApprove && selected.verification?.decision === "approve" ? <div className="rc-form rc-form-grid">
         <label>环境<select value={environment} onChange={(event) => setEnvironment(event.target.value as ReleaseEnvironment)}><option value="staging">staging</option><option value="production">production</option></select></label>
         <label>操作<select value={deploymentAction} onChange={(event) => setDeploymentAction(event.target.value as ReleaseDeploymentAction)}><option value="deploy">deploy</option><option value="rollback">rollback</option></select></label>
         <label>结果<select value={deploymentStatus} onChange={(event) => setDeploymentStatus(event.target.value as ReleaseDeploymentStatus)}><option value="succeeded">succeeded</option><option value="failed">failed</option></select></label>
         <label>部署证据 SHA-256<input spellCheck={false} value={deploymentEvidence} onChange={(event) => setDeploymentEvidence(event.target.value)} maxLength={64} /></label>
-        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || deploymentEvidence.length !== 64} onClick={() => setPending({ kind: "deployment", release: selected })}>登记已执行结果</button></div>
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || deploymentEvidence.length !== 64 || !hasValidAuditReason(auditReason)} onClick={() => void execute({ kind: "deployment", release: selected }, auditReason.trim())}>登记已执行结果</button></div>
       </div> : null}
       {selected.deployments.length ? <div className="rc-table-wrap"><table><thead><tr><th>时间</th><th>环境</th><th>操作</th><th>结果</th><th>证据</th><th>操作者</th></tr></thead><tbody>{selected.deployments.map((deployment) => <tr key={deployment.id}><td>{formatDateTime(deployment.createdAt)}</td><td>{deployment.environment}</td><td>{deployment.action}</td><td><StatusBadge value={deployment.status} /></td><td><small title={deployment.evidenceSha256}>{shortHash(deployment.evidenceSha256)}</small></td><td><small>{deployment.actorUserId}</small></td></tr>)}</tbody></table></div> : null}
     </section> : null}
 
-    <ConfirmActionDialog open={pending !== null} title={dialogTitle} description={dialogDescription} confirmLabel="确认登记" busy={busy} onCancel={() => setPending(null)} onConfirm={(reason) => void confirm(reason)} />
   </>;
 }

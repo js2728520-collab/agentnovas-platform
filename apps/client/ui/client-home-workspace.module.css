@@ -4,17 +4,17 @@
   justify-content: space-between;
   gap: 30px;
   padding: clamp(22px, 3.4vw, 42px);
-  border: 1px solid rgb(132 171 197 / 18%);
-  border-radius: 16px;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
   background:
-    radial-gradient(circle at 88% 0, rgb(31 130 116 / 23%), transparent 38%),
-    linear-gradient(135deg, #0d1d2a, #08131f);
-  box-shadow: 0 24px 70px rgb(0 0 0 / 18%);
+    radial-gradient(circle at 88% 0, var(--rv-brand-soft), transparent 38%),
+    linear-gradient(135deg, var(--rv-card), var(--rv-card));
+  box-shadow: 0 24px 70px var(--rv-overlay);
 }
 .hero > div:first-child { max-width: 780px; }
-.eyebrow { color: #67dcbd; font-size: 10px; font-weight: 850; letter-spacing: .16em; }
+.eyebrow { color: var(--rv-brand-ink); font-size: 12px; font-weight: 850; letter-spacing: .16em; }
 .hero h1 { margin: 8px 0 10px; font-size: clamp(28px, 4vw, 48px); font-weight: 620; letter-spacing: -.045em; }
-.hero p { margin: 0; color: #9eb0c0; line-height: 1.7; }
+.hero p { margin: 0; color: var(--rv-muted-foreground); line-height: 1.7; }
 .heroActions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 9px; }
 .primaryAction,
 .secondaryAction {
@@ -22,17 +22,19 @@
   min-height: 44px;
   align-items: center;
   justify-content: center;
-  border: 1px solid #59d6b4;
-  border-radius: 8px;
+  border: 1px solid var(--rv-brand);
+  border-radius: var(--rv-radius-sm);
   padding: 9px 15px;
   font-size: 13px;
   font-weight: 800;
   text-decoration: none;
 }
-.primaryAction { color: #061c16; background: #64dfbd; }
-.secondaryAction { color: #d8e7ef; background: rgb(7 17 27 / 55%); }
-.primaryAction:hover { background: #87ecd0; }
-.secondaryAction:hover { border-color: #8bead1; color: #fff; }
+/* 品牌绿是浅色，配白字只有 2.35:1，配深色字是 8.41:1。
+   保留这块绿本身——它是品牌色；换掉的是压在上面的文字色。 */
+.primaryAction { color: var(--rv-foreground); background: var(--rv-brand); }
+.secondaryAction { color: var(--rv-foreground); background: var(--rv-muted); }
+.primaryAction:hover { background: var(--rv-brand); }
+.secondaryAction:hover { border-color: var(--rv-brand); color: var(--rv-foreground); }
 
 .portfolioOverview {
   display: grid;
@@ -42,42 +44,45 @@
 }
 .equityCard,
 .portfolioStats article,
+/* --rv-overlay 是 42% 黑的遮罩，给模态背景用的。当成卡片底色，在浅色页面上会
+   合成出一片中灰，卡片里所有文字都压在那片灰上——实测四种文字色
+   全部低于 WCAG AA，最低的只有 1.23:1。表面用 --rv-card。 */
 .statusCard,
 .strategySection,
 .moduleSection {
-  border: 1px solid rgb(132 171 197 / 18%);
-  border-radius: 13px;
-  background: rgb(9 21 32 / 82%);
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
 }
 .equityCard { min-height: 210px; padding: clamp(22px, 3vw, 32px); }
-.equityCard h2 { margin: 8px 0 5px; color: #9cb0c1; font-size: 14px; font-weight: 620; }
+.equityCard h2 { margin: 8px 0 5px; color: var(--rv-muted-foreground); font-size: 14px; font-weight: 620; }
 .equityCard > strong { display: block; margin: 4px 0 18px; font-size: clamp(34px, 5vw, 56px); font-weight: 620; letter-spacing: -.04em; }
-.equityCard > strong small { color: #7e96a8; font-size: 14px; font-weight: 700; letter-spacing: .05em; }
-.equityCard .unavailable { color: #9baebe; font-size: 28px; }
-.equityCard > p { color: #8ca0b1; }
+.equityCard > strong small { color: var(--rv-muted-foreground); font-size: 14px; font-weight: 700; letter-spacing: .05em; }
+.equityCard .unavailable { color: var(--rv-muted-foreground); font-size: 28px; }
+.equityCard > p { color: var(--rv-muted-foreground); }
 .equityCard > button,
 .statusCard button {
   min-height: 36px;
-  border: 1px solid #38566c;
-  border-radius: 7px;
+  border: 1px solid var(--rv-border-strong);
+  border-radius: var(--rv-radius-sm);
   padding: 7px 11px;
-  color: #d9e7f0;
+  color: var(--rv-foreground);
   background: transparent;
   cursor: pointer;
 }
-.pnlRow { display: flex; flex-wrap: wrap; gap: 12px 26px; color: #8398aa; font-size: 12px; }
+.pnlRow { display: flex; flex-wrap: wrap; gap: 12px 26px; color: var(--rv-muted-foreground); font-size: 12px; }
 .pnlRow span { display: inline-flex; align-items: center; gap: 8px; }
 .pnlRow b { font-family: var(--font-geist-mono), monospace; font-size: 13px; }
-.positive { color: #68dcb6 !important; }
-.negative { color: #ff8d9e !important; }
+.positive { color: var(--rv-up) !important; }
+.negative { color: var(--rv-down) !important; }
 
 .portfolioStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
 .portfolioStats article { display: grid; align-content: center; gap: 5px; padding: 16px; }
 .portfolioStats span,
-.statusCard > span { color: #7f95a8; font-size: 10px; font-weight: 780; letter-spacing: .07em; text-transform: uppercase; }
+.statusCard > span { color: var(--rv-muted-foreground); font-size: 12px; font-weight: 780; letter-spacing: .07em; text-transform: uppercase; }
 .portfolioStats strong { font-size: clamp(22px, 3vw, 31px); }
 .portfolioStats p,
-.statusCard p { margin: 0; color: #8499ab; font-size: 11px; line-height: 1.55; }
+.statusCard p { margin: 0; color: var(--rv-muted-foreground); font-size: 12px; line-height: 1.55; }
 
 .strategySection,
 .moduleSection { margin-top: 14px; padding: clamp(18px, 2.6vw, 26px); }
@@ -85,33 +90,33 @@
 .moduleSection > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
 .strategySection h2,
 .moduleSection h2 { margin: 6px 0 0; font-size: clamp(20px, 2.4vw, 28px); }
-.strategySection > header > a { color: #78dec4; font-size: 12px; text-decoration: none; }
+.strategySection > header > a { color: var(--rv-brand-ink); font-size: 12px; text-decoration: none; }
 .strategyGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
 .strategyCard {
   display: grid;
   gap: 17px;
   min-height: 220px;
   padding: 18px;
-  border: 1px solid #284155;
-  border-radius: 11px;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
   color: inherit;
-  background: linear-gradient(145deg, #0e2130, #091722);
+  background: linear-gradient(145deg, var(--rv-card), var(--rv-card));
   text-decoration: none;
   transition: border-color .15s ease, transform .15s ease;
 }
-.strategyCard:hover { border-color: rgb(101 219 188 / 55%); transform: translateY(-2px); }
+.strategyCard:hover { border-color: var(--rv-brand-soft); transform: translateY(-2px); }
 .strategyCard > header { display: flex; justify-content: space-between; gap: 12px; }
-.strategyCard header span { color: #618399; font-family: var(--font-geist-mono), monospace; font-size: 9px; text-transform: uppercase; }
+.strategyCard header span { color: var(--rv-muted-foreground); font-family: var(--font-geist-mono), monospace; font-size: 12px; text-transform: uppercase; }
 .strategyCard h3 { margin: 5px 0 0; font-size: 18px; }
-.strategyCard header i { align-self: flex-start; border: 1px solid rgb(99 220 188 / 34%); border-radius: 999px; padding: 4px 8px; color: #83e5cb; font-size: 10px; font-style: normal; }
+.strategyCard header i { align-self: flex-start; border: 1px solid var(--rv-brand-soft); border-radius: var(--rv-radius); padding: 4px 8px; color: var(--rv-brand-ink); font-size: 12px; font-style: normal; }
 .strategyCard dl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; }
 .strategyCard dl > div:first-child { grid-column: 1 / -1; }
-.strategyCard dt { color: #7790a4; font-size: 10px; }
+.strategyCard dt { color: var(--rv-muted-foreground); font-size: 12px; }
 .strategyCard dd { margin: 5px 0 0; font-family: var(--font-geist-mono), monospace; font-size: 13px; font-weight: 720; }
-.strategyCard footer { display: flex; align-self: end; justify-content: space-between; gap: 10px; color: #7690a3; font-size: 10px; }
-.strategyCard footer span:first-child { color: #bcd0dd; }
-.strategySkeleton { min-height: 220px; border-radius: 11px; background: linear-gradient(100deg, #102333 20%, #1a3549 35%, #102333 50%); background-size: 240% 100%; animation: shimmer 1.3s linear infinite; }
-.empty { margin: 0; padding: 26px; border: 1px dashed #365064; border-radius: 10px; color: #8ba0b1; text-align: center; line-height: 1.6; }
+.strategyCard footer { display: flex; align-self: end; justify-content: space-between; gap: 10px; color: var(--rv-muted-foreground); font-size: 12px; }
+.strategyCard footer span:first-child { color: var(--rv-muted-foreground); }
+.strategySkeleton { min-height: 220px; border-radius: var(--rv-radius-md); background: linear-gradient(100deg, var(--rv-card) 20%, var(--rv-muted) 35%, var(--rv-card) 50%); background-size: 240% 100%; animation: shimmer 1.3s linear infinite; }
+.empty { margin: 0; padding: 26px; border: 1px dashed var(--rv-border); border-radius: var(--rv-radius-md); color: var(--rv-muted-foreground); text-align: center; line-height: 1.6; }
 
 .nextStep {
   display: flex;
@@ -120,14 +125,14 @@
   gap: 22px;
   margin-top: 14px;
   padding: 18px 22px;
-  border: 1px solid rgb(99 220 188 / 27%);
-  border-left: 3px solid #63dcbb;
-  border-radius: 10px;
-  background: #0b1b27;
+  border: 1px solid var(--rv-brand-soft);
+  border-left: 3px solid var(--rv-brand);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-card);
 }
 .nextStep h2 { margin: 6px 0 4px; font-size: 19px; }
-.nextStep p { margin: 0; color: #91a5b5; font-size: 12px; line-height: 1.55; }
-.nextStep > a { flex: 0 0 auto; min-height: 38px; padding: 9px 12px; border: 1px solid #62d9b9; border-radius: 7px; color: #c9f8e9; text-decoration: none; }
+.nextStep p { margin: 0; color: var(--rv-muted-foreground); font-size: 12px; line-height: 1.55; }
+.nextStep > a { flex: 0 0 auto; min-height: 38px; padding: 9px 12px; border: 1px solid var(--rv-brand); border-radius: var(--rv-radius-sm); color: var(--rv-foreground); text-decoration: none; }
 
 .statusGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 14px; }
 .statusCard { display: grid; align-content: start; gap: 7px; padding: 16px; }
@@ -135,14 +140,14 @@
 .statusCard button { justify-self: start; }
 
 .moduleGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
-.moduleGrid a { position: relative; display: grid; min-height: 155px; align-content: start; gap: 7px; padding: 16px; border: 1px solid #263e51; border-radius: 10px; color: inherit; background: #0a1824; text-decoration: none; }
-.moduleGrid a:hover { border-color: #4d8b91; background: #0d1e2c; }
-.moduleGrid a > span { color: #5dcfac; font-size: 9px; font-weight: 850; letter-spacing: .13em; }
+.moduleGrid a { position: relative; display: grid; min-height: 155px; align-content: start; gap: 7px; padding: 16px; border: 1px solid var(--rv-border); border-radius: var(--rv-radius-md); color: inherit; background: var(--rv-card); text-decoration: none; }
+.moduleGrid a:hover { border-color: var(--rv-muted-foreground); background: var(--rv-card); }
+.moduleGrid a > span { color: var(--rv-brand-ink); font-size: 12px; font-weight: 850; letter-spacing: .13em; }
 .moduleGrid strong { margin-top: 5px; font-size: 16px; }
-.moduleGrid p { margin: 0; color: #849aab; font-size: 12px; line-height: 1.55; }
-.moduleGrid b { position: absolute; right: 14px; bottom: 12px; color: #62d9b9; }
+.moduleGrid p { margin: 0; color: var(--rv-muted-foreground); font-size: 12px; line-height: 1.55; }
+.moduleGrid b { position: absolute; right: 14px; bottom: 12px; color: var(--rv-brand-ink); }
 
-.riskNote { margin-top: 14px; padding: 13px 15px; border-top: 1px solid rgb(132 171 197 / 18%); color: #74899b; font-size: 11px; line-height: 1.6; }
+.riskNote { margin-top: 14px; padding: 13px 15px; border-top: 1px solid var(--rv-border); color: var(--rv-muted-foreground); font-size: 12px; line-height: 1.6; }
 
 @keyframes shimmer { to { background-position-x: -240%; } }
 

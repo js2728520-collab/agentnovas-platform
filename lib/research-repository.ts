@@ -1,8 +1,35 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 
-import type { ResearchStrategyDsl } from "./strategy-dsl.ts";
+import type { ResearchStrategyDsl } from "../packages/domain/src/strategy-dsl.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
+
+export async function withResearchCandidateSaveLock<T>(
+  database: Pool,
+  candidateId: string,
+  operation: (client: PoolClient) => Promise<T>,
+) {
+  const normalizedCandidateId = candidateId.trim();
+  if (!normalizedCandidateId || normalizedCandidateId.length > 200) {
+    throw new Error("候选策略 ID 无效");
+  }
+  const client = await database.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [`strategy-candidate-save:${normalizedCandidateId}`],
+    );
+    const result = await operation(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 export async function reserveResearchModelCalls(database: Queryable, input: {
   runId: string;
@@ -208,6 +235,71 @@ export async function getOwnedCandidateForSave(database: Queryable, input: {
     validationLabel: row.validation_label,
     savedStrategyId: row.saved_strategy_id,
     conversationId: row.conversation_id,
+  } : null;
+}
+
+export async function getSavedStrategyDraftForCandidate(database: Queryable, input: {
+  candidateId: string;
+}) {
+  const result = await database.query<{
+    strategy_id: string;
+    strategy_version_id: string;
+    version: number;
+    specification_json: string;
+    validation_label: "UNVERIFIED" | "EXPLORATION_ONLY" | "STANDARD_FAILED" | "STANDARD_VERIFIED";
+  }>(`
+    SELECT candidate.saved_strategy_id AS strategy_id,
+           candidate.saved_strategy_version_id AS strategy_version_id,
+           version.version,
+           version.specification_json,
+           strategy.validation_label
+    FROM strategy_candidates AS candidate
+    JOIN community_strategies AS strategy
+      ON strategy.id = candidate.saved_strategy_id
+    JOIN strategy_versions AS version
+      ON version.id = candidate.saved_strategy_version_id
+     AND version.strategy_id = strategy.id
+    WHERE candidate.id = $1
+  `, [input.candidateId]);
+  const row = result.rows[0];
+  return row ? {
+    strategyId: row.strategy_id,
+    strategyVersionId: row.strategy_version_id,
+    version: row.version,
+    specification: JSON.parse(row.specification_json) as ResearchStrategyDsl,
+    validationLabel: row.validation_label,
+  } : null;
+}
+
+export async function getOwnedStrategyDraftById(database: Queryable, input: {
+  strategyId: string;
+  ownerUserId: string;
+}) {
+  const result = await database.query<{
+    strategy_id: string;
+    strategy_version_id: string;
+    version: number;
+    specification_json: string;
+    validation_label: "UNVERIFIED" | "EXPLORATION_ONLY" | "STANDARD_FAILED" | "STANDARD_VERIFIED";
+  }>(`
+    SELECT strategy.id AS strategy_id,
+           version.id AS strategy_version_id,
+           version.version,
+           version.specification_json,
+           strategy.validation_label
+    FROM community_strategies AS strategy
+    JOIN strategy_versions AS version ON version.strategy_id = strategy.id
+    WHERE strategy.id = $1 AND strategy.author_user_id = $2
+    ORDER BY version.version DESC
+    LIMIT 1
+  `, [input.strategyId, input.ownerUserId]);
+  const row = result.rows[0];
+  return row ? {
+    strategyId: row.strategy_id,
+    strategyVersionId: row.strategy_version_id,
+    version: row.version,
+    specification: JSON.parse(row.specification_json) as ResearchStrategyDsl,
+    validationLabel: row.validation_label,
   } : null;
 }
 

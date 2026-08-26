@@ -26,7 +26,7 @@ test("client root restores the public landing before any authenticated portal gu
     root.indexOf("segments.length === 0") < root.indexOf('import("./client-portal-root")'),
     "the public Client root must dispatch before the authenticated portal",
   );
-  assert.match(landingRoot, /globals-beta\.css/);
+  assert.match(landingRoot, /ClientPublicLanding/);
   assert.match(landingRoot, /apps\/client\/ui\/client-public-landing/);
   assert.match(landing, /export function ClientPublicLanding/);
   assert.match(landing, /\/login\?next=/);
@@ -37,28 +37,33 @@ test("client root restores the public landing before any authenticated portal gu
 });
 
 test("client surfaces and metadata use the supplied Riverton Capital brand assets", async () => {
-  const [clientApp, landing, shell, login, metadata, consoleCss, clientCss, logo, icon] = await Promise.all([
-    read("app/client-app.tsx"),
+  const [landing, shell, login, metadata, consoleCss, clientCss, logo, icon] = await Promise.all([
     read("apps/client/ui/client-public-landing.tsx"),
     read("packages/ui/src/console-shell.tsx"),
     read("packages/ui/src/app-login.tsx"),
     read("lib/riverton-metadata.ts"),
     read("app/riverton-console.css"),
-    read("app/globals-beta.css"),
+    read("apps/client/ui/client-public-landing.module.css"),
     readBytes("public/riverton-capital-logo.png"),
     readBytes("public/riverton-capital-icon.png"),
   ]);
   assert.equal(createHash("sha256").update(logo).digest("hex"), "cc15a314b6d7e8e3643a9cfcabb3b03a7a7cc8982ac911f16b1cf7022d4098d7");
   assert.ok(logo.length <= 200 * 1024, "the supplied logo must stay within the client raster budget");
   assert.ok(icon.length <= 200 * 1024, "the square favicon must stay within the client raster budget");
-  for (const source of [clientApp, landing, shell, login, metadata]) {
+  for (const source of [landing, shell, login, metadata]) {
     assert.match(source, /riverton-capital-logo\.png|riverton-capital-icon\.png/);
   }
   assert.match(consoleCss, /\.rc-client \.rc-console-brand > img/);
   assert.match(consoleCss, /\.rc-auth-client \.rc-auth-brand > a img/);
-  assert.match(clientCss, /\.client-app-shell \.topbar \.logo \.riverton-brand-logo/);
-  assert.match(clientCss, /\.client-app-shell \.top-actions>\.top-login\{display:inline-flex!important/);
-  assert.match(clientCss, /\.client-app-shell \.top-actions>\.top-user-guest\{display:none!important/);
+  // 落地页重设计后顶栏改用 CSS Module。原来三条断言分别是：品牌 logo 有尺寸约束、
+  // 登录按钮可见、「用户」按钮被 display:none 隐藏。
+  //
+  // 第三条现在更强了：那个按钮已被删除——它和「登录」调用同一个 navigate("login")，
+  // 而且标签是写死的中文「用户」，在 7 语言页面里不翻译。重复 + i18n 缺陷，两条都成立。
+  assert.match(clientCss, /\.brandLogo \{[^}]*width:/);
+  assert.match(clientCss, /\.login,/);
+  const landingSource = await read("apps/client/ui/client-public-landing.tsx");
+  assert.doesNotMatch(landingSource, /top-user-guest|>用户</);
   const { rivertonMetadata } = await import("../lib/riverton-metadata.ts");
   assert.match(JSON.stringify(rivertonMetadata("client").icons), /riverton-capital-icon\.png/);
   assert.doesNotMatch(JSON.stringify(rivertonMetadata("operations").icons), /riverton-capital/);
@@ -88,22 +93,15 @@ test("audience entries own their CSS while the root layout stays minimal", async
   assert.doesNotMatch(layout, /LocaleGuard/);
   const client = await read("app/audience/client-root.tsx");
   const clientPortal = await read("app/audience/client-portal-root.tsx");
-  const clientWorkspace = await read("app/audience/client-workspace-root.tsx");
-  const workspacePage = await read("app/workspace/page.tsx");
   const operations = await read("app/audience/operations-root.tsx");
   const maintenance = await read("app/audience/maintenance-root.tsx");
   assert.doesNotMatch(client, /\.css["']/);
   assert.match(client, /import\("\.\/client-portal-root"\)/);
   assert.doesNotMatch(client, /client-workspace-root/);
-  assert.match(workspacePage, /ClientWorkspaceRoot/);
-  assert.match(workspacePage, /resolveAppAudienceStrict/);
-  assert.match(workspacePage, /audience !== "client"/);
   assert.match(clientPortal, /riverton-console\.css/);
-  assert.match(clientWorkspace, /globals-beta\.css/);
-  assert.doesNotMatch(clientWorkspace, /["']\.\.\/globals\.css["']/);
-  assert.match(clientWorkspace, /market-terminal\.css/);
-  assert.match(clientWorkspace, /membership-center\.css/);
-  assert.match(clientWorkspace, /LocaleGuard/);
+  // 债已还清：门户下所有界面的样式都在各自的 CSS Module 里，
+  // globals-beta.css 只剩公开落地页在用。
+  assert.doesNotMatch(clientPortal, /client-public-landing/);
   assert.match(operations, /riverton-console\.css/);
   assert.match(maintenance, /riverton-console\.css/);
   assert.doesNotMatch(operations + maintenance, /globals|market-terminal|membership-center/);
@@ -129,16 +127,16 @@ test("metadata identifies each audience and keeps internal consoles out of searc
 test("internal applications use permission-driven navigation and login without registration", async () => {
   const shell = await read("packages/ui/src/console-shell.tsx");
   const login = await read("packages/ui/src/app-login.tsx");
-  const operations = await read("apps/operations/ui/operations-app.tsx");
-  const maintenance = await read("apps/maintenance/ui/maintenance-app.tsx");
+  const operations = await Promise.all([read("apps/operations/ui/operations-app.tsx"), read("apps/operations/ui/navigation.ts")]).then((parts) => parts.join("\n"));
+  const maintenance = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/navigation.ts")]).then((parts) => parts.join("\n"));
   const operationsRoot = await read("app/audience/operations-root.tsx");
   const maintenanceRoot = await read("app/audience/maintenance-root.tsx");
-  assert.match(shell, /visibleNavigation\(navigation, access\.permissions\)/);
+  assert.match(shell, /visibleNavigationGroups\(navigation, access\.permissions\)/);
   assert.match(login, /allowRegistration/);
   assert.match(operationsRoot, /allowRegistration=\{false\}/);
   assert.match(maintenanceRoot, /allowRegistration=\{false\}/);
   assert.doesNotMatch(operations + maintenance, /AppLogin/);
-  for (const path of ["app/api/auth/register/route.ts", "app/api/auth/forgot-password/route.ts"]) {
+  for (const path of ["app/api/auth/register/route.client.ts", "app/api/auth/forgot-password/route.client.ts"]) {
     const endpoint = await read(path);
     assert.match(endpoint, /currentRequestAudience\(request\) !== "client"/);
     assert.match(endpoint, /status: 404/);
@@ -169,7 +167,7 @@ test("login routes do not start authenticated session trees or prefetch protecte
   }
 });
 
-test("internal login completes required TOTP enrollment and verification", async () => {
+test("internal login retains TOTP enrollment and verification behind the rollout switch", async () => {
   const login = await read("packages/ui/src/app-login.tsx");
   assert.match(login, /mfaEnrollmentRequired/);
   assert.match(login, /\/api\/auth\/mfa\/enroll\/start/);
@@ -177,6 +175,9 @@ test("internal login completes required TOTP enrollment and verification", async
   assert.match(login, /\/api\/auth\/mfa\/verify/);
   assert.match(login, /recoveryCodes/);
   assert.match(login, /autoComplete="one-time-code"/);
+  assert.match(login, /useSyncExternalStore/);
+  assert.match(login, /emptyLocationSnapshot/);
+  assert.doesNotMatch(login, /useState\(readStaffInviteFromUrl\)/);
 });
 
 test("shared console navigation is hydration-safe and keyboard-contained", async () => {
@@ -272,24 +273,22 @@ test("Client dashboard leads with portfolio and strategy state instead of compli
   assert.doesNotMatch(dashboard, /CONTROLLED BETA|PERMISSION-AWARE MODULES|Beta 执行边界|已授权模块/);
 });
 
-test("legacy client workspace enforces the client session and paper permission before loading", async () => {
-  const loader = await read("apps/client/ui/client-workspace-loader.tsx");
-  const app = await read("app/client-app.tsx");
-  assert.match(loader, /useAppSession\("client"\)/);
-  assert.match(loader, /client\.paper\.view/);
-  assert.doesNotMatch(loader, /\/api\/membership\/legal-consent|consentComplete|legalConsentGate/);
-  assert.match(loader, /\/login\?next=/);
-  assert.match(loader, /AccessDenied/);
-  assert.match(loader, /ClientPortalShell/);
-  assert.match(loader, /<ClientApp embedded/);
-  assert.match(app, /canViewMembership/);
-  assert.match(app, /client-workspace-embedded/);
-  assert.match(app, /client-workspace-nav/);
-  assert.match(app, /href="\/dashboard"/);
-  assert.match(app, /embedded\s*\?\s*page\s*:\s*!authResolved/);
-  assert.match(app, /const ShellElement = embedded \? "div" : "main"/);
-  assert.match(app, /<ShellElement className=/);
-  assert.match(app, /p !== "membership" \|\| canViewMembership/);
+test("客户端外壳在渲染任何工作区之前强制会话与权限", async () => {
+  // 原断言守的是 /workspace 的加载器（P4 已退役）。同一条约束现在由门户外壳
+  // ClientChrome 与 client-portal 的逐路由权限判定承担，绊线跟着搬过来。
+  const chrome = await read("apps/client/ui/client-chrome.tsx");
+  const portal = await read("apps/client/ui/client-portal.tsx");
+  assert.match(chrome, /AppSessionProvider audience="client"/);
+  assert.match(chrome, /status === "anonymous"/);
+  assert.match(chrome, /\/login\?next=/);
+  assert.match(chrome, /ClientPortalShell/);
+  assert.doesNotMatch(chrome, /\/api\/membership\/legal-consent|consentComplete|legalConsentGate/);
+  assert.match(portal, /session\.status !== "authenticated"/);
+  // 从 /workspace 迁过来的四个界面都必须自带权限判定，不能靠外壳兜底。
+  for (const guarded of ["studio", "trading-hall"]) {
+    assert.match(portal, new RegExp(`route === "${guarded}"[\\s\\S]{0,200}client\\.paper\\.view`));
+  }
+  assert.match(portal, /AccessDenied/);
 });
 
 test("client exposes standalone disclosures without blocking the trading workbench", async () => {
@@ -323,9 +322,16 @@ test("client workspaces bind to real wallet, Udun deposit orders, and notificati
 
 test("access center can publish approved draft roles with an audited reason", async () => {
   const center = await read("packages/ui/src/access-center.tsx");
-  const publish = await read("app/api/access/roles/[id]/publish/route.ts");
+  const publish = await read("app/api/access/roles/[id]/publish/route.internal.ts");
   assert.match(center, /kind: "publish"/);
   assert.match(center, /role\.status === "draft"/);
+  assert.match(center, /InlineAuditReasonField/);
+  assert.match(center, /角色配置原因/);
+  assert.match(center, /模板配置原因/);
+  assert.match(center, /角色分配原因/);
+  assert.doesNotMatch(center, /setPending\(\{ kind: "(?:role|template|publish|assignment)"/);
+  assert.match(center, /setPending\(\{ kind: "revoke"/);
+  assert.match(center, /setPending\(\{ kind: "decision"/);
   assert.match(publish, /必须填写发布原因/);
   assert.match(publish, /authorization_audit_events/);
   assert.match(center, /\/api\/access\/role-templates/);
@@ -352,33 +358,116 @@ test("maintenance model response view omits full endpoints and key material", as
 });
 
 test("payment connectivity tests require an explicit true feature switch", async () => {
-  const source = await read("app/api/maintenance/payment-providers/[id]/test/route.ts");
+  const source = await read("app/api/maintenance/payment-providers/[id]/test/route.maintenance.ts");
   assert.match(source, /PAYMENT_PROVIDER_TESTS_ENABLED !== "true"/);
   assert.match(source, /503/);
   assert.match(source, /maintenanceReason/);
 });
 
-test("maintenance connectivity tests require reasons and Udun controls use confirmation dialogs", async () => {
+test("maintenance connectivity tests keep audited reasons without redundant configuration dialogs", async () => {
   for (const path of [
-    "app/api/admin/agent-role-bindings/test/route.ts",
-    "app/api/admin/runtime-explanation-bindings/test/route.ts",
-    "app/api/maintenance/email/test/route.ts",
+    "app/api/admin/agent-role-bindings/test/route.maintenance.ts",
+    "app/api/admin/runtime-explanation-bindings/test/route.maintenance.ts",
+    "app/api/maintenance/email/test/route.maintenance.ts",
   ]) {
     assert.match(await read(path), /maintenanceReason/);
   }
-  assert.match(await read("apps/maintenance/ui/models-workspace.tsx"), /kind: "test"/);
-  assert.match(await read("apps/maintenance/ui/email-integration-workspace.tsx"), /ConfirmActionDialog/);
+  const models = await read("apps/maintenance/ui/models-workspace.tsx");
+  assert.match(models, /kind: "test"/);
+  assert.match(models, /InlineAuditReasonField/);
+  const email = await read("apps/maintenance/ui/email-integration-workspace.tsx");
+  assert.match(email, /InlineAuditReasonField/);
+  assert.doesNotMatch(email, /ConfirmActionDialog/);
+  const sources = await read("apps/maintenance/ui/source-integrations-workspace.tsx");
+  assert.match(sources, /InlineAuditReasonField/);
+  assert.doesNotMatch(sources, /ConfirmActionDialog/);
   const payment = await read("apps/maintenance/ui/payment-integration-workspace.tsx");
   assert.match(payment, /DEPOSIT ONLY/);
-  assert.match(payment, /kind: "configure" \| "test" \| "activate" \| "disable"/);
-  assert.match(payment, /ConfirmActionDialog/);
+  assert.match(payment, /InlineAuditReasonField/);
+  assert.match(payment, /kind: "activate" \| "disable"/);
+  assert.match(payment, /hasValidAuditReason\(statusReason\)/);
+  assert.doesNotMatch(payment, /ConfirmActionDialog/);
   assert.match(payment, /idempotency-key/);
 });
 
 test("maintenance model workspaces separate read access from write controls", async () => {
-  const source = await read("apps/maintenance/ui/maintenance-app.tsx");
+  const source = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/navigation.ts")]).then((parts) => parts.join("\n"));
   assert.match(source, /href: "\/models"[\s\S]*maint\.system_health\.view/);
   assert.match(source, /route === "models" \? \["maint\.system_health\.view"/);
   assert.match(source, /canManageProfiles/);
   assert.match(source, /canManageBindings/);
+});
+
+test("工作记录页面同时说明公共决策与个人准入，并按需懒加载", async () => {
+  const routeContract = await read("app/riverton-route-contract.ts");
+  const portal = await read("apps/client/ui/client-portal.tsx");
+  const navigation = await read("apps/client/ui/client-portal-shell.tsx");
+  const workspace = await read("apps/client/ui/work-records-workspace.tsx");
+
+  assert.match(routeContract, /CLIENT_ROUTES[\s\S]*"work-records"/);
+  assert.match(navigation, /href: "\/work-records"/);
+  assert.match(portal, /route === "work-records"/);
+  assert.match(portal, /client\.paper\.view/);
+  // 根 layout 被所有页面共享，Client 初始 JS 预算余量只有约 160 字节；
+  // 新工作区必须按需加载，静态 import 会直接把它打进公开落地页的包。
+  assert.match(portal, /const WorkRecordsWorkspace = dynamic\(\(\) => import\("\.\/work-records-workspace"\)/);
+
+  // 客户不能把共享的七阶段叙述误解成「平台为我一个人跑了七次 Agent」，
+  // 也不能误以为所有订阅者仓位相同（STRATEGY_WORK_RECORDS_SPEC §2）。
+  assert.match(workspace, /公共/);
+  assert.match(workspace, /你的组合准入/);
+  assert.match(workspace, /只判断一次/);
+});
+
+test("工作记录不得把「无需准入」与「未记录」混为一谈", async () => {
+  const workspace = await read("apps/client/ui/work-records-workspace.tsx");
+  // 合并这两种状态会让「证据缺失」看起来像「产品规则如此」，违反 INV-6。
+  // 只有纯 hold 且无客户周期才是 not_required，其余缺周期一律 not_recorded。
+  assert.match(workspace, /not_required: "本轮无需准入"/);
+  assert.match(workspace, /not_recorded: "未记录准入"/);
+  assert.match(workspace, /not_recorded:[\s\S]*不表示无需准入，也不表示已经执行/);
+  assert.match(workspace, /risk_rejected/);
+
+  // 模拟成交不得被描述成真实成交，页面必须明示真实订单路由关闭。
+  assert.match(workspace, /不是真实交易所成交/);
+  assert.match(workspace, /realOrderRoutingEnabled/);
+
+  // 分页游标是服务端编码的不透明位置，不得由浏览器构造或猜测。
+  assert.match(workspace, /encodeURIComponent\(cursor\)/);
+  assert.doesNotMatch(workspace, /offset=/);
+});
+
+test("Maintenance 导出页只做受控导出，不提供逐条客户详情", async () => {
+  const routeContract = await read("app/riverton-route-contract.ts");
+  const navigation = await read("apps/maintenance/ui/navigation.ts");
+  const dispatcher = await read("apps/maintenance/ui/maintenance-app.tsx");
+  const workspace = await read("apps/maintenance/ui/work-record-export-workspace.tsx");
+
+  assert.match(routeContract, /MAINTENANCE_ROUTES[\s\S]*"work-records"/);
+  assert.match(navigation, /href: "\/work-records", label: "工作记录导出"/);
+  assert.match(navigation, /maint\.work_records\.export/);
+  assert.match(dispatcher, /route === "work-records" \? \["maint\.work_records\.export"\]/);
+  assert.match(dispatcher, /const WorkRecordExportWorkspace = dynamic\(/);
+
+  // 导出是独立敏感权限，不能搭在既有 Maintenance 权限上顺带获得。
+  assert.doesNotMatch(navigation, /href: "\/work-records"[^}]*maint\.ai_usage\.view/);
+
+  // Maintenance 配置与控制流程一律页面内原因直接执行，不使用确认弹窗。
+  assert.doesNotMatch(workspace, /ConfirmActionDialog|window\.confirm/);
+  assert.match(workspace, /审计原因/);
+  // 幂等键必须在成功后才轮换：结果不确定时重试复用同一个键，否则一次导出写两条审计。
+  assert.match(workspace, /"Idempotency-Key": idempotencyKey/);
+  assert.match(workspace, /setIdempotencyKey\(crypto\.randomUUID\(\)\);/);
+});
+
+test("导出页如实呈现截断与模拟边界，不声称结果完整", async () => {
+  const workspace = await read("apps/maintenance/ui/work-record-export-workspace.tsx");
+  // 命中上限必须显式告知不完整；把 truncated 显示成普通条数会让人把抽样当全量。
+  assert.match(workspace, /result\.truncated/);
+  assert.match(workspace, /不是该区间的完整记录/);
+  assert.match(workspace, /realOrderRoutingEnabled/);
+  assert.match(workspace, /Paper 模拟/);
+  // 页面不得回显原始用户标识：只有单向伪名。
+  assert.match(workspace, /customerPseudonym/);
+  assert.doesNotMatch(workspace, /\bemail\b|\bphone\b|ownerUserId|userId/);
 });

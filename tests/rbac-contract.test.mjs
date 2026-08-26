@@ -108,7 +108,7 @@ test("typed access changes reject unsafe keys and normalize bounded expiry", () 
 });
 
 test("decision route locks request, applies mutations, and audits in transaction", async () => {
-  const source = await readFile(new URL("../app/api/access/change-requests/[id]/decisions/route.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/api/access/change-requests/[id]/decisions/route.internal.ts", import.meta.url), "utf8");
   assert.match(source, /FOR UPDATE/);
   assert.match(source, /applyApprovedChange/);
   assert.match(source, /authorization_audit_events/);
@@ -117,7 +117,7 @@ test("decision route locks request, applies mutations, and audits in transaction
 });
 
 test("role assignment endpoint refuses direct sensitive grants", async () => {
-  const source = await readFile(new URL("../app/api/access/assignments/route.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/api/access/assignments/route.internal.ts", import.meta.url), "utf8");
   assert.match(source, /SENSITIVE_APPROVAL_REQUIRED/);
   assert.match(source, /pd\.sensitive = true/);
 });

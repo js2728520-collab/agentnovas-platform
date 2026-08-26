@@ -1,0 +1,50 @@
+.page {
+  max-width: var(--rv-content-max, 72rem);
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  color: var(--rv-foreground);
+  background: var(--rv-background);
+}
+
+.header h1 { margin: 0 0 0.5rem; font-size: 2rem; }
+.header p { margin: 0; color: var(--rv-muted-foreground); }
+
+.documents { display: flex; flex-direction: column; gap: 2.5rem; }
+
+.document {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rv-border);
+}
+
+.documentHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.documentHead h2 { margin: 0 0 0.75rem; font-size: 1.25rem; }
+
+.version {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: var(--rv-muted-foreground);
+}
+
+.version code { font-family: var(--rv-font-mono); }
+
+/* 条款正文以阅读为主：限制行宽，放宽行距。 */
+.markdown { max-width: 65ch; line-height: 1.75; }
+.markdown h3 { margin: 1.5rem 0 0.5rem; font-size: 1.0625rem; }
+.markdown h4 { margin: 1.25rem 0 0.5rem; font-size: 0.9375rem; }
+.markdown p { margin: 0 0 0.75rem; }
+.markdown ul, .markdown ol { margin: 0 0 0.75rem; padding-left: 1.5rem; }
+.markdown li { margin-bottom: 0.375rem; }
+
+.missing { color: var(--rv-warning-ink); }

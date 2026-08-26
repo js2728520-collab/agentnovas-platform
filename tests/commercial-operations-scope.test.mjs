@@ -96,16 +96,16 @@ test("mutation authorization binds the live assignment scope to a same-client re
 
 test("all commercial Operations routes propagate assignment organization ids", async () => {
   for (const path of [
-    "app/api/operations/membership-orders/route.ts",
-    "app/api/operations/membership-orders/[id]/route.ts",
-    "app/api/operations/membership-orders/[id]/decision/route.ts",
-    "app/api/operations/membership-orders/[id]/evidence/route.ts",
-    "app/api/operations/membership-orders/[id]/submit/route.ts",
-    "app/api/operations/performance-statements/route.ts",
-    "app/api/operations/performance-statements/generate/route.ts",
-    "app/api/operations/performance-statements/[id]/decision/route.ts",
-    "app/api/operations/performance-statements/[id]/payment-decision/route.ts",
-    "app/api/operations/performance-statements/[id]/payment-evidence/route.ts",
+    "app/api/operations/membership-orders/route.operations.ts",
+    "app/api/operations/membership-orders/[id]/route.operations.ts",
+    "app/api/operations/membership-orders/[id]/decision/route.operations.ts",
+    "app/api/operations/membership-orders/[id]/evidence/route.operations.ts",
+    "app/api/operations/membership-orders/[id]/submit/route.operations.ts",
+    "app/api/operations/performance-statements/route.operations.ts",
+    "app/api/operations/performance-statements/generate/route.operations.ts",
+    "app/api/operations/performance-statements/[id]/decision/route.operations.ts",
+    "app/api/operations/performance-statements/[id]/payment-decision/route.operations.ts",
+    "app/api/operations/performance-statements/[id]/payment-evidence/route.operations.ts",
   ]) {
     const source = await read(path);
     assert.match(source, /organizationIds/, `${path} drops assignment scope`);
@@ -114,13 +114,13 @@ test("all commercial Operations routes propagate assignment organization ids", a
 
 test("commercial Operations mutations inject same-transaction authorization", async () => {
   for (const path of [
-    "app/api/operations/membership-orders/[id]/decision/route.ts",
-    "app/api/operations/membership-orders/[id]/evidence/route.ts",
-    "app/api/operations/membership-orders/[id]/submit/route.ts",
-    "app/api/operations/performance-statements/generate/route.ts",
-    "app/api/operations/performance-statements/[id]/decision/route.ts",
-    "app/api/operations/performance-statements/[id]/payment-decision/route.ts",
-    "app/api/operations/performance-statements/[id]/payment-evidence/route.ts",
+    "app/api/operations/membership-orders/[id]/decision/route.operations.ts",
+    "app/api/operations/membership-orders/[id]/evidence/route.operations.ts",
+    "app/api/operations/membership-orders/[id]/submit/route.operations.ts",
+    "app/api/operations/performance-statements/generate/route.operations.ts",
+    "app/api/operations/performance-statements/[id]/decision/route.operations.ts",
+    "app/api/operations/performance-statements/[id]/payment-decision/route.operations.ts",
+    "app/api/operations/performance-statements/[id]/payment-evidence/route.operations.ts",
   ]) {
     const source = await read(path);
     assert.match(
@@ -167,7 +167,7 @@ test("commercial services re-authorize locked customer rows before idempotency",
 });
 
 test("client membership order creation records only the trusted proxy IP", async () => {
-  const source = await read("app/api/membership/orders/route.ts");
+  const source = await read("app/api/membership/orders/route.client.ts");
   assert.match(source, /clientIpFromRequest\(request\)/);
   assert.doesNotMatch(source, /headers\.get\(["']x-forwarded-for["']\)/i);
   assert.doesNotMatch(source, /trustedIp:\s*null/);

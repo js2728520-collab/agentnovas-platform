@@ -14,7 +14,7 @@ import {
   assertBalancedPostings,
   compareDecimalStrings,
   normalizeDecimalString,
-} from "../lib/ledger.ts";
+} from "../packages/ledger/src/ledger.ts";
 
 test("deposit contract exposes required states without enabling withdrawals", () => {
   assert.deepEqual(DEPOSIT_ORDER_STATUSES, ["PENDING_CONFIRMATION", "CONFIRMING", "MANUAL_REVIEW", "CREDITED", "FAILED", "RETURNED"]);

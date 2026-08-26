@@ -2,7 +2,7 @@ type Queryable = {
   query: (text: string, values?: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }>;
 };
 
-export type WorkerType = "research" | "runtime" | "notification" | "payment" | "demo_execution";
+export type WorkerType = "research" | "runtime" | "notification" | "payment" | "demo_execution" | "configuration_activation";
 export type WorkerRuntimeStatus = "starting" | "running" | "stopping" | "stopped" | "error";
 export type WorkerLiveness = "missing" | "alive" | "stale";
 export type WorkerHealthState = "disabled" | "unconfigured" | "missing" | "stale" | "degraded" | "healthy";

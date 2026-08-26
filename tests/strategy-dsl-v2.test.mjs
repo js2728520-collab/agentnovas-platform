@@ -5,7 +5,7 @@ import {
   StrategyDslValidationError,
   normalizeStrategyDslV2,
   strategyDslToRuntime,
-} from "../lib/strategy-dsl.ts";
+} from "../packages/domain/src/strategy-dsl.ts";
 
 const longLeg = {
   entry: { all: [{ type: "channel_breakout", period: 20, direction: "above" }] },

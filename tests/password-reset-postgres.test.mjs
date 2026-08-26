@@ -114,3 +114,30 @@ test("concurrent sibling invitation reset tokens allow only one password mutatio
     WHERE user_id = 'pending-user' AND revoked_at IS NULL
   `)).rows[0].count, 1);
 });
+
+test("disabled MFA enforcement activates an internal account without creating a primary-only session", async () => {
+  await pool.query(`
+    INSERT INTO users (id, email, password_hash, role, organization_id, status)
+      VALUES ('mfa-off-user', 'mfa-off@example.test', 'disabled', 'employee', 'org', 'pending');
+    INSERT INTO user_role_assignments (id, user_id, role_id, application_id, organization_id, scope_organization_ids_json, effective_at)
+      VALUES ('mfa-off-assignment', 'mfa-off-user', 'role-1', 'operations', 'org', '["org"]'::jsonb, '2026-08-20T00:00:00.000Z');
+    INSERT INTO auth_tokens (id, user_id, token_hash, purpose, token_audience, expires_at)
+      VALUES ('mfa-off-token', 'mfa-off-user', 'mfa-off-token-hash', 'reset_password', 'operations', '2026-08-20T02:00:00.000Z');
+  `);
+  assert.deepEqual(await consumePasswordReset(pool, {
+    tokenHash: "mfa-off-token-hash",
+    passwordHash: "mfa-off-new-hash",
+    audience: "operations",
+    mfaEnforced: false,
+    now: new Date("2026-08-20T01:00:00.000Z"),
+  }), {
+    ok: true,
+    accountActivated: true,
+    primarySessionCreated: false,
+    mfaEnrollmentRequired: false,
+  });
+  assert.equal((await pool.query(`
+    SELECT count(*)::int AS count FROM sessions
+    WHERE user_id = 'mfa-off-user' AND revoked_at IS NULL
+  `)).rows[0].count, 0);
+});

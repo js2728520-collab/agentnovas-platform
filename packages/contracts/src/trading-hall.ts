@@ -195,6 +195,16 @@ export type TradingHallDecisionRound = {
   completeness: TradingHallRoundCompleteness;
   traceId: string | null;
   updatedAt: string | null;
+  /**
+   * 该轮七阶段结论的共享单元 id（ADR-0018）。
+   *
+   * 同一张策略卡在同一根已收盘 K 线上只判断一次，订阅该卡的所有客户看到的是
+   * **同一轮**——七阶段内容不含任何客户数据。界面必须如实说明这一点，
+   * 不能让客户理解为「为我单独运行」。
+   *
+   * 为 null 表示这一轮还是按部署单独跑的（过渡期的历史数据，或永续部署）。
+   */
+  sharedDecisionRoundId: string | null;
   events: TradingHallDecisionEvent[];
 };
 

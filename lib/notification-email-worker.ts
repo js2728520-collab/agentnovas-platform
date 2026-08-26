@@ -62,7 +62,7 @@ async function materializeNotificationPayload(
   now: Date,
 ) {
   const payload = parsePayload(value);
-  if (templateKey !== "reset_password" && templateKey !== "internal_account_invite") return payload;
+  if (templateKey !== "verify_email" && templateKey !== "reset_password" && templateKey !== "internal_account_invite") return payload;
   const expiresAt = secretExpiresAt instanceof Date
     ? secretExpiresAt.getTime()
     : typeof secretExpiresAt === "string"
@@ -122,17 +122,45 @@ function email(subject: string, lines: string[]): NotificationEmail {
 export function renderNotificationEmail(templateKey: string, payloadJson: unknown): NotificationEmail {
   const payload = parsePayload(payloadJson);
   switch (templateKey) {
+    case "verify_email": {
+      const token = boundedString(payload, "token", MAX_TOKEN_LENGTH);
+      if (payload.audience !== "client") throw new Error("INVALID_PAYLOAD");
+      const link = `https://agentnovas.com/verify-email#token=${encodeURIComponent(token)}`;
+      return email("验证 Riverton Capital 邮箱", ["请完成客户账户邮箱验证。", `请在 24 小时内打开以下链接：${link}`, "如果这不是你的操作，请忽略此邮件。"]) ;
+    }
+    case "security_new_device": {
+      const device = boundedString(payload, "device", 160);
+      const maskedIpAddress = boundedString(payload, "maskedIpAddress", 160);
+      const occurredAt = isoDate(payload, "occurredAt");
+      return email("Riverton Capital 新设备登录提醒", [
+        `设备：${device}`,
+        `大致网络位置：${maskedIpAddress}`,
+        `时间：${occurredAt}`,
+        "如果这不是你的操作，请立即修改密码并退出全部设备。",
+      ]);
+    }
+    case "security_network_changed": {
+      const device = boundedString(payload, "device", 160);
+      const maskedIpAddress = boundedString(payload, "maskedIpAddress", 160);
+      const occurredAt = isoDate(payload, "occurredAt");
+      return email("Riverton Capital 登录网络位置变化提醒", [
+        `设备：${device}`,
+        `新的大致网络位置：${maskedIpAddress}`,
+        `时间：${occurredAt}`,
+        "如果这不是你的操作，请立即修改密码并退出全部设备。",
+      ]);
+    }
     case "reset_password": {
       const token = boundedString(payload, "token", MAX_TOKEN_LENGTH);
       if (payload.audience !== "client") throw new Error("INVALID_PAYLOAD");
-      const link = `https://agentnovas.com/reset-password?token=${encodeURIComponent(token)}`;
+      const link = `https://agentnovas.com/reset-password#token=${encodeURIComponent(token)}`;
       return email("重置 AgentNovas 密码", ["我们收到了密码重置请求。", `请在一小时内打开以下链接：${link}`, "如果这不是你的操作，请忽略此邮件。"]);
     }
     case "internal_account_invite": {
       const token = boundedString(payload, "token", MAX_TOKEN_LENGTH);
       const role = boundedString(payload, "role", 80);
       if (payload.activation !== true || payload.audience !== "operations") throw new Error("INVALID_PAYLOAD");
-      const link = `https://zht.agentnovas.com/reset-password?token=${encodeURIComponent(token)}`;
+      const link = `https://zht.agentnovas.com/reset-password#token=${encodeURIComponent(token)}`;
       return email("AgentNovas 内部账号邀请", ["你的内部账号已创建。", `角色：${role}`, `请在 48 小时内设置密码：${link}`, "密码设置完成前账户不会激活。"]);
     }
     case "team_daily_brief": {
@@ -448,9 +476,9 @@ export async function markEmailSent(pool: Pick<Pool, "query">, input: {
         SET status = CASE WHEN status IN ('delivered', 'failed') THEN status ELSE 'sent' END,
             provider_message_id = $3,
             sent_at = COALESCE(sent_at, $4),
-            payload_json = CASE WHEN template_key IN ('reset_password', 'internal_account_invite') THEN '{}' ELSE payload_json END,
-            secret_kind = CASE WHEN template_key IN ('reset_password', 'internal_account_invite') THEN NULL ELSE secret_kind END,
-            secret_expires_at = CASE WHEN template_key IN ('reset_password', 'internal_account_invite') THEN NULL ELSE secret_expires_at END,
+            payload_json = CASE WHEN template_key IN ('verify_email','reset_password','internal_account_invite') THEN '{}' ELSE payload_json END,
+            secret_kind = CASE WHEN template_key IN ('verify_email','reset_password','internal_account_invite') THEN NULL ELSE secret_kind END,
+            secret_expires_at = CASE WHEN template_key IN ('verify_email','reset_password','internal_account_invite') THEN NULL ELSE secret_expires_at END,
             last_error = CASE WHEN status = 'failed' THEN last_error ELSE NULL END,
             lease_owner = NULL, lease_expires_at = NULL, updated_at = $4
       WHERE id = $1 AND lease_owner = $2
@@ -472,9 +500,9 @@ export async function markEmailFailed(pool: Pick<Pool, "query">, input: {
   return fencedUpdate(pool,
     `UPDATE notification_deliveries
         SET status = $3, last_error = $4, scheduled_at = CASE WHEN $3 = 'queued' THEN $5 ELSE scheduled_at END,
-            payload_json = CASE WHEN $3 = 'failed' AND template_key IN ('reset_password', 'internal_account_invite') THEN '{}' ELSE payload_json END,
-            secret_kind = CASE WHEN $3 = 'failed' AND template_key IN ('reset_password', 'internal_account_invite') THEN NULL ELSE secret_kind END,
-            secret_expires_at = CASE WHEN $3 = 'failed' AND template_key IN ('reset_password', 'internal_account_invite') THEN NULL ELSE secret_expires_at END,
+            payload_json = CASE WHEN $3 = 'failed' AND template_key IN ('verify_email','reset_password','internal_account_invite') THEN '{}' ELSE payload_json END,
+            secret_kind = CASE WHEN $3 = 'failed' AND template_key IN ('verify_email','reset_password','internal_account_invite') THEN NULL ELSE secret_kind END,
+            secret_expires_at = CASE WHEN $3 = 'failed' AND template_key IN ('verify_email','reset_password','internal_account_invite') THEN NULL ELSE secret_expires_at END,
             lease_owner = NULL, lease_expires_at = NULL, updated_at = $6
       WHERE id = $1 AND lease_owner = $2`,
     [input.deliveryId, input.workerId, retry ? "queued" : "failed", input.errorCode.slice(0, 200), scheduledAt, input.now.toISOString()],

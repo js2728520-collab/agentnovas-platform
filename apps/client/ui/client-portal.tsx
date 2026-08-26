@@ -1,75 +1,114 @@
 "use client";
 
-import { useEffect } from "react";
 import dynamic from "next/dynamic";
 
-import { AccessDenied, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
-import { useAppSession } from "@/packages/ui/src/use-app-session";
+import { AccessDenied } from "@/packages/ui/src/page-state";
+import { useAppSessionContext } from "@/packages/ui/src/app-session-context";
 import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 
-import { ClientPortalShell } from "./client-portal-shell";
 import { ClientHomeWorkspace } from "./client-home-workspace";
 
-const workspaceLoading = () => <LoadingState label="正在加载客户端模块…" />;
-const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module) => module.CreditWorkspace), { loading: workspaceLoading });
-const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((module) => module.DepositWorkspace), { loading: workspaceLoading });
-const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience), { loading: workspaceLoading });
-const MembershipExperience = dynamic(() => import("./membership-experience"), { loading: workspaceLoading });
-const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace), { loading: workspaceLoading });
-const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace), { loading: workspaceLoading });
-const TradingExperience = dynamic(() => import("./trading-experience"), { loading: workspaceLoading });
-const WalletWorkspace = dynamic(() => import("./wallet-workspace").then((module) => module.WalletWorkspace), { loading: workspaceLoading });
-const AccountSecurityWorkspace = dynamic(() => import("./account-security-workspace").then((module) => module.AccountSecurityWorkspace), { loading: workspaceLoading });
-const SupportWorkspace = dynamic(() => import("./support-workspace").then((module) => module.SupportWorkspace), { loading: workspaceLoading });
+
+const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module) => module.CreditWorkspace));
+const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((module) => module.DepositWorkspace));
+const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience));
+const PublicLegalPage = dynamic(() => import("./public-legal-page").then((module) => module.PublicLegalPage));
+const MembershipExperience = dynamic(() => import("./membership-experience"));
+const AiWorkbench = dynamic(() => import("./ai-workbench"));
+const DecisionHall = dynamic(() => import("./decision-hall"));
+const StrategyMarketplaceWorkspace = dynamic(() => import("./strategy-marketplace-workspace"));
+const FollowResultsWorkspace = dynamic(() => import("./follow-results-workspace"));
+const BacktestWorkspace = dynamic(() => import("./backtest-workspace"));
+const DecisionMeeting = dynamic(() => import("./decision-hall").then((module) => module.DecisionMeeting));
+const LiveMarket = dynamic(() => import("./live-market"));
+const NotificationWorkspace = dynamic(() => import("./notification-workspace").then((module) => module.NotificationWorkspace));
+const PerformanceStatementsWorkspace = dynamic(() => import("./performance-statements-workspace").then((module) => module.PerformanceStatementsWorkspace));
+const TradingExperience = dynamic(() => import("./trading-experience"));
+const WalletWorkspace = dynamic(() => import("./wallet-workspace").then((module) => module.WalletWorkspace));
+const WorkRecordsWorkspace = dynamic(() => import("./work-records-workspace").then((module) => module.WorkRecordsWorkspace));
+const AccountSecurityWorkspace = dynamic(() => import("./account-security-workspace").then((module) => module.AccountSecurityWorkspace));
+const SupportWorkspace = dynamic(() => import("./support-workspace").then((module) => module.SupportWorkspace));
 
 export default function ClientPortal({ segments }: { segments: string[] }) {
-  const session = useAppSession("client");
+  // 会话由根 layout 的 ClientFrame 解析一次，loading / error / 未登录跳转都在那里
+  // 统一处理。页面只做权限判定与工作区分发。
+  const session = useAppSessionContext();
   const route = segments[0];
-  useEffect(() => {
-    if (session.status === "anonymous") {
-      const next = `${window.location.pathname}${window.location.search}`;
-      window.location.replace(`/login?next=${encodeURIComponent(next)}`);
-    }
-  }, [route, session.status]);
-  if (session.status === "loading" || session.status === "anonymous") return <LoadingState label="正在验证客户端会话…" />;
-  if (session.status === "error") return <ErrorState message={session.error} retry={session.refresh} />;
+  // 公开条款页必须排在登录判定**之前**。放在后面的话未登录访客仍然看不到条款，
+  // 而落地页页脚正是要链接到这里——那就等于把条款藏起来了。
+  if (route === "legal" && !segments[1]) return <PublicLegalPage />;
+  if (session.status !== "authenticated") return null;
   if (route === "legal" && segments[1] === "consent") {
-    return <ClientPortalShell viewer={session.viewer} access={session.access}>
+    return <>
       <LegalConsentExperience />
-    </ClientPortalShell>;
+    </>;
   }
   if (route === "account" && segments[1] === "security") {
-    return <ClientPortalShell viewer={session.viewer} access={session.access}><AccountSecurityWorkspace viewer={session.viewer} /></ClientPortalShell>;
+    return <><AccountSecurityWorkspace viewer={session.viewer} /></>;
   }
   if (route === "support") {
-    return <ClientPortalShell viewer={session.viewer} access={session.access}><SupportWorkspace /></ClientPortalShell>;
+    return <><SupportWorkspace /></>;
   }
   if (route === "dashboard") return <ClientHomeWorkspace viewer={session.viewer} access={session.access} />;
-  if (route === "notifications") return <NotificationWorkspace viewer={session.viewer} access={session.access} />;
+  if (route === "notifications") return <NotificationWorkspace />;
+  // 行情页此前只存在于遗留 /workspace 的内部字符串路由（?page=market），
+  // 落地页的「行情」链接因此把匿名访客送进一个要求登录的页面。
+  if (route === "market") return <LiveMarket />;
+  // 策略广场：浏览已上架策略并开启模拟跟单。跟单入口此前只有 API，没有界面。
+  if (route === "marketplace") return <StrategyMarketplaceWorkspace />;
+  // 我的跟单：模拟盘持仓与成交。数据一直在库里，此前没有展示。
+  if (route === "follows") return <FollowResultsWorkspace />;
+  // AI 助手：行情分析、决策解读、平台与会员规则问答。
+  // 策略实验室：多智能体研发流水线（检查点式、样本外验证、确定性准入）。
+  // 服务端一直都在，此前唯一的入口是运行时不可达的遗留页面。
+  if (route === "studio") {
+    if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
+    return <><AiWorkbench initialMode="studio" /></>;
+  }
+  // 已保存策略的可配置历史回测。与 /studio 的分工见 backtest-workspace.tsx。
+  if (route === "backtests") {
+    if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
+    return <BacktestWorkspace strategyId={segments[1]} />;
+  }
+  if (route === "assistant") {
+    return <AiWorkbench />;
+  }
   if (route === "membership") {
     if (!hasAnyPermission(session.access.permissions, ["client.membership.view"])) return <AccessDenied />;
-    return <ClientPortalShell viewer={session.viewer} access={session.access}>
+    return <>
       <MembershipExperience canCreateOrder={hasAnyPermission(session.access.permissions, ["client.membership.order"])} />
-    </ClientPortalShell>;
+    </>;
   }
   if (route === "credits") {
     if (!hasAnyPermission(session.access.permissions, ["client.credits.view"])) return <AccessDenied />;
-    return <CreditWorkspace viewer={session.viewer} access={session.access} />;
+    return <CreditWorkspace />;
   }
   if (route === "performance-statements") {
     if (!hasAnyPermission(session.access.permissions, ["client.membership.view"])) return <AccessDenied />;
-    return <PerformanceStatementsWorkspace viewer={session.viewer} access={session.access} statementId={segments[1]} />;
+    return <PerformanceStatementsWorkspace statementId={segments[1]} />;
   }
-  if (route === "paper" || route === "trading-hall") {
+  // 「交易大厅」渲染七智能体大厅可视化，「模拟组合」渲染组合与成交明细。
+  // 此前两条路由渲染同一个组件，导航上两个不同标签指向同一个页面。
+  if (route === "trading-hall") {
     if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
-    return <ClientPortalShell viewer={session.viewer} access={session.access}>
+    return segments[1] === "meeting" ? <DecisionMeeting /> : <DecisionHall />;
+  }
+  // 工作记录：决策轮的长期可追溯视图。公共七阶段按 ADR-0018 共享，准入与模拟成交
+  // 按当前用户所有权隔离；服务端对越权与不存在统一返回 404。
+  if (route === "work-records") {
+    if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
+    return <WorkRecordsWorkspace recordId={segments[1]} />;
+  }
+  if (route === "paper") {
+    if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
+    return <>
       <TradingExperience
-        portfolioId={route === "paper" ? segments[1] : undefined}
+        portfolioId={segments[1]}
         canManage={hasAnyPermission(session.access.permissions, ["client.paper.manage"])}
       />
-    </ClientPortalShell>;
+    </>;
   }
   if (!hasAnyPermission(session.access.permissions, ["client.wallet.view"])) return <AccessDenied />;
-  if (segments[1] === "deposits") return <DepositWorkspace viewer={session.viewer} access={session.access} />;
-  return <WalletWorkspace viewer={session.viewer} access={session.access} />;
+  if (segments[1] === "deposits") return <DepositWorkspace access={session.access} />;
+  return <WalletWorkspace />;
 }

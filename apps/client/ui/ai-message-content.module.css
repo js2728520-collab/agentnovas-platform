@@ -1,0 +1,101 @@
+/* 助手回复的富文本渲染：分节、代码块、待确认问题、策略草稿保存入口。 */
+
+.body { display: grid; gap: 0.5rem; line-height: 1.7; }
+
+.code {
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+  font-family: var(--rv-font-mono);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* 流式渲染时的光标。 */
+.cursor {
+  display: inline-block;
+  width: 0.5ch;
+  background: var(--rv-muted-foreground);
+  animation: assistant-cursor-blink 1s steps(2) infinite;
+}
+
+@keyframes assistant-cursor-blink { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor { animation: none; opacity: 0.6; }
+}
+
+.questionCta,
+.strategySave {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.primary,
+.secondary {
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--rv-radius-sm);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.primary { border: 1px solid var(--rv-primary); background: var(--rv-primary-strong); color: var(--rv-primary-foreground); }
+.secondary { border: 1px solid var(--rv-border); background: var(--rv-background); color: var(--rv-foreground); }
+.primary:disabled, .secondary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* 待确认问题的对话框。
+ * 原生 <dialog> 用 showModal() 打开时需要显式居中，否则会贴在视口顶部。 */
+.dialog[open] {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  max-width: min(32rem, 92vw);
+}
+
+.dialog::backdrop { background: var(--rv-overlay); }
+
+.dialog {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.dialogIntro { margin: 0; color: var(--rv-muted-foreground); font-size: 0.8125rem; }
+.dialogFields { display: grid; gap: 0.625rem; }
+
+.dialogClose {
+  justify-self: end;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: transparent;
+  color: var(--rv-muted-foreground);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.customInput {
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-input);
+  color: var(--rv-foreground);
+  font: inherit;
+  font-size: 0.875rem;
+}

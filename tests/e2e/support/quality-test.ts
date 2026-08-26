@@ -1,10 +1,19 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test as base, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test as base,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import { browserResourceBudget } from "../../../scripts/quality/browser-resource-budget.mjs";
 import {
   isAllowedQualityNetworkUrl,
+  isExpectedQualityBrowserWarning,
   qualityApplicationPorts,
+  qualityBrowserOrigin,
   qualityLoopbackForward,
   redactPotentialSecrets,
 } from "../../../scripts/quality/quality-policy.mjs";
@@ -18,8 +27,12 @@ const audienceNavigationContract: Record<QualityAudience, {
   forbiddenLabels: string[];
 }> = {
   client: {
-    navigationName: "客户端资产中心导航",
-    requiredLabels: ["客户工作台", "会员中心", "AI 积分", "模拟组合", "七智能体交易大厅", "钱包与账本", "通知中心"],
+    // 这份契约要守的是「客户端只看得到客户端的东西」，不是某几个字。
+    // 但字得对得上：下面这些标签与 aria-label 都是从 client-portal-shell 的实际
+    // 导航定义抄来的，原来那套（「客户工作台」「七智能体交易大厅」「钱包与账本」、
+    // aria-label「客户端资产中心导航」）在 UI 里已经全部改过名。
+    navigationName: "客户导航",
+    requiredLabels: ["交易总览", "交易大厅", "模拟组合", "会员中心", "AI 积分", "资产与账本", "通知中心"],
     forbiddenLabels: ["运营概览", "客户管理", "系统概览", "模型与 Agent"],
   },
   operations: {
@@ -29,7 +42,7 @@ const audienceNavigationContract: Record<QualityAudience, {
   },
   maintenance: {
     navigationName: "运维端导航",
-    requiredLabels: ["系统概览", "系统健康", "模型与 Agent", "版本发布"],
+    requiredLabels: ["系统概览", "系统健康", "模型与 Agent", "配置发布", "版本发布"],
     forbiddenLabels: ["客户工作台", "会员中心", "七智能体交易大厅", "运营概览", "客户管理", "会员订单"],
   },
 };
@@ -103,7 +116,10 @@ export const test = base.extend<QualityFixtures>({
           && request.resourceType() === "fetch"
           && !request.isNavigationRequest()
           && headers["next-router-prefetch"] === "1";
-        if (expectedNextPrefetchCancellation) return;
+        const expectedOptimizedImageCancellation = failure === "net::ERR_ABORTED"
+          && request.resourceType() === "image"
+          && new URL(request.url()).pathname === "/_next/image";
+        if (expectedNextPrefetchCancellation || expectedOptimizedImageCancellation) return;
         failedLocalRequests.push(safeEntry({
           method: request.method(),
           url: safeUrl(request.url()),
@@ -127,6 +143,7 @@ export const test = base.extend<QualityFixtures>({
     });
 
     await use();
+    await context.unrouteAll({ behavior: "ignoreErrors" });
     await attachJson(testInfo, "network-summary", responses);
     await attachJson(testInfo, "console-summary", {
       consoleProblems,
@@ -138,7 +155,8 @@ export const test = base.extend<QualityFixtures>({
     expect(externalRequests, `external requests escaped the loopback allowlist: ${safeEntry(externalRequests)}`).toEqual([]);
     expect(pageErrors, `uncaught page errors: ${safeEntry(pageErrors)}`).toEqual([]);
     expect(unsuccessfulResponses, `unsuccessful browser responses: ${safeEntry(unsuccessfulResponses)}`).toEqual([]);
-    expect(consoleProblems, `browser console errors/warnings: ${safeEntry(consoleProblems)}`).toEqual([]);
+    const unexpectedConsoleProblems = consoleProblems.filter((message) => !isExpectedQualityBrowserWarning(message));
+    expect(unexpectedConsoleProblems, `browser console errors/warnings: ${safeEntry(unexpectedConsoleProblems)}`).toEqual([]);
     expect(failedLocalRequests, `failed local requests: ${safeEntry(failedLocalRequests)}`).toEqual([]);
   }, { auto: true }],
 });
@@ -214,4 +232,113 @@ export async function exerciseResponsiveWidths(page: Page, path: string, heading
   await expectKeyboardEntry(page);
   await expectCriticalAccessibility(page);
   await expectInitialResourceBudget(page);
+}
+
+export async function createIsolatedQualityBrowser(
+  browser: Browser,
+  audience: QualityAudience,
+) {
+  const externalRequests: string[] = [];
+  const consoleProblems: string[] = [];
+  const pageErrors: string[] = [];
+  const failedLocalRequests: string[] = [];
+  const unsuccessfulResponses: Array<{ method: string; url: string; status: number }> = [];
+  let closing = false;
+  const ports = qualityApplicationPorts(process.env);
+  const origin = qualityBrowserOrigin(audience, ports).baseURL;
+  const context: BrowserContext = await browser.newContext({
+    baseURL: origin,
+    acceptDownloads: false,
+    serviceWorkers: "block",
+  });
+
+  await context.route("**/*", async (route) => {
+    const url = route.request().url();
+    const parsed = new URL(url);
+    const forward = parsed.protocol === "https:" ? qualityLoopbackForward(url, ports) : null;
+    if (forward) {
+      const requestHeaders = await route.request().allHeaders();
+      const response = await route.fetch({
+        url: forward.url,
+        headers: {
+          ...requestHeaders,
+          host: forward.host,
+          "x-forwarded-for": "127.0.0.1",
+          "x-forwarded-proto": "https",
+        },
+      });
+      try {
+        await route.fulfill({ response });
+      } catch (error) {
+        if (closing && error instanceof Error && error.message.includes("Route is already handled")) return;
+        throw new Error(`isolated loopback fulfill failed for ${safeUrl(url)} (${route.request().resourceType()}, navigation=${route.request().isNavigationRequest()}, closing=${closing}, failure=${route.request().failure()?.errorText ?? "none"}, prefetch=${requestHeaders["next-router-prefetch"] ?? "none"}, purpose=${requestHeaders.purpose ?? requestHeaders["sec-purpose"] ?? "none"}): ${redactPotentialSecrets(error instanceof Error ? error.message : String(error))}`);
+      }
+    } else if (isAllowedQualityNetworkUrl(url)) await route.continue();
+    else {
+      externalRequests.push(safeUrl(url));
+      await route.abort("blockedbyclient");
+    }
+  });
+  context.on("page", (openedPage) => {
+    openedPage.on("console", (message) => {
+      if (message.type() === "error" || message.type() === "warning") {
+        consoleProblems.push(redactPotentialSecrets(message.text()));
+      }
+    });
+    openedPage.on("pageerror", (error) => pageErrors.push(redactPotentialSecrets(error.message)));
+    openedPage.on("requestfailed", (request) => {
+      if (closing) return;
+      if (!isAllowedQualityNetworkUrl(request.url())) return;
+      const failure = request.failure()?.errorText ?? "failed";
+      const headers = request.headers();
+      const expectedPrefetchCancellation = failure === "net::ERR_ABORTED"
+        && request.resourceType() === "fetch"
+        && !request.isNavigationRequest()
+        && headers["next-router-prefetch"] === "1";
+      const expectedOptimizedImageCancellation = failure === "net::ERR_ABORTED"
+        && request.resourceType() === "image"
+        && new URL(request.url()).pathname === "/_next/image";
+      if (!expectedPrefetchCancellation && !expectedOptimizedImageCancellation) failedLocalRequests.push(safeUrl(request.url()));
+    });
+    openedPage.on("response", (response) => {
+      if (response.status() >= 400) {
+        unsuccessfulResponses.push({
+          method: response.request().method(),
+          url: safeUrl(response.url()),
+          status: response.status(),
+        });
+      }
+    });
+  });
+
+  const page = await context.newPage();
+  return {
+    context,
+    origin,
+    page,
+    async close(options: { allowedStatuses?: number[] } = {}) {
+      closing = true;
+      const allowedStatuses = new Set(options.allowedStatuses ?? []);
+      const unexpectedResponses = unsuccessfulResponses.filter(({ status }) => !allowedStatuses.has(status));
+      const expectedResourceFailure = new RegExp(
+        `^Failed to load resource: the server responded with a status of (?:${[...allowedStatuses].join("|")}) \\(.+\\)$`,
+      );
+      const unexpectedConsoleProblems = (allowedStatuses.size
+        ? consoleProblems.filter((message) => !expectedResourceFailure.test(message))
+        : consoleProblems).filter((message) => !isExpectedQualityBrowserWarning(message));
+      try {
+        expect(externalRequests, "isolated browser external requests").toEqual([]);
+        expect(
+          unexpectedConsoleProblems,
+          `isolated browser console errors/warnings; HTTP failures: ${safeEntry(unexpectedResponses)}`,
+        ).toEqual([]);
+        expect(pageErrors, "isolated browser page errors").toEqual([]);
+        expect(failedLocalRequests, "isolated browser failed local requests").toEqual([]);
+        expect(unexpectedResponses, "isolated browser unexpected HTTP responses").toEqual([]);
+      } finally {
+        await context.unrouteAll({ behavior: "ignoreErrors" });
+        await context.close();
+      }
+    },
+  };
 }

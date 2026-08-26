@@ -1,6 +1,6 @@
 {
   "name": "agentnovas-platform",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.0-beta.6",
   "private": true,
   "engines": {
     "node": ">=22.21.0"
@@ -23,11 +23,14 @@
     "test": "npm run test:all",
     "test:smoke": "npm run build:client && RIVERTON_APP_AUDIENCE=client node scripts/smoke-next-render.mjs",
     "test:smoke:built": "RIVERTON_APP_AUDIENCE=client node scripts/smoke-next-render.mjs",
-    "test:all": "node --test --experimental-strip-types tests/*.test.mjs tests/e2e/*.unit.test.mjs",
+    "test:all": "node --test --test-global-setup=tests/global-setup.mjs --experimental-strip-types tests/*.test.mjs tests/e2e/*.unit.test.mjs",
     "test:apps": "npm run build:client && npm run build:operations && npm run build:maintenance",
     "test:e2e": "node scripts/quality/run-e2e.mjs",
+    "test:e2e:mfa-on": "node scripts/quality/run-mfa-on-e2e.mjs",
+    "test:e2e:mfa-rollout": "node --experimental-strip-types scripts/quality/run-mfa-rollout-e2e.mjs",
     "test:e2e:direct": "playwright test",
     "quality:bundle": "node scripts/quality/check-next-bundle-budget.mjs",
+    "quality:boundaries": "node --experimental-strip-types scripts/quality/check-architecture-boundaries.mjs",
     "quality:lighthouse": "node scripts/quality/run-lighthouse.mjs",
     "quality:release": "node scripts/quality/verify-release-evidence.mjs",
     "quality:secret-scan": "node scripts/quality/repository-secret-scan.mjs",
@@ -45,7 +48,13 @@
     "worker:runtime": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/strategy-runtime-worker.mjs",
     "worker:payment": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/payment-worker.mjs",
     "worker:notification": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/notification-worker.mjs",
-    "worker:demo": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/platform-demo-worker.mjs"
+    "worker:configuration-activation": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/configuration-activation-worker.mjs",
+    "worker:demo": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/platform-demo-worker.mjs",
+    "service:execution": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/execution-service.mjs",
+    "quality:key-custody": "node --experimental-strip-types scripts/quality/check-web-key-custody.mjs",
+    "quality:nginx": "node --experimental-strip-types scripts/quality/check-nginx-config.mjs",
+    "audit:anchors:export": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/export-audit-anchors.mjs export",
+    "audit:anchors:verify": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/export-audit-anchors.mjs verify"
   },
   "dependencies": {
     "@node-rs/argon2": "2.1.0",

@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { apiErrorMessage, formatDateTime } from "@/packages/contracts/src/riverton-ui";
-import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
+import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
@@ -29,24 +29,25 @@ type PendingAction = "pause" | "resume";
 
 export function EmergencyControlWorkspace() {
   const resource = useApiData<EmergencyState>("/api/maintenance/trading/emergency-stop", "紧急暂停状态读取失败");
-  const [pending, setPending] = useState<PendingAction | null>(null);
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const commandKey = useRef(crypto.randomUUID());
 
-  async function execute(reason: string) {
-    if (!pending) return;
+  async function execute(action: PendingAction) {
     setBusy(true);
     setMessage("");
     try {
       const response = await fetch("/api/maintenance/trading/emergency-stop", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ active: pending === "pause", reason }),
+        headers: { "content-type": "application/json", "idempotency-key": commandKey.current },
+        body: JSON.stringify({ active: action === "pause", reason: reason.trim() }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, "紧急暂停操作失败"));
+      commandKey.current = crypto.randomUUID();
       setMessage(String(payload.message || "紧急暂停状态已记录；操作详情以审计记录为准。"));
-      setPending(null);
+      setReason("");
       await resource.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "紧急暂停操作失败");
@@ -75,20 +76,12 @@ export function EmergencyControlWorkspace() {
         此处只改变官方 Paper 组合的新开仓与访问状态，不发送任何订单，也不改变平台 Demo kill switch。
         如需处理平台测试账户，请前往 <Link href={state?.demoControlPath || "/integrations/demo-exchanges"}>Demo 交易所控制</Link>。
       </div>
+      <div className="rc-form"><InlineAuditReasonField id="emergency-control-reason" value={reason} onChange={setReason} label="审批或事故原因" hint={state?.active ? "解除后组合不会自动恢复 active；仍需由会员或客户状态流程核验资格。" : "暂停只会将范围内 active 的官方 Paper 组合改为仅允许平仓或只读，不发送订单。"} /></div>
       <div className="rc-action-row">
         {state?.active
-          ? <button className="rc-primary" type="button" onClick={() => setPending("resume")}>解除紧急暂停</button>
-          : <button className="rc-button rc-danger-button" type="button" onClick={() => setPending("pause")}>暂停官方 Paper 新开仓</button>}
+          ? <button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(reason)} onClick={() => void execute("resume")}>解除紧急暂停</button>
+          : <button className="rc-button rc-danger-button" type="button" disabled={busy || !hasValidAuditReason(reason)} onClick={() => void execute("pause")}>暂停官方 Paper 新开仓</button>}
       </div>
     </section>
-    <ConfirmActionDialog
-      open={Boolean(pending)}
-      title={pending === "resume" ? "解除紧急暂停" : "暂停官方 Paper 新开仓"}
-      description={pending === "resume" ? "解除后组合不会自动恢复 active；仍需由会员或客户状态流程核验资格。平台 Demo 控制不会改变。请填写解除依据。" : "系统只会把范围内 active 的官方 Paper 组合改为仅允许平仓或只读，不发送订单，也不改变平台 Demo 控制。请填写审批或事故原因。"}
-      confirmLabel={pending === "resume" ? "确认解除" : "确认暂停"}
-      busy={busy}
-      onCancel={() => setPending(null)}
-      onConfirm={(reason) => void execute(reason)}
-    />
   </>;
 }

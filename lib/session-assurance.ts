@@ -8,12 +8,13 @@ type SessionAssuranceInput = {
   absoluteExpiresAt: string | null;
   mfaLevel: SessionMfaLevel;
   mfaVerifiedAt: string | null;
+  mfaEnrolled?: boolean;
 };
 
 export function evaluateSessionAssurance(
   input: SessionAssuranceInput,
   now = new Date(),
-  options: { allowPrimaryInternal?: boolean; recentMfaSeconds?: number } = {},
+  options: { allowPrimaryInternal?: boolean; mfaEnforced?: boolean; recentMfaSeconds?: number } = {},
 ) {
   const nowMs = now.getTime();
   const withinBounds = Boolean(
@@ -24,7 +25,14 @@ export function evaluateSessionAssurance(
   );
   const internal = input.audience !== "client";
   const completedMfa = input.mfaLevel === "totp" || input.mfaLevel === "recovery";
-  const usable = withinBounds && Boolean(!internal || completedMfa || (options.allowPrimaryInternal && input.mfaLevel === "primary"));
+  const mfaEnforced = options.mfaEnforced ?? true;
+  const clientChallengeRequired = !internal && mfaEnforced && input.mfaEnrolled === true;
+  const completeWithoutMfa = input.mfaLevel === "none"
+    && (internal ? !mfaEnforced : !clientChallengeRequired);
+  const primaryMfaEndpoint = options.allowPrimaryInternal && input.mfaLevel === "primary";
+  const usable = withinBounds && Boolean(
+    completedMfa || completeWithoutMfa || primaryMfaEndpoint,
+  );
   const recentMfaSeconds = options.recentMfaSeconds ?? 15 * 60;
   const verifiedAt = input.mfaVerifiedAt ? Date.parse(input.mfaVerifiedAt) : Number.NaN;
   const recentMfa = completedMfa

@@ -42,9 +42,12 @@ async function routeFiles(directory) {
   return rows.flat();
 }
 
+// 路由文件按 audience 归属命名（见 next.config.ts 的 pageExtensions）。
+const ROUTE_FILE = /\/route\.(client|operations|maintenance|internal|shared)\.ts$/;
+
 function routePattern(pathname) {
   const root = appApi.pathname;
-  const local = relative(root, pathname).split(sep).join("/").replace(/\/route\.ts$/, "");
+  const local = relative(root, pathname).split(sep).join("/").replace(ROUTE_FILE, "");
   return `/api/${local}`
     .replace(/\[\.\.\.([^\]]+)\]/g, ":$1*")
     .replace(/\[([^\]]+)\]/g, ":$1");
@@ -53,7 +56,7 @@ function routePattern(pathname) {
 test("the versioned inventory covers every exported API method and route", async () => {
   const discovered = [];
   for (const file of await routeFiles(appApi)) {
-    if (!file.pathname.endsWith("/route.ts")) continue;
+    if (!ROUTE_FILE.test(file.pathname)) continue;
     const source = await readFile(file, "utf8");
     for (const match of source.matchAll(/export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g)) {
       discovered.push(`${match[1]} ${routePattern(file.pathname)}`);
@@ -139,8 +142,15 @@ test("session metadata names a method-level enforcing helper and public routes s
   ]) {
     assert.equal(apiPolicyForRoute(route, method).authentication, "anonymous", `${method} ${route}`);
   }
-  assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "GET").authentication, "disabled");
+  // 广场列表 T4.4 启用：它是 Phase 4 的产品目标，跟单链路已端到端跑通。启用前先移除了
+  // 公开响应里的作者邮箱——那是真正该挡的东西，而 disabled 只是把它一起挡住了。
+  // 投稿（POST）仍然停用：那条写入路径还没有对应的审核界面。
+  assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "GET").authentication, "anonymous");
+  assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "GET").pii, "none");
   assert.equal(apiPolicyForRoute("/api/strategy-marketplace", "POST").authentication, "disabled");
+  // 客户暂停/恢复/终止自己的跟随随 T4.4 启用：四方停止的客户那一方本来就该畅通，
+  // 且状态机在服务端把关（客户解除不了风控阻断）。停用它等于客户连自己的跟单都停不掉。
+  assert.equal(apiPolicyForRoute("/api/strategy-subscriptions/:id", "PATCH").authentication, "session");
 });
 
 test("commercial and official paper client routes declare exact RBAC permissions", () => {
@@ -265,8 +275,6 @@ test("commercial beta rejects legacy customer credentials, funding, and trading 
     ["GET", "/api/strategy-deployments/:id/cycles"],
     ["POST", "/api/strategy-deployments/:id/pause"],
     ["POST", "/api/strategy-deployments/:id/resume"],
-    ["PATCH", "/api/strategy-subscriptions/:id"],
-    ["GET", "/api/strategy-marketplace"],
     ["POST", "/api/simulated-orders"],
     ["GET", "/api/portfolio"],
     ["POST", "/api/trading/emergency-stop"],
@@ -431,7 +439,7 @@ test("Response-based authentication failures retain safe 401 and 403 envelopes",
 
 test("Route Handlers preserve the proxy request id in domain error responses", async () => {
   for (const file of await routeFiles(appApi)) {
-    if (!file.pathname.endsWith("/route.ts")) continue;
+    if (!ROUTE_FILE.test(file.pathname)) continue;
     const source = await readFile(file, "utf8");
     if (!source.includes("researchErrorResponse")) continue;
     const sourceFile = ts.createSourceFile(file.pathname, source, ts.ScriptTarget.Latest, true);
@@ -526,4 +534,38 @@ test("Next 16 Proxy applies API policy and page nonce policy before rendering", 
   assert.match(proxy, /_next\/static/);
   assert.match(proxy, /x-request-id/);
   assert.doesNotMatch(proxy, /getPostgresPool|getDb|DATABASE_URL/);
+});
+
+test("内联脚本必须带 CSP nonce——否则被我们自己的策略挡掉", async () => {
+  // script-src 是 'self' 'nonce-…' 'strict-dynamic'，没有 unsafe-inline。
+  // 漏掉 nonce 不会报错页，只会让那段脚本静默不执行：主题引导脚本被挡掉的表现是
+  // 暗色用户每次加载白闪一下，而那正是它存在的唯一理由。
+  const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const inlineScripts = layout.match(/<script[^>]*dangerouslySetInnerHTML/g) ?? [];
+  assert.ok(inlineScripts.length > 0, "布局里应有主题引导脚本");
+  for (const tag of inlineScripts) {
+    assert.match(tag, /nonce=\{/, `内联脚本缺少 nonce：${tag}`);
+  }
+  // nonce 必须来自 proxy 写入的请求头，不能自己编一个——编的那个不在 CSP 里。
+  assert.match(layout, /headers\(\)|requestHeaders/);
+  assert.match(layout, /get\("x-nonce"\)/);
+
+  const proxy = await readFile(new URL("../proxy.ts", import.meta.url), "utf8");
+  assert.match(proxy, /requestHeaders\.set\("x-nonce", nonce\)/);
+  assert.match(proxy, /contentSecurityPolicy\(nonce/);
+});
+
+test("共用路由不得跨 audience 读它无权访问的表", async () => {
+  // /api/auth/me 三端共用，原来无条件查 memberships，而运维端的数据库角色没有这张
+  // 表的权限——运维端不该看客户商业数据。表现是**输完 MFA 验证码跳回登录页**：
+  // 验证其实成功了，是紧接着的会话加载 42501，被上层当成未登录。
+  //
+  // 修法不是给运维端开读权限（那会扩大它对客户商业数据的可见范围），是按 audience
+  // 收窄查询。
+  const source = await readFile(new URL("../app/api/auth/me/route.shared.ts", import.meta.url), "utf8");
+  assert.match(source, /resolveAppAudienceStrict/, "共用路由必须能判断自己在哪一端");
+  assert.match(source, /audience === "client"/, "会员查询只能在客户端执行");
+  // 不能退回成无条件查询
+  assert.doesNotMatch(source, /const membership = user \?\s*\(await getDb\(\)/,
+    "membership 不得再无条件解析");
 });

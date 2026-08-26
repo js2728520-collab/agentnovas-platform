@@ -28,7 +28,17 @@ export type ConsoleNavigationItem = {
   label: string;
   description?: string;
   icon: string;
+  badge?: string;
   requiredPermissions?: string[];
+};
+
+/**
+ * 分组导航。分组只影响侧边栏的视觉结构，不参与权限判定——
+ * 权限仍然逐条落在 item.requiredPermissions 上，整组不可见时才隐藏分组标题。
+ */
+export type ConsoleNavigationGroup = {
+  label: string;
+  items: ConsoleNavigationItem[];
 };
 
 export type WalletBalance = { currency: string; availableAmount: string; frozenAmount: string; version: string; updatedAt: string };
@@ -42,10 +52,21 @@ export type DepositOrder = {
 };
 export type NotificationItem = { id: string; category: string; templateKey: string; status: string; payload: Record<string, unknown>; createdAt: string; readAt: string | null };
 
+export type OperationsCustomerPiiCategory = "contact" | "security" | "financial" | "trading";
+export type OperationsCustomerPii = {
+  contact: { email: string | null; phone: string | null; telegram: string | null; whatsapp: string | null };
+  security: { registrationIpAddress: string | null; lastLoginIpAddress: string | null; device: string | null };
+  financial: { cumulativeDepositUsdt: string | null; cumulativeSpendUsdt: string | null };
+  trading: {
+    exchangeAccounts: Array<{ id: string; exchange: string; label: string; environment: string; status: string; canRead: boolean; canTrade: boolean; lastCheckedAt: string | null }>;
+    openPositions: Array<{ id: string; exchangeAccountId: string; symbol: string; side: string; quantity: string; entryValueUsdt: string; openedAt: string | null }>;
+  };
+};
 export type OperationsCustomer = {
   customerId: string; email: string; status: string; registeredAt: string; branchId: string | null;
   managerId: string | null; supervisorId: string | null; employeeId: string | null;
   displayName: string | null; contactNote: string | null;
+  pii: OperationsCustomerPii;
 };
 export type OperationsDeposit = {
   id: string; platformOrderNo: string; user: { id: string; email: string | null; phone: string | null; nickname: string };
@@ -161,6 +182,7 @@ export type MaintenanceWorkerHealth = {
   notificationWorker: MaintenanceWorkerStatus & { resendConfigured: boolean };
   researchWorker: MaintenanceWorkerStatus;
   runtimeWorker: MaintenanceWorkerStatus;
+  configurationActivationWorker: MaintenanceWorkerStatus;
   demoExecutionWorker: MaintenanceWorkerStatus & {
     externalWritesEnabled: boolean;
     executionEnabled: boolean;
@@ -210,6 +232,21 @@ export function visibleNavigation(
   permissions: Record<string, DataScope>,
 ) {
   return items.filter((item) => hasAnyPermission(permissions, item.requiredPermissions));
+}
+
+/** 过滤分组导航；整组条目都不可见时，连同分组标题一起丢弃。 */
+export function visibleNavigationGroups(
+  groups: ConsoleNavigationGroup[],
+  permissions: Record<string, DataScope>,
+): ConsoleNavigationGroup[] {
+  return groups
+    .map((group) => ({ label: group.label, items: visibleNavigation(group.items, permissions) }))
+    .filter((group) => group.items.length > 0);
+}
+
+/** 分组导航展平成条目列表，供面包屑与当前页匹配使用。 */
+export function flattenNavigation(groups: ConsoleNavigationGroup[]): ConsoleNavigationItem[] {
+  return groups.flatMap((group) => group.items);
 }
 
 export function safeNextPath(value: string | null | undefined, fallback = "/") {

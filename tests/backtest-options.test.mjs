@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { loadBacktestCandles, normalizeBacktestOptions, normalizePerpetualBacktestOptions } from "../lib/backtest-engine.ts";
+import { normalizeBacktestOptions, normalizePerpetualBacktestOptions } from "../packages/domain/src/backtest-engine.ts";
+import { loadBacktestCandles } from "../lib/backtest-engine.ts";
 
 test("normalizes live-aligned and exploration backtest presets", () => {
   assert.deepEqual(normalizeBacktestOptions(), {
@@ -70,8 +71,8 @@ test("historical candle loading falls back after a provider abort and reports th
 
 test("strategy detail and backtest routes enforce ownership and persist parsed reports", async () => {
   const [detailRoute, backtestRoute] = await Promise.all([
-    readFile(new URL("../app/api/strategy-marketplace/[id]/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/strategy-marketplace/[id]/backtest/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/strategy-marketplace/[id]/route.client.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/strategy-marketplace/[id]/backtest/route.client.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(detailRoute, /export async function GET/);

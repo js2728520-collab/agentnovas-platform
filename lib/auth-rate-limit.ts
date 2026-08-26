@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import { sha256 } from "./auth.ts";
 import type { AppAudience } from "./riverton-apps.ts";
 
-export type AuthRateLimitAction = "login" | "register" | "forgot_password" | "reset_password" | "mfa_verify" | "bootstrap";
+export type AuthRateLimitAction = "login" | "register" | "verify_email" | "forgot_password" | "reset_password" | "mfa_verify" | "bootstrap";
 
 type ConsumeInput = {
   action: AuthRateLimitAction;
@@ -16,6 +16,20 @@ type ConsumeInput = {
 };
 
 type ClearInput = Pick<ConsumeInput, "action" | "audience" | "bucketKeys">;
+
+type MfaChallengeBucketInput = {
+  sessionId: string;
+  userId: string;
+  connectionBucketKey: string;
+};
+
+export function mfaChallengeRateLimitBucketKeys(input: MfaChallengeBucketInput) {
+  return [
+    `session:${input.sessionId}`,
+    `user:${input.userId}`,
+    input.connectionBucketKey,
+  ];
+}
 
 function positiveInteger(value: number, name: string) {
   if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${name} must be a positive integer`);

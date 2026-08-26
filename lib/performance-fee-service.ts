@@ -18,7 +18,7 @@ import {
 import {
   calculateWeeklyPerformanceFee,
   compareSignedDecimalStrings,
-} from "./commercial-membership-domain.ts";
+} from "../packages/domain/src/commercial-membership-domain.ts";
 import {
   type OfficialThreeCardAggregateReader,
   resolveCommercialOfficialPaperScope,

@@ -20,7 +20,6 @@ import {
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
 import { deriveClientHomeTask, derivePaperPortfolioSummary } from "./client-home-model";
-import { ClientPortalShell } from "./client-portal-shell";
 import styles from "./client-home-workspace.module.css";
 
 const modules = [
@@ -94,7 +93,7 @@ export function ClientHomeWorkspace({ viewer, access }: { viewer: ViewerPayload;
   });
   const displayName = viewer.nickname || viewer.username || viewer.email.split("@")[0];
 
-  return <ClientPortalShell viewer={viewer} access={access}>
+  return <>
     <header className={styles.hero}>
       <div>
         <span className={styles.eyebrow}>PERSONAL PAPER TRADING DESK</span>
@@ -179,5 +178,5 @@ export function ClientHomeWorkspace({ viewer, access }: { viewer: ViewerPayload;
     </section>
 
     <aside className={styles.riskNote} role="note">所有组合、成交和收益均为 Paper 模拟数据，不代表真实或未来收益；平台 Demo 测试证据不会改变客户组合。</aside>
-  </ClientPortalShell>;
+  </>;
 }

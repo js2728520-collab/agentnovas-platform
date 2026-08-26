@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { evaluatePlatformStrategy, PLATFORM_AI_STRATEGIES } from "../lib/platform-ai-strategies.ts";
+import { evaluatePlatformStrategy, PLATFORM_AI_STRATEGIES } from "../packages/domain/src/platform-ai-strategies.ts";
 import {
   evaluateConvertedPlatformStrategy,
   platformStrategyDslV3,
-} from "../lib/platform-strategy-v3.ts";
+} from "../packages/domain/src/platform-strategy-v3.ts";
 
 function generator(seed) {
   let value = seed >>> 0;

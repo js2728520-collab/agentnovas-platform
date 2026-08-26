@@ -8,7 +8,7 @@ import {
   readCommercialDisclosureControl,
   submitCommercialDisclosure,
 } from "../lib/commercial-disclosure-service.ts";
-import { requiredLegalDocumentTypes } from "../lib/commercial-membership-domain.ts";
+import { requiredLegalDocumentTypes } from "../packages/domain/src/commercial-membership-domain.ts";
 import {
   acceptCurrentCommercialLegalDocuments,
   readCommercialLegalConsent,

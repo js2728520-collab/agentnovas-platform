@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 
-import { assertBalancedPostings, normalizeDecimalString } from "./ledger.ts";
+import { assertBalancedPostings, normalizeDecimalString } from "../packages/ledger/src/ledger.ts";
 import { canonicalPayloadHash } from "./commercial-idempotency.ts";
 import { ResearchApiError } from "./research-errors.ts";
 

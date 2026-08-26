@@ -41,6 +41,21 @@ required_value() {
   fi
 }
 
+required_boolean() {
+  local file=$1 key=$2 value
+  if ! value=$(value_of "$file" "$key"); then
+    fail "$(basename "$file"):${key}:missing_or_duplicate"
+    return 1
+  fi
+  case "$value" in
+    true|false) ;;
+    *)
+      fail "$(basename "$file"):${key}:must_be_true_or_false"
+      return 1
+      ;;
+  esac
+}
+
 optional_present() {
   local file=$1 key=$2 value
   value=$(value_of "$file" "$key" 2>/dev/null) || return 1
@@ -56,7 +71,7 @@ same_value() {
   fi
 }
 
-for name in client operations maintenance notification runtime demo migrator; do
+for name in client operations maintenance notification configuration-activation runtime demo migrator execution; do
   file="$secret_dir/$name.env"
   if [ ! -f "$file" ]; then
     fail "$name.env:missing"
@@ -73,6 +88,7 @@ client="$secret_dir/client.env"
 operations="$secret_dir/operations.env"
 maintenance="$secret_dir/maintenance.env"
 notification="$secret_dir/notification.env"
+configuration_activation="$secret_dir/configuration-activation.env"
 runtime="$secret_dir/runtime.env"
 demo="$secret_dir/demo.env"
 migrator="$secret_dir/migrator.env"
@@ -87,9 +103,22 @@ if [ "$findings" -eq 0 ]; then
   for key in DATABASE_URL PAYMENT_WEBHOOK_DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY INTEGRATION_CREDENTIAL_ENCRYPTION_KEY LLM_PROFILE_ENCRYPTION_KEY; do
     required_value "$maintenance" "$key" || true
   done
+  for file in "$client" "$operations" "$maintenance"; do
+    required_boolean "$file" MFA_ENFORCEMENT_ENABLED || true
+  done
   for key in DATABASE_URL NOTIFICATION_WORKER_ENABLED NOTIFICATION_EMAIL_SEND_ENABLED NOTIFICATION_TOKEN_ENCRYPTION_KEY; do
     required_value "$notification" "$key" || true
   done
+  for key in CONFIGURATION_ACTIVATION_DATABASE_URL CONFIGURATION_ACTIVATION_WORKER_INTERVAL_MS CONFIGURATION_ACTIVATION_WORKER_BATCH_SIZE; do
+    required_value "$configuration_activation" "$key" || true
+  done
+  configuration_activation_database_url=$(value_of "$configuration_activation" CONFIGURATION_ACTIVATION_DATABASE_URL 2>/dev/null || printf 'missing')
+  case "$configuration_activation_database_url" in
+    postgresql://agentnovas_configuration_activation_worker@*/*|postgresql://agentnovas_configuration_activation_worker:*@*/*|postgres://agentnovas_configuration_activation_worker@*/*|postgres://agentnovas_configuration_activation_worker:*@*/*) ;;
+    *) fail "configuration-activation.env:CONFIGURATION_ACTIVATION_DATABASE_URL:dedicated_role_required" ;;
+  esac
+  required_boolean "$configuration_activation" CONFIGURATION_ACTIVATION_WORKER_ENABLED || true
+  required_boolean "$maintenance" CONFIGURATION_ACTIVATION_WORKER_ENABLED || true
   for key in RESEARCH_DATABASE_URL LLM_PROFILE_ENCRYPTION_KEY; do required_value "$runtime" "$key" || true; done
   for key in DATABASE_URL INTEGRATION_CREDENTIAL_ENCRYPTION_KEY; do required_value "$demo" "$key" || true; done
   for key in DATABASE_URL POSTGRES_MIGRATION_SCHEMA GIT_COMMIT_SHA; do required_value "$migrator" "$key" || true; done
@@ -97,9 +126,12 @@ if [ "$findings" -eq 0 ]; then
   same_value "notification_token_client_worker" "$client" NOTIFICATION_TOKEN_ENCRYPTION_KEY "$notification" NOTIFICATION_TOKEN_ENCRYPTION_KEY
   same_value "notification_token_operations_worker" "$operations" NOTIFICATION_TOKEN_ENCRYPTION_KEY "$notification" NOTIFICATION_TOKEN_ENCRYPTION_KEY
   same_value "internal_mfa_operations_maintenance" "$operations" MFA_TOTP_ENCRYPTION_KEY "$maintenance" MFA_TOTP_ENCRYPTION_KEY
+  same_value "mfa_enforcement_client_operations" "$client" MFA_ENFORCEMENT_ENABLED "$operations" MFA_ENFORCEMENT_ENABLED
+  same_value "mfa_enforcement_client_maintenance" "$client" MFA_ENFORCEMENT_ENABLED "$maintenance" MFA_ENFORCEMENT_ENABLED
   same_value "llm_client_maintenance" "$client" LLM_PROFILE_ENCRYPTION_KEY "$maintenance" LLM_PROFILE_ENCRYPTION_KEY
   same_value "llm_runtime_maintenance" "$runtime" LLM_PROFILE_ENCRYPTION_KEY "$maintenance" LLM_PROFILE_ENCRYPTION_KEY
   same_value "integration_demo_maintenance" "$demo" INTEGRATION_CREDENTIAL_ENCRYPTION_KEY "$maintenance" INTEGRATION_CREDENTIAL_ENCRYPTION_KEY
+  same_value "configuration_activation_worker_state" "$configuration_activation" CONFIGURATION_ACTIVATION_WORKER_ENABLED "$maintenance" CONFIGURATION_ACTIVATION_WORKER_ENABLED
 fi
 
 if [ "$findings" -eq 0 ]; then
@@ -133,6 +165,13 @@ case "$notification_send" in
   true) printf 'notification_email_send=enabled\n' ;;
   false) printf 'notification_email_send=disabled\n' ;;
   *) printf 'notification_email_send=invalid\n'; fail "notification_email_send:invalid" ;;
+esac
+
+configuration_activation_enabled=$(value_of "$configuration_activation" CONFIGURATION_ACTIVATION_WORKER_ENABLED 2>/dev/null || printf 'unknown')
+case "$configuration_activation_enabled" in
+  true) printf 'configuration_activation_worker=enabled\n' ;;
+  false) printf 'configuration_activation_worker=disabled\n' ;;
+  *) printf 'configuration_activation_worker=invalid\n'; fail "configuration_activation_worker:invalid" ;;
 esac
 
 for item in \

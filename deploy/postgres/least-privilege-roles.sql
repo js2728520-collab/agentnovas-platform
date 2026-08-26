@@ -2,24 +2,31 @@
 
 -- Invoke only after migrations, with an explicit database name:
 -- psql --set=agentnovas_database=agentnovas --file=deploy/postgres/least-privilege-roles.sql
+-- 三处拒绝都必须以非零退出码结束。
+--
+-- 原来用的是 \quit，psql 以 0 退出（这个版本还会忽略 \quit 的参数）——于是
+-- 「脚本跑成功了」和「脚本什么都没做」在调用方看来完全一样。部署脚本据此判断成功，
+-- 实际一条 GRANT 都没执行，故障要等到某个进程角色第一次写库时才以 42501 冒出来。
+--
+-- 改成抛 SQL 异常：文件开头的 ON_ERROR_STOP on 会让 psql 以非零码退出。
 \if :{?agentnovas_database}
 \else
   \echo 'agentnovas_database is required'
-  \quit
+  DO $refuse$ BEGIN RAISE EXCEPTION 'agentnovas_database is required'; END $refuse$;
 \endif
 
 SELECT current_database() = :'agentnovas_database' AS agentnovas_database_matches \gset
 \if :agentnovas_database_matches
 \else
   \echo 'Refusing to configure roles in a different database'
-  \quit
+  DO $refuse$ BEGIN RAISE EXCEPTION 'Refusing to configure roles in a different database'; END $refuse$;
 \endif
 
 SELECT current_database() ~ '^agentnovas(_[a-z0-9]+)*$' AS agentnovas_database_is_controlled \gset
 \if :agentnovas_database_is_controlled
 \else
   \echo 'Refusing to configure roles outside a controlled AgentNovas database'
-  \quit
+  DO $refuse$ BEGIN RAISE EXCEPTION 'Refusing to configure roles outside a controlled AgentNovas database'; END $refuse$;
 \endif
 
 BEGIN;
@@ -36,8 +43,10 @@ BEGIN
     'agentnovas_maint_web',
     'agentnovas_payment_webhook',
     'agentnovas_notification_worker',
+    'agentnovas_configuration_activation_worker',
     'agentnovas_demo_execution_worker',
-    'agentnovas_runtime_worker'
+    'agentnovas_runtime_worker',
+    'agentnovas_execution_service'
   ] LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
       EXECUTE format('CREATE ROLE %I LOGIN PASSWORD NULL NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', role_name);
@@ -71,6 +80,7 @@ REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
   agentnovas_payment_worker,
@@ -86,6 +96,7 @@ REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM
@@ -95,6 +106,7 @@ REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
 
@@ -106,6 +118,7 @@ GRANT CONNECT ON DATABASE :"agentnovas_database" TO
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
 GRANT USAGE ON SCHEMA public TO
@@ -115,6 +128,7 @@ GRANT USAGE ON SCHEMA public TO
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker;
 GRANT CREATE, USAGE ON SCHEMA public TO agentnovas_migrator;
@@ -185,6 +199,23 @@ BEGIN
 END
 $identity_acl_convergence$;
 
+-- 内部权限注册链接只属于 Operations。即使从旧备份恢复了 Maintenance 或遗留角色
+-- 的 ACL，也在这里收敛掉，避免 token 摘要和使用事实跨 audience 暴露。
+DO $internal_registration_link_acl_convergence$
+DECLARE role_row record;
+BEGIN
+  FOR role_row IN
+    SELECT rolname FROM pg_roles
+     WHERE rolname NOT IN ('agentnovas_migrator','agentnovas_ops_web')
+  LOOP
+    EXECUTE format(
+      'REVOKE ALL PRIVILEGES ON TABLE public.internal_registration_links,public.internal_registration_link_uses FROM %I',
+      role_row.rolname
+    );
+  END LOOP;
+END
+$internal_registration_link_acl_convergence$;
+
 -- A restored explicit EXECUTE grant must not turn an unknown/legacy database
 -- role into an identity API. Rebuild the gateway ACL from zero, pin its path,
 -- then add only the two exact Client roles below.
@@ -224,7 +255,7 @@ GRANT SELECT ON
   performance_fee_decisions, performance_fee_receivables,
   performance_fee_high_water_marks, high_water_marks, notification_channels,
   notification_preferences, notification_deliveries, ai_conversations, ai_messages,
-  market_candles, market_data_snapshots, market_watchlist, community_strategies,
+  market_candles, market_data_snapshots, community_strategies,
   strategy_versions, strategy_subscriptions, strategy_favorites, strategy_deployments,
   strategy_runtime_cycles, strategy_runtime_events, strategy_agent_events,
   official_paper_portfolios, official_paper_positions, official_paper_order_intents,
@@ -244,7 +275,7 @@ GRANT INSERT, UPDATE ON
   ai_credit_reservations, client_ai_inference_requests, ai_usage_daily,
   notification_channels,
   notification_preferences, notification_deliveries, ai_conversations, ai_messages,
-  market_watchlist, strategy_subscriptions, strategy_favorites, strategy_deployments,
+  strategy_subscriptions, strategy_favorites, strategy_deployments,
   official_paper_portfolios, customer_attributions
   TO agentnovas_client_web;
 GRANT INSERT (
@@ -262,16 +293,21 @@ GRANT EXECUTE ON FUNCTION
   public.client_session_identity(text,timestamptz),
   public.client_touch_session(text,timestamptz,timestamptz),
   public.client_complete_login(text,text,text,text,text,timestamptz,text,timestamptz,timestamptz,timestamptz,text,text),
+  public.client_complete_login_v3(text,text,text,text,text,timestamptz,text,timestamptz,timestamptz,timestamptz,text,text,text,text),
   public.client_registration_conflicts(text,text),
   public.client_registration_invitation(text),
   public.client_insert_invited_customer(text,text,text,text,text,text),
   public.client_claim_registration_invitation(text,text,text,timestamptz),
+  -- 可复用邀请链接的使用计数。收进函数而不是给 invitations 开写权限——
+  -- 那张表存着全部邀请码，公网进程不该碰得到。
+  public.client_record_reusable_invitation_use(text,timestamptz),
   public.client_profile_conflicts(text,text,text,text),
   public.client_update_profile(text,text,text,text,text,text,text,text,text,timestamptz),
   public.client_change_password(text,text,text,timestamptz),
   public.client_list_sessions(text,timestamptz),
   public.client_revoke_session(text,text,timestamptz),
   public.client_revoke_current_session(text,timestamptz),
+  public.client_revoke_all_sessions(text,timestamptz),
   public.client_mfa_start(text,text,timestamptz),
   public.client_mfa_credential(text,text),
   public.client_mfa_accept_totp(text,bigint,timestamptz),
@@ -280,8 +316,15 @@ GRANT EXECUTE ON FUNCTION
   public.client_mfa_complete_enrollment(text,bigint,timestamptz,jsonb,timestamptz),
   public.client_mfa_mark_session_verified(text,text,timestamptz,timestamptz),
   public.client_mfa_recovery_status(text),
+  public.client_queue_registration_email_verification(text,text,text,timestamptz,text,text,timestamptz),
   public.client_consume_password_reset(text,text,timestamptz),
   public.client_verify_email(text,timestamptz)
+TO agentnovas_client_web;
+
+-- Client can resolve one active, non-secret feature flag by exact key. It has
+-- no SELECT privilege on the versioned configuration control-plane tables.
+GRANT EXECUTE ON FUNCTION
+  public.configuration_client_active_feature_flag(text)
 TO agentnovas_client_web;
 
 -- Password verification happens in application memory. Keep its exact
@@ -290,6 +333,7 @@ TO agentnovas_client_web;
 GRANT EXECUTE ON FUNCTION
   public.client_login_identity(text,text,text),
   public.client_self_password_identity(text,timestamptz),
+  public.client_queue_email_verification_by_email(text,text,text,timestamptz,text,text,timestamptz),
   public.client_queue_password_reset(text,text,text,timestamptz,text,text,timestamptz)
 TO agentnovas_client_auth;
 
@@ -299,7 +343,8 @@ GRANT SELECT ON
   applications, organizations, permission_definitions, role_templates,
   role_template_versions, roles, role_permissions, user_role_assignments,
   rbac_revocation_tombstones, system_role_identities, users, sessions, auth_tokens,
-  auth_rate_limit_buckets, invitations, user_mfa_totp_credentials, user_mfa_recovery_codes,
+  auth_rate_limit_buckets, invitations, internal_registration_links,
+  internal_registration_link_uses, user_mfa_totp_credentials, user_mfa_recovery_codes,
   access_change_requests, access_change_decisions, approval_requests,
   approval_decisions, authorization_audit_events, audit_logs, customer_profiles,
   customer_attributions, customer_attribution_change_requests,
@@ -325,7 +370,8 @@ GRANT SELECT ON
   TO agentnovas_ops_web;
 GRANT SELECT ON commercial_closed_paper_pnl TO agentnovas_ops_web;
 GRANT INSERT, UPDATE ON
-  users, sessions, auth_tokens, invitations, user_mfa_totp_credentials,
+  users, sessions, auth_tokens, invitations, internal_registration_links,
+  user_mfa_totp_credentials,
   user_mfa_recovery_codes, access_change_requests, access_change_decisions,
   approval_requests, approval_decisions, authorization_audit_events, audit_logs,
   customer_profiles, customer_attributions, customer_attribution_change_requests,
@@ -344,6 +390,8 @@ GRANT INSERT, UPDATE ON
   roles, role_permissions, user_role_assignments
   TO agentnovas_ops_web;
 GRANT INSERT, UPDATE ON auth_rate_limit_buckets, commercial_idempotency_records
+  TO agentnovas_ops_web;
+GRANT INSERT ON organizations, internal_registration_link_uses
   TO agentnovas_ops_web;
 GRANT DELETE ON sessions, auth_tokens, auth_rate_limit_buckets,
   user_mfa_recovery_codes TO agentnovas_ops_web;
@@ -366,9 +414,11 @@ GRANT SELECT ON
   trading_emergency_stops, commercial_legal_document_versions,
   commercial_disclosure_bundles, commercial_disclosure_publish_requests,
   maintenance_idempotency_records, release_versions, release_verifications,
-  release_deployments
+  release_deployments, configuration_versions, configuration_test_results,
+  configuration_approvals, configuration_schedules, configuration_activations
   TO agentnovas_maint_web;
 GRANT SELECT ON platform_demo_accounts_safe TO agentnovas_maint_web;
+GRANT SELECT ON maintenance_ai_usage_events_safe TO agentnovas_maint_web;
 GRANT INSERT, UPDATE ON
   users, sessions, auth_tokens, user_mfa_totp_credentials, user_mfa_recovery_codes,
   access_change_requests, access_change_decisions, authorization_audit_events,
@@ -386,6 +436,11 @@ GRANT INSERT, UPDATE ON
 GRANT INSERT, UPDATE ON auth_rate_limit_buckets TO agentnovas_maint_web;
 GRANT INSERT ON release_versions, release_verifications, release_deployments
   TO agentnovas_maint_web;
+GRANT INSERT ON configuration_versions, configuration_test_results,
+  configuration_approvals, configuration_schedules, configuration_activations
+  TO agentnovas_maint_web;
+GRANT USAGE, SELECT ON SEQUENCE configuration_test_results_sequence_no_seq,
+  configuration_activations_sequence_no_seq TO agentnovas_maint_web;
 GRANT DELETE ON sessions, auth_tokens, auth_rate_limit_buckets,
   user_mfa_recovery_codes TO agentnovas_maint_web;
 
@@ -435,6 +490,18 @@ GRANT SELECT, INSERT, UPDATE ON notification_deliveries TO agentnovas_notificati
 GRANT INSERT ON audit_logs TO agentnovas_notification_worker;
 GRANT SELECT, INSERT, UPDATE ON worker_instances TO agentnovas_notification_worker;
 
+-- The due activation worker can read only immutable configuration release
+-- facts, execute one owner-controlled activation gateway, and report its own
+-- heartbeat. It has no direct activation/audit append or sequence capability.
+GRANT SELECT ON configuration_versions, configuration_test_results,
+  configuration_approvals, configuration_schedules, configuration_activations
+  TO agentnovas_configuration_activation_worker;
+GRANT SELECT, INSERT, UPDATE ON worker_instances
+  TO agentnovas_configuration_activation_worker;
+GRANT EXECUTE ON FUNCTION
+  public.configuration_activation_worker_activate(text)
+  TO agentnovas_configuration_activation_worker;
+
 GRANT SELECT, UPDATE ON platform_demo_accounts, platform_demo_card_controls TO agentnovas_demo_execution_worker;
 GRANT SELECT, INSERT, UPDATE ON platform_demo_order_intents, platform_demo_execution_receipts, platform_demo_fill_receipts TO agentnovas_demo_execution_worker;
 GRANT SELECT, INSERT, UPDATE ON worker_instances TO agentnovas_demo_execution_worker;
@@ -452,6 +519,52 @@ GRANT SELECT (id,provider,enabled,kill_switch_enabled,last_verified_at,last_veri
   ON platform_demo_accounts TO agentnovas_runtime_worker;
 GRANT SELECT ON platform_demo_card_controls TO agentnovas_runtime_worker;
 GRANT SELECT, INSERT, UPDATE ON platform_demo_order_intents TO agentnovas_runtime_worker;
+
+-- ---------------------------------------------------------------------------
+-- 0044–0053 新增对象的授权。
+--
+-- 这一段此前是空的：全部 54 个迁移里只有 0043 含 GRANT，而授权的唯一真源是本文件。
+-- 于是跑完 0044–0053 之后，运营端的熔断开关页与实盘路由页会全线 PostgreSQL 42501，
+-- 执行服务连自己的对账表都读不了。
+-- 文件末尾那句「新表保持关闭」是刻意的默认，但默认之后必须有人来开。
+
+-- 执行服务：全系统唯一能解密交易所凭证的进程。
+--
+-- 它读凭证密文，写对账与回执。**不给它任何客户身份表的权限**——它不需要知道
+-- 客户是谁，只需要知道这个账户属于那个 customerId（归属校验在 SQL 的 WHERE 里做）。
+GRANT SELECT ON exchange_accounts, strategy_deployments, official_paper_portfolios
+  TO agentnovas_execution_service;
+GRANT SELECT, INSERT, UPDATE ON execution_reconciliations TO agentnovas_execution_service;
+-- 回执只增不改：0053 的触发器已禁止 UPDATE/DELETE，这里连 UPDATE 权限都不给，
+-- 两层各自独立。
+GRANT SELECT, INSERT ON live_execution_receipts TO agentnovas_execution_service;
+-- 熔断与实盘授权只读：执行服务查闸门，但无权自行开关。
+GRANT SELECT ON execution_kill_switches, execution_live_routing TO agentnovas_execution_service;
+GRANT SELECT, UPDATE ON trades TO agentnovas_execution_service;
+GRANT INSERT ON audit_logs TO agentnovas_execution_service;
+GRANT SELECT, INSERT, UPDATE ON worker_instances TO agentnovas_execution_service;
+GRANT SELECT, INSERT ON platform_decisions TO agentnovas_execution_service;
+
+-- 运营端：熔断与实盘路由的操作界面。
+--
+-- 两张表都不给 DELETE：熔断与授权的历史是事后复盘的依据，
+-- 0051/0052 的触发器禁止复活已解除的记录，权限层再挡一次删除。
+GRANT SELECT, INSERT, UPDATE ON execution_kill_switches TO agentnovas_ops_web;
+GRANT SELECT, INSERT, UPDATE ON execution_live_routing TO agentnovas_ops_web;
+GRANT SELECT ON execution_reconciliations, live_execution_receipts TO agentnovas_ops_web;
+
+-- 运维端：审计链尾锚点。登记与校验都在这里，不给删除。
+GRANT SELECT, INSERT ON audit_chain_anchors TO agentnovas_maint_web;
+
+-- Runtime Worker：共享决策轮（0046–0048）。
+GRANT SELECT, INSERT, UPDATE ON strategy_decision_rounds TO agentnovas_runtime_worker;
+-- 实盘部署要读绑定的交易所账户是否可用，但**不读凭证密文**——
+-- 列级授权把 encrypted_credential_ref 挡在外面，Worker 拿不到它。
+GRANT SELECT (id, customer_id, exchange, environment, status, can_trade, withdrawal_authorized)
+  ON exchange_accounts TO agentnovas_runtime_worker;
+
+-- 客户端与运营端读共享决策轮，用于展示七阶段叙述。
+GRANT SELECT ON strategy_decision_rounds TO agentnovas_client_web, agentnovas_ops_web;
 
 -- No ALTER DEFAULT PRIVILEGES are granted to application roles. Re-run this
 -- database-bound template after forward migrations so new tables remain closed.

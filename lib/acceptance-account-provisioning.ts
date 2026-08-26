@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 
 import { hashPassword, normalizeEmail, validEmail } from "./auth.ts";
+import { mfaEnforcementEnabled } from "./mfa.ts";
 import type { AppAudience } from "./riverton-apps.ts";
 
 type AccountCredential = {
@@ -192,7 +193,9 @@ async function createAccount(client: PoolClient, input: {
     roleCode: account.roleCode,
     scope: account.scope,
     credentialDelivery: "out_of_band_file",
-    mfa: account.audience === "client" ? "optional" : "enrollment_required",
+    mfa: mfaEnforcementEnabled()
+      ? (account.audience === "client" ? "optional" : "enrollment_required")
+      : "available_not_enforced",
   }), timestamp]);
   return { userId, roleId, assignmentId, email: account.email };
 }

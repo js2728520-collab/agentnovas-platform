@@ -1,0 +1,259 @@
+import { randomUUID } from "node:crypto";
+
+import type { Pool, PoolClient } from "pg";
+
+import { settleFollowWeek } from "../packages/domain/src/strategy-follow-settlement.ts";
+import { ResearchApiError } from "./research-errors.ts";
+
+export type FollowSettlementRecord = {
+  id: string;
+  contractId: string;
+  weekStart: string;
+  weekEnd: string;
+  feeAmount: string;
+  platformAmount: string;
+  authorAmount: string;
+  priorHighWaterMark: string;
+  nextHighWaterMark: string;
+  status: string;
+  revision: number;
+  replayed: boolean;
+};
+
+type SettlementRow = {
+  id: string;
+  contract_id: string;
+  week_start: Date;
+  week_end: Date;
+  fee_amount: string;
+  platform_amount: string;
+  author_amount: string;
+  prior_high_water_mark: string;
+  next_high_water_mark: string;
+  status: string;
+  revision: number;
+};
+
+const view = (row: SettlementRow, replayed: boolean): FollowSettlementRecord => ({
+  id: row.id,
+  contractId: row.contract_id,
+  weekStart: row.week_start.toISOString(),
+  weekEnd: row.week_end.toISOString(),
+  feeAmount: row.fee_amount,
+  platformAmount: row.platform_amount,
+  authorAmount: row.author_amount,
+  priorHighWaterMark: row.prior_high_water_mark,
+  nextHighWaterMark: row.next_high_water_mark,
+  status: row.status,
+  revision: row.revision,
+  replayed,
+});
+
+const RETURNING = `
+  id, contract_id, week_start, week_end, fee_amount, platform_amount, author_amount,
+  prior_high_water_mark, next_high_water_mark, status, revision
+`;
+
+/**
+ * 结算某份跟单合同的某一个 UTC 自然周。
+ *
+ * **必须在事务里调用**，并且高水位线先加锁再读——两个 Worker 同时结算同一份合同会各自
+ * 读到同一个旧高水位线，于是同一段涨幅被收两次费。锁的是 (客户, 策略) 那一行。
+ *
+ * 幂等按 (合同, 周) 判定：重复结算返回原单且**不再推进高水位线**。这是这个函数最关键的
+ * 性质——推进两次会让下一周的计费基准凭空抬高，客户少付一笔而作者少拿一笔，且没有任何
+ * 地方会报错。
+ */
+export async function settleFollowContractWeek(
+  client: PoolClient,
+  input: {
+    contractId: string;
+    weekStart: string;
+    weekEnd: string;
+    weekNetPnl: string;
+    cumulativeNetPnl: string;
+  },
+): Promise<FollowSettlementRecord> {
+  const contract = (await client.query<{
+    id: string; customer_id: string; strategy_id: string; author_user_id: string;
+    performance_fee_bps: number; platform_share_bps: number;
+    publication_mode: "marketplace" | "self_use";
+    run_mode: "shadow" | "paper" | "live" | null;
+  }>(`
+    SELECT contract.id, contract.customer_id, contract.strategy_id, contract.author_user_id,
+           contract.performance_fee_bps, contract.platform_share_bps, contract.publication_mode,
+           subscription.run_mode
+      FROM strategy_follow_contracts AS contract
+      JOIN strategy_subscriptions AS subscription ON subscription.id = contract.subscription_id
+     WHERE contract.id = $1
+  `, [input.contractId])).rows[0];
+  if (!contract) throw new ResearchApiError("FOLLOW_CONTRACT_NOT_FOUND", "跟单合同不存在", 404);
+
+  // 幂等检查放在推进高水位线之前。放在之后就会先推进再发现已经算过。
+  const existing = (await client.query<SettlementRow>(`
+    SELECT ${RETURNING} FROM strategy_follow_settlements
+     WHERE contract_id = $1 AND week_start = $2
+     ORDER BY revision DESC LIMIT 1
+  `, [input.contractId, input.weekStart])).rows[0];
+  if (existing) return view(existing, true);
+
+  // 先建行再加锁：ON CONFLICT DO NOTHING 之后的 SELECT ... FOR UPDATE 才有行可锁。
+  await client.query(`
+    INSERT INTO strategy_follow_high_water_marks (customer_id, strategy_id)
+    VALUES ($1,$2) ON CONFLICT DO NOTHING
+  `, [contract.customer_id, contract.strategy_id]);
+  const mark = (await client.query<{ high_water_mark: string }>(`
+    SELECT high_water_mark::text FROM strategy_follow_high_water_marks
+     WHERE customer_id = $1 AND strategy_id = $2 FOR UPDATE
+  `, [contract.customer_id, contract.strategy_id])).rows[0];
+
+  const settlement = settleFollowWeek({
+    // run_mode 缺失时按 paper 处理——不收费。缺数据时的默认方向必须指向不收钱。
+    runMode: contract.run_mode ?? "paper",
+    weekNetPnl: input.weekNetPnl,
+    cumulativeNetPnl: input.cumulativeNetPnl,
+    priorHighWaterMark: mark.high_water_mark,
+    feeBps: contract.performance_fee_bps,
+    platformShareBps: contract.platform_share_bps,
+    publicationMode: contract.publication_mode,
+  });
+
+  const inserted = (await client.query<SettlementRow>(`
+    INSERT INTO strategy_follow_settlements (
+      id, contract_id, customer_id, strategy_id, author_user_id, week_start, week_end,
+      week_net_pnl, cumulative_net_pnl, prior_high_water_mark, next_high_water_mark,
+      eligible_profit, loss_carry, fee_bps, fee_amount, platform_amount, author_amount, status
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+    RETURNING ${RETURNING}
+  `, [
+    randomUUID(), contract.id, contract.customer_id, contract.strategy_id, contract.author_user_id,
+    input.weekStart, input.weekEnd, settlement.weekNetPnl, settlement.cumulativeNetPnl,
+    settlement.priorHighWaterMark, settlement.nextHighWaterMark, settlement.eligibleProfit,
+    settlement.lossCarry, settlement.feeBps, settlement.feeAmount,
+    settlement.platformAmount, settlement.authorAmount,
+    // 零费用周也出单，状态是 no_fee 而不是 pending_review——没有钱要审的东西不该占审批队列。
+    settlement.hasFee ? "pending_review" : "no_fee",
+  ])).rows[0];
+
+  await client.query(`
+    UPDATE strategy_follow_high_water_marks
+       SET cumulative_net_pnl = $3::numeric,
+           high_water_mark = GREATEST(high_water_mark, $4::numeric),
+           updated_at = now()
+     WHERE customer_id = $1 AND strategy_id = $2
+  `, [contract.customer_id, contract.strategy_id, settlement.cumulativeNetPnl, settlement.nextHighWaterMark]);
+
+  return view(inserted, false);
+}
+
+/**
+ * 从模拟盘账本读出某一周的已实现盈亏（T4.4 第 2 步）。
+ *
+ * 周盈亏取该周内的成交回执之和；累计盈亏取**周末之前全部**回执之和——高水位线比的是累计
+ * 值，只算本周会让每一周都从零开始，亏损周之后的反弹会被重复计费（INV-5）。
+ *
+ * 只算**已实现**盈亏：未平仓位的浮盈不计费。浮盈可能在下一周变成浮亏，按它收费等于对
+ * 一笔尚未发生的收益预收。
+ */
+export async function loadFollowWeekRealizedPnl(
+  client: PoolClient,
+  input: { portfolioId: string; weekStart: string; weekEnd: string },
+): Promise<{ weekNetPnl: string; cumulativeNetPnl: string }> {
+  const result = await client.query<{ week: string; cumulative: string }>(`
+    SELECT
+      COALESCE(SUM(realized_net_pnl_usdt) FILTER (
+        WHERE filled_at >= $2::timestamptz AND filled_at < $3::timestamptz
+      ), 0)::text AS week,
+      COALESCE(SUM(realized_net_pnl_usdt) FILTER (WHERE filled_at < $3::timestamptz), 0)::text AS cumulative
+    FROM strategy_follow_paper_fill_receipts
+    WHERE portfolio_id = $1
+  `, [input.portfolioId, input.weekStart, input.weekEnd]);
+  const row = result.rows[0];
+  return { weekNetPnl: row.week, cumulativeNetPnl: row.cumulative };
+}
+
+/**
+ * 按账本结算某份跟单合同的某一周。
+ *
+ * 这是把 T4.3b 的结算与 T4.4 的模拟盘账本接起来的那一环——在此之前 `weekNetPnl` 由调用方
+ * 给，而没有任何调用方，因为社区策略跑不出成交。
+ */
+export async function settleFollowWeekFromBook(
+  client: PoolClient,
+  input: { contractId: string; portfolioId: string; weekStart: string; weekEnd: string },
+): Promise<FollowSettlementRecord> {
+  const pnl = await loadFollowWeekRealizedPnl(client, input);
+  return settleFollowContractWeek(client, {
+    contractId: input.contractId,
+    weekStart: input.weekStart,
+    weekEnd: input.weekEnd,
+    ...pnl,
+  });
+}
+
+/**
+ * 找出下一个待结算的 (合同, 周) 并结算它（T4.4）。
+ *
+ * 每次只处理一个，返回 null 表示没有待结算的——与其它 Worker 循环同一形态。
+ *
+ * 候选是「合同确认之后、已经走完的 UTC 自然周里，还没有结算单的最早一周」。已走完才结算：
+ * 对一个还没结束的周计费，等于按半周的盈亏收全周的费。
+ *
+ * **模拟盘的周同样要结算。** 它们不产生费用（P-06），但盈亏要记录、高水位线要推进——
+ * 否则将来转实盘时基准从零开始，客户会为一段模拟期的涨幅重复付费（INV-5）。
+ */
+export async function processNextFollowSettlement(
+  pool: Pool,
+  input: { now?: Date } = {},
+): Promise<FollowSettlementRecord | null> {
+  const now = input.now ?? new Date();
+  const candidate = (await pool.query<{
+    contract_id: string; portfolio_id: string; week_start: string; week_end: string;
+  }>(`
+    WITH weeks AS (
+      SELECT contract.id AS contract_id,
+             portfolio.id AS portfolio_id,
+             -- 从合同确认所在周的周一起算，逐周展开到当前。
+             generate_series(
+               date_trunc('week', contract.confirmed_at AT TIME ZONE 'UTC'),
+               date_trunc('week', $1::timestamptz AT TIME ZONE 'UTC'),
+               interval '7 days'
+             ) AS week_start
+        FROM strategy_follow_contracts AS contract
+        JOIN strategy_follow_paper_portfolios AS portfolio
+          ON portfolio.subscription_id = contract.subscription_id
+    )
+    SELECT weeks.contract_id,
+           weeks.portfolio_id,
+           to_char(weeks.week_start, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS week_start,
+           to_char(weeks.week_start + interval '7 days', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS week_end
+      FROM weeks
+     WHERE weeks.week_start + interval '7 days' <= $1::timestamptz
+       AND NOT EXISTS (
+         SELECT 1 FROM strategy_follow_settlements AS settlement
+          WHERE settlement.contract_id = weeks.contract_id
+            AND settlement.week_start = weeks.week_start AT TIME ZONE 'UTC'
+       )
+     ORDER BY weeks.week_start, weeks.contract_id
+     LIMIT 1
+  `, [now.toISOString()])).rows[0];
+  if (!candidate) return null;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const settlement = await settleFollowWeekFromBook(client, {
+      contractId: candidate.contract_id,
+      portfolioId: candidate.portfolio_id,
+      weekStart: candidate.week_start,
+      weekEnd: candidate.week_end,
+    });
+    await client.query("COMMIT");
+    return settlement;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}

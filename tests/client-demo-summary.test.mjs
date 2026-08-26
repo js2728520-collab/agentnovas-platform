@@ -146,7 +146,7 @@ test("Client Demo provider catalog is immutable product metadata", () => {
 
 test("Client Demo route is Client-only, permission-gated and does not query raw account credentials", async () => {
   const route = await readFile(
-    new URL("../app/api/trading-hall/paper/platform-demo-summary/route.ts", import.meta.url),
+    new URL("../app/api/trading-hall/paper/platform-demo-summary/route.client.ts", import.meta.url),
     "utf8",
   );
 

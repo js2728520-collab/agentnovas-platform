@@ -67,6 +67,10 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm run test:apps
+      # ADR-0019 最核心不变量的唯一机器验证：三个 Web 构建里不含交易所凭证的
+      # 加解密能力。它此前定义了却没有任何自动化在跑——回归不会有人发现。
+      # 必须排在 test:apps 之后：它扫的是构建产物。
+      - run: npm run quality:key-custody
       - run: npm run quality:secret-scan
       - run: npm audit --omit=dev --audit-level=high
 

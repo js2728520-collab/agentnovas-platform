@@ -13,7 +13,9 @@ import {
 
 test("Playwright quality configuration binds loopback and disables binary screenshots", async () => {
   const configuration = await readFile(new URL("../../playwright.config.ts", import.meta.url), "utf8");
-  assert.match(configuration, /next \$\{development \? "dev" : "start"\} -H 127\.0\.0\.1 -p/);
+  assert.match(configuration, /next dev -H 127\.0\.0\.1 -p/);
+  assert.match(configuration, /standalone\/server\.js/);
+  assert.doesNotMatch(configuration, /next start/);
   assert.match(configuration, /screenshot:\s*"off"/);
   assert.doesNotMatch(configuration, /screenshot:\s*"only-on-failure"/);
 });
@@ -116,6 +118,7 @@ test("quality runner derives a fail-closed child environment", () => {
   assert.equal(environment.PAYMENT_WORKER_ENABLED, "false");
   assert.equal(environment.PAYMENT_PROVIDER_TESTS_ENABLED, "false");
   assert.equal(environment.NOTIFICATION_EMAIL_SEND_ENABLED, "false");
+  assert.equal(environment.MFA_ENFORCEMENT_ENABLED, "false");
   assert.equal(environment.PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED, "false");
   assert.equal(environment.PLATFORM_DEMO_VERIFICATION_ENABLED, "false");
   assert.equal(environment.RESEND_API_KEY, "");
@@ -127,6 +130,9 @@ test("quality runner derives a fail-closed child environment", () => {
   assert.equal(environment.NODE_ENV, "production");
   assert.equal(environment.NEXT_TELEMETRY_DISABLED, "1");
   assert.equal(environment.TRUST_PROXY_HOPS, "1");
+  assert.equal(environment.CLIENT_PUBLIC_BASE_URL, "https://agentnovas.com:3000");
+  assert.equal(environment.OPERATIONS_PUBLIC_BASE_URL, "https://zht.agentnovas.com:3001");
+  assert.equal(environment.MAINTENANCE_PUBLIC_BASE_URL, "https://xm.agentnovas.com:3002");
   for (const key of [
     "MFA_TOTP_ENCRYPTION_KEY",
     "INTEGRATION_CREDENTIAL_ENCRYPTION_KEY",
@@ -134,6 +140,57 @@ test("quality runner derives a fail-closed child environment", () => {
     "LLM_PROFILE_ENCRYPTION_KEY",
     "EXCHANGE_CREDENTIAL_ENCRYPTION_KEY",
   ]) assert.ok(environment[key].length >= 32, key);
+});
+
+test("MFA-on preflight is an explicit isolated profile and cannot change the default gate", () => {
+  const base = {
+    applicationDatabaseUrl: "postgresql://127.0.0.1/postgres?options=-csearch_path%3Dquality_e2e_mfa_123",
+    outputDirectory: "/tmp/quality-mfa-output",
+    runtimeDirectory: "/tmp/quality-mfa-runtime",
+    schema: "quality_e2e_mfa_123",
+  };
+  const canonical = createQualityRunEnvironment({
+    ...base,
+    baseEnvironment: { MFA_ENFORCEMENT_ENABLED: "true" },
+  });
+  assert.equal(canonical.MFA_ENFORCEMENT_ENABLED, "false");
+  assert.equal(canonical.QUALITY_E2E_PROFILE, "default");
+
+  const preflight = createQualityRunEnvironment({
+    ...base,
+    baseEnvironment: { MFA_ENFORCEMENT_ENABLED: "false" },
+    profile: "mfa-on",
+  });
+  assert.equal(preflight.MFA_ENFORCEMENT_ENABLED, "true");
+  assert.equal(preflight.QUALITY_E2E_PROFILE, "mfa-on");
+});
+
+test("MFA-on preflight has an isolated command, project, output, and expected test count", async () => {
+  const [runner, wrapper, configuration, packageJson] = await Promise.all([
+    readFile(new URL("../../scripts/quality/quality-e2e-runner.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../scripts/quality/run-mfa-on-e2e.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../playwright.config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(wrapper, /profile:\s*"mfa-on"/);
+  assert.match(runner, /outputs\/quality-mfa-on/);
+  assert.match(runner, /profile === "mfa-on" \? 3 : 20/);
+  assert.match(configuration, /QUALITY_E2E_PROFILE === "mfa-on"/);
+  assert.match(configuration, /mfa-on-preflight\.spec\.ts/);
+  assert.equal(JSON.parse(packageJson).scripts["test:e2e:mfa-on"], "node scripts/quality/run-mfa-on-e2e.mjs");
+});
+
+test("MFA rollout rehearsal restarts the same isolated database through on-off-on", async () => {
+  const [runner, packageJson] = await Promise.all([
+    readFile(new URL("../../scripts/quality/run-mfa-rollout-e2e.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(runner, /startServers\(repositoryRoot, environment, true\)/);
+  assert.match(runner, /startServers\(repositoryRoot, environment, false\)/);
+  assert.match(runner, /offSessionsRejectedAfterReenable: true/);
+  assert.match(runner, /activeCredentialsPreserved: 3/);
+  assert.match(runner, /cleanupQualityDatabaseFixture/);
+  assert.equal(JSON.parse(packageJson).scripts["test:e2e:mfa-rollout"], "node --experimental-strip-types scripts/quality/run-mfa-rollout-e2e.mjs");
 });
 
 test("quality cleanup removes runtime secrets and records a failed schema drop before rejecting", async () => {
@@ -148,7 +205,7 @@ test("quality cleanup removes runtime secrets and records a failed schema drop b
       schema: "quality_e2e_cleanup_failure",
       startedAt: new Date("2026-08-21T00:00:00.000Z"),
       fixturePrepared: true,
-      gateResult: { passed: false, expectedTests: 12, externalWritesEnabled: false },
+      gateResult: { passed: false, expectedTests: 20, externalWritesEnabled: false },
       cleanupSchema: async () => { throw new Error("DROP failed password=plaintext-must-disappear"); },
     }), /schema cleanup failed/i);
     await assert.rejects(() => access(runtimeDirectory), /ENOENT/);

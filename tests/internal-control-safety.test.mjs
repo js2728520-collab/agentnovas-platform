@@ -9,9 +9,9 @@ const read = (path) =>
 
 test("Udun activation requires complete runtime config, coin mapping, and a passed connectivity test", async () => {
   const [source, list, configuration] = await Promise.all([
-    read("app/api/maintenance/payment-providers/[id]/status/route.ts"),
-    read("app/api/maintenance/payment-providers/route.ts"),
-    read("app/api/maintenance/payment-providers/[id]/configuration/route.ts"),
+    read("app/api/maintenance/payment-providers/[id]/status/route.maintenance.ts"),
+    read("app/api/maintenance/payment-providers/route.maintenance.ts"),
+    read("app/api/maintenance/payment-providers/[id]/configuration/route.maintenance.ts"),
   ]);
   assert.match(source, /readUdunRuntimeConfig/);
   assert.match(source, /PAYMENT_PROVIDER_TEST_REQUIRED/);
@@ -26,8 +26,8 @@ test("Udun activation requires complete runtime config, coin mapping, and a pass
 
 test("Demo control and verification bind reason and payload to an idempotent audit command", async () => {
   const [control, verify, migration] = await Promise.all([
-    read("app/api/maintenance/demo-exchanges/[id]/control/route.ts"),
-    read("app/api/maintenance/demo-exchanges/[id]/verify/route.ts"),
+    read("app/api/maintenance/demo-exchanges/[id]/control/route.maintenance.ts"),
+    read("app/api/maintenance/demo-exchanges/[id]/verify/route.maintenance.ts"),
     read("postgres/migrations/0027_platform_demo_admin_commands.sql"),
   ]);
   for (const source of [control, verify]) {

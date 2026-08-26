@@ -22,6 +22,9 @@ const pool = new pg.Pool({
 });
 
 const digest = (value) => createHash("sha256").update(value).digest("hex");
+const notificationEnvironment = {
+  NOTIFICATION_TOKEN_ENCRYPTION_KEY: "client-registration-test-key-longer-than-thirty-two-characters",
+};
 const legalTypes = [
   "service_entity", "jurisdiction", "privacy", "terms", "risk_disclosure",
   "simulated_performance_fee_opinion", "refund_policy",
@@ -36,6 +39,10 @@ test.before(async () => {
   for (const name of migrationNames) {
     await pool.query(await readFile(new URL(`../postgres/migrations/${name}`, import.meta.url), "utf8"));
   }
+  // 0060 给组合加 book 维度（模拟盘/实盘各一本账）。开通会员时建组合的语句按
+  // (membership_id, strategy_code, book) 判重，缺了这一列会直接报列不存在。
+  await pool.query(await readFile(
+    new URL("../postgres/migrations/0060_live_portfolio_book.sql", import.meta.url), "utf8"));
   const registrationMigration = await readFile(
     new URL("../postgres/migrations/0034_client_registration_rate_limit.sql", import.meta.url),
     "utf8",
@@ -48,6 +55,10 @@ test.before(async () => {
   )).replaceAll("pg_catalog, public", `pg_catalog, "${schema}"`)
     .replaceAll("public.", `"${schema}".`);
   await pool.query(identityMigration);
+  await pool.query(await readFile(
+    new URL("../postgres/migrations/0066_client_email_and_device_security.sql", import.meta.url),
+    "utf8",
+  ));
   await pool.query(`
     INSERT INTO organizations(id,type,name) VALUES('registration-org','headquarters','Registration Org');
     INSERT INTO users(id,email,password_hash,role,organization_id,status) VALUES
@@ -128,6 +139,7 @@ test("a public one-time invitation has one atomic pending-trial winner, then dis
     now: new Date("2026-08-21T01:00:00.000Z"),
     ipAddress: "203.0.113.20",
     userAgent: "client-onboarding-test",
+    environment: notificationEnvironment,
   };
   const attempts = await Promise.allSettled([
     registerInvitedClient(pool, {
@@ -162,6 +174,26 @@ test("a public one-time invitation has one atomic pending-trial winner, then dis
     WHERE email IN ('first@example.test','second@example.test')
   `)).rows[0].count;
   assert.equal(committedRegistrations, 1);
+  const pendingIdentity = (await pool.query(
+    `SELECT status,email_verified_at FROM users WHERE id=$1`,
+    [winner.userId],
+  )).rows[0];
+  assert.deepEqual(pendingIdentity, { status: "pending", email_verified_at: null });
+  const verificationToken = (await pool.query(`
+    SELECT token_hash,used_at FROM auth_tokens
+    WHERE user_id=$1 AND purpose='verify_email' AND token_audience='client'
+  `, [winner.userId])).rows[0];
+  assert.match(verificationToken.token_hash, /^[a-f0-9]{64}$/);
+  assert.equal(verificationToken.used_at, null);
+  const verificationDelivery = (await pool.query(`
+    SELECT payload_json,secret_kind,secret_expires_at FROM notification_deliveries
+    WHERE user_id=$1 AND template_key='verify_email'
+  `, [winner.userId])).rows[0];
+  assert.equal(verificationDelivery.secret_kind, "verify_email");
+  assert.ok(verificationDelivery.secret_expires_at);
+  const verificationPayload = JSON.parse(verificationDelivery.payload_json);
+  assert.match(verificationPayload.encryptedToken, /^v1\./);
+  assert.equal(Object.hasOwn(verificationPayload, "token"), false);
   const pendingMembership = (await pool.query(
     `SELECT status,starts_at,expires_at,max_active_strategies FROM memberships WHERE id=$1`,
     [winner.membershipId],
@@ -312,7 +344,7 @@ test("0036 resets legacy pre-disclosure trial time and restarts three days from 
 });
 
 test("Client profile route checks normalized phone ownership with a specific conflict", async () => {
-  const source = await readFile(new URL("../app/api/account/profile/route.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/api/account/profile/route.client.ts", import.meta.url), "utf8");
   const workspace = await readFile(new URL("../apps/client/ui/account-security-workspace.tsx", import.meta.url), "utf8");
   assert.match(source, /normalizeProfilePhoneUpdate/);
   assert.match(source, /PHONE_TAKEN/);
@@ -321,10 +353,12 @@ test("Client profile route checks normalized phone ownership with a specific con
   assert.match(workspace, /手机号不能清除/);
 });
 
-test("registration response does not claim the trial was activated before disclosure", async () => {
-  const source = await readFile(new URL("../app/api/auth/register/route.ts", import.meta.url), "utf8");
-  assert.match(source, /等待完成商业披露确认后开通3天试用/);
+test("registration response requires email verification before login and disclosure", async () => {
+  const source = await readFile(new URL("../app/api/auth/register/route.client.ts", import.meta.url), "utf8");
+  assert.match(source, /24 小时内通过邮件完成邮箱验证/);
+  assert.match(source, /verificationRequired: registered\.verificationRequired/);
   assert.doesNotMatch(source, /已开通3天/);
+  assert.doesNotMatch(source, /@unverified\.agentnovas\.local/);
 });
 
 test("the Client hardening migration backfills existing Beta entitlements to three concurrent official cards", async () => {

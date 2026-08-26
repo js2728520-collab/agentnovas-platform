@@ -1,11 +1,11 @@
-import type { ResearchMode } from "./research-validation.ts";
+import type { ResearchMode } from "../packages/domain/src/research-validation.ts";
 import {
   normalizeStrategyDslV3,
   strategyDslToRuntime,
   type StrategyConditionV3,
   type StrategyDslV3,
   type StrategyRule,
-} from "./strategy-dsl.ts";
+} from "../packages/domain/src/strategy-dsl.ts";
 
 function seedFrom(value: string) {
   let seed = 0x811c9dc5;

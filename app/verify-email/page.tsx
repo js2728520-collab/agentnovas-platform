@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 export default function VerifyEmailPage() {
-  const [token] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("token") || "");
+  const [token] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token") || "");
   const [message, setMessage] = useState(() => token ? "正在验证账号…" : "验证链接缺少令牌。");
   useEffect(() => {
     if (!token) return;

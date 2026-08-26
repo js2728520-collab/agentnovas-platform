@@ -7,13 +7,13 @@ import type { AppAudience } from "@/lib/riverton-apps";
 import type { DataScope } from "@/lib/rbac";
 import { apiErrorMessage, formatDateTime, type AccessAssignment, type AccessChangeRequest, type AccessRole, type AccessRoleTemplate, type AuthorizationAuditEvent } from "@/packages/contracts/src/riverton-ui";
 import { ConfirmActionDialog } from "./confirm-action-dialog";
+import { hasValidAuditReason, InlineAuditReasonField } from "./inline-audit-reason-field";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "./page-state";
 import { useApiData } from "./use-api-data";
 
 type PermissionDefinition = { key: string; appId: AppAudience; label: string; sensitive: boolean };
-type PendingAction = { kind: "role" | "assignment" | "revoke"; label: string; assignment?: AccessAssignment }
-  | { kind: "template"; label: string }
-  | { kind: "publish"; label: string; role: AccessRole }
+type DirectAction = { kind: "role" } | { kind: "template" } | { kind: "publish"; role: AccessRole } | { kind: "assignment" };
+type PendingAction = { kind: "revoke"; label: string; assignment: AccessAssignment }
   | { kind: "decision"; label: string; request: AccessChangeRequest; decision: "approve" | "reject" };
 
 export function AccessCenter({ appId, permissions, auditOnly = false }: { appId: Exclude<AppAudience, "client">; permissions: Record<string, DataScope>; auditOnly?: boolean }) {
@@ -36,6 +36,9 @@ function AccessManagement({ appId, permissions }: { appId: Exclude<AppAudience, 
   const [templatePermissions, setTemplatePermissions] = useState<Record<string, DataScope>>({});
   const [targetUserId, setTargetUserId] = useState("");
   const [targetRoleId, setTargetRoleId] = useState("");
+  const [roleReason, setRoleReason] = useState("");
+  const [templateReason, setTemplateReason] = useState("");
+  const [assignmentReason, setAssignmentReason] = useState("");
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -55,14 +58,13 @@ function AccessManagement({ appId, permissions }: { appId: Exclude<AppAudience, 
     if (!response.ok) throw new Error(apiErrorMessage(payload, "授权操作失败"));
     return payload as Record<string, unknown>;
   }
-  async function execute(reason: string) {
-    if (!pending) return;
+  async function execute(action: DirectAction | PendingAction, reason: string) {
     setBusy(true); setMessage("");
     try {
-      if (pending.kind === "decision") {
-        await jsonRequest(`/api/access/change-requests/${pending.request.id}/decisions`, "POST", { decision: pending.decision, note: reason });
-        setMessage(`权限变更已${pending.decision === "approve" ? "批准" : "拒绝"}，结果以授权审计为准。`);
-      } else if (pending.kind === "role") {
+      if (action.kind === "decision") {
+        await jsonRequest(`/api/access/change-requests/${action.request.id}/decisions`, "POST", { decision: action.decision, note: reason });
+        setMessage(`权限变更已${action.decision === "approve" ? "批准" : "拒绝"}，结果以授权审计为准。`);
+      } else if (action.kind === "role") {
         if (!code.trim() || !name.trim() || !selectedDefinitions.length) throw new Error("请填写角色代码、名称并选择权限");
         const permissions = selectedDefinitions.map((definition) => ({ permissionKey: definition.key, scope: selectedPermissions[definition.key] }));
         if (selectedDefinitions.some((definition) => definition.sensitive)) {
@@ -76,7 +78,7 @@ function AccessManagement({ appId, permissions }: { appId: Exclude<AppAudience, 
           setMessage("普通角色已创建并发布。");
         }
         setCode(""); setName(""); setSelectedPermissions({});
-      } else if (pending.kind === "template") {
+      } else if (action.kind === "template") {
         if (!templateCode.trim() || !templateName.trim() || !selectedTemplateDefinitions.length) throw new Error("请填写模板代码、名称并选择权限");
         const templateRolePermissions = selectedTemplateDefinitions.map((definition) => ({ permissionKey: definition.key, scope: templatePermissions[definition.key] }));
         const changeSummary = templateSummary.trim() || "initial";
@@ -88,10 +90,10 @@ function AccessManagement({ appId, permissions }: { appId: Exclude<AppAudience, 
           setMessage("普通角色模板已发布。");
         }
         setTemplateCode(""); setTemplateName(""); setTemplateSummary(""); setTemplatePermissions({});
-      } else if (pending.kind === "publish") {
-        await jsonRequest(`/api/access/roles/${pending.role.id}/publish`, "POST", { reason });
-        setMessage(`角色“${pending.role.name}”已发布并写入授权审计。`);
-      } else if (pending.kind === "assignment") {
+      } else if (action.kind === "publish") {
+        await jsonRequest(`/api/access/roles/${action.role.id}/publish`, "POST", { reason });
+        setMessage(`角色“${action.role.name}”已发布并写入授权审计。`);
+      } else if (action.kind === "assignment") {
         if (!targetUserId.trim() || !selectedRole) throw new Error("请选择角色并填写目标用户 ID");
         const sensitive = selectedRole.permissions.some((permission) => catalog.data?.permissions.some((definition) => definition.key === permission.permissionKey && definition.sensitive));
         if (sensitive) {
@@ -102,12 +104,12 @@ function AccessManagement({ appId, permissions }: { appId: Exclude<AppAudience, 
           setMessage("普通角色已分配。");
         }
         setTargetUserId(""); setTargetRoleId("");
-      } else if (pending.assignment) {
-        const assignment = pending.assignment;
+      } else {
+        const assignment = action.assignment;
         await jsonRequest("/api/access/change-requests", "POST", { applicationId: appId, changeType: "role_revoke", targetUserId: assignment.userId, targetRoleId: assignment.roleId, before: {}, after: { assignmentId: assignment.id, reason }, reason });
         setMessage("角色撤销申请已提交，等待第二人审批。");
       }
-      setPending(null);
+      if (action.kind === "decision" || action.kind === "revoke") setPending(null);
       await refreshAll();
     } catch (error) { setMessage(error instanceof Error ? error.message : "授权操作失败"); }
     finally { setBusy(false); }
@@ -120,16 +122,16 @@ function AccessManagement({ appId, permissions }: { appId: Exclude<AppAudience, 
     <div className="rc-live" aria-live="polite">{message}</div>
     {loading && !roles.data ? <LoadingState /> : error && !roles.data ? <ErrorState message={error} retry={() => void refreshAll()} /> : null}
     {tab === "roles" && <div className={canManageRoles ? "rc-split-layout" : ""}>
-      {canManageRoles && <section className="rc-panel"><header><div><small>{appId}</small><h2>创建角色</h2></div></header><div className="rc-form"><label>角色代码<input value={code} onChange={(event) => setCode(event.target.value)} placeholder="例如 deposit_reviewer" /></label><label>角色名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="中文角色名称" /></label><fieldset className="rc-permission-list"><legend>权限和数据范围</legend>{catalog.data?.permissions.map((permission) => <label key={permission.key}><input type="checkbox" checked={Boolean(selectedPermissions[permission.key])} onChange={(event) => setSelectedPermissions((current) => { const next = { ...current }; if (event.target.checked) next[permission.key] = "SELF"; else delete next[permission.key]; return next; })} /><span><b>{permission.label}</b><small>{permission.key}{permission.sensitive ? " · 敏感" : ""}</small></span><select aria-label={`${permission.label}数据范围`} disabled={!selectedPermissions[permission.key]} value={selectedPermissions[permission.key] ?? "SELF"} onChange={(event) => setSelectedPermissions((current) => ({ ...current, [permission.key]: event.target.value as DataScope }))}>{catalog.data?.dataScopes.map((scope) => <option key={scope}>{scope}</option>)}</select></label>)}</fieldset><button className="rc-primary" type="button" onClick={() => setPending({ kind: "role", label: "创建角色" })}>确认角色配置</button></div></section>}
-      <section className="rc-panel"><header><div><small>{roles.data?.roles.length ?? 0} 个角色</small><h2>当前应用角色</h2></div></header>{!roles.data?.roles.length ? <EmptyState title="没有角色" description="尚未创建当前应用角色。" /> : <div className="rc-card-list">{roles.data.roles.map((role) => <article key={role.id}><header><div><b>{role.name}</b><small>{role.code} · {role.kind}</small></div><StatusBadge value={role.status} /></header><p>{role.permissions.map((permission) => `${permission.permissionKey} (${permission.scope})`).join(" · ") || "未配置权限"}</p>{canManageRoles && role.status === "draft" && <div className="rc-action-row rc-card-actions"><button className="rc-button" type="button" onClick={() => setPending({ kind: "publish", label: `发布 ${role.name}`, role })}>发布角色</button></div>}</article>)}</div>}</section>
+      {canManageRoles && <section className="rc-panel"><header><div><small>{appId}</small><h2>创建角色</h2><p>填写审计原因后直接提交；敏感权限仍会进入双人审批。</p></div></header><div className="rc-form"><label>角色代码<input value={code} onChange={(event) => setCode(event.target.value)} placeholder="例如 deposit_reviewer" /></label><label>角色名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="中文角色名称" /></label><fieldset className="rc-permission-list"><legend>权限和数据范围</legend>{catalog.data?.permissions.map((permission) => <label key={permission.key}><input type="checkbox" checked={Boolean(selectedPermissions[permission.key])} onChange={(event) => setSelectedPermissions((current) => { const next = { ...current }; if (event.target.checked) next[permission.key] = "SELF"; else delete next[permission.key]; return next; })} /><span><b>{permission.label}</b><small>{permission.key}{permission.sensitive ? " · 敏感" : ""}</small></span><select aria-label={`${permission.label}数据范围`} disabled={!selectedPermissions[permission.key]} value={selectedPermissions[permission.key] ?? "SELF"} onChange={(event) => setSelectedPermissions((current) => ({ ...current, [permission.key]: event.target.value as DataScope }))}>{catalog.data?.dataScopes.map((scope) => <option key={scope}>{scope}</option>)}</select></label>)}</fieldset><InlineAuditReasonField id="role-configuration-reason" value={roleReason} onChange={setRoleReason} label="角色配置原因" hint="同一原因可连续创建或发布本轮角色，无需重复弹窗。" /><button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(roleReason)} onClick={() => void execute({ kind: "role" }, roleReason.trim())}>创建角色</button></div></section>}
+      <section className="rc-panel"><header><div><small>{roles.data?.roles.length ?? 0} 个角色</small><h2>当前应用角色</h2></div></header>{!roles.data?.roles.length ? <EmptyState title="没有角色" description="尚未创建当前应用角色。" /> : <div className="rc-card-list">{roles.data.roles.map((role) => <article key={role.id}><header><div><b>{role.name}</b><small>{role.code} · {role.kind}</small></div><StatusBadge value={role.status} /></header><p>{role.permissions.map((permission) => `${permission.permissionKey} (${permission.scope})`).join(" · ") || "未配置权限"}</p>{canManageRoles && role.status === "draft" && <div className="rc-action-row rc-card-actions"><button className="rc-button" type="button" disabled={busy || !hasValidAuditReason(roleReason)} onClick={() => void execute({ kind: "publish", role }, roleReason.trim())}>发布角色</button></div>}</article>)}</div>}</section>
     </div>}
     {tab === "templates" && <div className={canManageRoles ? "rc-split-layout" : ""}>
-      {canManageRoles && <section className="rc-panel"><header><div><small>{appId}</small><h2>发布角色模板</h2></div></header><div className="rc-form"><label>模板代码<input value={templateCode} onChange={(event) => setTemplateCode(event.target.value)} placeholder="例如 branch_deposit_team" /></label><label>模板名称<input value={templateName} onChange={(event) => setTemplateName(event.target.value)} /></label><label>版本说明<textarea rows={2} value={templateSummary} onChange={(event) => setTemplateSummary(event.target.value)} placeholder="说明首版权限用途" /></label><fieldset className="rc-permission-list"><legend>模板权限和最大数据范围</legend>{catalog.data?.permissions.map((permission) => <label key={permission.key}><input type="checkbox" checked={Boolean(templatePermissions[permission.key])} onChange={(event) => setTemplatePermissions((current) => { const next = { ...current }; if (event.target.checked) next[permission.key] = "SELF"; else delete next[permission.key]; return next; })} /><span><b>{permission.label}</b><small>{permission.key}{permission.sensitive ? " · 敏感" : ""}</small></span><select aria-label={`${permission.label}模板数据范围`} disabled={!templatePermissions[permission.key]} value={templatePermissions[permission.key] ?? "SELF"} onChange={(event) => setTemplatePermissions((current) => ({ ...current, [permission.key]: event.target.value as DataScope }))}>{catalog.data?.dataScopes.map((scope) => <option key={scope}>{scope}</option>)}</select></label>)}</fieldset><button className="rc-primary" type="button" onClick={() => setPending({ kind: "template", label: "发布角色模板" })}>核对并发布模板</button></div></section>}
+      {canManageRoles && <section className="rc-panel"><header><div><small>{appId}</small><h2>发布角色模板</h2><p>填写审计原因后直接提交；敏感模板仍会进入双人审批。</p></div></header><div className="rc-form"><label>模板代码<input value={templateCode} onChange={(event) => setTemplateCode(event.target.value)} placeholder="例如 branch_deposit_team" /></label><label>模板名称<input value={templateName} onChange={(event) => setTemplateName(event.target.value)} /></label><label>版本说明<textarea rows={2} value={templateSummary} onChange={(event) => setTemplateSummary(event.target.value)} placeholder="说明首版权限用途" /></label><fieldset className="rc-permission-list"><legend>模板权限和最大数据范围</legend>{catalog.data?.permissions.map((permission) => <label key={permission.key}><input type="checkbox" checked={Boolean(templatePermissions[permission.key])} onChange={(event) => setTemplatePermissions((current) => { const next = { ...current }; if (event.target.checked) next[permission.key] = "SELF"; else delete next[permission.key]; return next; })} /><span><b>{permission.label}</b><small>{permission.key}{permission.sensitive ? " · 敏感" : ""}</small></span><select aria-label={`${permission.label}模板数据范围`} disabled={!templatePermissions[permission.key]} value={templatePermissions[permission.key] ?? "SELF"} onChange={(event) => setTemplatePermissions((current) => ({ ...current, [permission.key]: event.target.value as DataScope }))}>{catalog.data?.dataScopes.map((scope) => <option key={scope}>{scope}</option>)}</select></label>)}</fieldset><InlineAuditReasonField id="template-configuration-reason" value={templateReason} onChange={setTemplateReason} label="模板配置原因" hint="同一原因可用于本轮模板配置，无需再次确认。" /><button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(templateReason)} onClick={() => void execute({ kind: "template" }, templateReason.trim())}>发布模板</button></div></section>}
       <section className="rc-panel"><header><div><small>{templates.data?.roleTemplates.length ?? 0} 个模板</small><h2>当前应用模板</h2></div></header>{!templates.data?.roleTemplates.length ? <EmptyState title="没有角色模板" description="当前应用尚未发布可复用角色模板。" /> : <div className="rc-card-list">{templates.data.roleTemplates.map((template) => <article key={template.id}><header><div><b>{template.name}</b><small>{template.code} · 版本 {template.currentVersion ?? "—"}</small></div><StatusBadge value={template.status} /></header><p>模板仅能在当前应用使用；派生角色不能扩大模板权限或数据范围。</p></article>)}</div>}</section>
     </div>}
-    {tab === "assignments" && <section className="rc-panel"><header><div><small>用户与角色</small><h2>角色分配</h2></div></header>{canAssignRoles && <div className="rc-form rc-inline-form"><label>目标用户 ID<input value={targetUserId} onChange={(event) => setTargetUserId(event.target.value)} /></label><label>已发布角色<select value={targetRoleId} onChange={(event) => setTargetRoleId(event.target.value)}><option value="">请选择</option>{roles.data?.roles.filter((role) => role.status === "published").map((role) => <option value={role.id} key={role.id}>{role.name}</option>)}</select></label><button className="rc-button" type="button" onClick={() => setPending({ kind: "assignment", label: "分配角色" })}>分配</button></div>}<div className="rc-table-wrap"><table><thead><tr><th>用户</th><th>角色</th><th>状态</th><th>生效时间</th><th>操作</th></tr></thead><tbody>{assignments.data?.assignments.map((assignment) => <tr key={assignment.id}><td><small>{assignment.userId}</small></td><td>{assignment.roleName}<small>{assignment.roleCode}</small></td><td><StatusBadge value={assignment.status} /></td><td>{formatDateTime(assignment.effectiveAt)}</td><td>{canAssignRoles && assignment.status === "active" && <button className="rc-button rc-danger-button" type="button" onClick={() => setPending({ kind: "revoke", label: `撤销 ${assignment.roleName}`, assignment })}>申请撤销</button>}</td></tr>)}</tbody></table></div></section>}
+    {tab === "assignments" && <section className="rc-panel"><header><div><small>用户与角色</small><h2>角色分配</h2><p>普通分配直接生效；敏感角色仍只提交双人审批申请。</p></div></header>{canAssignRoles && <div className="rc-form rc-inline-form"><label>目标用户 ID<input value={targetUserId} onChange={(event) => setTargetUserId(event.target.value)} /></label><label>已发布角色<select value={targetRoleId} onChange={(event) => setTargetRoleId(event.target.value)}><option value="">请选择</option>{roles.data?.roles.filter((role) => role.status === "published").map((role) => <option value={role.id} key={role.id}>{role.name}</option>)}</select></label><InlineAuditReasonField id="role-assignment-reason" value={assignmentReason} onChange={setAssignmentReason} label="角色分配原因" hint="原因直接随本次分配或审批申请写入审计记录。" /><button className="rc-button" type="button" disabled={busy || !hasValidAuditReason(assignmentReason)} onClick={() => void execute({ kind: "assignment" }, assignmentReason.trim())}>分配</button></div>}<div className="rc-table-wrap"><table><thead><tr><th>用户</th><th>角色</th><th>状态</th><th>生效时间</th><th>操作</th></tr></thead><tbody>{assignments.data?.assignments.map((assignment) => <tr key={assignment.id}><td><small>{assignment.userId}</small></td><td>{assignment.roleName}<small>{assignment.roleCode}</small></td><td><StatusBadge value={assignment.status} /></td><td>{formatDateTime(assignment.effectiveAt)}</td><td>{canAssignRoles && assignment.status === "active" && <button className="rc-button rc-danger-button" type="button" onClick={() => setPending({ kind: "revoke", label: `撤销 ${assignment.roleName}`, assignment })}>申请撤销</button>}</td></tr>)}</tbody></table></div></section>}
     {tab === "requests" && <section className="rc-panel"><header><div><small>双人审批</small><h2>待处理变更</h2></div>{appId === "operations" && canReviewRoles && <Link className="rc-button" href="/approvals">进入综合审批中心</Link>}</header>{!requests.data?.changeRequests.length ? <EmptyState title="没有待审批变更" description="当前应用的敏感授权队列为空。" /> : <div className="rc-card-list">{requests.data.changeRequests.map((request) => <article key={request.id}><header><div><b>{request.changeType}</b><small>{request.requestedBy.email || request.requestedBy.userId} · {formatDateTime(request.requestedAt)}</small></div><StatusBadge value={request.canReview ? request.status : "禁止自审"} /></header><p>{request.reason || "未填写外层说明"}</p>{canReviewRoles && request.canReview && <div className="rc-action-row rc-card-actions"><button className="rc-button" type="button" onClick={() => setPending({ kind: "decision", label: `批准 ${request.changeType}`, request, decision: "approve" })}>批准</button><button className="rc-button rc-danger-button" type="button" onClick={() => setPending({ kind: "decision", label: `拒绝 ${request.changeType}`, request, decision: "reject" })}>拒绝</button></div>}</article>)}</div>}</section>}
-    <ConfirmActionDialog open={Boolean(pending)} title={pending?.label ?? "权限变更"} description={pending?.kind === "decision" ? "申请人与审批人必须分离；审批结果会写入当前应用授权审计。" : "请核对目标和权限范围。敏感授权将提交双人审批，不会绕过审批直接生效。"} confirmLabel="确认并记录" busy={busy} onCancel={() => setPending(null)} onConfirm={(reason) => void execute(reason)} />
+    <ConfirmActionDialog open={Boolean(pending)} title={pending?.label ?? "权限变更"} description={pending?.kind === "decision" ? "申请人与审批人必须分离；审批结果会写入当前应用授权审计。" : "撤销会改变用户现有访问能力，并提交双人审批申请。"} confirmLabel="确认并记录" busy={busy} onCancel={() => setPending(null)} onConfirm={(reason) => { if (pending) void execute(pending, reason); }} />
   </>;
 }
 

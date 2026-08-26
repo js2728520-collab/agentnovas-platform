@@ -1,9 +1,11 @@
 openapi: 3.1.0
+x-document-status: CURRENT_BASELINE
+x-v3-target-spec: ../specs/V3_SYSTEM_TARGET_SPEC.md
 info:
   title: Riverton Capital Controlled Beta API
   version: 2.2.0-beta
   description: >-
-    三应用一库的核心浏览器接口合同。客户 paper 与平台 Demo 证据分离；
+    当前受控 Beta 的核心浏览器接口合同，不是 V3 目标 API 清单。客户 paper 与平台 Demo 证据分离；
     优盾 deposit-only 客户充值可在目标商户配置和双人复核 Gate 下启用；提现、划转、自动扣款、客户交易所密钥、真实现货/永续和其他生产外部操作不启用。
 servers:
   - url: https://agentnovas.com
@@ -92,6 +94,85 @@ paths:
                 $ref: '#/components/schemas/TradingHall'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /api/work-records:
+    get:
+      tags: [Trading Hall]
+      summary: 查询本人订阅期间的策略工作记录
+      description: 公共决策按不可变订阅期间授权；组合准入、模拟意图与成交只属于当前客户。
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+        - in: query
+          name: cursor
+          schema: { type: string, maxLength: 512 }
+      responses:
+        '200':
+          description: 私有、不缓存的工作记录分页
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StrategyWorkRecordPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/work-records/{id}:
+    get:
+      tags: [Trading Hall]
+      summary: 查询本人可见的单条策略工作记录
+      description: 非法、未知、他人记录或订阅空档统一返回 404；明确不启用真实订单路由。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      responses:
+        '200':
+          description: 公共决策与当前客户组合事实的安全投影
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StrategyWorkRecordDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/maintenance/work-records/export:
+    post:
+      tags: [Maintenance]
+      summary: 导出脱敏工作记录
+      description: >-
+        独立敏感权限 maint.work_records.export。只读取 security-barrier 安全视图：
+        用户仅以单向伪名出现，不返回原始用户 ID、客户 PII、交易所账户、原始 evidence、
+        模型名、provider 标识或错误原文。服务端不落导出文件；审计只记录日期、条数、
+        截断状态、查询摘要和原因。
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [from, to, reason]
+              properties:
+                from: { type: string, format: date, description: UTC 起始日，包含 }
+                to: { type: string, format: date, description: UTC 结束日，包含；区间最多 31 天 }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200':
+          description: >-
+            脱敏投影。命中 1,000 条上限时 truncated=true，明确表示结果不完整。
+            响应带 content-disposition: attachment、no-store 与 x-export-retention: none。
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MaintenanceWorkRecordExport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Idempotency-Key 已绑定其他导出请求，或同键请求正在处理中
+        '422': { $ref: '#/components/responses/ValidationError' }
   /api/membership/legal-consent:
     get:
       tags: [Membership]
@@ -599,6 +680,181 @@ paths:
       responses:
         '200': { description: allowlist 技术审计事件与下一游标 }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/maintenance/configuration-versions:
+    get:
+      tags: [Maintenance]
+      summary: 查询不可变配置版本与派生发布状态
+      responses:
+        '200': { description: 配置版本、测试、审批、调度、生效历史与下一游标 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Maintenance]
+      summary: 幂等创建不含秘密的配置草稿
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [kind, key, audience, schemaVersion, payload, reason]
+              properties:
+                kind: { type: string, enum: [brand, domain, protocol, feature_flag, prompt, skill, pricing] }
+                key: { type: string, pattern: '^[a-z][a-z0-9_.-]{2,120}$' }
+                audience: { type: string, enum: [client, operations, maintenance, shared] }
+                schemaVersion: { type: integer, minimum: 1, maximum: 1000000 }
+                payload: { type: object, description: 最大 64 KiB；拒绝 secret/password/token/apiKey/privateKey 等字段 }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '201': { description: 不可变 draft；未测试、审批、调度或生效 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/configuration-versions/{id}/tests:
+    post:
+      tags: [Maintenance]
+      summary: 运行注册族确定性测试或追加其他配置族测试证据
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - title: 注册配置族服务端测试请求
+                  type: object
+                  additionalProperties: false
+                  required: [reason]
+                  properties:
+                    reason: { type: string, minLength: 3, maxLength: 500 }
+                - title: 尚未注册配置族人工证据请求
+                  type: object
+                  additionalProperties: false
+                  required: [result, evidenceSha256, reason]
+                  properties:
+                    result: { type: string, enum: [passed, failed] }
+                    evidenceSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+                    reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '201': { description: 注册族的服务端确定性结果或人工证据已由追加事实投影；注册族拒绝浏览器指定结果与摘要 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/configuration-versions/{id}/approval:
+    post:
+      tags: [Maintenance]
+      summary: 由不同人员批准或拒绝已测试配置
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [decision, reason]
+              properties:
+                decision: { type: string, enum: [approve, reject] }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200': { description: 不可变审批决定；创建者自审返回 403 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/maintenance/configuration-versions/{id}/schedule:
+    post:
+      tags: [Maintenance]
+      summary: 为已批准配置登记生效时间
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [scheduledFor, reason]
+              properties:
+                scheduledFor: { type: string, format: date-time, description: 必须携带 Z 或明确 UTC offset }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '201': { description: 唯一调度事实；响应统一为 UTC ISO 时间 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/configuration-versions/{id}/activation:
+    post:
+      tags: [Maintenance]
+      summary: 到期激活或回滚到历史已验证配置
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [action, reason]
+              properties:
+                action: { type: string, enum: [activate, rollback] }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '201': { description: current 投影已由追加生效事实改变；API 不执行交易、支付或部署动作 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/maintenance/ai-usage:
+    get:
+      tags: [Maintenance]
+      summary: 查询脱敏的 Client AI 用量与已记录运行结果聚合
+      description: >-
+        需要 maint.ai_usage.view。按 client_ai_inference_requests.created_at 的 UTC 请求创建 cohort
+        统计已完成 Credits 预留并建立 inference 记录的总体；已记录非取消失败率排除 preflight 拒绝、
+        用户取消和处理中请求，不代表系统或 provider 可用率。两参数均省略时默认最近 30 个 UTC 自然日；
+        显式查询时 from/to 必须同时提供，包含两端且最多 90 天。响应不含原始用户 ID、客户 PII、AI 内容、
+        错误原文、provider request ID 或模型凭证。
+      parameters:
+        - in: query
+          name: from
+          description: UTC 起始自然日；与 to 同时提供。
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - in: query
+          name: to
+          description: UTC 结束自然日（含）；与 from 同时提供，不得晚于当前 UTC 日期。
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+      responses:
+        '200':
+          description: 可信成功 Token、settled Credits、已记录非取消失败率和有界脱敏维度
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MaintenanceAiUsageReport' }
+        '400':
+          description: 日期非法、参数不完整、区间倒置、包含未来日期或超过 90 天
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/maintenance/releases:
     get:
       tags: [Maintenance]
@@ -697,6 +953,110 @@ components:
       in: cookie
       name: rc_maint_session
   schemas:
+    MaintenanceAiUsageOrganizationAttribution:
+      type: object
+      additionalProperties: false
+      required: [capturedAtRequest, legacyCurrentBackfill, legacyUnattributed]
+      properties:
+        capturedAtRequest: { type: integer, minimum: 0 }
+        legacyCurrentBackfill: { type: integer, minimum: 0 }
+        legacyUnattributed: { type: integer, minimum: 0 }
+    MaintenanceAiUsageMetrics:
+      type: object
+      required:
+        - requestCount
+        - succeededCount
+        - recordedFailureCount
+        - cancelledCount
+        - processingCount
+        - inputTokens
+        - outputTokens
+        - settledCredits
+        - releasedCount
+        - recordedFailureRate
+        - organizationAttribution
+      properties:
+        requestCount: { type: integer, minimum: 0 }
+        succeededCount: { type: integer, minimum: 0 }
+        recordedFailureCount: { type: integer, minimum: 0 }
+        cancelledCount: { type: integer, minimum: 0 }
+        processingCount: { type: integer, minimum: 0 }
+        inputTokens: { type: string, pattern: '^\d+$', description: 仅成功请求的可信输入 Token }
+        outputTokens: { type: string, pattern: '^\d+$', description: 仅成功请求的可信输出 Token }
+        settledCredits: { type: string, pattern: '^\d+$', description: 仅真实 settled reservation；字符串避免精度丢失 }
+        releasedCount: { type: integer, minimum: 0 }
+        recordedFailureRate: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        organizationAttribution: { $ref: '#/components/schemas/MaintenanceAiUsageOrganizationAttribution' }
+    MaintenanceAiUsageMetricRow:
+      allOf:
+        - $ref: '#/components/schemas/MaintenanceAiUsageMetrics'
+        - type: object
+          required: [key]
+          properties:
+            key: { type: string }
+            label: { type: string }
+            providerName: { type: string }
+            modelName: { type: string }
+    MaintenanceAiUsageDimension:
+      type: object
+      additionalProperties: false
+      required: [data, truncated]
+      properties:
+        data:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/MaintenanceAiUsageMetricRow' }
+        truncated: { type: boolean }
+    MaintenanceAiUsageReport:
+      type: object
+      additionalProperties: false
+      required: [period, timeBasis, population, pricing, summary, byDay, byOrganization, byUser, byModel, byAgent, byFunction]
+      properties:
+        period:
+          type: object
+          additionalProperties: false
+          required: [from, to, timezone]
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+            timezone: { type: string, const: UTC }
+        timeBasis: { type: string, const: request_created_at }
+        population:
+          type: object
+          additionalProperties: false
+          required: [included, failureNumerator, excludes]
+          properties:
+            included: { type: string, const: reserved_inference_requests }
+            failureNumerator: { type: string, const: non_cancelled_failed_terminal_requests }
+            excludes:
+              type: array
+              prefixItems:
+                - { type: string, const: preflight_rejections }
+                - { type: string, const: user_cancellations }
+                - { type: string, const: processing_requests }
+              minItems: 3
+              maxItems: 3
+        pricing:
+          type: object
+          additionalProperties: false
+          required: [status, blocker]
+          properties:
+            status: { type: string, const: decision_required }
+            blocker: { type: string, const: P-08 }
+        summary: { $ref: '#/components/schemas/MaintenanceAiUsageMetrics' }
+        byDay:
+          type: array
+          maxItems: 90
+          items: { $ref: '#/components/schemas/MaintenanceAiUsageMetricRow' }
+        byOrganization: { $ref: '#/components/schemas/MaintenanceAiUsageDimension' }
+        byUser: { $ref: '#/components/schemas/MaintenanceAiUsageDimension' }
+        byModel: { $ref: '#/components/schemas/MaintenanceAiUsageDimension' }
+        byAgent:
+          type: array
+          items: { $ref: '#/components/schemas/MaintenanceAiUsageMetricRow' }
+        byFunction:
+          type: array
+          items: { $ref: '#/components/schemas/MaintenanceAiUsageMetricRow' }
     ReleaseRegistrationRequest:
       type: object
       additionalProperties: false
@@ -850,6 +1210,112 @@ components:
           type: array
           items: { $ref: '#/components/schemas/DecisionRound' }
         generatedAt: { type: string, format: date-time }
+    StrategyWorkRecordSummary:
+      type: object
+      additionalProperties: false
+      required: [recordId, strategyCode, strategyName, strategyVersion, symbol, timeframe, decisionStatus, completeness, executionMode, admissionStatus, hasOrderIntent, hasFillReceipt, occurredAt, isSharedDecision]
+      properties:
+        recordId: { type: string, minLength: 1, maxLength: 128 }
+        strategyCode: { type: string, enum: [ai_conservative, ai_balanced, ai_aggressive] }
+        strategyName: { type: string }
+        strategyVersion: { type: string }
+        symbol: { type: string, enum: [BTCUSDT, ETHUSDT, SOLUSDT] }
+        timeframe: { type: string, enum: [5m, 15m, 1h, 4h, 1d] }
+        decisionStatus: { type: string }
+        completeness: { type: string, enum: [complete, partial, legacy] }
+        executionMode: { type: string, enum: [shadow, paper] }
+        admissionStatus: { type: string, enum: [not_required, not_recorded, recorded, risk_rejected, failed] }
+        hasOrderIntent: { type: boolean }
+        hasFillReceipt: { type: boolean }
+        occurredAt: { type: string, format: date-time }
+        isSharedDecision: { type: boolean }
+    StrategyWorkRecordPage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/StrategyWorkRecordSummary' }
+        page:
+          type: object
+          additionalProperties: false
+          required: [limit, nextCursor]
+          properties:
+            limit: { type: integer, minimum: 1, maximum: 50 }
+            nextCursor: { type: [string, 'null'] }
+    MaintenanceWorkRecordExport:
+      type: object
+      additionalProperties: false
+      required: [from, to, rowCount, truncated, maxRows, realOrderRoutingEnabled, rows]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        rowCount: { type: integer, minimum: 0, maximum: 1000 }
+        truncated:
+          type: boolean
+          description: 命中上限时为 true，表示这不是该区间的完整结果
+        maxRows: { type: integer, const: 1000 }
+        realOrderRoutingEnabled: { type: boolean, const: false }
+        rows:
+          type: array
+          maxItems: 1000
+          items:
+            type: object
+            additionalProperties: false
+            required: [recordId, isSharedDecision, occurredAt, candleOpenAt, strategyCode, strategyVersionId, symbol, timeframe, decisionStatus, completeness, executionMode, admissionStatus, customerPseudonym, marketSource, candleCount, dataStart, dataEnd, orderIntentCount, fillReceiptCount, traceId]
+            properties:
+              recordId: { type: string, maxLength: 128 }
+              isSharedDecision: { type: boolean }
+              occurredAt: { type: string, format: date-time }
+              candleOpenAt: { type: string, format: date-time }
+              strategyCode: { type: string, enum: [ai_conservative, ai_balanced, ai_aggressive] }
+              strategyVersionId: { type: string }
+              symbol: { type: string }
+              timeframe: { type: string }
+              decisionStatus: { type: string }
+              completeness: { type: string, enum: [complete, partial, legacy] }
+              executionMode: { type: string, enum: [shadow, paper] }
+              admissionStatus:
+                type: string
+                enum: [not_required, not_recorded, recorded, risk_rejected, failed]
+                description: 与 Client 同一口径；not_required 与 not_recorded 不得合并
+              customerPseudonym:
+                type: string
+                description: 单向伪名，不可反推身份；不返回原始用户 ID、邮箱、手机号或客户名称
+              marketSource: { type: [string, 'null'] }
+              candleCount: { type: [integer, 'null'] }
+              dataStart: { type: [string, 'null'], format: date-time }
+              dataEnd: { type: [string, 'null'], format: date-time }
+              orderIntentCount: { type: integer, minimum: 0 }
+              fillReceiptCount: { type: integer, minimum: 0 }
+              traceId: { type: [string, 'null'], maxLength: 128 }
+    StrategyWorkRecordDetail:
+      allOf:
+        - $ref: '#/components/schemas/StrategyWorkRecordSummary'
+        - type: object
+          required: [candleOpenAt, traceId, sharedDecisionRoundId, marketSnapshot, events, admission, orderIntents, fillReceipts, realOrderRoutingEnabled]
+          properties:
+            candleOpenAt: { type: string, format: date-time }
+            traceId: { type: [string, 'null'], maxLength: 128 }
+            sharedDecisionRoundId: { type: [string, 'null'] }
+            marketSnapshot: { type: [object, 'null'], description: 不含账户、完整交易规则或费用配置的行情安全投影 }
+            events:
+              type: array
+              maxItems: 7
+              items:
+                type: object
+                description: 七阶段 allowlist 结论、证据与公开解释
+            admission:
+              type: object
+              description: 仅当前客户组合的准入状态与 allowlist 风险摘要
+            orderIntents:
+              type: array
+              items: { type: object, description: 仅当前客户的模拟订单意图安全投影 }
+            fillReceipts:
+              type: array
+              items: { type: object, description: 仅当前客户的模拟成交安全投影 }
+            realOrderRoutingEnabled: { type: boolean, const: false }
     TradingHallStrategy:
       type: object
       required: [code, name, positioning, targetMarket, symbols, regimeTimeframe, decisionTimeframes, executionObservationTimeframe, typicalHoldingPeriod, normalParentOrderTarget, risk, status, executionMode, dataAvailable, openPositions]

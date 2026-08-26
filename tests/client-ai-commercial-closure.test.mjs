@@ -20,9 +20,12 @@ const config = {
   profileId: "profile-1",
   revisionId: "revision-1",
 };
+const publicResolver = async () => [{ address: "93.184.216.34" }];
+
 
 test("provider output carries validated provider metering", async () => {
   const result = await requestAiText(config, [{ role: "user", content: "hello" }], {
+    resolver: publicResolver,
     fetchImpl: async () => Response.json({
       id: "chatcmpl-fixture-1",
       choices: [{ message: { content: "measured answer" } }],
@@ -49,11 +52,67 @@ test("provider output without a request id or reliable token usage fails closed"
   ]) {
     await assert.rejects(
       requestAiText(config, [{ role: "user", content: "hello" }], {
+        resolver: publicResolver,
         fetchImpl: async () => Response.json(payload),
       }),
       /可靠.*(?:请求|用量)|计量/,
     );
   }
+});
+
+test("provider rejects private DNS results and redirects before sending credentials", async () => {
+  await assert.rejects(
+    requestAiText(config, [{ role: "user", content: "hello" }], {
+      resolver: async () => [{ address: "10.0.0.8" }, { address: "93.184.216.34" }],
+      fetchImpl: async () => {
+        throw new Error("request must not be sent");
+      },
+    }),
+    /内网或无效地址/,
+  );
+
+  let requestInit;
+  await assert.rejects(
+    requestAiText(config, [{ role: "user", content: "hello" }], {
+      resolver: publicResolver,
+      fetchImpl: async (_url, init) => {
+        requestInit = init;
+        throw new TypeError("redirect disallowed");
+      },
+    }),
+    /redirect disallowed/,
+  );
+  assert.equal(requestInit.redirect, "error");
+  assert.match(requestInit.headers.authorization, /^Bearer /);
+});
+test("provider endpoints require HTTPS before DNS or fetch", async () => {
+  await assert.rejects(
+    requestAiText({ ...config, endpoint: "http://llm.example.test/v1/chat/completions" }, [], {
+      resolver: publicResolver,
+      fetchImpl: async () => { throw new Error("request must not be sent"); },
+    }),
+    /HTTPS/,
+  );
+});
+test("provider requests combine user cancellation with the bounded timeout", async () => {
+  const controller = new AbortController();
+  let providerSignal;
+  const request = requestAiText(config, [{ role: "user", content: "cancel me" }], {
+    signal: controller.signal,
+    resolver: publicResolver,
+    fetchImpl: async (_url, init) => {
+      providerSignal = init?.signal;
+      return new Promise((_resolve, reject) => {
+        providerSignal?.addEventListener("abort", () => reject(providerSignal.reason), { once: true });
+        setTimeout(() => reject(new Error("external abort was not propagated")), 100);
+      });
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(providerSignal, "provider fetch must start before cancellation");
+  controller.abort(new DOMException("cancelled by customer", "AbortError"));
+  await assert.rejects(request, (error) => error?.name === "AbortError");
+  assert.equal(providerSignal?.aborted, true);
 });
 
 test("Client model runtime uses the safe report/proposal projection and dedicated encryption key", async () => {
@@ -75,9 +134,9 @@ test("Client model runtime uses the safe report/proposal projection and dedicate
 
 test("both paid Client AI writes require idempotency and reserve/settle/release Credits", async () => {
   const [chatRoute, strategyRoute, chatUi] = await Promise.all([
-    source("../app/api/ai/conversations/[id]/messages/route.ts"),
-    source("../app/api/strategy-studio/generate/route.ts"),
-    source("../app/agent-chat.tsx"),
+    source("../app/api/ai/conversations/[id]/messages/route.client.ts"),
+    source("../app/api/strategy-studio/generate/route.client.ts"),
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
   ]);
   for (const route of [chatRoute, strategyRoute]) {
     assert.match(route, /idempotencyKey\(request\)/);
@@ -111,6 +170,7 @@ test("every Client AI conversation and generation API requires the effective pap
     ["PATCH", "/api/ai/conversations/:id"],
     ["POST", "/api/ai/conversations/:id/messages"],
     ["POST", "/api/ai/conversations/:id/messages/:messageId/strategy"],
+    ["POST", "/api/ai/inferences/:id/cancel"],
     ["POST", "/api/strategy-studio/generate"],
   ];
   for (const [method, route] of expected) {
@@ -121,13 +181,31 @@ test("every Client AI conversation and generation API requires the effective pap
   }
 
   for (const path of [
-    "../app/api/ai/conversations/route.ts",
-    "../app/api/ai/conversations/[id]/route.ts",
-    "../app/api/ai/conversations/[id]/messages/route.ts",
-    "../app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.ts",
-    "../app/api/strategy-studio/generate/route.ts",
+    "../app/api/ai/conversations/route.client.ts",
+    "../app/api/ai/conversations/[id]/route.client.ts",
+    "../app/api/ai/conversations/[id]/messages/route.client.ts",
+    "../app/api/ai/conversations/[id]/messages/[messageId]/strategy/route.client.ts",
+    "../app/api/ai/inferences/[id]/cancel/route.client.ts",
+    "../app/api/strategy-studio/generate/route.client.ts",
   ]) {
     const routeSource = await source(path);
     assert.match(routeSource, /requireAccessPermission\(request,\s*"client\.paper\.view"\)/);
   }
+});
+
+test("Client chat exposes a server-owned cancel target and never treats abort as an idempotent retry", async () => {
+  const [chatRoute, cancelRoute, chatUi] = await Promise.all([
+    source("../app/api/ai/conversations/[id]/messages/route.client.ts"),
+    source("../app/api/ai/inferences/[id]/cancel/route.client.ts"),
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
+  ]);
+  assert.match(chatRoute, /inferenceRequestId:\s*claimed\.requestId/);
+  assert.match(chatRoute, /signal:\s*request\.signal/);
+  assert.match(cancelRoute, /cancelClientAiInference/);
+  assert.match(cancelRoute, /idempotencyKey\(request\)/);
+  assert.match(chatUi, /AbortController/);
+  assert.match(chatUi, /取消生成/);
+  assert.match(chatUi, /\/api\/ai\/inferences\/\$\{encodeURIComponent\([^)]*\)\}\/cancel/);
+  assert.match(chatUi, /inferenceRequestId/);
+  assert.doesNotMatch(chatUi, /setRetryRequest\([^)]*AI_REQUEST_CANCELLED/);
 });

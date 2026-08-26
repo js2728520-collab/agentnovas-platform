@@ -1,13 +1,17 @@
 @import "tailwindcss";
-
-:root {
-  color-scheme: dark;
-}
+@import "./design-tokens.css";
 
 html,
 body {
   min-height: 100%;
   margin: 0;
+}
+
+body {
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+  font-family: var(--rv-font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 *,
@@ -28,6 +32,7 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* 系统级状态页（启动失败、维护中）——不依赖任何应用样式表 */
 .riverton-system-state {
   display: grid;
   width: min(34rem, calc(100% - 2rem));
@@ -36,7 +41,7 @@ a {
   place-content: center;
   justify-items: start;
   gap: 0.8rem;
-  color: #e8edf5;
+  color: var(--rv-foreground);
 }
 
 .riverton-system-state h1,
@@ -45,12 +50,12 @@ a {
 }
 
 .riverton-system-state p {
-  color: #9ca9bc;
+  color: var(--rv-muted-foreground);
   line-height: 1.65;
 }
 
 .riverton-system-kicker {
-  color: #75e5c5 !important;
+  color: var(--rv-brand);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -63,26 +68,26 @@ a {
   align-items: center;
   justify-content: center;
   margin-top: 0.5rem;
-  border: 1px solid #3ad0a7;
-  border-radius: 0.65rem;
+  border: 1px solid transparent;
+  border-radius: var(--rv-radius-md);
   padding: 0.65rem 1rem;
-  background: #153d36;
-  color: #effff9;
+  background: var(--rv-primary-strong);
+  color: var(--rv-primary-foreground);
   cursor: pointer;
-  font-weight: 700;
+  font-weight: 650;
   text-decoration: none;
 }
 
 .riverton-system-action:focus-visible {
-  outline: 3px solid #8af4d7;
+  outline: 2px solid var(--rv-primary);
   outline-offset: 3px;
 }
 
 .riverton-system-spinner {
   width: 1.5rem;
   height: 1.5rem;
-  border: 2px solid #344255;
-  border-top-color: #75e5c5;
+  border: 2px solid var(--rv-border-strong);
+  border-top-color: var(--rv-primary);
   border-radius: 50%;
   animation: riverton-system-spin 0.9s linear infinite;
 }

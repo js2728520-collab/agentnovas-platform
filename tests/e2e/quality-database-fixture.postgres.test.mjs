@@ -34,6 +34,7 @@ test("quality database fixture is isolated, complete, secret-safe, and disposabl
     prepared = true;
     assert.deepEqual(Object.keys(fixture.identities).sort(), [
       "client",
+      "clientSecurity",
       "maintenanceAdmin",
       "operationsChecker",
       "operationsMaker",
@@ -55,10 +56,10 @@ test("quality database fixture is isolated, complete, secret-safe, and disposabl
       max: 1,
     });
     try {
-      assert.equal(Number((await pool.query("SELECT count(*) AS count FROM users WHERE email LIKE '%@quality.invalid'")).rows[0].count), 4);
+      assert.equal(Number((await pool.query("SELECT count(*) AS count FROM users WHERE email LIKE '%@quality.invalid'")).rows[0].count), 5);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM sessions WHERE revoked_at IS NULL")).rows[0].count), 4);
       const clientSessions = await pool.query(`
-        SELECT session.id,session.app_audience,session.created_at,session.last_seen_at,
+        SELECT session.id,session.app_audience,session.mfa_level,session.created_at,session.last_seen_at,
                session.idle_expires_at,session.absolute_expires_at,session.ip_address,session.user_agent
           FROM sessions AS session
          WHERE session.user_id=$1
@@ -68,12 +69,13 @@ test("quality database fixture is isolated, complete, secret-safe, and disposabl
          LIMIT 50
       `, [fixture.identities.client.userId]);
       assert.equal(clientSessions.rowCount, 1);
+      assert.equal(clientSessions.rows[0].mfa_level, "none");
       assert.doesNotThrow(() => new Date(clientSessions.rows[0].idle_expires_at).toISOString());
       assert.doesNotThrow(() => new Date(clientSessions.rows[0].absolute_expires_at).toISOString());
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM commercial_legal_document_versions WHERE status='active'")).rows[0].count), 7);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM commercial_legal_document_versions WHERE status='active' AND content_markdown IS NOT NULL AND content_locale='en'")).rows[0].count), 7);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM commercial_legal_acceptances WHERE user_id=$1", [fixture.identities.client.userId])).rows[0].count), 7);
-      assert.equal(Number((await pool.query("SELECT count(*) AS count FROM user_role_assignments WHERE status='active'")).rows[0].count), 4);
+      assert.equal(Number((await pool.query("SELECT count(*) AS count FROM user_role_assignments WHERE status='active'")).rows[0].count), 5);
       const permissionKeys = async (userId) => (await pool.query(`
         SELECT rp.permission_key
         FROM user_role_assignments ura
@@ -99,6 +101,25 @@ test("quality database fixture is isolated, complete, secret-safe, and disposabl
       assert.ok(!checkerPermissions.includes("ops.performance_fees.payment_evidence"));
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM notification_provider_configs WHERE status <> 'disabled'")).rows[0].count), 0);
       assert.equal(Number((await pool.query("SELECT count(*) AS count FROM platform_demo_accounts")).rows[0].count), 0);
+      assert.equal(Number((await pool.query(
+        "SELECT count(*) AS count FROM strategy_research_runs WHERE id=$1 AND owner_user_id=$2 AND status='completed'",
+        [runtime.researchFixture.runId, fixture.identities.client.userId],
+      )).rows[0].count), 1);
+      const candidate = (await pool.query(`
+        SELECT validation_label,score,rank,saved_strategy_id
+          FROM strategy_candidates
+         WHERE id=$1 AND run_id=$2
+      `, [runtime.researchFixture.candidateId, runtime.researchFixture.runId])).rows[0];
+      assert.deepEqual(candidate, {
+        validation_label: "STANDARD_VERIFIED",
+        score: 88.5,
+        rank: 1,
+        saved_strategy_id: null,
+      });
+      assert.equal(Number((await pool.query(
+        "SELECT count(*) AS count FROM strategy_evaluations WHERE candidate_id=$1 AND passed=true AND is_final_holdout=true",
+        [runtime.researchFixture.candidateId],
+      )).rows[0].count), 1);
     } finally {
       await pool.end();
     }

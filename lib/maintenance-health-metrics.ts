@@ -6,6 +6,7 @@ export const MAINTENANCE_QUEUE_THRESHOLDS = Object.freeze({
   research: { warningAgeSeconds: 120, criticalAgeSeconds: 300 },
   membership_review: { warningAgeSeconds: 3_600, criticalAgeSeconds: 14_400 },
   performance_review: { warningAgeSeconds: 3_600, criticalAgeSeconds: 14_400 },
+  configuration_activation: { warningAgeSeconds: 60, criticalAgeSeconds: 300 },
 });
 
 export type MaintenanceQueueName = keyof typeof MAINTENANCE_QUEUE_THRESHOLDS;
@@ -52,6 +53,24 @@ export async function loadMaintenanceHealthMetrics(pool: Pick<Pool, "query">, no
     SELECT 'performance_review',count(*)::text,
            extract(epoch FROM ($1::timestamptz-min(created_at)))::text
       FROM performance_fee_statements WHERE status IN ('pending_review','payment_pending')
+    UNION ALL
+    SELECT 'configuration_activation',count(*)::text,
+           extract(epoch FROM ($1::timestamptz-min(schedule.scheduled_for)))::text
+      FROM configuration_schedules AS schedule
+      JOIN configuration_approvals AS approval ON approval.configuration_version_id=schedule.configuration_version_id
+     WHERE schedule.scheduled_for <= $1::timestamptz
+       AND approval.decision='approve'
+       AND (
+         SELECT test.result
+           FROM configuration_test_results AS test
+          WHERE test.configuration_version_id=schedule.configuration_version_id
+          ORDER BY test.sequence_no DESC
+          LIMIT 1
+       )='passed'
+       AND NOT EXISTS (
+         SELECT 1 FROM configuration_activations AS activation
+          WHERE activation.configuration_version_id=schedule.configuration_version_id
+       )
   `, [now.toISOString()]);
   return result.rows.map((row) => evaluateMaintenanceQueue({
     queue: row.queue,

@@ -1,7 +1,30 @@
 # API 目录与迁移状态
 
-日期：2026-08-21
-范围：当前包含 181 个 route 文件、233 个 HTTP method handler，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。
+> 文档状态：`CURRENT_BASELINE`。本文只登记当前真实 route 和 Policy，不提前虚构 V3 endpoint。V3 目标 API 家族见 [`../specs/V3_SYSTEM_TARGET_SPEC.md`](../specs/V3_SYSTEM_TARGET_SPEC.md)；每个家族只有在合同、实现和 Gate 完成后才能写入本目录并改为 `CURRENT`。
+
+日期：2026-08-24
+范围：当前包含 207 个 route 文件、270 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。V3 Current→Target 的代码、数据库、页面、Worker 和 Gate 映射见 [`../architecture/CAPABILITY_MIGRATION_MATRIX.md`](../architecture/CAPABILITY_MIGRATION_MATRIX.md)。
+
+## 0. V3 目标接口族（尚不是当前合同）
+
+下列接口族来自 PRD V3.0。这里只记录所有权和依赖，不指定最终 path；详细设计、威胁模型、中央 Policy、迁移和测试完成后，才可把实际 route 加入后续章节。
+
+| 接口族 | 所有权 | 当前状态 | 前置条件 |
+| --- | --- | --- | --- |
+| Operations 角色权限注册链接 | O | `CURRENT/PARTIAL` | 签发、复制、撤销、重生成、注册、限流和审计已落地；待 Client 会话子项与 G1 浏览器验收 |
+| Client 可复用邀请与 5 设备会话 | C/O | `CURRENT/PARTIAL` | 邮箱验证、5 设备、提醒和全量退出已实现；待 G1 浏览器/邮件/目标 Nginx 证据 |
+| 行情源偏好、provider 状态和主备切换 | C/M/S | `TARGET` | provider/symbol/calendar 合同，G2 |
+| 客户策略投稿、审核、上架和下架 | C/O | `TARGET` | 策略版本、准入、作者权限，G3 |
+| 跟单订阅、费用、参数和停止 | C/O/S | `TARGET` | 不可变快照、收费、风险，G3/G4 |
+| 客户交易账户 live readiness | C/S | `PARTIAL/BLOCKED` | balance reconcile、activation，G4 |
+| 真实订单、回执和对账 | S | `PARTIAL/BLOCKED` | Execution Service/provider Gate，G4A/G4B |
+| 提现、划转和服务费 | C/O/S | `BLOCKED` | 独立资金 Spec 与 G5 |
+| 套餐、Credits、退款和优惠版本 | M/C/O | `TARGET/PARTIAL` | 产品参数、双审、账本，G3/G6 |
+| CI/CD workflow 触发与回调 | M/S | `BLOCKED` | 受限 workflow、短期凭证、G7 |
+
+任何 `TARGET/BLOCKED` 接口都不得通过复用旧 route、隐藏参数或临时开关绕过中央 inventory。
+
+> 迁移状态：`/api/invitations/staff-link` 与 `/api/organization/staff-register` 已切换到 V3 权限注册链接合同；内部 token 使用独立表、长期有效、只存摘要、注册即产生 active assignment。`/api/invitations/link` 仍是客户可复用邀请，二者不可互换。逐人创建成员和汇报关系写接口返回 `410 Retired`，历史待激活账号的兼容处理暂时保留。
 
 ## 1. 使用说明
 
@@ -17,7 +40,9 @@
 
 所有接口在受控测试前都必须进入可执行的 route policy 清单：method/path、audience、认证/MFA、permission、assignment-bound data scope、PII policy、mutation sensitivity、idempotency、rate limit、body limit 和审计类型。未登记 handler 发布失败。
 
-## 2. Access 与账户（26）
+本目录中标记 `recent MFA` 的策略实现均受服务端 `MFA_ENFORCEMENT_ENABLED` 约束：当前准备阶段为 `false`，其他权限、scope、Origin、幂等、限流和审计继续执行；正式生产按 ADR-0023 三端统一设为 `true` 后生效。
+
+## 2. Access 与账户（33）
 
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
@@ -36,14 +61,20 @@
 | `/api/account/llm-config/test` | POST | C | DISABLED/BETA；不接受客户密钥测试 |
 | `/api/account/password` | POST | C/O/M | KEEP；校验当前密码、Argon2id、撤销其他会话与审计 |
 | `/api/account/profile` | GET, PATCH | C | KEEP |
+| `/api/account/sessions` | GET, POST, DELETE | C/O/M | CURRENT；列出/单会话撤销；POST 原子退出全部设备并清当前 Cookie |
 | `/api/auth/forgot-password` | POST | C | KEEP；内部 audience 404，需限流 |
-| `/api/auth/login` | POST | C/O/M | KEEP；audience 登录资格、共享限流；内部强制 MFA，Client 已绑定时要求 MFA |
-| `/api/auth/mfa/**` | GET, POST | C/O/M | KEEP；内部强制、Client 可选绑定；恢复码只显示一次且仅存哈希 |
+| `/api/auth/login` | POST | C/O/M | CURRENT；Client 强制已验证邮箱、原子 5 设备上限和新设备/网段变化提醒；MFA 强制由服务端开关控制，当前关闭 |
+| `/api/auth/mfa/**` | GET, POST | C/O/M | KEEP；完整 TOTP/recovery 能力保留；恢复码只显示一次且仅存哈希；当前不强制登录挑战 |
 | `/api/auth/logout` | POST | C/O/M | KEEP；只清当前 audience |
 | `/api/auth/me` | GET | C/O/M | KEEP |
-| `/api/auth/register` | POST | C | KEEP；邀请制，内部 audience 404 |
+| `/api/auth/register` | POST | C | CURRENT；国际手机号和邮箱必填，创建 pending 身份与加密验证邮件；内部 audience 404 |
+| `/api/auth/resend-verification` | POST | C | CURRENT；匿名同源、邮箱/网络双桶限流、非枚举响应并轮换旧验证 token |
 | `/api/auth/reset-password` | POST | C | KEEP；一次性 token、共享限流和全量会话撤销 |
-| `/api/auth/verify-email` | POST | C | KEEP |
+| `/api/auth/verify-email` | POST | C | CURRENT；24 小时摘要 token，消费后激活；浏览器 token 使用 URL fragment |
+| `/api/invitations/staff-link` | GET, POST, PATCH, DELETE | O | CURRENT；五级向下授权、复制审计、手动作废和原子重生成；recent MFA 仅在生产强制开关开启时要求 |
+| `/api/organization/staff-register` | POST | O | CURRENT；匿名但仅 Operations，同源、三桶限流、注册即 active assignment；返回当前 MFA enforcement 事实 |
+| `/api/organization/members` | GET, POST, PATCH, DELETE | O | PARTIAL；GET 提供 scope-bound 平面账号目录；POST/PATCH 已 `410 Retired`，DELETE 禁用 |
+| `/api/organization/members/[id]/status` | PATCH | O | CURRENT；严格低级角色/下级链路，停用同时撤销会话、令牌和签发链接 |
 | `/api/system/bootstrap` | POST | M | DISABLED/BETA；HTTP 固定关闭，内部管理员只能由空系统一次性 CLI 创建 |
 | `/api/invitations` | GET, POST | O | CURRENT；组织 scope、一次性设置密码、有效期与审计 |
 | `/api/attributions/requests` | POST | O | CURRENT；归属变更申请，不允许直接产生副作用 |
@@ -66,6 +97,7 @@
 | `/api/ai/conversations/[id]/messages` | POST | C | CURRENT；平台 `report` Profile、可信 usage、Credits 预留/结算/失败释放与幂等重放 |
 | `/api/ai/conversations/[id]` | GET, PATCH | C | KEEP；所有权 |
 | `/api/ai/conversations` | GET, POST | C | KEEP；所有权 |
+| `/api/ai/inferences/[id]/cancel` | POST | C | CURRENT；`client.paper.view`、同源和 Idempotency-Key；仅本人请求，取消/完成竞态决定 Credits 唯一终态 |
 | `/api/strategy-research/roles` | GET | C | KEEP；安全视图 |
 | `/api/strategy-research/runs/**` | GET, POST | C | DISABLED/BETA；旧合同依赖客户永续账户，完成公共现货迁移前不可达 |
 | `/api/strategy-studio/chat` | POST | C | DISABLED/BETA；旧客户端历史透传接口固定 410，改用持久化对话 |
@@ -99,11 +131,10 @@
 | `/api/exchange-accounts` | GET, POST | C | DISABLED/BETA；客户密钥与连接状态不可达 |
 | `/api/integrations/catalog` | GET | C | DISABLED/BETA；不向 Client 暴露环境变量名称或平台配置状态，运维使用专用安全投影 |
 | `/api/market/candles` | GET | C | KEEP；缓存、数据质量 |
-| `/api/market/instruments` | GET | C | KEEP；现货/永续产品类型明确 |
+| `/api/market/instruments` | GET | C | KEEP/CURRENT；contract v1 加法式返回四个当前市场、canonical instrument 与公共 provider symbol 映射，保留旧字段；不声明 WebSocket、生产授权或 execution |
 | `/api/market/news` | GET | C | KEEP |
 | `/api/market/quote` | GET | C | KEEP |
 | `/api/market/ticker` | GET | C | KEEP |
-| `/api/market/watchlist` | GET, POST, DELETE | C | KEEP；所有权 |
 | `/api/platform/network` | GET | C | DISABLED/BETA；不向 Client 提供密钥连接网络信息 |
 | `/api/platform/settings` | GET | C | KEEP；只返回公开白名单字段 |
 | `/api/health` | GET | S | KEEP；公开粗粒度模式/时间，不含内部检查 |
@@ -176,6 +207,12 @@
 | `/api/maintenance/demo-exchanges/[id]/control` | POST | M | KEEP；reason/recent MFA/幂等/kill 安全语义 |
 | `/api/maintenance/demo-exchanges/[id]/verify` | POST | M | KEEP；固定测试域名、原因、幂等审计 |
 | `/api/maintenance/audit` | GET | M | KEEP；Demo/模型/集成/设置/安全/身份 allowlist 安全投影，domain/action/status/cursor 与 requestId/traceId |
+| `/api/maintenance/ai-usage` | GET | M | CURRENT（T3.9a）；`maint.ai_usage.view` 敏感只读；按 UTC 请求创建 cohort 聚合已预留 inference，返回可信成功 Token、settled Credits、已记录非取消失败率及组织快照质量/稳定伪名用户/模型 revision/Agent/功能/日期维度；默认 30 天、最大 90 天、高基数 Top 50，`no-store`；不返回原始用户 ID、PII、AI 内容、错误原文或模型凭证，失败率不代表系统/provider 可用率 |
+| `/api/maintenance/configuration-versions` | GET, POST | M | CURRENT（T3.1a）；查询或幂等创建不含秘密的不可变配置草稿，按 `(kind,key,audience)` 并发分配版本号 |
+| `/api/maintenance/configuration-versions/[id]/tests` | POST | M | CURRENT（T3.1c-FF1/FF2）；功能开关 v1/v2 只接收原因并由服务端生成确定性结果/证据；尚未注册的其他配置族保留人工 passed/failed 证据，审批后均禁止补写 |
+| `/api/maintenance/configuration-versions/[id]/approval` | POST | M | CURRENT（T3.1a）；不同人员 approve/reject，创建者不可自审 |
+| `/api/maintenance/configuration-versions/[id]/schedule` | POST | M | CURRENT（T3.1a）；登记带明确 UTC offset 的唯一生效时间 |
+| `/api/maintenance/configuration-versions/[id]/activation` | POST | M | CURRENT（T3.1c-FF1/FF2）；到期激活或回滚到同流曾生效的已验证版本；`client.strategy_research` 从下一次请求按全局 v1 或定向 v2 判定，其他配置族不执行具体副作用 |
 | `/api/maintenance/releases` | GET, POST | M | CURRENT；查询或幂等登记 SemVer/commit/artifact/migration 不可变版本身份 |
 | `/api/maintenance/releases/[id]/verification` | POST | M | CURRENT；不同人员 approve/reject，recent MFA、证据摘要和不可变审计 |
 | `/api/maintenance/releases/[id]/deployments` | POST | M | CURRENT；登记 staging/production deploy/rollback 成功或失败事实，不执行基础设施操作 |
@@ -194,6 +231,9 @@
 | `/api/trading-hall/paper/portfolio` | GET | C | KEEP；每卡 10,000 USDT 独立组合 |
 | `/api/trading-hall/paper/trades` | GET | C | KEEP；服务端 paper history/cursor |
 | `/api/trading-hall/paper/platform-demo-summary` | GET | C | KEEP；按 provider/card 的净化测试状态，不返回账户/订单/trace/secret，明确 customerImpact=false |
+| `/api/work-records` | GET | C | CURRENT；本人订阅期间的公共决策与组合准入摘要，游标分页、私有不缓存 |
+| `/api/work-records/[id]` | GET | C | CURRENT；公共七阶段与本人模拟意图/成交安全投影，越权与不存在统一 404 |
+| `/api/maintenance/work-records/export` | POST | M | CURRENT（T4.13b）；独立敏感权限 `maint.work_records.export`，same-origin + Idempotency-Key + 8 KiB body；只读 security-barrier 安全视图，单向伪名、31 天/1,000 条上限、命中上限标注 `truncated`；不落导出文件，审计只记日期/条数/截断/查询摘要/原因 |
 | `/api/operations/membership-orders` | GET | O | KEEP；scope/pagination/filter |
 | `/api/operations/membership-orders/[id]` | GET | O | KEEP；凭证脱敏/审批历史 |
 | `/api/operations/membership-orders/[id]/evidence` | POST | O | KEEP；maker/幂等/recent MFA |
@@ -211,6 +251,6 @@
 
 ## 10. 下一步
 
-1. 机器可读 inventory 是 233 个 method handler 的发布真源；本文仅维护人类可读的所有权与产品状态。
+1. 机器可读 inventory 是 268 个 method route 的发布真源；本文仅维护人类可读的所有权与产品状态。
 2. `DISABLED/BETA` 路径不得因未来重构重新暴露；重新启用必须先更新 PRD、ADR、policy、测试与页面合同。
 3. `openapi-controlled-beta.yaml` 只描述核心浏览器合同，不能替代完整 API Policy。

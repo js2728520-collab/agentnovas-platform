@@ -14,28 +14,32 @@ const exists = async (path) => {
 
 test("commercial APIs use only the locked public route surface", async () => {
   for (const path of [
-    "app/api/membership/plans/route.ts",
-    "app/api/membership/me/route.ts",
-    "app/api/membership/orders/route.ts",
-    "app/api/membership/performance-statements/route.ts",
-    "app/api/credits/me/route.ts",
-    "app/api/operations/membership-orders/route.ts",
-    "app/api/operations/performance-statements/route.ts",
+    "app/api/membership/plans/route.client.ts",
+    "app/api/membership/me/route.client.ts",
+    "app/api/membership/orders/route.client.ts",
+    "app/api/membership/performance-statements/route.client.ts",
+    "app/api/credits/me/route.client.ts",
+    "app/api/operations/membership-orders/route.operations.ts",
+    "app/api/operations/performance-statements/route.operations.ts",
   ])
     assert.equal(await exists(path), true, `missing ${path}`);
-  for (const path of [
-    "app/api/client/plans/route.ts",
-    "app/api/client/membership/orders/route.ts",
-    "app/api/operations/membership/orders/route.ts",
+  // 路由文件现在带 audience 后缀，只断言裸 route.ts 不存在会白过——
+  // 全仓库已经没有裸 route.ts 了。这里逐个后缀检查。
+  for (const directory of [
+    "app/api/client/plans",
+    "app/api/client/membership/orders",
+    "app/api/operations/membership/orders",
   ])
-    assert.equal(await exists(path), false, `obsolete route remains ${path}`);
+    for (const suffix of ["ts", "client.ts", "operations.ts", "maintenance.ts", "internal.ts", "shared.ts"])
+      assert.equal(await exists(`${directory}/route.${suffix}`), false,
+        `obsolete route remains ${directory}/route.${suffix}`);
 });
 
 test("commercial routes use dedicated frozen permissions and header idempotency", async () => {
   const files = [
-    "app/api/membership/orders/route.ts",
-    "app/api/operations/membership-orders/route.ts",
-    "app/api/operations/performance-statements/route.ts",
+    "app/api/membership/orders/route.client.ts",
+    "app/api/operations/membership-orders/route.operations.ts",
+    "app/api/operations/performance-statements/route.operations.ts",
     "lib/commercial-api.ts",
     "lib/commercial-request-validation.ts",
   ];
@@ -80,11 +84,11 @@ test("plan, currencies and seven-part legal contract are release locked", async 
 
 test("public routes adapt plans, statuses and cursor pages to the root commercial contract", async () => {
   const plans = await readFile(
-      new URL("app/api/membership/plans/route.ts", root),
+      new URL("app/api/membership/plans/route.client.ts", root),
       "utf8",
     ),
     orders = await readFile(
-      new URL("app/api/membership/orders/route.ts", root),
+      new URL("app/api/membership/orders/route.client.ts", root),
       "utf8",
     ),
     contract = await readFile(
@@ -103,9 +107,9 @@ test("public routes adapt plans, statuses and cursor pages to the root commercia
 
 test("evidence routes return DTOs and legal acceptance never trusts forwarded-for directly", async () => {
   const files = [
-    "app/api/operations/membership-orders/[id]/evidence/route.ts",
-    "app/api/operations/performance-statements/[id]/payment-evidence/route.ts",
-    "app/api/operations/membership-orders/[id]/route.ts",
+    "app/api/operations/membership-orders/[id]/evidence/route.operations.ts",
+    "app/api/operations/performance-statements/[id]/payment-evidence/route.operations.ts",
+    "app/api/operations/membership-orders/[id]/route.operations.ts",
   ];
   const source = (
     await Promise.all(
@@ -114,7 +118,7 @@ test("evidence routes return DTOs and legal acceptance never trusts forwarded-fo
   ).join("\n");
   assert.match(source, /paymentEvidenceDto/);
   const create = await readFile(
-    new URL("app/api/membership/orders/route.ts", root),
+    new URL("app/api/membership/orders/route.client.ts", root),
     "utf8",
   );
   assert.doesNotMatch(create, /x-forwarded-for/i);
@@ -136,7 +140,7 @@ test("ledger closes posting window when transaction is committed", async () => {
 test("performance generation accepts no caller-selected strategy scope", async () => {
   const route = await readFile(
     new URL(
-      "app/api/operations/performance-statements/generate/route.ts",
+      "app/api/operations/performance-statements/generate/route.operations.ts",
       root,
     ),
     "utf8",
@@ -154,8 +158,8 @@ test("performance generation accepts no caller-selected strategy scope", async (
 
 test("client and operations statement lists select replacement lineage", async () => {
   for (const file of [
-    "app/api/membership/performance-statements/route.ts",
-    "app/api/operations/performance-statements/route.ts",
+    "app/api/membership/performance-statements/route.client.ts",
+    "app/api/operations/performance-statements/route.operations.ts",
   ]) {
     const source = await readFile(new URL(file, root), "utf8");
     assert.match(source, /s\.revision/);
@@ -166,8 +170,8 @@ test("client and operations statement lists select replacement lineage", async (
 
 test("commercial decision routes require an explicitly selected payment evidence", async () => {
   for (const file of [
-    "app/api/operations/membership-orders/[id]/decision/route.ts",
-    "app/api/operations/performance-statements/[id]/payment-decision/route.ts",
+    "app/api/operations/membership-orders/[id]/decision/route.operations.ts",
+    "app/api/operations/performance-statements/[id]/payment-decision/route.operations.ts",
   ]) {
     const source = await readFile(new URL(file, root), "utf8");
     assert.match(source, /requiredString\(b,"paymentEvidenceId"/);

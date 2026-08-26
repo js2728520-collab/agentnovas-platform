@@ -1,0 +1,448 @@
+/* Riverton Capital 公开落地页。
+ *
+ * 这个平台卖的不是收益，是**可解释、可审计的决策过程**。所以页面的主角是那条
+ * 七阶段决策链，尤其是第 5 阶段——确定性风控可以否决前面所有 AI 的结论。
+ * 旧版把决策链画成了一圈装饰性轨道，还把其中三个角色用 CSS content 注入
+ * （于是 7 种语言里有 5 种显示英文）。这一版把它做成页面的论点。
+ *
+ * 视觉世界：单一深色。这是刻意的——交易产品在深色下读数更稳，而且落地页与
+ * 门户是两种场景，不共用主题。因此本表自带完整调色板，不跟随 prefers-color-scheme。
+ *
+ * 强调色用琥珀：它在这里有语义——决策路径、批准、凭证、审计留痕。
+ * 市场数据另用冷色，两者不混。 */
+
+.page {
+  /* 落地页专属调色板。用 oklch 而非 hex：亮度可预测，深浅派生不串色。 */
+  --ink: oklch(0.132 0.012 264);
+  --ink-raised: oklch(0.176 0.014 262);
+  --ink-panel: oklch(0.208 0.015 260);
+  --rule: oklch(0.286 0.018 262);
+  --rule-strong: oklch(0.372 0.025 262);
+  --text: oklch(0.962 0.006 250);
+  --text-dim: oklch(0.676 0.021 255);
+  --text-faint: oklch(0.535 0.019 258);
+
+  /* 决策路径 */
+  --signal: oklch(0.803 0.132 78);
+  --signal-dim: oklch(0.618 0.098 78);
+  --signal-ink: oklch(0.196 0.031 78);
+  --signal-wash: oklch(0.803 0.132 78 / 12%);
+
+  /* 行情数据 */
+  --data: oklch(0.724 0.092 226);
+  --halt: oklch(0.662 0.171 25);
+
+  --shell: min(72rem, 100% - 3rem);
+  /* 两节之间是 2×--step。原来 6.5rem 时相当于约 200px，太空。 */
+  --step: clamp(2.5rem, 4.6vw, 4rem);
+
+  min-height: 100dvh;
+  background: var(--ink);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+.page :is(h1, h2, h3) { text-wrap: balance; margin: 0; }
+.page p { margin: 0; }
+
+/* 统一的分区容器与垂直节奏。旧版每个 section 各写各的 margin，节奏是乱的。 */
+.section {
+  width: var(--shell);
+  margin-inline: auto;
+  padding-block: var(--step);
+}
+
+/* 等宽字体用于序号、代码、数据标签——仪表盘的语气，也把中英文分开。 */
+.eyebrow {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  color: var(--signal);
+  text-transform: uppercase;
+}
+
+.sectionHead { display: grid; gap: 0.75rem; max-width: 46rem; margin-bottom: 2.5rem; }
+.sectionHead h2 { font-size: clamp(1.75rem, 3.4vw, 2.5rem); line-height: 1.2; letter-spacing: -0.02em; }
+.sectionHead p { color: var(--text-dim); font-size: 1rem; }
+
+/* ---------------------------------------------------------------- 顶栏 */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  width: var(--shell);
+  margin-inline: auto;
+  padding-block: 1.125rem;
+  background: color-mix(in oklab, var(--ink) 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.logo { display: inline-flex; align-items: center; }
+.brandLogo { width: clamp(9rem, 16vw, 12rem); height: auto; }
+
+.topActions { display: flex; gap: 0.5rem; align-items: center; }
+
+.login,
+.langSelect {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.login { white-space: nowrap; }
+.login:hover, .langSelect:hover { border-color: var(--rule-strong); }
+.langSelect { background: var(--ink-raised); }
+
+.localeError { color: var(--halt); font-size: 0.75rem; }
+
+/* ---------------------------------------------------------------- 首屏 */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+  gap: clamp(2rem, 5vw, 4.5rem);
+  align-items: center;
+  width: var(--shell);
+  margin-inline: auto;
+  padding-block: clamp(3rem, 7vw, 5.5rem) var(--step);
+}
+
+@media (max-width: 60rem) {
+  .hero { grid-template-columns: 1fr; }
+}
+
+.heroCopy { display: grid; gap: 1.5rem; }
+
+.heroCopy h1 {
+  font-size: clamp(2.25rem, 5.2vw, 3.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.heroCopy > p { max-width: 34rem; color: var(--text-dim); font-size: 1.0625rem; }
+
+.heroActions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+
+.primary,
+.ghost {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.625rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.primary { border: 1px solid var(--signal); background: var(--signal); color: var(--signal-ink); }
+.primary:hover { background: var(--signal-dim); border-color: var(--signal-dim); }
+.ghost { border: 1px solid var(--rule-strong); background: transparent; color: var(--text); }
+.ghost:hover { border-color: var(--text-dim); }
+
+.trust { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; color: var(--text-faint); font-size: 0.8125rem; }
+.trust span { display: inline-flex; gap: 0.35rem; align-items: center; }
+
+/* --------------------------------------------------- 七阶段决策链（主视觉） */
+
+.chain {
+  position: relative;
+  display: grid;
+  gap: 0.375rem;
+  padding: 1.5rem 1.5rem 1.5rem 1.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, var(--ink-raised), var(--ink));
+}
+
+.chainHead {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 0.875rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.chainHead b { font-size: 0.875rem; font-weight: 500; }
+.chainHead span { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 0.625rem; letter-spacing: 0.12em; color: var(--text-faint); white-space: nowrap; }
+
+/* 窄屏把「7 STAGES」放到标题下一行，两者挤在一行会各自折行。 */
+@media (max-width: 30rem) {
+  .chainHead { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+}
+
+.chainSub {
+  margin: -0.25rem 0 0.75rem;
+  color: var(--text-dim);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.5rem 0;
+}
+
+/* 竖直的链路轨道。用伪元素而不是额外的 DOM——它是装饰，不该被读屏念出来。 */
+.stage:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 0.6875rem;
+  top: 2rem;
+  bottom: -0.35rem;
+  width: 1px;
+  background: var(--rule-strong);
+}
+
+.stageNo {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: 0.1rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--text-faint);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.625rem;
+}
+
+.stageBody { display: grid; gap: 0.15rem; min-width: 0; }
+.stageBody b { font-size: 0.875rem; font-weight: 500; }
+.stageBody span { color: var(--text-dim); font-size: 0.75rem; line-height: 1.5; }
+
+/* 第 5 阶段是这条链的意义所在：确定性风控可以否决前面全部 AI 结论。
+ * 它必须在视觉上被单独标出来，否则页面就没说清产品到底卖什么。 */
+.gate .stageNo { border-color: var(--signal); background: var(--signal); color: var(--signal-ink); }
+.gate .stageBody b { color: var(--signal); }
+
+.gateNote {
+  grid-column: 2;
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 2px solid var(--signal);
+  background: var(--signal-wash);
+  color: var(--text);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+/* 沿链路推进的信号。这是页面上唯一的自动动画，而且它在说明一件真事：
+ * 决策逐阶段推进，到风控闸门为止。 */
+.pulse {
+  position: absolute;
+  left: 0.5rem;
+  top: 0;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 0 4px var(--signal-wash);
+  animation: chain-signal 7s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes chain-signal {
+  0%   { top: 3.5rem; opacity: 0; }
+  6%   { opacity: 1; }
+  /* 每一跳对应一个阶段；到第 5 阶段（风控闸门）停住，然后淡出重来。 */
+  14%  { top: 6.1rem; }
+  28%  { top: 8.7rem; }
+  42%  { top: 11.3rem; }
+  56%  { top: 13.9rem; }
+  70%  { top: 16.5rem; }
+  74%  { opacity: 1; }
+  86%  { top: 16.5rem; opacity: 0; }
+  100% { top: 16.5rem; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; opacity: 0; }
+}
+
+/* ---------------------------------------------------------------- 分区块 */
+
+/* 列数由内容条数决定，而不是 auto-fit 撞出来的。
+ * 安全边界那节是 6 条：4 列会剩 2 个洞，3 列正好两行。 */
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (max-width: 62rem) { .cardGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 40rem) { .cardGrid { grid-template-columns: 1fr; } }
+
+.card {
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  padding: 1.25rem 1.375rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.875rem;
+  background: var(--ink-raised);
+}
+
+.card h3 { font-size: 0.9375rem; font-weight: 500; }
+.card p { color: var(--text-dim); font-size: 0.8125rem; line-height: 1.6; }
+
+.cardNo {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  color: var(--signal-dim);
+}
+
+.card i { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 0.5rem; background: var(--ink-panel); color: var(--signal); }
+.card i svg { width: 1rem; height: 1rem; }
+.card > span { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 0.625rem; color: var(--text-faint); letter-spacing: 0.08em; }
+
+/* 四阶段流程：窄屏可横向滚动，滚动容器自己 overflow，页面不横向滚。 */
+.flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; overflow-x: auto; }
+
+@media (max-width: 56rem) {
+  .flow { grid-template-columns: repeat(4, minmax(13rem, 1fr)); }
+}
+
+.ticker { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; }
+
+.tickerItem {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.75rem;
+  background: var(--ink-raised);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.tickerItem b { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 0.625rem; letter-spacing: 0.1em; color: var(--data); }
+.tickerItem span { font-size: 0.9375rem; }
+.tickerItem em { font-style: normal; font-size: 0.6875rem; color: var(--text-faint); }
+
+/* 图文分栏 */
+.split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: clamp(1.5rem, 4vw, 3.5rem); align-items: center; }
+
+@media (max-width: 60rem) { .split { grid-template-columns: 1fr; } }
+
+.preview { position: relative; border: 1px solid var(--rule); border-radius: 1rem; overflow: hidden; }
+.preview img { display: block; width: 100%; height: auto; }
+.preview::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 55%, var(--ink)); pointer-events: none; }
+.previewCaption { position: absolute; left: 1rem; bottom: 1rem; z-index: 2; display: grid; gap: 0.15rem; font-size: 0.75rem; }
+.previewCaption span { color: var(--signal); font-family: var(--font-geist-mono), ui-monospace, monospace; letter-spacing: 0.1em; }
+.previewLink { position: absolute; right: 1rem; bottom: 1rem; z-index: 2; background: none; border: 0; color: var(--signal); font: inherit; font-size: 0.8125rem; cursor: pointer; }
+
+.capabilities { display: grid; gap: 0; }
+.capability { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 1rem; padding: 1.125rem 0; border-top: 1px solid var(--rule); }
+.capability:last-child { border-bottom: 1px solid var(--rule); }
+.capability > i { font-style: normal; font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 0.75rem; color: var(--signal-dim); }
+.capability b { display: block; font-size: 0.9375rem; font-weight: 500; }
+.capability p { margin-top: 0.3rem; color: var(--text-dim); font-size: 0.8125rem; }
+
+/* 安全边界：这一节是合规叙事，不能被当成普通卖点卡片淡化。 */
+.safety { border-block: 1px solid var(--rule); }
+
+/* 交易所条 */
+.exchange {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) auto;
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  align-items: center;
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+  border: 1px solid var(--rule);
+  border-radius: 1rem;
+  background: var(--ink-raised);
+}
+
+@media (max-width: 60rem) { .exchange { grid-template-columns: 1fr; } }
+
+.exchangeLogos { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.exchangeLogo { display: grid; gap: 0.15rem; padding: 0.75rem 0.875rem; border: 1px solid var(--rule); border-radius: 0.625rem; background: var(--ink); }
+.exchangeLogo b { font-size: 0.8125rem; }
+.exchangeLogo small { color: var(--text-faint); font-size: 0.625rem; }
+.exchangeLink { background: none; border: 0; color: var(--signal); font: inherit; font-size: 0.875rem; cursor: pointer; white-space: nowrap; }
+
+/* FAQ */
+.faq { max-width: 48rem; margin-inline: auto; }
+.faq details { border-top: 1px solid var(--rule); padding: 1.125rem 0.25rem; }
+.faq details:last-of-type { border-bottom: 1px solid var(--rule); }
+.faq summary { display: flex; gap: 1rem; justify-content: space-between; align-items: center; list-style: none; font-size: 0.9375rem; cursor: pointer; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary span { color: var(--signal); font-family: var(--font-geist-mono), ui-monospace, monospace; }
+.faq details p { margin-top: 0.75rem; color: var(--text-dim); font-size: 0.875rem; line-height: 1.7; }
+
+/* 收尾 CTA */
+.finalCta {
+  display: grid;
+  gap: 1.25rem;
+  justify-items: center;
+  text-align: center;
+  padding: clamp(2.5rem, 6vw, 4rem) 1.5rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 1.25rem;
+  background: radial-gradient(ellipse at 50% 0%, var(--signal-wash), transparent 62%), var(--ink-raised);
+}
+
+.finalCta h2 { font-size: clamp(1.75rem, 3.6vw, 2.5rem); letter-spacing: -0.02em; }
+.finalCta p { max-width: 38rem; color: var(--text-dim); }
+.finalCta > div { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; }
+
+/* 页脚与风险提示 */
+.footer { display: grid; gap: 1rem; width: var(--shell); margin-inline: auto; padding-block: 2.5rem 1.5rem; border-top: 1px solid var(--rule); color: var(--text-faint); font-size: 0.75rem; }
+.footerMain { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; justify-content: space-between; }
+.footerMark { display: flex; gap: 0.5rem; align-items: center; color: var(--text-dim); }
+/* next/image 的 sizes 只影响下载哪张图，不约束渲染尺寸——必须给 CSS 宽度，
+ * 否则会按内在尺寸（2193px）铺满整行。 */
+.footerMark img { width: 8.5rem; height: auto; }
+.footerLinks { display: flex; flex-wrap: wrap; gap: 1rem; }
+.footerLinks a { color: var(--text-faint); }
+
+/* 风险披露必须可读，不能压成灰色小字（合规文案，不是脚注装饰）。 */
+.riskNotice {
+  width: var(--shell);
+  margin: 0 auto 3rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--halt);
+  border-radius: 0.75rem;
+  background: var(--ink-raised);
+}
+
+.riskNotice b { display: block; margin-bottom: 0.35rem; color: var(--text); font-size: 0.8125rem; }
+.riskNotice p { color: var(--text-dim); font-size: 0.8125rem; line-height: 1.7; }
+
+.skipLink {
+  position: absolute;
+  left: -9999px;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--signal);
+  color: var(--signal-ink);
+}
+
+.skipLink:focus { left: 1rem; top: 1rem; z-index: 50; }
+
+.page :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }

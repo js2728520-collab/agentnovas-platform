@@ -4,8 +4,8 @@ import test from "node:test";
 
 test("internal invitations and activation never return or queue plaintext temporary passwords", async () => {
   const files = await Promise.all([
-    "../app/api/organization/members/route.ts",
-    "../app/api/organization/members/[id]/activate/route.ts",
+    "../app/api/organization/members/route.operations.ts",
+    "../app/api/organization/members/[id]/activate/route.operations.ts",
     "../lib/internal-member-provisioning.ts",
     "../lib/notification-email-worker.ts",
   ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));

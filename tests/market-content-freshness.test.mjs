@@ -9,7 +9,7 @@ import {
   normalizeNewsPublishedAt,
   summarizeNewsFreshness,
 } from "../lib/market-content-freshness.ts";
-import { GET as readMarketNews } from "../app/api/market/news/route.ts";
+import { GET as readMarketNews } from "../app/api/market/news/route.client.ts";
 
 const observedAt = new Date("2026-08-21T12:00:00.000Z");
 
@@ -78,13 +78,16 @@ test("news API exposes observation and content freshness without inventing bad d
   }
 });
 
-test("Client market UI consumes freshness states and does not advertise socket-open throughput", async () => {
-  const source = await readFile(new URL("../app/live-market.tsx", import.meta.url), "utf8");
+test("Client market UI derives freshness from same-origin polling without inventing an external stream", async () => {
+  const source = await readFile(new URL("../apps/client/ui/live-market.tsx", import.meta.url), "utf8");
   assert.match(source, /deriveMarketFeedStatus/);
   assert.match(source, /contentFreshness/);
   assert.match(source, /行情数据已过期/);
   assert.match(source, /内容已过期/);
+  assert.match(source, /\/api\/market\/quote/);
+  assert.match(source, /\/api\/market\/candles/);
+  assert.match(source, /setMarketTransport\("offline"\)/);
   assert.doesNotMatch(source, /0\.1\s*秒实时|每\s*0\.1\s*秒/);
   assert.doesNotMatch(source, /onopen\s*=\s*\(\)\s*=>\s*set\w+\(["'](?:live|active)["']\)/);
-  assert.match(source, /socket\.onerror\s*=.*setMarketTransport\("offline"\)/s);
+  assert.doesNotMatch(source, /new WebSocket|data-stream\.binance\.vision/);
 });

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { officialTradingHallStrategies } from "../packages/contracts/src/trading-hall.ts";
-import { PLATFORM_AI_STRATEGIES } from "../lib/platform-ai-strategies.ts";
-import { platformStrategyDslV3 } from "../lib/platform-strategy-v3.ts";
-import { evaluateStrategyRuntimeCycle } from "../lib/strategy-runtime-engine.ts";
+import { PLATFORM_AI_STRATEGIES } from "../packages/domain/src/platform-ai-strategies.ts";
+import { platformStrategyDslV3 } from "../packages/domain/src/platform-strategy-v3.ts";
+import { evaluateStrategyRuntimeCycle } from "../packages/domain/src/strategy-runtime-engine.ts";
 
 function entryCandles() {
   const rows = Array.from({ length: 30 }, (_, index) => ({
@@ -45,14 +45,16 @@ test("official strategy runtime specifications use the trading-hall spot contrac
 
 test("official spot specifications flow through runtime without short, leverage, or funding intents", () => {
   const specification = platformStrategyDslV3("ai_conservative", "BTCUSDT");
+  const rows = entryCandles();
   const result = evaluateStrategyRuntimeCycle({
     deploymentId: "official-deployment",
     strategyVersionId: "official-version",
     dsl: specification,
-    candles: entryCandles(),
+    candles: rows,
     mode: "paper",
     position: null,
     riskState: { drawdownPct: 0, dailyLossPct: 0, consecutiveLosses: 0, halted: false },
+    marketData: { evaluatedAt: rows.at(-1).closeTime + 1, latestClosedAt: rows.at(-1).closeTime, timeframe: "1h" },
   });
 
   assert.equal(result.specification.product, "spot_usdt");

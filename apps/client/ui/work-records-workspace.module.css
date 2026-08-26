@@ -1,0 +1,75 @@
+.boundary {
+  padding: 14px 16px;
+  border: 1px solid var(--rv-brand-soft);
+  border-left: 3px solid var(--rv-brand);
+  border-radius: var(--rv-radius-sm);
+  color: var(--rv-muted-foreground);
+  background: var(--rv-card);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.list { display: grid; min-width: 0; gap: 10px; }
+.list > article { display: grid; min-width: 0; gap: 14px; padding: 18px; border: 1px solid var(--rv-border); border-radius: var(--rv-radius-sm); background: var(--rv-card); }
+.itemTop, .itemFooter { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 16px; }
+.itemTop > div { display: grid; min-width: 0; gap: 4px; }
+.itemTop span, .panel header span { color: var(--rv-brand-ink); font-size: 12px; font-weight: 800; letter-spacing: .13em; }
+.itemTop strong { color: var(--rv-foreground); font-size: 14px; overflow-wrap: anywhere; }
+.itemValues { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.itemValues span { display: grid; gap: 4px; padding: 11px; border: 1px solid var(--rv-border); color: var(--rv-muted-foreground); font-size: 12px; }
+.itemValues b { color: var(--rv-foreground); font-size: 14px; overflow-wrap: anywhere; }
+.itemFooter small { color: var(--rv-muted-foreground); }
+.itemFooter a { min-height: 38px; padding: 8px 11px; border: 1px solid var(--rv-brand-soft); border-radius: 3px; color: var(--rv-brand-ink); font-size: 12px; font-weight: 750; text-decoration: none; }
+.itemFooter a:focus-visible, .loadMore button:focus-visible { outline: 3px solid var(--rv-brand-soft); outline-offset: 2px; }
+
+/* 「加载更多」而不是页码：游标是不透明的服务端位置，跳页无意义。 */
+.loadMore { display: grid; justify-items: center; gap: 8px; }
+.loadMore button { min-height: 38px; padding: 8px 18px; border: 1px solid var(--rv-border); border-radius: 3px; color: var(--rv-foreground); background: var(--rv-card); font-size: 13px; cursor: pointer; }
+.loadMore button:disabled { cursor: not-allowed; opacity: .45; }
+.loadMore small { color: var(--rv-muted-foreground); font-size: 12px; }
+
+.panel { min-width: 0; padding: 19px; border: 1px solid var(--rv-border); border-radius: var(--rv-radius-sm); background: var(--rv-card); }
+.panel > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 16px; }
+.panel h2 { margin: 5px 0 0; font-size: 19px; }
+.definitionGrid { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; background: var(--rv-border); }
+.definitionGrid div { display: grid; gap: 6px; padding: 13px; background: var(--rv-card); }
+.definitionGrid dt { color: var(--rv-muted-foreground); font-size: 12px; }
+.definitionGrid dd { margin: 0; color: var(--rv-foreground); font-weight: 700; overflow-wrap: anywhere; }
+.note { margin: 14px 0 0; color: var(--rv-muted-foreground); font-size: 12px; line-height: 1.6; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+
+/* 七阶段：有序列表本身就是顺序语义，缺阶段时列表变短即为可见证据。 */
+.stages { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: stage; }
+.stages > li { display: grid; min-width: 0; gap: 10px; padding: 15px; border: 1px solid var(--rv-border); border-radius: var(--rv-radius-sm); }
+.stageTop { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 12px; }
+.stageTop > div { display: grid; min-width: 0; gap: 4px; }
+.stageTop h3 { margin: 0; color: var(--rv-foreground); font-size: 15px; }
+.stageTop small { color: var(--rv-muted-foreground); font-size: 12px; }
+.stageOrder { flex: none; padding: 3px 9px; border: 1px solid var(--rv-brand-soft); border-radius: 999px; color: var(--rv-brand-ink); font-size: 12px; font-weight: 750; }
+.stageConclusion { margin: 0; color: var(--rv-foreground); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.stageExplanation { margin: 0; padding: 11px 13px; border-left: 2px solid var(--rv-brand-soft); color: var(--rv-muted-foreground); font-size: 12px; line-height: 1.6; }
+.stageMeta { display: flex; flex-wrap: wrap; gap: 8px; }
+.stageMeta span { padding: 3px 9px; border: 1px solid var(--rv-border); border-radius: 999px; color: var(--rv-muted-foreground); font-size: 12px; }
+.evidence { display: grid; gap: 1px; margin: 0; background: var(--rv-border); }
+.evidence > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 10px; padding: 9px 11px; background: var(--rv-card); }
+.evidence dt { color: var(--rv-muted-foreground); font-size: 12px; overflow-wrap: anywhere; }
+.evidence dd { margin: 0; color: var(--rv-foreground); font-size: 12px; overflow-wrap: anywhere; }
+
+/* 金额与数量用等宽数字，纵向扫读时小数点才对得齐。 */
+.dataTable { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.dataTable th, .dataTable td { padding: 10px 12px; border-bottom: 1px solid var(--rv-border); text-align: left; overflow-wrap: anywhere; }
+.dataTable th { color: var(--rv-muted-foreground); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.dataTable td { color: var(--rv-foreground); }
+.dataTable tr:last-child td { border-bottom: none; }
+/* 窄屏下表格自身横向滚动，页面本体不横向溢出。 */
+.tableScroll { overflow-x: auto; }
+.tableScroll:focus-visible { outline: 3px solid var(--rv-brand-soft); outline-offset: 2px; }
+
+@media (max-width: 900px) {
+  .itemValues { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .itemTop, .itemFooter, .panel > header, .stageTop { align-items: flex-start; flex-direction: column; }
+  .itemValues, .definitionGrid, .evidence > div { grid-template-columns: 1fr; }
+  .itemFooter a { align-self: stretch; text-align: center; }
+}

@@ -7,7 +7,20 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
-export function mfaLoginRequirement(audience: AppAudience, enrolled: boolean) {
+export function mfaEnforcementEnabled(
+  environment: Record<string, string | undefined> = process.env,
+) {
+  return environment.MFA_ENFORCEMENT_ENABLED === "true";
+}
+
+export function mfaLoginRequirement(
+  audience: AppAudience,
+  enrolled: boolean,
+  environment: Record<string, string | undefined> = process.env,
+) {
+  if (!mfaEnforcementEnabled(environment)) {
+    return { required: false, enrollmentRequired: false };
+  }
   const internal = audience !== "client";
   return {
     required: internal || enrolled,

@@ -67,7 +67,17 @@ function parseOrder(raw: RawOrder, fallback: Partial<OkxDemoOrder> = {}): OkxDem
   };
 }
 
-async function okxDemoPrivateRequest<T>(options: {
+/**
+ * OKX 的模拟盘与实盘是**同一套 REST API**，区别只有一个请求头：
+ * `x-simulated-trading: 1` 走模拟盘，不带它走实盘。
+ *
+ * 因此这里用一个显式的 environment 参数区分，而不是两份实现。默认 demo——
+ * 一个默认走实盘的执行器等于把 execution_live_routing 的灰度闸门绕过去了
+ * （与 binance-adapter 同一条规则）。
+ */
+export type OkxEnvironment = "demo" | "live";
+
+async function okxPrivateRequest<T>(options: {
   credentials: ExchangeCredential;
   method: "GET" | "POST";
   requestPath: string;
@@ -75,6 +85,7 @@ async function okxDemoPrivateRequest<T>(options: {
   fetchImpl?: FetchLike;
   now?: () => Date;
   baseUrl?: string;
+  environment?: OkxEnvironment;
 }) {
   if (!options.credentials.passphrase) throw new ExchangeAdapterError("OKX Passphrase 缺失", 400);
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
@@ -92,8 +103,9 @@ async function okxDemoPrivateRequest<T>(options: {
         "OK-ACCESS-SIGN": signature,
         "OK-ACCESS-TIMESTAMP": timestamp,
         "OK-ACCESS-PASSPHRASE": options.credentials.passphrase,
-        // This executor is deliberately demo-only. There is no live-mode argument.
-        "x-simulated-trading": "1",
+        // 只有 demo 才带这个头。默认值在参数解构处，不在这里——
+        // 让「不传 environment 会发生什么」在签名上就能看到。
+        ...((options.environment ?? "demo") === "demo" ? { "x-simulated-trading": "1" } : {}),
       },
       body: body || undefined,
       signal: controller.signal,
@@ -101,7 +113,8 @@ async function okxDemoPrivateRequest<T>(options: {
     });
     const payload = await response.json().catch(() => null) as OkxEnvelope<T> | null;
     if (!response.ok || payload?.code !== "0") {
-      throw new ExchangeAdapterError(`OKX Demo 请求失败：${payload?.msg?.trim() || `HTTP ${response.status}`}`);
+      const label = (options.environment ?? "demo") === "demo" ? "OKX Demo" : "OKX";
+      throw new ExchangeAdapterError(`${label} 请求失败：${payload?.msg?.trim() || `HTTP ${response.status}`}`);
     }
     return payload.data ?? [];
   } catch (error) {
@@ -113,19 +126,35 @@ async function okxDemoPrivateRequest<T>(options: {
   }
 }
 
+/**
+ * 查单。可以用交易所订单号，也可以用我们自己派生的 clientOrderId。
+ *
+ * 后者是超时恢复的**唯一**入口：请求发出去、回应没回来时，我们从来没拿到过
+ * ordId，只有自己算出来的 clOrdId。没有这条路径，确定性 clientOrderId 就只能防
+ * 重复下单，不能回答「那一单到底成没成」——而后者才是超时最难受的地方
+ * （ADR-0019 第 3 步）。
+ */
 export async function getOkxDemoOrder(options: {
   credentials: ExchangeCredential;
   symbol: string;
-  orderId: string;
+  orderId?: string;
+  clientOrderId?: string;
   fetchImpl?: FetchLike;
   now?: () => Date;
   baseUrl?: string;
+  environment?: OkxEnvironment;
 }) {
   const instrumentId = okxInstrumentId(options.symbol);
-  const requestPath = `/api/v5/trade/order?instId=${encodeURIComponent(instrumentId)}&ordId=${encodeURIComponent(options.orderId)}`;
-  const rows = await okxDemoPrivateRequest<RawOrder>({ credentials: options.credentials, fetchImpl: options.fetchImpl, now: options.now, baseUrl: options.baseUrl, method: "GET", requestPath });
+  const selector = options.orderId
+    ? `ordId=${encodeURIComponent(options.orderId)}`
+    : options.clientOrderId
+      ? `clOrdId=${encodeURIComponent(options.clientOrderId)}`
+      : null;
+  if (!selector) throw new ExchangeAdapterError("OKX Demo 查单必须给出 orderId 或 clientOrderId", 400);
+  const requestPath = `/api/v5/trade/order?instId=${encodeURIComponent(instrumentId)}&${selector}`;
+  const rows = await okxPrivateRequest<RawOrder>({ credentials: options.credentials, fetchImpl: options.fetchImpl, now: options.now, baseUrl: options.baseUrl, environment: options.environment, method: "GET", requestPath });
   if (!rows[0]) throw new ExchangeAdapterError("OKX Demo 查询不到该订单");
-  return parseOrder(rows[0], { orderId: options.orderId, instrumentId });
+  return parseOrder(rows[0], { orderId: options.orderId, clientOrderId: options.clientOrderId, instrumentId });
 }
 
 export async function placeOkxDemoMarketOrder(options: {
@@ -138,17 +167,19 @@ export async function placeOkxDemoMarketOrder(options: {
   fetchImpl?: FetchLike;
   now?: () => Date;
   baseUrl?: string;
+  environment?: OkxEnvironment;
 }) {
   const instrumentId = okxInstrumentId(options.symbol);
   const size = options.side === "buy" ? positiveNumber(options.notionalUsdt) : positiveNumber(options.quantity);
   if (!size) throw new ExchangeAdapterError(options.side === "buy" ? "OKX Demo 买入金额无效" : "OKX Demo 卖出数量无效", 400);
   const clientOrderId = options.clientOrderId.replace(/[^A-Za-z0-9]/g, "").slice(0, 32);
   if (!clientOrderId) throw new ExchangeAdapterError("OKX Demo 客户端订单编号无效", 400);
-  const rows = await okxDemoPrivateRequest<RawOrder>({
+  const rows = await okxPrivateRequest<RawOrder>({
     credentials: options.credentials,
     fetchImpl: options.fetchImpl,
     now: options.now,
     baseUrl: options.baseUrl,
+    environment: options.environment,
     method: "POST",
     requestPath: "/api/v5/trade/order",
     body: {

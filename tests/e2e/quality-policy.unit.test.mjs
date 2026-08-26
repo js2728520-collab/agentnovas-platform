@@ -5,6 +5,7 @@ import {
   assertQualitySideEffectsDisabled,
   assertSafeFixtureDatabaseUrl,
   isAllowedQualityNetworkUrl,
+  isExpectedQualityBrowserWarning,
   postgresUrlForSchema,
   qualityApplicationPorts,
   qualityBrowserOrigin,
@@ -114,6 +115,16 @@ test("browser network policy allows only loopback and DNS-pinned official app tr
     "https://example.com/pixel.png",
     "https://other.agentnovas.com/api",
   ]) assert.equal(isAllowedQualityNetworkUrl(url), false, url);
+});
+
+test("quality browser warning policy ignores only Chromium's unused preload diagnostic", () => {
+  assert.equal(isExpectedQualityBrowserWarning(
+    "The resource https://agentnovas.com:3300/_next/static/chunks/example.js was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+  ), true);
+  assert.equal(isExpectedQualityBrowserWarning("Failed to load resource: 403 Forbidden"), false);
+  assert.equal(isExpectedQualityBrowserWarning(
+    "The resource https://evil.invalid/example.js was preloaded using link preload but not used within a few seconds from the window's load event.",
+  ), false);
 });
 
 test("evidence redaction removes credential-shaped values without retaining them", () => {

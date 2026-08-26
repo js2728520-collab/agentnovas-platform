@@ -1,10 +1,22 @@
 # 生产三端账号与外部配置运行手册
 
+> 适用状态：`CURRENT_BASELINE`。本手册只配置当前已实现服务；V3 新 provider、客户实盘、资金出站和 CI/CD 凭证不得提前加入现有生产 env。
+
 状态：`CURRENT`（账号创建与配置工具已实现；外部 Provider 仍按真实凭证和验收结果启用）
 
 适用环境：`an-saas` 自托管生产目标、三端容器部署、PostgreSQL 单库多角色。
 
 本文解决两个问题：安全创建 Client、Operations、Maintenance 三个独立验收账号；用不泄密、可重复的方式补齐 Resend、优盾、模型和 Demo 配置。任何“已配置”都不等于“已启用”或“已成功发送/执行”。
+
+## 0. MFA 分阶段策略（下一版本）
+
+本分支尚未部署。下一版本按 ADR-0023 在三端 env 中设置 `MFA_ENFORCEMENT_ENABLED=false`：
+TOTP/recovery 数据、加密密钥和 API 保留，但准备阶段登录不强制挑战。下文 beta.5 的“首次
+现场绑定”记录是历史生产验收事实，不代表本分支当前策略。
+
+正式投入生产时必须在一次受控发布中将 Client、Operations、Maintenance 三份 env 同时改为
+`true`，重启三端，并验证首次绑定、已绑定账号登录、恢复码、recent MFA、密码重置和回滚。
+不得只开启一个 audience。回滚时三端同时改回 `false`，不删除 MFA 凭证或恢复码。
 
 ## 1. 当前生产配置快照
 
@@ -61,7 +73,7 @@ notification_email_send=disabled
 - 账号或固定 role code 已存在时失败，不覆盖、不重置；
 - 密码使用当前 Argon2id 参数；数据库和审计不保存明文；
 - 凭证只写入 `/run/credentials/three-app-credentials-*.json`，以 `wx` 创建且权限 `0600`；
-- 内部账号不预置 MFA secret，首次登录通过 UI 独立绑定。
+- 内部账号不预置 MFA secret；当前关闭阶段直接登录，正式生产开启开关后通过 UI 独立绑定。
 
 服务器准备：
 
@@ -338,7 +350,37 @@ sudo shred -u /root/agentnovas-config/platform-demo-accounts.json
 
 后续仍按以下顺序：临时启用 `PLATFORM_DEMO_VERIFICATION_ENABLED`；逐 provider 验证；关闭验证开关；确认 15 分钟内验证；按 provider/card 解除停控；启动 Demo Worker 但保留 `PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false`；最后才在 staging 小额窗口单独授权外部写。客户 Paper 结果始终不因 Demo 成败改变。
 
-## 8. 服务重启、验收与清理
+## 8. W1/G1 MFA 目标环境演练与证据
+
+本节是操作清单，不是生产通过证明。执行前必须冻结候选 commit、制品 SHA-256、完整迁移版本/校验和、当前版本与同环境回滚制品，并记录独立的发布 owner、approver 和 rollback owner。未获得目标环境授权、维护窗口和真实测试账号前，不得执行切换。
+
+### 8.1 启用前检查
+
+1. Client、Operations、Maintenance 使用同一候选制品；三端 env 均显式设置 `MFA_ENFORCEMENT_ENABLED=true`，不得接受缺失、空值、大小写变体或带空格值。
+2. 运行 `scripts/audit-production-config.sh`，确认三端 enforcement 值一致、Operations 与 Maintenance 的 `MFA_TOTP_ENCRYPTION_KEY` 一致；只保存不含值的审计摘要。
+3. 确认既有 MFA 凭证可由目标服务解密；不得导出 TOTP seed、恢复码明文或密钥。确认健康、Host、Cookie、TLS、Nginx 和目标进程 `current_user` smoke 均有对应证据。
+4. 准备允许名单中的真实测试邮箱、四身份浏览器矩阵、request/idempotency correlation id、时间戳和证据哈希；浏览器 trace、截图、日志和工单不得包含 secret、cookie、恢复码或原始 PII。
+
+### 8.2 三端同步启用与旅程
+
+将三份 env 在同一变更窗口切换并逐端重启；任一端未达到预期状态不得切流。按顺序执行并记录脱敏结果：
+
+- Client 首次登录/按现行策略绑定，已绑定账号 TOTP 登录和 recovery code 单次消费；
+- Operations、Maintenance 首次登录 enrollment、已绑定 TOTP 登录和 recovery code 登录；
+- TOTP 重放拒绝、recent MFA 15 分钟窗口与过期后的敏感权限拒绝；
+- Client 与内部端密码重置、旧 session 撤销、五设备上限/第六设备拒绝；
+- Client、Operations maker/checker、Maintenance 的 Host/Cookie/audience、撤权、scope、PII 投影和注册链接；
+- 邮件事件与登录安全通知仅在 Email readiness 已通过且发送开关获单独授权时验证；HTTP `202` 仅代表 queued，不代表 sent 或 delivered。
+
+每条证据必须绑定环境、候选 commit、制品/迁移哈希、时间、owner、reviewer 和结果；`unknown`、`unverified`、`blocked`、`not_anchored` 均不得升级为 pass。
+
+### 8.3 回滚与清理
+
+若认证、跨端隔离、恢复码、撤权或健康检查任一失败：三端同时将 enforcement 改回 `false` 并重启，复做直接登录、audience/Cookie 和撤权 smoke；不删除凭证、恢复码哈希、审计或 session 历史，不运行回滚迁移。回滚目标必须是同环境已验证 immutable artifact。临时测试账号、测试邮箱和 root-only 文件按本手册清理规则销毁；证据包只保留脱敏摘要和哈希。
+
+目标环境未完成本节全套演练前，G1 仍为 `PARTIAL`，本地 `test:e2e:mfa-on` 与 `test:e2e:mfa-rollout` 只能作为实现证据。
+
+## 9. 服务重启、验收与清理
 
 每次配置变化后：
 
@@ -367,3 +409,101 @@ sudo shred -u /root/agentnovas-config/production-integrations.answers
 - 独立 maker/checker 与发布值班账号。
 
 这些值只进入 root-only secret 文件、加密配置服务或授权密码管理器，不进入 Git、文档、命令行、工单或聊天。
+
+## 10. 执行服务与密钥托管（ADR-0019）
+
+执行服务是**全系统唯一持有 `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY` 的进程**。三个 Web
+应用都不再需要那个变量——它们通过内网调用执行服务完成账户验证、紧急平仓、实盘下单。
+
+**不配这一节，三个 Web 应用会在客户点「验证交易所账户」和「一键平仓」时报
+「服务不可用」。** 这两个功能不会静默失败，但也不会工作。
+
+### 10.1 两把不同的密钥，分开生成、分开轮换
+
+| 变量 | 谁持有 | 泄露后果 |
+| --- | --- | --- |
+| `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY` | **只有** `execution.env` | 加数据库读权限 = 全部客户的交易所 API Key |
+| `EXECUTION_SERVICE_SHARED_SECRET` | `execution.env` + 三个 Web 的 env | 能让执行服务替他下单，但拿不到凭证 |
+
+两者必须是**不同的值**。共享密钥只是内网鉴权，不参与加密；把它设成加密密钥的值等于
+把加密密钥发给了三个 Web 进程，这一整套改造就白做了。
+
+```bash
+# 在目标机器上生成，不要经过聊天、工单或命令历史
+openssl rand -base64 48 | tr -d '\n=/+' | head -c 48
+```
+
+### 10.2 `execution.env` 需要的变量
+
+```
+DATABASE_URL=postgresql://agentnovas_execution_service:<口令>@127.0.0.1:5432/<库>
+RIVERTON_EXECUTION_SERVICE=true
+EXCHANGE_CREDENTIAL_ENCRYPTION_KEY=<与现有值一致，迁移时务必保留原值>
+EXECUTION_SERVICE_SHARED_SECRET=<48 字符随机值>
+EXECUTION_SERVICE_HOST=127.0.0.1      # 裸机保持回环；容器见下
+EXECUTION_SERVICE_PORT=3020
+```
+
+`RIVERTON_EXECUTION_SERVICE=true` 声明进程身份，数据库角色必须是
+`agentnovas_execution_service`——角色与身份不匹配时进程拒绝启动。
+
+> **容器部署**里回环地址对同网络的其它容器不可达，需要绑通配地址。代码默认拒绝
+> `0.0.0.0`，要绕过必须显式声明：
+>
+> ```
+> EXECUTION_SERVICE_HOST=0.0.0.0
+> EXECUTION_SERVICE_INTERNAL_NETWORK_ONLY=true
+> ```
+>
+> 这是一条**运维断言**，代码无法自行验证，启动时会大声打印出来。做出它的前提是：
+> 该容器没有 `ports` 映射、不在 `edge` 网络上（compose 里 `execution` 只挂
+> `backplane` 与 `egress`）。裸机 systemd 部署保持 `127.0.0.1`，不要设这个变量。
+
+### 10.3 三个 Web 的 env 需要补两行
+
+`client.env` / `operations.env` / `maintenance.env` 各加：
+
+```
+EXECUTION_SERVICE_URL=http://execution:3020
+EXECUTION_SERVICE_SHARED_SECRET=<与 execution.env 相同>
+```
+
+并**删除**这三个文件里的 `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`。删掉之后可以自查：
+
+```bash
+grep -rl EXCHANGE_CREDENTIAL_ENCRYPTION_KEY .next-client/server
+# 查不到任何文件才算对；npm run quality:key-custody 会做同样的检查
+```
+
+### 10.4 集成凭证密钥不再回退
+
+`INTEGRATION_CREDENTIAL_ENCRYPTION_KEY` 现在是**必配项**。它此前会在缺失时回退到
+`EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`，那让运维端只要漏配一个变量就持有交易所凭证
+密钥——而它从不需要解密任何客户的交易凭证。
+
+*迁移*：若既有集成凭证是用交易所密钥加密的，先把**同一个值**显式配成
+`INTEGRATION_CREDENTIAL_ENCRYPTION_KEY` 保证可解密，随后用一个独立值重新加密，
+两把密钥才真正分开。
+
+### 10.5 审计锚点导出
+
+`AUDIT_ANCHOR_EXPORT_KEY`（可选但强烈建议）给导出件签名。
+
+```bash
+npm run audit:anchors:export > anchors-$(date +%F).json   # 存到数据库角色够不着的地方
+npm run audit:anchors:verify anchors-2026-08-23.json      # 回验才是这套机制的价值
+```
+
+不配密钥时导出件标注 `signed: false`，仍能发现数据库侧的删除与改写，但无法证明导出件
+自身没有被替换。**一份从没被回验过的导出件只是一个文件。**
+
+### 10.6 实盘路由默认全关
+
+真实下单需要同时满足三件事，任一不满足都只会产出一条明确的拒绝回执：
+
+1. 运营端「风控 → 实盘路由」里该 (交易所, 环境) 已 **granted**——开通走 maker/checker，
+   发起人不能批准自己；
+2. 部署 `mode = 'live'` 且绑定了状态正常、可交易的交易所账户；
+3. 无命中的熔断开关、无未决对账。
+
+关停是单人即时的，不需要复核——**让系统更安全的动作永远比让系统更危险的动作容易做**。

@@ -1,6 +1,10 @@
 # Riverton Capital 付费 Beta 验收与发布门禁
 
+> 文档状态：`CURRENT_BASELINE`。本文继续约束当前 Beta/Paper 发布；完整平台 V3 的分能力 Gate 见 [`FULL_PLATFORM_V3_GATES.md`](FULL_PLATFORM_V3_GATES.md)。V3 目标不能绕过本文已有安全否决项。
+
 状态：强制 Gate；任何否决项不得豁免为“先上线再修”
+
+> **当前发布范围（2026-08-25）：** 当前 Gate 评审只服务于 S0——受控的 Paper/Demo 商业平台。Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 不是 S0 的可启用能力，均保留为后续独立 Gate；本文件覆盖全平台安全否决项，但通过某个 Gate 不会隐式打开这些能力。
 
 ## 1. Gate 0：产品合同、披露与范围
 
@@ -12,7 +16,7 @@
 ## 2. Gate 1：身份、Audience 与 API Policy
 
 - 三 audience 登录/Cookie/退出/安全 next 隔离；错误 Host/page/API 404。
-- Operations/Maintenance 无注册/找回入口，强制 TOTP/recovery；critical 操作 recent MFA ≤15 分钟。
+- Operations/Maintenance 无公开注册/找回入口；TOTP/recovery 能力完整保留。当前准备阶段 enforcement 关闭；正式生产必须三端统一开启并验证 critical 操作 recent MFA ≤15 分钟。
 - Argon2id 新 hash、旧 PBKDF2 lazy rehash、dummy verify、共享限流、密码/冻结/撤权 session revoke 通过攻击测试。
 - HTTP bootstrap 生产 404；CLI 只在无内部管理员时一次成功。
 - 全 route/method API Policy inventory 零遗漏；未登记默认拒绝。
@@ -20,6 +24,9 @@
 - Origin/CSRF、strict body schema/limit、requestId、统一错误和敏感幂等验证完成。
 - Client `DATABASE_URL=agentnovas_client_web`，`CLIENT_AUTH_DATABASE_URL=agentnovas_client_auth`；运行时同时核验 URL 用户名与 `current_user`，构建阶段不打开数据库连接。
 - Client Web/Auth 均不能直读身份或邀请表；Web 不能调用登录 hash 投影，Auth 不能创建/完成 session 或消费 reset。两角色不可继承/互相 `SET ROLE`，过期但未 revoked 的 session 不能调用任何 self gateway。
+- Client 注册必须产生 pending 身份、摘要验证 token 和加密 Email outbox；验证前不能创建 Session，重发旧 token 失效且不枚举邮箱。
+- Client 五设备上限在 PostgreSQL 身份锁内原子执行；并发第 5/6 台只有一个成功，同设备重登不占新名额，单设备/全量撤销跨浏览器立即生效。
+- 新设备与网段变化提醒必须同时产生站内和 Email outbox；Email 未配置只能显示排队/未配置事实，不能宣称送达。
 
 ## 3. Gate 2：账本、会员和 Credits
 
@@ -64,7 +71,7 @@
 
 使用一次性 PostgreSQL schema 和四个隔离 storageState：Client、Ops maker、Ops checker、Maint admin。
 
-- Playwright 完整覆盖邀请、MFA、商业披露、trial、会员复核、credits、三 paper、七阶段、Demo 证据、通知、周分成、到期与权限失败路径。
+- Playwright 完整覆盖邀请、MFA 当前关闭态、商业披露、trial、会员复核、credits、三 paper、七阶段、Demo 证据、通知、周分成、到期与权限失败路径；正式生产另跑 MFA 开启态专项。
 - 320/768/1024/1440 无非预期横向溢出；axe critical/serious=0；Tab/Shift+Tab/Escape/focus return 通过。
 - console error/warning=0；失败上传 trace/video/screenshot/network 摘要。
 - 三端 production build/Host smoke；Client 不含内部 chunk，内部端不含交易大厅/会员资源。

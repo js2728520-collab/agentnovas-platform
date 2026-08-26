@@ -1,4 +1,4 @@
-import { canDisableNotification } from "./business-rules.ts";
+import { canDisableNotification } from "../packages/domain/src/business-rules.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 const channels = new Set(["in_app", "email"]);

@@ -16,14 +16,16 @@ const runtimeRoot = resolve(
   process.env.QUALITY_E2E_RUNTIME_DIR ?? join(outputRoot, ".runtime"),
 );
 const development = process.env.QUALITY_E2E_SERVER_MODE === "development";
+const mfaOnProfile = process.env.QUALITY_E2E_PROFILE === "mfa-on";
 const ports = qualityApplicationPorts(process.env);
 const browserOrigins = {
   client: qualityBrowserOrigin("client", ports),
   operations: qualityBrowserOrigin("operations", ports),
   maintenance: qualityBrowserOrigin("maintenance", ports),
 };
-const serverCommand = (audience: "client" | "operations" | "maintenance") =>
-  `RIVERTON_APP_AUDIENCE=${audience} NODE_USE_ENV_PROXY=1 ./node_modules/.bin/next ${development ? "dev" : "start"} -H 127.0.0.1 -p ${ports[audience]}`;
+const serverCommand = (audience: "client" | "operations" | "maintenance") => development
+  ? `RIVERTON_APP_AUDIENCE=${audience} NODE_USE_ENV_PROXY=1 ./node_modules/.bin/next dev -H 127.0.0.1 -p ${ports[audience]}`
+  : `RIVERTON_APP_AUDIENCE=${audience} NODE_USE_ENV_PROXY=1 HOSTNAME=127.0.0.1 PORT=${ports[audience]} node .next-${audience}/standalone/server.js`;
 
 // Official Playwright guidance used here:
 // https://playwright.dev/docs/test-webserver
@@ -71,10 +73,15 @@ export default defineConfig({
         { command: serverCommand("operations"), port: ports.operations, reuseExistingServer: false, timeout: 120_000 },
         { command: serverCommand("maintenance"), port: ports.maintenance, reuseExistingServer: false, timeout: 120_000 },
       ],
-  projects: [
+  projects: mfaOnProfile ? [
+    {
+      name: "mfa-on",
+      testMatch: "mfa-on-preflight.spec.ts",
+    },
+  ] : [
     {
       name: "security-commercial",
-      testMatch: ["host-cookie-audience.spec.ts", "commercial-flow.spec.ts"],
+      testMatch: ["host-cookie-audience.spec.ts", "commercial-flow.spec.ts", "g1-identity-security.spec.ts"],
     },
     {
       name: "client",

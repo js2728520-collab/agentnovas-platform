@@ -27,6 +27,11 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "client.paper.manage", appId: "client", label: "启动与停止模拟策略", sensitive: true },
   { key: "ops.customers.view", appId: "operations", label: "查看客户" },
   { key: "ops.customers.manage", appId: "operations", label: "管理客户", sensitive: true },
+  { key: "ops.customers.pii_contact", appId: "operations", label: "查看客户完整联系方式", sensitive: true },
+  { key: "ops.customers.pii_security", appId: "operations", label: "查看客户登录与设备信息", sensitive: true },
+  { key: "ops.customers.pii_financial", appId: "operations", label: "查看客户累计充值与消费", sensitive: true },
+  { key: "ops.customers.pii_trading", appId: "operations", label: "查看客户交易所账户与持仓", sensitive: true },
+  { key: "ops.customers.export", appId: "operations", label: "导出客户数据", sensitive: true },
   { key: "ops.deposits.view", appId: "operations", label: "查看充值订单" },
   { key: "ops.deposits.export", appId: "operations", label: "导出充值订单", sensitive: true },
   { key: "ops.deposits.pii_reveal", appId: "operations", label: "查看完整敏感字段", sensitive: true },
@@ -40,6 +45,9 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "ops.credits.view", appId: "operations", label: "查看客户积分" },
   { key: "ops.credits.adjust", appId: "operations", label: "发起积分调整", sensitive: true },
   { key: "ops.credits.approve", appId: "operations", label: "审批积分调整", sensitive: true },
+  // 交易熔断与实盘路由授权。标 sensitive 因此强制近期 MFA——它既能停掉全平台的
+  // 新开仓，也能批准真实下单。
+  { key: "ops.trading.manage", appId: "operations", label: "管理交易熔断与实盘路由", sensitive: true },
   { key: "ops.performance_fees.view", appId: "operations", label: "查看绩效费账单" },
   { key: "ops.performance_fees.generate", appId: "operations", label: "生成绩效费账单", sensitive: true },
   { key: "ops.performance_fees.approve", appId: "operations", label: "审批绩效费账单", sensitive: true },
@@ -48,6 +56,15 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "ops.support.manage", appId: "operations", label: "处理客服工单" },
   { key: "ops.approvals.view", appId: "operations", label: "查看审批中心" },
   { key: "ops.approvals.decide", appId: "operations", label: "处理审批", sensitive: true },
+  // 与 ops.approvals.* 分开：那两条覆盖的是汇报关系变更这类内部事务，而上架审核决定的是
+  // 哪些策略能被客户跟随并投入真实资金。合成一条等于让任何能处理内部审批的人顺带获得
+  // 放行策略上架的权限。只给总部角色——上架是平台级决定，不是分公司的。
+  { key: "ops.strategy_listing.view", appId: "operations", label: "查看策略上架审核", sensitive: false },
+  { key: "ops.strategy_listing.review", appId: "operations", label: "审核策略上架", sensitive: true },
+  // 与 ops.trading.manage 分开：那条管交易所/账户/策略卡维度的熔断，这条管单个客户对
+  // 单个社区策略的跟随。合并会让能挂全局熔断的人顺带获得逐客户操作权。
+  { key: "ops.follow_risk.view", appId: "operations", label: "查看跟单风控状态", sensitive: false },
+  { key: "ops.follow_risk.manage", appId: "operations", label: "阻断或恢复客户跟单", sensitive: true },
   { key: "ops.attributions.manage", appId: "operations", label: "管理客户归属", sensitive: true },
   { key: "ops.finance.manage", appId: "operations", label: "执行财务操作", sensitive: true },
   { key: "ops.invitations.view", appId: "operations", label: "查看邀请码" },
@@ -65,6 +82,8 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "maint.email_integrations.manage", appId: "maintenance", label: "管理邮件集成", sensitive: true },
   { key: "maint.feature_flags.manage", appId: "maintenance", label: "管理功能开关", sensitive: true },
   { key: "maint.system_health.view", appId: "maintenance", label: "查看系统健康" },
+  { key: "maint.ai_usage.view", appId: "maintenance", label: "查看 AI 用量与可靠性", sensitive: true },
+  { key: "maint.work_records.export", appId: "maintenance", label: "导出脱敏工作记录", sensitive: true },
   { key: "maint.emergency_pause.execute", appId: "maintenance", label: "执行紧急暂停", sensitive: true },
   { key: "maint.audit.view", appId: "maintenance", label: "查看审计" },
   { key: "maint.roles.manage", appId: "maintenance", label: "管理运维角色", sensitive: true },
@@ -81,6 +100,10 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "maint.releases.view", appId: "maintenance", label: "查看发布版本" },
   { key: "maint.releases.manage", appId: "maintenance", label: "登记发布版本", sensitive: true },
   { key: "maint.releases.approve", appId: "maintenance", label: "复核发布与回滚证据", sensitive: true },
+  { key: "maint.configuration_versions.view", appId: "maintenance", label: "查看版本化配置" },
+  { key: "maint.configuration_versions.manage", appId: "maintenance", label: "管理配置草稿与测试", sensitive: true },
+  { key: "maint.configuration_versions.approve", appId: "maintenance", label: "审批与调度配置", sensitive: true },
+  { key: "maint.configuration_versions.activate", appId: "maintenance", label: "激活与回滚配置", sensitive: true },
 ];
 
 export const SENSITIVE_PERMISSION_KEYS = new Set(
@@ -152,6 +175,38 @@ export function legacyRoleAssignments(role: string): LegacyAssignment[] {
         { appId: "operations", roleCode: "ops_hq_general_manager", permissions: operationsPlatformPermissions() },
         { appId: "maintenance", roleCode: "maint_break_glass_admin", permissions: maintenancePlatformPermissions() },
       ];
+    case "tech_staff":
+      // 运维端技术人员。
+      //
+      // 此前运维端只有 hq_admin 能进，于是「只该管模型配置和发布」的人必须当
+      // hq_admin，而那会同时给他运营端全部权限——改客户归属、看客户 PII。
+      // 这个角色把技术操作和业务/治理权限分开。
+      //
+      // 刻意不给的四类，每一类都有具体理由：
+      //   - roles.manage / roles.approve_sensitive：权限管理是治理，不是技术操作。
+      //     能给自己加权限的技术账号等于没有权限体系。
+      //   - releases.approve：登记发布的人不能自己复核（maker/checker）。
+      //     技术人员登记版本，由另一个人验证证据后放行。
+      //   - emergency_pause.execute / demo_exchanges.kill：熔断是业务决定，
+      //     停下来影响的是客户能不能交易，不该由值班工程师单独按。
+      //   - payment_integrations.manage / commercial_disclosures.*：碰钱与对外承诺。
+      return [{ appId: "maintenance", roleCode: "maint_technical", permissions: [
+        { permissionKey: "maint.llm_profiles.manage", scope: "PLATFORM" },
+        { permissionKey: "maint.agent_bindings.manage", scope: "PLATFORM" },
+        { permissionKey: "maint.email_integrations.manage", scope: "PLATFORM" },
+        { permissionKey: "maint.feature_flags.manage", scope: "PLATFORM" },
+        { permissionKey: "maint.system_health.view", scope: "PLATFORM" },
+        { permissionKey: "maint.ai_usage.view", scope: "PLATFORM" },
+        { permissionKey: "maint.work_records.export", scope: "PLATFORM" },
+        { permissionKey: "maint.audit.view", scope: "PLATFORM" },
+        { permissionKey: "maint.demo_exchanges.view", scope: "PLATFORM" },
+        { permissionKey: "maint.demo_exchanges.verify", scope: "PLATFORM" },
+        { permissionKey: "maint.follow_policy.view", scope: "PLATFORM" },
+        { permissionKey: "maint.releases.view", scope: "PLATFORM" },
+        { permissionKey: "maint.releases.manage", scope: "PLATFORM" },
+        { permissionKey: "maint.configuration_versions.view", scope: "PLATFORM" },
+        { permissionKey: "maint.configuration_versions.manage", scope: "PLATFORM" },
+      ] }];
     case "hq_support":
       return [{ appId: "operations", roleCode: "ops_hq_support", permissions: [
         { permissionKey: "ops.customers.view", scope: "PLATFORM" },

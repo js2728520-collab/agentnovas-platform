@@ -4,6 +4,7 @@ import { sessions, users } from "@/db/schema";
 import { sha256 } from "@/lib/auth";
 import { clientSessionIdentity } from "@/lib/client-identity-gateway";
 import { getPostgresPool } from "@/lib/postgres";
+import { mfaEnforcementEnabled } from "@/lib/mfa";
 import { ResearchApiError } from "@/lib/research-errors";
 import { cookieNameForAudience, resolveAppAudienceStrict, sessionPolicyForAudience } from "@/lib/riverton-apps";
 import { evaluateSessionAssurance } from "@/lib/session-assurance";
@@ -54,7 +55,8 @@ export async function currentSession(
     absoluteExpiresAt: row.session.absoluteExpiresAt,
     mfaLevel: row.session.mfaLevel,
     mfaVerifiedAt: row.session.mfaVerifiedAt,
-  }, now, options);
+    mfaEnrolled: audience === "client" ? Boolean(clientIdentity?.hasActiveMfa) : true,
+  }, now, { ...options, mfaEnforced: mfaEnforcementEnabled() });
   if (!assurance.usable) return null;
 
   const lastSeenMs = row.session.lastSeenAt ? Date.parse(row.session.lastSeenAt) : 0;

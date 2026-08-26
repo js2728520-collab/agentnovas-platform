@@ -38,7 +38,7 @@ test("guided mode uses supplied tenant context and never claims to place an orde
 
 test("message API contract loads history on the server instead of accepting client history", async () => {
   const [routeSource, contextSource] = await Promise.all([
-    readFile(new URL("../app/api/ai/conversations/[id]/messages/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/ai/conversations/[id]/messages/route.client.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/ai-context.ts", import.meta.url), "utf8"),
   ]);
   assert.match(routeSource, /getConversationMessages/);

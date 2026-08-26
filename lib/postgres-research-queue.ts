@@ -17,6 +17,7 @@ type ResearchRunRow = QueryResultRow & {
   progress: number;
   brief_json: Record<string, unknown>;
   agent_role_snapshot_json: Record<string, unknown>;
+  prompt_configuration_snapshot_json: Record<string, unknown>;
   lease_owner: string | null;
   lease_expires_at: Date | null;
   attempts: number;
@@ -48,6 +49,8 @@ function runFromRow(row: ResearchRunRow) {
     progress: row.progress,
     brief: row.brief_json,
     agentRoleSnapshot: row.agent_role_snapshot_json ?? {},
+    // PS-05：运行创建时固定的 Prompt 配置版本。空对象表示这次运行用代码内定义的 Prompt。
+    promptConfigurationSnapshot: row.prompt_configuration_snapshot_json ?? {},
     leaseOwner: row.lease_owner,
     leaseExpiresAt: row.lease_expires_at,
     attempts: row.attempts,
@@ -143,17 +146,29 @@ export async function listResearchCandidates(database: Queryable, input: {
     strategy_family: string;
     source_role: string;
     dsl_json: Record<string, unknown>;
+    effective_dsl_json: Record<string, unknown>;
     status: string;
     rank: number | null;
     score: number | null;
     rejection_reasons_json: string[];
     validation_label: string;
+    effective_validation_label: string;
     saved_strategy_id: string | null;
     saved_strategy_version_id: string | null;
+    edited: boolean;
   }>(`
-    SELECT candidate.*
+    SELECT candidate.*,
+           COALESCE(saved_version.specification_json::jsonb, candidate.dsl_json) AS effective_dsl_json,
+           COALESCE(saved_strategy.validation_label, candidate.validation_label) AS effective_validation_label,
+           (saved_version.id IS NOT NULL
+             AND saved_version.specification_json::jsonb IS DISTINCT FROM candidate.dsl_json) AS edited
     FROM strategy_candidates AS candidate
     JOIN strategy_research_runs AS run ON run.id = candidate.run_id
+    LEFT JOIN community_strategies AS saved_strategy
+      ON saved_strategy.id = candidate.saved_strategy_id
+    LEFT JOIN strategy_versions AS saved_version
+      ON saved_version.id = candidate.saved_strategy_version_id
+     AND saved_version.strategy_id = saved_strategy.id
     WHERE candidate.run_id = $1 AND run.owner_user_id = $2
     ORDER BY candidate.rank NULLS LAST, candidate.score DESC NULLS LAST, candidate.created_at
   `, [input.runId, input.ownerUserId]);
@@ -162,14 +177,15 @@ export async function listResearchCandidates(database: Queryable, input: {
     key: row.candidate_key,
     strategyFamily: row.strategy_family,
     sourceRole: row.source_role,
-    dsl: row.dsl_json,
+    dsl: row.effective_dsl_json,
     status: row.status,
     rank: row.rank,
     score: row.score,
     rejectionReasons: row.rejection_reasons_json,
-    validationLabel: row.validation_label,
+    validationLabel: row.effective_validation_label,
     savedStrategyId: row.saved_strategy_id,
     savedStrategyVersionId: row.saved_strategy_version_id,
+    edited: row.edited,
   }));
 }
 
@@ -362,6 +378,8 @@ export async function createResearchRun(database: Queryable, input: {
   mode: ResearchMode;
   brief: Record<string, unknown>;
   agentRoleSnapshot?: Record<string, unknown>;
+  /** PS-05：创建时固定的 Prompt 配置版本，按角色存 { configurationVersionId, payloadSha256 }。 */
+  promptConfigurationSnapshot?: Record<string, unknown>;
   idempotencyKey: string;
 }) {
   const budget = modeBudgets[input.mode];
@@ -372,9 +390,9 @@ export async function createResearchRun(database: Queryable, input: {
   const result = await database.query<ResearchRunRow>(`
     INSERT INTO strategy_research_runs (
       id, owner_user_id, conversation_id, exchange_account_id, mode, stage,
-      brief_json, agent_role_snapshot_json, idempotency_key,
+      brief_json, agent_role_snapshot_json, prompt_configuration_snapshot_json, idempotency_key,
       candidate_budget, backtest_budget, model_call_budget
-    ) VALUES ($1, $2, $3, $4, $5, 'requirements', $6::jsonb, $7::jsonb, $8, $9, $10, $11)
+    ) VALUES ($1, $2, $3, $4, $5, 'requirements', $6::jsonb, $7::jsonb, $8::jsonb, $9, $10, $11, $12)
     ON CONFLICT (owner_user_id, idempotency_key)
     DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
     RETURNING *
@@ -386,6 +404,7 @@ export async function createResearchRun(database: Queryable, input: {
     input.mode,
     JSON.stringify(input.brief),
     JSON.stringify(input.agentRoleSnapshot ?? {}),
+    JSON.stringify(input.promptConfigurationSnapshot ?? {}),
     input.idempotencyKey,
     budget.candidates,
     budget.backtests,

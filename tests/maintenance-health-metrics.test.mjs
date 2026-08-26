@@ -11,6 +11,9 @@ test("maintenance queue SLO evaluator has stable warning and critical boundaries
   assert.equal(evaluateMaintenanceQueue({ queue: "notification_email", depth: 1, oldestAgeSeconds: 119 }).status, "healthy");
   assert.equal(evaluateMaintenanceQueue({ queue: "notification_email", depth: 1, oldestAgeSeconds: 120 }).status, "warning");
   assert.equal(evaluateMaintenanceQueue({ queue: "notification_email", depth: 1, oldestAgeSeconds: 300 }).status, "critical");
+  assert.equal(evaluateMaintenanceQueue({ queue: "configuration_activation", depth: 1, oldestAgeSeconds: 59 }).status, "healthy");
+  assert.equal(evaluateMaintenanceQueue({ queue: "configuration_activation", depth: 1, oldestAgeSeconds: 60 }).status, "warning");
+  assert.equal(evaluateMaintenanceQueue({ queue: "configuration_activation", depth: 1, oldestAgeSeconds: 300 }).status, "critical");
 });
 
 test("maintenance queue metrics expose only bounded aggregate labels and ages", async () => {
@@ -20,14 +23,17 @@ test("maintenance queue metrics expose only bounded aggregate labels and ages", 
     return { rows: [
       { queue: "notification_email", depth: "2", oldest_age_seconds: "130.4" },
       { queue: "demo_execution", depth: "0", oldest_age_seconds: null },
+      { queue: "configuration_activation", depth: "1", oldest_age_seconds: "61" },
     ] };
   } };
   const metrics = await loadMaintenanceHealthMetrics(pool, new Date("2026-08-21T10:00:00.000Z"));
   assert.deepEqual(metrics.map((metric) => ({ queue: metric.queue, depth: metric.depth, status: metric.status })), [
     { queue: "notification_email", depth: 2, status: "warning" },
     { queue: "demo_execution", depth: 0, status: "healthy" },
+    { queue: "configuration_activation", depth: 1, status: "warning" },
   ]);
   assert.doesNotMatch(JSON.stringify(metrics), /userId|secret|payload|providerOrderId/i);
   assert.match(calls[0].sql, /count\(\*\)/);
+  assert.match(calls[0].sql, /configuration_schedules/);
   assert.doesNotMatch(calls[0].sql, /SELECT \*/i);
 });

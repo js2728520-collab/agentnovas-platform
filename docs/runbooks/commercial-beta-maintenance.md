@@ -1,11 +1,13 @@
 # Riverton Capital 付费 Beta Maintenance Runbook
 
+> 适用状态：`CURRENT_BASELINE`。只用于当前 Beta/Paper；V3 Target 能力在实现并通过 Gate 后必须新增或修订 Runbook，本文不能用于开启真实交易或自动部署。
+
 ## 1. MFA 恢复
 
 1. 验证工单、账号、组织、回拨渠道和两名授权人员；不接受聊天截图作为唯一证据。
 2. 冻结现有 session，记录 reason/requestId；使用一次性 recovery/reset 流程。
 3. 新 recovery codes 只向本人一次展示，数据库只存 hash；运维人员不得复制保存。
-4. 恢复后强制重新登录与 recent MFA，复核旧 session/recovery code 已失效。
+4. 恢复后强制重新登录；若生产 MFA enforcement 已开启，同时完成 recent MFA，并复核旧 session/recovery code 已失效。
 
 ## 2. Demo provider 熔断
 

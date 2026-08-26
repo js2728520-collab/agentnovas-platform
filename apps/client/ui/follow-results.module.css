@@ -1,0 +1,70 @@
+/* 我的跟单：模拟盘结果。 */
+
+.page { display: grid; gap: 1rem; }
+.list { display: grid; gap: 0.875rem; }
+
+.follow {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.head { display: flex; flex-wrap: wrap; gap: 0.375rem 0.75rem; align-items: baseline; justify-content: space-between; }
+.name { font-size: 0.9375rem; font-weight: 600; }
+
+/* 被风控停了必须一眼看到，而且要说清是谁停的、能不能自己恢复。 */
+.blocked {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  border-left: 3px solid var(--rv-danger);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-danger-soft);
+  color: var(--rv-danger-ink);
+  font-size: 0.8125rem;
+}
+
+.stats { display: flex; flex-wrap: wrap; gap: 1rem; }
+.stat { display: grid; gap: 0.125rem; font-size: 0.875rem; }
+.stat small { color: var(--rv-subtle-foreground); font-size: 0.6875rem; }
+.stat b { font-variant-numeric: tabular-nums; }
+.up { color: var(--rv-up); }
+.down { color: var(--rv-down); }
+
+.note { font-size: 0.75rem; color: var(--rv-muted-foreground); }
+
+.fills { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.fills th, .fills td { padding: 0.375rem 0.5rem; border-bottom: 1px solid var(--rv-border); text-align: left; }
+.fills th { color: var(--rv-subtle-foreground); font-size: 0.6875rem; font-weight: 500; }
+.fills td { font-variant-numeric: tabular-nums; }
+
+.empty { padding: 1.25rem; color: var(--rv-muted-foreground); font-size: 0.875rem; text-align: center; }
+
+/* 七阶段决策记录。平台卖的是可解释、可审计的决策过程，这是它对客户的样子。 */
+.cycles { font-size: 0.8125rem; }
+.cycles > summary { cursor: pointer; color: var(--rv-muted-foreground); }
+
+.cycle {
+  display: grid;
+  gap: 0.375rem;
+  margin-top: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+}
+
+.cycleHead { display: flex; gap: 0.75rem; justify-content: space-between; font-weight: 600; }
+
+.reasons { margin: 0; padding-left: 1.125rem; color: var(--rv-warning-ink); }
+
+.stages { display: grid; gap: 0.25rem; margin: 0; padding-left: 1.25rem; }
+.stages li { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.stages b { min-width: 4.5rem; font-weight: 600; }
+.stages span { color: var(--rv-muted-foreground); }
+.stages em { padding: 0 0.375rem; border-radius: var(--rv-radius-sm); background: var(--rv-info-soft); color: var(--rv-info-ink); font-size: 0.6875rem; font-style: normal; }
+
+/* 缺阶段必须标出来，不得用静态结论补齐（INV-8）。 */
+.partial { margin: 0; color: var(--rv-warning-ink); }

@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { type SystemSettings } from "@/lib/platform-settings-contract";
 import { apiErrorMessage } from "@/packages/contracts/src/riverton-ui";
-import { ConfirmActionDialog } from "@/packages/ui/src/confirm-action-dialog";
+import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { ErrorState, LoadingState, PageHeading } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
@@ -21,11 +21,11 @@ export function PlatformSettingsWorkspace() {
 
 function PlatformSettingsEditor({ initial, refresh }: { initial: SystemSettings; refresh: () => Promise<void> }) {
   const [draft, setDraft] = useState<SystemSettings>(initial);
-  const [confirming, setConfirming] = useState(false);
+  const [maintenanceReason, setMaintenanceReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function save(maintenanceReason: string) {
+  async function save() {
     setSaving(true);
     setMessage("");
     try {
@@ -38,7 +38,7 @@ function PlatformSettingsEditor({ initial, refresh }: { initial: SystemSettings;
       if (!response.ok) throw new Error(apiErrorMessage(payload, "平台设置保存失败"));
       if (payload.system) setDraft(payload.system as SystemSettings);
       setMessage(String(payload.message || "平台公开设置已保存。"));
-      setConfirming(false);
+      setMaintenanceReason("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "平台设置保存失败");
     } finally {
@@ -66,13 +66,13 @@ function PlatformSettingsEditor({ initial, refresh }: { initial: SystemSettings;
         <label>默认语言<select value={draft.defaultLocale} onChange={(event) => update("defaultLocale", event.target.value as SystemSettings["defaultLocale"])}><option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option><option value="en-US">English</option><option value="ru-RU">Русский</option><option value="es-ES">Español</option><option value="ja-JP">日本語</option><option value="ko-KR">한국어</option></select></label>
         <label className="rc-wide-field">维护公告<textarea rows={4} maxLength={500} value={draft.maintenanceBanner} onChange={(event) => update("maintenanceBanner", event.target.value)} placeholder="留空时客户端不显示公告" /><small>{draft.maintenanceBanner.length}/500</small></label>
         <p className="rc-wide-field">服务运营方、服务区域、客服邮箱和主域名会进入商业披露发布快照；任何一项为空都不能发布。Telegram 客服链接仅接受受支持域名的 HTTPS 地址。</p>
-        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={saving} onClick={() => setConfirming(true)}>{saving ? "正在保存…" : "核对并保存"}</button></div>
+        <InlineAuditReasonField id="platform-settings-reason" value={maintenanceReason} onChange={setMaintenanceReason} label="设置变更原因" />
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={saving || !hasValidAuditReason(maintenanceReason)} onClick={() => void save()}>{saving ? "正在保存…" : "保存设置"}</button></div>
       </div>
     </section>
     <section className="rc-panel">
       <header><div><small>客户端预览</small><h2>{draft.siteName || "Riverton Capital"}</h2></div></header>
       <dl className="rc-description-list"><div><dt>客服渠道</dt><dd>{draft.telegramSupportUrl ? "Telegram 已配置" : "Telegram 未配置"}{draft.supportEmail ? ` · ${draft.supportEmail}` : " · 邮箱未配置"}</dd></div><div><dt>维护公告</dt><dd>{draft.maintenanceBanner || "未发布"}</dd></div></dl>
     </section>
-    <ConfirmActionDialog open={confirming} title="保存平台与客服设置" description="这些公开字段会影响客户端展示。请记录变更原因，保存结果将进入审计日志。" confirmLabel="确认保存" busy={saving} onCancel={() => setConfirming(false)} onConfirm={(reason) => void save(reason)} />
   </>;
 }

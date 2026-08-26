@@ -1,0 +1,260 @@
+# ADR-0018: 决策轮共享化，准入按组合分离
+
+状态：Accepted（实施中）
+
+日期：2026-08-22
+
+## 背景
+
+官方现货的运行粒度是「每个 (客户, 策略卡) 一个部署」：`strategy_deployments`
+带 `owner_user_id` 与 `paper_portfolio_id`，每个部署独立跑决策周期。
+
+按目标规模（500–5000 会员）实测推算：
+
+| 项 | 数量 |
+| --- | --- |
+| 部署数（5,000 会员 × 3 张卡） | **15,000** |
+| 三张卡合计的不同 (品种, 周期) 组合 | **6** |
+| 每根 K 线的决策周期数 | 15,000 |
+| 其中不同的判断 | 6 |
+
+也就是说同一份判断被重复计算 2,500 次。每一次重复都带着：
+
+- **一次外部行情请求**——已在 §41 用进程内复用缓存收敛（6 次），这部分已解决；
+- **一行 `strategy_runtime_cycles` + 7 行 `strategy_runtime_events`**；
+- **最多 2 个 `strategy_runtime_explanation_jobs`**，每个都是一次真实 LLM 调用。
+
+最后一项是最贵的：解释任务按 `cycle_id` 建（`lib/strategy-runtime-repository.ts`），
+触发条件是「动作不是 hold，或风控拒绝」。一旦某张卡产生信号，
+**15,000 个周期会各自发起解释，把同一段解释生成上万次**。这不是性能问题，
+是直接的 AI 成本问题。
+
+### 与文档的不一致
+
+根 `CLAUDE.md` 的术语表写的是：
+
+> **决策轮 decision round**：七阶段一次完整执行……
+> 每张策略卡一轮，扇出到所有订阅该卡的客户组合——不是每个客户一轮。
+
+实现是「每个客户一轮」。文档写的是目标形态，代码是另一种。本 ADR 让两者一致。
+
+## 决策
+
+**把「决策」与「准入」分开：决策共享，准入按组合。**
+
+### 什么可以共享
+
+同一张卡、同一品种、同一根已收盘 K 线上，以下内容对所有订阅者完全相同，
+因此只算一次：
+
+- 行情与数据质量（阶段 1）
+- 技术信号（阶段 2）
+- 策略方案（阶段 3）
+- 反方审查（阶段 4）
+- 卡级风控阈值判定（阶段 5 的一半）
+- 最终决策叙述（阶段 6）
+- 三类 LLM 解释
+
+共享单元的身份是 **(strategy_code, symbol, timeframe, candle_close_time)**。
+这同时满足 INV-8 的幂等要求：相同 card/candle/contract 的重试落在同一行。
+
+### 什么必须按组合
+
+以下逐个客户不同，不能共享：
+
+- 组合权益、回撤、当日亏损、连续亏损（`refreshOfficialPaperRiskState`）
+- 熔断状态与访问状态（`resolveOfficialPaperRuntimeAccess`：active / close_only / read_only）
+- 当前持仓
+- 下单量换算与仓位上限
+- 成交回执、账本分录、绩效结算依据
+
+因此**阶段 5 有两半**：卡级阈值判定共享，组合级准入逐个执行。
+
+这正好落在 P1 已经建好的执行缝上：域层产出一条 `OrderIntent`（带
+`targetPositionRatio`，不带绝对数量），`resolveOrderQuantity` 在扇出时按各组合的
+可用资金与 `capitalCapRatio` 取更严格者换算。**域层不需要改。**
+
+### 数据模型
+
+新增 `strategy_decision_rounds`（共享）：
+
+```
+id                    text PRIMARY KEY
+strategy_code         text
+symbol                text
+timeframe             text
+candle_open_time      timestamptz
+candle_close_time     timestamptz
+market_data_snapshot_id text
+decision_json         jsonb   -- 卡级结论：action / reason / 卡级 rejectionReasons
+order_intent_json     jsonb   -- 目标仓位比例，不含数量
+trace_id              text
+UNIQUE (strategy_code, symbol, timeframe, candle_close_time)
+```
+
+`strategy_runtime_events` 与 `strategy_runtime_explanation_jobs` 的外键从
+`cycle_id` 改为 `decision_round_id`——七阶段叙述与解释都属于共享单元。
+
+`strategy_runtime_cycles` 保留，含义变为**该部署在该决策轮上的准入结果**：
+增加 `decision_round_id` 外键，`decision_json` 只存组合级的准入结论
+（是否放行、组合级拒绝理由）。
+
+`official_paper_order_intents` 不变——它本来就同时带 `portfolio_id` 与
+`runtime_cycle_id`，形状已经是扇出的。
+
+### 只在有事发生时写准入行
+
+多数 K 线的结论是 hold。若为每个部署都写一行准入结果，15m 周期下每天约
+144 万行，需要分区维护。
+
+**准入行只在下列情况写入**：产生订单意图、组合级风控拒绝、或访问状态导致降级。
+纯 hold 的组合不写行——客户视图从共享决策轮读到「本轮无动作」即可，
+这不是信息缺失：卡级结论就是本轮不动作。
+
+### 调度
+
+`leaseNextStrategyDeployment` 改为 `leaseNextDecisionTarget`，租约单元从部署变为
+**(strategy_code, symbol, timeframe)**。worker 一轮的动作是：
+
+1. 租下一个决策目标，判断是否有新的已收盘 K 线；
+2. 取行情（已有复用缓存）→ 跑引擎 → 写共享决策轮与七阶段事件；
+3. 按批扇出到订阅该卡的组合：逐个刷新风控状态、判定准入、写意图；
+4. 完成租约。
+
+第 3 步是唯一与订阅规模成正比的部分，且它是数据库批处理，不是外部调用。
+真实交易 GA 后这一步会变成 N 次交易所 API 调用，届时需要限流池与部分失败对账
+（见 CLAUDE.md「目标形态」），本 ADR 先把结构摆正。
+
+## 结果
+
+### 收益
+
+| 项 | 现在 | 之后 |
+| --- | --- | --- |
+| 每根 K 线的引擎评估 | 15,000 | 6 |
+| 七阶段事件行 | 105,000 | 42 |
+| LLM 解释调用（信号触发时） | 最多 30,000 | 最多 12 |
+| 租约/心跳/完成事务 | 15,000 | 6 |
+| 准入行 | 15,000 | 仅有动作的组合 |
+
+### 代价与风险
+
+- **INV-8 的决策轮身份变了。** 幂等键从 `runtime:{deploymentId}:{candleClose}`
+  变为 `round:{strategyCode}:{symbol}:{timeframe}:{candleClose}`。
+  `deterministicCycleId` 与其断言需同步修改。
+- **`/api/trading-hall` 的读取路径要改。** 现在按部署取最新 cycle；之后要取共享
+  决策轮 + 该客户的准入结果。客户看到的七阶段内容会与其他客户完全相同——
+  这是正确的（同一张卡本来就是同一个判断），但需要产品确认措辞不误导为「为你单独运行」。
+- **历史数据。** 已有 `strategy_runtime_cycles` 是按部署的。建议不回填：新表从启用
+  之日起写入，旧数据保持原样可读。绩效结算依据是 `official_paper_fill_receipts`，
+  不依赖 cycle 结构，**不受影响**。
+- **`strategy_runtime_cycles` 不在审计哈希链里**（迁移 0044 只覆盖 `audit_logs`
+  与 8 张 `*_decisions` 表），因此这次改动不触碰防篡改边界。
+
+### 已定的两点
+
+1. **客户视图明说「本卡的公共决策轮」。** 七阶段内容对同卡客户完全相同，
+   界面必须如实说明，不得让客户理解为「为我单独运行」。
+2. **纯 hold 不为每个组合留痕。** 只在产生订单意图、组合级风控拒绝或访问状态
+   降级时写准入行。客户视图从共享决策轮读到「本轮无动作」——卡级结论就是
+   本轮不动作，这不是信息缺失。
+
+## 实施顺序
+
+原计划是「先改写入（第 3 步）、再改读取（第 4 步）」。**实施时把两者对调了**：
+写入端一旦停止为每个部署重复写事件，读取端若还按 `cycle_id` 查就会拿不到数据，
+中间存在一个数据不可见的窗口。反过来先切读取是安全的——事件从第 1 步起就同时
+挂在周期和决策轮上，读取端此刻切过去读到的是同一份数据。
+
+1. 新增 `strategy_decision_rounds` 表与写入路径，与现有 cycle 并行写（双写，不改读）；
+2. 解释任务改为按决策轮建，结果扇出写回该轮下所有周期的事件；
+3. 改 `/api/trading-hall` 读取路径优先走决策轮，并在界面明说这是本卡的公共轮；
+4. 改调度：租约单元换成决策目标，扇出写准入行，停止重复写事件；
+5. 停止写旧的 per-deployment cycle 的共享字段，只保留准入语义。
+
+每一步都可独立验证并回滚；第 4 步之前系统行为不变。
+
+
+## 实施记录
+
+- **第 1 步（完成）** 迁移 0046 建 `strategy_decision_rounds`，
+  `strategy_runtime_cycles` 与 `strategy_runtime_events` 加可空
+  `decision_round_id`。`completeStrategyRuntimeCycle` 双写：官方现货部署在写周期
+  前先 upsert 决策轮（`ON CONFLICT DO NOTHING`），周期与事件都挂上去。
+  读取路径未改，系统行为不变。
+
+  验证：同一张卡的两个客户各跑一轮后，`strategy_decision_rounds` 只有一行，
+  两个部署的周期都指向它（`tests/strategy-runtime-repository.test.mjs`）。
+  过渡期两个部署仍各写 7 行事件（合计 14 行），第 2 步收敛为 7 行。
+
+- **第 2 步（完成）** 迁移 0047 给 `strategy_runtime_explanation_jobs` 加
+  `decision_round_id` 与部分唯一索引 `(decision_round_id, event_role)`。
+  入队改为按轮去重，完成时把结果扇出写回该轮下**所有**部署周期的同角色事件。
+
+  这是本 ADR 里最直接的成本收益：某张卡产生信号时，解释调用从「每个部署一次」
+  变成「每轮每角色一次」。5,000 会员场景下是从上万次降到最多 12 次。
+
+  两个实现细节：
+  - `ON CONFLICT` **不指定目标**。这里有两条唯一约束在起作用：
+    `UNIQUE (cycle_id, event_role)` 挡同一周期重复入队，部分唯一索引挡同一轮下
+    不同部署重复入队。指定单一目标会让另一条直接抛唯一冲突。
+  - `explanation_status = 'pending'` 也按轮设置。否则只有第一个入队的部署显示
+    「解释生成中」，其余客户在解释返回前看到空白。
+
+  验证：同卡两个客户各跑一轮后，每个 event_role 只有一个解释任务；排干任务队列
+  后，该轮下两个部署的同角色事件都拿到 `completed`。
+
+- **第 3 步（完成，与原计划的第 4 步对调）** `/api/trading-hall` 的事件查询改为
+  优先按 `decision_round_id` 取，没有轮的行（过渡期历史数据、永续部署）回落到
+  `cycle_id`。过渡期一个轮下有 N 个部署各写的事件，按 role 去重后每轮只呈现一套。
+
+  `TradingHallDecisionRound` 新增 `sharedDecisionRoundId`。按已定的产品决策，
+  两处展示决策轮的界面都点明：**这是该策略卡在这根 K 线上的公共决策轮，七阶段
+  结论对订阅同一张卡的所有客户完全相同，不含任何客户数据；仓位与风控准入按各自
+  组合单独判定**。后半句同样必要——只说「共享」会被理解成「大家仓位一样」。
+
+  措辞由 `tests/trading-hall-product-contract.test.mjs` 钉住。
+
+- **第 4a 步（完成）** 写入端停止重复：
+
+  - **七阶段事件**：只有创建决策轮的那个部署写这 7 行，其余部署复用同一套叙述。
+    判断依据是 upsert 的 `RETURNING id` 是否返回行——**让数据库决定谁是创建者**。
+    用「先查一下有没有」会有竞态：两个 worker 可能同时查到空。
+    5,000 会员 × 3 张卡下这是 105,000 行降到 7 行。
+  - **行情快照**：`sourceId` 从周期 id 换成决策轮 id。
+    `saveMarketDataSnapshot` 的 `ON CONFLICT (source_type, source_id)` 本来就是
+    幂等的，换个 key 即可共享，15,000 行降到 6 行。
+
+  安全前提是第 3 步已经完成：读取路径优先按 `decision_round_id` 取事件，
+  因此不写重复行不会让任何客户看不到结论。
+
+  仍未收敛的是租约与引擎评估本身（15,000 次），那是第 4b 步。
+
+- **第 4b 步（完成）** 「纯 hold 不留痕」落地，以及一个必须先解决的前提。
+
+  **读取先改**：决策轮改为直接从 `strategy_decision_rounds` 取该卡该品种的最新
+  一轮，而不是经由客户自己的周期。不改这一处的话，hold 那根 K 线上客户会看到
+  上一次有动作时的**旧轮**。
+
+  **写入**：`shouldPersistAdmission`（域层纯函数）判定是否为这个组合写周期行。
+  产生意图、风控拒绝、组合级拒绝理由、非 hold 动作——任一成立就留痕；
+  只有「风控放行且动作是 hold」才跳过。
+
+  **中途发现的设计错误**：最初把事件写入也绑到了「是否留痕」上，结果纯 hold 的
+  那一轮没有七阶段叙述——**恰恰把最需要解释的情况解释没了**。
+  事件属于共享轮而不属于周期，迁移 0048 因此让 `cycle_id` 可空，并加
+  `CHECK (cycle_id IS NOT NULL OR decision_round_id IS NOT NULL)` 与两条部分唯一
+  索引保证一轮七阶段、每 role 一行。
+
+### 关于第 4b 步剩余部分的重新评估
+
+ADR 原本还包括把租约单元从「部署」换成「决策目标」。4a 完成后重新评估，
+这部分的剩余收益比最初估计的小：
+
+- 每部署剩下的工作里，**风控刷新与访问状态检查是不可共享的必要工作**
+  （逐客户的权益、回撤、熔断、访问状态），换租约模型也省不掉；
+- 真正能省的是租约/心跳/完成三条事务与引擎评估（纯 CPU，亚毫秒）。
+  15,000 部署下约 45,000 条语句/根 K 线。
+
+这不是零，但它需要重写运行时调度器——整个运行时里风险最高的一块。
+**建议单独立项**，不与本 ADR 的数据模型变更混在一起。

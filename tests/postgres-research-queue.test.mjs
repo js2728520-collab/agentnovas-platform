@@ -8,6 +8,7 @@ import {
   advanceResearchRun,
   appendResearchEvent,
   createResearchRun,
+  listResearchCandidates,
   listOwnedResearchRuns,
   leaseNextResearchRun,
   pauseResearchRunForMissingRoles,
@@ -18,10 +19,13 @@ import {
 } from "../lib/postgres-research-queue.ts";
 import {
   getOwnedCandidateForSave,
+  getOwnedStrategyDraftById,
+  getSavedStrategyDraftForCandidate,
   loadInternalCandidates,
   markCandidateSaved,
   reserveResearchModelCalls,
   upsertResearchCandidate,
+  withResearchCandidateSaveLock,
 } from "../lib/research-repository.ts";
 import { runCheckpointedResearchStep } from "../lib/research-steps.ts";
 
@@ -48,10 +52,31 @@ test.before(async () => {
     "utf8",
   );
   await pool.query(conversationDecouplingMigration);
+  // 0080 给研发运行加了 Prompt 配置固定列（PS-05）。整份 0080 还会改运行时解释任务表并
+  // 引用 configuration_versions，两者都不在本套件的表子集里，因此只取这一条 ALTER。
+  // 与 0080 里的定义保持一致。
+  await pool.query(`
+    ALTER TABLE strategy_research_runs
+      ADD COLUMN IF NOT EXISTS prompt_configuration_snapshot_json jsonb NOT NULL DEFAULT '{}'::jsonb;
+  `);
+  await pool.query(`
+    CREATE TABLE community_strategies (
+      id text PRIMARY KEY,
+      author_user_id text NOT NULL,
+      specification_json text NOT NULL,
+      validation_label text NOT NULL
+    );
+    CREATE TABLE strategy_versions (
+      id text PRIMARY KEY,
+      strategy_id text NOT NULL REFERENCES community_strategies(id) ON DELETE CASCADE,
+      version integer NOT NULL,
+      specification_json text NOT NULL
+    );
+  `);
 });
 
 test.beforeEach(async () => {
-  await pool.query("TRUNCATE strategy_research_runs CASCADE");
+  await pool.query("TRUNCATE strategy_research_runs, community_strategies CASCADE");
 });
 
 test.after(async () => {
@@ -390,7 +415,60 @@ test("stores candidates idempotently and enforces tenant ownership when saving",
   assert.equal(await getOwnedCandidateForSave(pool, { runId: run.id, candidateId: firstId, ownerUserId: "other-user" }), null);
   const owned = await getOwnedCandidateForSave(pool, { runId: run.id, candidateId: firstId, ownerUserId: "user-a" });
   assert.equal(owned.id, firstId);
+  await pool.query("UPDATE strategy_candidates SET validation_label='STANDARD_VERIFIED' WHERE id=$1", [firstId]);
+  assert.equal(await getSavedStrategyDraftForCandidate(pool, { candidateId: firstId }), null);
+  const savedDsl = { ...dsl, name: "用户编辑后的候选", risk: { ...dsl.risk, positionSizePct: 4 } };
+  await pool.query(
+    "INSERT INTO community_strategies(id,author_user_id,specification_json,validation_label) VALUES($1,$2,$3,$4)",
+    ["strategy-a", "user-a", JSON.stringify(savedDsl), "UNVERIFIED"],
+  );
+  await pool.query(
+    "INSERT INTO strategy_versions(id,strategy_id,version,specification_json) VALUES($1,$2,$3,$4)",
+    ["version-a", "strategy-a", 1, JSON.stringify(savedDsl)],
+  );
+  assert.equal(await getOwnedStrategyDraftById(pool, { strategyId: "strategy-a", ownerUserId: "other-user" }), null);
+  assert.deepEqual(await getOwnedStrategyDraftById(pool, { strategyId: "strategy-a", ownerUserId: "user-a" }), {
+    strategyId: "strategy-a",
+    strategyVersionId: "version-a",
+    version: 1,
+    specification: savedDsl,
+    validationLabel: "UNVERIFIED",
+  });
   assert.equal(await markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-a", strategyVersionId: "version-a" }), "strategy-a");
   assert.equal(await markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-a", strategyVersionId: "version-a" }), "strategy-a");
+  const publicCandidates = await listResearchCandidates(pool, { runId: run.id, ownerUserId: "user-a" });
+  assert.equal(publicCandidates[0].dsl.name, "用户编辑后的候选");
+  assert.equal(publicCandidates[0].dsl.risk.positionSizePct, 4);
+  assert.equal(publicCandidates[0].validationLabel, "UNVERIFIED");
+  assert.equal(publicCandidates[0].edited, true);
+  assert.deepEqual(await getSavedStrategyDraftForCandidate(pool, { candidateId: firstId }), {
+    strategyId: "strategy-a",
+    strategyVersionId: "version-a",
+    version: 1,
+    specification: savedDsl,
+    validationLabel: "UNVERIFIED",
+  });
   await assert.rejects(markCandidateSaved(pool, { candidateId: firstId, strategyId: "strategy-b", strategyVersionId: "version-b" }), /其他策略/);
+});
+
+test("serializes concurrent saves for the same candidate", async () => {
+  let active = 0;
+  let maximumActive = 0;
+  const order = [];
+
+  await Promise.all(["first", "second"].map(label => withResearchCandidateSaveLock(
+    pool,
+    "candidate-lock-fixture",
+    async () => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      order.push(`${label}:start`);
+      await new Promise(resolve => setTimeout(resolve, 20));
+      order.push(`${label}:finish`);
+      active -= 1;
+    },
+  )));
+
+  assert.equal(maximumActive, 1);
+  assert.match(order.join(","), /^(first:start,first:finish,second:start,second:finish|second:start,second:finish,first:start,first:finish)$/);
 });

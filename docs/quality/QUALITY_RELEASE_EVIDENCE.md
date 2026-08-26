@@ -1,5 +1,9 @@
 # Controlled Beta quality evidence runner
 
+> 文档状态：`CURRENT_BASELINE`。本证据 runner 证明当前受控 Beta，不证明真实交易、资金出站或 CI/CD 触发安全；V3 每个阶段需在 [`FULL_PLATFORM_V3_GATES.md`](FULL_PLATFORM_V3_GATES.md) 基础上扩展并重新生成证据。
+
+> **当前发布范围（2026-08-25）：** 本证据 runner 当前只支持 S0——受控的 Paper/Demo 商业平台证据。Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 保持 disabled，需作为后续独立切片重新采证；本地 runner 输出不能替代目标环境或外部 provider 证据。
+
 状态：已集成并在 2026-08-21 当前工作树完成最终本地重跑；证据目录为被 Git 忽略的 `outputs/`，发布提交变化后必须重新生成。
 
 This runner creates repeatable release evidence without contacting a payment provider, an email provider, a Demo exchange, or any other external host. It resolves only approved direct test dependencies and never downloads tools at runtime.
@@ -17,6 +21,8 @@ This runner creates repeatable release evidence without contacting a payment pro
 ```json
 {
   "test:e2e": "node scripts/quality/run-e2e.mjs",
+  "test:e2e:mfa-on": "node scripts/quality/run-mfa-on-e2e.mjs",
+  "test:e2e:mfa-rollout": "node --experimental-strip-types scripts/quality/run-mfa-rollout-e2e.mjs",
   "test:e2e:direct": "playwright test",
   "quality:bundle": "node scripts/quality/check-next-bundle-budget.mjs",
   "quality:lighthouse": "node scripts/quality/run-lighthouse.mjs",
@@ -39,19 +45,25 @@ Run the gates in this order:
 ```text
 node --test tests/e2e/*.unit.test.mjs tests/e2e/*.postgres.test.mjs
 npm run test:e2e
+npm run test:e2e:mfa-on
+npm run test:e2e:mfa-rollout
 npm run quality:bundle
 npm run quality:lighthouse
 npm run quality:release
 ```
 
-The browser run uses one disposable `quality_e2e_*` PostgreSQL schema. It migrates the schema from scratch and creates four synthetic identities: Client, Operations maker, Operations checker, and Maintenance admin. Each wrapper first removes its prior output directory, then recreates it under the repository `outputs/` boundary so a previous run cannot contaminate the current manifest. Before deletion it rejects a symbolic link at the repository root, `outputs/`, any intermediate component, or the target; resolves the existing path into the real repository boundary; and immediately repeats those checks before deleting only the controlled real target. A symlink or realpath escape therefore fails without touching an external target. The wrapper always deletes storage states/passwords/tokens in a `finally` path, even when dropping the schema fails. Cleanup evidence then records the real, redacted failure phase and the command exits unsuccessfully; a failed schema drop can never leave the runtime secret directory behind or produce passing cleanup evidence.
+The browser run uses one disposable `quality_e2e_*` PostgreSQL schema. It migrates the schema from scratch and creates four primary synthetic identities plus a dedicated Client security identity: Client, Client security, Operations maker, Operations checker, and Maintenance admin. Each wrapper first removes its prior output directory, then recreates it under the repository `outputs/` boundary so a previous run cannot contaminate the current manifest. Before deletion it rejects a symbolic link at the repository root, `outputs/`, any intermediate component, or the target; resolves the existing path into the real repository boundary; and immediately repeats those checks before deleting only the controlled real target. A symlink or realpath escape therefore fails without touching an external target. The wrapper always deletes storage states/passwords/tokens in a `finally` path, even when dropping the schema fails. Cleanup evidence then records the real, redacted failure phase and the command exits unsuccessfully; a failed schema drop can never leave the runtime secret directory behind or produce passing cleanup evidence.
 
 All external-effect switches are forced off, including `PAYMENT_PROVIDER_TESTS_ENABLED`, `PLATFORM_DEMO_VERIFICATION_ENABLED`, and `PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED`. Provider credentials are scrubbed from the child environment, and Playwright requests are aborted unless their URL is loopback or one of the three official app hosts. Playwright maps exact official HTTPS hosts to the matching loopback server while preserving the upstream Host and secure audience Cookie. Lighthouse uses a loopback audit URL so local TLS cannot create false failures, but its runner-owned proxy rewrites the upstream Host to the official Client audience and permits only exact read-only loopback traffic; every other host, method, or tunnel is rejected. Service workers are blocked, and the application server process receives a dead local proxy for all other traffic. No payment, notification, research, runtime, or Demo worker is started.
+
+The canonical `test:e2e` run forces `MFA_ENFORCEMENT_ENABLED=false` so it matches the current rollout policy. `test:e2e:mfa-on` uses a separate disposable schema for the enabled-state login, reset and recent-MFA path. `test:e2e:mfa-rollout` restarts all three standalone applications against one disposable schema through `true → false → true`; it proves that disabled-state sessions cannot bypass a later re-enable and that credentials remain usable. Production enablement still requires the target-environment ADR-0023 gate.
 
 ## Covered evidence
 
 - strict Host and audience rejection, audience-specific cookie isolation, and production cookie attributes;
-- Operations 首次密码登录、TOTP 设置密钥、六位码确认、8 枚一次性恢复码和完整会话跳转；
+- 三端当前关闭态密码登录直接进入完整会话且不出现 MFA 挑战；本地开启态覆盖三端绑定/验证、TOTP/recovery、Client/Operations 密码重置、recent MFA 过期和同库开→关→开；目标环境仍需单独复验；
+- Operations 权限链接浏览器注册、冻结角色/scope、手动作废和旧链接拒绝；
+- Client 五浏览器设备、第六台拒绝、跨上下文全量退出，以及 Email send 关闭时加密 outbox 降级；
 - the synthetic Client order → maker evidence/submit → maker denial → checker approval/replay path;
 - legal-document acceptance, one membership activation, 1,000 credits, and exactly three isolated 10,000 USDT paper portfolios;
 - Operations PII masking and recursive public-payload checks for raw credential fields;
@@ -59,7 +71,7 @@ All external-effect switches are forced off, including `PAYMENT_PROVIDER_TESTS_E
 - serious/critical axe violations, keyboard entry, horizontal overflow, browser console/page errors, failed local requests, and denied external requests;
 - three application initial JS/CSS gzip budgets from Next build manifests;
 - three-run Client login Lighthouse thresholds for LCP, CLS, TBT, accessibility, best practices, and resource size;
-- a final hash manifest that accepts only an unfiltered twelve-test E2E run, three passing bundle reports, three distinct existing Lighthouse JSON reports independently revalidated for scores, timings and non-empty script/stylesheet/image evidence, and complete cleanup evidence.
+- a final hash manifest that accepts only an unfiltered fifteen-test E2E run, including empty-browser login through all three applications, three passing bundle reports, three distinct existing Lighthouse JSON reports independently revalidated for scores, timings and non-empty script/stylesheet/image evidence, and complete cleanup evidence.
 
 Traces, videos, and screenshots are disabled because the MFA enrollment page temporarily renders a TOTP setup key and recovery codes, while binary screenshots cannot be reliably secret-scanned. Next servers bind explicitly to `127.0.0.1`. Bounded, redacted console/network summaries are retained. The final verifier rejects retained `.runtime` directories and all standalone binary-image artifacts, then scans textual evidence for the fixture password/token canaries and cookie/authorization material. Lighthouse starts from an empty output directory and the release verifier accepts exactly the three distinct reports named by the current run's manifest.
 
@@ -85,9 +97,9 @@ The implementation follows the official Playwright guidance for [web servers](ht
 
 - CI `quality-release` job 已集成；基础设施级 egress deny、生产 DNS/TLS 和真实外部 provider smoke 仍由部署环境负责。
 - 当前三端初始 JS/CSS gzip：Client 188,677/9,386 bytes，Operations 185,268/8,704 bytes，Maintenance 185,448/8,704 bytes，均通过 200/50 KiB 预算。
-- 12 个 Playwright 场景使用四身份与四档 viewport，覆盖 Host/Cookie audience 隔离、会员 maker-checker、Client/Operations/Maintenance 稳定路由、axe 和 console/network；全部通过。
+- 18 个 canonical Playwright 场景使用五个合成身份与四档 viewport，覆盖三端空浏览器表单登录、Host/Cookie audience 隔离、权限链接、五设备/全量退出、会员 maker-checker、Client/Operations/Maintenance 稳定路由、axe 和 console/network；另有 MFA-on 3/3 与同库 rollout 9 旅程全部通过。
 - 最新三次 Lighthouse performance 均为 0.99，accessibility 与 best practices 均为 1.00；LCP 2,221/2,163/2,162 ms，CLS 均为 0，TBT 24/4.2/3.3 ms，全部满足 Gate 预算。登录由 audience Server Component 在导入已认证应用树之前分发，不启动 session 数据树或受保护根路由预取，并关闭登录页未使用字体的 preload。
-- 本机恢复演练已在 2026-08-22 由专用 `agentnovas_migrator` 对 fresh 源库覆盖 44 个迁移和 139 张表；迁移 registry checksum、表集合与逐表行数在恢复前后完全一致，一次性源库、目标库和临时 dump 均已清理，临时 `CREATEDB` 已撤销。`pg_dump --enable-row-security` 在不授予 `BYPASSRLS` 的前提下完整验证 `0043` 的 FORCE RLS。新增范围包含默认 disabled 的 `0042` 优盾通道和 `0043` Client 身份能力网关，未执行真实商户请求或资金操作。该证据只对截至 `0043` 的当前迁移集合有效；新增、改名或 checksum 变化会自动使恢复 Gate 失效，必须重跑演练，不能手工递增文档数字。
+- 本机恢复演练已在 2026-08-23 由专用 `agentnovas_migrator` 对 fresh 源库覆盖 63 个迁移和 146 张表；迁移 registry checksum、表集合与逐表行数在恢复前后完全一致，一次性源库、目标库和临时 dump 均已清理，临时 `CREATEDB` 已撤销。`pg_dump --enable-row-security` 在不授予 `BYPASSRLS` 的前提下完整验证 `0043` 的 FORCE RLS。本轮新增范围为 `0044`–`0062`，其中 `0050`–`0053` 是执行对账、熔断、实盘路由与实盘现货部署，`0060`–`0062` 是组合账本的 book 维度、对账手续费与实盘落账；实盘仍由 `isLiveExecutionReady()` 关闭，演练未执行任何真实商户请求或资金操作。该证据只对截至 `0062` 的当前迁移集合有效；新增、改名或 checksum 变化会自动使恢复 Gate 失效，必须重跑演练，不能手工递增文档数字。
 - 本 runner 验证角色模板、Client Web/Auth 攻击矩阵和隔离测试，但不替代目标环境的进程角色 smoke。每次部署仍须从 Client 两条连接及 Operations、Maintenance、各 Worker、payment webhook、migrator 的实际 secret/env 执行 `SELECT current_user` 并保存脱敏结果；不得记录连接串或口令。
 - 真实 Email、Demo、Payment、交易或 DNS/TLS smoke 不属于本 runner。没有凭证时产品以 `not_configured/configured_not_sent/disabled` 安全降级；若决定启用，必须在独立 staging 记录中补充真实 provider 证据。
 

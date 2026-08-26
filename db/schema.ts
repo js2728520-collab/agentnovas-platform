@@ -26,11 +26,16 @@ export const users = sqliteTable("users", {
   gender: text("gender").notNull().default(""),
   passwordHash: text("password_hash").notNull(),
   emailVerifiedAt: text("email_verified_at"),
-  role: text("role", { enum: ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "customer", "finance", "auditor"] }).notNull(),
+  role: text("role", { enum: ["hq_admin", "hq_support", "branch_admin", "manager", "supervisor", "employee", "customer", "finance", "auditor", "tech_staff"] }).notNull(),
   organizationId: text("organization_id").references(() => organizations.id),
+  // 通过邀请链接注册时的链接 id。激活该账号的人不得是该链接的归属人——
+  // 生成链接的人同时批准通过链接进来的人，等于一个人走完全程。
+  //
+  // 可空：绝大多数账号不是通过链接来的（手工录入、客户注册、初始管理员）。
+  invitedViaInvitationId: text("invited_via_invitation_id"),
   reportsToUserId: text("reports_to_user_id"),
   status: text("status", { enum: ["pending", "active", "frozen", "closed"] }).notNull().default("pending"),
-  locale: text("locale").notNull().default("zh-CN"),
+  locale: text("locale").notNull().default("en-US"),
   timezone: text("timezone").notNull().default("Asia/Shanghai"),
   ...timestamps,
 }, (t) => [uniqueIndex("idx_users_email_unique").on(t.email), uniqueIndex("idx_users_phone_unique").on(t.phone), uniqueIndex("idx_users_username_unique").on(t.username), index("idx_users_org_role").on(t.organizationId, t.role)]);
@@ -137,6 +142,8 @@ export const sessions = sqliteTable("sessions", {
   revokedAt: text("revoked_at"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
+  deviceHash: text("device_hash"),
+  networkKey: text("network_key"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (t) => [uniqueIndex("idx_sessions_token_unique").on(t.tokenHash), index("idx_sessions_user_expiry").on(t.userId, t.expiresAt), index("idx_sessions_user_app_expiry").on(t.userId, t.appAudience, t.expiresAt)]);
 
@@ -183,15 +190,59 @@ export const aiUsageDaily = sqliteTable("ai_usage_daily", {
 export const invitations = sqliteTable("invitations", {
   id: text("id").primaryKey(),
   codeHash: text("code_hash").notNull(),
-  kind: text("kind", { enum: ["employee_reusable", "public_pool_single_use"] }).notNull(),
+  kind: text("kind", { enum: ["employee_reusable", "public_pool_single_use", "staff_reusable"] }).notNull(),
   issuerUserId: text("issuer_user_id").notNull().references(() => users.id),
   ownerEmployeeId: text("owner_employee_id").references(() => users.id),
   organizationId: text("organization_id").references(() => organizations.id),
-  status: text("status", { enum: ["active", "used", "disabled"] }).notNull().default("active"),
+  // "revoked" 而不是 "disabled"：与 migration 0055 的 CHECK 一致。
+  // revoked 是链接被主动作废，used 是一次性码被消费——混用会让审计说不清链接是
+  // 怎么失效的。
+  status: text("status", { enum: ["active", "used", "revoked"] }).notNull().default("active"),
   usedByUserId: text("used_by_user_id").references(() => users.id),
   usedAt: text("used_at"),
+  useCount: integer("use_count").notNull().default(0),
+  lastUsedAt: text("last_used_at"),
+  revokedAt: text("revoked_at"),
+  revokedByUserId: text("revoked_by_user_id"),
+  // 员工链接专有：48 小时期限与目标角色。客户链接两者都为空（0057 的 CHECK 强制）。
+  expiresAt: text("expires_at"),
+  targetRole: text("target_role"),
   ...timestamps,
 }, (t) => [uniqueIndex("idx_invitations_code_unique").on(t.codeHash), index("idx_invitations_owner_status").on(t.ownerEmployeeId, t.status)]);
+
+// V3 Operations 权限注册链接。与客户 invitations 分表，避免两类 token 被任何注册
+// 路径互换。roleId 指向 PostgreSQL RBAC roles；兼容 schema 未重复声明整套 RBAC 表，
+// 因此这里只保留同名字段，真实外键由 migration 0065 强制。
+export const internalRegistrationLinks = sqliteTable("internal_registration_links", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull(),
+  issuerUserId: text("issuer_user_id").notNull().references(() => users.id),
+  roleId: text("role_id").notNull(),
+  targetRole: text("target_role", { enum: ["branch_admin", "manager", "supervisor", "employee"] }).notNull(),
+  organizationMode: text("organization_mode", { enum: ["CREATE_BRANCH", "EXISTING_ORGANIZATION"] }).notNull(),
+  organizationId: text("organization_id").references(() => organizations.id),
+  permissionSnapshotJson: text("permission_snapshot_json").notNull(),
+  permissionSnapshotSha256: text("permission_snapshot_sha256").notNull(),
+  status: text("status", { enum: ["active", "revoked"] }).notNull().default("active"),
+  useCount: integer("use_count").notNull().default(0),
+  lastUsedAt: text("last_used_at"),
+  revokedAt: text("revoked_at"),
+  revokedByUserId: text("revoked_by_user_id").references(() => users.id),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("idx_internal_registration_links_token_unique").on(t.tokenHash),
+  index("idx_internal_registration_links_issuer_status_compat").on(t.issuerUserId, t.status, t.createdAt),
+]);
+
+export const internalRegistrationLinkUses = sqliteTable("internal_registration_link_uses", {
+  id: text("id").primaryKey(),
+  linkId: text("link_id").notNull().references(() => internalRegistrationLinks.id),
+  registeredUserId: text("registered_user_id").notNull().references(() => users.id),
+  usedAt: text("used_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (t) => [
+  uniqueIndex("idx_internal_registration_link_uses_user_unique").on(t.registeredUserId),
+  index("idx_internal_registration_link_uses_link_time_compat").on(t.linkId, t.usedAt),
+]);
 
 export const customerAttributions = sqliteTable("customer_attributions", {
   id: text("id").primaryKey(),
@@ -206,6 +257,11 @@ export const customerAttributions = sqliteTable("customer_attributions", {
   endedAt: text("ended_at"),
   reason: text("reason").notNull().default(""),
   approvalId: text("approval_id"),
+  // 内部员工的体验账号。不计入任何业绩归因、团队目标或绩效分成基准——
+  // 否则员工用自己的邀请链接注册，仓位会算成他自己的业绩，上级跟着一路分成。
+  isInternal: integer("is_internal", { mode: "boolean" }).notNull().default(false),
+  internalOwnerUserId: text("internal_owner_user_id"),
+  internalReason: text("internal_reason"),
   ...timestamps,
 }, (t) => [index("idx_attribution_customer_effective").on(t.customerId, t.effectiveAt), index("idx_attribution_branch_status").on(t.branchId, t.status)]);
 
@@ -333,7 +389,9 @@ export const communityStrategies = sqliteTable("community_strategies", {
   market: text("market").notNull().default("crypto"),
   symbolsJson: text("symbols_json").notNull().default("[]"),
   riskLevel: text("risk_level", { enum: ["low", "medium", "high"] }).notNull().default("medium"),
-  status: text("status", { enum: ["draft", "testing", "submitted", "approved", "rejected", "published", "paused"] }).notNull().default("draft"),
+  // 取值与 packages/domain/src/strategy-listing-state.ts 的 STRATEGY_LISTING_STATES 及
+  // 0081 的 CHECK 约束一一对应，由 tests/strategy-listing-state 对齐。
+  status: text("status", { enum: ["draft", "testing", "submitted", "under_review", "approved", "listed", "delisted", "rejected"] }).notNull().default("draft"),
   publicationMode: text("publication_mode", { enum: ["marketplace", "self_use"] }).notNull().default("marketplace"),
   validationLabel: text("validation_label", { enum: ["UNVERIFIED", "EXPLORATION_ONLY", "STANDARD_FAILED", "STANDARD_VERIFIED"] }).notNull().default("UNVERIFIED"),
   researchRunId: text("research_run_id"),
@@ -383,7 +441,17 @@ export const strategySubscriptions = sqliteTable("strategy_subscriptions", {
   capitalPct: real("capital_pct").notNull().default(5),
   stopLossPct: real("stop_loss_pct").notNull().default(10),
   executionMode: text("execution_mode", { enum: ["proportional", "fixed_risk"] }).notNull().default("proportional"),
-  status: text("status", { enum: ["pending", "active", "paused", "ended"] }).notNull().default("pending"),
+  // 取值与 packages/domain/src/strategy-follow-lifecycle.ts 的 FOLLOW_LIFECYCLE_STATES
+  // 及 0085 的 CHECK 一一对应，由 tests/strategy-follow-lifecycle-postgres 对齐。
+  status: text("status", { enum: ["configuring", "user_confirmed", "active", "paused", "risk_blocked", "stopped"] }).notNull().default("configuring"),
+  // 0007 加的运行模式；0082/0085 加的四方停止记录。此前 Drizzle schema 一直没跟上，
+  // 于是这些列在类型层面不存在，代码只能绕开它们。
+  runMode: text("run_mode", { enum: ["shadow", "paper", "live"] }),
+  pausedBy: text("paused_by", { enum: ["customer", "operations_risk", "automated_risk", "global_circuit_breaker"] }),
+  pausedAt: text("paused_at"),
+  pausedReason: text("paused_reason"),
+  endedBy: text("ended_by", { enum: ["customer", "operations_risk", "automated_risk", "global_circuit_breaker"] }),
+  endedReason: text("ended_reason", { enum: ["customer_stopped", "change_request", "risk_blocked", "operations_terminated"] }),
   riskConsentAt: text("risk_consent_at"), lastRiskCheckAt: text("last_risk_check_at"), riskCheckJson: text("risk_check_json").notNull().default("{}"), startedAt: text("started_at"), endedAt: text("ended_at"), ...timestamps,
 }, (t) => [uniqueIndex("idx_strategy_subscription_unique").on(t.strategyId, t.customerId), index("idx_strategy_subscriptions_customer").on(t.customerId, t.status)]);
 

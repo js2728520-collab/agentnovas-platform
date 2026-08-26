@@ -36,6 +36,7 @@ export function AccountSecurityWorkspace({ viewer }: { viewer: ViewerPayload }) 
   const [profileCurrentPassword, setProfileCurrentPassword] = useState("");
   const [savedIdentifiers, setSavedIdentifiers] = useState({ username: viewer.username ?? "", phone: viewer.phone ?? "" });
   const [revoking, setRevoking] = useState<AccountSession | null>(null);
+  const [revokeAllOpen, setRevokeAllOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -107,6 +108,27 @@ export function AccountSecurityWorkspace({ viewer }: { viewer: ViewerPayload }) 
     }
   }
 
+  async function revokeAllSessions(reason: string) {
+    if (busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/account/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(apiErrorMessage(payload, "全部设备退出失败"));
+      setRevokeAllOpen(false);
+      announce("success", "全部设备已退出，正在返回登录页…");
+      window.setTimeout(() => window.location.assign("/login"), 900);
+    } catch (error) {
+      announce("error", error instanceof Error ? error.message : "全部设备退出失败");
+      setBusy(false);
+    }
+  }
+
   return <>
     <PageHeading eyebrow="ACCOUNT SECURITY" title="账号与登录安全" description="维护个人资料、更新密码并核对仍然有效的登录设备。密码修改会撤销全部会话。" actions={<StatusBadge value="Client 会话 · 最长 7 天" />} />
     {message ? <div ref={resultRef} className={message.kind === "error" ? "rc-error" : "rc-live"} role={message.kind === "error" ? "alert" : "status"} aria-live={message.kind === "error" ? "assertive" : "polite"} tabIndex={-1}>{message.text}</div> : <div className="rc-live" aria-live="polite" />}
@@ -134,9 +156,10 @@ export function AccountSecurityWorkspace({ viewer }: { viewer: ViewerPayload }) 
       </div>
     </section>
     <section className="rc-panel">
-      <header><div><small>ACTIVE SESSIONS</small><h2>登录设备</h2></div><button className="rc-button" type="button" onClick={() => void sessions.refresh()}>重新读取</button></header>
+      <header><div><small>ACTIVE SESSIONS</small><h2>登录设备（最多 5 台）</h2></div><div className="rc-action-row"><button className="rc-button" type="button" onClick={() => void sessions.refresh()}>重新读取</button><button className="rc-button" type="button" disabled={busy} onClick={() => setRevokeAllOpen(true)}>退出全部设备</button></div></header>
       {sessions.loading && !sessions.data ? <LoadingState label="正在读取登录设备…" /> : sessions.error && !sessions.data ? <ErrorState message={sessions.error} retry={sessions.refresh} /> : <div className="rc-card-grid">{sessions.data?.sessions.length ? sessions.data.sessions.map((session) => <article className="rc-card" key={session.id}><header><StatusBadge value={session.current ? "当前设备" : session.audience} /><time>{formatDateTime(session.lastSeenAt ?? session.createdAt)}</time></header><h3>{session.device}</h3><p>{session.maskedIpAddress ?? "未记录网络地址"}</p><dl><div><dt>登录时间</dt><dd>{formatDateTime(session.createdAt)}</dd></div><div><dt>最长有效期</dt><dd>{formatDateTime(session.absoluteExpiresAt)}</dd></div></dl>{session.current ? <p className="rc-muted">当前设备请使用左侧“退出”。</p> : <footer><button className="rc-button" type="button" disabled={busy} onClick={() => setRevoking(session)}>撤销此设备</button></footer>}</article>) : <p>当前没有可展示的登录会话。</p>}</div>}
     </section>
     <ConfirmActionDialog open={revoking !== null} title="撤销登录设备" description="该设备会立即失去会话权限；历史审计记录会保留。" confirmLabel="确认撤销" busy={busy} onCancel={() => setRevoking(null)} onConfirm={(reason) => void revokeSession(reason)} />
+    <ConfirmActionDialog open={revokeAllOpen} title="退出全部设备" description="当前设备和其他所有 Client 会话都会立即失效；历史审计记录会保留。" confirmLabel="确认全部退出" busy={busy} onCancel={() => setRevokeAllOpen(false)} onConfirm={(reason) => void revokeAllSessions(reason)} />
   </>;
 }

@@ -8,6 +8,11 @@ const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const apiRoot = resolve(repositoryRoot, "app/api");
 const rbacPath = resolve(repositoryRoot, "lib/rbac.ts");
 
+// 路由文件按 audience 归属命名（见 next.config.ts 的 pageExtensions）。
+// 后缀决定该文件进哪个构建；这里的前缀规则决定它的 audience。两者必须一致，
+// 由 scripts/quality/check-architecture-boundaries.mjs 强制。
+const ROUTE_FILE = /\/route\.(client|operations|maintenance|internal|shared)\.ts$/;
+
 const ALL_AUDIENCES = ["client", "operations", "maintenance"];
 const INTERNAL_AUDIENCES = ["operations", "maintenance"];
 const OPERATIONS_PREFIXES = [
@@ -28,6 +33,9 @@ const PUBLIC_CLIENT_METHODS = new Set([
   "GET /api/market/quote",
   "GET /api/market/ticker",
   "GET /api/platform/settings",
+  // 已发布的法律文档必须对**未登录访客**可读：落地页页脚要链接到它。
+  // 此前唯一能读到条款的接口需要登录，于是访客看不到任何条款内容。
+  "GET /api/platform/legal",
   "GET /api/strategy-marketplace",
   "POST /api/strategy-studio/chat",
 ]);
@@ -41,7 +49,8 @@ const BETA_DISABLED_CLIENT_ROUTES = [
   "/api/risk/status",
   "/api/simulated-orders",
   "/api/strategy-deployments",
-  "/api/strategy-marketplace",
+  // /api/strategy-marketplace 已启用（T4.4）：策略广场是 Phase 4 的产品目标，跟单链路
+  // 已端到端跑通。启用前先移除了公开响应里的作者邮箱——它曾被原样 spread 给未登录访客。
   "/api/strategy-research/runs",
   "/api/trading/emergency-stop",
 ];
@@ -104,7 +113,7 @@ async function files(directory) {
 }
 
 function routePattern(filename) {
-  const local = relative(apiRoot, filename).split(sep).join("/").replace(/\/route\.ts$/, "");
+  const local = relative(apiRoot, filename).split(sep).join("/").replace(ROUTE_FILE, "");
   return `/api/${local}`
     .replace(/\[\.\.\.([^\]]+)\]/g, ":$1*")
     .replace(/\[([^\]]+)\]/g, ":$1");
@@ -124,7 +133,8 @@ function basePolicy(route, method) {
   }
   if (BETA_DISABLED_CLIENT_ROUTES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
     || route === "/api/strategies/:strategyId/versions/:versionId/deployments"
-    || (route === "/api/strategy-subscriptions/:id" && method === "PATCH")) {
+    // 投稿写入路径仍停用：还没有对应的审核界面。列表（GET）已随 T4.4 启用。
+    || (route === "/api/strategy-marketplace" && method === "POST")) {
     return { audiences: ["client"], authentication: "disabled", sameOrigin: mutation };
   }
   if (route === "/api/membership/legal-consent") {
@@ -134,6 +144,9 @@ function basePolicy(route, method) {
     return { audiences: ["client"], authentication: "permission", sameOrigin: mutation };
   }
   if (route === "/api/trading-hall" || route.startsWith("/api/trading-hall/paper/")) {
+    return { audiences: ["client"], authentication: "permission", sameOrigin: mutation };
+  }
+  if (route === "/api/work-records" || route === "/api/work-records/:id") {
     return { audiences: ["client"], authentication: "permission", sameOrigin: mutation };
   }
   if (route === "/api/platform-strategies/:code/follow" || route === "/api/platform-strategy-subscriptions/:id") {
@@ -155,6 +168,20 @@ function basePolicy(route, method) {
     return { audiences: ALL_AUDIENCES, authentication: "anonymous", sameOrigin: true };
   }
   if (route.startsWith("/api/auth/")) return { audiences: ["client"], authentication: "anonymous", sameOrigin: mutation };
+  if (route === "/api/organization/experience-account") {
+    // 内部人员给自己开客户端体验账号。运营端与运维端都要能用——技术人员同样需要
+    // 熟悉业务，而他们在运维端。
+    //
+    // 鉴权是 session 而非 permission：权限键带 appId，用运营端的键会让运维端的人
+    // 拿到 404。这条接口也确实不需要细粒度权限，因为只能给自己开。
+    return { audiences: ["operations", "maintenance"], authentication: "session", sameOrigin: mutation };
+  }
+  if (route === "/api/organization/staff-register") {
+    // V3 五级运营角色的自助注册入口。必须匿名，因为注册者还没有账号；但只在
+    // Operations 暴露，并由高熵摘要 token、多桶限流、原子 assignment 与审计约束。
+    // Maintenance 技术账号不属于业务角色注册链接链。
+    return { audiences: ["operations"], authentication: "anonymous", sameOrigin: true };
+  }
   if (route === "/api/system/bootstrap") return { audiences: ["maintenance"], authentication: "bootstrap", sameOrigin: false };
   if (route.startsWith("/api/integrations/resend/webhook")) {
     return { audiences: ["maintenance"], authentication: "webhook", sameOrigin: false };
@@ -285,8 +312,10 @@ function sensitivePermissionKeys(source) {
 }
 
 function piiForRoute(route) {
+  if (route === "/api/maintenance/ai-usage") return "masked";
   if (["/api/account/profile", "/api/data-center", "/api/employee/tasks", "/api/organization/members"].includes(route)
-    || route.startsWith("/api/finance/payout-profiles") || route.startsWith("/api/operations/deposits")) return "full";
+    || route.startsWith("/api/finance/payout-profiles") || route.startsWith("/api/operations/deposits")
+    || route.startsWith("/api/operations/customers")) return "full";
   if (route.startsWith("/api/organization/customers") || route.startsWith("/api/team/")) return "masked";
   return "none";
 }
@@ -294,7 +323,7 @@ function piiForRoute(route) {
 const outputPath = resolve(repositoryRoot, "lib/api-route-inventory.ts");
 const sensitiveKeys = sensitivePermissionKeys(await readFile(rbacPath, "utf8"));
 const entries = [];
-for (const filename of (await files(apiRoot)).filter((path) => path.endsWith("/route.ts")).sort()) {
+for (const filename of (await files(apiRoot)).filter((path) => ROUTE_FILE.test(path)).sort()) {
   const source = await readFile(filename, "utf8");
   const route = routePattern(filename);
   const constants = new Map([...source.matchAll(/\bconst\s+([A-Z][A-Z0-9_]*)\s*=\s*["']((?:client|ops|maint)\.[a-z0-9_.]+)["']/g)]

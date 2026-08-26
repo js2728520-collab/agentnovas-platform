@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 
 import { assertBetaResearchRuntimeDisabled } from "./beta-legacy-runtime-guard.ts";
 import { agentRoles, resolveAgentRoleConfig, missingAgentRoles, type AgentRole } from "./agent-model-profiles.ts";
-import { runPerpetualBacktestOnCandles, type BacktestResult, type HistoricalFundingRate } from "./backtest-engine.ts";
+import { runPerpetualBacktestOnCandles, type BacktestResult, type HistoricalFundingRate } from "../packages/domain/src/backtest-engine.ts";
 import { cachePerpetualMarketData, loadCachedPerpetualMarketData } from "./postgres-market-cache.ts";
 import {
   advanceResearchRun,
@@ -17,8 +17,10 @@ import {
   type PerpetualExchange,
 } from "./perpetual-market-adapters.ts";
 import { callStructuredResearchAgent } from "./research-agent.ts";
+import { loadPinnedPromptConfiguration } from "./prompt-skill-runtime.ts";
 import { buildResearchParameterVariants } from "./research-parameter-search.ts";
-import { hashResearchStepInput, runCheckpointedResearchStep } from "./research-steps.ts";
+import { runCheckpointedResearchStep } from "./research-steps.ts";
+import { canonicalJsonSha256 } from "../packages/domain/src/canonical-hash.ts";
 import { createAuthenticatedFeeFetcher, loadResearchExchangeAccount } from "./research-exchange-account.ts";
 import { saveMarketDataSnapshot } from "./market-data-snapshots.ts";
 import {
@@ -44,9 +46,9 @@ import {
   splitResearchCandles,
   type AdmissionMetrics,
   type ResearchMode,
-} from "./research-validation.ts";
+} from "../packages/domain/src/research-validation.ts";
 import { parseStrategyResearchTarget } from "./research-target.ts";
-import { normalizeResearchStrategyDsl, strategyDslToRuntime, type StrategyCandle, type StrategyDslV3 } from "./strategy-dsl.ts";
+import { normalizeResearchStrategyDsl, strategyDslToRuntime, type StrategyCandle, type StrategyDslV3 } from "../packages/domain/src/strategy-dsl.ts";
 
 type ResearchLease = {
   id: string;
@@ -62,6 +64,11 @@ type ResearchLease = {
     revisionId: string;
     revisionNumber: number;
     modelName: string;
+  }>>;
+  /** PS-05：运行创建时固定的 Prompt 配置版本，按角色。空表示用代码内定义的 Prompt。 */
+  promptConfigurationSnapshot?: Partial<Record<AgentRole, {
+    configurationVersionId: string;
+    payloadSha256: string;
   }>>;
   result: Record<string, unknown> | null;
   candidateBudget: number;
@@ -181,7 +188,15 @@ async function agentCall(database: Pool, run: ResearchLease, role: AgentRole, co
   const pinned = run.agentRoleSnapshot?.[role];
   const config = await resolveAgentRoleConfig(database, role, { revisionId: pinned?.revisionId });
   if (!config) throw new Error(`Agent 角色 ${role} 尚未配置`);
-  return callStructuredResearchAgent({ config, role, context });
+  // PS-05：按运行创建时固定的那一版解析 Prompt。研发是一串步骤，中途发生激活或回滚时
+  // 后半段仍用同一份 Prompt——否则同一次研发的前后半段依据不同，结论无法归因到任何一版。
+  const promptPin = run.promptConfigurationSnapshot?.[role];
+  const promptConfiguration = promptPin
+    ? await loadPinnedPromptConfiguration(database, promptPin)
+    : null;
+  return callStructuredResearchAgent({
+    config, role, context, promptInstruction: promptConfiguration?.instruction,
+  });
 }
 
 async function reservedAgentCall(
@@ -380,8 +395,8 @@ async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: 
     costScenario?: string;
   }) {
     const [parameterSetSha256, dataSliceSha256] = await Promise.all([
-      hashResearchStepInput(input.dsl),
-      hashResearchStepInput(input.candles.map(candle => [
+      canonicalJsonSha256(input.dsl),
+      canonicalJsonSha256(input.candles.map(candle => [
         candle.openTime, candle.closeTime, candle.open, candle.high, candle.low, candle.close, candle.volume,
       ])),
     ]);

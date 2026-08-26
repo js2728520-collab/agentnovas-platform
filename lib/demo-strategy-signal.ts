@@ -1,4 +1,4 @@
-import { normalizeStrategySpecification, type StrategySpecification } from "@/lib/backtest-engine";
+import { normalizeStrategySpecification, type StrategySpecification } from "../packages/domain/src/backtest-engine.ts";
 import type { SpotCandle } from "@/lib/market-data";
 
 export type DemoStrategySignal = {

@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 
-import { requiredLegalDocumentTypes } from "./commercial-membership-domain.ts";
+import { requiredLegalDocumentTypes } from "../packages/domain/src/commercial-membership-domain.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 type LegalGateRow = {

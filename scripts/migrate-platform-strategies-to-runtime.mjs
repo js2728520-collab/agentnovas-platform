@@ -3,7 +3,7 @@ import pg from "pg";
 import {
   allPlatformStrategyDslV3,
   platformStrategyConversionContractHash,
-} from "../lib/platform-strategy-v3.ts";
+} from "../packages/domain/src/platform-strategy-v3.ts";
 import { ensureOfficialPaperPortfolios } from "../lib/official-paper-repository.ts";
 
 const connectionString = process.env.DATABASE_URL?.trim();

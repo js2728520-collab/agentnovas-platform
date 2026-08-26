@@ -1,5 +1,7 @@
 # Riverton Capital 完整功能说明
 
+> 文档状态：`CURRENT_BASELINE`。本文保留当前受控 Beta/Paper 的已实现功能事实；V3 目标功能见 [`FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md`](FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md) 和 [`PRD.md`](PRD.md)。两者不一致时，生产运行继续遵守本文硬关闭，开发目标遵守 V3 文档与 Gate。
+
 状态：`CURRENT`，团队功能总览真源
 
 文档版本：1.0
@@ -8,6 +10,8 @@
 
 代码基线：`bef7a4c` 及其之前的集成提交
 适用范围：5–20 名受邀客户的受控商业 Beta
+
+> **当前发布范围（2026-08-25）：** 当前唯一发布范围是 S0——受控的 Paper/Demo 商业平台。Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 均保持关闭并属于后续独立切片；本 CURRENT 文档不得被目标功能说明扩张为这些能力的发布授权。
 
 ## 1. 文档目的
 
@@ -51,7 +55,7 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 | 功能域 | 状态 | 说明 |
 | --- | --- | --- |
 | Client、Operations、Maintenance 三端 | `CURRENT` | 单工程、单 PostgreSQL，按 audience 独立登录、Cookie、路由、菜单、权限和构建 |
-| 邀请、登录、内部 MFA、会话管理 | `CURRENT` | 内部端强制 TOTP；找回和邀请链接单次使用 |
+| 邀请、登录、内部 MFA、会话管理 | `CURRENT` | Client 强制邮箱验证与 5 设备；TOTP/recovery 能力保留但当前不强制，生产 Gate 后开启；bearer token 仅存摘要 |
 | 商业披露、Trial、会员订单 | `CURRENT` | 平台维护七类版本化正文，确认后才启动试用和商业能力 |
 | AI Credits | `CURRENT` | 与钱包、Paper 和 Demo 资金隔离，余额不可为负 |
 | 三张官方 Paper 组合 | `CURRENT` | 每卡独立 10,000 USDT，仅现货、仅做多、无杠杆 |
@@ -64,7 +68,9 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 | 客户 USDT 充值 | `CURRENT` | 优盾专属地址、验签回调、maker/checker 入账；无二维码、无静态地址 |
 | 会员收款和 Paper 分成收款 | `CURRENT` | 外部人工收款、站内凭证和双人复核，不自动扣款 |
 | Payment Worker 和自动支付 | `SAFE_DISABLED` | 支付状态只读，不能从浏览器启用真实支付 |
-| 真实现货、永续、提现、划转 | `SAFE_DISABLED` | HTTP、Worker、运行时和迁移层共同关闭 |
+| 真实现货、永续、划转 | `SAFE_DISABLED` | HTTP、Worker、运行时和迁移层共同关闭 |
+| 平台服务余额提现 | `BLOCKED` | 产品已批准（ADR-0024 / P-09），G5 全部通过前接口固定拒绝 |
+| 客户交易所账户提现 | `SAFE_DISABLED` | INV-11 永久禁止；迁移 0045 数据库约束强制 |
 | 社区策略市场 | `RETIRED` | 当前 Beta 只提供三张官方策略 |
 | 不可变版本发布控制面 | `CURRENT` | 记录版本、验证、部署和回滚证据，但浏览器不执行基础设施命令 |
 
@@ -108,8 +114,8 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 
 ### 5.1 Client 身份流程
 
-- Client 只接受邀请注册或有效的一次性设置密码链接；
-- 支持登录、忘记密码、重置密码和邮箱验证；
+- Client 只接受邀请注册；国际手机号和邮箱均必填，邮箱验证前身份保持 pending；
+- 支持登录、忘记密码、重置密码、24 小时邮箱验证和非枚举验证邮件重发；
 - 登录失败和找回密码均使用通用响应，不泄露邮箱是否存在；
 - Client 会话最长 7 天，闲置超过 24 小时失效；
 - 用户可在“账号安全”修改姓名、邮箱、时区和密码；
@@ -117,14 +123,19 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 - Client 可以在验证当前 TOTP/recovery code 后轮换 recovery codes；明文只显示一次，旧码立即失效；
 - 修改密码会撤销所有会话；修改登录标识需校验当前密码，并撤销其他会话；
 - 用户可以查看经过脱敏的设备和会话列表，并撤销本人非当前会话。
+- 同一账号最多 5 个并发设备；同设备重登轮换 Session。第 6 台按 A-01（ADR-0024）自动挤出
+  最久未使用的那台，并向被挤出设备同时发送站内与 Email 安全通知——没有通知的自动挤出会让
+  攻击者登录后把本人悄悄挤下线，本人只当是掉线，形成无法自查的账号安全盲区；
+- 新设备和 IP 网段变化产生站内/Email 安全通知，用户可一键撤销包括当前设备在内的全部 Client 会话。
 
 ### 5.2 Operations / Maintenance 身份流程
 
-- 内部端只有登录入口，不提供公开注册；
-- 首次登录必须完成 TOTP 注册和六位动态码确认；
-- 系统只在注册时展示 8 枚 recovery codes，后续不可回显；
+- 内部端不提供公开注册；账号通过 Operations 权限注册链接自助注册，或由一次性 CLI 建立首个管理员；
+- MFA 强制由服务端 `MFA_ENFORCEMENT_ENABLED` 控制。开启时首次登录必须完成 TOTP 注册和六位动态码确认；
+  当前准备阶段默认关闭，登录直接创建完整 audience Session，TOTP/recovery 能力与数据完整保留（ADR-0023）；
+- TOTP 注册时只展示一次 8 枚 recovery codes，后续不可回显；
 - 内部会话最长 12 小时，闲置超过 1 小时失效；
-- 关键操作要求最近 15 分钟内完成 MFA；
+- 关键操作在 MFA 生产强制开关开启时要求最近 15 分钟内完成 MFA；当前关闭阶段仍执行权限、原因、幂等和审计；
 - 内部账号冻结、密码重置或撤权后，相关会话会被撤销；
 - 浏览器不能通过 HTTP bootstrap 创建或重置管理员，首次内部管理员只能通过一次性 CLI 流程建立。
 
@@ -154,7 +165,9 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 | `/paper` | 模拟组合 | 查看三张官方组合汇总、持仓、运行状态 | `client.paper.view` |
 | `/paper/[portfolioId]` | 组合详情 | 查看单卡现金、权益、盈亏、持仓和成交 | 本人组合 |
 | `/trading-hall` | 七智能体交易大厅 | 三卡、七角色、决策轮、Paper 和 Demo 证据 | `client.paper.view` |
-| `/workspace` | 策略与 Agent | AI 助手、策略研究、策略 DSL、回测和版本历史 | 登录、`client.paper.view` |
+| `/assistant` | AI 助手 | 持久对话、流式回复、4 个必要快捷问题、直接取消和同请求安全重试；不提供分析标的选择或旧 8 卡片 | 已登录、`client.paper.view` |
+| `/studio` | 策略研发 | 多 Agent 研究、确定性目标输入、策略 DSL、候选编辑和不可变版本 | 已登录、策略研发 Gate |
+| `/market` | 行情中心 | 品种搜索、报价、K 线、新闻与来源新鲜度；不提供观察名单 | 已登录 |
 | `/wallet` | 钱包与账本 | 只读服务余额和历史账本 | `client.wallet.view` |
 | `/wallet/deposits` | 优盾 USDT 充值 | 创建真实订单、专属地址、链上与复核状态；未配置失败关闭 | `client.wallet.view`、`client.deposit.create` |
 | `/notifications` | 通知中心 | 收件箱、已读、偏好、免打扰和渠道状态 | 已登录 |
@@ -188,10 +201,14 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 
 | 计划 | 价格 | 权益期 | 一次性 Credits | Paper 分成费率 |
 | --- | ---: | ---: | ---: | ---: |
-| 月卡 `monthly_v1` | USD 28 | 30 天 | 1,000 | 20% |
-| 季卡 `quarterly_v1` | USD 58 | 90 天 | 3,000 | 20% |
-| 年卡 `annual_v1` | USD 198 | 365 天 | 12,000 | 20% |
-| 终身 `lifetime_v1` | USD 588 | 无到期 | 36,000 | 16% |
+| 月卡 `monthly_v1` | USDT 59 | 30 天 | 1,000 | 20% |
+| 季卡 `quarterly_v1` | USDT 129 | 90 天 | 3,000 | 19% |
+| 年卡 `annual_v1` | USDT 499 | 365 天 | 12,000 | 18% |
+| 终身 `lifetime_v1` | USDT 1999 | 无到期 | 36,000 | 16% |
+
+价格与费率于 2026-08-24 按 P-07 冻结（唯一真源 `packages/contracts/src/product-parameters.ts`），
+分成费率随期限递减。运营端可调整，但改价是资金相关变更，仍走 maker/checker 与版本化发布；
+历史订单引用原快照，不受后续调价影响（INV-5）。
 
 客户流程：
 
@@ -230,15 +247,21 @@ Credits 是 AI 使用额度，不是 USDT、现金、Paper 本金或交易所余
 
 ### 6.5 策略与 Agent 工作区
 
-`/workspace` 保留 AgentNovas 原有策略研究能力，并置于 Client audience 会话和 Paper 权限之后，嵌入统一客户 Shell：
+`/assistant` 与 `/studio` 承接 AgentNovas 的对话和策略研究能力，并置于 Client audience 会话与能力
+Gate 之后，嵌入统一客户 Shell：
 
 - 策略大厅展示官方策略、七阶段状态和真实记录入口；
 - Agent 对话提供持久化会话、结构化回复和策略草稿保存；
-- 行情页读取当前市场报价、K 线、关注列表和外部新闻可用性，不以静态 fallback 冒充实时行情；
+- 行情页读取当前市场报价、K 线和外部新闻可用性，不提供观察名单，也不以静态 fallback 冒充
+  实时行情；当前浏览器只访问同源 API，不在真实 adapter 尚未完成时直连外部 WebSocket；
+  instruments API 已加法式返回 contract v1、四个当前市场和 canonical/provider symbol 元数据，
+  旧字段保持兼容，公共源只声明展示/研究用途且不具备 execution eligibility；
 - 交易中心复用官方 Paper 组合与成交体验，不连接客户交易所；
 - 会员和账号安全入口复用当前服务端权益及身份状态；
 - 持久化 AI 对话和消息历史；
 - 流式显示模型回复和生成进度；
+- 收到服务端 inference ID 后可直接取消生成，不弹二次确认；未结算 Credits 预留只释放一次；
+- 网络结果不确定时复用原 Idempotency-Key 查询同一结果，不重复调用模型、保存问题或扣费；
 - 从服务端拥有的对话历史构造上下文，不接受浏览器伪造历史；
 - 将符合合同的模型回复转换成私有策略草稿；
 - 对策略 DSL 进行严格字段、方向、周期、风险和代码注入校验；
@@ -419,7 +442,8 @@ Maintenance 发布的模型 Profile 是唯一模型配置来源。Client 只能�
 | --- | --- | --- |
 | `/` | 运营概览 | 基于真实查询展示客户、充值、审批和业务状态，不用静态 KPI 回退 |
 | `/customers` | 客户管理 | 客户列表、搜索、筛选、详情、脱敏、备注、冻结/恢复、归属 |
-| `/organization` | 组织架构 | 组织树、成员、邀请、启停、上下级关系和邀请码 |
+| `/accounts` | 运营账号 | scope 内平面账号目录、停用/恢复；组织树与关系编辑已按 T1.1 退休 |
+| `/invitations` | 注册链接 | 五级权限注册链接生成、复制、作废、重生成；客户可复用邀请码 |
 | `/team` | 团队目标 | 日常任务、每日简报、月度目标、跟进历史和受控 CSV |
 | `/data-center` | 数据中心 | 客户、会员、Paper、应收等真实运营指标和 drill-down |
 | `/membership-orders` | 会员订单 | 凭证录入、提交、checker 决定和激活回执 |
@@ -429,6 +453,8 @@ Maintenance 发布的模型 Profile 是唯一模型配置来源。Client 只能�
 | `/ledger` | 账本查询 | 不可变交易、分录详情、币种/类型/时间筛选和游标分页 |
 | `/finance` | 财务结算 | 会员订单、Paper 应收和账本的真实业务投影 |
 | `/approvals` | 审批中心 | 跨业务安全投影，决定仍由各领域事务执行 |
+| `/kill-switches` | 熔断控制 | 按 provider/账户/策略查看与操作 kill switch，解除不自动恢复 |
+| `/live-routing` | 实盘路由授权 | 按 (交易所, 环境) 逐条查看授权事实；开通走 maker/checker，关停单人即时 |
 | `/access` | 角色权限 | 权限目录、模板、角色、发布、分配和敏感变更 |
 | `/access/audit` | 授权审计 | Operations audience 授权事件筛选和详情 |
 | `/account/security` | 账号安全 | MFA、recovery codes、密码和会话 |
@@ -444,15 +470,17 @@ Maintenance 发布的模型 Profile 是唯一模型配置来源。Client 只能�
 - 客户归属变更使用 maker-checker、版本锁和完整历史链；
 - 不提供不可恢复的客户物理删除。
 
-### 10.3 组织和邀请
+### 10.3 运营账号和邀请
 
-- 查看 assignment-bound scope 内的组织树和成员；
-- 创建内部或客户邀请时只生成一次性 set-password 链接；
-- API、通知和页面不返回临时密码；
-- 成员停用可恢复，不能通过物理删除绕过审计；
-- 上下级变更检查关系环、跨组织和授权范围；
-- 高风险关系变更先提交，交由不同 checker 决定；
-- 邀请码具有有效期、撤销、使用次数和审计记录。
+- 查看 assignment-bound scope 内的平面账号目录；组织树、上下级关系图和关系编辑页面已按 T1.1 退休，
+  后端仍保留 organization、分公司、归属和 assignment 事实供 scope resolver、报表和审计使用；
+- 内部账号使用五级权限注册链接自助注册：长期可重复使用、手动作废、重生成即撤销旧链接、
+  注册成功立即获得链接冻结的 assignment 与 scope，无人工审批；生成者只能生成低于自身层级的链接；
+- 客户邀请码与内部角色 token 使用不同类型、权限边界和审计事件，二者不可互换；
+- 历史一次性 set-password 邀请只作兼容保留；API、通知和页面不返回临时密码；
+- 成员停用可恢复，不能通过物理删除绕过审计；停用立即撤销 Session、令牌和该账号签发的注册链接；
+- 逐人创建成员和汇报关系写接口已返回 `410 Retired`，不再作为账号创建路径；
+- 注册链接和客户邀请码均记录生成、复制、使用、失败、作废和重生成审计。
 
 ### 10.4 会员付款复核
 
@@ -603,7 +631,12 @@ checker 可以：
 - Demo Execution Worker；
 - Strategy Research Worker；
 - Strategy Runtime Worker；
+- Configuration Activation Worker（到期配置版本的最小权限激活器）；
 - 保持关闭的 Payment Worker。
+
+Execution Service 是独立进程而不是 Worker：它不接受公网入站，是唯一长期持有客户交易凭证解密
+能力的进程；其健康、provider 激活、live blocker 和对账队列在 Maintenance 单独呈现。真实订单
+仍由 `isLiveExecutionReady()` 一道命名闸门关闭，进程存在不等于实盘已解锁。
 
 每个 Worker 上报实例、commit SHA、启动时间、heartbeat、最后成功/失败、当前任务和队列年龄。页面区分：
 
@@ -734,7 +767,7 @@ Operations 支持：
 - 幂等要求；
 - 限流和请求体大小。
 
-未登记 handler 会使 CI 失败。当前 inventory 覆盖 233 个 method handler。
+未登记 handler 会使 CI 失败。2026-08-23 的 inventory 检查覆盖 258 个 method route。
 
 ### 14.2 写请求保护
 
@@ -848,6 +881,11 @@ Operations 支持：
 恢复任一退休功能必须单独建立 PRD、Spec、API Policy、数据迁移、安全评审、发布 Gate 和回滚方案，不能只恢复旧菜单。
 
 ## 18. 标准验收旅程
+
+以下旅程中的「完成 MFA」「recent MFA」步骤按 ADR-0023 受服务端 `MFA_ENFORCEMENT_ENABLED` 约束：
+当前准备阶段默认关闭，内部端登录直接进入完整 Session，敏感操作不额外要求 recent MFA，但权限、
+原因、幂等、maker/checker 和审计一律照常执行；正式生产三端统一开启后，这些步骤按字面执行并需
+通过 MFA 专项 Gate。
 
 ### 18.1 Client 旅程
 

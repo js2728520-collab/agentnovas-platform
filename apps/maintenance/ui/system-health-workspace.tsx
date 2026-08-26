@@ -46,12 +46,14 @@ export function SystemHealthWorkspace({ overview = false }: { overview?: boolean
       <HealthCard label="数据库" value={workersData?.database.status ?? resourceDisplayLabel(workersPhase)} detail={workersData ? `检测于 ${formatDateTime(workersData.checkedAt)}` : resourceDetail(workersPhase, workers.error)} />
       <HealthCard label="Payment Worker" value={workersData?.paymentWorker.enabled ? "配置违例" : workersData?.paymentWorker.health ?? resourceDisplayLabel(workersPhase)} detail={workerDetail(workersData?.paymentWorker, workersPhase, workers.error)} />
       <HealthCard label="Notification Worker" value={workersData?.notificationWorker.health ?? resourceDisplayLabel(workersPhase)} detail={workerDetail(workersData?.notificationWorker, workersPhase, workers.error)} />
+      <HealthCard label="Configuration Activation Worker" value={workersData?.configurationActivationWorker.health ?? resourceDisplayLabel(workersPhase)} detail={workerDetail(workersData?.configurationActivationWorker, workersPhase, workers.error)} />
       <HealthCard label="永续真实订单" value="始终禁用" detail={healthData?.mode ?? resourceDisplayLabel(healthPhase)} />
     </section>
     <section className="rc-panel"><header><div><small>核心检查</small><h2>Worker 真实运行状态</h2></div><StatusBadge value={healthData?.status ?? maintenanceResourceDisplayStatus(healthPhase)} /></header><div className="rc-health-grid">
       <WorkerState label="Research Worker" value={workersData?.researchWorker} resourcePhase={workersPhase} resourceError={workers.error} />
       <WorkerState label="Runtime Worker" value={workersData?.runtimeWorker} resourcePhase={workersPhase} resourceError={workers.error} />
       <WorkerState label="Notification Worker" value={workersData?.notificationWorker} resourcePhase={workersPhase} resourceError={workers.error} />
+      <WorkerState label="Configuration Activation Worker" value={workersData?.configurationActivationWorker} resourcePhase={workersPhase} resourceError={workers.error} />
       <WorkerState label="Payment Worker（Beta 必须 disabled）" value={workersData?.paymentWorker} resourcePhase={workersPhase} resourceError={workers.error} />
       <WorkerState label="Demo Execution Worker" value={workersData?.demoExecutionWorker} resourcePhase={workersPhase} resourceError={workers.error} externalWritesEnabled={workersData?.demoExecutionWorker.externalWritesEnabled} executionEnabled={workersData?.demoExecutionWorker.executionEnabled} />
     </div></section>

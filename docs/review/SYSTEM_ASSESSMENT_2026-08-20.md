@@ -1,5 +1,7 @@
 # AgentNovas Platform 系统评估（商业 Beta 基线）
 
+> 文档状态：`HISTORICAL`。这是 2026-08-20 的基线快照；V3 当前准备度见 [`FULL_PLATFORM_V3_READINESS_2026-08-23.md`](FULL_PLATFORM_V3_READINESS_2026-08-23.md)。
+
 评估日期：2026-08-20
 评估基线：`codex/three-app-riverton-split`，起点 `0762fa3`；后续实施状态见 `tasks/todo.md`
 起点结论：`0762fa3` 仅可用于内部演示和工程验证，商业化总体完整度约 30–35%；这不是当前集成树结论。

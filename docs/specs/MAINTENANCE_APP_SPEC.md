@@ -1,19 +1,29 @@
 # Maintenance 付费 Beta 应用规格
 
+> 文档状态：`CURRENT_BASELINE`。V3 Maintenance 目标见 [`V3_MAINTENANCE_APP_TARGET_SPEC.md`](V3_MAINTENANCE_APP_TARGET_SPEC.md)；当前“只登记发布证据”在 CI/CD 控制面 Gate 完成前继续有效。
+
 ## 1. 职责与导航
 
-Maintenance 管理模型 Profile/Agent 绑定、Email、优盾充值通道配置、平台 Demo 账户、Worker 健康、紧急暂停、RBAC 和技术审计，不处理客户归属、会员付款、充值入账审批或 paper 分成业务决定。
+Maintenance 管理模型 Profile/Agent 绑定、AI 用量安全聚合、Email、优盾充值通道配置、平台 Demo 账户、Worker 健康、紧急暂停、RBAC 和技术审计，不处理客户归属、会员付款、充值入账审批或 paper 分成业务决定。
 
-核心路由：`/models`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/releases`、`/access`、`/access/audit`、`/audit`。
+核心路由：`/models`、`/ai-usage`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/releases`、`/access`、`/access/audit`、`/audit`。
 
 ## 2. 模型与 Agent
 
 - Profile 读取/修改分权；版本、启用、最近测试、绑定依赖和回滚可追溯。
 - 研发角色、七智能体产品角色、运行时解释角色分目录；确定性内核不伪装成 LLM。
-- 保存后密钥不回显；读取者看不到修改/测试控件；测试要求原因/recent MFA/audit。
+- 保存后密钥不回显；读取者看不到修改/测试控件；测试要求原因/audit，正式生产 MFA 开关开启后同时要求 recent MFA。
 - 付费 AI 只允许可靠 usage 和已配置费率的 profile。
 
 数据/新闻目录只提供代码固定的公共只读检查目标；浏览器不能传 endpoint。页面分离 configured/enabled/healthy/stale、最近检测时间、安全错误码和延迟，不返回完整 endpoint 或 Key。
+
+### 2.1 AI 用量安全聚合
+
+- `/ai-usage` 通过 `maint.ai_usage.view` 读取专用安全投影，不读取 Client AI 原始内容、错误原文、provider request ID、原始用户 ID、邮箱、手机号或模型凭证；响应禁止缓存。
+- 日期按 `client_ai_inference_requests.created_at` 的 UTC 请求创建 cohort，默认 30 天、最多 90 天；组织使用请求级归属快照并显示 legacy 证据质量，用户只显示稳定伪名，模型固定到请求 revision。
+- 可信 Token 只累计成功请求，Credits 只累计真实 settled 数值；“已记录非取消失败率”排除 preflight 拒绝、用户取消和处理中请求，不等同系统或 provider 可用率。
+- 日期在页面内单击应用，不增加确认弹窗。当前 MFA Gate 默认关闭；正式生产重新开启后仍按敏感权限策略要求 recent MFA。
+- P-08 参数已冻结，但固定对话 Credits consumer 和模型/功能价格分档属于独立 T3.9b；当前页面不得宣称固定费用规则已经完成。
 
 ## 3. Email 与支付
 
@@ -26,7 +36,7 @@ Maintenance 管理模型 Profile/Agent 绑定、Email、优盾充值通道配置
 - provider 为 OKX Demo、Binance Spot Testnet、Bybit Demo；环境/域名固定 allowlist。
 - 展示 configured、enabled、permissionCheck、lastVerifiedAt、latestReceipt、dailyNotional、kill switch；不显示 secret。
 - 权限检查拒绝提现、划转、杠杆、衍生品或生产域名。OKX header 不可由请求覆盖。
-- 修改账户、测试和 kill switch 要 reason、recent MFA 和审计。
+- 修改账户、测试和 kill switch 要 reason 和审计；正式生产 MFA 开关开启后同时要求 recent MFA。
 - `local-demo`/fixture 只能显示 fixture/not_sent，不能显示 connected 或真实测试成功。
 
 ## 5. Worker 与健康

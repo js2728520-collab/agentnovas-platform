@@ -1,0 +1,256 @@
+/*
+ * Riverton 设计令牌 —— 全平台唯一色彩真源。
+ *
+ * 命名与结构对齐 new-api 的 shadcn/Tailwind v4 令牌体系；数值针对本平台
+ * 的金融数据密度做过调整，并补充了独立于语义色的涨跌色。
+ *
+ * 三态主题：
+ *   1. 裸 :root                        → 完整浅色调色板（默认）
+ *   2. @media (prefers-color-scheme:dark) + :not([data-theme="light"]) → 跟随系统
+ *   3. :root[data-theme="dark"]        → 用户显式选择暗色
+ *
+ * 约束：组件只能通过令牌取色，禁止写死色值；禁止把某个颜色的唯一定义
+ * 放在 @media 或 [data-theme] 块里，否则「跟随系统」状态下会取不到值。
+ *
+ * 实现陷阱：不要用 color-mix(in oklch, 语义色 X%, 背景) 生成浅色底。
+ * 背景是无彩色（hue 0），oklch 走极坐标插值会把绿色 tint（hue 162）
+ * 拉成橙色。需要混色时一律用 oklab。
+ */
+
+:root {
+  color-scheme: light;
+
+  /* —— 形状与尺度 —— */
+  --rv-radius: 1rem;
+  --rv-radius-md: calc(var(--rv-radius) * 0.62);
+  --rv-radius-sm: calc(var(--rv-radius) * 0.44);
+  --rv-header-h: 48px;
+  --rv-sidebar-w: 264px;
+  --rv-content-max: 1480px;
+
+  /* —— 表面 —— */
+  --rv-background: oklch(1 0 0);
+  --rv-foreground: oklch(0.145 0 0);
+  --rv-card: oklch(1 0 0);
+  --rv-muted: oklch(0.97 0 0);
+  --rv-muted-foreground: oklch(0.49 0 0);
+  /* 0.62 在浅色底上只有 3.5:1，达不到 WCAG AA 的 4.5。
+     它用在页头的 eyebrow（11px、全大写、字距拉开）——恰恰是最需要对比度的排版。
+     0.54 在页面浅底上是 4.85:1，在纯白上 5.06:1。暗色主题的 0.66 已有 5.36:1，不动。 */
+  --rv-subtle-foreground: oklch(0.54 0 0);
+  --rv-border: oklch(0.93 0 0);
+  --rv-border-strong: oklch(0.87 0 0);
+  --rv-input: oklch(0.93 0 0);
+  --rv-sidebar: oklch(0.984 0 0);
+  --rv-table-header: oklch(0.978 0 0);
+  --rv-row-hover: oklch(0.970 0 0);
+  --rv-overlay: oklch(0.145 0 0 / 42%);
+
+  /* —— 交互主色 —— */
+  --rv-primary: oklch(0.692 0.141 243.716);
+  --rv-primary-foreground: oklch(1 0 0);
+  --rv-primary-ink: oklch(0.46 0.15 246);
+  /* 承载白色文字的实心表面（主按钮、跳转链接）。
+     --rv-primary 本身与白字只有 2.7:1（暗色 3.1:1），远低于 AA 的 4.5——
+     主按钮是每个页面最主要的操作入口，它的文字看不清是最贵的一种看不清。
+     基色继续用于边框、图标、focus 环这类非文字场景，所以另起 strong 而不是改基色。 */
+  --rv-primary-strong: oklch(0.54 0.141 243.716);
+  --rv-primary-soft: oklch(0.963 0.017 243.7);
+
+  /* —— 品牌色（Riverton 薄荷绿）—— */
+  --rv-brand: oklch(0.72 0.115 168);
+  --rv-brand-soft: oklch(0.956 0.018 168);
+  /* 品牌绿是浅色：压在 brand-soft 上只有 2.09:1，压在白底上 2.35:1。
+     它适合做面积色（按钮底、边框、图标），不适合做正文色。文字用 ink。 */
+  --rv-brand-ink: oklch(0.44 0.115 168);
+
+  /* —— 语义色 —— */
+  --rv-success: oklch(0.596 0.145 163.225);
+  --rv-success-soft: oklch(0.946 0.020 163.2);
+  --rv-warning: oklch(0.62 0.14 72);
+  --rv-warning-soft: oklch(0.943 0.021 72);
+
+  /* —— 状态徽章的文字色 —— */
+  /* 徽章是「soft 背景 + 同色文字」。浅色主题下直接用基色，四种全都达不到
+     WCAG AA 的 4.5:1（success 3.15、warning 3.16、info 3.48、danger 4.07），
+     而徽章正是状态信息的唯一载体——看不清等于状态没显示。
+     基色仍用于图标、边框、进度条这类非文字场景，所以另起 ink 而不是改基色。
+     暗色主题的基色在深 soft 上已有 4.9–5.5:1，ink 直接复用基色。 */
+  --rv-success-ink: oklch(0.48 0.145 163.225);
+  --rv-warning-ink: oklch(0.50 0.14 72);
+  --rv-danger-ink: oklch(0.50 0.245 27.325);
+  --rv-info-ink: oklch(0.50 0.158 241.966);
+  --rv-danger: oklch(0.577 0.245 27.325);
+  --rv-danger-soft: oklch(0.952 0.027 27.3);
+  --rv-info: oklch(0.588 0.158 241.966);
+  --rv-info-soft: oklch(0.950 0.019 242);
+  --rv-neutral-soft: oklch(0.955 0 0);
+
+  /* —— 涨跌色：与语义色分离，避免「成功=盈利」的误绑定 —— */
+  /* 0.55 在白底上是 4.48:1，差 0.02 就够 AA——涨跌数字是行情页最核心的信息，
+     不该卡在这条线的错误一侧。0.53 是 4.84:1，视觉上几乎看不出差别。
+     --rv-down 在白底上已有 5.15:1，不动。 */
+  --rv-up: oklch(0.53 0.14 158);
+  --rv-down: oklch(0.56 0.20 26);
+
+  /* —— 图表 —— */
+  --rv-chart-1: oklch(0.72 0.18 250);
+  --rv-chart-2: oklch(0.65 0.15 200);
+  --rv-chart-3: oklch(0.70 0.12 280);
+  --rv-chart-4: oklch(0.68 0.19 325);
+  --rv-chart-5: oklch(0.68 0.16 155);
+
+  /* —— 骨架屏 —— */
+  --rv-skeleton-base: oklch(0.97 0 0);
+  --rv-skeleton-highlight: oklch(0.985 0 0);
+
+  /* —— 字体 —— */
+  --rv-font-sans: var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --rv-font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* 登录页专用：不引用任何网络字体，避免阻塞登录 LCP */
+  --rv-font-system: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+
+  /* —— 焦点环 —— */
+  --rv-focus-ring: 0 0 0 3px oklch(0.692 0.141 243.716 / 24%);
+}
+
+/* 跟随系统：只重定义令牌，不定义组件样式 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --rv-background: oklch(0.235 0 0);
+    --rv-foreground: oklch(0.965 0 0);
+    --rv-card: oklch(0.285 0 0);
+    --rv-muted: oklch(0.305 0 0);
+    --rv-muted-foreground: oklch(0.78 0 0);
+    --rv-subtle-foreground: oklch(0.66 0 0);
+    --rv-border: oklch(1 0 0 / 11%);
+    --rv-border-strong: oklch(1 0 0 / 20%);
+    --rv-input: oklch(1 0 0 / 17%);
+    --rv-sidebar: oklch(0.225 0 0);
+    --rv-table-header: oklch(0.292 0 0);
+    --rv-row-hover: oklch(0.308 0 0);
+    --rv-overlay: oklch(0 0 0 / 62%);
+
+    --rv-primary: oklch(0.66 0.135 247);
+    --rv-primary-foreground: oklch(1 0 0);
+    --rv-primary-ink: oklch(0.82 0.09 247);
+  --rv-primary-strong: oklch(0.54 0.135 247);
+    --rv-primary-strong: oklch(0.54 0.135 247);
+    --rv-primary-soft: oklch(0.329 0.030 247);
+
+    --rv-brand: oklch(0.78 0.12 168);
+    --rv-brand-soft: oklch(0.355 0.026 168);
+  --rv-brand-ink: oklch(0.78 0.12 168);
+    --rv-brand-ink: oklch(0.78 0.12 168);
+
+    --rv-success: oklch(0.696 0.17 162.48);
+    --rv-success-soft: oklch(0.327 0.034 162.5);
+    --rv-warning: oklch(0.769 0.188 70.08);
+    --rv-warning-soft: oklch(0.342 0.038 70);
+    --rv-success-ink: oklch(0.696 0.17 162.48);
+    --rv-warning-ink: oklch(0.769 0.188 70.08);
+    --rv-danger-ink: oklch(0.704 0.191 22.216);
+    --rv-info-ink: oklch(0.613 0.14 239.919);
+    --rv-danger: oklch(0.704 0.191 22.216);
+    --rv-danger-soft: oklch(0.329 0.038 22.2);
+    --rv-info: oklch(0.613 0.14 239.919);
+    --rv-info-soft: oklch(0.311 0.028 240);
+    --rv-neutral-soft: oklch(0.335 0 0);
+
+    --rv-up: oklch(0.76 0.15 160);
+    --rv-down: oklch(0.71 0.18 24);
+
+    --rv-chart-1: oklch(0.76 0.14 250);
+    --rv-chart-2: oklch(0.76 0.13 200);
+    --rv-chart-3: oklch(0.76 0.13 285);
+    --rv-chart-4: oklch(0.75 0.16 325);
+    --rv-chart-5: oklch(0.76 0.14 155);
+
+    --rv-skeleton-base: oklch(0.335 0 0);
+    --rv-skeleton-highlight: oklch(0.44 0 0);
+
+    --rv-focus-ring: 0 0 0 3px oklch(0.66 0.135 247 / 32%);
+  }
+}
+
+/* 用户显式选择暗色：必须与上面的 @media 块保持一致 */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --rv-background: oklch(0.235 0 0);
+  --rv-foreground: oklch(0.965 0 0);
+  --rv-card: oklch(0.285 0 0);
+  --rv-muted: oklch(0.305 0 0);
+  --rv-muted-foreground: oklch(0.78 0 0);
+  --rv-subtle-foreground: oklch(0.66 0 0);
+  --rv-border: oklch(1 0 0 / 11%);
+  --rv-border-strong: oklch(1 0 0 / 20%);
+  --rv-input: oklch(1 0 0 / 17%);
+  --rv-sidebar: oklch(0.225 0 0);
+  --rv-table-header: oklch(0.292 0 0);
+  --rv-row-hover: oklch(0.308 0 0);
+  --rv-overlay: oklch(0 0 0 / 62%);
+
+  --rv-primary: oklch(0.66 0.135 247);
+  --rv-primary-foreground: oklch(1 0 0);
+  --rv-primary-ink: oklch(0.82 0.09 247);
+  --rv-primary-strong: oklch(0.54 0.135 247);
+  --rv-primary-soft: oklch(0.329 0.030 247);
+
+  --rv-brand: oklch(0.78 0.12 168);
+  --rv-brand-soft: oklch(0.355 0.026 168);
+  --rv-brand-ink: oklch(0.78 0.12 168);
+
+  --rv-success: oklch(0.696 0.17 162.48);
+  --rv-success-soft: oklch(0.327 0.034 162.5);
+  --rv-warning: oklch(0.769 0.188 70.08);
+  --rv-warning-soft: oklch(0.342 0.038 70);
+  --rv-success-ink: oklch(0.696 0.17 162.48);
+  --rv-warning-ink: oklch(0.769 0.188 70.08);
+  --rv-danger-ink: oklch(0.704 0.191 22.216);
+  --rv-info-ink: oklch(0.613 0.14 239.919);
+  --rv-danger: oklch(0.704 0.191 22.216);
+  --rv-danger-soft: oklch(0.329 0.038 22.2);
+  --rv-info: oklch(0.613 0.14 239.919);
+  --rv-info-soft: oklch(0.311 0.028 240);
+  --rv-neutral-soft: oklch(0.335 0 0);
+
+  --rv-up: oklch(0.76 0.15 160);
+  --rv-down: oklch(0.71 0.18 24);
+
+  --rv-chart-1: oklch(0.76 0.14 250);
+  --rv-chart-2: oklch(0.76 0.13 200);
+  --rv-chart-3: oklch(0.76 0.13 285);
+  --rv-chart-4: oklch(0.75 0.16 325);
+  --rv-chart-5: oklch(0.76 0.14 155);
+
+  --rv-skeleton-base: oklch(0.335 0 0);
+  --rv-skeleton-highlight: oklch(0.44 0 0);
+
+  --rv-focus-ring: 0 0 0 3px oklch(0.66 0.135 247 / 32%);
+}
+
+/*
+ * 兼容别名：既有代码（含内联 style）仍在引用 --rc-* 令牌。
+ * 全部改写完成前保留这一层，改写完成后可整段删除。
+ */
+:root {
+  --rc-bg: var(--rv-background);
+  --rc-surface: var(--rv-card);
+  --rc-surface-2: var(--rv-muted);
+  --rc-surface-3: var(--rv-muted);
+  --rc-border: var(--rv-border);
+  --rc-border-strong: var(--rv-border-strong);
+  --rc-text: var(--rv-foreground);
+  --rc-muted: var(--rv-muted-foreground);
+  --rc-accent: var(--rv-brand);
+  --rc-accent-2: var(--rv-primary);
+  --rc-danger: var(--rv-danger);
+  --rc-warning: var(--rv-warning);
+  --rc-focus: var(--rv-focus-ring);
+  --rc-radius: var(--rv-radius-md);
+}

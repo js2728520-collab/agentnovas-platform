@@ -43,7 +43,9 @@ export function LegalConsentExperience() {
   const idempotencyKey = useRef(newIdempotencyKey());
   const resultRef = useRef<HTMLDivElement>(null);
   const documents = resource.data?.requiredLegalDocuments;
-  const nextPath = safeNextPath(params.get("next"), "/");
+  // 默认落点是 /dashboard 而不是 /。ADR-0017 之后 / 只是公开着陆页——
+  // 客户刚确认完七项披露，把他送回营销页是最不合理的一个去处。
+  const nextPath = safeNextPath(params.get("next"), "/dashboard");
 
   if (resource.loading && !documents) return <LoadingState label="正在读取商业披露…" />;
   if (resource.error && !documents) return <ErrorState message={resource.error} retry={resource.refresh} />;
@@ -140,7 +142,7 @@ export function LegalConsentExperience() {
     </section>}
     {consentComplete && <section className={styles.completed} aria-label="商业披露确认已完成">
       <div><strong>当前版本确认已完成</strong><span>若任一正文发布新版本，系统会再次要求确认。</span></div>
-      <Link className={styles.primaryLink} href={nextPath}>{nextPath === "/" ? "进入客户工作台" : "继续访问原页面"}</Link>
+      <Link className={styles.primaryLink} href={nextPath}>{nextPath === "/dashboard" ? "进入交易总览" : "继续访问原页面"}</Link>
     </section>}
     {result && <div ref={resultRef} className={result.kind === "error" ? styles.error : styles.notice} role={result.kind === "error" ? "alert" : "status"} aria-live={result.kind === "error" ? "assertive" : "polite"} tabIndex={-1}>{result.message}</div>}
   </section>;

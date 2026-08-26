@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { allocateRevenue, calculatePerformanceFee, canDisableNotification } from "../lib/business-rules.ts";
+import { allocateRevenue, calculatePerformanceFee, canDisableNotification } from "../packages/domain/src/business-rules.ts";
 import { collectionState } from "../lib/collection-rules.ts";
 import { canSeeCustomer } from "../lib/permissions.ts";
 

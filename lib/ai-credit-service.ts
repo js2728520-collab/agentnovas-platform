@@ -1,11 +1,18 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 
-import { calculateTokenCost } from "./commercial-membership-domain.ts";
+import { calculateTokenCost } from "../packages/domain/src/commercial-membership-domain.ts";
+import {
+  applyCreditDelta,
+  isValidCreditMutation,
+  planReservationRelease,
+  planReservationSettlement,
+  resolveReservationTransition,
+  type CreditMutationType,
+  type ReservationStatus,
+} from "../packages/domain/src/credits/credit-ledger.ts";
 import { canonicalPayloadHash } from "./commercial-idempotency.ts";
 import { ResearchApiError } from "./research-errors.ts";
-
-type CreditMutation = "grant" | "reserve" | "settle" | "release" | "adjust";
 
 async function creditTransaction<T>(
   pool: Pool,
@@ -29,7 +36,7 @@ export async function mutateAiCredits(
   client: PoolClient,
   input: {
     userId: string;
-    type: CreditMutation;
+    type: CreditMutationType;
     availableDelta: bigint;
     reservedDelta: bigint;
     sourceType: string;
@@ -42,22 +49,11 @@ export async function mutateAiCredits(
     usage?: Record<string, unknown>;
   },
 ) {
-  const zero = BigInt(0);
-  const valid =
-    input.type === "grant"
-      ? input.availableDelta > zero && input.reservedDelta === zero
-      : input.type === "reserve"
-        ? input.availableDelta < zero &&
-          input.reservedDelta === -input.availableDelta
-        : input.type === "settle"
-          ? input.availableDelta >= zero &&
-            input.reservedDelta < zero &&
-            input.availableDelta + input.reservedDelta <= zero
-          : input.type === "release"
-            ? input.availableDelta > zero &&
-              input.reservedDelta === -input.availableDelta
-            : input.reservedDelta === zero && input.availableDelta !== zero;
-  if (!valid) throw new Error("AI_CREDIT_MUTATION_INVALID");
+  // 形状规则在域层，可脱离数据库验证；错误身份留在这里不动——
+  // client-ai-inference-service 依赖 error.message 把余额不足映射成 402。
+  if (!isValidCreditMutation(input.type, input)) {
+    throw new Error("AI_CREDIT_MUTATION_INVALID");
+  }
   const prior = await client.query<{
     id: string;
     balance_available: string;
@@ -118,12 +114,15 @@ export async function mutateAiCredits(
     [input.userId],
   );
   if (!account.rows[0]) throw new Error("AI_CREDIT_ACCOUNT_MISSING");
-  const available =
-    BigInt(account.rows[0].available_credits) + input.availableDelta;
-  const reserved =
-    BigInt(account.rows[0].reserved_credits) + input.reservedDelta;
-  if (available < BigInt(0) || reserved < BigInt(0))
-    throw new Error("AI_CREDIT_INSUFFICIENT");
+  const applied = applyCreditDelta(
+    {
+      available: BigInt(account.rows[0].available_credits),
+      reserved: BigInt(account.rows[0].reserved_credits),
+    },
+    input,
+  );
+  if (!applied) throw new Error("AI_CREDIT_INSUFFICIENT");
+  const { available, reserved } = applied;
   await client.query(
     `UPDATE ai_credit_accounts SET available_credits=$2, reserved_credits=$3, version=version+1, updated_at=now() WHERE id=$1`,
     [account.rows[0].id, available.toString(), reserved.toString()],
@@ -315,7 +314,13 @@ export async function settleAiCreditReservationInTransaction(
       "Credits 预留不存在",
       404,
     );
-  if (row.status === "settled") {
+  // 状态机在域层：终态重放 vs 跨终态冲突的判定必须能脱离数据库验证。
+  // status 由 0023 号迁移的 CHECK 约束限定在 reserved/settled/released 三个值。
+  const transition = resolveReservationTransition(
+    row.status as ReservationStatus,
+    "settled",
+  );
+  if (transition === "replay") {
     const prior = await client.query<{
       idempotency_key: string;
       created_by_user_id: string | null;
@@ -344,14 +349,17 @@ export async function settleAiCreditReservationInTransaction(
       );
     return { reservationId: input.reservationId, created: false };
   }
-  if (row.status !== "reserved")
+  if (transition === "conflict")
     throw new ResearchApiError(
       "AI_CREDIT_RESERVATION_STATE_CONFLICT",
       "Credits 预留状态冲突",
       409,
     );
-  const estimated = BigInt(row.estimated_credits);
-  if (actualCredits > estimated)
+  const plan = planReservationSettlement(
+    BigInt(row.estimated_credits),
+    actualCredits,
+  );
+  if (!plan.ok)
     throw new ResearchApiError(
       "AI_CREDIT_RESERVATION_EXCEEDED",
       "可信用量成本超过预留，拒绝自动补扣",
@@ -360,8 +368,8 @@ export async function settleAiCreditReservationInTransaction(
   await mutateAiCredits(client, {
     userId: row.user_id,
     type: "settle",
-    availableDelta: estimated - actualCredits,
-    reservedDelta: -estimated,
+    availableDelta: plan.delta.availableDelta,
+    reservedDelta: plan.delta.reservedDelta,
     sourceType: "ai_credit_reservation",
     sourceId: input.reservationId,
     idempotencyKey: input.idempotencyKey,
@@ -424,7 +432,11 @@ export async function releaseAiCreditReservationInTransaction(
       "Credits 预留不存在",
       404,
     );
-  if (row.status === "released") {
+  const transition = resolveReservationTransition(
+    row.status as ReservationStatus,
+    "released",
+  );
+  if (transition === "replay") {
     const prior = await client.query<{
       idempotency_key: string;
       created_by_user_id: string | null;
@@ -456,18 +468,18 @@ export async function releaseAiCreditReservationInTransaction(
       );
     return { reservationId: input.reservationId, created: false };
   }
-  if (row.status !== "reserved")
+  if (transition === "conflict")
     throw new ResearchApiError(
       "AI_CREDIT_RESERVATION_STATE_CONFLICT",
       "Credits 预留状态冲突",
       409,
     );
-  const credits = BigInt(row.estimated_credits);
+  const releaseDelta = planReservationRelease(BigInt(row.estimated_credits));
   await mutateAiCredits(client, {
     userId: row.user_id,
     type: "release",
-    availableDelta: credits,
-    reservedDelta: -credits,
+    availableDelta: releaseDelta.availableDelta,
+    reservedDelta: releaseDelta.reservedDelta,
     sourceType: "ai_credit_reservation",
     sourceId: input.reservationId,
     idempotencyKey: input.idempotencyKey,

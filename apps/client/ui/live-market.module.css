@@ -1,0 +1,313 @@
+/* 行情终端。
+ *
+ * 原样式在已删的 app/globals.css 里（`market-terminal.css` 只是 311 行字号微调，
+ * 不含结构）。这里按令牌重写。
+ *
+ * 定位约定：K 线的 top/height、成交量柱高、画布宽度都由组件用行内 style 给出——
+ * 那些是**数据**（价格换算成百分比），不是样式。本表只提供定位机制与配色。 */
+
+.page { display: grid; gap: 1rem; max-width: var(--rv-content-max); }
+
+.title { display: grid; gap: 0.3rem; }
+.title h1 { margin: 0; font-size: 1.25rem; }
+.title p { margin: 0; color: var(--rv-muted-foreground); font-size: 0.8125rem; }
+.title time { color: var(--rv-subtle-foreground); font-size: 0.6875rem; }
+
+.eyebrow { color: var(--rv-brand-ink); font-size: 0.625rem; font-weight: 800; letter-spacing: 0.14em; }
+
+.titleActions { display: flex; flex-wrap: wrap; gap: 0.625rem; align-items: center; }
+
+.categoryTabs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+.categoryTabs button {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.4rem 0.875rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.categoryTabs button span { font-size: 0.8125rem; }
+.categoryTabs button small { color: var(--rv-muted-foreground); font-size: 0.625rem; }
+.categoryTabs button.active { border-color: var(--rv-primary); background: var(--rv-primary-soft); color: var(--rv-primary-ink); }
+
+.selectorPanel,
+.newsCard {
+  display: grid;
+  gap: 0.625rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.symbolSelect {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.symbolSelect:hover { background: var(--rv-row-hover); }
+.newsEmpty,
+.newsMessage,
+.dataMessage,
+.chartEmpty {
+  color: var(--rv-muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.chartEmpty { display: grid; place-items: center; gap: 0.35rem; min-height: 14rem; text-align: center; }
+.chartEmpty b { color: var(--rv-foreground); font-size: 0.9375rem; }
+
+.searchBox { display: grid; gap: 0.4rem; }
+
+.searchBox input,
+.searchSelect {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-input);
+  color: var(--rv-foreground);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.searchResults { display: grid; gap: 0.3rem; max-height: 16rem; overflow-y: auto; }
+
+.searchSelect {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+}
+
+.searchSelect span,
+.searchSelect small { color: var(--rv-muted-foreground); }
+
+.summaryPrice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+
+.instrumentSummary { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; font-size: 0.8125rem; }
+.instrumentName { display: flex; gap: 0.5rem; align-items: baseline; }
+.instrumentMark { color: var(--rv-muted-foreground); font-size: 0.75rem; }
+
+/* ------------------------------------------------------------------ 图表 */
+
+.terminalChart {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.chartToolbar { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; }
+
+.periodSwitcher, .chartTools { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
+.periodSwitcher button,
+.chartTools button,
+.historyButton {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-background);
+  color: var(--rv-muted-foreground);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.periodSwitcher button.active { border-color: var(--rv-primary); background: var(--rv-primary-soft); color: var(--rv-primary-ink); }
+.chartSource { color: var(--rv-subtle-foreground); font-size: 0.6875rem; }
+
+.chartViewport {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 20rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-background);
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+/* 画布宽度来自行内 style（可见 K 线数 × 缩放）。 */
+.chartCanvas { position: relative; min-width: 100%; height: 20rem; }
+
+.gridLines {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(to bottom, var(--rv-border) 0 1px, transparent 1px 25%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.yAxis {
+  position: absolute;
+  right: 0.25rem;
+  top: 0;
+  bottom: 3.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--rv-muted-foreground);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.xAxis {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0.5rem 0;
+  color: var(--rv-muted-foreground);
+  font-size: 0.625rem;
+}
+
+.ohlcReadout {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.4rem;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.ohlcReadout span { color: var(--rv-muted-foreground); }
+.ohlcReadout .up { color: var(--rv-up); font-style: normal; }
+.ohlcReadout .down { color: var(--rv-down); font-style: normal; }
+
+/* K 线：每根是一个网格单元，影线与实体用行内 top/height 定位。 */
+.candles {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 2.25rem;
+  height: 12rem;
+  display: grid;
+  align-items: stretch;
+}
+
+.candle { position: relative; }
+.candle .wick, .candle .body { position: absolute; left: 50%; transform: translateX(-50%); }
+.candle .wick { width: 1px; background: var(--rv-up); }
+.candle .body { width: 70%; min-height: 1px; background: var(--rv-up); border-radius: 1px; }
+.candle.falling .wick, .candle.falling .body { background: var(--rv-down); }
+
+.crosshairV, .crosshairH { position: absolute; opacity: 0; pointer-events: none; }
+.crosshairV { left: 50%; top: 0; bottom: 0; width: 1px; background: var(--rv-muted-foreground); }
+.crosshairH { left: 0; right: 0; height: 1px; background: var(--rv-muted-foreground); }
+.candle:hover .crosshairV, .candle:hover .crosshairH { opacity: 0.55; }
+
+.currentPriceLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--rv-primary);
+  pointer-events: none;
+}
+
+.currentPriceLine span {
+  position: absolute;
+  right: 0.25rem;
+  transform: translateY(-50%);
+  padding: 0 0.3rem;
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-primary-strong);
+  color: var(--rv-primary-foreground);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.volume {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 1.5rem;
+  height: 3rem;
+  display: grid;
+  align-items: end;
+}
+
+.volume i { display: block; background: var(--rv-up); opacity: 0.45; }
+.volume i.falling { background: var(--rv-down); }
+
+/* ------------------------------------------------------------------ 资讯 */
+
+.newsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.75rem; }
+.newsFeed { display: grid; gap: 0.5rem; max-height: 24rem; overflow-y: auto; }
+.newsCard h3 { margin: 0; font-size: 0.875rem; }
+.newsCard p { margin: 0; color: var(--rv-muted-foreground); font-size: 0.75rem; line-height: 1.6; }
+
+/* 降级内容必须看得出来不是实时的（INV-6）。 */
+.newsCard.isFallback { border-style: dashed; }
+.newsCard.isFallback::before {
+  content: "非实时";
+  color: var(--rv-warning-ink);
+  font-size: 0.625rem;
+}
+
+.legendUp { color: var(--rv-up); }
+.legendDown { color: var(--rv-down); }
+.symbolIndex { display: grid; gap: 0.3rem; }
+
+.symbolChip {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-background);
+  color: var(--rv-muted-foreground);
+  font: inherit;
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+
+.symbolChip.active,
+.categoryTabs button.active {
+  border-color: var(--rv-primary);
+  background: var(--rv-primary-soft);
+  color: var(--rv-primary-ink);
+}
+
+/* 刷新频率标识。是否在流式推送用 data 属性表达，未在推送时不得显示成在推送。 */
+.refreshRate { color: var(--rv-muted-foreground); font-size: 0.6875rem; }
+.refreshRate[data-streaming] { color: var(--rv-success-ink); }
+
+.chartFooter { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; font-size: 0.6875rem; }
+
+/* 行情源偏好面板。图表与新闻之间——它是这一页的设置，不是新闻的一部分。 */
+.sourcePreference {
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}

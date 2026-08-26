@@ -1,10 +1,29 @@
 # 优盾充值通道运行手册
 
+> 适用状态：`CURRENT_BASELINE`。本文仅覆盖 deposit-only；V3 提现/划转是独立资金项目，不能复用本手册、商户权限或回调来暗中开放资金出站。
+
 ## 1. 发布前配置
 
 1. 在优盾商户后台确认当前账户使用 legacy MD5 商户协议、专属 HTTPS 节点、商户号、API Key、钱包编号（如需）及 USDT/TRC20 的 `mainCoinType`/`coinType`。不要从示例或其他商户复制 token 编号。
 2. Client 与 Maintenance 运行时 secret 注入 `UDUN_GATEWAY_BASE_URL`、`UDUN_MERCHANT_ID`、`UDUN_API_KEY`、`UDUN_CALLBACK_URL=https://xm.agentnovas.com/api/integrations/payments/udun/webhook`；Maintenance 另配独立的 `PAYMENT_WEBHOOK_DATABASE_URL`。
 3. 应用迁移 `0042_udun_deposit_gateway.sql`，重新执行最小权限角色脚本。不得把上述值写入 `.env.example` 之外的仓库文件。
+> ⚠ **把 provider 切成 active 之前，必须同时打开 nginx 的回调 location。**
+>
+> `deploy/nginx/riverton-three-apps.conf` 里
+> `location ~ ^/api/integrations/payments/[^/]+/webhook$` 目前是 `return 404`——
+> 这是 Beta 期间刻意的边缘关闭，与 provider 处于 disabled 是**配套的**：
+> 没有 provider 就建不出充值单，也就没有回调会来。
+> `tests/deployment-isolation.test.mjs` 锁着这条，改动它会让测试红。
+>
+> 危险的是**中间状态**：provider 切 active 之后客户就能拿到真实链上地址并打款，
+> 而回调仍然撞在边缘的 404 上 —— **钱到账，账本上什么都没有**，订单永远停在
+> `PENDING_CONFIRMATION`。两者必须同一次变更里一起动。
+>
+> 打开时把该 location 换回 `limit_except POST { deny all; } proxy_pass http://127.0.0.1:3002;`
+> 并带上 `Host` / `X-Real-IP` / `X-Forwarded-For` / `X-Forwarded-Proto` 四个头
+> （优盾验签依赖它们；缺了会表现成「回调到了但一律拒绝」，比 404 更难查），
+> 同时更新 `tests/deployment-isolation.test.mjs` 的那条断言。
+
 4. 在 Maintenance `/integrations/payments` 保持 disabled，录入当前商户币种映射，设置 `PAYMENT_PROVIDER_TESTS_ENABLED=true`，执行连通测试。测试只调用支持币种查询，不创建地址或交易。
 5. 测试通过后由有 recent MFA 的 Maintenance 管理员填写原因启用。先用内部 Client 账户创建 1 USDT 订单并在 staging 完成回调、maker/checker 和账本核对。
 

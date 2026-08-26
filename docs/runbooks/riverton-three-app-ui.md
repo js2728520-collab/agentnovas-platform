@@ -1,5 +1,7 @@
 # Riverton 三应用一库前端运行手册
 
+> 适用状态：`CURRENT_BASELINE`。V3 导航与页面目标见三份 `V3_*_APP_TARGET_SPEC.md`；当前三端 audience/Host/Cookie 隔离继续作为不可退化基础。
+
 ## 1. 架构边界
 
 Client、Operations 和 Maintenance 使用同一个 Next.js 工程、PostgreSQL 业务库、合同与共享 UI。功能隔离由 `RIVERTON_APP_AUDIENCE`、域名、独立 Cookie、页面白名单、路由权限和服务端 RBAC 共同完成。
@@ -34,7 +36,7 @@ RIVERTON_APP_AUDIENCE=operations RIVERTON_APP_LOCAL_PORT=3011 npm exec -- next s
 RIVERTON_APP_AUDIENCE=maintenance RIVERTON_APP_LOCAL_PORT=3012 npm exec -- next start -p 3012
 ```
 
-Operations/Maintenance 首次密码登录会进入 TOTP 绑定：将页面显示的一次性设置密钥录入身份验证器，输入六位动态码，离线保存 8 枚恢复码后才进入应用。后续可使用动态码或一枚未使用的恢复码；设置密钥、恢复码和密码不得写入文档、Git 或长期聊天。
+当前 `MFA_ENFORCEMENT_ENABLED` 默认关闭，Operations/Maintenance 首次密码登录不会进入 TOTP 绑定，也不得出现冗余确认弹窗。正式生产按专项 Gate 重新开启后，首次登录才进入 TOTP 绑定：将页面显示的一次性设置密钥录入身份验证器，输入六位动态码，离线保存 8 枚恢复码后进入应用；后续可使用动态码或一枚未使用的恢复码。设置密钥、恢复码和密码不得写入文档、Git 或长期聊天。
 
 ## 3. 稳定路由
 
@@ -42,7 +44,7 @@ Client 商业入口为 `/`、`/membership`、`/membership/orders`、`/credits`�
 
 Operations：`/`、`/customers`、`/organization`、`/deposits`、`/deposits/[id]`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
 
-Maintenance：`/`、`/models`、`/integrations`、`/integrations/email`、`/integrations/payments`、`/health`、`/safety`、`/settings`、`/access`、`/access/audit`。
+Maintenance：`/`、`/models`、`/ai-usage`、`/integrations`、`/integrations/email`、`/integrations/payments`、`/health`、`/safety`、`/settings`、`/access`、`/access/audit`。
 
 错误 audience 的稳定路由必须返回 404。未登录页面跳转 `/login?next=...`；登录接口对无当前应用登录权限的账号返回 403；已登录但无模块权限显示无权限页且不请求业务数据。
 
@@ -60,6 +62,7 @@ Maintenance：`/`、`/models`、`/integrations`、`/integrations/email`、`/inte
 | 运营授权 | `ops.roles.manage`、`ops.roles.assign`、`ops.roles.approve_sensitive` |
 | 运维健康 | `maint.system_health.view` |
 | 模型与 Agent | `maint.llm_profiles.manage`、`maint.agent_bindings.manage` |
+| AI 用量分析 | `maint.ai_usage.view` |
 | 邮件与支付 | `maint.email_integrations.manage`、`maint.payment_integrations.manage` |
 | 紧急暂停 | `maint.emergency_pause.execute` |
 | 平台与客服设置 | `maint.feature_flags.manage` |
@@ -75,6 +78,8 @@ Maintenance：`/`、`/models`、`/integrations`、`/integrations/email`、`/inte
 - 支付未配置或测试功能关闭时保留 API 的 503 原因，不生成地址、二维码或成功提示。
 - 邮件测试成功入队时显示 `queued` 并明确“请求已记录”；只有 Worker/Resend 回执才能显示 `sent` 或 `delivered`。Gate 未满足时显示 `configured_not_sent` 或具体 503 原因，不能写成已发送。
 - 运维页面只展示 `hasSecret`、配置状态和最近测试时间；密钥、完整端点和 Webhook payload 不得回显。
+- AI 用量页只展示安全聚合：日期按 UTC 请求创建 cohort，默认 30 天、最多 90 天；可信 Token 只来自成功请求，Credits 只显示 settled 数值。组织快照的 legacy 质量必须可见，用户只能显示稳定伪名，模型按请求 revision。页面所称“已记录非取消失败率”排除 preflight 拒绝、用户取消和处理中请求，不可用作系统/provider 可用率；P-08 参数虽已冻结，但固定费用消费者和计费模式切换未通过独立 Gate 前不可显示固定费用规则已生效。
+- AI 用量日期在页面内直接应用，不弹出确认对话框。当前 MFA Gate 默认关闭；正式生产重新开启后仍需满足 `maint.ai_usage.view` 的 recent MFA 策略，不得为免弹窗绕过服务端 Gate。
 - 真实永续订单始终关闭。
 - 运维紧急暂停按当前 RBAC 数据范围生效，必须填写原因并审计；它只把官方 Paper 组合限制为 `close_only/read_only` 并拒绝待处理买入，不发送任何订单，也不改变平台 Demo kill switch。解除后组合不会自动恢复，必须由显式会员/客户状态流程重新核验。
 - 客户端只读取平台设置中的公开品牌、客服和公告字段。Telegram 客服链接只接受受支持域名的 HTTPS 地址；未配置时明确显示未配置，不生成假工单回执。

@@ -5,7 +5,7 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("account sessions expose only masked device evidence and revoke owned non-current sessions", async () => {
-  const route = await read("app/api/account/sessions/route.ts");
+  const route = await read("app/api/account/sessions/route.shared.ts");
   assert.match(route, /requireCurrentSession/);
   assert.match(route, /maskIpAddress/);
   assert.match(route, /summarizeUserAgent/);
@@ -30,8 +30,8 @@ test("Client account security is a stable route with profile, password and sessi
 });
 
 test("account profile and password mutations bound request bodies and return domain errors", async () => {
-  const profile = await read("app/api/account/profile/route.ts");
-  const password = await read("app/api/account/password/route.ts");
+  const profile = await read("app/api/account/profile/route.client.ts");
+  const password = await read("app/api/account/password/route.client.ts");
   for (const source of [profile, password]) {
     assert.match(source, /readResearchJson\(request, 4_096\)/);
     assert.match(source, /ResearchApiError/);

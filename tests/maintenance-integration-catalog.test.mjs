@@ -55,6 +55,19 @@ test("maintenance source check only calls its code-fixed public endpoint and rec
   assert.equal(JSON.stringify(writes).includes("data-api.binance.vision"), false);
 });
 
+test("source catalog exposes server-only configuration entry points without secrets", async () => {
+  const pool = { async query() { return { rows: [] }; } };
+  const catalog = await listMaintenanceSourceIntegrations(pool, {}, new Date("2026-08-21T10:00:00.000Z"));
+  const binance = catalog.find((item) => item.id === "binance-public-market");
+  const coinGecko = catalog.find((item) => item.id === "coingecko");
+  assert.deepEqual(binance.configurationEnvKeys, ["MARKET_DATA_BASE_URL", "MARKET_DATA_PROVIDER"]);
+  assert.deepEqual(binance.missingEnvKeys, binance.configurationEnvKeys);
+  assert.equal(binance.configurationMethod, "server_environment");
+  assert.deepEqual(coinGecko.configurationEnvKeys, ["COINGECKO_API_KEY"]);
+  assert.deepEqual(coinGecko.missingEnvKeys, ["COINGECKO_API_KEY"]);
+  assert.equal(JSON.stringify(catalog).includes("secret-value"), false);
+});
+
 test("maintenance source check rejects unknown and browser-controlled targets", async () => {
   const pool = { async query() { throw new Error("must not write"); } };
   await assert.rejects(runMaintenanceSourceIntegrationCheck(pool, {

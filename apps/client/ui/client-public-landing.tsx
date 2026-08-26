@@ -1,63 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+
+import styles from "./client-public-landing.module.css";
 import Link from "next/link";
+import {
+  PLATFORM_LOCALE_STORAGE_KEY,
+  resolvePlatformLocale,
+  type PlatformLocale,
+} from "@/lib/platform-locale";
 
 type Page = "home" | "login" | "hall" | "market" | "trading";
 
-function RoleIcon({ index }: { index: number }) {
-  const icon = index % 6;
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      {icon === 0 && (
-        <>
-          <path d="M4 19V5M4 19h16" />
-          <path d="m7 15 3-4 3 2 5-7" />
-          <circle cx="7" cy="15" r="1" />
-          <circle cx="10" cy="11" r="1" />
-          <circle cx="13" cy="13" r="1" />
-          <circle cx="18" cy="6" r="1" />
-        </>
-      )}
-      {icon === 1 && (
-        <>
-          <circle cx="12" cy="5" r="2.2" />
-          <circle cx="6" cy="16" r="2.2" />
-          <circle cx="18" cy="16" r="2.2" />
-          <path d="m10.7 6.8-3.4 7.3m6-7.3 3.4 7.3M8.2 16h7.6" />
-        </>
-      )}
-      {icon === 2 && (
-        <>
-          <path d="M12 3 5.5 6v5.2c0 4.3 2.7 7.7 6.5 9.8 3.8-2.1 6.5-5.5 6.5-9.8V6L12 3Z" />
-          <path d="m9 14 6-6m-6 0 6 6" />
-        </>
-      )}
-      {icon === 3 && (
-        <>
-          <path d="M4.2 17a8 8 0 1 1 15.6 0" />
-          <path d="m7.2 14-2-1m11.6 1 2-1M12 8V5" />
-          <path d="m12 16 3.4-5.1" />
-          <circle cx="12" cy="16" r="1.2" />
-        </>
-      )}
-      {icon === 4 && (
-        <>
-          <path d="M5 7h13m0 0-3-3m3 3-3 3M19 17H6m0 0 3 3m-3-3 3-3" />
-          <path d="M12 11v2" />
-        </>
-      )}
-      {icon === 5 && (
-        <>
-          <path d="M7 4h10a2 2 0 0 1 2 2v14H5V6a2 2 0 0 1 2-2Z" />
-          <path d="M9 4.2V3h6v1.2M8.5 9h7M8.5 13H12m-3.5 4 1.5 1.5 3-3" />
-        </>
-      )}
-    </svg>
-  );
-}
-type Lang = "zh-CN" | "zh-TW" | "en-US" | "ru-RU" | "es-ES" | "ja-JP" | "ko-KR";
+type Lang = PlatformLocale;
 
 const languageNames: Record<Lang, string> = {
   "en-US": "English",
@@ -77,62 +33,72 @@ type LocaleData = {
 
 const initialLocaleData: LocaleData = {
   text: {
-    strategy: "策略广场",
-    risk: "风险设置",
-    login: "登录",
-    hero: "一支为你工作的 AI 量化团队",
-    sub: "多位专业 Agent 分析市场、生成策略、相互质疑并管理风险；交易执行阶段目前仅生成影子或模拟回执，真实订单关闭。",
-    enter: "进入交易大厅",
-    demo: "查看策略方案",
-    market: "市场状态",
-    decision: "当前决策",
+    strategy: "AI Strategies",
+    risk: "Risk Settings",
+    login: "Sign in",
+    hero: "An AI quant team working for you",
+    sub: "Specialized agents analyze markets, challenge proposals, and manage risk. Execution currently produces shadow or paper receipts only; real orders are off.",
+    enter: "Enter Trading Hall",
+    demo: "Explore Strategies",
+    market: "Market regime",
+    decision: "Current decision",
   },
   extraText: {
-    trust1: "无需客户密钥",
-    trust2: "权限隔离",
-    trust3: "多层风控",
-    trust4: "全程审计",
-    flow1: "启动官方 paper 组合",
-    flow1s: "客户无需上传交易所密钥",
-    flow2: "选择风险偏好",
-    flow2s: "设定不可突破的边界",
-    flow3: "AI 团队协作",
-    flow3s: "生成、质疑与审核方案",
-    flow4: "生成模拟执行证据",
-    flow4s: "Paper 回执与平台 Demo 分开记录",
-    systemStatus: "Beta 执行边界",
-    watch: "观看工作现场",
-    riskIndex: "AI 风险指数",
-    accountStatus: "账户状态",
-    teamTitle: "不是一个机器人，而是一支专业团队",
-    teamSub: "每位 Agent 独立判断、交叉质疑，最终由风控与确定性规则共同决定是否执行。",
+    trust1: "No customer credentials",
+    trust2: "Permission isolation",
+    trust3: "Layered risk control",
+    trust4: "Full audit trail",
+    flow1: "Start an official paper portfolio",
+    flow1s: "No customer exchange credentials required",
+    flow2: "Choose risk profile",
+    flow2s: "Set hard safety boundaries",
+    flow3: "AI team collaboration",
+    flow3s: "Generate, challenge and review",
+    flow4: "Produce simulation evidence",
+    flow4s: "Paper and platform Demo receipts stay separate",
+    systemStatus: "Beta execution boundary",
+    watch: "Watch the team at work",
+    riskIndex: "AI risk index",
+    accountStatus: "Account status",
+    teamTitle: "Not one bot, but a professional team",
+    teamSub: "Each Agent judges independently and challenges the others. Risk controls and deterministic rules decide whether execution is allowed.",
+    skipMain: "Skip to main content",
+    homeAria: "Riverton Capital home",
+    flowAria: "Four-stage product flow, horizontally scrollable",
+    demoEnvironmentsAria: "Isolated platform test environments",
+    demoAccount: "Platform test account",
   },
   landingMore: {
-    roles: "市|市场分析师|识别当前市场状态;技|技术分析师|验证具体交易信号;策|策略研究员|生成候选策略方案;反|反方审查员|寻找漏洞与反向证据;险|首席风控官|执行硬风险审批;决|AI 决策官|形成最终决策单;执|交易执行员|生成影子或模拟执行回执",
-    visibleTitle: "每一次决策，都看得见",
-    visible: "实时协作|查看 Agent 的观点、异议、修正和最终决定。;动态风控|市场变化时自动降低 paper 仓位或暂停策略。;完整审计|策略信号、风控批准、paper 回执和平台 Demo 证据分开记录。",
-    review: "风险复核中",
-    enterHall: "进入实时交易大厅",
-    safetyTitle: "AI负责适应，硬风控守住底线",
-    safety: "无需客户密钥|Beta 使用公共行情和服务端 paper 组合。;本金隔离|每张官方策略拥有独立的 10,000 USDT 模拟本金。;现货边界|仅 BTC、ETH、SOL 的 USDT 现货模拟，无杠杆和做空。;组合级熔断|达到日亏损或回撤限制立即停止新开仓。;异常安全|数据延迟、模型超时或格式异常时不生成 paper 成交。;证据隔离|平台 Demo 回执不影响客户 paper 收益或结算。",
-    exchangeTitle: "平台测试环境验证",
-    exchangeDesc: "OKX Demo、Binance Spot Testnet 与 Bybit Demo 仅验证平台策略信号；客户无需连接账户，也不会产生真实成交。",
-    connectWays: "查看 paper 组合",
-    faqTitle: "你可能关心的问题",
-    faq: "需要连接交易所吗？|不需要。Beta 不接收客户交易所密钥。;AI会发送真实订单吗？|不会。客户侧仅生成受风控约束的 paper 回执。;现在展示的收益真实吗？|不是。paper 收益不代表真实或未来收益。;平台 Demo 回执是什么？|它只证明信号可在隔离测试环境验证，不影响客户组合。",
-    ctaTitle: "进入AI量化团队的实时工作现场",
-    ctaSub: "从三张官方现货策略开始体验 10,000 USDT 独立 paper 组合。",
-    browse: "浏览AI策略",
-    footer: "受邀 Beta · 客户 paper 与平台测试证据不代表真实或未来收益",
-    legal: "风险披露　隐私政策　服务条款",
+    roles: "M|Market Analyst|Classifies the current market;T|Technical Analyst|Validates concrete signals;S|Strategy Researcher|Builds a candidate plan;C|Adversarial Reviewer|Finds flaws and contrary evidence;R|Chief Risk Officer|Applies hard risk approval;D|AI Decision Officer|Issues the final decision;E|Execution Agent|Produces a shadow or paper receipt",
+    // This is the English first-paint copy. Keep it aligned with the lazy locale module.
+    gateNote: "Stage 5 runs on deterministic code, not a model. It can veto every AI conclusion above it, and no new position opens when data is thin or risk checks are unavailable.",
+    visibleTitle: "Every decision is visible",
+    visible: "Live collaboration|See Agent views, objections, revisions and final decisions.;Dynamic risk control|Reduce paper exposure or pause as markets change.;Complete audit|Keep paper receipts separate from platform Demo evidence.",
+    review: "Risk review in progress",
+    enterHall: "Enter live Trading Hall",
+    safetyTitle: "AI adapts. Hard controls protect the boundary.",
+    safety: "No customer credentials|Beta uses public market data and server-managed paper portfolios.;Isolated principal|Each official card receives a separate 10,000 USDT paper balance.;Spot only|BTC, ETH and SOL against USDT, with no leverage or shorting.;Portfolio circuit breaker|Stop new entries at loss or drawdown limits.;Fail safe|No paper fill on stale data, timeout or malformed output.;Separated evidence|Platform Demo receipts never change customer paper performance or settlement.",
+    exchangeTitle: "Platform test-environment evidence",
+    exchangeDesc: "OKX Demo, Binance Spot Testnet and Bybit Demo validate platform signals only. Customers do not connect accounts and no live trade is placed.",
+    connectWays: "View paper portfolios",
+    faqTitle: "Common questions",
+    faq: "Must I connect an exchange?|No. Beta does not accept customer exchange credentials.;Will AI place live orders?|No. Customer activity is limited to risk-controlled paper receipts.;Are the returns real?|No. Paper performance is not actual or future performance.;What is a platform Demo receipt?|It only proves a signal was tested in an isolated provider environment.",
+    ctaTitle: "Enter the AI quant team’s live workspace",
+    ctaSub: "Explore three official spot strategies through isolated paper portfolios.",
+    browse: "Browse AI strategies",
+    footer: "Invite-only Beta · Customer paper and platform test evidence are not actual or future returns",
+    legalRisk: "Risk Disclosure",
+    legalPrivacy: "Privacy",
+    legalTerms: "Terms",
   },
 };
 
 export function ClientPublicLanding() {
-  const [lang, setLang] = useState<Lang>("zh-CN");
+  const [lang, setLang] = useState<Lang>("en-US");
   const [localeData, setLocaleData] = useState<LocaleData>(initialLocaleData);
   const [localeLoading, setLocaleLoading] = useState(false);
   const [localeError, setLocaleError] = useState("");
+  const localeRequest = useRef(0);
   const t: Record<string, string> = useMemo(
     () => ({
       ...localeData.text,
@@ -147,34 +113,76 @@ export function ClientPublicLanding() {
     document.documentElement.lang = lang;
   }, [lang]);
 
+  useEffect(() => {
+    let cancelled = false;
+    let savedLocale: string | null = null;
+    try {
+      savedLocale = window.localStorage.getItem(PLATFORM_LOCALE_STORAGE_KEY);
+    } catch {
+      // Storage can be unavailable in hardened browser contexts; browser preference still works.
+    }
+    const resolved = resolvePlatformLocale({
+      savedLocale,
+      browserLanguages: navigator.languages ?? [navigator.language],
+    });
+    if (resolved.locale === "en-US") return () => { cancelled = true; };
+    const requestId = ++localeRequest.current;
+    void import("./client-public-landing-locales")
+      .then((locales) => {
+        if (cancelled || requestId !== localeRequest.current) return;
+        setLocaleData({
+          text: locales.text[resolved.locale],
+          extraText: locales.extraText[resolved.locale],
+          landingMore: locales.landingMore[resolved.locale],
+        });
+        setLang(resolved.locale);
+      })
+      .catch(() => {
+        if (!cancelled && requestId === localeRequest.current) {
+          setLocaleError("Language resources could not be loaded. Please retry.");
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   const selectLanguage = async (nextLanguage: Lang) => {
     if (nextLanguage === lang) return;
-    if (nextLanguage === "zh-CN") {
+    const requestId = ++localeRequest.current;
+    if (nextLanguage === "en-US") {
       setLocaleData(initialLocaleData);
       setLang(nextLanguage);
+      try { window.localStorage.setItem(PLATFORM_LOCALE_STORAGE_KEY, nextLanguage); } catch {
+        // A language choice remains usable for this page even when persistence is unavailable.
+      }
       return;
     }
     setLocaleLoading(true);
     setLocaleError("");
     try {
       const locales = await import("./client-public-landing-locales");
+      if (requestId !== localeRequest.current) return;
       setLocaleData({
         text: locales.text[nextLanguage],
         extraText: locales.extraText[nextLanguage],
         landingMore: locales.landingMore[nextLanguage],
       });
       setLang(nextLanguage);
+      try { window.localStorage.setItem(PLATFORM_LOCALE_STORAGE_KEY, nextLanguage); } catch {
+        // A language choice remains usable for this page even when persistence is unavailable.
+      }
     } catch {
-      setLocaleError("语言资源加载失败，请重试。");
+      if (requestId === localeRequest.current) {
+        setLocaleError("Language resources could not be loaded. Please retry.");
+      }
     } finally {
-      setLocaleLoading(false);
+      if (requestId === localeRequest.current) setLocaleLoading(false);
     }
   };
 
   const navigate = (page: Page) => {
     const nextPath =
       page === "market"
-        ? "/workspace?page=market"
+        ? "/market"
         : page === "trading"
           ? "/paper"
           : "/trading-hall";
@@ -188,12 +196,12 @@ export function ClientPublicLanding() {
   };
 
   return (
-    <main className="app-shell client-app-shell" data-app-shell>
-      <a className="skip-link" href="#landing-main">跳到主要内容</a>
-      <header className="topbar">
-        <Link className="logo" href="/" aria-label="Riverton Capital 首页">
+    <main className={`${styles.page} app-shell client-app-shell`} data-app-shell>
+      <a className={styles.skipLink} href="#landing-main">{t.skipMain}</a>
+      <header className={styles.topbar}>
+        <Link className={styles.logo} href="/" aria-label={t.homeAria}>
           <Image
-            className="riverton-brand-logo"
+            className={styles.brandLogo}
             src="/riverton-capital-logo.png"
             width={2193}
             height={324}
@@ -202,12 +210,13 @@ export function ClientPublicLanding() {
             alt="Riverton Capital"
           />
         </Link>
-        <div className="top-actions">
-          <button type="button" className="top-login" onClick={() => navigate("login")}>
+        <div className={styles.topActions}>
+          <button type="button" className={styles.login} onClick={() => navigate("login")}>
             {t.login}
           </button>
           <select
             data-locale-static
+            className={styles.langSelect}
             aria-label="Language"
             value={lang}
             disabled={localeLoading}
@@ -217,10 +226,7 @@ export function ClientPublicLanding() {
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
-          {localeError && <span className="landing-locale-error" role="alert">{localeError}</span>}
-          <button type="button" className="top-user-guest" onClick={() => navigate("login")}>
-            用户
-          </button>
+          {localeError && <span className={styles.localeError} role="alert">{localeError}</span>}
         </div>
       </header>
       <div id="landing-main" tabIndex={-1}>
@@ -272,255 +278,206 @@ function Landing({
       body: "암호자산과 자동 거래에는 높은 위험이 따릅니다. 과거 수익률, 백테스트 및 데모 데이터는 미래 결과를 보장하지 않습니다.",
     },
   }[t._lang as Lang] || {
-    label: "风险提示",
-    body: "加密资产及自动化交易具有较高风险，请谨慎决策。",
+    label: "Risk disclosure",
+    body: "Crypto assets and automated trading involve substantial risk.",
   };
   return (
-    <div className="landing">
-      <section className="hero">
-        <div className="hero-copy">
-          <div className="eyebrow">
-            <i /> MULTI-AGENT QUANT SYSTEM
-          </div>
+    <div>
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <div className={styles.eyebrow}>MULTI-AGENT QUANT SYSTEM</div>
           <h1>{t.hero}</h1>
           <p>{t.sub}</p>
-          <div className="hero-actions">
-            <button className="primary" onClick={() => go("hall")}>
-              {t.enter} →
-            </button>
-            <button className="ghost" onClick={() => go("hall")}>
-              {t.demo}
-            </button>
+          <div className={styles.heroActions}>
+            <button className={styles.primary} onClick={() => go("hall")}>{t.enter} →</button>
+            <button className={styles.ghost} onClick={() => go("hall")}>{t.demo}</button>
           </div>
-          <div className="trust">
+          <div className={styles.trust}>
             <span>✓ {t.trust1}</span>
             <span>✓ {t.trust2}</span>
             <span>✓ {t.trust3}</span>
             <span>✓ {t.trust4}</span>
           </div>
         </div>
-        <div className="orbital">
-          <div className="orbit o1">
-            <i />
+
+        {/*
+          七阶段决策链。旧版把它画成一圈装饰性轨道，其中三个角色还是用 CSS
+          content 注入的——于是 7 种语言里有 5 种只显示英文。这里改成真实 DOM，
+          用与下方角色栅格同一份本地化数据，7 种语言都对。
+        */}
+        <div className={styles.chain} aria-label={m.teamTitle}>
+          <div className={styles.chainHead}>
+            <b>{m.teamTitle}</b>
+            <span>7 STAGES</span>
           </div>
-          <div className="orbit o2">
-            <i />
-            <i />
-          </div>
-          <div className="core">
-            AI
-            <div>
-              DECISION
-              <br />
-              CORE
-            </div>
-          </div>
-          <div className="agent-tag a1">
-            MARKET
-            <br />
-            <b>{t.market}</b>
-          </div>
-          <div className="agent-tag a2">
-            RISK
-            <br />
-            <b>{t.risk}</b>
-          </div>
-          <div className="agent-tag a3">
-            STRATEGY
-            <br />
-            <b>{t.strategy}</b>
-          </div>
-          <div className="agent-tag a4">
-            DECISION
-            <br />
-            <b>AI FINAL</b>
-          </div>
+          <p className={styles.chainSub}>{m.teamSub}</p>
+          <div className={styles.pulse} aria-hidden="true" />
+          {roles.map((role, index) => {
+            const isGate = index === 4;
+            return (
+              <div key={role[1]} className={isGate ? `${styles.stage} ${styles.gate}` : styles.stage}>
+                <span className={styles.stageNo} aria-hidden="true">{`0${index + 1}`}</span>
+                <span className={styles.stageBody}>
+                  <b>{role[1]}</b>
+                  <span>{role[2]}</span>
+                </span>
+                {isGate && <p className={styles.gateNote}>{m.gateNote}</p>}
+              </div>
+            );
+          })}
         </div>
       </section>
-      {/* This named scroll region must be keyboard-focusable at narrow widths; axe verifies the behavior. */}
+
+      {/* 横向滚动容器在窄屏必须可键盘聚焦；axe 会校验这个行为。 */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
-      <section className="flow" tabIndex={0} aria-label="四阶段产品流程，可横向滚动">
-        <div>
-          <small>01</small>
-          <b>{t.flow1}</b>
-          <span>{t.flow1s}</span>
-        </div>
-        <em>→</em>
-        <div>
-          <small>02</small>
-          <b>{t.flow2}</b>
-          <span>{t.flow2s}</span>
-        </div>
-        <em>→</em>
-        <div>
-          <small>03</small>
-          <b>{t.flow3}</b>
-          <span>{t.flow3s}</span>
-        </div>
-        <em>→</em>
-        <div>
-          <small>04</small>
-          <b>{t.flow4}</b>
-          <span>{t.flow4s}</span>
-        </div>
-      </section>
-      <section className="home-grid">
-        <div className="panel">
-          <label>{t.systemStatus}</label>
-          <h2>7 AGENT DECISION CHAIN</h2>
-          <p>BTC / ETH / SOL · USDT SPOT TARGET · REAL ORDERS OFF</p>
-          <button onClick={() => go("hall")}>{t.watch} →</button>
-        </div>
-        <div className="panel metric-panel">
-          <div>
-            <small>{t.market}</small>
-            <strong>BTC / ETH / SOL</strong>
-          </div>
-          <div>
-            <small>{t.riskIndex}</small>
-            <strong>HARD LIMITS</strong>
-          </div>
-          <div>
-            <small>{t.decision}</small>
-            <strong>SIMULATION ONLY</strong>
-          </div>
-          <div>
-            <small>{t.accountStatus}</small>
-            <strong className="green">NON-CUSTODIAL</strong>
-          </div>
-        </div>
-      </section>
-      <section className="home-ticker">
-        {["BTC", "ETH", "SOL"].map((symbol) => (
-          <button key={symbol} onClick={() => go("market")}>
-            <b>{symbol}/USDT</b>
-            <span>SPOT TARGET</span>
-            <em>NO STATIC QUOTE</em>
-          </button>
-        ))}
-      </section>
-      <section className="landing-section">
-        <div className="section-title">
-          <small>AI QUANT TEAM</small>
-          <h2>{t.teamTitle}</h2>
-          <p>{t.teamSub}</p>
-        </div>
-        <div className="role-grid">
-          {roles.map((x, i) => (
-            <article key={x[1]}>
-              <i>
-                <RoleIcon index={i} />
-              </i>
-              <h3>{x[1]}</h3>
-              <p>{x[2]}</p>
-              <span>ROLE CONTRACT · 0{i + 1}</span>
-            </article>
-          ))}
-        </div>
-      </section>
-      <section className="feature-split">
-        <div className="scene-preview">
-          <Image
-            src="/trading-hall.webp"
-            width={1672}
-            height={941}
-            sizes="(max-width: 768px) 100vw, 55vw"
-            alt="AI quantitative trading operations center"
-          />
-          <div>
-            <span>
-              <i />
-              PRODUCT PREVIEW
-            </span>
-            <b>{m.review}</b>
-          </div>
-          <button onClick={() => go("hall")}>{m.enterHall} →</button>
-        </div>
-        <div className="capabilities">
-          <small>VISIBLE INTELLIGENCE</small>
-          <h2>{m.visibleTitle}</h2>
-          {visible.map((x, i) => (
-            <div key={x[0]}>
-              <i>0{i + 1}</i>
-              <span>
-                <b>{x[0]}</b>
-                <p>{x[1]}</p>
-              </span>
+      <section className={styles.section} tabIndex={0} aria-label={t.flowAria}>
+        <div className={styles.flow}>
+          {[[t.flow1, t.flow1s], [t.flow2, t.flow2s], [t.flow3, t.flow3s], [t.flow4, t.flow4s]].map((step, index) => (
+            <div className={styles.card} key={step[0]}>
+              <span className={styles.cardNo}>{`0${index + 1}`}</span>
+              <h3>{step[0]}</h3>
+              <p>{step[1]}</p>
             </div>
           ))}
         </div>
       </section>
-      <section className="safety-section">
-        <div className="section-title">
-          <small>SECURITY BY DESIGN</small>
+
+      <section className={styles.section}>
+        <div className={styles.ticker}>
+          {["BTC", "ETH", "SOL"].map((symbol) => (
+            <button className={styles.tickerItem} key={symbol} onClick={() => go("market")}>
+              <b>{symbol}/USDT</b>
+              <span>SPOT TARGET</span>
+              <em>NO STATIC QUOTE</em>
+            </button>
+          ))}
+          <div className={styles.tickerItem}>
+            <b>{t.riskIndex}</b>
+            <span>HARD LIMITS</span>
+            <em>{t.decision} · SIMULATION ONLY</em>
+          </div>
+          <div className={styles.tickerItem}>
+            <b>{t.accountStatus}</b>
+            <span>NON-CUSTODIAL</span>
+            <em>REAL ORDERS OFF</em>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <div className={styles.split}>
+          <div className={styles.preview}>
+            <Image
+              src="/trading-hall.webp"
+              width={1672}
+              height={941}
+              sizes="(max-width: 768px) 100vw, 55vw"
+              alt="AI quantitative trading operations center"
+            />
+            <div className={styles.previewCaption}>
+              <span>PRODUCT PREVIEW</span>
+              <b>{m.review}</b>
+            </div>
+            <button className={styles.previewLink} onClick={() => go("hall")}>{m.enterHall} →</button>
+          </div>
+          <div>
+            <div className={styles.sectionHead}>
+              <div className={styles.eyebrow}>VISIBLE INTELLIGENCE</div>
+              <h2>{m.visibleTitle}</h2>
+            </div>
+            <div className={styles.capabilities}>
+              {visible.map((x, i) => (
+                <div className={styles.capability} key={x[0]}>
+                  <i>{`0${i + 1}`}</i>
+                  <span>
+                    <b>{x[0]}</b>
+                    <p>{x[1]}</p>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={`${styles.section} ${styles.safety}`}>
+        <div className={styles.sectionHead}>
+          <div className={styles.eyebrow}>SECURITY BY DESIGN</div>
           <h2>{m.safetyTitle}</h2>
         </div>
-        <div className="safety-grid">
+        <div className={styles.cardGrid}>
           {safety.map((x, i) => (
-            <article key={x[0]}>
-              <span>0{i + 1}</span>
+            <article className={styles.card} key={x[0]}>
+              <span className={styles.cardNo}>{`0${i + 1}`}</span>
               <h3>{x[0]}</h3>
               <p>{x[1]}</p>
             </article>
           ))}
         </div>
       </section>
-      <section className="exchange-band">
-        <div>
-          <small>PLATFORM DEMO EVIDENCE</small>
-          <h2>{m.exchangeTitle}</h2>
-          <p>{m.exchangeDesc}</p>
+
+      <section className={styles.section}>
+        <div className={styles.exchange}>
+          <div>
+            <div className={styles.eyebrow}>PLATFORM DEMO EVIDENCE</div>
+            <h2>{m.exchangeTitle}</h2>
+            <p>{m.exchangeDesc}</p>
+          </div>
+          <div className={styles.exchangeLogos} aria-label={t.demoEnvironmentsAria}>
+            {["OKX Demo", "Binance Spot Testnet", "Bybit Demo"].map((name) => (
+              <div className={styles.exchangeLogo} key={name}><b>{name}</b><small>{t.demoAccount}</small></div>
+            ))}
+          </div>
+          <button className={styles.exchangeLink} onClick={() => go("trading")}>
+            {m.connectWays} →
+          </button>
         </div>
-        <div className="exchange-logos" aria-label="平台隔离的测试环境">
-          {["OKX Demo", "Binance Spot Testnet", "Bybit Demo"].map((name) => (
-            <div className="exchange-logo-card" key={name}><b>{name}</b><small>平台测试账户</small></div>
-          ))}
-        </div>
-        <button
-          className="exchange-connect-button"
-          onClick={() => go("trading")}
-        >
-          <span>{m.connectWays}</span>
-          <i aria-hidden="true">→</i>
-        </button>
       </section>
-      <section className="faq">
-        <div className="section-title">
-          <small>COMMON QUESTIONS</small>
+
+      <section className={`${styles.section} ${styles.faq}`}>
+        <div className={styles.sectionHead}>
+          <div className={styles.eyebrow}>COMMON QUESTIONS</div>
           <h2>{m.faqTitle}</h2>
         </div>
         {faq.map((x) => (
           <details key={x[0]}>
-            <summary>
-              {x[0]}
-              <span>＋</span>
-            </summary>
+            <summary>{x[0]}<span aria-hidden="true">＋</span></summary>
             <p>{x[1]}</p>
           </details>
         ))}
       </section>
-      <section className="final-cta">
-        <small>MULTI-AGENT QUANT PLATFORM</small>
-        <h2>{m.ctaTitle}</h2>
-        <p>{m.ctaSub}</p>
-        <div>
-          <button className="primary" onClick={() => go("hall")}>
-            {t.enter}
-          </button>
-          <button className="ghost" onClick={() => go("hall")}>
-            {m.browse}
-          </button>
+
+      <section className={styles.section}>
+        <div className={styles.finalCta}>
+          <div className={styles.eyebrow}>MULTI-AGENT QUANT PLATFORM</div>
+          <h2>{m.ctaTitle}</h2>
+          <p>{m.ctaSub}</p>
+          <div>
+            <button className={styles.primary} onClick={() => go("hall")}>{t.enter}</button>
+            <button className={styles.ghost} onClick={() => go("hall")}>{m.browse}</button>
+          </div>
         </div>
       </section>
-      <footer>
-        <div className="landing-footer-main">
-          <b className="landing-footer-mark"><Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="160px" alt="Riverton Capital" /></b>
+
+      {/* 风险披露独立成块并带左侧色条：它是合规文案，不能压成页脚灰色小字。 */}
+      <div className={styles.riskNotice}>
+        <b>{riskNotice.label}</b>
+        <p>{riskNotice.body}</p>
+      </div>
+
+      <footer className={styles.footer}>
+        <div className={styles.footerMain}>
+          <b className={styles.footerMark}>
+            <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="160px" alt="Riverton Capital" />
+          </b>
           <span>{m.footer}</span>
-          <div>{m.legal}</div>
-        </div>
-        <div className="landing-risk-notice">
-          <strong>{riskNotice.label}</strong>
-          <span>{riskNotice.body}</span>
+          {/* 原本这里是纯文本「风险披露、隐私政策、服务条款」——点不动，也没有对应页面。
+              视觉上像入口而实际打不开，访客会认为平台把条款藏起来了。 */}
+          <div className={styles.footerLinks}>
+            <Link href="/legal#risk_disclosure" prefetch={false}>{m.legalRisk}</Link>
+            <Link href="/legal#privacy" prefetch={false}>{m.legalPrivacy}</Link>
+            <Link href="/legal#terms" prefetch={false}>{m.legalTerms}</Link>
+          </div>
         </div>
       </footer>
     </div>

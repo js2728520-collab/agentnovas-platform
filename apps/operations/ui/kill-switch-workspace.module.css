@@ -1,0 +1,160 @@
+/* 交易熔断工作区。
+   颜色一律走 --rv-* 令牌（架构边界规则第 6 条禁止硬编码色值）。
+   间距与字号在这套令牌里没有对应项，用 rem 常量。 */
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.message {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-card);
+  border: 1px solid var(--rv-border);
+  color: var(--rv-foreground);
+}
+
+.engageForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.formTitle {
+  margin: 0;
+  font-size: 1.125rem;
+  color: var(--rv-foreground);
+}
+
+.formNote,
+.hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--rv-muted-foreground);
+}
+
+.formRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 14rem;
+}
+
+.fieldLabel {
+  font-size: 0.875rem;
+  color: var(--rv-muted-foreground);
+}
+
+.input,
+.select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--rv-border-strong);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+  font: inherit;
+}
+
+.danger,
+.secondary {
+  padding: 0.5rem 1rem;
+  border-radius: var(--rv-radius-md);
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--rv-border-strong);
+}
+
+.danger {
+  background: var(--rv-danger);
+  color: var(--rv-primary-foreground);
+  border-color: var(--rv-danger);
+}
+
+.secondary {
+  background: var(--rv-background);
+  color: var(--rv-foreground);
+}
+
+.danger:disabled,
+.secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--rv-foreground);
+}
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.released {
+  opacity: 0.72;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.scope {
+  font-family: var(--rv-font-mono);
+  color: var(--rv-foreground);
+  word-break: break-all;
+}
+
+.reason {
+  margin: 0;
+  color: var(--rv-foreground);
+}
+
+.meta {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--rv-muted-foreground);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.pendingNote {
+  font-size: 0.875rem;
+  color: var(--rv-muted-foreground);
+}

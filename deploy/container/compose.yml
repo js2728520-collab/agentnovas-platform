@@ -115,6 +115,19 @@ services:
       postgres: { condition: service_healthy }
     networks: [backplane, egress]
 
+  configuration-activation-worker:
+    <<: *worker-security
+    profiles: [configuration-activation]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/configuration-activation.env, --experimental-strip-types, scripts/configuration-activation-worker.mjs]
+    secrets:
+      - source: configuration_activation_env
+        target: configuration-activation.env
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane]
+
   runtime-worker:
     <<: *worker-security
     profiles: [workers]
@@ -139,6 +152,25 @@ services:
     tmpfs: [/tmp:mode=1777]
     depends_on:
       postgres: { condition: service_healthy }
+    networks: [backplane, egress]
+
+  execution:
+    <<: *worker-security
+    profiles: [workers]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/execution.env, --experimental-strip-types, scripts/execution-service.mjs]
+    secrets:
+      - source: execution_env
+        target: execution.env
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    # 只挂 backplane 与 egress：**不挂 edge**。
+    #
+    # 这个进程是全系统唯一持有 EXCHANGE_CREDENTIAL_ENCRYPTION_KEY 的地方，
+    # 它的端口等价于「替任何客户下单」的能力。挂上 edge 就等于把它暴露到反向代理
+    # 后面，第 2 步收敛密钥的意义会被这一行抵消（ADR-0019）。
+    # egress 是它访问交易所 API 所必需的。
     networks: [backplane, egress]
 
   migrator:
@@ -166,10 +198,14 @@ secrets:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/maintenance.env
   notification_env:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/notification.env
+  configuration_activation_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/configuration-activation.env
   runtime_env:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/runtime.env
   demo_env:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/demo.env
+  execution_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/execution.env
   migrator_env:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/migrator.env
 

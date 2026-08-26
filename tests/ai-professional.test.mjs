@@ -35,7 +35,7 @@ test("extracts working memory and tells the assistant not to repeat known questi
 });
 
 test("message route builds market context from server-owned conversation history", async () => {
-  const source = await readFile(new URL("../app/api/ai/conversations/[id]/messages/route.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/api/ai/conversations/[id]/messages/route.client.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /const \[history, context, config\]/);
   assert.match(source, /history\s*\.filter\(\(message\) => message\.role === "user"\)/);
   assert.match(source, /const context = await buildAssistantContext/);

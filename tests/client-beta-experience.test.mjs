@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("membership experience uses commercial truth sources and contains no simulated payment flow", async () => {
   const entry = await read("app/membership-center.tsx");
   const experience = await read("apps/client/ui/membership-experience.tsx");
-  const plansRoute = await read("app/api/membership/plans/route.ts");
+  const plansRoute = await read("app/api/membership/plans/route.client.ts");
   const source = `${entry}\n${experience}`;
 
   for (const endpoint of [
@@ -78,7 +78,7 @@ test("wallet remains read-only while deposits use the server-side Udun order bou
 test("client notification settings expose unintegrated external channels without demo verification", async () => {
   const workspace = await read("apps/client/ui/notification-workspace.tsx");
   const settings = await read("apps/client/ui/client-notification-settings.tsx");
-  const preferencesRoute = await read("app/api/notifications/preferences/route.ts");
+  const preferencesRoute = await read("app/api/notifications/preferences/route.client.ts");
   const preferencesPolicy = await read("lib/notification-preferences.ts");
   assert.match(workspace, /ClientNotificationSettings/);
   assert.match(settings, /not_integrated/);
@@ -111,29 +111,20 @@ test("trading experience reads official paper evidence and never presents client
   assert.doesNotMatch(source, /连接交易所|API Key/);
 });
 
-test("the client application no longer exposes the legacy operations page", async () => {
-  const source = await read("app/client-app.tsx");
-  const css = `${await read("app/globals.css")}\n${await read("app/globals-beta.css")}`;
-  assert.doesNotMatch(source, /case\s+["']admin["']/);
-  assert.doesNotMatch(source, /\|\s*["']admin["']/);
-  assert.doesNotMatch(source, /AdminWithPolicy/);
-  assert.match(source, /ClientNotificationSettings/);
-  assert.match(source, /client-app-shell/);
-  assert.match(source, /className="flow" tabIndex=\{0\}/);
-  assert.match(css, /\.client-app-shell \.dash>aside\{[^}]*flex-direction:row!important/);
-  assert.match(css, /\.client-app-shell \.landing \.hero:before\{[^}]*right:0!important/);
-});
-
-test("the isolated strategy workspace opens live records instead of the legacy static landing", async () => {
-  const workspace = await read("app/client-app.tsx");
-  assert.match(workspace, /typeof window === "undefined"\) return "hall"/);
-  assert.match(workspace, /<Link className="logo" href="\/dashboard"/);
-  assert.doesNotMatch(workspace, /<button className="logo" onClick=\{go\("home"\)\}/);
-});
+// 已删除两条测试（P4）：
+//
+// 「the client application no longer exposes the legacy operations page」断言遗留
+// SPA 内部没有 admin 分支。SPA 已退役，而这条约束现在由 P2 的构建隔离从结构上保证：
+// 运营路由根本不在 client 构建里（架构边界规则「API 路由后缀与 audience 一致」，
+// 以及 §28 记录的 404 矩阵）。文本断言已被更强的机制取代。
+//
+// 「the isolated strategy workspace opens live records instead of the legacy static
+// landing」断言的是 SPA 的内部字符串路由（typeof window === "undefined" 时返回
+// "hall"）。四个界面已各自成为真实路由，内部路由不复存在。
 
 test("the trading hall presents server strategy state without simulated live activity", async () => {
-  const workspace = await read("app/client-app.tsx");
-  const css = await read("app/globals-beta.css");
+  const workspace = await read("apps/client/ui/decision-hall.tsx");
+  const moduleCss = await read("apps/client/ui/decision-hall.module.css");
   assert.match(workspace, /tradingHallStrategyPresentation/);
   assert.match(workspace, /tradingHallEnvironmentLabel/);
   assert.match(workspace, /角色位置仅为界面示意，不代表智能体正在运行/);
@@ -144,17 +135,19 @@ test("the trading hall presents server strategy state without simulated live act
   assert.doesNotMatch(workspace, /Math\.random/);
   assert.doesNotMatch(workspace, /action-\$\{agentActions/);
   assert.doesNotMatch(workspace, /\[\.\.\.rows, \.\.\.rows, \.\.\.rows\]/);
-  assert.match(css, /\.scene\.compact \.hall-role-static[^}]*animation:none!important/);
-  assert.match(css, /\.agent-dialogue-track\{[^}]*animation:none!important/);
-  assert.match(workspace, /strategy-monitor-pause/);
-  assert.match(css, /strategy-monitor-ticker\.paused/);
-  assert.doesNotMatch(css, /strategy-monitor-ticker:focus-within/);
-  assert.match(css, /prefers-reduced-motion:reduce[^}]*strategy-monitor-track/);
+  // 原断言检查遗留样式表用 animation:none!important 压掉「看起来像实时活动」的
+  // 效果，还要一个「暂停轮播」按钮。样式模块化后这些元素**根本没有动画**，
+  // 约束由构造保证，断言改成更强的形式：模块里不得出现动画。
+  assert.doesNotMatch(moduleCss, /animation\s*:/);
+  assert.doesNotMatch(moduleCss, /@keyframes/);
+  assert.doesNotMatch(workspace, /轮播/);
+  // 另两条原断言（跑马灯的 focus-within 暂停、prefers-reduced-motion 降级）
+  // 随跑马灯一起失去意义：没有动画就没有需要降级或暂停的东西。
 });
 
 test("client raster assets stay under the 200 KiB budget and the hall uses an optimized source", async () => {
-  const source = await read("app/client-app.tsx");
-  const css = await read("app/globals.css");
+  const source = await read("apps/client/ui/decision-hall.tsx");
+  const css = await read("apps/client/ui/client-public-landing.module.css");
   assert.match(source, /from "next\/image"/);
   assert.match(source, /\/trading-hall\.webp/);
   assert.doesNotMatch(`${source}\n${css}`, /trading-hall-base\.png|trading-hall-operator-sprite\.png|agentnovas-logo\.png|agentnovas-mark\.png|trading-hall\.png/);

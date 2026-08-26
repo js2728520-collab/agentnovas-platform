@@ -22,7 +22,7 @@ test("0030 defines an auditable maker-checker disclosure bundle without weakenin
 });
 
 test("membership endpoint derives trial/read-only state without requiring a commercial plan join", async () => {
-  const route = await read("app/api/membership/me/route.ts");
+  const route = await read("app/api/membership/me/route.client.ts");
   assert.match(route, /membershipAccess/);
   assert.match(route, /LEFT JOIN commercial_plan_versions/);
   assert.match(route, /trial_monthly_equivalent/);

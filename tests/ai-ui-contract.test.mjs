@@ -6,13 +6,26 @@ async function source(path) {
   return readFile(new URL(path, import.meta.url), "utf8");
 }
 
-test("agent page uses persistent server conversations and streamed messages", async () => {
-  const [page, chat] = await Promise.all([
-    source("../app/client-app.tsx"),
-    source("../app/agent-chat.tsx"),
+test("AI 工作台统一承载助手与策略研究，并在同页切换", async () => {
+  const [workbench, portal] = await Promise.all([
+    source("../apps/client/ui/ai-workbench.tsx"),
+    source("../apps/client/ui/client-portal.tsx"),
   ]);
 
-  assert.match(page, /PersistentAgentChat/);
+  assert.match(workbench, /AiAssistantChat/);
+  assert.match(workbench, /StrategyStudio/);
+  assert.match(workbench, /AI 助手/);
+  assert.match(workbench, /策略研究/);
+  assert.match(workbench, /onOpenStrategies=\{\(\) => setMode\("studio"\)\}/);
+  assert.match(portal, /route === "assistant"\) \{[\s\S]*return <AiWorkbench \/>/);
+  assert.match(portal, /route === "studio"\) \{[\s\S]*return <>?<AiWorkbench initialMode="studio" \/>/);
+  assert.doesNotMatch(portal, /window\.location\.assign\("\/trading-hall"\)/);
+});
+test("agent page uses persistent server conversations and streamed messages", async () => {
+  // 助手此前是遗留 SPA 里动态导入的 PersistentAgentChat，现在是真实路由 /assistant，
+  // 那个导入名不再存在。真正要守的是「服务端持久会话 + 流式消息」。
+  const chat = await source("../apps/client/ui/ai-assistant-chat.tsx");
+
   assert.match(chat, /\/api\/ai\/conversations/);
   assert.match(chat, /consumeAiEventStream/);
   assert.match(chat, /AiMessageContent/);
@@ -21,13 +34,13 @@ test("agent page uses persistent server conversations and streamed messages", as
   assert.doesNotMatch(chat, /body: JSON\.stringify\(\{[^}]*history/);
 });
 
-test("strategy creation uses the resumable multi-Agent pipeline without a duplicate chat workflow", async () => {
-  const [studio, research] = await Promise.all([
-    source("../app/community-strategy-center.tsx"),
-    source("../app/multi-agent-research.tsx"),
-  ]);
 
-  assert.match(studio, /<MultiAgentResearch/);
+test("strategy creation uses the resumable multi-Agent pipeline without a duplicate chat workflow", async () => {
+  // 研发问卷与流水线驱动现在同在 apps/client/ui/strategy-studio.tsx（P4 迁移）。
+  const studio = await source("../apps/client/ui/strategy-studio.tsx");
+  const research = studio;
+
+  assert.match(studio, /\/api\/strategy-research\/runs/);
   assert.match(studio, /后台研发任务会继续运行/);
   assert.doesNotMatch(studio, /ensureStrategyConversation/);
   assert.doesNotMatch(studio, /\/api\/strategy-studio\/generate/);
@@ -39,9 +52,10 @@ test("strategy creation uses the resumable multi-Agent pipeline without a duplic
 });
 
 test("shared AI message UI exposes an accessible confirmation dialog and custom answer", async () => {
+  // 样式已转成组件自己的 CSS Module（P4 收尾）。
   const [content, styles] = await Promise.all([
-    source("../app/ai-message-content.tsx"),
-    source("../app/globals.css"),
+    source("../apps/client/ui/ai-message-content.tsx"),
+    source("../apps/client/ui/ai-message-content.module.css"),
   ]);
 
   assert.match(content, /<dialog/);
@@ -49,16 +63,20 @@ test("shared AI message UI exposes an accessible confirmation dialog and custom 
   assert.match(content, /type="radio"/);
   assert.match(content, /自定义填写/);
   assert.match(content, /确认并发送/);
-  assert.match(content, /<div[^>]*className="ai-message-question-cta"[^>]*>/);
-  assert.doesNotMatch(content, /<aside className="ai-message-question-cta">/);
-  assert.match(styles, /\.ai-answer-dialog\[open\]\{position:fixed;left:50%;top:50%;right:auto;bottom:auto;margin:0;transform:translate\(-50%,-50%\)/);
+  // 提问 CTA 必须是 div 而不是 aside：aside 是 landmark，会污染屏幕阅读器的
+  // 地标导航。
+  assert.match(content, /<div[^>]*className=\{styles\.questionCta\}[^>]*>/);
+  assert.doesNotMatch(content, /<aside[^>]*questionCta/);
+  // 原生 dialog 用 showModal() 打开时必须显式居中，否则贴在视口顶部。
+  assert.match(styles, /\.dialog\[open\][\s\S]*position:\s*fixed/);
+  assert.match(styles, /\.dialog\[open\][\s\S]*transform:\s*translate\(-50%,\s*-50%\)/);
 });
 
 test("customer AI workspaces use the platform model without exposing private LLM configuration", async () => {
   const [page, chat, studio] = await Promise.all([
-    source("../app/client-app.tsx"),
-    source("../app/agent-chat.tsx"),
-    source("../app/community-strategy-center.tsx"),
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
+    source("../apps/client/ui/strategy-studio.tsx"),
   ]);
 
   for (const reachable of [page, chat, studio]) {
@@ -76,7 +94,7 @@ test("Agent conversation history hides legacy empty strategy threads", async () 
 
 test("strategy research instrument loading exposes retry state and server proxy support", async () => {
   const [research, packageSource] = await Promise.all([
-    source("../app/multi-agent-research.tsx"),
+    source("../apps/client/ui/strategy-studio.tsx"),
     source("../package.json"),
   ]);
 
@@ -85,4 +103,33 @@ test("strategy research instrument loading exposes retry state and server proxy 
   assert.match(research, /setInstrumentBusy\(true\)/);
   assert.match(packageSource, /NODE_USE_ENV_PROXY=1 next dev/);
   assert.match(packageSource, /NODE_USE_ENV_PROXY=1 next start/);
+});
+
+test("confirmed Client cleanup removes watchlists and legacy assistant analysis controls", async () => {
+  const [assistant, market, marketStyles, portal, studio, grants, inventory] = await Promise.all([
+    source("../apps/client/ui/ai-assistant-chat.tsx"),
+    source("../apps/client/ui/live-market.tsx"),
+    source("../apps/client/ui/live-market.module.css"),
+    source("../apps/client/ui/client-portal.tsx"),
+    source("../apps/client/ui/strategy-studio.tsx"),
+    source("../deploy/postgres/least-privilege-roles.sql"),
+    import("../lib/api-route-inventory.ts"),
+  ]);
+
+  assert.doesNotMatch(assistant, /<select|analysisTarget|instrumentId|setSymbol/);
+  const promptList = assistant.match(/const prompts = \[([^\]]+)\];/)?.[1].match(/"[^"]+"/g) ?? [];
+  assert.equal(promptList.length, 4);
+
+  assert.doesNotMatch(market, /\/api\/market\/watchlist|WatchlistItem|watchlist|watchedSymbols|toggleWatchlist/i);
+  assert.doesNotMatch(market, /new WebSocket|data-stream\.binance\.vision/);
+  assert.doesNotMatch(marketStyles, /watchlist|watchButton/i);
+  assert.match(marketStyles, /\.eyebrow\s*\{[^}]*color:\s*var\(--rv-brand-ink\)/s);
+  assert.match(portal, /route === "market"\) return <LiveMarket \/>/);
+  assert.equal(inventory.API_ROUTE_INVENTORY.some((entry) => entry.route === "/api/market/watchlist"), false);
+  assert.doesNotMatch(grants, /market_watchlist/);
+
+  assert.match(studio, /USDT 永续合约/);
+  assert.match(studio, /K 线周期/);
+  assert.match(studio, /交易方向/);
+  assert.match(studio, /target:\s*\{[\s\S]*instrumentId:[\s\S]*timeframe,[\s\S]*direction,/);
 });

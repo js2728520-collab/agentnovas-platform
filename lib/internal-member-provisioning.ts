@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 
 import { legacyRoleAssignments } from "./rbac.ts";
 
-type InternalRole = "branch_admin" | "manager" | "supervisor" | "employee" | "finance" | "auditor" | "hq_support";
+type InternalRole = "branch_admin" | "manager" | "supervisor" | "employee" | "finance" | "auditor" | "hq_support" | "tech_staff";
 
 export async function provisionInternalMember(pool: Pool, input: {
   actorUserId: string;
@@ -18,7 +18,10 @@ export async function provisionInternalMember(pool: Pool, input: {
   reason?: string;
   now?: Date;
 }) {
-  const assignment = legacyRoleAssignments(input.role).find((candidate) => candidate.appId === "operations");
+  // 技术人员在运维端，其余内部角色在运营端。取错端会让 assignment 为空，
+  // 进而抛 INTERNAL_ROLE_NOT_PROVISIONABLE——那是个正确但难懂的失败。
+  const targetApp = input.role === "tech_staff" ? "maintenance" : "operations";
+  const assignment = legacyRoleAssignments(input.role).find((candidate) => candidate.appId === targetApp);
   if (!assignment || !assignment.permissions.length) throw new Error("INTERNAL_ROLE_NOT_PROVISIONABLE");
   const now = input.now ?? new Date();
   const activationExpiresAt = new Date(now.getTime() + 48 * 3600_000);
@@ -40,15 +43,21 @@ export async function provisionInternalMember(pool: Pool, input: {
 
     const insertedRole = await client.query<{ id: string }>(`
       INSERT INTO roles (id, application_id, code, name, kind, status, is_system, created_by_user_id)
-      VALUES ($1, 'operations', $2, $3, 'system', 'published', true, $4)
+      VALUES ($1, $2, $3, $4, 'system', 'published', true, $5)
       ON CONFLICT (application_id, code) DO NOTHING
       RETURNING id
-    `, [crypto.randomUUID(), assignment.roleCode, `运营默认角色：${input.role}`, input.actorUserId]);
+    `, [
+      crypto.randomUUID(),
+      targetApp,
+      assignment.roleCode,
+      `${targetApp === "maintenance" ? "运维" : "运营"}默认角色：${input.role}`,
+      input.actorUserId,
+    ]);
     const role = insertedRole.rows[0] ?? (await client.query<{ id: string }>(`
       SELECT id FROM roles
-      WHERE application_id = 'operations' AND code = $1 AND is_system = true
+      WHERE application_id = $1 AND code = $2 AND is_system = true
       FOR UPDATE
-    `, [assignment.roleCode])).rows[0];
+    `, [targetApp, assignment.roleCode])).rows[0];
     if (!role) throw new Error("DEFAULT_ROLE_CODE_CONFLICT");
     await client.query("DELETE FROM role_permissions WHERE role_id = $1", [role.id]);
     for (const permission of assignment.permissions) {
@@ -61,12 +70,12 @@ export async function provisionInternalMember(pool: Pool, input: {
       INSERT INTO user_role_assignments (
         id, user_id, role_id, application_id, organization_id,
         scope_organization_ids_json, status, effective_at, granted_by_user_id, reason
-      ) VALUES ($1, $2, $3, 'operations', $4, jsonb_build_array($4::text), 'active', $5, $6, $7)
-    `, [crypto.randomUUID(), input.userId, role.id, organizationId, now, input.actorUserId, input.reason?.trim().slice(0, 500) || "internal member invitation"]);
+      ) VALUES ($1, $2, $3, $4, $5, jsonb_build_array($5::text), 'active', $6, $7, $8)
+    `, [crypto.randomUUID(), input.userId, role.id, targetApp, organizationId, now, input.actorUserId, input.reason?.trim().slice(0, 500) || "internal member invitation"]);
     await client.query(`
       INSERT INTO auth_tokens (id, user_id, token_hash, purpose, token_audience, expires_at)
-      VALUES ($1, $2, $3, 'reset_password', 'operations', $4)
-    `, [crypto.randomUUID(), input.userId, input.activationTokenHash, activationExpiresAt]);
+      VALUES ($1, $2, $3, 'reset_password', $4, $5)
+    `, [crypto.randomUUID(), input.userId, input.activationTokenHash, targetApp, activationExpiresAt]);
     await client.query(`
       INSERT INTO notification_deliveries (
         id, user_id, channel, category, template_key, payload_json, scheduled_at,
@@ -78,7 +87,7 @@ export async function provisionInternalMember(pool: Pool, input: {
         encryptedToken: input.encryptedNotificationToken,
         role: input.role,
         activation: true,
-        audience: "operations",
+        audience: targetApp,
         expiresAt: activationExpiresAt.toISOString(),
       }),
       now.toISOString(),
@@ -89,7 +98,7 @@ export async function provisionInternalMember(pool: Pool, input: {
       VALUES ($1, $2, 'organization.member_created', 'user', $3, $4, $5)
     `, [
       crypto.randomUUID(), input.actorUserId, input.userId,
-      JSON.stringify({ email: input.email, role: input.role, organizationId, activation: "email_set_password", explicitAssignment: true, reason: input.reason?.trim().slice(0, 500) || "internal member invitation" }),
+      JSON.stringify({ email: input.email, role: input.role, organizationId, applicationId: targetApp, activation: "email_set_password", explicitAssignment: true, reason: input.reason?.trim().slice(0, 500) || "internal member invitation" }),
       now,
     ]);
     await client.query("COMMIT");
