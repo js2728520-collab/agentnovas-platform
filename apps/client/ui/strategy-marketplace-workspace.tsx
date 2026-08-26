@@ -238,6 +238,8 @@ function FollowPanel({ strategy, onFollowed }: { strategy: Strategy; onFollowed:
         onChange={(event) => setStopLossPct(event.target.value)} />
       {/* 这个数字就是自动风控的停机线——客户同意的是它，不是某个他没看过的平台阈值。 */}
       <small>累计回撤触及这条线时，系统自动阻断该跟单的新开仓。</small>
+      {/* 止盈不是客户跟单时另加的一条参数：离场由客户确认的策略版本条件驱动，避免用固定目标改写策略。 */}
+      <small>不设置单独的固定止盈线；已有持仓何时离场由你确认的策略版本中的离场条件决定。</small>
     </label>
 
     <div className={styles.disclosure}>

@@ -81,6 +81,9 @@ async function exerciseStrategyMarketplace(page: import("@playwright/test").Page
 
   // 止损线的说明必须写清它就是自动风控的停机线。
   await expect(page.getByText(/累计回撤触及这条线时，系统自动阻断该跟单的新开仓/)).toBeVisible();
+  // 不允许跟单配置暗中加入固定止盈；离场只跟随已确认策略版本的 exit 条件。
+  await expect(page.getByText(/不设置单独的固定止盈线；已有持仓何时离场由你确认的策略版本中的离场条件决定/)).toBeVisible();
+  await expect(page.locator('input[name="takeProfitPct"]')).toHaveCount(0);
 
   // 筛选和排序在浏览器中实际生效；当前质量夹具只有一条正收益策略，结果数仍必须可见。
   await page.getByLabel("按收益区间筛选").selectOption("positive");

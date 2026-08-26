@@ -33,6 +33,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json({ error: "当前所属范围处于紧急停止状态，暂不能开启策略跟随" }, { status: 503 });
     }
     const body = await readResearchJson(request, 4_096);
+    const allowedFields = new Set(["capitalPct", "stopLossPct", "acceptDisclosure"]);
+    const unknownFields = Object.keys(body).filter((key) => !allowedFields.has(key)).sort();
+    if (unknownFields.length > 0) {
+      throw new ResearchApiError(
+        "FOLLOW_INPUT_UNKNOWN_FIELDS",
+        "跟单请求包含不允许的字段",
+        422,
+        { fields: unknownFields },
+      );
+    }
     // 披露必须被显式确认。默认同意等于没有确认。
     if (body.acceptDisclosure !== true) {
       throw new ResearchApiError("FOLLOW_DISCLOSURE_REQUIRED", "请先确认跟单风险披露", 422);

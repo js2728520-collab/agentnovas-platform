@@ -43,6 +43,9 @@ test("不公开策略逻辑，只公开历史表现", async () => {
   assert.match(workspace, /回测区间/);
 });
 
+test("广场回测按最新创建时间稳定排序", async () => {
+  assert.match(publicList, /strategyBacktestReports\.createdAt\), desc\(strategyBacktestReports\.id\)/);
+});
 test("内部角色枚举不外露，只给「是不是平台自营」", async () => {
   assert.match(publicList, /isPlatformAuthor: authorRole !== "customer"/);
   const workspace = await readFile(

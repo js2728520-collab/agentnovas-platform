@@ -29,6 +29,12 @@ test("被风控阻断时说清是谁停的、能不能自己恢复", async () =>
   }
 });
 
+test("跟单结果持续说明没有额外固定止盈", async () => {
+  const workspace = await read("apps/client/ui/follow-results-workspace.tsx");
+  assert.match(workspace, /不设置单独的固定止盈线；离场由已确认策略版本中的离场条件决定/);
+  assert.match(workspace, /每单占比 \{follow\.capitalPct\}%.*止损线 \{follow\.stopLossPct\}%/s);
+});
+
 test("明说模拟跟单不收分成，合同费率待实盘才适用", async () => {
   // 不说清楚，客户看到合同里的费率会以为在扣钱（P-06：paper 不收费）。
   const workspace = await read("apps/client/ui/follow-results-workspace.tsx");

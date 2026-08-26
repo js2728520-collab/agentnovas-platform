@@ -13,6 +13,14 @@ test("开的是 paper 跟单，实盘仍然关闭", async () => {
   assert.doesNotMatch(route, /'live'/);
 });
 
+test("跟单输入失败关闭，不接受额外固定止盈", async () => {
+  // 忽略 takeProfitPct 会让客户以为固定止盈已经生效；未知字段必须在写入前明确拒绝。
+  assert.match(route, /allowedFields = new Set\(\["capitalPct", "stopLossPct", "acceptDisclosure"\]\)/);
+  assert.match(route, /FOLLOW_INPUT_UNKNOWN_FIELDS/);
+  assert.match(route, /unknownFields\.length > 0/);
+  assert.doesNotMatch(route, /allowedFields[^;]*takeProfitPct/s);
+});
+
 test("披露必须被显式确认", async () => {
   // 默认同意等于没有确认。
   assert.match(route, /body\.acceptDisclosure !== true/);

@@ -113,6 +113,7 @@ function FollowCard({ follow }: { follow: Follow }) {
 
     <p className={styles.note}>
       {statusNotes[follow.status] ?? ""} 每单占比 {follow.capitalPct}%，止损线 {follow.stopLossPct}%。
+      不设置单独的固定止盈线；离场由已确认策略版本中的离场条件决定。
     </p>
 
     {portfolio && <>

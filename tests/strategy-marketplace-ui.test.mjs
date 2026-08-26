@@ -58,6 +58,15 @@ test("止损线说明写清它就是自动风控的停机线", async () => {
   assert.match(workspace, /累计回撤触及这条线时，系统自动阻断该跟单的新开仓/);
 });
 
+test("止盈由已确认策略版本的 exit 条件驱动，不提供额外固定目标", async () => {
+  const workspace = await read("apps/client/ui/strategy-marketplace-workspace.tsx");
+  const route = await read("app/api/strategy-marketplace/[id]/follow/route.client.ts");
+  assert.match(workspace, /不设置单独的固定止盈线；已有持仓何时离场由你确认的策略版本中的离场条件决定/);
+  assert.doesNotMatch(workspace, /name=["']takeProfitPct["']/);
+  assert.match(route, /allowedFields = new Set\(\["capitalPct", "stopLossPct", "acceptDisclosure"\]\)/);
+  assert.doesNotMatch(route, /body\.takeProfitPct/);
+});
+
 test("明说是模拟跟单，不产生真实订单", async () => {
   const workspace = await read("apps/client/ui/strategy-marketplace-workspace.tsx");
   assert.match(workspace, /跟单为服务器记账的模拟成交，不产生真实订单/);

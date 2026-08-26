@@ -86,7 +86,7 @@ export async function GET(request: Request) {
       ? await db.select().from(strategyBacktestReports).where(and(
           inArray(strategyBacktestReports.strategyId, ids),
           eq(strategyBacktestReports.kind, "backtest"),
-        ))
+        )).orderBy(desc(strategyBacktestReports.createdAt), desc(strategyBacktestReports.id))
       : [];
     const followers = ids.length
       ? await db
