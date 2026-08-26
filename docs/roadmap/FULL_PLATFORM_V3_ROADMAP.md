@@ -1,7 +1,7 @@
 # AgentNovas 全平台 V3 分阶段升级路线图
 
 状态：`TARGET`；当前发布范围已于 2026-08-25 单独冻结为 S0（受控 Paper/Demo 商业平台），本路线图仍描述后续 V3 目标与依赖，不代表这些目标已获当前发布授权
-分支：`codex/platform-v3-doc-sync`
+分支：`worktree-audit-remediation-plan`
 日期：2026-08-23
 
 > **当前范围边界：** S0 是当前唯一发布范围。Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 不属于 S0，均为后续独立切片，必须分别通过自己的 ADR、Gate、授权和发布评审后才可启用。本文的 Phase 5–9 和“全平台 V3”表述是路线图/目标，不得解读为当前发布承诺。
@@ -81,12 +81,12 @@ MFA 上线策略见 ADR-0023。
 1. 品牌、域名、协议和 i18n 配置版本。
 2. 六套主题 token 和组件/图表适配。
 3. 功能开关多粒度与定时发布。
-4. Prompt/技能草稿、测试、双审和回滚；PS-01–PS-06 已冻结，Skill runtime consumer 仍须独立完成 T3.10，当前 S0 不启用可编辑 Skill 执行。
+4. Prompt/技能草稿、测试、双审和回滚；PS-01–PS-06 已冻结，Prompt 独立证据/Gate 归入 T3.4a，Skill runtime consumer 归入 T3.4b，当前 S0 不启用可编辑 Skill 执行。
 5. 套餐、Credits、USDT 支付、退款和优惠版本。
 6. Token 用量多维统计。
 
 实施快照（2026-08-26）：通用版本内核、Maintenance 工作台、最小权限到期激活 Worker，以及
-`client.strategy_research` 全局 v1 与用户/组织/版本/稳定百分比/独立时窗定向 v2 已完成；Prompt/Skill 的 PS1 合同/tester、PS2 Prompt consumer/任务版本固定和 PS3 Maintenance 工作台也已有实现资产。Prompt 仍须独立证据/Gate，配置 `ACTIVE` 不代表运行时或发布已通过；Skill runtime consumer 尚未实现，归入 S0 之外的 T3.10。品牌/域名、价格/Credits 仍按任务清单和各自依赖推进。支付、人工退款和优惠保留目标设计及服务端安全配置入口，但真实 runtime consumer、外部结果和任何余额/Credits/应收/发票/作者余额/资金账本副作用不属于 S0，须独立商业/账本 Gate；Phase 3 尚未满足退出条件。
+`client.strategy_research` 全局 v1 与用户/组织/版本/稳定百分比/独立时窗定向 v2 已完成；Prompt/Skill 的 PS1 合同/tester、PS2 Prompt consumer/任务版本固定和 PS3 Maintenance 工作台也已有实现资产。Prompt 仍须通过 T3.4a 独立证据/Gate，配置 `ACTIVE` 不代表运行时或发布已通过；Skill runtime consumer 尚未实现，归入 S0 之外的 T3.4b。P-10/P-11 与语言范围已冻结；T3.10b 六主题、T3.11b2 Client Portal 七语言、品牌/域名 consumer 和价格/Credits 仍按任务清单及各自 Gate 推进。支付、人工退款和优惠保留目标设计及服务端安全配置入口，但真实 runtime consumer、外部结果和任何余额/Credits/应收/发票/作者余额/资金账本副作用不属于 S0，须独立商业/账本 Gate；Phase 3 尚未满足退出条件。
 
 退出条件：配置历史不可覆盖，所有高风险变更可回滚。
 

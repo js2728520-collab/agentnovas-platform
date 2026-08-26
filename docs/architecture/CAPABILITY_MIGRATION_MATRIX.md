@@ -2,9 +2,9 @@
 
 > 文档状态：`TARGET_TRUTH/PARTIAL_CURRENT`。本文把需求方已确认的 V3 目标逐项映射到当前代码、数据库、三端页面、后台进程和测试证据；它不把 `TARGET`、`PARTIAL` 或 `BLOCKED` 能力描述成已上线。产品范围以 [`../product/PRD.md`](../product/PRD.md) 为准，执行顺序以 [`../../tasks/plan.md`](../../tasks/plan.md) 为准。
 
-- 更新日期：2026-08-24
-- 基线分支：`codex/platform-v3-doc-sync`
-- 基线提交：`7279688`（另有两处用户本地改动未纳入本矩阵）
+- 更新日期：2026-08-26
+- 当前工作分支：`worktree-audit-remediation-plan`
+- 对齐基线提交：`791c90f`；本次主题/语言合同修订为未提交工作树改动
 
 ## 1. 状态与证据口径
 
@@ -103,12 +103,12 @@
 | C-02 | 配置与控制无确认弹窗，原因内联单击执行 | Maintenance 普通配置、测试、模型回滚、商业披露、版本证据、充值启停、Demo 安全控制和紧急暂停均使用页面内影响说明与审计原因；应用内无确认 dialog | Maintenance 各工作台 | `CURRENT` | recent MFA、RBAC、maker/checker、幂等、状态机和审计仍是强制安全边界；后续页面不得恢复重复确认。 |
 | C-03 | 全局策略研究功能开关 | `feature_flag/client.strategy_research` v1；严格 schema、确定性 tester、最小权限 active consumer、双 Gate | `/configurations` + strategy research route | `CURRENT` | v1 全局 bool 保持兼容；环境 Gate 始终是上限。 |
 | C-04 | 用户/组织/版本/百分比/独立时窗 targeting | schema v2 单规则；服务端用户/组织/部署版本/时间；稳定 SHA-256 分桶；严格规范化、测试、current、回滚和无弹窗 UI | feature flag family v2 + strategy research consumer | `CURRENT` | 多规则优先级不属于 v2；未来扩展必须新建 schema。 |
-| C-05 | 品牌、Logo、域名、协议、多语言配置 | platform settings 与 disclosure 基础；没有六主题素材和正式域名消费者 | Maintenance settings/configurations + 三端 public config | `BLOCKED` | P-10/P-11；域名还影响 Cookie/CORS/TLS/邮件链接。 |
-| C-06 | Prompt/技能 CRUD、测试、双审、历史和回滚 | 7 个研究 prompt role、3 个 runtime explanation role、Prompt 配置合同/确定性 tester 与 PS2 任务固定已接入；Skill 仅有声明式 schema/tester，仍无 runtime consumer | Prompt/Skill versioned configuration family + Maintenance models/configurations | `PARTIAL/BLOCKED` | PS-01–PS-06 已冻结；Prompt consumer 仍需独立 Gate，Skill runtime consumer、任务加载与 T3.10 尚未完成。当前 S0 不启用可编辑 Skill 执行；active 的 Skill 版本不等于业务已生效。 |
+| C-05 | 品牌、Logo、域名、协议、多语言配置 | platform settings 与 disclosure 基础；P-10/P-11 和语言范围已冻结，但正式 consumer 与外部设计资源替换尚未完成 | Maintenance settings/configurations + 三端 public config | `PARTIAL/TARGET` | 派生品牌 token 可先实施；正式域名仍影响 Cookie/CORS/TLS/邮件链接，外部设计资源到位后再替换。 |
+| C-06 | Prompt/技能 CRUD、测试、双审、历史和回滚 | 7 个研究 prompt role、3 个 runtime explanation role、Prompt 配置合同/确定性 tester 与 PS2 任务固定已接入；Skill 仅有声明式 schema/tester，仍无 runtime consumer | Prompt/Skill versioned configuration family + Maintenance models/configurations | `PARTIAL/BLOCKED` | PS-01–PS-06 已冻结；Prompt 独立证据/Gate 属于 T3.4a，Skill runtime consumer、任务加载与独立 Gate 属于 T3.4b。当前 S0 不启用可编辑 Skill 执行；active 的 Skill 版本不等于业务已生效。 |
 | C-07 | 月/季/年/终身套餐、USDT 价格、权益版本 | `commercial_plan_versions` 和当前 Beta 四档基础；P-07 唯一参数源为 `packages/contracts/src/product-parameters.ts`，历史订单/权益/收费事实必须 pin 不可变版本或参数快照 | Maintenance 计费配置 + Client 会员 | `PARTIAL/BLOCKED` | P-07 参数已冻结；仍缺完整价格消费者、双审发布/回滚和目标 Gate，不能覆盖历史版本。 |
 | C-08 | 固定对话 Credits、不可变流水和用量分析 | AI reservation/ledger、可信 usage、取消单次 release、完成/取消竞态与同 key 重放；P-08 唯一参数源为 `packages/contracts/src/product-parameters.ts`；T3.9a `/ai-usage` 和 Maintenance-only GET 按 UTC 请求创建 cohort 聚合已预留 inference，提供可信成功 Token、settled Credits、已记录非取消失败率、组织请求级快照/legacy 质量、稳定伪名用户、模型 revision、Agent、功能和日期；90 天/Top 50 有界 | Maintenance `/ai-usage` + Client AI；T3.9b 固定 Credits consumer/价格分档/`provider_usage` 模式切换 | `CURRENT/PARTIAL/BLOCKED` | P-08 参数已冻结，但 T3.9b 固定 Credits/模型功能分档/`provider_usage` runtime consumer 与切换、价格版本引用和独立 Gate 尚未完成；这些不属于当前 S0，也不是后续 S0 增量；当前可信用量结算不是固定价或可切换模式。 |
 | C-09 | 人工退款、原渠道结果、优惠码/券 | 当前人工付款与审批基础；没有 V3 退款/优惠规则模型 | Client 订单 + Operations 复核 + Maintenance 规则 | `TARGET/BLOCKED` | S0 只保留目标合同和服务端安全配置入口；不得声称支付成功、退款完成或优惠已应用，不得产生余额/Credits/应收/发票/作者余额/资金账本副作用。运行时 consumer、渠道/provider 合同、历史 pin、回滚及独立商业/账本 Gate 均待完成。 |
-| C-10 | 三浅三深、英语默认、偏好优先级 | 当前主题/局部 locale 基础 | 三端 token、图表、邮件/错误页和偏好持久化 | `BLOCKED` | P-10 设计稿/品牌 token；需 320/768/1024/1440 与 axe Gate。 |
+| C-10 | 六个有效主题、主题两轴偏好、Client 英语默认与七语言 | 当前主题/局部 locale 基础；T3.11a/T3.11b1 已完成 | T3.10b 三端 token/图表/主题偏好；T3.11b2 Client Portal 字典、账号偏好、邮件/错误页 | `PARTIAL/TARGET` | P-10 与语言范围已冻结；可先使用派生 token。仍需首屏无闪烁、同源标签页同步、账号 locale 跨设备同步及 320/768/1024/1440、axe Gate。 |
 
 ## 6. Phase 4：AI 助手、工作记录和策略市场
 
@@ -183,7 +183,7 @@
 | 顺序 | 切片 | 规模 | 当前依赖 |
 | ---: | --- | --- | --- |
 | 1 | G1 目标环境真实邮件、三端 MFA rollout 与回滚证据 | M | 生产变更窗口/真实邮件授权 |
-| 2 | Prompt/Skill 可编辑边界确认与 family v1 | M | PS-01–PS-06 已冻结；当前继续收口 Prompt evidence/Gate 与 T3.10 Skill runtime consumer |
+| 2 | Prompt/Skill 可编辑边界确认与 family v1 | M | PS-01–PS-06 已冻结；当前继续收口 T3.4a Prompt evidence/Gate 与 T3.4b Skill runtime consumer |
 | 3 | market/provider/symbol/calendar schema 与只读 API | M | P-01/P-03 可分市场冻结 |
 | 4 | 单一市场 WebSocket + stale Gate | L，拆 provider 接入/前端/风险三片 | M-01 和 provider sandbox |
 | 5 | AI 助手统一入口与信息架构收敛 | M | P-04 已冻结为按现有方向原生演进；不依赖 QuantDinger 移植参考 |

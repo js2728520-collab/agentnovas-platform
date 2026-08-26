@@ -207,11 +207,14 @@ export const FUNDS_OUTBOUND = Object.freeze({
   feeChangeRequiresMakerChecker: true,
 });
 
-/** P-10：先按现有品牌色派生三浅三深，设计稿到位后替换配色；默认深色。 */
+/** P-10：先按现有品牌色派生三浅三深，设计稿到位后替换配色；默认 Riverton 并跟随系统明暗。 */
 export const THEMES = Object.freeze({
+  families: Object.freeze(["riverton", "neutral", "high-contrast"] as const),
+  modes: Object.freeze(["system", "light", "dark"] as const),
   light: Object.freeze(["riverton-light", "neutral-light", "high-contrast-light"] as const),
   dark: Object.freeze(["riverton-dark", "neutral-dark", "high-contrast-dark"] as const),
-  defaultTheme: "riverton-dark" as const,
+  defaultFamily: "riverton" as const,
+  defaultMode: "system" as const,
   derivedFromBrandTokens: true,
   awaitingDesignAssets: true,
 });

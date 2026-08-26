@@ -76,4 +76,4 @@ Exact providers, products, markets, audiences, environments, owners, monitoring 
 
 ## Release boundary
 
-This documentation decision freezes S0 as the sole current release scope. It narrows the release conversation to S0 gates, evidence, and rollback/runbook pointers without changing implementation state or authorizing a go decision. Editable Skill runtime execution remains outside S0 and requires the independent T3.10 contract, consumer, and Gate; Prompt version governance and any Prompt consumer remain subject to their own evidence and Gate.
+This documentation decision freezes S0 as the sole current release scope. It narrows the release conversation to S0 gates, evidence, and rollback/runbook pointers without changing implementation state or authorizing a go decision. Editable Skill runtime execution remains outside S0 and requires the independent T3.4b contract, consumer, and Gate; Prompt version governance and any Prompt consumer remain subject to the T3.4a evidence and Gate.

@@ -24,7 +24,7 @@
 
 - `DOCUMENT_STATUS_MATRIX.md`：全部文档的 Target、Current、Foundation、Historical 与 Retired 分类。
 - `product/PRD.md`：需求方已确认的完整三端平台产品真源，覆盖行情、AI、策略市场、真实交易目标、权限注册链接、运营和运维；高风险能力仍受 ADR、安全评审和发布 Gate 约束。
-- `product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md`：PS-01–PS-06 已冻结的 Prompt/Skill v1 实施边界；Prompt 版本治理与现有 consumer 按独立 Gate 管理，Skill runtime consumer 不属于当前 S0，须通过 T3.10 后再启用。
+- `product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md`：PS-01–PS-06 已冻结的 Prompt/Skill v1 实施边界；Prompt 版本治理与现有 consumer 按 T3.4a 独立 Gate 管理，Skill runtime consumer 不属于当前 S0，须通过 T3.4b 后再启用。
 - `product/FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md`：V3 跨团队功能说明。
 - `product/FUNCTIONAL_DESCRIPTION.md`：当前 Beta/Paper 已实现功能基线。
 - `product/SEVEN_AGENT_TRADING_HALL.md`：由《七智能体动态策略系统_用户说明书》提炼的交易大厅产品真源。
@@ -33,6 +33,8 @@
 - `specs/SYSTEM_SPEC.md` 与现有三端 App Spec：当前 Beta/Paper 可达合同和硬关闭边界。
 - `specs/RELEASE_VERSION_MANAGEMENT_SPEC.md`：SemVer、不可变验证/部署证据、环境 current 与回滚状态机。
 - `specs/VERSIONED_CONFIGURATION_FRAMEWORK_SPEC.md`：通用配置 draft/test/approve/schedule/activate/rollback 合同；T3.1a 内核/API、T3.1b 工作台/最小权限自动激活 Worker、功能开关全局 v1 与定向 v2 已实现，其余配置族仍为 Target/Blocked。
+- `specs/PLATFORM_THEME_PREFERENCE_SPEC.md`：T3.10b 主题族/明暗模式两轴、六个有效主题、设备偏好、首屏与同源标签页同步合同。
+- `specs/PLATFORM_LOCALE_SPEC.md`：Client Portal 默认英语与七语言、账号跨设备偏好、本地首屏镜像，以及 Operations/Maintenance 中文单语言边界。
 - `specs/MARKET_DATA_CONTRACT_SPEC.md`：T2.1/T2.2a/T2.3a/T2.11a 多市场合同；provider 独立类型、当前四市场兼容 API、流状态机、单周期仲裁及 Runtime candle stale Gate 已实现，真实供应商、WebSocket adapter 与 stream 综合准入仍待授权和优先级结论。
 - `specs/MARKET_SOURCE_BINDING_SPEC.md`：T2.4 行情源选择与策略级绑定合同；provider-independent 选择/解析、不可变绑定和双 fingerprint 已实现，持久化、UI 与 Runtime 接入等待 P-01/provider registry。
 - `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md`：T4.3a 普通对话取消、provider abort、原请求安全重放和 Credits 唯一终态合同；P-08 参数已冻结，固定 Credits consumer、模型/功能分档和 `provider_usage` 模式切换属于尚未实现且不在当前 S0 的 T3.9b。

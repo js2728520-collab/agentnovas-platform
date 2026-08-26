@@ -1,7 +1,7 @@
 # AgentNovas 文档状态与同步矩阵
 
-更新日期：2026-08-25
-目标分支：`codex/platform-v3-doc-sync`
+更新日期：2026-08-26
+目标分支：`worktree-audit-remediation-plan`
 
 ## 1. 状态说明
 
@@ -22,13 +22,15 @@
 | `README.md` | `TARGET_TRUTH` | 文档入口与阅读路径 |
 | `DOCUMENT_STATUS_MATRIX.md` | `TARGET_TRUTH` | 全部文档生命周期与同步规则 |
 | `product/PRD.md` | `TARGET_TRUTH` | 完整需求、首期范围、P-01–P-12 冻结参数及 P-07/P-08 真源/快照边界、冲突解释和待补参数 |
-| `product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` | `TARGET_TRUTH/CONFIRMED` | PS-01–PS-06 已冻结；Prompt 版本治理与已接入的 Prompt consumer 仍按独立 Gate 管理，Skill runtime consumer 不属于当前 S0，须通过 T3.10 后再启用 |
+| `product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` | `TARGET_TRUTH/CONFIRMED` | PS-01–PS-06 已冻结；Prompt 版本治理与已接入的 Prompt consumer 仍按 T3.4a 独立 Gate 管理，Skill runtime consumer 不属于当前 S0，须通过 T3.4b 后再启用 |
 | `product/FULL_PLATFORM_V3_FUNCTIONAL_DESCRIPTION.md` | `TARGET_TRUTH` | 跨团队功能说明；S0 仅在独立 G3 证据通过后纳入 Paper/Demo 策略市场、Paper 跟单与明确标注的模拟费用计算，真实跟单与真实商业结算仍由 G4/G4A 及商业/账本 Gate 独立约束 |
 | `specs/V3_SYSTEM_TARGET_SPEC.md` | `TARGET_TRUTH` | V3 系统、数据、安全和执行边界；明确 S0 Paper/Demo 跟单、模拟费用计算与 G4/G4A、商业/账本 Gate 的独立边界 |
 | `specs/V3_CLIENT_APP_TARGET_SPEC.md` | `TARGET_TRUTH` | Client 目标规格；Paper/Demo 跟单与模拟费用计算可纳入 S0 的前提及真实跟单/结算的后续 Gate 边界 |
 | `specs/V3_OPERATIONS_APP_TARGET_SPEC.md` | `TARGET_TRUTH` | Operations 目标规格 |
 | `specs/V3_MAINTENANCE_APP_TARGET_SPEC.md` | `TARGET_TRUTH` | Maintenance 目标规格 |
 | `specs/VERSIONED_CONFIGURATION_FRAMEWORK_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T3.1 通用发布合同；P-07/P-08 数字以 `packages/contracts/src/product-parameters.ts` 为唯一真源，价格/权益/Credits 历史必须 pin 不可变版本/快照；S0 保留已有独立证据的 Credits 事实但不把模拟费用写入 Credits/服务余额/资金账本；T3.1a 数据/API、T3.1b 工作台/Worker、T3.1c-FF1 全局与 FF2 定向功能开关已实现，其余配置族未完成 |
+| `specs/PLATFORM_THEME_PREFERENCE_SPEC.md` | `TARGET_TRUTH/CONFIRMED` | T3.10b 六个有效主题、主题族/明暗模式两轴、设备偏好、首屏与同源标签页同步合同；尚未实现或通过体验 Gate |
+| `specs/PLATFORM_LOCALE_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T3.11a/T3.11b1 已实现；T3.11b2 Client Portal 默认英语、七语言与账号跨设备偏好已确认待实施，Operations/Maintenance 保持中文单语言 |
 | `specs/MARKET_DATA_CONTRACT_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.1a/T2.1b 合同、当前四市场兼容 API、T2.2a 流状态机、T2.3a 单周期仲裁与 T2.11a Runtime candle stale Gate 已实现；P-03 六个股票市场的真实 provider/WebSocket adapter 与有状态切换等待授权、供应商和 Gate |
 | `specs/MARKET_SOURCE_BINDING_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.4a provider-independent 选择/解析、不可变绑定与双 fingerprint 已实现；T2.4b 持久化、UI、Runtime 和历史迁移等待 P-01/provider registry |
 | `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T4.3a 普通对话取消、provider abort、原请求重放与 Credits 单终态已实现；S0 保留已有独立证据的 Credits 事实，固定 Credits consumer、模型/功能分档与 `provider_usage` 模式切换属于尚未实现且不在当前 S0 的 T3.9b |

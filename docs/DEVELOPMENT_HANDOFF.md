@@ -4444,3 +4444,28 @@ G3 focused 浏览器旅程以端口偏移 `1000` 运行，避开本机非项目�
 验证：AI/rendered HTML 定向合同 10/10；全量 `npm test` 1736/1736；`npx tsc --noEmit`、全仓 ESLint、`npm run quality:bundle`、`npm run quality:boundaries`、`npm run test:apps` 与 `git diff --check` 通过；`QUALITY_E2E_PORT_OFFSET=1000 npm run test:e2e -- --grep "public locale and client communication"` 真实 Chromium 1/1 通过。此前直接运行 Playwright 缺少质量运行时夹具而失败，随后通过质量 runner 重跑；该失败不作为产品回归。
 
 本轮未执行生产迁移、未接触生产数据库、未启动或切换远端服务、未打开 Spot Live/Perpetual/Withdrawal/CI-CD、未推送、未部署；G3 全量 release evidence、云端构建和正式发布批准仍待独立完成。
+
+## 121. 2026-08-26 T3.10b 主题与 T3.11b2 Client Portal 语言合同对齐
+
+需求方批量确认主题与语言采用主流、非核心功能的推荐方案。本切片把讨论结论收敛为可实施合同，
+不开始 UI、API 或数据库迁移实现。T3.10b 直接交付 `riverton/neutral/high-contrast` 主题族与
+`system/light/dark` 明暗模式两轴偏好，默认 `riverton + system`，运行时只使用六个有效主题 ID。
+主题偏好仅保存在设备/浏览器，使用版本化 `riverton-theme` JSON、旧 light/dark 迁移、首屏安全
+bootstrap 和同源标签页同步；不进入账号、数据库或跨域。Client Portal、Operations、Maintenance
+工作区提供两个原生选择器，三端登录页只消费偏好，Client 营销落地页保持独立单一深色视觉。
+
+T3.11b2 固定 Client 默认 `en-US` 并支持七个 canonical locale；账号显式偏好跨设备同步，本地镜像
+用于首屏及公开/登录页，同源标签页实时同步。优先级固定为账号显式偏好 > 当前设备本地偏好 >
+`navigator.languages` > `en-US`。新增可空的 `locale_preference_updated_at` 区分数据库默认与显式
+选择，目标 API 为 Client-only `PATCH /api/account/preferences/locale`。Operations/Maintenance 保持
+`zh-CN` 单语言，系统邮件保持英语；法律、用户和 provider 内容不机器翻译。
+
+任务编号同步消除旧冲突：Prompt 独立证据/Gate 为 T3.4a，Skill runtime consumer 为 T3.4b，完整
+主题为 T3.10b，Client Portal 语言闭环为 T3.11b2。P-10/P-11 和语言范围均为已冻结，不再标记为
+等待需求确认；正式设计资源仍可在不改变主题 ID/schema 的前提下后续替换派生 token。正式合同见
+`docs/specs/PLATFORM_THEME_PREFERENCE_SPEC.md` 与 `docs/specs/PLATFORM_LOCALE_SPEC.md`。临时根目录
+`CODEX_HANDOFF_THEME_SLICE.md` 已在内容吸收后删除，历史交接条目未改写。
+
+本次只修改目标/任务文档及 P-10 合同常量与定向测试，没有实现主题 UI、locale provider、账号 API、
+数据库字段或迁移，也没有声明 T3.10b、T3.11b2 或 G8 已通过。验证以本次最终命令结果为准；未执行
+生产迁移、未接触生产数据库、未推送、未部署。

@@ -145,8 +145,14 @@ S0 可以保留支付、退款和优惠的目标合同及服务端安全配置�
 schema、服务端确定性测试和 Client 最小权限网关接管策略研究 GET/POST；评估上下文由服务端
 身份、部署元数据和时间提供，环境 Gate 仍是上限，配置只能进一步收窄。Prompt/Skill 的 PS1
 合同与确定性 tester、PS2 Prompt consumer 和任务版本固定、PS3 Maintenance 工作台已有实现资产；
-Prompt 仍须独立证据/Gate，Skill runtime consumer 尚未实现并归入 S0 之外的 T3.10。其他配置
+Prompt 仍须通过 T3.4a 独立证据/Gate，Skill runtime consumer 尚未实现并归入 S0 之外的 T3.4b。其他配置
 消费者仍未实现，因此本节整体仍为 `PARTIAL/TARGET`；配置 `ACTIVE` 不表示运行时或发布已经通过。
+
+主题与语言由两个独立偏好合同管理：T3.10b 的主题族/明暗模式仅保存在设备浏览器并通过同源
+`storage` 事件同步，不进入账号、数据库或跨域；T3.11b2 的 Client locale 显式偏好写入账号并跨设备
+同步，本地镜像用于首屏和公开/登录页。Client 默认英语并支持七语言，Operations/Maintenance 固定
+`zh-CN`，系统邮件保持英语。具体解析、迁移和失败关闭语义分别以
+`PLATFORM_THEME_PREFERENCE_SPEC.md` 与 `PLATFORM_LOCALE_SPEC.md` 为准。
 
 ## 11. Maintenance CI/CD 控制面
 

@@ -1,7 +1,7 @@
 # Implementation Plan：AgentNovas 全平台 V3 升级
 
-状态：Phase 1 进行中；T1.1–T1.6 已实现，G1 真实邮件与生产 MFA 开启态验收待完成
-工作分支：`codex/platform-v3-doc-sync`
+状态：S0 分阶段实施中；T3.10b 六主题与 T3.11b2 Client Portal 七语言合同已确认待实施
+工作分支：`worktree-audit-remediation-plan`
 需求真源：`docs/product/PRD.md`
 路线图：`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md`
 质量门禁：`docs/quality/FULL_PLATFORM_V3_GATES.md`
@@ -10,8 +10,8 @@
 
 在不破坏当前受控 Beta/Paper 可运行基线的前提下，把系统分阶段升级为完整三端交易平台。每个阶段提供可运行的纵向切片、独立 Gate 和回滚点；真实现货、永续、提现/划转和 CI/CD 触发分别解锁。
 
-用户已授权按本计划实施并在当前分支本地提交。外部产品参数未冻结的阶段仍保持阻断，
-不得用假设替代 P-01–P-12 的需求方结论。
+用户已授权按本计划实施并在当前分支本地提交。P-01–P-12 已冻结；参数确认不等于实现、
+独立 Gate 或生产发布通过。
 
 ## 2. 已冻结架构决定
 
@@ -405,11 +405,11 @@ Gate。市场不按“优先/随后”改变冻结范围，provider、交易日�
 
 1. `T3.1c-FF1`：`client.strategy_research` 全局功能开关 v1，严格 `{enabled:boolean}` schema、服务端确定性测试器、Client 最小权限 current 网关和“只能收窄环境 Gate”的消费者。
 2. `T3.1c-FF2`：用户/组织/应用版本/百分比/独立时窗 targeting，作为 T3.3 的新 schema 版本单独设计和验收，不改变 FF1 语义。
-3. `T3.1c-Brand/Domain`、`Prompt/Skill`、`Pricing`：分别在 P-10/P-11、
+3. `T3.1c-Brand/Domain`、`Prompt/Skill`、`Pricing`：按已冻结的 P-10/P-11、
    `docs/product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 的 PS-01–PS-06、P-07/P-08
-   参数确认后接入，禁止占位值生效。
+   分别接入；每个消费者仍须独立合同、回滚和 Gate，禁止用参数冻结或配置 `ACTIVE` 冒充生效。
 
-**当前状态：** T3.1c-FF1 与 FF2 已完成（2026-08-24）；PS-01–PS-06 已冻结，Prompt/Skill 的 PS1 合同/tester、PS2 Prompt consumer/任务版本固定和 PS3 Maintenance 工作台实现资产已完成（见 `9f8af9b`、`a5132a2` 及交接证据）。Prompt 配置与 consumer 仍需独立证据/Gate，不能由配置 `ACTIVE` 推导为运行时或发布已通过；Skill runtime consumer 尚未实现，归入 T3.10 且不属于当前 S0。品牌/域名和 Pricing 仍按 P-10/P-11、P-07/P-08 及各自 Gate 保持 Target/Blocked。注册族固定为 `client.strategy_research` 与 Client audience；schema v1 保留严格 `{enabled:boolean}` 全局语义，schema v2 提供单条显式 targeting 规则。服务端生成确定性测试证据，Client 只通过最小权限 current 网关读取，并在 GET/POST 共用“环境 Gate AND active 配置”的判定。没有 active 版本时保持现有环境开关行为；active 配置只能进一步收窄，不能打开被环境或能力 Gate 禁用的功能。Maintenance 使用受限字段与页面内原因直接操作，无二次弹窗。
+**当前状态：** T3.1c-FF1 与 FF2 已完成（2026-08-24）；PS-01–PS-06 已冻结，Prompt/Skill 的 PS1 合同/tester、PS2 Prompt consumer/任务版本固定和 PS3 Maintenance 工作台实现资产已完成（见 `9f8af9b`、`a5132a2` 及交接证据）。Prompt 配置与 consumer 仍需独立证据/Gate，不能由配置 `ACTIVE` 推导为运行时或发布已通过；Skill runtime consumer 尚未实现，统一归入 T3.4b 且不属于当前 S0。P-10/P-11、P-07/P-08 已冻结，但品牌/域名和 Pricing consumer 仍保持 Target/Partial，等待各自实现与 Gate。注册族固定为 `client.strategy_research` 与 Client audience；schema v1 保留严格 `{enabled:boolean}` 全局语义，schema v2 提供单条显式 targeting 规则。服务端生成确定性测试证据，Client 只通过最小权限 current 网关读取，并在 GET/POST 共用“环境 Gate AND active 配置”的判定。没有 active 版本时保持现有环境开关行为；active 配置只能进一步收窄，不能打开被环境或能力 Gate 禁用的功能。Maintenance 使用受限字段与页面内原因直接操作，无二次弹窗。
 
 **FF1 验证：** family/服务/PostgreSQL/角色/回滚与 UI 合同、1326 项全量测试、TypeScript、ESLint、架构边界、secret scan、production audit；`ssh an-saas` Node 22.21.1 三端 production build；本地隔离 PostgreSQL + 真实 Chromium 18/18，覆盖三端空浏览器登录和仅提交 `{reason}` 的服务端确定性测试。
 
@@ -417,7 +417,7 @@ Gate。市场不按“优先/随后”改变冻结范围，provider、交易日�
 
 **验收：** 消费者只读取 active 精确版本；历史订单/执行引用版本 ID；具体族不能借通用 JSON 绕过安全 Gate。
 **验证：** 每配置族合同、确定性测试证据、消费者 N-1、最小数据库权限、浏览器与回滚演练。
-**依赖：** T3.1b；具体族分别受 P-07/P-08/P-10/P-11 阻断。
+**依赖：** T3.1b；P-07/P-08/P-10/P-11 已冻结，具体消费者仍分别受实现、外部资产和独立 Gate 约束。
 **规模：** 每族 S/M。
 
 ### T3.2：套餐、Credits、退款和优惠
@@ -438,6 +438,21 @@ Gate。市场不按“优先/随后”改变冻结范围，provider、交易日�
 **依赖：** T3.1c-FF1。
 **规模：** M。
 
+### T3.4：Prompt 与 Skill 运行时闭环
+
+**T3.4a Prompt 状态：** 部分完成。PS1 严格合同/确定性 tester、PS2 Prompt consumer 与新任务
+`configurationVersionId + payloadSha256` 固定、PS3 Maintenance 工作台已有实现资产；仍须补齐独立
+运行证据、失败关闭、回滚和发布 Gate，不能由配置 `ACTIVE` 推导为通过。
+
+**T3.4b Skill 状态：** 合同已确认，待实施且不属于当前 S0。最小权限 consumer 只允许新任务加载
+已测试、已审批的 active Skill 版本，并在任务创建时固定版本与 payload 摘要；已排队、执行中和历史
+任务不得随激活/回滚漂移。加载、校验或摘要不一致时失败关闭，不回退到未经固定的可编辑内容。
+
+**验收：** Prompt 与 Skill 分别拥有独立 consumer、任务版本固定、失败关闭、回滚和 Gate 证据；
+Skill 配置 `ACTIVE` 在 T3.4b 通过前不等于任何 Agent 已加载或业务已生效。
+**依赖：** T3.1c-PS1/PS2/PS3 与 PS-01–PS-06 冻结合同。
+**规模：** T3.4a S/M；T3.4b M。
+
 ### T3.9：Maintenance AI 用量分析
 
 **分阶段：** T3.9a 先交付可信用量与运行记录分析；P-08 参数已经冻结，但固定对话 Credits consumer、模型/功能价格分档和计费模式切换作为独立 T3.9b 实现，不属于当前 S0。两者不得混写为同一完成状态。
@@ -451,19 +466,30 @@ Gate。市场不按“优先/随后”改变冻结范围，provider、交易日�
 **依赖：** T4.3a 的可信 usage/取消单终态事实；T3.9a 不依赖固定价格 consumer，T3.9b 采用已经冻结的 P-08 参数并需通过独立实现与 Gate。
 **规模：** M。
 
-### T3.10–T3.11：六主题与 i18n 基础
+### T3.10b：完整六主题与主题偏好
 
-**描述：** 建立三浅三深 token、图表/Logo/状态色和英语默认语言优先级。
+**状态：** 合同已确认，待实施。直接交付 Riverton/Neutral/High Contrast 三个 family 与
+system/light/dark mode，不再先交付临时单轴三态模型。默认 `riverton + system`；主题是设备级偏好，
+使用版本化本地存储并支持旧 light/dark 迁移和同源标签页同步。最终 DOM 只写六个有效主题 ID。
 
-**验收：** 六主题完整；偏好 > 浏览器/地区 > 英语；无闪烁和不可读状态。
-**验证：** visual regression、contrast、四断点、SSR/hydration。
-**依赖：** P-10。
-**规模：** M。
+**范围：** Client Portal、Operations、Maintenance 及三端登录页消费；Client 公开营销落地页保持
+独立单一深色。登录后的工作区使用两个原生选择器。完整合同见
+`docs/specs/PLATFORM_THEME_PREFERENCE_SPEC.md`。
 
-**分阶段：** T3.11a 先完成不依赖 P-10 视觉稿的纯 locale allowlist、公开 Client 英语首屏、
-匿名保存偏好和浏览器语言解析，只使用 `navigator.languages`，不引入 IP/GPS 定位。T3.11b 再完成
-已登录三端、认证/错误页、邮件、格式化器和数据库偏好一致性；其覆盖语言及 Maintenance
-`defaultLocale` 是否可覆盖英语仍待需求方确认。六主题继续等待 P-10。
+**验收：** 六主题 token、图表/Logo/状态色、首帧 bootstrap、刷新、system 媒体变化、四断点、
+键盘、axe、contrast、SSR/hydration 和 bundle budget 完整。
+**依赖：** P-10 已冻结；Client 七语言 labels 依赖 T3.11b2 locale provider。
+**规模：** M/L。
+
+### T3.11：Client 七语言基础与已登录闭环
+
+**分阶段：** T3.11a 已完成公开 Client allowlist、英语首屏、匿名偏好和浏览器解析；T3.11b1 已完成
+数据库默认与七语言写入约束。T3.11b2 范围已于 2026-08-26 确认：Client 默认英语并支持七语言，
+Operations/Maintenance 保持中文单语言，系统邮件统一英语。
+
+**T3.11b2 状态：** 合同已确认，待实施。登录后账号显式偏好跨设备同步并镜像到本地；优先级为
+账号显式偏好 > 当前设备偏好 > 浏览器语言 > 英语。新增显式偏好标记和 Client-only locale preference
+API；Portal 字典按 namespace/路由懒加载。完整合同见 `docs/specs/PLATFORM_LOCALE_SPEC.md` 第 6 节。
 
 **T3.11a 实施证据（2026-08-24）：** 唯一七语言 allowlist、有界浏览器别名解析、英语 fallback、
 匿名 localStorage 偏好和公开 Client 动态字典已实现；不使用 IP/GPS/时区推断。自动加载与人工选择
@@ -479,7 +505,7 @@ production build、production audit 0 和真实 nginx 检查。云端 standalone
 **T3.11b1 边界：** 先用 forward migration 把新账号 `users.locale` 默认改为 `en-US`，并以
 `NOT VALID` 七语言 CHECK 约束未来写入，不批量修改或假定既有账号值是显式偏好。实际 PostgreSQL
 必须证明历史未知值保留、新非法值拒绝、七语言通过和迁移可重放；用户修改 API 与三端消费留给
-语言范围确认后的 T3.11b2。
+已确认范围的 T3.11b2。
 
 **T3.11b1 实施证据（2026-08-24）：** migration `0073`、SQLite/Drizzle 默认和实际 PostgreSQL
 测试已完成，实现提交 `bfeb9bb`。定向 locale 合同/数据库 8/8、完整 0000–0073 migration 链相关

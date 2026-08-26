@@ -22,7 +22,7 @@
 1. 通用 payload 只保存非秘密 JSON；`secret/password/token/apiKey/privateKey` 等字段必须在边界拒绝。模型、支付和集成密钥继续留在既有只写不读专用表。
 2. T3.1a 交付数据库状态机、服务与受控 API；到期版本由有权限人员显式激活，不引入常驻调度 Worker。
 3. T3.1b 交付 Maintenance 工作台和到期激活 Worker；Worker 只消费数据库中已测试通过、已审批且到期的版本，不能自行测试、审批、调度或回滚。
-4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；`client.strategy_research` 的全局 v1 与定向 v2 功能开关已接入，具体价格、域名和设计资源继续受各自实现与 Gate 阻断。P-07/P-08 的数字唯一以 `packages/contracts/src/product-parameters.ts` 为准；价格/权益/固定 Credits 的运行时版本必须从该真源派生并保存不可变历史快照，不能由通用配置 payload 另行定义一套数字。固定 Credits consumer、模型/功能分档和 `provider_usage` 切换另立 T3.9b，不属于当前 S0。Prompt 的版本合同、确定性 tester 和 PS2 任务固定已形成基础，但 Skill runtime consumer 不属于当前 S0，须另行通过 T3.10 后启用。
+4. T3.1c 将品牌、域名、协议、功能开关、Prompt、技能和价格逐类接入；`client.strategy_research` 的全局 v1 与定向 v2 功能开关已接入，具体价格、域名和设计资源继续受各自实现与 Gate 阻断。P-07/P-08 的数字唯一以 `packages/contracts/src/product-parameters.ts` 为准；价格/权益/固定 Credits 的运行时版本必须从该真源派生并保存不可变历史快照，不能由通用配置 payload 另行定义一套数字。固定 Credits consumer、模型/功能分档和 `provider_usage` 切换另立 T3.9b，不属于当前 S0。Prompt 的版本合同、确定性 tester 和 PS2 任务固定已形成基础，但 Skill runtime consumer 不属于当前 S0，须另行通过 T3.4b 后启用。
 5. audience 固定为 `client/operations/maintenance/shared`；配置流以 `(kind, key, audience)` 唯一识别。
 6. T3.1b 分为 UI 与 Worker 两个可独立验收的切片：工作台先行，自动到期激活器随后交付。工作台把人工提交明确称为“登记测试证据”，不能冒充自动测试；在 T3.1c 消费者接入前，active 只代表控制面 current 投影。
 
@@ -274,7 +274,7 @@ Node 22.21.1 构建 Client 68 页、Operations 62 页、Maintenance 51 页全部
 `../product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 第 0 节）。本节描述**合同层**：
 严格 schema 与确定性测试器。
 
-**Prompt 的运行时消费者已由 PS2 接入**（见 13.7），但其启用仍需独立 Gate；Skill 的 runtime consumer 仍未接入且不属于当前 S0，须通过 T3.10 后才可启用。active 的 Skill 版本不代表它已经生效，这与 T3.1c-FF1 建立的规则一致：active 不等于业务已生效。
+**Prompt 的运行时消费者已由 PS2 接入**（见 13.7），但其启用仍需 T3.4a 独立 Gate；Skill 的 runtime consumer 仍未接入且不属于当前 S0，须通过 T3.4b 后才可启用。active 的 Skill 版本不代表它已经生效，这与 T3.1c-FF1 建立的规则一致：active 不等于业务已生效。
 
 ### 13.1 注册的配置流
 
@@ -355,7 +355,7 @@ payload 每次得到不同证据摘要，「确定性测试」也就名存实亡
   `configuration_version_id + payload_sha256`，研发运行在创建时按角色拍下同样的快照。
   执行时按**版本 ID** 回读原版，不看当前生效的是哪一版，因此激活与回滚只影响随后创建的
   新任务。
-- **Skill 仍无运行时消费者且不属于当前 S0。** 合同与测试器就位，但没有任何 Agent 会加载技能包；active 的 Skill 版本不等于已生效。后续 T3.10 必须独立完成最小权限 consumer、任务版本固定、失败关闭、回滚和 Gate，不能由 Prompt PS2 或通用配置 active 状态代替。
+- **Skill 仍无运行时消费者且不属于当前 S0。** 合同与测试器就位，但没有任何 Agent 会加载技能包；active 的 Skill 版本不等于已生效。后续 T3.4b 必须独立完成最小权限 consumer、任务版本固定、失败关闭、回滚和 Gate，不能由 Prompt PS2 或通用配置 active 状态代替。
 - Maintenance 工作台留给 PS3。
 
 ### 13.7 T3.1c-PS2 运行时消费与任务固定（PS-05）

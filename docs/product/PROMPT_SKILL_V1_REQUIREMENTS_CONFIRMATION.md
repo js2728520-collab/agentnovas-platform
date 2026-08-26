@@ -119,7 +119,7 @@ PS-01 至 PS-06 全部采用本文第 2 节的推荐方案，据此冻结为 v1 
 ## 4. 确认后的当前工程边界
 
 - Prompt/Skill 的版本合同与确定性测试可以按冻结结论实施；Prompt consumer 仍须独立 Gate，不能由配置版本 `ACTIVE` 直接推导为发布通过。
-- Skill runtime consumer 不属于当前 S0；在 T3.10 完成最小权限任务加载、版本固定、失败关闭、回滚和独立 Gate 前，不创建会让 Agent 加载可编辑 Skill 的 active consumer。
+- Skill runtime consumer 不属于当前 S0；在 T3.4b 完成最小权限任务加载、版本固定、失败关闭、回滚和独立 Gate 前，不创建会让 Agent 加载可编辑 Skill 的 active consumer。
 - 不把通用配置框架中尚未注册的人工测试证据冒充确定性测试。
 - 不允许配置打开交易、支付、提现、部署、MFA 或权限能力。
 - 现有代码内固定 Prompt 和历史任务哈希继续保持当前行为；已固定任务不得随 current 配置漂移。
@@ -129,4 +129,4 @@ PS-01 至 PS-06 全部采用本文第 2 节的推荐方案，据此冻结为 v1 
 - `T3.1c-PS1` 已实现 10 个 Prompt 流与声明式 Skill family v1 的严格 schema 和服务端确定性 tester。
 - `T3.1c-PS2` 已接入研究/运行时只读解释 Prompt consumer，并在任务创建时固定 `configurationVersionId + payloadSha256`；安全包络仍固定在代码中。
 - `T3.1c-PS3` 已形成 Maintenance Prompt/Skill 结构化工作台与安全状态提示。
-- Skill runtime consumer 尚未实现，没有 Agent 加载 active Skill；这部分归入 S0 之外的 T3.10。Prompt 已有实现资产不代表其独立发布 Gate 已自动通过。
+- Skill runtime consumer 尚未实现，没有 Agent 加载 active Skill；这部分归入 S0 之外的 T3.4b。Prompt 已有实现资产不代表其 T3.4a 独立发布 Gate 已自动通过。

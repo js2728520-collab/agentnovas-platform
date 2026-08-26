@@ -146,7 +146,10 @@ test("其余参数按确认单落定", () => {
   assert.equal(FX_METALS_SCOPE.tradable, false);
   assert.equal(FX_METALS_SCOPE.quotesEnabled, true);
   assert.equal(QUANTDINGER_PORT.enabled, false);
-  assert.equal(THEMES.defaultTheme, "riverton-dark");
+  assert.deepEqual([...THEMES.families], ["riverton", "neutral", "high-contrast"]);
+  assert.deepEqual([...THEMES.modes], ["system", "light", "dark"]);
+  assert.equal(THEMES.defaultFamily, "riverton");
+  assert.equal(THEMES.defaultMode, "system");
   assert.equal(THEMES.light.length, 3);
   assert.equal(THEMES.dark.length, 3);
   assert.equal(DOMAINS.frozen, true);

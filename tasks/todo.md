@@ -1,6 +1,6 @@
 # AgentNovas 全平台 V3 任务看板
 
-分支：`codex/platform-v3-doc-sync`
+分支：`worktree-audit-remediation-plan`
 状态说明：`[x]` 已完成并有证据；`[-]` 正在进行；`[ ]` 未开始；`[!]` 等待需求方/外部条件；`[B]` 安全或规则阻断。
 
 > **当前发布范围（2026-08-25 已确认）：** 只推进 S0——受控的 Paper/Demo 商业平台。Spot Live、USDT Perpetual、Withdrawal/Transfer 和 Maintenance CI/CD trigger 不属于当前发布范围，继续保持关闭，并作为后续独立切片分别通过 ADR、Gate、授权和发布评审。任务完成状态不等于生产启用或发布批准。
@@ -22,7 +22,7 @@
 - [x] P-07：59/129/499/1999 USDT；积分 1000/3000/12000/36000；费率 20/19/18/16% 运营端可调需双审。
 - [x] P-08：默认每次对话 1 积分并保留用量结算（运维端可切换）；策略生成 10 积分；模型 1×/2×。
 - [x] P-09：平台服务余额提现纳入范围；三条链；单笔 1 万、日 10 万 USDT；白名单 + 24 小时冷静期；双人复核；费率 0% 透传链上费（见 ADR-0024，G5 前接口仍固定拒绝）。
-- [x] P-10：先按现有品牌色派生三浅三深，设计稿到位后替换；默认深色。
+- [x] P-10：先按现有品牌色派生三浅三深，设计稿到位后替换；默认主题族为 Riverton，明暗模式默认跟随系统。
 - [x] P-11：维持现有三域名并即日冻结。
 - [x] P-12：不设日期，按 Gate 推进。
 - [x] 生成 Current → V3 代码/数据库/页面/route/Worker/测试详细矩阵（203 route 文件、268 method route、72 页面 pattern、73 迁移和 7 个后台进程均已核对）。
@@ -87,15 +87,17 @@
   - [-] 3.1c 品牌/域名/协议、功能开关、Prompt/技能和价格配置族逐项接入。
     - [x] 3.1c-FF1 `client.strategy_research` 全局开关 v1：严格 schema、服务端确定性测试、最小权限 current 消费者、运行时双 Gate 和回滚证据。
     - [x] 3.1c-FF2 用户/组织/应用版本/百分比/独立时窗 targeting：严格 schema v2、稳定分桶、服务端上下文、最小权限 current 消费者和回滚证据。
-    - [!] 3.1c-Brand/Domain 品牌与域名消费者，等待 P-10/P-11。
-    - [-] 3.1c-Prompt/Skill Prompt 与技能配置族。PS-01–PS-06 已于 2026-08-24 全部按推荐方案冻结；PS1/PS2/PS3 实现资产已具备，但 Prompt 独立证据/Gate 仍待完成，Skill runtime consumer 继续属于 T3.10，不属于当前 S0。
+    - [-] 3.1c-Brand/Domain 品牌与域名消费者。P-10/P-11 已冻结；派生品牌 token、正式域名 consumer、外部设计资源替换和各自 Gate 仍待完成。
+    - [-] 3.1c-Prompt/Skill Prompt 与技能配置族。PS-01–PS-06 已于 2026-08-24 全部按推荐方案冻结；PS1/PS2/PS3 实现资产已具备，但 Prompt 独立证据/Gate 仍待完成，Skill runtime consumer 统一归入 T3.4b，不属于当前 S0。
       - [x] PS1 家族合同：10 个角色（7 研发 + 3 运行时解释）Prompt v1 与声明式 Skill v1 严格 schema、双预算（字符 + UTF-8 字节）、安全包络不可覆盖、固定注入样例的确定性测试器；仅表示合同/测试器实现，不表示运行时或发布 Gate 已通过。
       - [x] PS2 运行时消费者与任务固定：解析器读取 active current，并按 PS-05 把 configurationVersionId + payloadSha256 固定到新建任务；已排队、执行中和历史任务不受激活或回滚影响。Prompt consumer 仍须独立证据/Gate；active 不等于生产启用。
       - [x] PS3 Maintenance 工作台：草稿、顶层差异、确定性测试证据、独立审批、调度、回滚与页面内审计原因，无确认弹窗。Skill 面板明确尚无 runtime consumer；工作台资产不等于 Skill 已接管任务。
     - [!] 3.1c-Pricing P-07/P-08 参数已冻结；价格 consumer 与固定 Credits consumer 分片实施，后者另立 T3.9b 且不属于当前 S0。
 - [ ] 3.2 品牌、域名、协议和多语言配置。
 - [x] 3.3 模块/用户组织/版本/百分比/定时功能开关。
-- [-] 3.4 技能和 Prompt 草稿、测试、双审、历史和回滚。PS1 合同/tester、PS2 Prompt consumer/任务固定和 PS3 Maintenance 工作台实现资产已完成；Prompt 仍须通过独立证据/Gate，Skill runtime consumer 仍未实现并归入 S0 之外的 T3.10，因此本项整体不标为完成。
+- [-] 3.4 技能和 Prompt 草稿、测试、双审、历史和回滚。
+  - [-] 3.4a Prompt：PS1 合同/tester、PS2 consumer/任务固定和 PS3 Maintenance 工作台实现资产已完成；独立证据/Gate 仍待完成。
+  - [ ] 3.4b Skill runtime consumer：最小权限任务加载、版本固定、失败关闭、回滚和独立 Gate；不属于当前 S0，active Skill 版本不等于业务已生效。
 - [ ] 3.5 月/季/年/终身套餐版本和 USDT 价格。
 - [ ] 3.6 固定对话 Credits 价格与不可变流水。
 - [ ] 3.7 人工退款状态机和原渠道结果。
@@ -103,12 +105,12 @@
 - [-] 3.9 Token 用户/组织/模型/Agent/日期/功能/费用/失败率统计。
   - [x] 3.9a Maintenance `/ai-usage` 只读分析：按 UTC 请求创建 cohort 汇总已预留 inference，提供可信成功 Token、settled Credits、已记录非取消失败率，以及组织请求级快照（含 legacy 证据质量）、稳定伪名用户、模型 revision、Agent、功能和日期维度；最多 90 天、各高基数维度 Top 50，页面内直接应用日期且无确认弹窗；全量 1430/1430、云端三端 production build 与本地真实 Chromium/axe 20/20 已通过。
   - [!] 3.9b 固定对话 Credits consumer、模型/功能价格分档和计费模式切换：P-08 参数已冻结，但本切片不属于当前 S0，仍需独立 schema、tester、历史 pin、最小权限 consumer、回滚和 Gate；不得把当前可信 Token 用量和 settled Credits 描述为固定价格已生效，也不得把已记录 cohort 的非取消失败率描述为系统/provider 可用率。
-- [ ] 3.10 三浅三深六主题和图表/Logo/状态色。
+- [ ] 3.10b 完整六主题与主题偏好：`riverton|neutral|high-contrast` × `system|light|dark` 两轴偏好、六个有效主题、首屏无闪烁、同源标签页同步；登录页读取偏好但无控件，Client 营销落地页继续独立。偏好仅保存在设备/浏览器，不进入数据库或账号。
 - [-] 3.11 英语默认、浏览器/地区推断和偏好持久化。
   - [x] 3.11a 公开 Client 着陆页：allowlist、保存偏好 > 浏览器语言 > 英语、无 IP 定位和匿名持久化。
   - [-] 3.11b 已登录偏好与全站一致性。
     - [x] 3.11b1 新账号数据库默认英语、七语言写入约束且不改写既有账号。
-    - [!] 3.11b2 已登录三端、认证/错误页/邮件一致性及 Maintenance override，等待语言范围确认。
+    - [ ] 3.11b2 Client Portal 七语言收口：默认英语，支持 `en-US/zh-CN/zh-TW/ru-RU/es-ES/ja-JP/ko-KR`；登录账号偏好写入账号并跨设备同步，本地镜像用于首屏/公开页；Operations/Maintenance 保持中文单语言，系统邮件保持英语。
 - [ ] 3.12 完成配置、计费、主题无障碍与性能 Gate。
 
 ## Phase 4：AI 助手与策略市场

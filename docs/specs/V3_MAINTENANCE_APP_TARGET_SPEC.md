@@ -17,9 +17,10 @@ Maintenance 的配置与控制操作不使用确认 modal。普通配置、测�
 
 ## 2. 系统与品牌
 
-- 站点名称、Logo、版权、域名、协议、多语言和预览。
+- 站点名称、Logo、版权、域名、协议、Client 七语言资源和预览；Maintenance 自身保持 `zh-CN` 单语言。
 - 配置草稿、差异、测试、审批、定时生效和回滚。
 - 三端配置按 audience 作用域隔离。
+- T3.10b 已登录工作区使用主题族与明暗模式两个原生选择器；主题偏好仅限设备/浏览器，同源标签页同步，不进入账号或数据库。
 
 实施快照（2026-08-24）：T3.1a 通用发布内核和 Maintenance-only API、T3.1b
 `/configurations` 工作台与到期激活 Worker 已完成；工作台包含不可变版本、顶层差异、测试证据、禁止自审、明确
@@ -44,7 +45,7 @@ Gate。多规则优先级尚未定义，必须通过未来新 schema 扩展，�
 
 - 模型 Profile、供应商、Key、模型 ID、连通性和 Agent 绑定。
 - Key 只写不读，只返回 `hasSecret` 与版本。
-- 技能和 Prompt 支持草稿编辑、测试、双人审批、发布、历史和回滚；其中 Skill v1 仅允许声明式字段，当前 S0 不启用可编辑 Skill runtime consumer。Prompt consumer 与 Skill runtime consumer 均须遵守各自独立 Gate；Skill runtime consumer 需在 PS-01–PS-06 已冻结的基础上通过 T3.10 后才可启用。
+- 技能和 Prompt 支持草稿编辑、测试、双人审批、发布、历史和回滚；其中 Skill v1 仅允许声明式字段，当前 S0 不启用可编辑 Skill runtime consumer。Prompt consumer 与 Skill runtime consumer 均须遵守各自独立 Gate；Prompt 归入 T3.4a，Skill runtime consumer 需在 PS-01–PS-06 已冻结的基础上通过 T3.4b 后才可启用。
 - 已发布版本只读，历史执行引用版本 ID。
 
 实施快照（2026-08-26）：PS1 已提供 10 个首期 Prompt 角色与声明式 Skill v1 的严格合同、双预算、
@@ -52,7 +53,7 @@ Gate。多规则优先级尚未定义，必须通过未来新 schema 扩展，�
 `configurationVersionId + payloadSha256`，已排队、执行中和历史任务不受后续激活或回滚影响；
 PS3 已在 `/configurations` 提供结构化 Prompt/Skill 工作台、差异、测试证据、独立审批、调度、
 回滚与页面内审计原因。Prompt 仍须独立证据/Gate；Skill 面板不代表 Agent 已加载 active Skill，
-Skill runtime consumer 尚未实现并归入当前 S0 之外的 T3.10。配置 `ACTIVE` 不表示运行时或发布通过。
+Skill runtime consumer 尚未实现并归入当前 S0 之外的 T3.4b。配置 `ACTIVE` 不表示运行时或发布通过。
 
 ## 5. Token、套餐、Credits、支付和优惠
 
