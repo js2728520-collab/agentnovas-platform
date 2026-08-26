@@ -6,6 +6,21 @@ async function source(path) {
   return readFile(new URL(path, import.meta.url), "utf8");
 }
 
+test("AI 工作台统一承载助手与策略研究，并在同页切换", async () => {
+  const [workbench, portal] = await Promise.all([
+    source("../apps/client/ui/ai-workbench.tsx"),
+    source("../apps/client/ui/client-portal.tsx"),
+  ]);
+
+  assert.match(workbench, /AiAssistantChat/);
+  assert.match(workbench, /StrategyStudio/);
+  assert.match(workbench, /AI 助手/);
+  assert.match(workbench, /策略研究/);
+  assert.match(workbench, /onOpenStrategies=\{\(\) => setMode\("studio"\)\}/);
+  assert.match(portal, /route === "assistant"\) \{[\s\S]*return <AiWorkbench \/>/);
+  assert.match(portal, /route === "studio"\) \{[\s\S]*return <>?<AiWorkbench initialMode="studio" \/>/);
+  assert.doesNotMatch(portal, /window\.location\.assign\("\/trading-hall"\)/);
+});
 test("agent page uses persistent server conversations and streamed messages", async () => {
   // 助手此前是遗留 SPA 里动态导入的 PersistentAgentChat，现在是真实路由 /assistant，
   // 那个导入名不再存在。真正要守的是「服务端持久会话 + 流式消息」。
@@ -18,6 +33,7 @@ test("agent page uses persistent server conversations and streamed messages", as
   assert.match(chat, /body: JSON\.stringify\(\{ message: pendingRequest\.content \}\)/);
   assert.doesNotMatch(chat, /body: JSON\.stringify\(\{[^}]*history/);
 });
+
 
 test("strategy creation uses the resumable multi-Agent pipeline without a duplicate chat workflow", async () => {
   // 研发问卷与流水线驱动现在同在 apps/client/ui/strategy-studio.tsx（P4 迁移）。

@@ -344,6 +344,51 @@ async function exerciseMarketWithoutWatchlist(page: import("@playwright/test").P
   expect(marketRequests.some(pathname => pathname === "/api/market/watchlist")).toBe(false);
 }
 
+async function exerciseAssistantWorkbench(page: import("@playwright/test").Page) {
+  const conversationId = "10000000-0000-4000-8000-000000000001";
+  await page.addInitScript((seededConversationId) => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : null;
+      const url = new URL(request?.url ?? String(input), window.location.origin);
+      const method = String(init?.method ?? request?.method ?? "GET").toUpperCase();
+      if (url.pathname === "/api/ai/conversations" && method === "GET") {
+        return Response.json({ conversations: [{ id: seededConversationId, title: "质量会话", purpose: "consultation", messageCount: 0, lastMessageAt: new Date().toISOString() }] });
+      }
+      if (url.pathname === `/api/ai/conversations/${seededConversationId}` && method === "GET") {
+        return Response.json({ messages: [] });
+      }
+      return originalFetch(input, init);
+    };
+  }, conversationId);
+
+  await page.route("**/api/exchange-accounts", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ accounts: [] }),
+  }));
+  await page.route("**/api/strategy-research/roles", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ roles: [], ready: false }),
+  }));
+  await page.route("**/api/strategy-research/runs?*", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ runs: [] }),
+  }));
+  await page.goto("/assistant", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("button", { name: "AI 助手" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("button", { name: "策略研究" })).toBeVisible();
+  await page.getByRole("button", { name: "策略研究" }).click();
+  await expect(page.getByRole("heading", { name: "多 Agent 策略研发与验证" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "策略研究" })).toHaveAttribute("aria-current", "page");
+  await page.getByRole("button", { name: "AI 助手" }).click();
+  await expect(page.getByRole("heading", { name: "AI 助手", level: 1 })).toBeVisible();
+  await expect(page.getByRole("button", { name: "AI 助手" })).toHaveAttribute("aria-current", "page");
+  await expectCriticalAccessibility(page);
+  await expectResponsivePage(page);
+}
 async function exerciseAssistantCancellationWithoutDialog(page: import("@playwright/test").Page) {
   const conversationId = "10000000-0000-4000-8000-000000000001";
   const inferenceRequestId = "20000000-0000-4000-8000-000000000002";
@@ -447,6 +492,7 @@ test("public locale and client communication workspaces are responsive, accessib
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "client");
   }
+  await exerciseAssistantWorkbench(page);
   await exerciseAssistantCancellationWithoutDialog(page);
   await expectAudienceNavigation(page, "client");
 });

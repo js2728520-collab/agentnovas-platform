@@ -39,8 +39,8 @@ test("keeps the Riverton Capital shell and core modules present", async () => {
   assert.match(portal, /TradingExperience/);
   assert.match(portal, /MembershipExperience/);
   assert.match(portal, /DecisionHall/);
-  assert.match(portal, /StrategyStudio/);
-  assert.match(portal, /AiAssistantChat/);
+  assert.match(portal, /AiWorkbench/);
+  // AI 助手与策略研究现在由同一工作台承载；/studio 仅保留兼容入口。
   // 这些是 P4 删掉的遗留界面，不得重新出现在门户里。
   assert.doesNotMatch(portal, /ConnectLive|CommunityStrategyCenter|StrategyDetail/);
   assert.match(layout, /generateMetadata/);

@@ -8,14 +8,14 @@ import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
 
 import { ClientHomeWorkspace } from "./client-home-workspace";
 
+
 const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module) => module.CreditWorkspace));
 const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((module) => module.DepositWorkspace));
 const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience));
 const PublicLegalPage = dynamic(() => import("./public-legal-page").then((module) => module.PublicLegalPage));
 const MembershipExperience = dynamic(() => import("./membership-experience"));
-const AiAssistantChat = dynamic(() => import("./ai-assistant-chat"));
+const AiWorkbench = dynamic(() => import("./ai-workbench"));
 const DecisionHall = dynamic(() => import("./decision-hall"));
-const StrategyStudio = dynamic(() => import("./strategy-studio"));
 const StrategyMarketplaceWorkspace = dynamic(() => import("./strategy-marketplace-workspace"));
 const FollowResultsWorkspace = dynamic(() => import("./follow-results-workspace"));
 const BacktestWorkspace = dynamic(() => import("./backtest-workspace"));
@@ -63,7 +63,7 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
   // 服务端一直都在，此前唯一的入口是运行时不可达的遗留页面。
   if (route === "studio") {
     if (!hasAnyPermission(session.access.permissions, ["client.paper.view"])) return <AccessDenied />;
-    return <StrategyStudio />;
+    return <><AiWorkbench initialMode="studio" /></>;
   }
   // 已保存策略的可配置历史回测。与 /studio 的分工见 backtest-workspace.tsx。
   if (route === "backtests") {
@@ -71,7 +71,7 @@ export default function ClientPortal({ segments }: { segments: string[] }) {
     return <BacktestWorkspace strategyId={segments[1]} />;
   }
   if (route === "assistant") {
-    return <AiAssistantChat title="AI 助手" onOpenStrategies={() => window.location.assign("/trading-hall")} />;
+    return <AiWorkbench />;
   }
   if (route === "membership") {
     if (!hasAnyPermission(session.access.permissions, ["client.membership.view"])) return <AccessDenied />;

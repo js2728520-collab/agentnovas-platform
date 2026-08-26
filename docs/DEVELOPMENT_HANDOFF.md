@@ -4434,8 +4434,13 @@ G3 focused 浏览器旅程以端口偏移 `1000` 运行，避开本机非项目�
 
 本轮未执行生产迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署；G3 全量 release evidence、云端构建和正式发布批准仍不因 focused 旅程自动完成。
 
-## 119. 2026-08-26 T4.7b / 4.9c correctness hardening
 
-在公开策略广场接口为回测报告增加 `createdAt DESC, id DESC` 稳定排序，确保 Client 使用的 `backtests[0]` 始终是最新报告；同步加入隐私合同测试。跟单入口严格拒绝未允许字段（包括额外 `takeProfitPct`），Client 与跟单结果页明确不设置额外固定止盈，持仓离场由已确认策略版本的离场条件驱动；该边界不禁止策略 DSL 自身的 exit 语义。公共策略页仍不暴露 DSL 或内部作者角色。
+## 120. 2026-08-26 T4.1 Client AI 工作台统一入口
 
-验证：定向策略广场/跟单合同 36/36；全量 `npm test` 1735/1735；`npx tsc --noEmit`、全仓 ESLint、`npm run quality:bundle`、`npm run quality:boundaries`、`npm run test:apps` 与 `git diff --check` 通过。此前发现的 full-suite 隐私源码断言因 UI 说明新增英文 `exit` 命中旧的“不得公开逻辑”探针，改为不含 DSL 关键词的等价中文文案并恢复全量通过；最终 focused Chromium 旅程以端口偏移 1000 运行并通过 1/1。G3 focused 证据仍不能替代完整 G3 release evidence；本轮不执行生产迁移、不接触生产数据库、不推送、不部署。
+`/assistant` 现在统一承载持久 AI 对话与多 Agent 策略研究：新增 Client AI 工作台，在同一页面提供“AI 助手”和“策略研究”模式切换；助手生成的策略 CTA 改为切换到研究模式，不再跳转到交易大厅。`/studio` 保留兼容路由并以策略研究模式打开同一工作台，保持已有直接链接与后端研究合同。对话服务端持久化、SSE、取消、provider abort、幂等重放、Credits 单终态，以及策略 DSL 校验/回测/准入逻辑均未重复实现或改变；研究仍仅允许 shadow/paper，真实订单路由保持关闭。
+
+新增工作台使用现有 `--rv-*` 设计令牌，并通过动态 Client 入口保持公开落地页包体边界。新增源码合同覆盖统一入口、两个模式、同页 CTA 和兼容路由；质量浏览器旅程覆盖工作台打开、模式切换、恢复对话、四断点、键盘与 axe，并使用质量夹具拦截研究 API，不访问真实交易所或 provider。
+
+验证：AI/rendered HTML 定向合同 10/10；全量 `npm test` 1736/1736；`npx tsc --noEmit`、全仓 ESLint、`npm run quality:bundle`、`npm run quality:boundaries`、`npm run test:apps` 与 `git diff --check` 通过；`QUALITY_E2E_PORT_OFFSET=1000 npm run test:e2e -- --grep "public locale and client communication"` 真实 Chromium 1/1 通过。此前直接运行 Playwright 缺少质量运行时夹具而失败，随后通过质量 runner 重跑；该失败不作为产品回归。
+
+本轮未执行生产迁移、未接触生产数据库、未启动或切换远端服务、未打开 Spot Live/Perpetual/Withdrawal/CI-CD、未推送、未部署；G3 全量 release evidence、云端构建和正式发布批准仍待独立完成。

@@ -1,0 +1,50 @@
+.workbench {
+  display: grid;
+  gap: 1rem;
+}
+
+.switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-card);
+}
+
+.switcherLabel {
+  margin-right: 0.25rem;
+  color: var(--rv-muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.tab {
+  border: 1px solid var(--rv-border);
+  border-radius: 999px;
+  padding: 0.5rem 0.8rem;
+  color: var(--rv-muted-foreground);
+  background: var(--rv-background);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.tab:hover,
+.tab:focus-visible {
+  border-color: var(--rv-brand-ink);
+  color: var(--rv-foreground);
+}
+
+.tabActive {
+  border-color: var(--rv-brand-ink);
+  color: var(--rv-brand-ink);
+  background: var(--rv-brand-soft);
+  font-weight: 750;
+}
+
+.panel {
+  min-width: 0;
+}

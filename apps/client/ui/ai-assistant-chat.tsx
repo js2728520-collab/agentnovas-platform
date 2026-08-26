@@ -69,7 +69,7 @@ export default function AiAssistantChat({
   onOpenStrategies,
 }: {
   title: string;
-  onOpenStrategies: () => void;
+  onOpenStrategies?: () => void;
 }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState("");
