@@ -11,10 +11,12 @@ import {
   listClientStrategyWorkRecords,
   loadClientStrategyWorkRecord,
 } from "../lib/strategy-work-records.ts";
+import { runMaintenanceWorkRecordExport } from "../lib/maintenance-work-record-export.ts";
 import { runPostgresMigrations } from "../scripts/postgres-migration-runner.mjs";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
 const schema = `strategy_work_records_${process.pid}_${Date.now()}`;
+const readerRole = `work_record_export_reader_${process.pid}_${Date.now()}`;
 const admin = new pg.Pool({ connectionString: databaseUrl, max: 1 });
 const pool = new pg.Pool({ connectionString: databaseUrl, max: 3, options: `-c search_path=${schema}` });
 let migrationDirectory;
@@ -40,7 +42,8 @@ test.before(async () => {
   await pool.query(`
     INSERT INTO users(id,email,password_hash,role,status) VALUES
       ('customer-a','customer-a@quality.invalid','test-only-hash','customer','active'),
-      ('customer-b','customer-b@quality.invalid','test-only-hash','customer','active');
+      ('customer-b','customer-b@quality.invalid','test-only-hash','customer','active'),
+      ('maint-export','maint-export@quality.invalid','test-only-hash','tech_staff','active');
     INSERT INTO memberships(id,customer_id,plan_code,status) VALUES
       ('membership-a','customer-a','fixture','active'),
       ('membership-b','customer-b','fixture','active');
@@ -72,17 +75,21 @@ test.before(async () => {
       ('deployment-a','customer-a','strategy-a','version-a','subscription-a',NULL,'paper','ended','UNVERIFIED','work-record-deployment-a','spot_usdt','ai_conservative','membership-a','portfolio-a'),
       ('deployment-b','customer-b','strategy-b','version-b','subscription-b',NULL,'paper','active','UNVERIFIED','work-record-deployment-b','spot_usdt','ai_conservative','membership-b','portfolio-b');
   `);
-  await copyMigrations(75);
+  await copyMigrations(76);
   const upgraded = await runPostgresMigrations(pool, {
     directory: new URL(`file://${migrationDirectory}/`),
     commitSha: "work-record-current",
   });
-  assert.deepEqual(upgraded.applied, ["0075_strategy_work_record_retention.sql"]);
+  assert.deepEqual(upgraded.applied, [
+    "0075_strategy_work_record_retention.sql",
+    "0076_maintenance_work_record_export.sql",
+  ]);
 });
 
 test.after(async () => {
   await pool.end();
   await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
+  await admin.query(`DROP ROLE IF EXISTS "${readerRole}"`);
   await admin.end();
   await rm(migrationDirectory, { recursive: true, force: true });
 });
@@ -208,6 +215,96 @@ test("Client list and detail include owned periods and pure hold while failing c
   await assert.rejects(
     () => loadClientStrategyWorkRecord(pool, { userId: "customer-a", recordId: "round-b-private" }),
     (error) => error?.code === "WORK_RECORD_NOT_FOUND" && error?.status === 404,
+  );
+});
+
+test("Maintenance safe view exposes pseudonymous allowlisted records while its reader cannot query raw work tables", async () => {
+  assert.match(readerRole, /^[a-z0-9_]+$/);
+  await admin.query(`CREATE ROLE "${readerRole}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`);
+  await pool.query(`GRANT USAGE ON SCHEMA "${schema}" TO "${readerRole}"`);
+  await pool.query(`GRANT SELECT ON maintenance_strategy_work_records_safe TO "${readerRole}"`);
+
+  const columns = (await pool.query(`
+    SELECT column_name
+      FROM information_schema.columns
+     WHERE table_schema=$1 AND table_name='maintenance_strategy_work_records_safe'
+     ORDER BY ordinal_position
+  `, [schema])).rows.map((row) => row.column_name);
+  assert.deepEqual(columns, [
+    "work_record_ref", "user_ref", "strategy_code", "strategy_version", "symbol", "timeframe",
+    "decision_status", "completeness", "execution_mode", "admission_status", "order_intent_count",
+    "fill_receipt_count", "occurred_at", "is_shared_decision", "real_order_routing_enabled",
+  ]);
+  assert.equal(columns.some((column) => /customer_id|user_id|email|phone|evidence|payload|model|error/i.test(column)), false);
+
+  const restricted = await pool.connect();
+  try {
+    await restricted.query("BEGIN");
+    await restricted.query(`SET LOCAL ROLE "${readerRole}"`);
+    await restricted.query(`SET LOCAL search_path TO "${schema}"`);
+    const rows = (await restricted.query(`
+      SELECT * FROM maintenance_strategy_work_records_safe
+      ORDER BY occurred_at,work_record_ref
+    `)).rows;
+    assert.equal(rows.length, 4, "the gap and wrong-version rounds stay excluded while both customers remain exportable");
+    assert.equal(JSON.stringify(rows).includes("customer-a"), false);
+    assert.equal(JSON.stringify(rows).includes("customer-b"), false);
+    assert.ok(rows.every((row) => /^USR-[A-F0-9]{12}$/.test(row.user_ref)));
+    assert.ok(rows.every((row) => /^WRK-[A-F0-9]{16}$/.test(row.work_record_ref)));
+    assert.ok(rows.every((row) => row.real_order_routing_enabled === false));
+    await assert.rejects(
+      restricted.query("SELECT id FROM strategy_decision_rounds LIMIT 1"),
+      /permission denied/i,
+    );
+    await restricted.query("ROLLBACK");
+  } finally {
+    restricted.release();
+  }
+});
+
+test("Maintenance export replays one identical result and writes one metadata-only append audit", async () => {
+  const input = {
+    actorUserId: "maint-export",
+    idempotencyKey: "work-record-export-key-0001",
+    from: "2026-08-01",
+    to: "2026-08-31",
+    reason: "月末客户争议核查",
+    requestId: "request-work-export-0001",
+    traceId: "trace-work-export-0001",
+    now: new Date("2026-08-31T12:00:00.000Z"),
+  };
+  const first = await runMaintenanceWorkRecordExport(pool, input);
+  const replay = await runMaintenanceWorkRecordExport(pool, input);
+  assert.equal(first.replayed, false);
+  assert.equal(replay.replayed, true);
+  assert.deepEqual(replay.response, first.response);
+  assert.equal(first.response.data.length, 4);
+  assert.equal(JSON.stringify(first.response).includes("customer-a"), false);
+  assert.equal(JSON.stringify(first.response).includes("customer-b"), false);
+
+  const audit = await pool.query(`
+    SELECT action,after_json,request_id,trace_id
+      FROM audit_logs
+     WHERE action='maintenance.work_records.export_generated'
+  `);
+  assert.equal(audit.rows.length, 1);
+  const auditMetadata = JSON.parse(audit.rows[0].after_json);
+  assert.deepEqual(auditMetadata, {
+    from: "2026-08-01",
+    to: "2026-08-31",
+    rowCount: 4,
+    truncated: false,
+    querySha256: auditMetadata.querySha256,
+    reason: "月末客户争议核查",
+  });
+  assert.match(auditMetadata.querySha256, /^[a-f0-9]{64}$/);
+  assert.equal("data" in auditMetadata, false);
+  assert.equal(audit.rows[0].request_id, input.requestId);
+  assert.equal(audit.rows[0].trace_id, input.traceId);
+
+  await assert.rejects(
+    runMaintenanceWorkRecordExport(pool, { ...input, reason: "相同键绑定了不同请求" }),
+    (error) => error?.code === "IDEMPOTENCY_KEY_COLLISION" && error?.status === 409,
   );
 });
 

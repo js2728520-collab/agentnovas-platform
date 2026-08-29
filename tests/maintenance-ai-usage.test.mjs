@@ -124,7 +124,7 @@ test("Maintenance usage route, permission, view, and UI are isolated and secret-
     source("../lib/maintenance-ai-usage.ts"),
     source("../apps/maintenance/ui/ai-usage-workspace.tsx"),
     source("../apps/maintenance/ui/maintenance-app.tsx"),
-    source("../apps/maintenance/ui/navigation.ts"),
+    source("../apps/maintenance/ui/maintenance-information-architecture.ts"),
     source("../app/riverton-route-contract.ts"),
     source("../lib/rbac.ts"),
   ]);
@@ -161,7 +161,7 @@ test("Maintenance usage route, permission, view, and UI are isolated and secret-
   assert.match(ui, /disabled=\{resource\.loading\}/);
   assert.doesNotMatch(ui, /confirm\s*\(|window\.confirm|alert\s*\(/);
   assert.match(app, /AiUsageWorkspace/);
-  assert.match(nav, /\/ai-usage/);
+  assert.match(nav, /\/ai-strategy\?tab=usage/);
   assert.match(routeContract, /"ai-usage"/);
   assert.match(rbac, /maint\.ai_usage\.view/);
   const inventory = await import("../lib/api-route-inventory.ts");

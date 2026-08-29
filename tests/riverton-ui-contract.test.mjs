@@ -189,7 +189,7 @@ test("shared console navigation is hydration-safe and keyboard-contained", async
   assert.match(shell, /event\.key === "Tab"/);
   assert.match(shell, /rc-console-backdrop/);
   assert.match(shell, /returnButton\?\.focus/);
-  assert.match(shell, /aria-label="面包屑"/);
+  assert.match(shell, /aria-label=\{t\("面包屑"\)\}/);
   assert.match(shell, /aria-current="page"/);
   assert.match(shell, /currentItem/);
   assert.match(shell, /matchMedia\("\(max-width: 900px\)"\)/);
@@ -229,17 +229,20 @@ test("app router owns audience-neutral loading, error and not-found states", asy
 });
 
 test("client exposes stable wallet, deposit and notification workspaces", async () => {
-  const source = await read("apps/client/ui/client-portal.tsx");
-  assert.match(source, /WalletWorkspace/);
-  assert.match(source, /DepositWorkspace/);
-  assert.match(source, /NotificationWorkspace/);
+  const portal = await read("apps/client/ui/client-portal.tsx");
+  const shell = await read("apps/client/ui/client-portal-shell.tsx");
+  assert.match(portal, /WalletWorkspace/);
+  assert.match(portal, /DepositWorkspace/);
+  assert.match(portal, /NotificationPreferencesWorkspace/);
+  assert.match(shell, /ClientNotifications/);
+  assert.doesNotMatch(portal, /NotificationWorkspace/);
 });
 
 test("client exposes stable membership, credits, paper, and trading-hall workspaces", async () => {
   const routeContract = await read("app/riverton-route-contract.ts");
   const portal = await read("apps/client/ui/client-portal.tsx");
-  const navigation = await read("apps/client/ui/client-portal-shell.tsx");
-  for (const route of ["dashboard", "membership", "credits", "paper", "trading-hall"]) {
+  const navigation = `${await read("apps/client/ui/client-portal-shell.tsx")}\n${await read("apps/client/ui/client-information-architecture.ts")}`;
+  for (const route of ["dashboard", "trading", "strategies", "account-center", "membership", "credits", "paper", "trading-hall"]) {
     assert.match(routeContract, new RegExp(`CLIENT_ROUTES[\\s\\S]*["']${route}["']`));
   }
   assert.match(portal, /MembershipExperience/);
@@ -247,19 +250,21 @@ test("client exposes stable membership, credits, paper, and trading-hall workspa
   assert.match(portal, /client\.membership\.view/);
   assert.match(portal, /client\.credits\.view/);
   assert.match(portal, /client\.paper\.view/);
-  assert.match(navigation, /href: "\/membership"/);
-  assert.match(navigation, /href: "\/paper"/);
-  assert.match(navigation, /href: "\/trading-hall"/);
+  assert.match(navigation, /href: "\/trading"/);
+  assert.match(navigation, /href: "\/strategies"/);
+  assert.match(navigation, /href="\/account-center"/);
+  assert.doesNotMatch(navigation, /href: "\/(?:membership|paper|trading-hall)"/);
 });
 
 test("authenticated Client navigation stays inside the customer trading product", async () => {
   const shell = await read("apps/client/ui/client-portal-shell.tsx");
+  const navigation = await read("apps/client/ui/client-information-architecture.ts");
   const login = await read("packages/ui/src/app-login.tsx");
   const landing = await read("apps/client/ui/client-public-landing.tsx");
   assert.doesNotMatch(shell, /ConsoleShell|@\/packages\/ui\/src\/console-shell/);
-  assert.match(shell, /href: "\/dashboard"/);
-  assert.match(shell, /交易大厅/);
-  assert.match(shell, /模拟组合/);
+  assert.match(navigation, /href: "\/dashboard"/);
+  for (const label of ["数据看板", "交易中心", "策略中心", "行情", "AI 助手"]) assert.match(navigation, new RegExp(label));
+  assert.doesNotMatch(navigation, /label: "(?:交易大厅|模拟组合|工作记录|通知)"/);
   assert.doesNotMatch(shell, /href: "\/"/);
   assert.match(login, /audience === "client" \? "\/dashboard" : "\/"/);
   assert.match(landing, /\/login\?next=\$\{encodeURIComponent\("\/dashboard"\)\}/);
@@ -267,10 +272,12 @@ test("authenticated Client navigation stays inside the customer trading product"
 
 test("Client dashboard leads with portfolio and strategy state instead of compliance administration", async () => {
   const dashboard = await read("apps/client/ui/client-home-workspace.tsx");
+  assert.match(dashboard, /<h1>\{t\("数据看板"\)\}<\/h1>/);
   assert.match(dashboard, /组合总权益/);
-  assert.match(dashboard, /三张官方策略/);
-  assert.match(dashboard, /进入交易大厅/);
-  assert.doesNotMatch(dashboard, /CONTROLLED BETA|PERMISSION-AWARE MODULES|Beta 执行边界|已授权模块/);
+  assert.match(dashboard, /策略状态与最近活动/);
+  assert.match(dashboard, /当前持仓/);
+  assert.doesNotMatch(dashboard, /欢迎回来|下一步|常用工具|会员状态|AI 积分|未读通知|最新绩效账单/);
+  assert.doesNotMatch(dashboard, /\/api\/membership|\/api\/credits|\/api\/notifications/);
 });
 
 test("客户端外壳在渲染任何工作区之前强制会话与权限", async () => {
@@ -285,9 +292,8 @@ test("客户端外壳在渲染任何工作区之前强制会话与权限", async
   assert.doesNotMatch(chrome, /\/api\/membership\/legal-consent|consentComplete|legalConsentGate/);
   assert.match(portal, /session\.status !== "authenticated"/);
   // 从 /workspace 迁过来的四个界面都必须自带权限判定，不能靠外壳兜底。
-  for (const guarded of ["studio", "trading-hall"]) {
-    assert.match(portal, new RegExp(`route === "${guarded}"[\\s\\S]{0,200}client\\.paper\\.view`));
-  }
+  assert.match(portal, /\["strategies", "studio", "backtests"\][\s\S]{0,320}client\.paper\.view/);
+  assert.match(portal, /\["trading", "trading-hall", "paper", "work-records"\][\s\S]{0,320}client\.paper\.view/);
   assert.match(portal, /AccessDenied/);
 });
 
@@ -297,7 +303,8 @@ test("client exposes standalone disclosures without blocking the trading workben
   const navigation = await read("apps/client/ui/client-portal-shell.tsx");
   const legal = await read("apps/client/ui/legal-consent-experience.tsx");
   assert.match(routeContract, /root === "legal"[\s\S]*segments\[1\] === "consent"/);
-  assert.match(portal, /route === "legal"[\s\S]*segments\[1\] === "consent"[\s\S]*LegalConsentExperience/);
+  assert.match(portal, /route === "legal" && segments\[1\] === "consent"[\s\S]*LegalConsentExperience/);
+  assert.doesNotMatch(portal, /href: "\/settings\?tab=legal"|协议与授权/);
   assert.doesNotMatch(navigation, /label: "商业披露"/);
   assert.match(legal, /\/api\/membership\/legal-consent/);
   assert.match(legal, /商业披露与版本确认/);
@@ -310,7 +317,7 @@ test("client exposes standalone disclosures without blocking the trading workben
 test("client workspaces bind to real wallet, Udun deposit orders, and notifications", async () => {
   const wallet = await read("apps/client/ui/wallet-workspace.tsx");
   const deposits = await read("apps/client/ui/deposit-workspace.tsx");
-  const notifications = await read("apps/client/ui/notification-workspace.tsx");
+  const notifications = `${await read("apps/client/ui/client-notifications.tsx")}\n${await read("apps/client/ui/notification-preferences-workspace.tsx")}`;
   assert.match(wallet, /\/api\/wallet\/balances/);
   assert.match(wallet, /\/api\/wallet\/ledger/);
   assert.match(deposits, /UDUN/);
@@ -391,9 +398,9 @@ test("maintenance connectivity tests keep audited reasons without redundant conf
 });
 
 test("maintenance model workspaces separate read access from write controls", async () => {
-  const source = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/navigation.ts")]).then((parts) => parts.join("\n"));
-  assert.match(source, /href: "\/models"[\s\S]*maint\.system_health\.view/);
-  assert.match(source, /route === "models" \? \["maint\.system_health\.view"/);
+  const source = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/maintenance-information-architecture.ts")]).then((parts) => parts.join("\n"));
+  assert.match(source, /href: "\/ai-strategy\?tab=models"[\s\S]*maint\.system_health\.view/);
+  assert.match(source, /maintenanceAiStrategyTabs[\s\S]*hasAnyPermission/);
   assert.match(source, /canManageProfiles/);
   assert.match(source, /canManageBindings/);
 });

@@ -17,12 +17,83 @@ export const EXPECTED_RELEASE_DATABASE_ROLES = Object.freeze([
   "agentnovas_runtime_worker",
   "agentnovas_payment_worker",
   "agentnovas_research_worker",
+  "agentnovas_release_worker",
+  "agentnovas_release_control",
+  "agentnovas_release_identity_verifier",
+  "agentnovas_release_ingress",
+  "agentnovas_release_auditor",
+  "agentnovas_release_target_gateway",
 ]);
 
 const DISABLED_ROLES = new Set([
   "agentnovas_payment_worker",
   "agentnovas_research_worker",
 ]);
+
+export const EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES = Object.freeze([
+  "agentnovas_payment_worker",
+  "agentnovas_research_worker",
+]);
+
+const NOLOGIN_ROLES = new Set(EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES);
+
+const RESTRICTED_CICD_ROUTINE_ALLOWLIST = new Map([
+  ["agentnovas_maint_web", new Set([
+    "release_workflow_read_maintenance_control",
+    "release_workflow_issue_human_action_authority",
+  ])],
+  ["agentnovas_release_control", new Set(["release_workflow_execute_human_action"])],
+  ["agentnovas_release_identity_verifier", new Set([
+    "release_workflow_record_human_action_assertion",
+    "release_workflow_resolve_human_action_assertion",
+  ])],
+  ["agentnovas_release_worker", new Set([
+    "release_workflow_recover_expired_dispatch_v2",
+    "release_workflow_claim_next_reconciliation_v2",
+    "release_workflow_claim_next_command_v2",
+    "release_workflow_begin_dispatch",
+    "release_workflow_record_dispatch_unknown",
+    "release_workflow_bind_provider_run",
+    "release_workflow_reject_bound_run",
+    "release_workflow_append_provider_event",
+    "release_workflow_worker_heartbeat",
+  ])],
+  ["agentnovas_release_ingress", new Set(["release_workflow_append_delivery"])],
+  ["agentnovas_release_auditor", new Set(["release_workflow_append_run_policy_attestation"])],
+  ["agentnovas_release_target_gateway", new Set([
+    "release_workflow_reserve_workflow_target_request_v4",
+    "release_workflow_validate_target_authority_v2",
+    "release_workflow_validate_target_cutover_v2",
+    "release_workflow_recover_target_operation_v2",
+    "release_workflow_list_recoverable_target_operations_v2",
+    "release_workflow_assert_migration_registry",
+    "release_workflow_takeover_target_operation",
+    "release_workflow_append_target_receipt",
+    "release_workflow_target_request_stop",
+    "release_workflow_prepare_target_clear_ack_v2",
+    "release_workflow_validate_target_stop_cleared_v2",
+    "release_workflow_append_stop_receipt_v2",
+  ])],
+]);
+
+const RESTRICTED_CICD_GATEWAY_ROLES = new Set([
+  "agentnovas_release_control",
+  "agentnovas_release_identity_verifier",
+  "agentnovas_release_worker",
+  "agentnovas_release_ingress",
+  "agentnovas_release_auditor",
+  "agentnovas_release_target_gateway",
+]);
+
+const RESTRICTED_CICD_ROUTINE_EXPECTED_GRANTEES = new Map();
+for (const [roleName,routines] of RESTRICTED_CICD_ROUTINE_ALLOWLIST) {
+  for (const routineName of routines) {
+    const grantees = RESTRICTED_CICD_ROUTINE_EXPECTED_GRANTEES.get(routineName)
+      ?? new Set(["agentnovas_migrator"]);
+    grantees.add(roleName);
+    RESTRICTED_CICD_ROUTINE_EXPECTED_GRANTEES.set(routineName,grantees);
+  }
+}
 
 const CLIENT_IDENTITY_RLS_TABLES = Object.freeze([
   "users",
@@ -105,6 +176,10 @@ function sameStringSet(left, right) {
   return left.size === right.size && [...left].every((value) => right.has(value));
 }
 
+function normalizedRoutineSetting(value) {
+  return String(value).replaceAll('"', "").replace(/\s+/g, "").trim().toLowerCase();
+}
+
 const WEB_SECRET_TABLES = new Map([
   ["agentnovas_client_web", new Set([
     "llm_configurations",
@@ -130,12 +205,54 @@ const RELEASE_CONTROL_TABLES = new Set([
   "release_deployments",
 ]);
 
+const RESTRICTED_CICD_BASE_TABLES = new Set([
+  "release_workflow_commands",
+  "release_workflow_provider_bindings",
+  "release_workflow_approvals",
+  "release_workflow_activations",
+  "release_workflow_first_production_enablements",
+  "release_workflow_environment_generations",
+  "release_workflow_attempts",
+  "release_workflow_authorizations",
+  "release_workflow_target_operations",
+  "release_workflow_target_owner_epochs",
+  "release_workflow_run_policy_attestations",
+  "release_workflow_events",
+  "release_workflow_deliveries",
+  "release_workflow_receipts",
+  "release_workflow_stop_receipts",
+  "release_workflow_stops",
+  "release_workflow_artifact_manifests",
+  "release_workflow_control_bundles",
+  "release_workflow_actor_authorities",
+  "release_workflow_restore_capabilities",
+  "release_workflow_human_action_assertions",
+  "release_workflow_human_action_authorities",
+  "release_workflow_human_action_assertion_consumptions",
+  "release_workflow_command_requests",
+  "release_workflow_command_request_reviews",
+  "release_workflow_activation_requests",
+  "release_workflow_activation_request_reviews",
+  "release_workflow_stop_release_requests",
+  "release_workflow_stop_release_reviews",
+  "release_workflow_command_states",
+  "release_workflow_environment_states",
+]);
+
 const CONFIGURATION_CONTROL_TABLES = new Set([
   "configuration_versions",
   "configuration_test_results",
   "configuration_approvals",
   "configuration_schedules",
   "configuration_activations",
+]);
+
+const MAINTENANCE_WORK_RECORD_RAW_TABLES = new Set([
+  "strategy_subscription_periods",
+  "strategy_decision_rounds",
+  "strategy_runtime_events",
+  "strategy_runtime_cycles",
+  "market_data_snapshots",
 ]);
 
 const WORKER_TABLES = new Map([
@@ -245,6 +362,7 @@ export function evaluatePostgresRolePolicy({
   identityRoutines,
   configurationActivationRoutines,
   configurationConsumerRoutines,
+  restrictedCicdRoutines,
   triggerReadGaps = [],
 }) {
   const findings = [];
@@ -259,7 +377,7 @@ export function evaluatePostgresRolePolicy({
     if (role.superuser || role.createRole || role.createDatabase || role.replication || role.bypassRls) {
       findings.push(finding("ELEVATED_ROLE", `Release role has prohibited cluster privileges: ${roleName}`, roleName));
     }
-    const shouldLogin = !DISABLED_ROLES.has(roleName);
+    const shouldLogin = !NOLOGIN_ROLES.has(roleName);
     if (Boolean(role.canLogin) !== shouldLogin) {
       findings.push(finding(
         "ROLE_LOGIN_STATE",
@@ -277,6 +395,29 @@ export function evaluatePostgresRolePolicy({
     if (DISABLED_ROLES.has(grant.grantee)) {
       findings.push(finding("DISABLED_WORKER_ACCESS", `Disabled worker has table access: ${grant.grantee}`, grant.grantee));
       continue;
+    }
+    if (RESTRICTED_CICD_GATEWAY_ROLES.has(grant.grantee)) {
+      findings.push(finding(
+        "RESTRICTED_CICD_DIRECT_TABLE_GRANT",
+        `${grant.grantee} has prohibited direct table access: ${grant.tableName}`,
+        grant.grantee,
+      ));
+      continue;
+    }
+    if (RESTRICTED_CICD_BASE_TABLES.has(grant.tableName) && grant.grantee!=="agentnovas_migrator") {
+      findings.push(finding(
+        "RESTRICTED_CICD_BASE_TABLE_GRANT",
+        `${grant.grantee} bypasses the restricted CI/CD gateway on ${grant.tableName}`,
+        grant.grantee,
+      ));
+    }
+    if (grant.tableName==="release_workflow_safe_status"
+      && !["agentnovas_migrator","agentnovas_maint_web"].includes(grant.grantee)) {
+      findings.push(finding(
+        "RESTRICTED_CICD_SAFE_VIEW_GRANT",
+        `${grant.grantee} can read the restricted CI/CD Maintenance view`,
+        grant.grantee,
+      ));
     }
     const allowlist = WORKER_TABLES.get(grant.grantee);
     if (allowlist && !allowlist.has(grant.tableName)) {
@@ -326,6 +467,13 @@ export function evaluatePostgresRolePolicy({
         grant.grantee,
       ));
     }
+    if (grant.grantee === "agentnovas_maint_web" && MAINTENANCE_WORK_RECORD_RAW_TABLES.has(grant.tableName)) {
+      findings.push(finding(
+        "MAINTENANCE_WORK_RECORD_RAW_GRANT",
+        `${grant.grantee} can access raw Client work-record table ${grant.tableName}`,
+        grant.grantee,
+      ));
+    }
   }
 
   for (const grant of schemaGrants) {
@@ -343,6 +491,14 @@ export function evaluatePostgresRolePolicy({
       findings.push(finding("DISABLED_WORKER_ACCESS", `Disabled worker has sequence access: ${grant.grantee}`, grant.grantee));
       continue;
     }
+    if (RESTRICTED_CICD_GATEWAY_ROLES.has(grant.grantee)) {
+      findings.push(finding(
+        "RESTRICTED_CICD_DIRECT_SEQUENCE_GRANT",
+        `${grant.grantee} has prohibited direct sequence access: ${grant.sequenceName}`,
+        grant.grantee,
+      ));
+      continue;
+    }
     if (grant.grantee === "agentnovas_configuration_activation_worker") {
       findings.push(finding(
         "WORKER_SEQUENCE_GRANT",
@@ -353,6 +509,22 @@ export function evaluatePostgresRolePolicy({
   }
 
   for (const grant of routineGrants) {
+    if (grant.grantee==="agentnovas_migrator" && String(grant.routineName).startsWith("release_workflow_")) {
+      continue;
+    }
+    const restrictedCicdAllowlist = RESTRICTED_CICD_ROUTINE_ALLOWLIST.get(grant.grantee);
+    if (String(grant.routineName).startsWith("release_workflow_")
+      || RESTRICTED_CICD_GATEWAY_ROLES.has(grant.grantee)) {
+      if (!restrictedCicdAllowlist?.has(grant.routineName)
+        || String(grant.privilegeType).toUpperCase()!=="EXECUTE") {
+        findings.push(finding(
+          "RESTRICTED_CICD_ROUTINE_GRANT",
+          `${grant.grantee} has prohibited ${grant.privilegeType} access on ${grant.routineName}`,
+          grant.grantee,
+        ));
+      }
+      continue;
+    }
     if (grant.grantee === "PUBLIC") {
       findings.push(finding(
         "PUBLIC_ROUTINE_GRANT",
@@ -386,11 +558,16 @@ export function evaluatePostgresRolePolicy({
   }
 
   for (const membership of memberships) {
-    if (EXPECTED_RELEASE_DATABASE_ROLES.includes(membership.memberRole)) {
+    const controlledRole = EXPECTED_RELEASE_DATABASE_ROLES.includes(membership.memberRole)
+      ? membership.memberRole
+      : EXPECTED_RELEASE_DATABASE_ROLES.includes(membership.grantedRole)
+        ? membership.grantedRole
+        : null;
+    if (controlledRole) {
       findings.push(finding(
         "ROLE_MEMBERSHIP",
-        `${membership.memberRole} inherits or can SET ROLE to ${membership.grantedRole}`,
-        membership.memberRole,
+        `Prohibited role membership connects ${membership.memberRole} to ${membership.grantedRole}`,
+        controlledRole,
       ));
     }
   }
@@ -486,8 +663,7 @@ export function evaluatePostgresRolePolicy({
       const expectedGrantee = identityGatewayGrantee(signature);
       const expectedExecuteGrantees = new Set(["agentnovas_migrator", expectedGrantee]);
       const searchPathIsPinned = config.some((value) => (
-        String(value).replaceAll('"', "").replace(/\s+/g, " ").trim().toLowerCase()
-          === "search_path=pg_catalog, public"
+        normalizedRoutineSetting(value) === "search_path=pg_catalog,public"
       ));
       if (routine.ownerName !== "agentnovas_migrator" || !routine.securityDefiner
         || !searchPathIsPinned
@@ -509,8 +685,7 @@ export function evaluatePostgresRolePolicy({
     ]);
     const config = Array.isArray(gateway?.config) ? gateway.config : [];
     const pinnedPath = config.some((value) => (
-      String(value).replaceAll('"', "").replace(/\s+/g, " ").trim().toLowerCase()
-        === "search_path=public, pg_catalog"
+      normalizedRoutineSetting(value) === "search_path=public,pg_catalog"
     ));
     if (!gateway
       || gateway.ownerName !== "agentnovas_migrator"
@@ -533,8 +708,7 @@ export function evaluatePostgresRolePolicy({
     const expectedExecuteGrantees = new Set(["agentnovas_client_web", "agentnovas_migrator"]);
     const config = Array.isArray(gateway?.config) ? gateway.config : [];
     const pinnedPath = config.some((value) => (
-      String(value).replaceAll('"', "").replace(/\s+/g, " ").trim().toLowerCase()
-        === "search_path=public, pg_catalog"
+      normalizedRoutineSetting(value) === "search_path=public,pg_catalog"
     ));
     if (!gateway
       || gateway.ownerName !== "agentnovas_migrator"
@@ -546,6 +720,25 @@ export function evaluatePostgresRolePolicy({
         "Client feature flag gateway is missing or unsafe",
         "agentnovas_client_web",
       ));
+    }
+  }
+
+  if (restrictedCicdRoutines) {
+    const routinesByName = new Map(restrictedCicdRoutines.map((routine) => [routine.routineName,routine]));
+    for (const [routineName,expectedGrantees] of RESTRICTED_CICD_ROUTINE_EXPECTED_GRANTEES) {
+      const routine = routinesByName.get(routineName);
+      const actualGrantees = new Set(routine?.executeGrantees ?? []);
+      const pinnedPath = (routine?.config ?? []).some((entry) => (
+        normalizedRoutineSetting(entry)==="search_path=pg_catalog,public"
+      ));
+      if (!routine || routine.ownerName!=="agentnovas_migrator" || !routine.securityDefiner
+        || !pinnedPath || !sameStringSet(actualGrantees,expectedGrantees)) {
+        findings.push(finding(
+          "RESTRICTED_CICD_GATEWAY_UNSAFE",
+          `Restricted CI/CD gateway is missing, unpinned, or broadly granted: ${routineName}`,
+          routineName,
+        ));
+      }
     }
   }
 
@@ -574,6 +767,7 @@ async function verifyConfiguredDatabase() {
       identityRoutinesResult,
       configurationActivationRoutinesResult,
       configurationConsumerRoutinesResult,
+      restrictedCicdRoutinesResult,
       triggerReadGapsResult,
     ] = await Promise.all([
       pool.query(`
@@ -624,6 +818,7 @@ async function verifyConfiguredDatabase() {
         JOIN pg_roles AS member ON member.oid=membership.member
         JOIN pg_roles AS granted ON granted.oid=membership.roleid
         WHERE member.rolname = ANY($1::text[])
+           OR granted.rolname = ANY($1::text[])
       `, [EXPECTED_RELEASE_DATABASE_ROLES]),
       pool.query(`
         SELECT class.relname AS "tableName",class.relrowsecurity AS "rlsEnabled",
@@ -702,6 +897,23 @@ async function verifyConfiguredDatabase() {
          WHERE namespace.nspname='public'
            AND procedure.proname='configuration_client_active_feature_flag'
       `),
+      pool.query(`
+        SELECT procedure.proname AS "routineName",
+               owner.rolname AS "ownerName",procedure.prosecdef AS "securityDefiner",
+               COALESCE(procedure.proconfig,'{}'::text[]) AS config,
+               ARRAY(
+                 SELECT COALESCE(grantee.rolname,'PUBLIC')
+                   FROM aclexplode(COALESCE(procedure.proacl,acldefault('f',procedure.proowner))) AS acl
+                   LEFT JOIN pg_roles AS grantee ON grantee.oid=acl.grantee
+                  WHERE acl.privilege_type='EXECUTE'
+                  ORDER BY COALESCE(grantee.rolname,'PUBLIC')
+               )::text[] AS "executeGrantees"
+          FROM pg_proc AS procedure
+          JOIN pg_namespace AS namespace ON namespace.oid=procedure.pronamespace
+          JOIN pg_roles AS owner ON owner.oid=procedure.proowner
+         WHERE namespace.nspname='public'
+           AND procedure.proname LIKE 'release_workflow_%'
+      `),
       // 非 SECURITY DEFINER 的触发器函数，函数体里读到的表 × 能写触发表的角色。
       // 从 pg_proc.prosrc 里抽表名是启发式的，宁可多报——多报一条要人看一眼，
       // 漏报一条是生产上一个功能整体不可用。
@@ -749,6 +961,7 @@ async function verifyConfiguredDatabase() {
       identityRoutines: identityRoutinesResult.rows,
       configurationActivationRoutines: configurationActivationRoutinesResult.rows,
       configurationConsumerRoutines: configurationConsumerRoutinesResult.rows,
+      restrictedCicdRoutines: restrictedCicdRoutinesResult.rows,
     });
     process.stdout.write(`${JSON.stringify({ database: url.pathname.slice(1), findings }, null, 2)}\n`);
     if (findings.length) process.exitCode = 1;

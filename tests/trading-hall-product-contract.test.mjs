@@ -133,7 +133,7 @@ test("trading hall evidence is allowlisted and bounded before it reaches the cli
   assert.doesNotMatch(route, /evidence:\s*event\.evidence_json/);
 });
 
-test("七阶段结论从共享决策轮读，且界面明说这是本卡的公共轮", async () => {
+test("七阶段结论从共享决策轮读，且只在交易决策页解释公共轮", async () => {
   // 同一张策略卡在同一根已收盘 K 线上只判断一次，订阅该卡的所有客户看到同一轮
   // （ADR-0018）。七阶段内容不含任何客户数据——界面必须如实说明，
   // 不能让客户理解为「为我单独运行」。
@@ -150,10 +150,7 @@ test("七阶段结论从共享决策轮读，且界面明说这是本卡的公�
   assert.match(contract, /sharedDecisionRoundId: string \| null;/);
   assert.match(route, /sharedDecisionRoundId: deployment\.decision_round_id/);
 
-  // 措辞：两处展示决策轮的界面都必须点明共享。
+  // 决策轮只在交易决策页展示并点明共享；模拟组合页只保留组合与成交，避免重复信息。
   assert.match(meeting, /本卡公共决策轮/);
-  assert.match(paper, /公共决策轮/);
-  assert.match(paper, /对订阅同一张卡的所有客户完全相同/);
-  // 同时必须说清哪一部分仍是按客户单独判定的，否则会被理解成「大家仓位一样」。
-  assert.match(paper, /你的仓位与风控准入按你的组合单独判定/);
+  assert.doesNotMatch(paper, /公共决策轮|sharedDecisionRoundId|\/api\/trading-hall["`]/);
 });

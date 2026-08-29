@@ -191,6 +191,7 @@ function basePolicy(route, method) {
     return { audiences: ["client"], authentication: "anonymous", sameOrigin: mutation };
   }
   if (route === "/api/access/me/effective") return { audiences: ALL_AUDIENCES, authentication: "session", sameOrigin: false };
+  if (route === "/api/account/preferences") return { audiences: ALL_AUDIENCES, authentication: "session", sameOrigin: mutation };
   if (route === "/api/account/sessions") return { audiences: ALL_AUDIENCES, authentication: "session", sameOrigin: mutation };
   if (route.startsWith("/api/access/")) return { audiences: INTERNAL_AUDIENCES, authentication: "permission", sameOrigin: mutation };
   if (route.startsWith("/api/maintenance/") || route.startsWith("/api/admin/")) {
@@ -310,7 +311,7 @@ function sensitivePermissionKeys(source) {
 }
 
 function piiForRoute(route) {
-  if (route === "/api/maintenance/ai-usage") return "masked";
+  if (route === "/api/maintenance/ai-usage" || route === "/api/maintenance/work-records/export") return "masked";
   if (["/api/account/profile", "/api/data-center", "/api/employee/tasks", "/api/organization/members"].includes(route)
     || route.startsWith("/api/finance/payout-profiles") || route.startsWith("/api/operations/deposits")
     || route.startsWith("/api/operations/customers")) return "full";

@@ -36,6 +36,8 @@
     "quality:secret-scan": "node scripts/quality/repository-secret-scan.mjs",
     "release:identity": "node scripts/release/release-identity.mjs",
     "release:build-images": "node scripts/release/build-container-images.mjs",
+    "release:postgres-backup:container": "node scripts/release/container-postgres-backup-gate.mjs",
+    "release:postgres-role-policy:container": "node scripts/release/container-postgres-role-policy-gate.mjs",
     "lint": "eslint app apps db lib packages scripts tests drizzle.config.ts eslint.config.mjs next.config.ts postcss.config.mjs --ignore-pattern 'dist' --ignore-pattern '.next' --ignore-pattern '.next-*' --no-warn-ignored",
     "db:generate": "drizzle-kit generate",
     "postgres:migrate": "node --experimental-strip-types scripts/apply-postgres-migrations.mjs",
@@ -49,6 +51,12 @@
     "worker:payment": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/payment-worker.mjs",
     "worker:notification": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/notification-worker.mjs",
     "worker:configuration-activation": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/configuration-activation-worker.mjs",
+    "worker:release-orchestrator": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/release-orchestrator-worker.mjs",
+    "service:release-webhook-ingress": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/release-webhook-ingress.mjs",
+    "service:release-target": "node --experimental-strip-types scripts/release-target-gateway.mjs",
+    "service:release-auditor": "NODE_USE_ENV_PROXY=1 node --experimental-strip-types scripts/release-provider-security-auditor.mjs",
+    "service:release-control": "node --experimental-strip-types scripts/release-control-gateway.mjs",
+    "service:release-identity-verifier": "node --experimental-strip-types scripts/release-identity-verifier.mjs",
     "worker:demo": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/platform-demo-worker.mjs",
     "service:execution": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/execution-service.mjs",
     "quality:key-custody": "node --experimental-strip-types scripts/quality/check-web-key-custody.mjs",
@@ -87,6 +95,12 @@
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "typescript-eslint": "8.59.3"
+  },
+  "overrides": {
+    "esbuild": "0.28.2",
+    "lighthouse": "13.4.1",
+    "tmp": "0.2.7",
+    "uuid": "11.1.1"
   },
   "type": "module"
 }

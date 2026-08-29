@@ -5,6 +5,8 @@ let poolPromise: Promise<Pool> | undefined;
 let clientAuthPoolPromise: Promise<Pool> | undefined;
 let paymentWebhookPoolPromise: Promise<Pool> | undefined;
 let demoExecutionPoolPromise: Promise<Pool> | undefined;
+let releaseControlPoolPromise: Promise<Pool> | undefined;
+let releaseIdentityVerifierPoolPromise: Promise<Pool> | undefined;
 
 /**
  * Drizzle is constructed while Next.js discovers Route Handlers during a
@@ -245,6 +247,74 @@ export async function getPaymentWebhookPostgresPool() {
     })();
   }
   return paymentWebhookPoolPromise;
+}
+
+export async function getReleaseControlPostgresPool() {
+  if (!releaseControlPoolPromise) {
+    releaseControlPoolPromise = (async () => {
+      if (process.env.RIVERTON_RELEASE_CONTROL_SERVICE !== "true") {
+        throw new Error("Release control database pool is unavailable outside the isolated control service");
+      }
+      const qualityConnection = businessDatabaseUrl();
+      const qualityRoleBypass = isolatedQualityDatabaseRoleBypass(qualityConnection);
+      const connectionString = qualityRoleBypass
+        ? qualityConnection
+        : process.env.RELEASE_CONTROL_DATABASE_URL?.trim() ?? "";
+      if (!connectionString) throw new Error("RELEASE_CONTROL_DATABASE_URL 尚未配置");
+      if (!qualityRoleBypass && configuredDatabaseRole(connectionString, "Release control DATABASE_URL") !== "agentnovas_release_control") {
+        throw new Error("RELEASE_CONTROL_DATABASE_URL 必须使用 agentnovas_release_control");
+      }
+      const { default: pg } = await import("pg");
+      const pool = new pg.Pool({
+        connectionString,max: 4,idleTimeoutMillis: 30_000,connectionTimeoutMillis: 5_000,
+        application_name: "agentnovas-release-control",
+      });
+      pool.on("error", error => console.error("PostgreSQL release control idle error", { code: "code" in error ? error.code : "UNKNOWN" }));
+      if (!qualityRoleBypass) {
+        const role = await pool.query<{ current_user: string }>("SELECT current_user");
+        if (role.rows[0]?.current_user !== "agentnovas_release_control") {
+          await pool.end();
+          throw new Error("Release control PostgreSQL 当前角色不匹配");
+        }
+      }
+      return pool;
+    })();
+  }
+  return releaseControlPoolPromise;
+}
+
+export async function getReleaseIdentityVerifierPostgresPool() {
+  if (!releaseIdentityVerifierPoolPromise) {
+    releaseIdentityVerifierPoolPromise = (async () => {
+      if (process.env.RIVERTON_RELEASE_IDENTITY_VERIFIER_SERVICE !== "true") {
+        throw new Error("Release identity verifier database pool is unavailable outside the isolated verifier service");
+      }
+      const qualityConnection = businessDatabaseUrl();
+      const qualityRoleBypass = isolatedQualityDatabaseRoleBypass(qualityConnection);
+      const connectionString = qualityRoleBypass
+        ? qualityConnection
+        : process.env.RELEASE_IDENTITY_VERIFIER_DATABASE_URL?.trim() ?? "";
+      if (!connectionString) throw new Error("RELEASE_IDENTITY_VERIFIER_DATABASE_URL 尚未配置");
+      if (!qualityRoleBypass && configuredDatabaseRole(connectionString, "Release identity verifier DATABASE_URL") !== "agentnovas_release_identity_verifier") {
+        throw new Error("RELEASE_IDENTITY_VERIFIER_DATABASE_URL 必须使用 agentnovas_release_identity_verifier");
+      }
+      const { default: pg } = await import("pg");
+      const pool = new pg.Pool({
+        connectionString,max: 4,idleTimeoutMillis: 30_000,connectionTimeoutMillis: 5_000,
+        application_name: "agentnovas-release-identity-verifier",
+      });
+      pool.on("error", error => console.error("PostgreSQL release identity verifier idle error", { code: "code" in error ? error.code : "UNKNOWN" }));
+      if (!qualityRoleBypass) {
+        const role = await pool.query<{ current_user: string }>("SELECT current_user");
+        if (role.rows[0]?.current_user !== "agentnovas_release_identity_verifier") {
+          await pool.end();
+          throw new Error("Release identity verifier PostgreSQL 当前角色不匹配");
+        }
+      }
+      return pool;
+    })();
+  }
+  return releaseIdentityVerifierPoolPromise;
 }
 
 export async function checkPostgresConnection() {

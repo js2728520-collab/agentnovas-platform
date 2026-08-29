@@ -224,7 +224,7 @@ export function StrategyBacktestCenter({
   return <div className={styles.page}>
     <header className={styles.header}>
       <button type="button" onClick={onBack}>返回策略列表</button>
-      <div><small>VISUAL BACKTEST LAB</small><h2>历史回测中心</h2><p>查看真实运行阶段、资金曲线和逐笔结果；历史表现不代表未来收益。</p></div>
+      <div><small>VISUAL BACKTEST LAB</small><h1>历史回测中心</h1><p>查看真实运行阶段、资金曲线和逐笔结果；历史表现不代表未来收益。</p></div>
       <span>不会创建真实订单</span>
     </header>
 

@@ -223,7 +223,7 @@ export function StrategyBacktestDetail({
   return <div className={styles.page}>
     <header className={styles.header}>
       <button onClick={onBack}>返回我的策略</button>
-      <div><small>STRATEGY RESEARCH RECORD</small><h2>{strategy.name}</h2><p>{strategy.summary}</p></div>
+      <div><small>STRATEGY RESEARCH RECORD</small><h1>{strategy.name}</h1><p>{strategy.summary}</p></div>
       <span>{strategy.publicationMode === "self_use" ? "自用策略" : strategy.status} · V{strategy.version}</span>
     </header>
     {message && <div className={styles.notice}>{message}</div>}

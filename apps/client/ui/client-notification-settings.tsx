@@ -1,111 +1,151 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 import styles from "./client-notification-settings.module.css";
 import { clientErrorMessage, clientRequest } from "./client-api";
+import { notificationQuietHoursPayload, resolveNotificationQuietHours } from "./client-notification-preferences-model";
 
 const categories = [
   ["membership_billing", "会员缴费与到期", true],
-  ["api_security", "API 与安全异常", true],
-  ["risk_circuit_breaker", "风控熔断", true],
-  ["trade_execution", "开仓和平仓", false],
+  ["api_security", "账户与安全", true],
+  ["risk_circuit_breaker", "风险提醒", true],
+  ["trade_execution", "模拟交易", false],
   ["market_news", "行情与新闻", false],
 ] as const;
 const channels = ["in_app", "email"] as const;
 type Channel = typeof channels[number];
 type Mode = "instant" | "digest" | "important_only" | "disabled";
-type Preference = { category: string; channel: Channel | "telegram" | "whatsapp"; mode: Mode; quietStart?: string | null; quietEnd?: string | null };
+type Preference = { category: string; channel: Channel; mode: Mode; quietStart?: string | null; quietEnd?: string | null };
+type PreferenceModes = Record<string, Mode>;
+
+const modeOptions = [
+  ["instant", "即时"],
+  ["digest", "汇总"],
+  ["important_only", "仅重要"],
+] as const;
+
+function preferenceKey(category: string, channel: Channel) {
+  return `${category}:${channel}`;
+}
+
+function defaultModes(): PreferenceModes {
+  return Object.fromEntries(categories.flatMap(([category]) => channels.map((channel) => [
+    preferenceKey(category, channel),
+    category === "market_news" ? "disabled" : "instant",
+  ]))) as PreferenceModes;
+}
 
 export default function ClientNotificationSettings() {
-  const [preferences, setPreferences] = useState<Preference[]>([]);
+  const { t } = useAppLocale();
+  const [modes, setModes] = useState<PreferenceModes>(defaultModes);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"success" | "error">("success");
-  const [busyKey, setBusyKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [quietEnabled, setQuietEnabled] = useState(false);
   const [quietStart, setQuietStart] = useState("22:00");
   const [quietEnd, setQuietEnd] = useState("07:00");
+
   const load = useCallback(async () => {
-    setState("loading"); setMessage(""); setMessageKind("success");
+    setState("loading");
+    setMessage("");
+    setMessageKind("success");
     try {
-      const payload = await clientRequest<{ preferences?: Preference[] }>("/api/notifications/preferences", {}, "通知偏好读取失败");
-      const nextPreferences = Array.isArray(payload.preferences) ? payload.preferences : [];
-      const scheduled = nextPreferences.find((item) => item.quietStart && item.quietEnd);
-      setPreferences(nextPreferences);
-      if (scheduled?.quietStart && scheduled.quietEnd) {
-        setQuietStart(scheduled.quietStart);
-        setQuietEnd(scheduled.quietEnd);
+      const payload = await clientRequest<{ preferences?: Preference[] }>("/api/notifications/preferences", {}, t("通知偏好读取失败"));
+      const preferences = Array.isArray(payload.preferences) ? payload.preferences : [];
+      const nextModes = defaultModes();
+      for (const preference of preferences) {
+        if (channels.includes(preference.channel) && categories.some(([category]) => category === preference.category)) {
+          nextModes[preferenceKey(preference.category, preference.channel)] = preference.mode;
+        }
       }
+      const quietHours = resolveNotificationQuietHours(preferences);
+      setModes(nextModes);
+      setQuietEnabled(quietHours.enabled);
+      setQuietStart(quietHours.start);
+      setQuietEnd(quietHours.end);
       setState("ready");
-    } catch (error) { setMessage(clientErrorMessage(error, "通知偏好读取失败")); setState("error"); }
-  }, []);
-  useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
+    } catch (error) {
+      setMessage(clientErrorMessage(error, t("通知偏好读取失败")));
+      setState("error");
+    }
+  }, [t]);
 
-  function modeFor(category: string, channel: Channel): Mode {
-    return preferences.find((item) => item.category === category && item.channel === channel)?.mode
-      ?? (category === "market_news" ? "disabled" : "instant");
-  }
-  async function change(category: string, channel: Channel, mode: Mode) {
-    const key = `${category}:${channel}`;
-    if (busyKey) return;
-    setBusyKey(key); setMessage(""); setMessageKind("success");
-    try {
-      await clientRequest<{ ok: boolean }>("/api/notifications/preferences", {
-        method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ category, channel, mode, quietStart, quietEnd }),
-      }, "通知偏好保存失败");
-      setPreferences((current) => [...current.filter((item) => !(item.category === category && item.channel === channel)), { category, channel, mode, quietStart, quietEnd }]);
-      setMessageKind("success");
-      setMessage("通知偏好已保存");
-    } catch (error) { setMessageKind("error"); setMessage(clientErrorMessage(error, "通知偏好保存失败，原设置保持不变")); }
-    finally { setBusyKey(""); }
-  }
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
-  async function saveQuietHours() {
-    if (busyKey) return;
-    setBusyKey("quiet-hours"); setMessage(""); setMessageKind("success");
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || state !== "ready") return;
+    setSaving(true);
+    setMessage("");
+    setMessageKind("success");
     try {
+      const quietHours = notificationQuietHoursPayload(quietEnabled, quietStart, quietEnd);
       await clientRequest<{ ok: boolean }>("/api/notifications/preferences", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          quietStart,
-          quietEnd,
+          ...quietHours,
           preferences: categories.flatMap(([category]) => channels.map((channel) => ({
             category,
             channel,
-            mode: modeFor(category, channel),
+            mode: modes[preferenceKey(category, channel)],
           }))),
         }),
-      }, "免打扰时段保存失败");
-      setPreferences((current) => current.map((item) => ({ ...item, quietStart, quietEnd })));
-      setMessage("通知偏好与免打扰时段已保存");
+      }, t("通知设置保存失败"));
+      setMessage(t("通知设置已保存"));
     } catch (error) {
       setMessageKind("error");
-      setMessage(clientErrorMessage(error, "免打扰时段保存失败，原设置保持不变"));
+      setMessage(clientErrorMessage(error, t("通知设置保存失败，原设置保持不变")));
     } finally {
-      setBusyKey("");
+      setSaving(false);
     }
   }
 
-  return <section className={styles.settings} aria-labelledby="notification-settings-title">
-    <div className={styles.widgetHead}><b id="notification-settings-title">通知渠道与偏好</b><span>安全通知不可关闭</span></div>
-    <div className={styles.channelGrid} aria-label="外部通知渠道状态">
-      {(["Telegram", "WhatsApp"] as const).map((name) => <article key={name}><b>{name}</b><span>当前版本未接入</span><em>not_integrated</em></article>)}
+  if (state === "loading") return <section className={styles.panel} aria-live="polite" aria-busy="true"><p className={styles.loading}>{t("正在读取通知设置…")}</p></section>;
+  if (state === "error") return <section className={styles.panel} role="alert"><p className={styles.error}>{message}</p><button className={styles.secondaryButton} type="button" onClick={() => void load()}>{t("重新读取")}</button></section>;
+
+  return <form className={styles.form} onSubmit={(event) => void save(event)}>
+    <section className={styles.panel} aria-labelledby="quiet-hours-title">
+      <div className={styles.sectionHeading}><div><h2 id="quiet-hours-title">{t("免打扰时段")}</h2><p>{t("开启后按账号时区生效；重要通知仍会保留在站内。")}</p></div></div>
+      <div className={styles.quietToggle}><input id="notification-quiet-enabled" type="checkbox" checked={quietEnabled} disabled={saving} onChange={(event) => setQuietEnabled(event.target.checked)} /><label htmlFor="notification-quiet-enabled"><strong>{t("启用免打扰")}</strong><small>{t(quietEnabled ? "时段内暂停普通通知投递" : "当前按各通知类型设置正常投递")}</small></label></div>
+      <div className={styles.timeFields}>
+        <label htmlFor="notification-quiet-start"><span>{t("开始时间")}</span><input id="notification-quiet-start" type="time" value={quietStart} disabled={saving || !quietEnabled} onChange={(event) => setQuietStart(event.target.value)} /></label>
+        <label htmlFor="notification-quiet-end"><span>{t("结束时间")}</span><input id="notification-quiet-end" type="time" value={quietEnd} disabled={saving || !quietEnabled} onChange={(event) => setQuietEnd(event.target.value)} /></label>
+      </div>
+    </section>
+
+    <section className={styles.panel} aria-labelledby="notification-types-title">
+      <div className={styles.sectionHeading}><div><h2 id="notification-types-title">{t("通知类型")}</h2><p>{t("分别设置站内和邮件的接收方式。")}</p></div></div>
+      <div className={styles.preferenceHeader} aria-hidden="true"><span>{t("类型")}</span><span>{t("站内")}</span><span>{t("邮件")}</span></div>
+      <div className={styles.preferenceList}>
+        {categories.map(([category, label, mandatory]) => <div className={styles.preferenceRow} role="group" aria-labelledby={`notification-category-${category}`} key={category}>
+          <div className={styles.categoryLabel} id={`notification-category-${category}`}><strong>{t(label)}</strong>{mandatory && <small>{t("始终保留")}</small>}</div>
+          {channels.map((channel) => <label className={styles.channelControl} key={channel}>
+            <span>{t(channel === "in_app" ? "站内" : "邮件")}</span>
+            <select
+              aria-label={`${t(label)} · ${t(channel === "in_app" ? "站内" : "邮件")}`}
+              value={modes[preferenceKey(category, channel)]}
+              disabled={saving}
+              onChange={(event) => setModes((current) => ({ ...current, [preferenceKey(category, channel)]: event.target.value as Mode }))}
+            >
+              {modeOptions.map(([value, text]) => <option value={value} key={value}>{t(text)}</option>)}
+              {!mandatory && <option value="disabled">{t("关闭")}</option>}
+            </select>
+          </label>)}
+        </div>)}
+      </div>
+    </section>
+
+    <div className={styles.formActions}>
+      <button className={styles.primaryButton} type="submit" disabled={saving || (quietEnabled && (!quietStart || !quietEnd))}>{t(saving ? "保存中…" : "保存通知设置")}</button>
+      {message && <p className={messageKind === "error" ? styles.error : styles.success} role={messageKind === "error" ? "alert" : "status"} aria-live={messageKind === "error" ? "assertive" : "polite"}>{message}</p>}
     </div>
-    <p>当前仅站内与邮件偏好可配置。外部渠道不会展示连接入口、验证码或已发送状态。</p>
-    <div className={styles.quietHours} aria-labelledby="quiet-hours-title">
-      <div><b id="quiet-hours-title">免打扰时段</b><p>使用账号时区；安全与缴费通知仍会保留站内记录，并在时段结束后按渠道策略投递。</p></div>
-      <label>开始<input type="time" value={quietStart} onChange={(event) => setQuietStart(event.target.value)} /></label>
-      <label>结束<input type="time" value={quietEnd} onChange={(event) => setQuietEnd(event.target.value)} /></label>
-      <button type="button" disabled={Boolean(busyKey) || !quietStart || !quietEnd} onClick={() => void saveQuietHours()}>{busyKey === "quiet-hours" ? "保存中…" : "保存时段"}</button>
-    </div>
-    {state === "loading" ? <p aria-live="polite">正在读取通知偏好…</p> : state === "error" ? <div role="alert"><p>{message}</p><button type="button" onClick={() => void load()}>重试</button></div> : <div className={styles.preferenceTable} role="table" aria-label="通知偏好">
-      <header role="row"><b role="columnheader">通知类别</b><span role="columnheader">站内</span><span role="columnheader">邮件</span></header>
-      {categories.map(([key, label, mandatory]) => <div key={key} role="row"><b role="rowheader">{label}{mandatory && <small>强制</small>}</b>{channels.map((channel) => {
-        const controlKey = `${key}:${channel}`;
-        return <span role="cell" key={channel}><select aria-label={`${label} · ${channel === "in_app" ? "站内" : "邮件"}`} value={modeFor(key, channel)} disabled={Boolean(busyKey)} onChange={(event) => void change(key, channel, event.target.value as Mode)}><option value="instant">即时</option><option value="digest">汇总</option><option value="important_only">仅重要</option>{!mandatory && <option value="disabled">关闭</option>}{busyKey === controlKey && <option value={modeFor(key, channel)}>保存中</option>}</select></span>;
-      })}</div>)}
-    </div>}
-    {state !== "error" && message && <p role={messageKind === "error" ? "alert" : "status"} aria-live={messageKind === "error" ? "assertive" : "polite"}>{message}</p>}
-  </section>;
+  </form>;
 }

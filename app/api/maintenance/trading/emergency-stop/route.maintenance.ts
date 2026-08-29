@@ -11,7 +11,7 @@ import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib
 import { emergencyScopeForAccess } from "@/lib/trading-emergency";
 
 const PERMISSION = "maint.emergency_pause.execute";
-const DEMO_CONTROL_PATH = "/integrations/demo-exchanges";
+const DEMO_CONTROL_PATH = "/integrations?tab=demo";
 
 async function requestScope(request: Request) {
   const access = await requireAccessPermission(request, PERMISSION);

@@ -31,6 +31,8 @@ test("membership order creation and UI fail closed until all legal bodies are re
   assert.match(route, /hasReadableCommercialLegalContent/);
   assert.match(service, /result\.rows\.some\(\(row\) => !hasReadableCommercialLegalContent\(row\)\)/);
   assert.match(ui, /contentMarkdown/);
-  assert.match(ui, /我已逐项阅读以上七份正文/);
+  assert.match(ui, /我已阅读并同意以上服务说明/);
+  assert.match(ui, /!acknowledged \|\| !data\.orderCreationAvailable/);
+  assert.doesNotMatch(ui, /以上七份正文/);
   assert.doesNotMatch(ui, /idempotency-key": newIdempotencyKey\(\)/);
 });

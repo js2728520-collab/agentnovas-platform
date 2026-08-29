@@ -26,6 +26,41 @@ npm run dev:maintenance
 | Operations | `http://localhost:3001` | `rc_ops_session` | 仅登录 |
 | Maintenance | `http://localhost:3002` | `rc_maint_session` | 仅登录 |
 
+### 2.1 `an-saas` 远端 preview 测试环境
+
+自 2026-08-26 起，资源密集型构建、全量测试和三端浏览器服务端优先在 `ssh an-saas` 的隔离 preview
+环境执行，本地只保留轻量静态和定向检查。需求方已授权随时替换以下测试入口：
+
+| 应用 | 测试域名 | 当前 Caddy 上游 |
+| --- | --- | --- |
+| Client | `https://test.agentnovas.com` | `agentnovas-riverton-preview-client-1:3000` |
+| Operations | `https://ops-test.agentnovas.com` | `agentnovas-riverton-preview-operations-1:3000` |
+| Maintenance | `https://main-test.agentnovas.com` | `agentnovas-riverton-preview-maintenance-1:3000` |
+
+三域 DNS、HTTPS、CSP 和页面 audience 已现场核对。它们是可替换测试入口，不是 P-11 正式生产域名；
+不得把测试通过写成正式域名冻结或生产发布。替换只操作明确命名的 `preview-*` 容器、preview 数据库和
+Caddy 测试 vhost，不停止或覆盖无 `preview-` 前缀的正式三端/PostgreSQL 容器。源码使用一次性目录或
+streamed ephemeral container，完成后清理明确创建的临时资源；生产迁移、真实外部写入和 Git push
+仍需要各自明确授权。
+
+preview Compose 通过每端独立的 `RIVERTON_APP_HOST` 指定上述测试域名。该值必须是单个规范 DNS
+hostname，不能包含协议、端口、逗号、IP 或 `localhost`；配置后只接受该精确 Host，正式域名和其他
+测试域名都必须失败关闭。Docker healthcheck 也使用同一 Host，避免应用实际拒绝流量但容器误报健康。
+
+2026-08-26 当前 preview 应用候选为
+`preview-7c047b6-wt-20260826T142018Z`，应用回滚点为
+`preview-7c047b6-wt-20260826T141035Z`；两者都位于
+`/opt/agentnovas-riverton-preview/releases/`。替换前的数据库 dump 保存在当前候选目录的相邻 release
+目录并已通过 `pg_restore --list` 验证。切换应用版本不重建 preview PostgreSQL 容器或数据卷；任一
+Web 容器未达到 `running/healthy` 时，必须用回滚 release 自己的 compose 与 `release.env` 重建三端。
+迁移只允许由 migrator 按 registry checksum 执行；已部署迁移文件 checksum 不一致时停止发布，恢复
+仓库中已部署原文或追加新的 forward migration，禁止改 registry hash 绕过检查。
+
+远端全量 Gate 使用隔离 PostgreSQL。测试连接串必须显式包含数据库用户；涉及 Git 仓库合同的测试容器
+必须安装 `git`。包含 cluster-global role fixture 的 Node 测试在资源受限主机上使用单 CPU/串行资源
+隔离，避免不同测试文件并发删除同名角色。`quality:key-custody` 与 bundle budget 依赖三端 `.next-*`
+产物，必须在三端 production build 后运行，不能把“缺少构建产物”记录为代码失败。
+
 端口被占用时应先确认占用进程归属；测试服务使用其他明确端口，不能终止未知或用户已有进程。
 
 需要并行保留已有服务时，可在**显式 audience** 下覆盖本机端口；端口必须是 `1–65535` 的十进制整数，Host 与端口任一不匹配都会失败关闭。例如：
@@ -40,11 +75,24 @@ RIVERTON_APP_AUDIENCE=maintenance RIVERTON_APP_LOCAL_PORT=3012 npm exec -- next 
 
 ## 3. 稳定路由
 
-Client 商业入口为 `/`、`/membership`、`/membership/orders`、`/credits`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/wallet`、`/wallet/deposits` 和 `/notifications`；`/login` 是客户端会话入口。保留的策略、Agent、回测和账户工作区迁入 `/workspace` 并按需加载，不进入根页初始 bundle。
+Client 的五个规范入口为 `/dashboard`、`/trading?tab=hall|portfolios|records`、
+`/strategies?tab=research|backtests`、`/market` 和 `/assistant`。账户能力统一进入
+`/account-center?tab=membership|credits|wallet|deposit|statements`，个人偏好统一进入
+`/settings?tab=profile|appearance|security|notifications`；通知入口固定在顶栏。原会员、钱包、充值、
+Paper、交易大厅、工作记录、回测、账户和通知地址继续作为兼容深链接。
 
-Operations：`/`、`/customers`、`/organization`、`/deposits`、`/deposits/[id]`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
+Operations 的五个规范入口为 `/`、`/customers`、`/trading-operations`、`/commercial` 和
+`/governance`。商业能力通过 `commercial` 的 `membership|credits|deposits|ledger|statements|finance`
+Tab 访问；治理能力通过 `governance` 的 `invitations|operators|approvals|access|audit` Tab 访问。
+原 `/accounts`、`/membership-orders`、`/performance-statements`、`/credits`、`/deposits`、`/ledger`、
+`/finance`、`/approvals` 和 `/access*` 仍映射到相同能力。已退役的组织关系管理页不恢复。
 
-Maintenance：`/`、`/models`、`/ai-usage`、`/integrations`、`/integrations/email`、`/integrations/payments`、`/health`、`/safety`、`/settings`、`/access`、`/access/audit`。
+Maintenance 的五个规范入口为 `/`、`/ai-strategy`、`/integrations`、`/configurations` 和 `/releases`。
+系统运行通过根页 `overview|readiness|health|records` Tab 访问；其余中心分别承载 AI 与策略、外部集成、
+平台配置、发布与安全。原 `/models`、`/ai-usage`、`/work-records`、`/integrations/*`、`/health`、
+`/safety`、`/settings*`、`/access*` 和 `/audit` 仍是兼容深链接。
+
+规范入口收到非法 Tab 时回退到当前权限范围内的安全默认值；兼容深链接必须保留资源 ID 和必要查询参数。
 
 错误 audience 的稳定路由必须返回 404。未登录页面跳转 `/login?next=...`；登录接口对无当前应用登录权限的账号返回 403；已登录但无模块权限显示无权限页且不请求业务数据。
 
@@ -63,6 +111,7 @@ Maintenance：`/`、`/models`、`/ai-usage`、`/integrations`、`/integrations/e
 | 运维健康 | `maint.system_health.view` |
 | 模型与 Agent | `maint.llm_profiles.manage`、`maint.agent_bindings.manage` |
 | AI 用量分析 | `maint.ai_usage.view` |
+| 工作记录脱敏导出 | `maint.work_records.export` |
 | 邮件与支付 | `maint.email_integrations.manage`、`maint.payment_integrations.manage` |
 | 紧急暂停 | `maint.emergency_pause.execute` |
 | 平台与客服设置 | `maint.feature_flags.manage` |

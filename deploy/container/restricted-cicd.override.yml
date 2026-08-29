@@ -1,0 +1,33 @@
+services:
+  client:
+    image: ${RIVERTON_CLIENT_IMAGE:?set immutable RIVERTON_CLIENT_IMAGE}
+  operations:
+    image: ${RIVERTON_OPERATIONS_IMAGE:?set immutable RIVERTON_OPERATIONS_IMAGE}
+  maintenance:
+    image: ${RIVERTON_MAINTENANCE_IMAGE:?set immutable RIVERTON_MAINTENANCE_IMAGE}
+  notification-worker:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  configuration-activation-worker:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  release-orchestrator-staging:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  release-orchestrator-production:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  release-provider-security-auditor-staging:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  release-provider-security-auditor-production:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  release-webhook-ingress:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  release-identity-verifier:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  release-control:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  runtime-worker:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  demo-worker:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  execution:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  migrator:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}

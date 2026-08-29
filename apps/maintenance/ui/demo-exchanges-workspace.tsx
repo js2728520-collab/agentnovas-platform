@@ -12,6 +12,7 @@ import {
   StatusBadge,
 } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 type DemoCardView = {
   strategyCode: string;
@@ -82,9 +83,10 @@ export function DemoExchangesWorkspace({
   canManage: boolean;
   canKill: boolean;
 }) {
+  const { locale, t } = useAppLocale();
   const resource = useApiData<DemoSafeView>(
     "/api/maintenance/demo-exchanges",
-    "Demo 账户安全视图读取失败",
+    t("Demo 账户安全视图读取失败"),
   );
   const [verifyReason, setVerifyReason] = useState("");
   const [controlReason, setControlReason] = useState("");
@@ -124,10 +126,12 @@ export function DemoExchangesWorkspace({
       if (response.status === 401) {
         const next = `${window.location.pathname}${window.location.search}`;
         window.location.replace(`/login?next=${encodeURIComponent(next)}`);
-        throw new Error("会话已过期，正在返回登录页");
+        throw new Error(t("会话已过期，正在返回登录页"));
       }
       if (!response.ok) {
-        throw new Error(apiErrorMessage(payload, "Demo 账户操作失败"));
+        const fallback = t("Demo 账户操作失败");
+        const detail = apiErrorMessage(payload, fallback);
+        throw new Error(locale === "zh-CN" || !/[\u3400-\u9fff]/.test(detail) ? detail : fallback);
       }
       const noChange =
         payload &&
@@ -136,15 +140,15 @@ export function DemoExchangesWorkspace({
         payload.result === "NO_CHANGE";
       setMessage(
         noChange
-          ? "状态未变化；未新增安全控制变更。"
+          ? t("状态未变化；未新增安全控制变更。")
           : actionToRun.action === "verify"
-          ? "Demo provider 验证已真实执行并返回通过；这不表示 Worker 已启用或外部写入已授权。"
-          : "安全控制已记录；页面刷新后展示数据库真状态，不表示发生了任何真实订单。",
+          ? t("Demo provider 验证已真实执行并返回通过；这不表示 Worker 已启用或外部写入已授权。")
+          : t("安全控制已记录；页面刷新后展示数据库真状态，不表示发生了任何真实订单。"),
       );
       if (actionToRun.action !== "verify") controlKeys.current.delete(keyName);
       await resource.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Demo 账户操作失败");
+      setMessage(error instanceof Error ? error.message : t("Demo 账户操作失败"));
     } finally {
       setBusy(false);
     }
@@ -155,7 +159,7 @@ export function DemoExchangesWorkspace({
   }
 
   if (resource.loading && !resource.data) {
-    return <LoadingState label="正在读取 Demo 账户安全视图…" />;
+    return <LoadingState label={t("正在读取 Demo 账户安全视图…")} />;
   }
   if (resource.error && !resource.data) {
     return <ErrorState message={resource.error} retry={resource.refresh} />;
@@ -165,43 +169,43 @@ export function DemoExchangesWorkspace({
     <>
       <PageHeading
         eyebrow="DEMO SPOT CONTROL"
-        title="平台 Demo 交易所"
-        description="平台测试账户，不代表客户真实成交。仅允许 Demo 现货、固定 10 USDT 意图；永续真实订单始终禁用。"
+        title={t("平台 Demo 交易所")}
+        description={t("平台测试账户，不代表客户真实成交。仅允许 Demo 现货、固定 10 USDT 意图；永续真实订单始终禁用。")}
         actions={
           <button
             className="rc-button"
             type="button"
             onClick={() => void resource.refresh()}
           >
-            刷新安全视图
+            {t("刷新安全视图")}
           </button>
         }
       />
       <div className="rc-live" aria-live="polite">
         {message}
       </div>
-      <section className="rc-kpi-grid" aria-label="Demo 执行硬限制">
+      <section className="rc-kpi-grid" aria-label={t("Demo 执行硬限制")}>
         <article>
-          <small>单次名义金额</small>
+          <small>{t("单次名义金额")}</small>
           <strong>{policy?.quoteAmountUsdt ?? "—"} USDT</strong>
-          <span>服务端与数据库固定</span>
+          <span>{t("服务端与数据库固定")}</span>
         </article>
         <article>
-          <small>Provider 日上限</small>
+          <small>{t("Provider 日上限")}</small>
           <strong>{policy?.providerDailyCapUsdt ?? "—"} USDT</strong>
-          <span>按 UTC 日累计</span>
+          <span>{t("按 UTC 日累计")}</span>
         </article>
         <article>
-          <small>永续真实订单</small>
-          <strong className="rc-kpi-status">始终禁用</strong>
-          <span>不提供任何 UI 入口</span>
+          <small>{t("永续真实订单")}</small>
+          <strong className="rc-kpi-status">{t("始终禁用")}</strong>
+          <span>{t("不提供任何 UI 入口")}</span>
         </article>
       </section>
-      {(canVerify || canManage || canKill) ? <section className="rc-panel"><header><div><small>INLINE AUDIT</small><h2>Demo 验证与安全控制</h2><p>填写对应原因后直接执行，不再弹出二次确认；账户启停、Kill、恢复、权限、幂等和运行时外写 Gate 保持不变。</p></div></header><div className="rc-form rc-form-grid">{canVerify ? <InlineAuditReasonField id="demo-verification-reason" value={verifyReason} onChange={setVerifyReason} minLength={8} label="连接验证原因" /> : null}{(canManage || canKill) ? <InlineAuditReasonField id="demo-control-reason" value={controlReason} onChange={setControlReason} minLength={8} label="安全控制原因" hint="控制只更新平台 Demo 账户或策略卡状态，不会创建、撤销或声称执行任何订单。" /> : null}</div></section> : null}
+      {(canVerify || canManage || canKill) ? <section className="rc-panel"><header><div><small>INLINE AUDIT</small><h2>{t("Demo 验证与安全控制")}</h2><p>{t("填写对应原因后直接执行，不再弹出二次确认；账户启停、Kill、恢复、权限、幂等和运行时外写 Gate 保持不变。")}</p></div></header><div className="rc-form rc-form-grid">{canVerify ? <InlineAuditReasonField id="demo-verification-reason" value={verifyReason} onChange={setVerifyReason} minLength={8} label={t("连接验证原因")} /> : null}{(canManage || canKill) ? <InlineAuditReasonField id="demo-control-reason" value={controlReason} onChange={setControlReason} minLength={8} label={t("安全控制原因")} hint={t("控制只更新平台 Demo 账户或策略卡状态，不会创建、撤销或声称执行任何订单。")} /> : null}</div></section> : null}
       {!resource.data?.accounts.length ? (
         <EmptyState
-          title="尚无平台 Demo 账户"
-          description="未配置时不会生成假账户、假验证或假成交回执。"
+          title={t("尚无平台 Demo 账户")}
+          description={t("未配置时不会生成假账户、假验证或假成交回执。")}
         />
       ) : (
         <div className="rc-card-list">
@@ -211,7 +215,7 @@ export function DemoExchangesWorkspace({
                 <div>
                   <small>{account.provider.toUpperCase()} DEMO SPOT</small>
                   <h2>{account.label}</h2>
-                  <p>账户 ID {account.id}</p>
+                  <p>{t("账户 ID")} {account.id}</p>
                 </div>
                 <StatusBadge
                   value={
@@ -225,41 +229,41 @@ export function DemoExchangesWorkspace({
               </header>
               <div className="rc-health-grid">
                 <article>
-                  <span>配置</span>
+                  <span>{t("配置")}</span>
                   <StatusBadge
                     value={account.configured ? "configured" : "unconfigured"}
                   />
                   <small>
-                    Key {account.hasApiKey ? "存在" : "缺失"} · Secret {account.hasSecret ? "存在" : "缺失"}
-                    {account.hasPassphrase ? " · Passphrase 存在" : ""}
+                    Key {account.hasApiKey ? t("存在") : t("缺失")} · Secret {account.hasSecret ? t("存在") : t("缺失")}
+                    {account.hasPassphrase ? ` · Passphrase ${t("存在")}` : ""}
                   </small>
                 </article>
                 <article>
-                  <span>最近验证</span>
+                  <span>{t("最近验证")}</span>
                   <StatusBadge
                     value={account.lastVerificationStatus ?? "not_verified"}
                   />
                   <small>
                     {account.lastVerifiedAt
-                      ? formatDateTime(account.lastVerifiedAt)
-                      : "从未验证"}
-                    {account.verificationFresh ? " · 15 分钟内有效" : " · 已过期或未通过"}
+                      ? formatDateTime(account.lastVerifiedAt, locale)
+                      : t("从未验证")}
+                    {account.verificationFresh ? ` · ${t("15 分钟内有效")}` : ` · ${t("已过期或未通过")}`}
                   </small>
                 </article>
                 <article>
-                  <span>今日意图</span>
+                  <span>{t("今日意图")}</span>
                   <b>{formatDecimal(account.dailyNotional)} USDT</b>
-                  <small>{account.dailyIntentCount} 个 · 非成交额</small>
+                  <small>{account.dailyIntentCount} {t("个 · 非成交额")}</small>
                 </article>
                 <article>
-                  <span>最近不可变回执</span>
+                  <span>{t("最近不可变回执")}</span>
                   <StatusBadge
                     value={account.latestReceipt?.status ?? "none"}
                   />
                   <small>
                     {account.latestReceipt
-                      ? `${formatDecimal(account.latestReceipt.filledQuoteUsdt)} USDT · ${formatDateTime(account.latestReceipt.observedAt)}`
-                      : "暂无回执"}
+                      ? `${formatDecimal(account.latestReceipt.filledQuoteUsdt)} USDT · ${formatDateTime(account.latestReceipt.observedAt, locale)}`
+                      : t("暂无回执")}
                   </small>
                 </article>
               </div>
@@ -271,7 +275,7 @@ export function DemoExchangesWorkspace({
                     disabled={busy || !hasValidAuditReason(verifyReason, 8)}
                     onClick={() => verifyAccount(account)}
                   >
-                    验证 Demo 连接
+                    {t("验证 Demo 连接")}
                   </button>
                 )}
                 {canManage && !account.enabled && !account.killSwitchEnabled && (
@@ -281,7 +285,7 @@ export function DemoExchangesWorkspace({
                     disabled={busy || !account.configured || !account.verificationFresh || !hasValidAuditReason(controlReason, 8)}
                     onClick={() => void execute({ account, action: "enable" }, controlReason.trim())}
                   >
-                    启用账户
+                    {t("启用账户")}
                   </button>
                 )}
                 {canKill && account.enabled && (
@@ -291,7 +295,7 @@ export function DemoExchangesWorkspace({
                     disabled={busy || !hasValidAuditReason(controlReason, 8)}
                     onClick={() => void execute({ account, action: "disable" }, controlReason.trim())}
                   >
-                    停用账户
+                    {t("停用账户")}
                   </button>
                 )}
                 {canKill && !account.killSwitchEnabled && (
@@ -301,7 +305,7 @@ export function DemoExchangesWorkspace({
                     disabled={busy || !hasValidAuditReason(controlReason, 8)}
                     onClick={() => void execute({ account, action: "kill" }, controlReason.trim())}
                   >
-                    紧急 Kill
+                    {t("紧急 Kill")}
                   </button>
                 )}
                 {canManage && account.killSwitchEnabled && (
@@ -311,7 +315,7 @@ export function DemoExchangesWorkspace({
                     disabled={busy || !hasValidAuditReason(controlReason, 8)}
                     onClick={() => void execute({ account, action: "resume" }, controlReason.trim())}
                   >
-                    解除 Kill（保持停用）
+                    {t("解除 Kill（保持停用）")}
                   </button>
                 )}
               </div>
@@ -320,11 +324,11 @@ export function DemoExchangesWorkspace({
                   <article key={card.strategyCode}>
                     <header>
                       <div>
-                        <b>{strategyLabels[card.strategyCode] ?? card.strategyCode}</b>
+                        <b>{t(strategyLabels[card.strategyCode] ?? card.strategyCode)}</b>
                         <small>
                           {card.updatedAt
-                            ? `最近控制 ${formatDateTime(card.updatedAt)}`
-                            : "使用默认未停控状态"}
+                            ? `${t("最近控制")} ${formatDateTime(card.updatedAt, locale)}`
+                            : t("使用默认未停控状态")}
                         </small>
                       </div>
                       <StatusBadge
@@ -343,7 +347,7 @@ export function DemoExchangesWorkspace({
                               strategyCode: card.strategyCode,
                             }, controlReason.trim())}
                         >
-                          停止该卡
+                          {t("停止该卡")}
                         </button>
                       )}
                       {canManage && card.killSwitchEnabled && (
@@ -357,7 +361,7 @@ export function DemoExchangesWorkspace({
                               strategyCode: card.strategyCode,
                             }, controlReason.trim())}
                         >
-                          恢复该卡
+                          {t("恢复该卡")}
                         </button>
                       )}
                     </div>

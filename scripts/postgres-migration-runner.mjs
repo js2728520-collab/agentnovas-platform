@@ -26,6 +26,22 @@ export function migrationChecksum(sql) {
   return createHash("sha256").update(sql, "utf8").digest("hex");
 }
 
+export function migrationRegistrySha256(migrations) {
+  const entries = [...migrations]
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((migration) => {
+      if (!MIGRATION_FILE.test(migration.name)) {
+        throw new Error(`Invalid PostgreSQL migration filename: ${migration.name}`);
+      }
+      const checksum = migration.checksum ?? migrationChecksum(migration.sql);
+      if (!/^[a-f0-9]{64}$/.test(checksum)) {
+        throw new Error(`Invalid PostgreSQL migration checksum: ${migration.name}`);
+      }
+      return `${migration.name}:${checksum}`;
+    });
+  return createHash("sha256").update(entries.join("\n"), "utf8").digest("hex");
+}
+
 export function planPostgresMigrations(migrations, appliedRows) {
   const pending = [];
   const skipped = [];

@@ -12,12 +12,17 @@ test("production units use per-process environment files and unique web ports", 
     maintenance: await read("deploy/systemd/riverton-maintenance.service"),
     notification: await read("deploy/systemd/riverton-notification-worker.service"),
     "configuration-activation": await read("deploy/systemd/riverton-configuration-activation-worker.service"),
+    "release-orchestrator": await read("deploy/systemd/agentnovas-release-orchestrator@.service"),
+    "release-webhook": await read("deploy/systemd/agentnovas-release-webhook-ingress.service"),
     demo: await read("deploy/systemd/riverton-demo-execution-worker.service"),
     research: await read("deploy/systemd/agentnovas-research-worker.service"),
     runtime: await read("deploy/systemd/agentnovas-runtime-worker.service"),
   };
   for (const [name, source] of Object.entries(units)) {
-    assert.match(source, new RegExp(`EnvironmentFile=/etc/agentnovas/${name}\\.env`));
+    const environmentFile = name === "release-orchestrator"
+      ? "release-orchestrator-%i.env"
+      : `${name}.env`;
+    assert.match(source, new RegExp(`EnvironmentFile=/etc/agentnovas/${environmentFile.replace(".", "\\.")}`));
     assert.doesNotMatch(source, /EnvironmentFile=.*agentnovas\.env$/m);
   }
   assert.match(units.client, /Environment=PORT=3000/);
@@ -33,6 +38,8 @@ test("commercial Beta deploy surface contains no legacy web or payment worker un
   const names = await readdir(new URL("deploy/systemd/", root));
   assert.equal(names.includes("agentnovas-web.service"), false);
   assert.equal(names.includes("riverton-payment-worker.service"), false);
+  assert.equal(names.includes("agentnovas-release-control.service"), false);
+  assert.equal(names.includes("agentnovas-release-identity-verifier.service"), false);
   await assert.rejects(access(new URL("deploy/nginx/agentnovas.com.conf", root)));
 });
 
@@ -41,6 +48,10 @@ test("environment examples preserve disabled external effects", async () => {
   const notification = await read("deploy/env/notification.env.example");
   const maintenance = await read("deploy/env/maintenance.env.example");
   const configurationActivation = await read("deploy/env/configuration-activation.env.example");
+  const releaseOrchestrator = await read("deploy/env/release-orchestrator.env.example");
+  const releaseWebhook = await read("deploy/env/release-webhook.env.example");
+  const releaseControl = await read("deploy/env/release-control.env.example");
+  const releaseIdentityVerifier = await read("deploy/env/release-identity-verifier.env.example");
   const client = await read("deploy/env/client.env.example");
   const legacy = await read("deploy/agentnovas.env.example");
   assert.match(demo, /^DEMO_EXECUTION_WORKER_ENABLED=false$/m);
@@ -49,6 +60,12 @@ test("environment examples preserve disabled external effects", async () => {
   assert.match(maintenance, /^PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false$/m);
   assert.match(maintenance, /^CONFIGURATION_ACTIVATION_WORKER_ENABLED=false$/m);
   assert.match(configurationActivation, /^CONFIGURATION_ACTIVATION_WORKER_ENABLED=false$/m);
+  assert.match(releaseOrchestrator, /^RELEASE_ORCHESTRATOR_WORKER_ENABLED=false$/m);
+  assert.match(releaseWebhook, /^RELEASE_WEBHOOK_INGRESS_ENABLED=false$/m);
+  assert.match(releaseWebhook, /^RELEASE_WEBHOOK_DATABASE_URL=postgresql:\/\/agentnovas_release_ingress:/m);
+  assert.match(releaseControl, /^RELEASE_CONTROL_ENABLED=false$/m);
+  assert.match(releaseIdentityVerifier, /^RELEASE_IDENTITY_VERIFIER_ENABLED=false$/m);
+  assert.match(releaseIdentityVerifier, /^RELEASE_IDENTITY_VERIFIER_DATABASE_URL=postgresql:\/\/agentnovas_release_identity_verifier:/m);
   assert.doesNotMatch(demo, /PAYMENT_WORKER_ENABLED=true/);
   assert.match(notification, /^NOTIFICATION_EMAIL_SEND_ENABLED=false$/m);
   assert.match(notification, /^RESEND_API_KEY=$/m);

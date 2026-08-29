@@ -11,6 +11,7 @@ import {
   databaseConnectionOptions,
 } from "../scripts/release/postgres-recovery-rehearsal.mjs";
 import {
+  EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES,
   EXPECTED_RELEASE_DATABASE_ROLES,
   evaluatePostgresRolePolicy,
 } from "../scripts/release/postgres-role-policy.mjs";
@@ -93,7 +94,7 @@ test("database role policy rejects elevated roles, broad PUBLIC grants, and disa
   assert.ok(EXPECTED_RELEASE_DATABASE_ROLES.includes("agentnovas_payment_webhook"));
   const safeRoles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
     roleName,
-    canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
+    canLogin: !EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES.includes(roleName),
     superuser: false,
     createRole: false,
     createDatabase: false,
@@ -136,10 +137,155 @@ test("database role policy rejects elevated roles, broad PUBLIC grants, and disa
   assert.ok(findings.some((finding) => finding.code === "WORKER_TABLE_GRANT" && finding.roleName === "agentnovas_payment_webhook"));
 });
 
+test("restricted CI/CD roles use explicit login states and receive only pinned gateway routines", () => {
+  const roles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
+    roleName,
+    canLogin: !EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES.includes(roleName),
+    superuser: false,
+    createRole: false,
+    createDatabase: false,
+    replication: false,
+    bypassRls: false,
+  }));
+  const grantsByRole = new Map([
+    ["agentnovas_maint_web", ["release_workflow_read_maintenance_control", "release_workflow_issue_human_action_authority"]],
+    ["agentnovas_release_control", ["release_workflow_execute_human_action"]],
+    ["agentnovas_release_identity_verifier", [
+      "release_workflow_record_human_action_assertion",
+      "release_workflow_resolve_human_action_assertion",
+    ]],
+    ["agentnovas_release_worker", [
+      "release_workflow_recover_expired_dispatch_v2",
+      "release_workflow_claim_next_reconciliation_v2",
+      "release_workflow_claim_next_command_v2",
+      "release_workflow_begin_dispatch",
+      "release_workflow_record_dispatch_unknown",
+      "release_workflow_bind_provider_run",
+      "release_workflow_reject_bound_run",
+      "release_workflow_append_provider_event",
+      "release_workflow_worker_heartbeat",
+    ]],
+    ["agentnovas_release_ingress", ["release_workflow_append_delivery"]],
+    ["agentnovas_release_auditor", ["release_workflow_append_run_policy_attestation"]],
+    ["agentnovas_release_target_gateway", [
+      "release_workflow_reserve_workflow_target_request_v4",
+      "release_workflow_validate_target_authority_v2",
+      "release_workflow_validate_target_cutover_v2",
+      "release_workflow_recover_target_operation_v2",
+      "release_workflow_list_recoverable_target_operations_v2",
+      "release_workflow_assert_migration_registry",
+      "release_workflow_takeover_target_operation",
+      "release_workflow_append_target_receipt",
+      "release_workflow_target_request_stop",
+      "release_workflow_prepare_target_clear_ack_v2",
+      "release_workflow_validate_target_stop_cleared_v2",
+      "release_workflow_append_stop_receipt_v2",
+    ]],
+  ]);
+  const routineGrants = [...grantsByRole].flatMap(([grantee,routines]) => routines.map((routineName) => ({
+    grantee,routineName,privilegeType: "EXECUTE",
+  })));
+  const restrictedCicdRoutines = [...grantsByRole].flatMap(([grantee,routines]) => routines.map((routineName) => ({
+    routineName,
+    ownerName: "agentnovas_migrator",
+    securityDefiner: true,
+    config: ["search_path=pg_catalog, public"],
+    executeGrantees: ["agentnovas_migrator",grantee],
+  })));
+  const input = {
+    roles,
+    grants: [{ grantee: "agentnovas_maint_web", tableName: "release_workflow_safe_status", privilegeType: "SELECT" }],
+    schemaGrants: [],
+    sequenceGrants: [],
+    routineGrants,
+    memberships: [],
+    restrictedCicdRoutines,
+  };
+  assert.equal(roles.find((role) => role.roleName === "agentnovas_release_worker")?.canLogin, true);
+  assert.equal(EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES.includes("agentnovas_release_worker"), false);
+  assert.equal(roles.find((role) => role.roleName === "agentnovas_release_ingress")?.canLogin, true);
+  assert.equal(EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES.includes("agentnovas_release_ingress"), false);
+  assert.equal(roles.find((role) => role.roleName === "agentnovas_release_auditor")?.canLogin, true);
+  assert.equal(EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES.includes("agentnovas_release_auditor"), false);
+  assert.deepEqual(evaluatePostgresRolePolicy(input), []);
+
+  const maintenanceAccountGateway = evaluatePostgresRolePolicy({
+    ...input,
+    routineGrants: [...input.routineGrants, {
+      grantee: "agentnovas_maint_web",
+      routineName: "user_app_preference_read",
+      privilegeType: "EXECUTE",
+    }],
+  });
+  assert.equal(maintenanceAccountGateway.some((finding) => (
+    finding.code === "RESTRICTED_CICD_ROUTINE_GRANT"
+    && finding.message.includes("user_app_preference_read")
+  )), false);
+
+  const elevatedWorker = evaluatePostgresRolePolicy({
+    ...input,
+    roles: roles.map((role) => role.roleName === "agentnovas_release_worker"
+      ? { ...role, superuser: true }
+      : role),
+  });
+  assert.ok(elevatedWorker.some((finding) => finding.code === "ELEVATED_ROLE"
+    && finding.roleName === "agentnovas_release_worker"));
+  const workerMembership = evaluatePostgresRolePolicy({
+    ...input,
+    memberships: [{ memberRole: "agentnovas_release_worker", grantedRole: "agentnovas_migrator" }],
+  });
+  assert.ok(workerMembership.some((finding) => finding.code === "ROLE_MEMBERSHIP"
+    && finding.roleName === "agentnovas_release_worker"));
+  const inboundWorkerMembership = evaluatePostgresRolePolicy({
+    ...input,
+    memberships: [{ memberRole: "stale_external_login", grantedRole: "agentnovas_release_worker" }],
+  });
+  assert.ok(inboundWorkerMembership.some((finding) => finding.code === "ROLE_MEMBERSHIP"
+    && finding.roleName === "agentnovas_release_worker"));
+  const workerSchemaCreate = evaluatePostgresRolePolicy({
+    ...input,
+    schemaGrants: [{ grantee: "agentnovas_release_worker", privilegeType: "CREATE" }],
+  });
+  assert.ok(workerSchemaCreate.some((finding) => finding.code === "SCHEMA_CREATE_GRANT"));
+  const workerSequence = evaluatePostgresRolePolicy({
+    ...input,
+    sequenceGrants: [{
+      grantee: "agentnovas_release_worker",
+      sequenceName: "release_workflow_events_sequence_no_seq",
+      privilegeType: "USAGE",
+    }],
+  });
+  assert.ok(workerSequence.some((finding) => finding.code === "RESTRICTED_CICD_DIRECT_SEQUENCE_GRANT"));
+
+  const directTable = evaluatePostgresRolePolicy({
+    ...input,
+    grants: [...input.grants, {
+      grantee: "agentnovas_release_worker",
+      tableName: "release_workflow_commands",
+      privilegeType: "SELECT",
+    }],
+  });
+  assert.ok(directTable.some((finding) => finding.code === "RESTRICTED_CICD_DIRECT_TABLE_GRANT"));
+  const broadRoutine = evaluatePostgresRolePolicy({
+    ...input,
+    routineGrants: [...input.routineGrants, {
+      grantee: "agentnovas_release_ingress",
+      routineName: "release_workflow_reserve_exact_run_operation",
+      privilegeType: "EXECUTE",
+    }],
+  });
+  assert.ok(broadRoutine.some((finding) => finding.code === "RESTRICTED_CICD_ROUTINE_GRANT"));
+  const unpinned = restrictedCicdRoutines.map((routine) => (
+    routine.routineName === "release_workflow_claim_next_command_v2" ? { ...routine, config: [] } : routine
+  ));
+  assert.ok(evaluatePostgresRolePolicy({ ...input, restrictedCicdRoutines: unpinned })
+    .some((finding) => finding.code === "RESTRICTED_CICD_GATEWAY_UNSAFE"));
+});
+
 test("configuration activation worker grants are checked at table and privilege level", () => {
   const roles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
     roleName,
-    canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
+    canLogin: !EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES.includes(roleName),
     superuser: false,
     createRole: false,
     createDatabase: false,
@@ -197,7 +343,7 @@ test("configuration activation worker grants are checked at table and privilege 
 test("configuration activation gateway stays owner-controlled with a pinned path", () => {
   const roles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
     roleName,
-    canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
+    canLogin: !EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES.includes(roleName),
     superuser: false,
     createRole: false,
     createDatabase: false,
@@ -208,7 +354,7 @@ test("configuration activation gateway stays owner-controlled with a pinned path
     signature: "configuration_activation_worker_activate(text)",
     ownerName: "agentnovas_migrator",
     securityDefiner: true,
-    config: ["search_path=public, pg_catalog"],
+    config: ["search_path=\"public\",pg_catalog"],
     executeGrantees: ["agentnovas_configuration_activation_worker", "agentnovas_migrator"],
   };
   const input = {
@@ -234,7 +380,7 @@ test("configuration activation gateway stays owner-controlled with a pinned path
 test("Client feature flag gateway stays read-only, owner-controlled and narrowly granted", () => {
   const roles = EXPECTED_RELEASE_DATABASE_ROLES.map((roleName) => ({
     roleName,
-    canLogin: !["agentnovas_payment_worker", "agentnovas_research_worker"].includes(roleName),
+    canLogin: !EXPECTED_NOLOGIN_RELEASE_DATABASE_ROLES.includes(roleName),
     superuser: false,
     createRole: false,
     createDatabase: false,
@@ -245,7 +391,7 @@ test("Client feature flag gateway stays read-only, owner-controlled and narrowly
     signature: "configuration_client_active_feature_flag(text)",
     ownerName: "agentnovas_migrator",
     securityDefiner: true,
-    config: ["search_path=public, pg_catalog"],
+    config: ["search_path=\"public\",pg_catalog"],
     executeGrantees: ["agentnovas_client_web", "agentnovas_migrator"],
   };
   const input = {
@@ -391,6 +537,9 @@ test("least-privilege bootstrap is database-bound and leaves Payment and legacy 
   assert.doesNotMatch(migratorBootstrap, /migrator_password|replace-me|PASSWORD\s+'[^']+'/i);
   assert.match(sql, /agentnovas_migrator/i);
   assert.match(sql, /ALTER ROLE agentnovas_migrator SET search_path=pg_catalog,public/i);
+  assert.match(sql, /GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO agentnovas_migrator/i);
+  assert.match(sql, /GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO agentnovas_migrator/i);
+  assert.match(sql, /GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO agentnovas_migrator/i);
   assert.match(sql, /agentnovas_payment_worker[^;]+NOLOGIN/is);
   assert.match(sql, /agentnovas_research_worker[^;]+NOLOGIN/is);
   assert.match(sql, /agentnovas_payment_webhook[^;]+LOGIN[^;]+NOBYPASSRLS[^;]+NOINHERIT/is);
@@ -408,6 +557,7 @@ test("least-privilege bootstrap is database-bound and leaves Payment and legacy 
   assert.match(sql, /internal_registration_links,[\s\S]*internal_registration_link_uses[\s\S]*TO agentnovas_ops_web/i);
   assert.match(sql, /GRANT INSERT ON organizations, internal_registration_link_uses\s+TO agentnovas_ops_web/i);
   assert.match(sql, /internal_registration_link_acl_convergence/);
+  assert.match(sql, /ALTER FUNCTION public\.protect_internal_registration_link_role\(\)[\s\S]*SET search_path TO pg_catalog, public/i);
   const maintenanceGrantStatements = sql.split(";").filter((statement) => /\bGRANT\b[\s\S]*\bTO agentnovas_maint_web\s*$/i.test(statement.trim()));
   assert.equal(maintenanceGrantStatements.some((statement) => /\binternal_registration_link(?:s|_uses)\b/i.test(statement)), false);
   assert.match(sql, /class\.relkind\s*<>\s*'S'[\s\S]+pg_depend[\s\S]+dependency\.deptype\s+IN\s*\('a','i'\)/i);

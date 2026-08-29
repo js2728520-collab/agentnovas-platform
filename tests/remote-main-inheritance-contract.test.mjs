@@ -48,16 +48,16 @@ test("platform strategy activation respects platform and organization emergency 
 });
 
 test("maintenance exposes explicit emergency controls through its own navigation", async () => {
-  const app = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/navigation.ts")]).then((parts) => parts.join("\n"));
+  const app = await Promise.all([read("apps/maintenance/ui/maintenance-app.tsx"), read("apps/maintenance/ui/maintenance-information-architecture.ts")]).then((parts) => parts.join("\n"));
   const workspace = await read("apps/maintenance/ui/emergency-control-workspace.tsx");
-  assert.match(app, /href: "\/safety"/);
+  assert.match(app, /href: "\/releases\?tab=safety"/);
   assert.match(app, /maint\.emergency_pause\.execute/);
   assert.match(workspace, /InlineAuditReasonField/);
   assert.match(workspace, /hasValidAuditReason\(reason\)/);
   assert.doesNotMatch(workspace, /ConfirmActionDialog/);
   assert.match(workspace, /官方 Paper/);
   assert.match(workspace, /平台 Demo/);
-  assert.match(workspace, /\/integrations\/demo-exchanges/);
+  assert.match(workspace, /\/integrations\?tab=demo/);
   assert.match(workspace, /审批|审计|原因/);
   assert.doesNotMatch(workspace, /pause_demo_close|closePositions|处理 OKX Demo 仓位|自动平仓/);
 });
@@ -95,8 +95,9 @@ test("client support entry uses Riverton branding and never fakes a ticket submi
   assert.match(layout, /rivertonMetadata/);
   assert.match(metadata, /Riverton Capital 客户端/);
   assert.match(support, /supportEmail/);
-  // 未配置时的措辞（活文案）：明说未配置，且不提供替代账号或验证码。
-  assert.match(support, /Telegram 尚未配置，不提供替代账号或验证码/);
+  // 未配置的单个渠道不渲染空卡片；只有全部渠道缺失时才显示一个整体空状态。
+  assert.match(support, /hasChannel \?/);
+  assert.doesNotMatch(support, /Telegram 尚未配置，不提供替代账号或验证码/);
   assert.doesNotMatch(support, /提交工单|Create ticket/);
 });
 

@@ -36,6 +36,23 @@ RELEASE_ROLE_POLICY_DATABASE_URL=postgresql://agentnovas_migrator@127.0.0.1/agen
 node scripts/release/postgres-role-policy.mjs
 ```
 
+Compose 数据库只暴露在容器网络时，禁止放宽 loopback 限制或手工建立会泄露连接串的参数。使用当前 release
+Runtime image 和专用 migrator env 执行受支持门禁：
+
+```bash
+npm run release:postgres-role-policy:container -- \
+  --container=agentnovas-riverton-postgres-1 \
+  --runtime-image="agentnovas-riverton-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}" \
+  --migrator-env-file=/etc/agentnovas-riverton/migrator.env \
+  --execute
+```
+
+该入口通过 `--network container:<postgres-container>` 在数据库 network namespace 中运行一次性 Runtime
+容器，只在容器内把 `DATABASE_URL` 主机改为 `127.0.0.1`，不会把 URL 放进宿主机参数或输出。省略
+`--execute` 为无副作用计划；容器、image、env 路径不明确，命令异常，输出格式错误或 finding 非空时均
+停止发布。Node 22.21+ 不在宿主机时，可从受控 Node 工具容器运行同一脚本并挂载 Docker socket；该能力
+等价于 Docker 管理权限，不能授予应用进程。
+
 校验结果必须为 `findings: []`。Client/Operations 无 Maintenance 密钥表权限；Notification、Demo、Runtime Worker 只能访问各自允许清单；Payment/legacy Research 角色必须为 `NOLOGIN` 且无表权限。应用进程不得使用 migrator 或管理员连接串。Client 的 `DATABASE_URL` 必须为 `agentnovas_client_web`，`CLIENT_AUTH_DATABASE_URL` 必须为独立的 `agentnovas_client_auth`；后者只能执行精确登录身份投影，不能读表、创建会话或继承 Web 角色。
 
 `0040_client_identity_rls.sql`、`0043_client_identity_gateway_hardening.sql` 与 `0066_client_email_and_device_security.sql` 应用后，角色校验还会确认 `users`、`sessions`、`auth_tokens` 与两张 MFA 表已启用强制限制性 RLS、所有者为 `agentnovas_migrator`，策略的 USING/WITH CHECK、policy roles 和完整角色 allowlist 均匹配。Client 连接必须始终显示 `current_user = agentnovas_client_web`；不得通过连接池 GUC、请求 Header 或 JWT 切换数据库身份。Client Web/Auth 均无身份与邀请表直访，只能经各自精确 gateway 处理登录投影、邮箱验证签发或当前有效 session 绑定的主体；Operations/Maintenance 使用各自连接角色。邀请注册读取内部汇报链只能调用 `client_registration_attribution(text,text)`，不得恢复 Client 对内部 `users` 行的可见性。
@@ -54,6 +71,13 @@ node scripts/release/postgres-recovery-rehearsal.mjs --execute
 ```
 
 源库必须是专门准备的本机演练副本，不得把生产地址、远端主机或生产管理员口令传给脚本。输出必须为 `status: verified`，表集合、逐表行数和 migration registry 完全一致，并确认一次性目标库已清理。
+
+2026-08-26 当前 77 迁移基线已在 `an-saas` 的禁网、tmpfs PostgreSQL 16.14 fresh 实例完成演练：
+源库 154 张基础表，custom dump 恢复后的表集合、逐表行数和 77 条 registry 完全一致，输出
+`status: verified` 且目标库未保留。另一个 fresh 实例验证 N-1 的 76 applied → 0076 单文件 1 applied →
+0 applied 幂等复跑；两个 migrator 并发时只有一个应用 77 个文件，另一个在 advisory lock 后跳过 77
+个文件。所有临时容器、数据库、卷和 runner 镜像均已删除；证据位于对应 preview release 目录，
+不能替代未来不同迁移集合的重新演练。
 
 ### 1.3 版本身份与验证
 
@@ -94,13 +118,30 @@ RIVERTON_ARTIFACT_SHA256=<64位manifest摘要> \
 docker compose -f deploy/container/compose.yml config --quiet
 ```
 
+### 1.5 受限 CI/CD 控制面保持关闭
+
+T8.2c 的 `release-identity-verifier`、`release-control` 和 T8.2d1 的
+`release-provider-security-auditor` 仅存在于 Compose 的 `restricted-cicd` profile，默认
+不启动、无宿主 published port，并只连接 backplane。Maintenance 环境只配置两个内部 URL 和互不相同的
+HTTP secret；不得配置 control/verifier DSN。verifier 单独持有 WebAuthn policy 与
+`agentnovas_release_identity_verifier` DSN，control 单独持有 `agentnovas_release_control` DSN 且不得取得
+policy。仓库不提供这些服务的 systemd unit；不要从 Compose 配置推导或手写裸机启用路径。
+
+Auditor 必须使用与 orchestrator 不同的 private GitHub App key、只读权限、Ed25519 attestation key、caller
+secret 与 `agentnovas_release_auditor` DSN；target 只通过 loopback 固定路径请求它。不得复用 orchestrator App、
+把 App 权限改成 Actions write、允许 logs/artifacts/caches，或绕过 Auditor 直接调用 target v4 reservation。
+
+在真实 provider fixture 与 T8.2d2/G7 evidence manifest 全部通过且用户明确批准首次 production activation 前，不得启用该 profile、
+配置真实 GitHub credential、发布 webhook/target 路由或把 Maintenance 按钮解释为真实部署授权。关闭状态下
+`/releases` 仍可展示、创建和审批平台事实，但任何下游 dispatch/target 副作用均不可达。
+
 ## 2. 部署
 
 1. 在切换制品前先停止任何已运行的 legacy Research Worker，移除旧 enable symlink 并确认进程消失。新 unit 文件不会自动停止已运行的旧进程。
 2. 迁移只在显式 staging/生产变更授权后执行；本实施阶段不得运行生产 migration。
    迁移 registry 中任何已应用文件缺 checksum 或 checksum 不匹配都会失败关闭；不得直接补写 hash。先核对最后部署版本，必要时用新的 forward migration 修复。
 3. 部署新 release 目录并验证 hash，不覆盖 previous。
-4. 在维护窗口应用尚未部署的前向迁移；其中 `0029_beta_legacy_runtime_hard_close.sql` 终结非 `spot_usdt` 部署，`0036_pre_disclosure_trial_remediation.sql` 冻结披露前错误启动的历史试用并保留审计，`0037_bootstrap_system_role_permission_sync.sql` 同步既有 bootstrap 系统角色权限，`0038_client_ai_runtime_credits.sql` 建立 Client 模型安全投影和 AI 调用幂等账本，`0039_maintenance_idempotency.sql` 建立 Maintenance 高风险命令终态记录，`0040_client_identity_rls.sql` 隔离 Client 与内部身份数据，`0041_release_version_management.sql` 建立 Maintenance-only 不可变发布证据，`0042_udun_deposit_gateway.sql` 建立优盾 deposit-only 地址、回调证据、幂等和安全投影边界，`0043_client_identity_gateway_hardening.sql` 撤销 Client 对身份/邀请表的直接能力并收敛强制 RLS 与 gateway ACL。所有文件必须由迁移器按 checksum 顺序应用，禁止手工摘抄执行；`0043` 后必须重新执行最小角色模板，收敛业务表 ACL、Client Web/Auth/payment webhook capability 和发布表的 Maintenance-only `SELECT/INSERT` grants。
+4. 在维护窗口应用尚未部署的前向迁移；其中 `0029_beta_legacy_runtime_hard_close.sql` 终结非 `spot_usdt` 部署，`0036_pre_disclosure_trial_remediation.sql` 冻结披露前错误启动的历史试用并保留审计，`0037_bootstrap_system_role_permission_sync.sql` 同步既有 bootstrap 系统角色权限，`0038_client_ai_runtime_credits.sql` 建立 Client 模型安全投影和 AI 调用幂等账本，`0039_maintenance_idempotency.sql` 建立 Maintenance 高风险命令终态记录，`0040_client_identity_rls.sql` 隔离 Client 与内部身份数据，`0041_release_version_management.sql` 建立 Maintenance-only 不可变发布证据，`0042_udun_deposit_gateway.sql` 建立优盾 deposit-only 地址、回调证据、幂等和安全投影边界，`0043_client_identity_gateway_hardening.sql` 撤销 Client 对身份/邀请表的直接能力并收敛强制 RLS 与 gateway ACL。`0044`–`0076` 继续加入审计链、共享决策轮、Execution/Live 失败关闭基础、角色邀请、Client 邮箱/设备/MFA/PII、版本化配置/激活器/locale/AI 用量以及工作记录保留与脱敏导出。所有文件必须由迁移器按 checksum 顺序应用，禁止手工摘抄执行；迁移后必须重新执行最小角色模板，收敛业务表 ACL、Client Web/Auth、各 Worker、payment webhook 和 Maintenance 安全视图权限。
 5. 原子切换 current；按 Client→Operations→Maintenance→Notification/Demo→官方 spot Runtime 顺序 readiness。Beta 不重启 Research Worker，即使环境误设为 true 也必须保持硬关闭。
 6. 运行三 Host 登录/404/Cookie、安全 header 与关键只读 smoke；Maintenance 对 Research 的有效状态必须为 `disabled`。
 7. 外部副作用开关保持默认 off；Email/Demo 分别经过独立 go-live 记录。
@@ -109,7 +150,24 @@ docker compose -f deploy/container/compose.yml config --quiet
 ### 2.1 容器化分阶段发布
 
 1. 为版本建立只读 release 目录，保存 compose、release manifest 和非敏感部署元数据；`current`/`previous` 只指向完整版本目录，不能指向工作区。
-2. 首次仅执行 `docker compose up -d postgres`。Fresh 库按 1.1 先 bootstrap migrator；`migrator.env` 必须显式设置 `POSTGRES_MIGRATION_SCHEMA=public`，由 migrator 容器执行全部 checksum migration，再执行 `least-privilege-roles.sql`、设置独立运行角色口令并运行 role policy。迁移器保持角色默认 `search_path=pg_catalog,public`，只在单个迁移事务内临时使用经校验的 `public,pg_catalog`，且 registry 始终使用 schema-qualified 表名。生产迁移必须有本次发布的显式变更授权。
+2. 首次仅执行 `docker compose up -d postgres`。任何迁移前先通过 `release:postgres-backup:container` 生成
+   尚不存在的 `0600` custom dump，取得 SHA-256 和 `tocVerified: true`，再按 1.2 完成隔离恢复；不得把
+   TOC 可读冒充恢复成功：
+
+   ```bash
+   npm run release:postgres-backup:container -- \
+     --container=agentnovas-riverton-postgres-1 \
+     --postgres-tools-image=postgres:16.14-bookworm \
+     --migrator-env-file=/etc/agentnovas-riverton/migrator.env \
+     --output="/var/backups/agentnovas/predeploy-${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}.dump" \
+     --execute
+   ```
+
+   Fresh 库按 1.1 先 bootstrap migrator；`migrator.env` 必须显式设置
+   `POSTGRES_MIGRATION_SCHEMA=public`，由 migrator 容器执行全部 checksum migration，再执行
+   `least-privilege-roles.sql`、设置独立运行角色口令并运行 role policy。迁移器保持角色默认
+   `search_path=pg_catalog,public`，只在单个迁移事务内临时使用经校验的 `public,pg_catalog`，且 registry
+   始终使用 schema-qualified 表名。生产迁移必须有本次发布的显式变更授权。
 3. 使用 `docker compose up -d client operations maintenance` 并行启动三端，端口只绑定回环地址。依次用正确 Host 请求 `/api/health/live`、`/api/health/ready` 和 `/login`；错误 Host/audience 必须 404。
 4. 未完成 Resend allowlist/Webhook 或平台 Demo 凭证 smoke 时，不启用 `workers` profile。启用时逐个启动 Notification、Demo、Runtime，分别等待真实 heartbeat；进程 `running` 不能替代 `healthy`。
 5. 将反向代理接入 `agentnovas-riverton-edge` 网络，只先增加 `zht`/`xm` 或受控 staging 路由。确认 Cloudflare 到 origin TLS、Host、CSP、Cookie 和登录限流后，再切换根域 Client。不得停止或删除原服务作为“切流”。

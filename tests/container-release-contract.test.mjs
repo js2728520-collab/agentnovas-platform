@@ -63,6 +63,13 @@ test("production compose keeps PostgreSQL private and mounts runtime env as secr
     ["maintenance_env", "maintenance.env"],
     ["notification_env", "notification.env"],
     ["configuration_activation_env", "configuration-activation.env"],
+    ["release_orchestrator_staging_env", "release-orchestrator-staging.env"],
+    ["release_orchestrator_production_env", "release-orchestrator-production.env"],
+    ["release_auditor_staging_env", "release-auditor-staging.env"],
+    ["release_auditor_production_env", "release-auditor-production.env"],
+    ["release_webhook_env", "release-webhook.env"],
+    ["release_identity_verifier_env", "release-identity-verifier.env"],
+    ["release_control_env", "release-control.env"],
     ["runtime_env", "runtime.env"],
     ["demo_env", "demo.env"],
     ["migrator_env", "migrator.env"],
@@ -84,6 +91,35 @@ test("production compose keeps PostgreSQL private and mounts runtime env as secr
   const configurationWorker = compose.match(/\n {2}configuration-activation-worker:([\s\S]*?)(?=\n {2}[a-z][a-z-]+:|\nsecrets:)/)?.[1] ?? "";
   assert.match(configurationWorker, /networks:\s*\[backplane\]/);
   assert.doesNotMatch(configurationWorker, /egress|edge/);
+  for (const environment of ["staging", "production"]) {
+    const releaseWorker = compose.match(new RegExp(`\\n {2}release-orchestrator-${environment}:([\\s\\S]*?)(?=\\n {2}[a-z][a-z-]+:|\\nsecrets:)`))?.[1] ?? "";
+    assert.match(releaseWorker, /profiles:\s*\[restricted-cicd\]/);
+    assert.match(releaseWorker, /networks:\s*\[backplane, egress\]/);
+    assert.match(releaseWorker, new RegExp(`source: release_orchestrator_${environment}_binding`));
+    assert.match(releaseWorker, new RegExp(`source: release_orchestrator_${environment}_app_key`));
+    assert.doesNotMatch(releaseWorker, /\bedge\b/);
+    const releaseAuditor = compose.match(new RegExp(`\\n {2}release-provider-security-auditor-${environment}:([\\s\\S]*?)(?=\\n {2}[a-z][a-z-]+:|\\nsecrets:)`))?.[1] ?? "";
+    assert.match(releaseAuditor, /profiles:\s*\[restricted-cicd\]/);
+    assert.match(releaseAuditor, /networks:\s*\[backplane, egress\]/);
+    assert.match(releaseAuditor, new RegExp(`source: release_auditor_${environment}_app_key`));
+    assert.match(releaseAuditor, new RegExp(`source: release_auditor_${environment}_attestation_key`));
+    assert.doesNotMatch(releaseAuditor, /\bedge\b|release-orchestrator-.*-app\.pem/);
+  }
+  const releaseIngress = compose.match(/\n {2}release-webhook-ingress:([\s\S]*?)(?=\n {2}[a-z][a-z-]+:|\nsecrets:)/)?.[1] ?? "";
+  assert.match(releaseIngress, /profiles:\s*\[restricted-cicd\]/);
+  assert.match(releaseIngress, /networks:\s*\[backplane, edge\]/);
+  assert.match(releaseIngress, /release-webhook-binding\.json/);
+  assert.match(releaseIngress, /release-webhook-secret/);
+  assert.doesNotMatch(releaseIngress, /\begress\b|release-orchestrator-app\.pem/);
+  const releaseIdentityVerifier = compose.match(/\n {2}release-identity-verifier:([\s\S]*?)(?=\n {2}[a-z][a-z-]+:|\nsecrets:)/)?.[1] ?? "";
+  assert.match(releaseIdentityVerifier, /profiles:\s*\[restricted-cicd\]/);
+  assert.match(releaseIdentityVerifier, /networks:\s*\[backplane\]/);
+  assert.match(releaseIdentityVerifier, /release-identity-verifier-webauthn-policy\.json/);
+  assert.doesNotMatch(releaseIdentityVerifier, /\bedge\b|\begress\b|ports:/);
+  const releaseControl = compose.match(/\n {2}release-control:([\s\S]*?)(?=\n {2}[a-z][a-z-]+:|\nsecrets:)/)?.[1] ?? "";
+  assert.match(releaseControl, /profiles:\s*\[restricted-cicd\]/);
+  assert.match(releaseControl, /networks:\s*\[backplane\]/);
+  assert.doesNotMatch(releaseControl, /WEBAUTHN|\bedge\b|\begress\b|ports:/);
   assert.doesNotMatch(compose, /5432:5432/);
   assert.doesNotMatch(compose, /payment-worker|worker:payment|strategy-research-worker/);
 });

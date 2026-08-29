@@ -160,3 +160,16 @@ test("customer list, detail, and export share PII policy, scope filter, and audi
   assert.match(service, /customer\.registered/);
   assert.match(service, /customer\.pii_export_generated|customer\.pii_viewed/);
 });
+
+test("Operations can read only non-secret exchange account metadata", async () => {
+  const roles = await readFile(new URL("../deploy/postgres/least-privilege-roles.sql", import.meta.url), "utf8");
+  const grant = roles.match(/GRANT SELECT \(([^)]+)\) ON exchange_accounts TO agentnovas_ops_web;/s);
+  assert.ok(grant, "Operations exchange-account metadata grant is missing");
+  for (const column of [
+    "id", "customer_id", "exchange", "label", "environment", "status",
+    "can_read", "can_trade", "last_checked_at", "created_at",
+  ]) {
+    assert.match(grant[1], new RegExp(`\\b${column}\\b`));
+  }
+  assert.doesNotMatch(grant[1], /encrypted_credential_ref|withdrawal_credential_ref|withdrawal_authorized/);
+});

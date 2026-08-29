@@ -3,7 +3,7 @@
 > 文档状态：`CURRENT_BASELINE`。本文描述当前运行和硬关闭边界；V3 目标系统见 [`V3_SYSTEM_TARGET_SPEC.md`](V3_SYSTEM_TARGET_SPEC.md)。目标文档不自动解锁本文关闭的真实交易、资金出站或自动部署。
 
 版本：2.0
-状态：目标规格；以测试和 Gate 证据判定完成度
+状态：当前受控 Beta 系统规格；以测试和 Gate 证据判定完成度
 
 ## 1. 拓扑与信任边界
 
@@ -46,11 +46,11 @@ Client 的两个连接是不同的能力边界，不是同一高权角色的两�
 
 稳定路由：
 
-- Client：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements[/id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/notifications`、`/account/security`、`/support`、`/wallet`、`/wallet/deposits`。
+- Client：`/`、`/login`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements[/id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/work-records[/id]`、`/notifications`、`/account/security`、`/support`、`/wallet`、`/wallet/deposits`。
 - Operations：`/`、`/customers`、`/organization`、`/team`、`/data-center`、`/membership-orders`、`/credits`、`/performance-statements`、`/deposits`、`/ledger`、`/finance`、`/approvals`、`/access`、`/access/audit`。
 
 优盾充值数据流固定为：Client 同源+RBAC+幂等请求 → Client Web 使用安全 provider 视图和运行时 secret 调用专属 `*.udun.io` 节点生成地址 → Maintenance 公网 webhook 使用独立数据库角色验签/去重并推进 `MANUAL_REVIEW` → Operations maker/checker → 同事务平衡账本、钱包版本、订单、审计和通知。配置缺失返回 503；提现、划转和自动扣款 endpoint 不存在。
-- Maintenance：`/`、`/models`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/access`、`/access/audit`、`/audit`。
+- Maintenance：`/`、`/models`、`/ai-usage`、`/work-records`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/configurations`、`/releases`、`/access`、`/access/audit`、`/audit`。
 
 Beta 未完成或不在范围的旧策略市场、自动结算、团队经营分析入口 feature-gate 隐藏。
 
@@ -105,6 +105,14 @@ type ApiPolicy = {
 - 内部邀请与重置只发送一次性 set-password link；响应、通知 payload、日志和 UI 不含临时密码或明文 token。
 - 生产 Cookie 强制 `HttpOnly`/`Secure`/audience 专属；信任代理列表显式配置；敏感写操作校验 Origin/CSRF。
 
+### 4.1 应用偏好
+
+- `user_app_preferences` 以 `(user_id, app_audience)` 唯一保存 `locale`、`theme_mode` 和 `theme_palette`；三端偏好不会串用。
+- `GET/PATCH /api/account/preferences` 的 audience 只从当前有效会话推导，不接受浏览器指定；PATCH 严格拒绝未知字段、空更新和当前应用不支持的语言，并以事务 upsert 后写审计。
+- Client 支持 `en-US`、`zh-CN`、`zh-TW`、`ru-RU`、`es-ES`、`ja-JP`、`ko-KR`，默认英语；Operations/Maintenance 只支持 `zh-CN`、`en-US`，默认简体中文。
+- `users.locale` 只作为 Client 首次迁移来源；内部端无显式记录时不继承该值。登录后服务端偏好覆盖本地值，匿名页使用 audience 隔离的本地值和安全默认顺序。
+- 主题模式为 `system | light | dark`，调色板为 `classic | harbor | forest`。首帧脚本在绘制前同时恢复语言、模式和调色板；业务状态色不由调色板替换。
+
 TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前任务。
 
 ## 5. RBAC 与数据范围
@@ -148,9 +156,20 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 
 `0041` 增加 Maintenance-only 的不可变版本、验证与部署事实。版本状态和环境 current 由追加事实投影；production 要求同版本 staging 成功，失败记录不改变 current，三表禁止更新/删除。`0042` 增加优盾 deposit-only 配置安全视图、签名回调证据、重放/地址/开放订单唯一约束和独立 payment webhook 角色。`0043` 以显式数据库角色 allowlist、强制 RLS 和精确 SECURITY DEFINER ACL 撤销 Client 对身份/邀请表的直接能力，并使未知/遗留数据库角色失败关闭。
 
+`0044`–`0065` 继续建立审计防篡改、共享决策轮、Execution/Live book 失败关闭基础、可复用 Client/内部
+角色邀请、USDT 会员价格和无资金出站权限边界；这些表或服务存在不代表真实交易、提现或自动部署已
+开放。`0066`–`0068` 完成 Client 邮箱/五设备安全、可选 MFA 和 Operations PII 权限；`0069`–`0074`
+完成版本化配置、到期激活 Worker、功能开关消费者、密码重置修复、locale 默认和 Maintenance AI
+用量聚合；`0075`–`0076` 完成至少六个月工作记录保留、Client 订阅期间投影和 Maintenance 脱敏导出。
+`0077`–`0087` 是受限 CI/CD 委派的失败关闭基础与证据事实，不因表/API 存在而成为 M1 可见菜单或获准生产触发；`0088` 让设备会话查询过滤过期、超时和撤销记录；`0089` 增加 audience 隔离的用户应用偏好、强制 RLS 和会话绑定的精确读写 gateway。
+所有已应用文件不可修改；修复使用新的 forward migration。
+
 数据库角色至少拆分为 migrator、client_web、client_auth、ops_web、maint_web、notification_worker、runtime_worker、demo_execution_worker 和 payment_webhook；legacy research 和 Payment Worker 不获得 Beta 业务写权限。
 
-当前恢复证据只覆盖至 `0042` 的 43 个迁移。新增、改名或 checksum 变化的迁移会立即使该证据失效；必须重新执行 fresh/N-1/rerun/concurrent 与隔离 backup/restore，按实际输出更新迁移数、表数和 checksum 后才能恢复 Gate 通过状态。
+当前恢复证据覆盖至 `0076_maintenance_work_record_export.sql`：77 个迁移、154 张基础表已在隔离
+PostgreSQL 16.14 完成 fresh、76→77 N-1、幂等复跑、双 migrator 并发和 custom dump 恢复；恢复前后
+表集合、逐表行数和 migration registry 完全一致，临时资源已清理。新增、改名或 checksum 变化会立即
+使该证据失效；必须按实际集合重新演练，不能手工递增数字或改 registry hash。
 
 ## 7. 账本、会员和 credits
 
@@ -158,7 +177,9 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 - 已发布 transaction/posting 禁止 UPDATE/DELETE；修正只能 reversal。
 - 会员订单保存 v1 计划价格快照；外部人工凭证经过 maker-checker 后幂等激活 entitlement 并发放 credits。
 - Credits 使用独立不可变 ledger；reserve/settle/release 按模型费率和 provider usage 执行，余额不得为负。
-- Beta 不生成充值地址、二维码、链上监听、客户钱包入账或自动退款。
+- Client 只在优盾 deposit-only 配置、验签和权限 Gate 完整时从 provider 生成专属充值地址；未配置返回
+  503，页面不生成静态地址或二维码。链上回调只进入人工复核，Operations maker/checker 通过后才同
+  事务入账；Payment Worker、自动扣款、提现、划转和自动退款继续关闭。
 
 商业状态机和 API 见 `../product/PRD.md` 与 `../api/API_CATALOG.md`。
 
@@ -206,6 +227,7 @@ TOTP 是 Beta 基线，不宣称完整 NIST AAL2；Passkey/WebAuthn 为 GA 前�
 - 初始 JS ≤ 200KB gzip、CSS ≤ 50KB gzip、单张首屏图 ≤ 200KB。
 - loading/error/not-found、AbortController、防 stale response、标准错误行为、表单重复提交保护齐全。
 - 320/768/1024/1440 无非预期横向溢出；抽屉/对话框支持 ESC、focus trap、回焦、skip link 和 `aria-live`。
+- 三组调色板与明暗模式共六套主题，组件只消费 `--rv-*` 语义令牌；Client 七语默认英语，Operations/Maintenance 中英默认简体中文。M1.3 的覆盖合同、六主题和四断点浏览器证据已于 2026-08-29 完成；认证、错误页和邮件文案仍须在对应业务 Gate 做逐语言人工审校。
 - 严格 CSP 使用每请求 nonce；nonce 页面动态渲染的性能影响纳入预算。
 - 目标：LCP ≤ 2.5s、CLS ≤ 0.1、TBT ≤ 200ms；关键 E2E console error/warning 为 0，axe critical/serious 为 0。
 

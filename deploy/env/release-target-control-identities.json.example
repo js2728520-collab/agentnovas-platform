@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1",
+  "targetFingerprintsSha256": [
+    "replace-with-maintenance-mtls-client-certificate-sha256"
+  ],
+  "breakGlassFingerprintsSha256": [
+    "replace-with-offline-break-glass-mtls-client-certificate-sha256"
+  ]
+}

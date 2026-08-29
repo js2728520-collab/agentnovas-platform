@@ -101,7 +101,7 @@ test("confirmed Client cleanup removes watchlists and legacy assistant analysis 
   ]);
 
   assert.doesNotMatch(assistant, /<select|analysisTarget|instrumentId|setSymbol/);
-  const promptList = assistant.match(/const prompts = \[([^\]]+)\];/)?.[1].match(/"[^"]+"/g) ?? [];
+  const promptList = assistant.match(/const prompts = \[([^\]]+)\](?:\.map\(t\))?;/)?.[1].match(/"[^"]+"/g) ?? [];
   assert.equal(promptList.length, 4);
 
   assert.doesNotMatch(market, /\/api\/market\/watchlist|WatchlistItem|watchlist|watchedSymbols|toggleWatchlist/i);

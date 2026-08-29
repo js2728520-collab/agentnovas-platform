@@ -8,8 +8,8 @@ const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/pos
 const suffix = `${process.pid}_${Date.now()}`;
 const schema = `client_identity_rls_${suffix}`;
 const internalRole = `agentnovas_test_internal_${suffix}`;
-const clientRole = "agentnovas_client_web";
-const clientAuthRole = "agentnovas_client_auth";
+const clientRole = `agentnovas_test_client_${suffix}`;
+const clientAuthRole = `agentnovas_test_client_auth_${suffix}`;
 const legacyRole = `agentnovas_test_legacy_${suffix}`;
 const clientToken1 = "1".repeat(64);
 const clientToken2 = "2".repeat(64);
@@ -90,6 +90,8 @@ test.before(async () => {
       ('client-session-1','customer-1','${clientToken1}','client','2099-01-01','2099-01-01','2099-01-01'),
       ('client-session-2','customer-2','${clientToken2}','client','2099-01-01','2099-01-01','2099-01-01'),
       ('client-session-expired','customer-1','${expiredClientToken}','client','2020-01-01','2020-01-01','2020-01-01'),
+      ('client-session-idle-expired','customer-1','${"4".repeat(64)}','client','2099-01-01','2020-01-01','2099-01-01'),
+      ('client-session-ttl-expired','customer-1','${"5".repeat(64)}','client','2020-01-01','2099-01-01','2099-01-01'),
       ('ops-session-customer','customer-1','ops-token-customer','operations','2099-01-01','2099-01-01','2099-01-01'),
       ('client-session-internal','maint-1','client-token-internal','client','2099-01-01','2099-01-01','2099-01-01'),
       ('maint-session-1','maint-1','maint-token-1','maintenance','2099-01-01','2099-01-01','2099-01-01');
@@ -111,12 +113,16 @@ test.before(async () => {
       .replaceAll("pg_catalog, public", `pg_catalog, ${quotedIdentifier(schema)}`)
       .replaceAll("public.", `${quotedIdentifier(schema)}.`)
       .replaceAll("'agentnovas_migrator'", `'${ownerName}'`)
-      .replaceAll("'agentnovas_ops_web'", `'${internalRole}'`);
+      .replaceAll("'agentnovas_ops_web'", `'${internalRole}'`)
+      .replaceAll("'agentnovas_client_web'", `'${clientRole}'`)
+      .replaceAll("'agentnovas_client_auth'", `'${clientAuthRole}'`);
   const identityMigration = prepareMigration(await readFile(new URL("../postgres/migrations/0040_client_identity_rls.sql", import.meta.url), "utf8"));
   const hardeningMigration = prepareMigration(await readFile(new URL("../postgres/migrations/0043_client_identity_gateway_hardening.sql", import.meta.url), "utf8"));
+  const sessionListingExpiryMigration = prepareMigration(await readFile(new URL("../postgres/migrations/0088_client_session_listing_expiry.sql", import.meta.url), "utf8"));
   await pool.query(identityMigration);
   await pool.query(hardeningMigration);
   await pool.query(hardeningMigration);
+  await pool.query(sessionListingExpiryMigration);
 
   const role = await adminPool.query("SELECT 1 FROM pg_roles WHERE rolname=$1", [clientRole]);
   if (!role.rowCount) {
@@ -223,6 +229,7 @@ test("exact login/session capabilities cannot resolve internal or another custom
 
 test("Client registration/login/profile/MFA/session flows use bounded gateways", async () => {
   await withRole(clientRole, async (client) => {
+    assert.deepEqual((await client.query("SELECT id FROM client_list_sessions($1,now())", [clientToken1])).rows, [{ id: "client-session-1" }]);
     assert.equal((await client.query("SELECT client_touch_session($1,now(),now()+interval '1 hour') AS changed", [clientToken1])).rows[0].changed, true);
     assert.equal((await client.query("SELECT client_mfa_accept_totp($1,42,now()) AS changed", [clientToken1])).rows[0].changed, true);
     assert.equal((await client.query("SELECT client_mfa_consume_recovery($1,'recovery-hash-customer',now()) AS changed", [clientToken1])).rows[0].changed, true);

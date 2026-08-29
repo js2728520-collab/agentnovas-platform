@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1",
+  "rpId": "main-test.agentnovas.com",
+  "allowedOrigins": [
+    "https://main-test.agentnovas.com"
+  ],
+  "credentials": [
+    {
+      "credentialId": "replace-with-base64url-credential-id",
+      "userId": "replace-with-registered-human-user-id",
+      "algorithm": "ES256",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nreplace-with-spki-public-key\n-----END PUBLIC KEY-----\n"
+    }
+  ]
+}

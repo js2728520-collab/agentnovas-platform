@@ -19,6 +19,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+InaccessiblePaths=/etc/agentnovas
 ReadWritePaths=/var/lib/agentnovas
 
 [Install]

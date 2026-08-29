@@ -2,7 +2,7 @@
 
 > 文档状态：`TARGET_TRUTH/PARTIAL_CURRENT`。本文把需求方已确认的 V3 目标逐项映射到当前代码、数据库、三端页面、后台进程和测试证据；它不把 `TARGET`、`PARTIAL` 或 `BLOCKED` 能力描述成已上线。产品范围以 [`../product/PRD.md`](../product/PRD.md) 为准，执行顺序以 [`../../tasks/plan.md`](../../tasks/plan.md) 为准。
 
-- 更新日期：2026-08-24
+- 更新日期：2026-08-28
 - 基线分支：`codex/platform-v3-doc-sync`
 - 基线提交：`7279688`（另有两处用户本地改动未纳入本矩阵）
 
@@ -57,7 +57,7 @@
 | ID | Current 能力 | 现有资产 | V3 处置 |
 | --- | --- | --- | --- |
 | B-01 | Client 公开着陆页与登录后工作台分离 | `/`、`/dashboard`、公开 legal、Client shell 和 wrong-audience routing tests | `CURRENT`；继续扩展品牌/SEO/i18n，不把登录用户送回营销页。 |
-| B-02 | Client 消息中心、偏好与支持 | notification inbox/preferences、Notification Worker、`/notifications`、`/support` | `CURRENT/PARTIAL`；扩展交易/安全消息，Telegram/WhatsApp 验证仍不可伪造。 |
+| B-02 | Client 通知、偏好与支持 | notification inbox/preferences、Notification Worker、顶栏通知入口、`/notifications` 兼容地址和 `/support` | `CURRENT/PARTIAL`；扩展交易/安全通知，Telegram/WhatsApp 验证仍不可伪造。 |
 | B-03 | 优盾 deposit-only、钱包和不可变账本 | Client deposit/wallet route，Operations deposit/ledger，provider event/action/ledger tables，双审与验签测试 | `CURRENT`；与未来提现/划转严格分离，未配置或未知结果失败关闭。 |
 | B-04 | 会员订单、Credits、Paper 绩效账单 | Client 会员/Credits/账单页，Operations maker-checker，entitlement/ledger/high-water-mark | `CURRENT/PARTIAL`；保留 Beta 闭环，V3 价格、退款、优惠和作者分账另行版本化。 |
 | B-05 | 官方策略卡 Paper 与平台 Demo 隔离 | official paper portfolio/fill、Demo account/intent/receipt、Client 安全摘要、Maintenance 控制 | `CURRENT`（非 live）；继续作为 G3/G4 前置证据，绝不显示为客户真实成交。 |
@@ -103,12 +103,12 @@
 | C-02 | 配置与控制无确认弹窗，原因内联单击执行 | Maintenance 普通配置、测试、模型回滚、商业披露、版本证据、充值启停、Demo 安全控制和紧急暂停均使用页面内影响说明与审计原因；应用内无确认 dialog | Maintenance 各工作台 | `CURRENT` | recent MFA、RBAC、maker/checker、幂等、状态机和审计仍是强制安全边界；后续页面不得恢复重复确认。 |
 | C-03 | 全局策略研究功能开关 | `feature_flag/client.strategy_research` v1；严格 schema、确定性 tester、最小权限 active consumer、双 Gate | `/configurations` + strategy research route | `CURRENT` | v1 全局 bool 保持兼容；环境 Gate 始终是上限。 |
 | C-04 | 用户/组织/版本/百分比/独立时窗 targeting | schema v2 单规则；服务端用户/组织/部署版本/时间；稳定 SHA-256 分桶；严格规范化、测试、current、回滚和无弹窗 UI | feature flag family v2 + strategy research consumer | `CURRENT` | 多规则优先级不属于 v2；未来扩展必须新建 schema。 |
-| C-05 | 品牌、Logo、域名、协议、多语言配置 | platform settings 与 disclosure 基础；没有六主题素材和正式域名消费者 | Maintenance settings/configurations + 三端 public config | `BLOCKED` | P-10/P-11；域名还影响 Cookie/CORS/TLS/邮件链接。 |
+| C-05 | 品牌、Logo、域名、协议、多语言配置 | platform settings、disclosure、Client 六主题和七语言公开页基础；尚无完整三端配置消费者 | Maintenance settings/configurations + 三端 public config | `PARTIAL/BLOCKED` | P-10 已冻结；正式域名仍受 P-11 阻断，且会影响 Cookie/CORS/TLS/邮件链接。 |
 | C-06 | Prompt/技能 CRUD、测试、双审、历史和回滚 | 7 个研究 prompt role、3 个 runtime explanation role、模型 Profile/绑定；没有 Skill 领域模型 | versioned configuration family + Maintenance models/configurations | `BLOCKED` | 发布治理已确认；`PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 的 PS-01–PS-06 尚需冻结 Skill 执行模型、可编辑范围、安全包络、测试、新任务生效与删除语义。 |
 | C-07 | 月/季/年/终身套餐、USDT 价格、权益版本 | `commercial_plan_versions` 和当前 Beta 四档基础；非完整 V3 价格消费者 | Maintenance 计费配置 + Client 会员 | `PARTIAL/BLOCKED` | P-07；历史订单必须 pin 原版本。 |
 | C-08 | 固定对话 Credits、不可变流水和用量分析 | AI reservation/ledger、可信 usage、取消单次 release、完成/取消竞态与同 key 重放；T3.9a `/ai-usage` 和 Maintenance-only GET 按 UTC 请求创建 cohort 聚合已预留 inference，提供可信成功 Token、settled Credits、已记录非取消失败率、组织请求级快照/legacy 质量、稳定伪名用户、模型 revision、Agent、功能和日期；90 天/Top 50 有界 | Maintenance `/ai-usage` + Client AI；后续固定价格配置 | `CURRENT/PARTIAL/BLOCKED` | T3.9a 当前指标排除 preflight、用户取消和处理中请求，不代表系统/provider 可用率；P-08 仍阻断固定 Credits 数值、模型/功能价格分档和价格版本引用，当前可信用量结算不是固定价。 |
 | C-09 | 人工退款、原渠道结果、优惠码/券 | 当前人工付款与审批基础；没有 V3 退款/优惠规则模型 | Client 订单 + Operations 复核 + Maintenance 规则 | `TARGET/BLOCKED` | P-07/P-09 及退款状态/渠道/provider 合同。 |
-| C-10 | 三浅三深、英语默认、偏好优先级 | 当前主题/局部 locale 基础 | 三端 token、图表、邮件/错误页和偏好持久化 | `BLOCKED` | P-10 设计稿/品牌 token；需 320/768/1024/1440 与 axe Gate。 |
+| C-10 | 三组调色板明暗配对、分端默认语言、偏好优先级 | Client 已有经典/海湾/松林六主题、本地首帧恢复和七语言公开页；登录偏好仍主要依赖 `users.locale`/本地存储，内部端尚未完整双语 | 三端 token、图表、认证/错误页、邮件和 audience 偏好持久化 | `PARTIAL` | P-10 已冻结；需 `UserAppPreference`、三端完整翻译、换设备恢复及 320/768/1024/1440、axe、图表/Logo Gate。 |
 
 ## 6. Phase 4：AI 助手、工作记录和策略市场
 
@@ -121,7 +121,7 @@
 | A-05 | 客户投稿、平台审核、上/下架、重大版本重审 | `community_strategies/strategy_change_requests/author_earnings` 等历史基础；marketplace route 当前 disabled | Client 策略广场 + Operations 策略审核 | `PARTIAL/TARGET` | 重建 V3 状态机、权限、风险披露和 G3；旧 disabled route 不直接复活。 |
 | A-06 | 跟单配置、不可变快照、Paper/Demo 先验收 | 官方卡 Paper subscription、portfolio/fills 和 pause/stop 已可达 | Client 策略详情/跟单配置 + Runtime | `PARTIAL` | 新策略版本/账户/费用/风险快照和 Paper/Demo E2E。 |
 | A-07 | 订阅费、收益分成、作者/平台分账 | 当前会员、Paper performance fee、高水位与 revenue allocation 基础 | 策略商业合同 + Operations/Client | `PARTIAL/BLOCKED` | P-06；作者、平台、退款和历史版本快照。 |
-| A-08 | 完整决策/行情/风控/订单工作记录，保留 ≥6 月 | decision rounds/events/runtime explanations/audit 基础，Client trading hall 可见部分状态 | Client 工作记录详情 + Maintenance 受控导出 | `PARTIAL` | 统一 trace、保留策略、脱敏导出与浏览器验收。 |
+| A-08 | 完整决策/行情/风控/订单工作记录，保留 ≥6 月 | `/work-records` 列表/详情、订阅期间固定版本、公共七阶段、个人准入与模拟意图/成交安全投影；Maintenance security-barrier 脱敏视图与受控 JSON 导出；0075/0076、最小角色、PostgreSQL/四断点/axe/三端浏览器 Gate | Client 工作记录详情 + Maintenance 受控导出 | `CURRENT` | 真实订单路由继续关闭；后续新执行来源必须保持同一 trace/保留/脱敏合同。 |
 
 ## 7. Phase 5–8：真实交易、衍生品、资金出站和发布
 
@@ -137,7 +137,7 @@
 | L-08 | 外汇/贵金属执行 | 无冻结场所、产品、杠杆和监管范围 | 独立 provider capability，不复用加密结论 | `BLOCKED` | P-02 与专项 ADR/Gate。 |
 | F-01 | 提现、划转、服务费 | withdrawal authority rejection、deposit-only 和不可变账本基础；无可达出站路径 | 独立资金服务、密钥域、账本和双审 | `BLOCKED` | P-09、托管/AML/制裁/网络/白名单/限额/退款/事故规则及 G5。 |
 | R-01 | 不可变发布身份、验证、部署/回滚证据 | release tables/API、Maintenance `/releases`；只登记事实 | 保持 current 控制面 | `CURRENT` | 不得宣称已能触发部署。 |
-| R-02 | Maintenance 受限 CI/CD workflow trigger | 当前明确不执行 Shell/SSH/DB script | 固定 workflow API、短期凭证、回调和审计 | `BLOCKED` | 新 ADR/威胁模型、人员分离、artifact/migration/rollback 校验和 G7。 |
+| R-02 | Maintenance 受限 CI/CD workflow trigger | ADR-0024、domain/PostgreSQL、默认关闭 Worker/Ingress/target/control/Auditor、固定 workflow、环境隔离和 Web-only preview 已实现；不执行任意 Shell/SSH/SQL/ref | 固定 workflow API、短期凭证、回调和审计 | `PARTIAL；RUNTIME BLOCKED` | 真实 provider fixture、人员演练、失陷恢复、完整 G7 和首次生产授权仍未完成；按钮、配置或 preview 不能视为 runtime 已解锁。 |
 
 ## 8. Phase 9：体验、运维和正式发布收口
 
@@ -145,7 +145,7 @@
 | --- | --- | --- | --- | --- |
 | X-01 | 三端 320/768/1024/1440、键盘、axe、资源预算 | 当前主要页面 Playwright quality helper 和三端 suite | `CURRENT/PARTIAL` | 所有新增 V3 页面逐页纳入，不以代表页替代关键旅程。 |
 | X-02 | API/登录/Worker/交易/模型/支付/DB 任务可观测 | health/readiness/audit/heartbeat 基础 | `PARTIAL` | live/provider/market/SLO 指标、告警、runbook 和首小时监控。 |
-| X-03 | 任务管理与分阶段推进 | `tasks/plan.md`、`tasks/todo.md`、Gate/roadmap | `CURRENT`（工程任务真源） | 产品参数继续由 P-01–P-12 冻结；每个切片本地提交和证据同步。 |
+| X-03 | 任务管理与分阶段推进 | `tasks/plan.md`、`tasks/todo.md`、Gate/roadmap | `CURRENT`（工程任务真源） | P-10 已冻结，其余参数按依赖范围阻断；每个切片形成可审查差异并同步证据，未经用户授权不提交或推送。 |
 | X-04 | 三端真实浏览器登录与 MFA 发布专项 | 本地关闭态、开启态和 rollout runner 已完成 | `PARTIAL` | 生产候选必须在目标环境重跑真实邮件、三端登录和 MFA Gate。 |
 | X-05 | 正式域名、Nginx/TLS、备份恢复、灰度与回滚 | 自托管容器、Nginx、迁移/恢复脚本和历史发布证据 | `PARTIAL/BLOCKED` | P-11/P-12、完整 G8 和每个高风险能力的独立 Gate。 |
 
@@ -177,6 +177,8 @@
 ## 11. 可审查的下一切片与规模
 
 规模按独立可提交、可回滚纵向切片估算，不按整阶段给虚假工期：`S` 为合同/单消费者，`M` 为 route+DB+UI+测试，`L` 为跨服务/provider/Gate；`L` 必须继续拆分。
+
+当前先完成 M1 极简安全版：三端 Shell 与五中心路由 → 三端数据看板精简 → 设置/主题/语言与 audience 偏好 → 现有功能归位和冗余清理 → 远端三端体验验收。以下高风险业务切片在 M1 后继续按 Gate 推进。
 
 | 顺序 | 切片 | 规模 | 当前依赖 |
 | ---: | --- | --- | --- |

@@ -1,0 +1,54 @@
+[Unit]
+Description=AgentNovas restricted release deployment target
+After=network-online.target postgresql.service docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=agentnovas-release-target
+Group=agentnovas-release-target
+SupplementaryGroups=docker
+WorkingDirectory=/opt/agentnovas/current
+EnvironmentFile=/etc/agentnovas/release-target.env
+LoadCredential=release-target-github-binding.json:/etc/agentnovas/release-orchestrator-binding.json
+LoadCredential=release-target-adapter.json:/etc/agentnovas/release-target-adapter.json
+LoadCredential=release-target-control-identities.json:/etc/agentnovas/release-target-control-identities.json
+LoadCredential=release-target-control-tls.key:/etc/agentnovas/release-target-control-tls.key
+LoadCredential=release-target-control-tls.crt:/etc/agentnovas/release-target-control-tls.crt
+LoadCredential=release-target-control-ca.crt:/etc/agentnovas/release-target-control-ca.crt
+LoadCredential=release-target-receipt-ed25519.pem:/etc/agentnovas/release-target-receipt-ed25519.pem
+LoadCredential=release-target-receipt-trust.json:/etc/agentnovas/release-target-receipt-trust.json
+LoadCredential=release-target-host-identity:/etc/agentnovas/release-target-host-identity
+LoadCredential=release-target-auditor-shared-secret:/etc/agentnovas/release-target-auditor-shared-secret
+Environment=RELEASE_TARGET_GITHUB_BINDING_FILE=%d/release-target-github-binding.json
+Environment=RELEASE_TARGET_ADAPTER_CONFIG_FILE=%d/release-target-adapter.json
+Environment=RELEASE_TARGET_CONTROL_IDENTITIES_FILE=%d/release-target-control-identities.json
+Environment=RELEASE_TARGET_CONTROL_TLS_KEY_FILE=%d/release-target-control-tls.key
+Environment=RELEASE_TARGET_CONTROL_TLS_CERTIFICATE_FILE=%d/release-target-control-tls.crt
+Environment=RELEASE_TARGET_CONTROL_TLS_CA_FILE=%d/release-target-control-ca.crt
+Environment=RELEASE_TARGET_RECEIPT_KEY_FILE=%d/release-target-receipt-ed25519.pem
+Environment=RELEASE_TARGET_RECEIPT_TRUST_FILE=%d/release-target-receipt-trust.json
+Environment=RELEASE_TARGET_HOST_IDENTITY_FILE=%d/release-target-host-identity
+Environment=RELEASE_TARGET_AUDITOR_SHARED_SECRET_FILE=%d/release-target-auditor-shared-secret
+ExecStart=/usr/bin/npm run service:release-target
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=30
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadOnlyPaths=/etc/agentnovas-riverton
+ReadWritePaths=/var/lib/agentnovas-release-target /var/backups/agentnovas-release-target
+
+[Install]
+WantedBy=multi-user.target

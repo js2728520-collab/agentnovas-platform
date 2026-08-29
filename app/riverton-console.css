@@ -198,7 +198,10 @@
   font-style: normal;
   font-weight: 700;
 }
-.rc-console > aside > footer div { display: grid; min-width: 0; line-height: 1.3; }
+.rc-console > aside > footer div,
+.rc-console > aside > footer .rc-account-link { display: grid; min-width: 0; line-height: 1.3; }
+.rc-console > aside > footer .rc-account-link { flex: 1; color: inherit; text-decoration: none; }
+.rc-console > aside > footer .rc-account-link:hover b { color: var(--rv-primary-ink); }
 .rc-console > aside > footer b {
   overflow: hidden;
   font-size: 13px;
@@ -213,6 +216,31 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.rc-preference-section { display: grid; gap: 16px; }
+.rc-preference-section > header p { margin: 4px 0 0; color: var(--rv-muted-foreground); }
+.rc-preference-language { display: grid; width: min(360px, 100%); gap: 7px; color: var(--rv-muted-foreground); font-size: 12px; font-weight: 650; }
+.rc-preference-language select { width: 100%; }
+.rc-preference-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rc-preference-options > button { display: grid; min-height: 108px; align-content: start; gap: 10px; padding: 12px; border: 1px solid var(--rv-border); border-radius: var(--rv-radius-md); color: var(--rv-foreground); background: var(--rv-background); text-align: left; cursor: pointer; }
+.rc-preference-options > button:hover { border-color: var(--rv-border-strong); }
+.rc-preference-options > button.selected { border-color: var(--rv-primary); box-shadow: var(--rv-focus-ring); }
+.rc-preference-options > button:disabled { cursor: wait; opacity: .68; }
+.rc-mode-preview,.rc-palette-preview { display: flex; height: 46px; overflow: hidden; border: 1px solid var(--rv-border); border-radius: var(--rv-radius-sm); }
+.rc-mode-preview i,.rc-palette-preview i { flex: 1; }
+.rc-mode-preview i:first-child { background: var(--rv-preview-light-surface); }
+.rc-mode-preview i:last-child { background: var(--rv-preview-dark-surface); }
+.rc-mode-preview.is-light i:last-child { background: var(--rv-preview-light-muted); }
+.rc-mode-preview.is-dark i:first-child { background: var(--rv-preview-dark-muted); }
+.rc-palette-preview.is-classic i:nth-child(1) { background: var(--rv-preview-classic-surface); }
+.rc-palette-preview.is-classic i:nth-child(2) { background: var(--rv-preview-classic-primary); }
+.rc-palette-preview.is-classic i:nth-child(3) { background: var(--rv-preview-classic-brand); }
+.rc-palette-preview.is-harbor i:nth-child(1) { background: var(--rv-preview-harbor-surface); }
+.rc-palette-preview.is-harbor i:nth-child(2) { background: var(--rv-preview-harbor-primary); }
+.rc-palette-preview.is-harbor i:nth-child(3) { background: var(--rv-preview-harbor-brand); }
+.rc-palette-preview.is-forest i:nth-child(1) { background: var(--rv-preview-forest-surface); }
+.rc-palette-preview.is-forest i:nth-child(2) { background: var(--rv-preview-forest-primary); }
+.rc-palette-preview.is-forest i:nth-child(3) { background: var(--rv-preview-forest-brand); }
 
 /* ============================================================
    顶栏
@@ -336,6 +364,24 @@
   line-height: 1.65;
 }
 .rc-heading-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.rc-dashboard-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 5px 18px;
+  margin: -7px 0 16px;
+  color: var(--rv-subtle-foreground);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.rc-muted-copy {
+  margin: 0;
+  color: var(--rv-muted-foreground);
+  font-size: 13px;
+  line-height: 1.65;
+}
 
 .rc-state {
   display: grid;
@@ -999,6 +1045,47 @@
   font-weight: 640;
 }
 
+.rc-hub-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 20px;
+  padding: 4px;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius);
+  background: var(--rv-muted);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.rc-hub-tabs a {
+  min-height: 38px;
+  padding: 9px 13px;
+  border-radius: calc(var(--rv-radius) - 3px);
+  color: var(--rv-muted-foreground);
+  font-size: 13.5px;
+  font-weight: 580;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.rc-hub-tabs a:hover,
+.rc-hub-tabs a:focus-visible { color: var(--rv-foreground); background: var(--rv-row-hover); }
+.rc-hub-tabs a[aria-current="page"] { color: var(--rv-primary-ink); background: var(--rv-card); }
+
+/* The shell navigation rule is intentionally broad for the sidebar. Hub tabs
+   live inside the same shell, so restore their compact horizontal semantics at
+   a higher specificity instead of letting them inherit the sidebar grid. */
+.rc-console .rc-hub-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  padding-right: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.rc-console .rc-hub-tabs a {
+  min-height: 38px;
+  padding: 9px 13px;
+}
+
 .rc-legacy-embed { overflow: auto; }
 
 /* ============================================================
@@ -1252,4 +1339,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .rc-loading i, .rc-console > aside, .rc-card-link { animation: none; transition: none; }
+}
+
+@media (max-width: 768px) {
+  .rc-preference-options { grid-template-columns: minmax(0, 1fr); }
 }

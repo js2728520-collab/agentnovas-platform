@@ -6,7 +6,7 @@
 
 Maintenance 管理模型 Profile/Agent 绑定、AI 用量安全聚合、Email、优盾充值通道配置、平台 Demo 账户、Worker 健康、紧急暂停、RBAC 和技术审计，不处理客户归属、会员付款、充值入账审批或 paper 分成业务决定。
 
-核心路由：`/models`、`/ai-usage`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/releases`、`/access`、`/access/audit`、`/audit`。
+核心路由：`/models`、`/ai-usage`、`/work-records`、`/integrations/sources`、`/integrations/email`、`/integrations/payments`、`/integrations/demo-exchanges`、`/health`、`/safety`、`/settings`、`/settings/disclosures`、`/releases`、`/access`、`/access/audit`、`/audit`。
 
 ## 2. 模型与 Agent
 
@@ -24,6 +24,14 @@ Maintenance 管理模型 Profile/Agent 绑定、AI 用量安全聚合、Email、
 - 可信 Token 只累计成功请求，Credits 只累计真实 settled 数值；“已记录非取消失败率”排除 preflight 拒绝、用户取消和处理中请求，不等同系统或 provider 可用率。
 - 日期在页面内单击应用，不增加确认弹窗。当前 MFA Gate 默认关闭；正式生产重新开启后仍按敏感权限策略要求 recent MFA。
 - 固定对话 Credits 数值和模型/功能价格分档等待 P-08，当前页面不得宣称固定费用规则已经完成。
+
+### 2.2 工作记录受控导出
+
+- `/work-records` 只对 `maint.work_records.export` 展示，正式生产重新开启 MFA 后要求 recent MFA。
+- Web 数据库角色只读 `maintenance_strategy_work_records_safe` security-barrier 视图，不读取客户工作记录原表；用户与记录均使用稳定伪名。
+- UTC 日期最多 31 天、每次最多 1,000 条，达到上限必须明示截断；请求严格限制为 from/to/reason，同源、8 KiB、持久化幂等。
+- 原因常驻页面且不增加确认弹窗；审计只记录范围、条数、截断、查询摘要和原因，不保存导出正文。
+- JSON 不含原始用户/部署/决策轮 ID、PII、证据 payload、模型/provider、错误原文或凭证；服务端不向文件系统或对象存储落导出文件，脱敏响应仅保存在不可变幂等终态记录中以支持安全重放。
 
 ## 3. Email 与支付
 

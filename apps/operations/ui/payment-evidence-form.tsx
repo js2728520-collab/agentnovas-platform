@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { PaymentEvidenceInput } from "./commercial-workspace-types";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 export function PaymentEvidenceForm({
   currency,
@@ -15,6 +16,7 @@ export function PaymentEvidenceForm({
   onCancel: () => void;
   onSubmit: (input: PaymentEvidenceInput) => void;
 }) {
+  const { t } = useAppLocale();
   const [form, setForm] = useState({
     evidenceKind: "bank_transfer" as PaymentEvidenceInput["evidenceKind"],
     providerLabel: "",
@@ -29,8 +31,8 @@ export function PaymentEvidenceForm({
       <header>
         <div>
           <small>EXTERNAL PAYMENT EVIDENCE</small>
-          <h2 id="payment-evidence-title">记录外部付款凭证</h2>
-          <p>凭证只记录外部付款事实，保存不代表审批或资金执行。</p>
+          <h2 id="payment-evidence-title">{t("记录外部付款凭证")}</h2>
+          <p>{t("凭证只记录外部付款事实，保存不代表审批或资金执行。")}</p>
         </div>
       </header>
       <form
@@ -50,7 +52,7 @@ export function PaymentEvidenceForm({
         }}
       >
         <label>
-          凭证类型
+          {t("凭证类型")}
           <select
             value={form.evidenceKind}
             onChange={(event) => setForm({
@@ -58,22 +60,22 @@ export function PaymentEvidenceForm({
               evidenceKind: event.target.value as PaymentEvidenceInput["evidenceKind"],
             })}
           >
-            <option value="bank_transfer">银行转账</option>
-            <option value="manual_invoice">人工账单</option>
-            <option value="provider_reference">受控服务参考号</option>
+            <option value="bank_transfer">{t("银行转账")}</option>
+            <option value="manual_invoice">{t("人工账单")}</option>
+            <option value="provider_reference">{t("受控服务参考号")}</option>
           </select>
         </label>
         <label>
-          渠道标识（非唯一凭据）
+          {t("渠道标识（非唯一凭据）")}
           <input
             maxLength={80}
             value={form.providerLabel}
             onChange={(event) => setForm({ ...form, providerLabel: event.target.value })}
-            placeholder="例如 Bank Wire"
+            placeholder={t("例如 Bank Wire")}
           />
         </label>
         <label>
-          外部参考号
+          {t("外部参考号")}
           <input
             required
             maxLength={256}
@@ -83,7 +85,7 @@ export function PaymentEvidenceForm({
           />
         </label>
         <label>
-          金额（{currency}）
+          {t("金额")}（{currency}）
           <input
             required
             inputMode="decimal"
@@ -93,7 +95,7 @@ export function PaymentEvidenceForm({
           />
         </label>
         <label>
-          外部付款时间
+          {t("外部付款时间")}
           <input
             required
             type="datetime-local"
@@ -102,22 +104,22 @@ export function PaymentEvidenceForm({
           />
         </label>
         <label>
-          记录原因
+          {t("记录原因")}
           <textarea
             required
             maxLength={500}
             rows={3}
             value={form.note}
             onChange={(event) => setForm({ ...form, note: event.target.value })}
-            placeholder="写明核对来源和业务依据"
+            placeholder={t("写明核对来源和业务依据")}
           />
         </label>
         <div className="rc-action-row">
           <button className="rc-button" type="button" disabled={busy} onClick={onCancel}>
-            取消
+            {t("取消")}
           </button>
           <button className="rc-primary" type="submit" disabled={busy}>
-            {busy ? "正在记录…" : "确认记录凭证"}
+            {busy ? t("正在记录…") : t("确认记录凭证")}
           </button>
         </div>
       </form>

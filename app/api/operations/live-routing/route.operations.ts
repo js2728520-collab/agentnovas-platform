@@ -4,6 +4,10 @@ import { approvalRequests, auditLogs } from "@/db/schema";
 import { requireAccessPermission } from "@/lib/access-control";
 import { responseError } from "@/lib/session";
 import { listLiveRouting, requestLiveRouting } from "@/lib/execution/live-routing-admin";
+import {
+  LIVE_EXECUTION_BLOCKERS,
+  isLiveExecutionReady,
+} from "@/packages/domain/src/execution/live-readiness";
 
 /**
  * 实盘路由授权：查看与申请开通。
@@ -15,7 +19,11 @@ import { listLiveRouting, requestLiveRouting } from "@/lib/execution/live-routin
 export async function GET(request: Request) {
   try {
     await requireAccessPermission(request, "ops.trading.manage");
-    return Response.json({ grants: await listLiveRouting() });
+    return Response.json({
+      grants: await listLiveRouting(),
+      activationReady: isLiveExecutionReady(),
+      blockerCodes: LIVE_EXECUTION_BLOCKERS.map((blocker) => blocker.code),
+    });
   } catch (error) {
     return responseError(error);
   }
@@ -24,6 +32,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const { user } = await requireAccessPermission(request, "ops.trading.manage");
+    if (!isLiveExecutionReady()) {
+      return Response.json({
+        code: "LIVE_EXECUTION_NOT_READY",
+        error: "实盘安全闸门尚未通过，不能申请开通路由",
+      }, { status: 503 });
+    }
     const body = await request.json().catch(() => ({})) as {
       exchange?: string; environment?: string; note?: string;
     };

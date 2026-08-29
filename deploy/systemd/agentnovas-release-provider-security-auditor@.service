@@ -1,0 +1,39 @@
+[Unit]
+Description=AgentNovas restricted release provider security auditor (%i)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=an-rel-auditor-%i
+Group=an-rel-auditor-%i
+WorkingDirectory=/opt/agentnovas/current
+EnvironmentFile=/etc/agentnovas/release-auditor-%i.env
+LoadCredential=release-auditor-%i-policy.json:/etc/agentnovas/release-auditor-%i-policy.json
+LoadCredential=release-auditor-%i-app.pem:/etc/agentnovas/release-auditor-%i-app.pem
+LoadCredential=release-auditor-%i-attestation-ed25519.pem:/etc/agentnovas/release-auditor-%i-attestation-ed25519.pem
+LoadCredential=release-auditor-%i-shared-secret:/etc/agentnovas/release-auditor-%i-shared-secret
+Environment=RELEASE_AUDITOR_POLICY_FILE=%d/release-auditor-%i-policy.json
+Environment=RELEASE_AUDITOR_APP_PRIVATE_KEY_FILE=%d/release-auditor-%i-app.pem
+Environment=RELEASE_AUDITOR_ATTESTATION_PRIVATE_KEY_FILE=%d/release-auditor-%i-attestation-ed25519.pem
+Environment=RELEASE_AUDITOR_SHARED_SECRET_FILE=%d/release-auditor-%i-shared-secret
+ExecStart=/usr/bin/npm run service:release-auditor
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+InaccessiblePaths=/etc/agentnovas
+
+[Install]
+WantedBy=multi-user.target

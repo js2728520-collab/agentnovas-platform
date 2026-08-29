@@ -5,7 +5,9 @@ import "./base.css";
 
 import { resolveAppAudienceStrict } from "@/lib/riverton-apps";
 import { rivertonMetadata } from "@/lib/riverton-metadata";
-import { themeBootstrapScript } from "@/packages/ui/src/theme-script";
+import { requestInitialAppLocale } from "@/lib/app-locale";
+import { requestAppPreference } from "@/lib/request-app-preference";
+import { appPreferenceBootstrapScript } from "@/packages/ui/src/theme-script";
 import CurrentFrame from "@/app/audience/current-frame";
 
 const geistSans = Geist({
@@ -35,6 +37,8 @@ export default async function RootLayout({
   // layout 一起重挂，每次点菜单侧栏顶栏都消失约 360ms。
   const requestHeaders = await headers();
   const audience = resolveAppAudienceStrict({ host: requestHeaders.get("host") ?? undefined });
+  const preference = audience ? await requestAppPreference(requestHeaders, audience) : null;
+  const initialLocale = audience ? preference?.locale ?? requestInitialAppLocale(requestHeaders, audience) : "en-US";
   // proxy.ts 每个请求生成一个 nonce，同时写进 CSP 和 x-nonce 请求头。
   //
   // 不带 nonce 的话这段脚本会被我们自己的 CSP 挡掉（script-src 是
@@ -42,15 +46,22 @@ export default async function RootLayout({
   // 是暗色用户每次加载都白闪一下——恰恰是这段脚本存在的唯一理由。
   const nonce = requestHeaders.get("x-nonce") ?? undefined;
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
+    <html
+      lang={initialLocale}
+      data-theme={preference?.themeMode === "light" || preference?.themeMode === "dark" ? preference.themeMode : undefined}
+      data-palette={preference?.themePalette === "harbor" || preference?.themePalette === "forest" ? preference.themePalette : undefined}
+      suppressHydrationWarning
+    >
       <head>
         {/* 必须早于首帧绘制，否则暗色用户会看到一次白闪 */}
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        {audience ? <script nonce={nonce} dangerouslySetInnerHTML={{ __html: appPreferenceBootstrapScript({ audience, preference }) }} /> : null}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {audience ? <CurrentFrame audience={audience}>{children}</CurrentFrame> : children}
+        {audience
+          ? <CurrentFrame audience={audience} initialLocale={initialLocale}>{children}</CurrentFrame>
+          : children}
       </body>
     </html>
   );

@@ -151,7 +151,7 @@ test("Client 本地浏览器登录、主动绑定、TOTP 与恢复码再次登�
     await expect(initial.page).toHaveURL(`${initial.origin}/dashboard`);
     await initial.page.waitForLoadState("networkidle");
     await initial.page.goto("/account/security", { waitUntil: "networkidle" });
-    await expect(initial.page.getByRole("heading", { name: "账号与登录安全" })).toBeVisible();
+    await expect(initial.page.getByRole("heading", { name: "登录与设备安全" })).toBeVisible();
     await initial.page.getByRole("button", { name: "绑定身份验证器" }).click();
     const secret = await initial.page.getByLabel("身份验证器设置密钥").inputValue();
     expect(secret).toMatch(/^[A-Z2-7]{32}$/);
@@ -209,7 +209,7 @@ test("Operations 本地浏览器首次登录强制绑定并再次用 TOTP 登录
     await expect(enrollment.page).toHaveURL(`${enrollment.origin}/`);
     await enrollment.page.waitForLoadState("networkidle");
     await expectAuthenticatedSession(enrollment, identity);
-    await expect(enrollment.page.getByRole("heading", { name: "运营概览" })).toBeVisible();
+    await expect(enrollment.page.getByRole("heading", { name: "运营看板" })).toBeVisible();
     expect((await sensitiveAccess(enrollment)).status).toBe(200);
     await expireRecentMfa(pool, enrollment, identity);
     expect(await navigateToExpiredSensitiveAccess(enrollment)).toMatchObject({
@@ -222,7 +222,7 @@ test("Operations 本地浏览器首次登录强制绑定并再次用 TOTP 登录
     await verification.page.getByRole("button", { name: "验证并进入" }).click();
     await expect(verification.page).toHaveURL(`${verification.origin}/`);
     await verification.page.waitForLoadState("networkidle");
-    await expect(verification.page.getByRole("heading", { name: "运营概览" })).toBeVisible();
+    await expect(verification.page.getByRole("heading", { name: "运营看板" })).toBeVisible();
     expect((await sensitiveAccess(verification)).status).toBe(200);
     await assertEncryptedCredential(pool, identity);
 
@@ -266,7 +266,7 @@ test("Maintenance 本地浏览器首次登录强制绑定并用恢复码再次�
     await expect(enrollment.page).toHaveURL(`${enrollment.origin}/`);
     await enrollment.page.waitForLoadState("networkidle");
     await expectAuthenticatedSession(enrollment, identity);
-    await expect(enrollment.page.getByRole("heading", { name: "系统概览" })).toBeVisible();
+    await expect(enrollment.page.getByRole("heading", { name: "系统运行" })).toBeVisible();
 
     await login(verification, identity);
     await expect(verification.page.getByRole("heading", { name: "双重验证", exact: true })).toBeVisible();
@@ -274,7 +274,7 @@ test("Maintenance 本地浏览器首次登录强制绑定并用恢复码再次�
     await verification.page.getByRole("button", { name: "验证并进入" }).click();
     await expect(verification.page).toHaveURL(`${verification.origin}/`);
     await verification.page.waitForLoadState("networkidle");
-    await expect(verification.page.getByRole("heading", { name: "系统概览" })).toBeVisible();
+    await expect(verification.page.getByRole("heading", { name: "系统运行" })).toBeVisible();
     expect((await assertEncryptedCredential(pool, identity)).used_count).toBe(1);
     expect((await sensitiveAccess(verification)).status).toBe(200);
     await expireRecentMfa(pool, verification, identity);

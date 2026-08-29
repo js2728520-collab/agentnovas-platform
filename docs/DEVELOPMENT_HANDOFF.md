@@ -2906,3 +2906,852 @@ production build 完成 Client 68、Operations 62、Maintenance 52 页；三端�
 `bfc34d26f32c8c446edfed842420b31abb74a66875715f5ed77c0091396c1b95`，未纳入本轮提交。未执行生产
 迁移、未接触生产数据库、未启动或切换远端服务、未推送、未部署。下一切片是 4.13a-UI；之后才是
 4.13b Maintenance security-barrier 脱敏导出与最终浏览器 Gate。
+
+## 80. 2026-08-26 T4.13a-UI Client 工作记录列表与详情
+
+Client 已新增主导航“工作记录”和稳定 `/work-records`、`/work-records/:id` 页面。列表读取后端
+不透明游标并以“加载更多”追加去重；详情严格按公共决策、行情摘要、七阶段、你的组合准入、模拟
+意图与成交、审计边界排序。页面明确区分同卡订阅者共享的公共七阶段与逐组合准入/模拟执行事实，
+只有纯 `hold` 无周期时显示“本轮无需组合准入”，`not_recorded` 不会被推断为已放行或已执行；
+所有位置持续显示真实订单路由关闭，不调用 LLM、不触发订单或外部写入。
+
+新增纯展示合同把决策、完整性、执行环境、准入和 allowlist 证据转换为客户可理解的定义列表，
+不直接输出原始 JSON。加载、错误、空态、追加失败与结束状态均可感知；阶段和宽表滚动区可由键盘
+聚焦，响应式布局覆盖 320、768、1024、1440。永久浏览器覆盖仍折叠在既有四个 Client Gate 用例中，
+没有增加测试碎片。
+
+最终全量 `npm test` 1438/1438、全仓 ESLint、8 条架构边界、三端 key-custody、bundle budget、
+production-only audit（0 漏洞）和差异检查均通过；三端 production build 完成 Client 68、
+Operations 62、Maintenance 52 页。开发模式预跑被 Next 16 `allowedDevOrigins` 的既有 403 安全边界
+阻断，没有放宽配置；随后使用最终本地 production standalone、隔离 PostgreSQL、MFA 默认关闭、
+全部外部写入禁用和端口偏移 10000 独立运行工作记录旅程，四断点、键盘聚焦、axe、控制台和网络
+全部通过。完整 Client 商业/Paper 聚合旅程另被既有 `client-home-workspace` 加载骨架的无 role
+`aria-label` axe 严重项阻断，该问题不在本切片范围，未顺手改动。
+
+仓库标准 secret-scan 在读取用户未跟踪的嵌套工作树目录
+`.claude/worktrees/audit-remediation-plan/` 时因 `EISDIR` 在扫描前退出；没有修改或删除该目录，也没有
+把门禁误报为通过。使用同一检测规则只遍历普通文件的复核覆盖 3109 个文件，跳过的唯一目录即上述
+路径，未发现 secret finding。后续应单独修正扫描器对目录条目的处理。
+
+Maintenance security-barrier 脱敏投影、受控导出和最终三端完整 Gate 仍属 4.13b/4.13c；本轮未执行
+生产迁移、未接触生产数据库、未推送、未部署，也未修改用户自有认证 audience 修复及其测试。
+
+## 81. 2026-08-26 T4.13b Maintenance 工作记录脱敏导出
+
+本轮完成 Maintenance 工作记录受控导出的完整纵向切片。0076 迁移注册独立敏感权限
+`maint.work_records.export`，创建带 `security_barrier` 的 `maintenance_strategy_work_records_safe` 安全视图，
+只返回稳定伪名用户/记录引用和业务 allowlist 字段；Maintenance 运行角色仅获得该视图 `SELECT`，不能读取
+客户工作记录原表。默认技术角色获得新权限，但迁移不会重建被显式撤销的应用 assignment，因此撤权墓碑
+继续生效。发布角色策略新增原表授权检测，避免后续脚本意外扩大数据库权限。
+
+新增 `POST /api/maintenance/work-records/export` 和稳定 `/work-records` 页面。请求严格限定 UTC 日期、最多
+31 个自然日、1,000 条结果和 3–500 字常驻审计原因；响应为私有不缓存 JSON 下载，不向文件系统或对象
+存储落导出文件，并对公式起始字符做安全转义。为保证安全重放，脱敏响应仅保存在不可变幂等终态记录中，
+响应头如实声明 `x-export-retention: idempotency-record-only`。路由要求 Maintenance audience、精确权限、近期 MFA、same-origin 和持久化
+Idempotency-Key。相同 actor/key/payload 返回同一终态结果，只写一条追加式审计；审计只保存日期范围、
+行数、截断标志、查询摘要和原因，不保存导出正文、原始用户 ID、PII、模型内容、错误原文或凭证。真实订单
+路由仍为关闭，导出不调用 LLM、不生成策略、不触发订单或外部写入。
+
+测试按失败先行补齐严格输入、1,000 条截断、公式注入、权限/API/UI 合同、PostgreSQL 安全视图与原表拒绝、
+显式撤权、幂等重放和元数据审计。最终 `npm test` 1443/1443、TypeScript、全仓 ESLint、8 条架构边界、
+三端 production build（Client 68、Operations 62、Maintenance 53）、bundle budget、production-only audit
+（0 漏洞）和差异检查通过。Maintenance production Chromium 在隔离 PostgreSQL、MFA 默认关闭、全部外部
+写入禁用和端口偏移 10000 下完成 4/4：覆盖 320/768/1024/1440、axe、audience 导航、零确认弹窗、
+非法日期恢复和真实脱敏 JSON 下载。
+
+标准 secret-scan 仍因用户未跟踪嵌套工作树目录 `.claude/worktrees/audit-remediation-plan/` 触发既有
+`EISDIR`，没有将其误报为通过；同一规则仅扫描普通文件的复核覆盖 3114 个文件、0 finding，唯一跳过项
+即该目录。Nginx 门禁因本机无 Docker/nginx 无法执行，部署前仍必须在具备其中之一的环境重跑。
+用户自有 `app/api/auth/me/route.shared.ts` 与 `tests/api-policy-security.test.mjs` 哈希保持为
+`845633aa0d007944dfc3aeb7fc3eef2c53d487f1`、`fdb1530dda87b024e5088471eaa99122d394acfb`。
+未执行生产迁移、未接触生产数据库、未推送、未部署。下一切片是 T4.13c 最终三端完整登录/主旅程总 Gate。
+
+## 82. 2026-08-26 T4.13c 工作记录最终三端总 Gate
+
+T4.13 已完成最终收口，本切片没有新增业务功能，也没有因验收修改运行时代码。最终 production
+Chromium 在隔离 PostgreSQL、MFA 默认关闭、全部 provider/email/payment/Demo 外部写入禁用和端口
+偏移 12000 下首次运行即 20/20 通过。覆盖三端空浏览器登录、未知与跨 audience Host 失败关闭、
+Cookie audience 隔离、Operations 权限链接注册/冻结/作废、Client 五设备上限、Client/Operations/
+Maintenance 稳定工作区的 320/768/1024/1440 响应式与 axe、Operations maker/checker 与 PII 原因
+审计、Client 工作记录列表/详情，以及 Maintenance 工作记录真实脱敏 JSON 下载、准确留存响应头和零
+确认弹窗。质量 schema `quality_e2e_1787749895870_21427_d8126b76` 已删除，runtime secrets 目录不存在，
+清理失败为 0；文本证据保存在 `outputs/quality-work-records-final/`。
+
+本地最终 `npm test` 1443/1443、TypeScript、全仓 ESLint、8 条架构边界、三端 key-custody、bundle
+budget、production-only dependency audit（0 漏洞）和差异检查全部通过。标准 secret-scan 仍因用户未
+跟踪嵌套工作树目录 `.claude/worktrees/audit-remediation-plan/` 触发既有 `EISDIR`，没有误报为通过；
+使用相同规则扫描 3114 个普通文件为 0 finding，唯一跳过项即上述目录。
+
+云端构建把同一批 3114 个文件直接通过 SSH 流入 `an-saas` 的一次性 `docker run --rm` 容器，没有
+创建远端源码目录。固定 Node 22.21.1 完成 Client 68、Operations 62、Maintenance 53 页 production
+build，云端 bundle、三端 key-custody 和 production-only audit（0 漏洞）通过；构建容器退出后源码、
+依赖和产物自动消失。构建前源码内容 manifest SHA-256 为
+`fa6f13bd0fb1bcb205311a17a3d4626f06c7af1ef7b9c8c31de78696c299eb18`；本节及任务状态为构建后证据
+回填，不改变运行时或测试输入。远端 Docker daemon 使用官方 `nginx:1.29.8-alpine` 完成 Nginx 语法
+检查，8 个 `listen ... http2` 位置只产生已知兼容警告，配置门禁通过。
+
+用户自有 `app/api/auth/me/route.shared.ts` 与 `tests/api-policy-security.test.mjs` 哈希仍为
+`845633aa0d007944dfc3aeb7fc3eef2c53d487f1`、`fdb1530dda87b024e5088471eaa99122d394acfb`。
+本轮未执行生产迁移、未接触生产数据库、未启动或切换远端服务、未提交、未推送、未部署。T4.13
+现在可作为完整、独立、可复验的工作记录能力交付。
+
+## 83. 2026-08-26 T0.4 仓库密钥扫描器非普通文件加固
+
+T4.2 策略准入与投稿状态机仍由 P-05（回测/模拟盘时长、收益与回撤门槛）明确阻塞，本轮没有用
+开发默认值替代产品决定，而是完成最近的无产品参数质量切片。根因已确认：
+`git ls-files --cached --others --exclude-standard` 会把用户未跟踪的嵌套工作树作为以 `/` 结尾的目录
+候选返回，旧扫描器对每个候选直接 `readFile`，因此在真正扫描前触发 `EISDIR`。
+
+扫描器现在先通过 `lstat` 判定候选类型：目录和其他非普通文件不计入已扫描文件；普通文件继续读取；
+符号链接只扫描 Git 实际保存的链接目标文本，不跟随到仓库外读取内容。仅已删除候选和文件在判型后
+变为目录的竞态允许跳过，其他文件系统错误继续失败关闭。回归测试按失败先行覆盖真实嵌套 Git 仓库
+目录和仓库外符号链接；修复前分别稳定复现 `EISDIR` 和外部目标被读取，修复后定向 8/8 通过。
+
+标准 `npm run quality:secret-scan` 现可直接完成 3114 个 tracked/untracked 候选、0 finding，不再依赖
+人工“仅普通文件”替代扫描，也没有修改或删除 `.claude/`。最终 `npm test` 1445/1445、TypeScript、
+全仓 ESLint、8 条架构边界、三端 key-custody、production-only dependency audit（0 漏洞）、差异检查
+和本地三端 production build（Client 68、Operations 62、Maintenance 53）全部通过。三次构建仅保留
+既有 Node `module.register()` 弃用警告；本切片不改运行时/UI，因此没有重复浏览器 Gate。
+
+用户自有 `app/api/auth/me/route.shared.ts` 与 `tests/api-policy-security.test.mjs` 未被本切片修改，Git blob
+仍为 `845633aa0d007944dfc3aeb7fc3eef2c53d487f1`、`fdb1530dda87b024e5088471eaa99122d394acfb`。
+本轮未执行生产迁移、未接触生产数据库、未提交、未推送、未部署。
+
+## 84. 2026-08-26 T9.0 `an-saas` 隔离 preview 部署候选演练
+
+用户授权优先使用 `ssh an-saas` 执行资源密集型构建/测试，并可随时替换
+`test.agentnovas.com`、`ops-test.agentnovas.com`、`main-test.agentnovas.com` 三个测试入口。本轮只操作
+Docker Compose project `agentnovas-riverton-preview`、preview PostgreSQL 数据卷和既有 Caddy 测试
+vhost；正式 project、正式 PostgreSQL、正式域名和真实外部写入均未改动。当前部署候选为
+`preview-7c047b6-wt-20260826T142018Z`，源码目录
+`/opt/agentnovas-riverton-preview/releases/preview-7c047b6-wt-20260826T142018Z/source` 共 3118 个文件，
+tree SHA-256 为 `18be3df441b4a93395f834cb6582397ea9366b0b496923f4b07bf385b066ff2f`；上一健康应用回滚点为
+`preview-7c047b6-wt-20260826T141035Z`。
+
+首次迁移预检发现仓库中的已部署 `0066_client_email_and_device_security.sql` 曾被后续修改，preview 与
+正式 registry 都保存原 checksum
+`234aa5d2fed20640cbaf172ca773109ecb2e923044c600e05b8fed0b3bd76a9a`。按 ADR-0012 恢复已部署原文并
+增加固定 checksum 回归，没有修改数据库 registry。preview 数据库迁移前 dump 位于
+`/opt/agentnovas-riverton-preview/releases/preview-7c047b6-wt-20260826T140017Z/preview-before-migrations.dump`，
+SHA-256 为 `05f290fa1b25089572ad01b8db6fabc70d2def9f6df366dee538ccd08c4b656f`，已通过
+`pg_restore --list`。9 个待迁移文件应用成功后，r4 migrator 幂等复跑为 0 applied、77 skipped、77
+total。preview registry 仍有一个早期 preview-only 的
+`0068_internal_registration_role_guard_owner.sql` 历史行；当前最小权限模板已覆盖其函数 owner/ACL
+效果，但该环境历史差异必须保留在证据中，不能冒充生产 registry 完全同构。
+
+部署预检还暴露两个运行时缺口并按失败先行修正。其一，应用未消费 preview 的
+`RIVERTON_APP_HOST`，导致精确测试域名被 audience 层拒绝；现在只接受严格规范的单个 DNS hostname，
+精确测试 Host 可用，正式/跨端/畸形 Host 继续失败关闭。其二，PostgreSQL 返回的 routine setting 为
+`search_path="public",pg_catalog`，旧角色检查器只接受带固定空格的文本形式；现在仅规范化引号与空白，
+owner、SECURITY DEFINER、精确 search_path 顺序和 execute grantee 检查保持不变。preview 角色策略最终
+`findings: []`；`agentnovas_maint_web` 对
+`maintenance_strategy_work_records_safe` 有 SELECT，对 `strategy_subscription_periods`、
+`strategy_decision_rounds`、`strategy_runtime_cycles` 均无 SELECT，并能以该角色实际查询安全视图。
+
+远端隔离 PostgreSQL、单 CPU Node 22 容器最终完成 1449/1449 测试、TypeScript、ESLint 和 8 条架构
+边界。三端 production build 为 Client 68、Operations 62、Maintenance 53 页；key-custody 分别扫描
+572、520、430 个 server JavaScript，均不含交易所凭证加解密能力；production-only audit 为 0，bundle
+budget 通过。四镜像 digest 为 Client
+`sha256:2e1cbcdc4c79ce7fbd257677ab34db83b3c5336aa7ebc0f6a68332188a83e431`、Operations
+`sha256:7602a598d8e3475e883ebd6032f5838d3f8bf694f836f9d1b84329fa10a0aa1a`、Maintenance
+`sha256:32308ffcbe3d087e15c1c84a8b9dc8bd975160593b285a0b83349e3a97ba8515`、runtime
+`sha256:c1375b14714008a892d768c5a04e8711a7e308c607e377582ccfdb88be78a035`。
+
+r4 三端容器最终均为 `running/healthy`。三个外部域名的 live/ready 全部 200，直接 loopback 正确 Host
+为 200、错误 Host 为 404/`UNKNOWN_AUDIENCE`；Maintenance 导出同源未登录 POST 为 401，Client
+跨受众 POST 为 404。三端均返回 CSP、HSTS、`X-Frame-Options: DENY` 和 `nosniff`。Playwright
+1.62.1 隔离 Chromium 验证 Client 首页及 Operations/Maintenance 登录跳转均为 200，标题/H1 正确，
+console/page error 均为 0；部署后 20 分钟三端日志 error marker 均为 0。主要不可变证据及 SHA-256
+位于当前 release 目录的 `build-key-custody.log`、`image-build.log`、`migration-rerun.log`、
+`role-policy.log`、`maintenance-view-permissions.log`、`bundle-report.json`、`deploy.log`、
+`http-smoke-final.log`、`browser-smoke.json` 和 `runtime-log-summary.log`。
+
+本轮未提交、未推送、未创建 PR、未执行生产迁移，也未开放真实订单、支付、邮件或 CI/CD 控制面。
+T8.0 仍处于安全评审，不能用本次人工 preview 演练替代 G7 或宣称 Maintenance 已能触发部署。
+
+## 85. 2026-08-26 T9.3 当前 77 迁移恢复、N-1 与并发 Gate
+
+本轮继续使用 `an-saas`，但没有复用 preview 或生产数据库。fresh 源库运行在禁网、tmpfs 的临时
+PostgreSQL 16.14 容器，只有无口令、无外部网络的临时 `agentnovas_migrator`；演练 runner 先在普通
+构建网络生成，再进入同一禁网 namespace，避免为了安装工具给数据库开放 egress。当前 runtime
+镜像先应用 77/77 个迁移。恢复脚本使用 PostgreSQL 16.14 的 `pg_dump` custom format、
+`--enable-row-security`、受控 `createdb/pg_restore/dropdb`，最终输出 `status: verified`：源库和恢复库
+均有 154 张基础表、77 条带 checksum registry，表集合、逐表行数和 registry 完全一致，恢复目标
+`retained: false`。
+
+N-1 演练从同一 runtime 只在一次性卷中移除 0076 文件，不修改仓库或镜像：fresh 数据库先得到
+76 applied / 0 skipped，再由完整 r4 runtime 得到 1 applied / 76 skipped，第二次完整运行得到
+0 applied / 77 skipped。另一个 fresh 数据库同时启动两个完整 migrator，最终严格得到一方
+77 applied / 0 skipped、另一方 0 applied / 77 skipped，证明 advisory lock 后没有重复应用。此前 r2
+因 preview Host 配置拒绝而失败时，部署脚本已把三端应用回滚到更旧的
+`preview-d8d1c21-authfix-1`，该旧应用在已前向升级到 0076 的 preview 数据库上恢复健康；数据库没有
+执行逆向迁移，符合 expand/contract 回滚边界。
+
+恢复证据 SHA-256 为 `recovery-source-migrations.log`
+`37045365a5f194d3f61c42e9f2b44a6d9be789e44d9e1094827684fcde6a2c54`、
+`recovery-rehearsal.log`
+`3b663dba7c9ba2115e794b475df69c088745370e325b952ec81c1355e13b066f`；N-1 和并发日志及各自摘要
+保存在 r4 release 目录。两次演练的源容器、恢复目标数据库、应用卷和一次性 runner 镜像均已删除，
+preview r4 三端继续 `healthy`。本轮未接触生产数据库、未推送、未提交，也未打开任何真实外部副作用。
+
+## 86. 2026-08-26 T9.1 Current 合同与部署事实同步
+
+部署条件审计发现实现、API 文档和部分 Current 真源之间存在陈旧冲突：能力矩阵 A-08 仍把已完成的
+T4.13 标成 `PARTIAL`；Client/System Spec 与三端 Runbook 未列工作记录稳定路由；System Spec、
+Research Runbook 和质量证据仍分别停留在 0042/0043/0062 的旧恢复集合；当前功能说明同时把优盾
+充值标为 CURRENT，却仍写“Beta 不允许创建新充值订单”。本轮只回填已经实现和验证的事实，没有把
+Target/BLOCKED 能力提前改成 CURRENT。
+
+现在 A-08 明确为 CURRENT，并绑定 `/work-records` 列表/详情、固定策略版本、订阅期间、公共七阶段、
+个人准入/模拟意图与成交、0075/0076、六个月保留和 Maintenance security-barrier 脱敏导出证据。
+Client/System/Maintenance Spec、完整功能说明、Document Status Matrix 与三端 Runbook 使用同一稳定
+路由和权限描述。充值合同统一为：Client 只在优盾 deposit-only 配置完整时从 provider 取得专属地址，
+Operations maker/checker 原子入账；静态地址/二维码、Payment Worker、提现、划转和自动退款继续关闭。
+恢复真源统一为截至 0076 的 77 个迁移、154 张基础表，以及 fresh/N-1/rerun/concurrent/restore 证据。
+
+验证结果：生成式 API inventory 为 270 条 method route且无 stale；OpenAPI YAML 可解析并含 53 个
+path，Client 工作记录与 Maintenance 导出均存在；11 份变更状态文档的本地 Markdown 链接有效；已知
+旧迁移数字、旧充值描述和 A-08 PARTIAL 探针为 0；repository secret scan 覆盖 3117 个 tracked 或
+untracked 候选、0 finding；`git diff --check` 通过。历史 release 文档未被改写。T8.0 仍是安全评审，
+真实交易、资金出站和浏览器触发部署仍保持 BLOCKED。本轮未提交、未推送、未接触生产数据库。
+
+## 87. 2026-08-26 T9.2 r4 canonical 浏览器、axe 与性能 Gate
+
+为把浏览器证据与已部署 r4 候选精确绑定，本轮在 `an-saas` 使用 r4 source tree 创建一次性
+Playwright 1.62.1 runner，并连接禁网、tmpfs PostgreSQL 16.14；数据库、浏览器和三端服务只在同一
+临时 network namespace 内运行，端口偏移 10000，未接触 preview/生产数据库或现有端口。所有
+provider、邮件、支付、Demo、Configuration Activation、Research 和 Runtime 外部写入开关均为 false，
+对应凭证环境为空。
+
+canonical Chromium/axe 最终 20/20，通过三端空浏览器登录、未知/跨 audience Host、Cookie 隔离、
+Operations 权限链接、Client 五设备/全量退出、会员 maker/checker、Client locale/钱包/行情/商业/
+Paper/工作记录、Operations maker/checker/PII 原因审计，以及 Maintenance 健康、审计、模型、集成、
+配置无确认弹窗、AI 用量和工作记录脱敏导出。`gate-result.json` 为 `passed: true`、
+`externalWritesEnabled: false`；质量 schema `quality_e2e_1787756643507_21_6df4ab9d`、runtime secrets、
+临时数据库和 runner 镜像均已清理，cleanup failure 为 0。证据 SHA-256 为 gate
+`bd0135afc3b1c538bea89ee963c2d1cdb94c523ade931b0d54ddb83f55d328d6`、cleanup
+`8a0110f14ff937c63fbd4fc59de674779a3f150085efc780e62b1e773aa3e80f`、JUnit
+`b39435fc7f6aefaee394b545d8e308ad69937fc10fa9c5735e20a624662cc4c3`。
+
+Lighthouse 首次在额外 `--cpus 2` 的 runner 上三次 TBT 为 392/441/325 ms，超过 200 ms，因此没有
+误记为通过。宿主有 8 CPU、低负载，标准 Lighthouse 自身已执行移动端 throttling；移除人为的第二层
+CPU cap、保留 1 GiB shm 后，三次 performance 为 0.97/0.96/0.98，accessibility 与 best practices
+均为 1.00，LCP 为 1805/2431/1785 ms，CLS 均为 0，TBT 为 167/151/148 ms。代表运行资源为 JS
+177,513 bytes、CSS 18,098 bytes、image 10,166 bytes，全部低于 Gate。Lighthouse gate、cleanup、
+summary SHA-256 分别为 `3c5b910bbddccb9a4d34ab1f148edd0f6ddcb98351e41da83a878635dae485be`、
+`97e0f40787df7300f33bcbd45bd54dbe9a923ba55cc701a50aaf5b48e53fc7e3`、
+`1fa3447656a09af3f04cd5a64297503a0dc950bcf4303e12d050c24c632316df`；质量 schema、runtime secrets、
+LHCI 工作目录、临时数据库和镜像均已清理。preview r4 三端在演练后继续 healthy。
+
+生产 `.dockerignore` 正确排除 `tests/`；测试 runner 使用独立 build context 注入测试，四张发布镜像未
+包含测试文件。T9.2 自动技术质量子项已完成，但 T9.5 人员参与的客服/风控/财务/事故/provider/密钥
+泄露演练仍未完成。本轮未提交、未推送、未执行生产迁移或真实外部调用。
+
+## 88. 2026-08-26 T9.4 r4 secret、PII、依赖与运行边界审计
+
+本轮继续只审计 `agentnovas-riverton-preview`，没有修改 production project、数据库或域名。r4 三端
+容器均以 `node` 用户运行，根文件系统只读，`cap_drop=ALL`、`no-new-privileges`，容器 3000 端口只映射
+到宿主 `127.0.0.1:3200–3202`。Client、Operations、Maintenance 各自只读挂载自己的 env 文件到
+`/run/secrets`，普通容器环境中的数据库、密码、token、API key 等敏感键计数均为 0。宿主 secret
+目录为 root:root/0700；env 为 root:1000/0440，独立 key/password 文件为 root:root/0600。
+
+preview backplane 为 internal，三端 Web 只连接 backplane 与 edge。Worker profiles 当前关闭，四份
+Worker env 均没有数据库连接，运行 Worker 为 0，因此 Compose 没有创建未使用的 egress 网络；审计同时
+确认任何 Web 容器都没有 egress 附着。preview 与 production PostgreSQL 的容器 ID、数据卷和
+backplane 名称均不同。使用六份实际 secret 做不输出连接串的 `SELECT current_user` 探针，Client
+Web/Auth、Operations Web、Maintenance Web、payment webhook、migrator 精确返回
+`agentnovas_client_web`、`agentnovas_client_auth`、`agentnovas_ops_web`、`agentnovas_maint_web`、
+`agentnovas_payment_webhook`、`agentnovas_migrator`；四个 preview 服务最终继续 healthy。运行边界日志
+SHA-256 为 `105bccc77e9da808eda6a9876568d5d6265de46b96796d125c193c0a143981af`。
+
+在远端一次性 Node 22.21.1 容器、无网络测试阶段中，PII 投影/原因/范围交集/审计脱敏/CSV formula
+injection、270 条 API method route 的 PII 分类与敏感策略、Maintenance AI 用量和工作记录导出共
+42/42 通过；production-only `npm audit` 为 0。一次性源码/依赖卷已删除，证据
+`pii-dependency-audit-container-final.log` SHA-256 为
+`9944d0f9ae8c25fd5c2eb62cc07393b71275bf1fc38d2887638c7a5a42d670aa`。仓库标准 secret scan 另覆盖
+3117 个 tracked/untracked 候选文件，0 finding，差异检查通过。完整开发工具链仍有已登记的 17 项
+临时漏洞例外；其 2026-08-28 截止日和“首个付费 Beta 邀请前必须清零”仍是发布停止条件，不能用生产
+依赖 0 漏洞替代。本轮未提交、未推送、未创建 PR、未接触生产数据库，也未启用任何真实外部写入。
+
+## 89. 2026-08-26 T9.5 六场运营演练准备与技术故障注入
+
+新增 `docs/runbooks/phase9-operational-drills.md` 和 r4 演练记录，固定客服、风控、财务、综合事故、
+provider 故障、密钥泄露六场的角色分离、5/10/15 分钟目标、注入、禁止动作、通过条件、证据字段与
+整轮停止条件。演练手册明确自动测试不能代替真实参与人、响应时长、沟通和签字；当前记录中所有人员
+仍为待指定，六场人员演练状态仍是 `NOT_RUN`，因此 T9.5 没有被提前勾选。
+
+技术预检在 `an-saas` 的一次性 internal network、tmpfs PostgreSQL 16.14 和只读 Node 22.21.1 容器
+完成，覆盖 PII 最小披露、即时挂起/双人解除熔断、provider 未知结果隔离、重复付款 reference、maker
+自审、账本 exactly-once、跨 audience/API policy、优盾建址/回调安全、凭证初始失败关闭与轮换、审计
+append-only/hash chain，共 105/105 通过。输出明确 `external_writes_enabled=false`、
+`real_provider_calls=0`；日志 `t95-technical-drills.log` SHA-256 为
+`079d2f6b4fd69fa8caa78c67d7e111e35e3007872596572b24e4b15cd60363f0`。临时数据库、网络和依赖卷已
+删除，preview r4 三端和 PostgreSQL 继续 healthy。本轮未调用真实 provider、未发送通知、未产生资金
+动作、未轮换真实密钥，也未提交、推送或接触 production。
+
+## 90. 2026-08-26 T9.6 r4 首轮启用范围冻结
+
+新增 r4 provider/product/capability manifest，把“代码存在”“数据库已配置”“环境已启用”和“允许真实
+外部副作用”分开。首轮只允许三端受控 Web、身份/RBAC、站内通知、已持久化 Paper/工作记录、人工
+商业证据与 maker-checker、Operations/Maintenance 管理面和 preview 回滚点。真实 provider、后台
+Worker、资金、通知、模型调用、交易与基础设施控制全部排除。
+
+目标环境脱敏审计确认：优盾、Resend、Telegram、WhatsApp 均为 disabled；Resend/优盾运行凭证 absent；
+Payment、Demo external writes、Research、Runtime、Demo Worker 与 provider test 均为 false；Demo 账户
+为 0，外部 Worker 容器为 0，active configuration 为 0。数据库中有 8 个 enabled LLM Profile、7 个
+Research 和 3 个 Runtime binding，但 r4 没有真实 provider smoke，所以只把 Profile/绑定管理列为可用，
+真实模型推理明确 `EXCLUDED_FROM_CANARY`。能力审计与补充 Gate 日志 SHA-256 分别为
+`83e4f5fcedfd66d63ad92d1cef4844551c48b8f6f2baa623da5ebaa082ad0893`、
+`000df8d797aca8f5a359383a867e10c901cb6b6cb060c301b6c1e171a8b2eb5b`；未输出 secret、endpoint 或
+连接串。本轮没有修改 provider 状态、环境开关或数据库，只冻结发布范围，未提交、推送或接触 production。
+
+## 91. 2026-08-26 T9.7 r4 P0 Preview Canary 与首小时复盘
+
+r4 Web-only preview 从容器 `StartedAt=2026-08-26T14:43:26.711546173Z` 起完成完整首小时。前 42 分钟
+使用容器 health/restart history、应用/Caddy 日志和既有部署 smoke 回溯；后 18 个一分钟主动采样点对
+三域 live/ready 和四容器状态采集 108 个 HTTP、72 个容器样本，没有伪造不存在的前段逐分钟数据。
+HTTP 108/108 为 200，p95 0.194430 秒、最大 0.221486 秒；四容器始终 running/healthy、restart 0。
+三端各 5 行启动日志且 error marker 为 0；Caddy 有界 20,000 行 tail 命中三个测试域 260 行，5xx/error
+marker 均为 0。外部 Worker 保持 0，Research、Runtime、Demo、Payment、Email Gate 均保持 false。
+
+监控与最终摘要 SHA-256 为 `a9f85324a25f0c94c581215e954030286ba6059cbe9adc77fbf8c1f54bf12209`、
+`e5de2ab64ad8c4e872e03927ea39e2371948db14a28a8416e481ea7abd11c3d8`。P0 决定为 `KEEP`，仅表示
+preview Web-only 候选可保留；当时 production/付费 Beta 决定为 `HOLD`，等待 T9.5 真实人员演练、
+依赖停止项与用户发布批准。依赖停止项随后已在第 92 节关闭，T9.5 与发布授权仍未完成。本轮未切
+production、未启 provider/Worker、未产生外部副作用。
+
+## 92. 2026-08-27 开发工具链漏洞停止项清零
+
+原完整开发工具链 17 项临时例外已关闭。`package.json` 以受控 override 固定 `esbuild 0.28.2`、
+`lighthouse 13.4.1`、`tmp 0.2.7`、`uuid 11.1.1`，并更新 lockfile；没有接受
+`npm audit fix --force` 对 drizzle-kit/LHCI 的破坏性降级。远端 Node 22.21.1 clean install 后完整
+`npm audit --audit-level=low` 为 0 vulnerability。
+
+首次全量重跑暴露一个既有并发测试污染：`client-identity-database-boundary-postgres.test.mjs` 使用固定
+Client Web/Auth 角色，另一测试仍持有依赖时 cleanup 无法删除。测试现改为每进程唯一角色，并把迁移
+SQL 中对应角色字面量映射到隔离角色；生产迁移未改。4 路并发复现各 5/5，随后干净全量测试
+1449/1449。TypeScript、ESLint、8 条架构边界、三端 production build、Bundle Gate 均通过；Client
+初始 JS gzip 为 204,739 bytes，虽低于 204,800 bytes Gate，但仅余 61 bytes，后续前端改动必须重测。
+
+同一 lockfile 的 canonical Chromium/axe 20/20 通过；Lighthouse 13.4.1 三次采样和最终
+`quality:release` 通过，代表运行 performance/accessibility/best-practices 为 0.96/1.00/1.00，LCP
+2436 ms、CLS 0、TBT 162 ms。E2E 与 Lighthouse 均为 `externalWritesEnabled=false`，schema、runtime
+secrets、LHCI 工作目录清理完成。完整 audit、全量测试、E2E、最终 Lighthouse、release manifest
+SHA-256 分别为 `df33ebcb533ac533badec1ea3e65ed6fdd36b1bd20dde21e75e5b729abb7d9cd`、
+`69b3f5bf158ba36b84c7da8f40086570df39688e7a6484aa2c512f13f5d21d7a`、
+`ebb325da72224acf8f9ae5239b0ec4f2cf6566edb4ffb39e3d9ada0fd1e6e887`、
+`fe42c6263b0c43b5bc5cc8a32b8777502d4919592f38b5ff06b214905dfe24d6`、
+`3893360bdd778bf94d6911407174bfb63709b8d4e7e23af9e30eba5680b80179`。此前一次断网构建因 Google
+Fonts 不可达、一次 release evidence 组装因 root/node 权限不一致失败，均属于编排条件并保留日志；
+按代理感知构建边界和统一证据所有权重跑后通过。当前 production/付费 Beta HOLD 已不再包含依赖停止项，
+只剩 T9.5 真实人员演练与用户发布批准等未闭环项。本轮未提交、未推送、未创建 PR、未切 production。
+
+## 93. 2026-08-27 r5 dependency-only preview refresh
+
+依赖停止项关闭后，将完整工作树冻结为
+`preview-7c047b6-wt-20260826T161203Z`，source tree SHA-256
+`e5c9acbf9d741922e7984686066b2f99c6c5678840553e0d309e1afb26f64f47`。在 `an-saas` 构建 Client、
+Operations、Maintenance、Runtime 四张镜像，digest 分别为
+`sha256:c12fc4f041b827265add5a5e42c7bbfe65f356c1304bcc1debea40c715a3cc49`、
+`sha256:8dc41daef5bdc301e1627033c792d420a89b6490aefb25defffd05fc7b65374f`、
+`sha256:4026f36573e7ef62d392149d222a65d75722d16c6021f415e18e224ec0f0a3db`、
+`sha256:b574f9a23e4fd9a0bb27ee65f39737d8733248f59f8a2dd390e084a1b09f37a0`；镜像 label 的 release/revision
+与 release env 一致，运行用户为 `node`。r4 镜像和 predeploy image 记录均保留为回滚点。
+
+只对 Compose project `agentnovas-riverton-preview` 的三个 Web 服务执行 `--no-deps --force-recreate`；
+没有重建 PostgreSQL、启动 Worker、运行 migrator、修改 Caddy/DNS 或触碰 production。三端最终均为
+healthy、restart 0。公网三域 live/ready/login 9/9 为 200 且 TLS 校验通过；对各 loopback origin 注入
+错误/正式/cross-audience Host 的 12/12 请求均为 404，启动日志 0 error marker。随后 10 个 30 秒采样点
+产生 60 个 live/ready 请求，60/60 为 200，p95 0.171643 秒、最大 0.240948 秒；三端持续 healthy、
+restart 0，应用 error marker 和 Caddy 5xx 均为 0。
+
+r5 只读 registry 复核再次确认第 84 节已登记的 preview 历史特例：当前源码 77 个迁移文件，preview
+registry 78 条，唯一 db-only 行为旧候选
+`0068_internal_registration_role_guard_owner.sql`，没有 source-only 缺口。该行未被删除或改写，不能把
+preview registry 描述为与 fresh/production 完全同构。production registry 仍正常停在 0064，正式三端、
+PostgreSQL 与 Notification Worker 的镜像和 StartedAt 均未变化。
+
+image build、deploy、HTTP smoke、runtime security、registry drift、stability raw/summary 的 SHA-256 分别为
+`e1bf24e835906e08f5d14e6fdbaa09dc95358c5dd4cebaed23f61963da9c198a`、
+`7f6d228c25d150a728ad7dbe9ed53d21fb1bb81639e1cda8df579aa35fec4daa`、
+`b02375c9e6efce2b3971ad7a13553e8cc8807037ccc8dbfe79203b8c5e1a7549`、
+`ee52f7cb42092b0efa0549b1a99a78dfa6f76b22dc93c2f767bece7c545253a0`、
+`0da93ebcaa9b08a73303ded403d44813927990e869adc61b907001a2fcb10726`、
+`fd927c906af98acc0083fbbc9921dafefc79189f1917ec8c8754eb864bfab679`、
+`5cbb27a93f7a75c79bdfe0897bf81e149b694d252c55b11efaeb39bcc59794d3`。本轮没有提交、推送、PR、
+production 切流或真实外部副作用。
+
+## 94. 2026-08-27 T8.0 受限 CI/CD 安全设计复审通过
+
+ADR-0024 与 `RESTRICTED_CICD_DELEGATION_SPEC.md` 完成多轮 fresh-context 对抗复审。首轮 14 项发现和
+后续 3 Critical、多个 High/Medium 已闭环，最终复审无剩余 Critical/High，只放行 T8.1a 纯 domain
+contract。设计冻结 exact workflow run/OIDC、private 单仓库 App、只读 Provider Security Auditor、平台
+maker/checker 与首次 production enablement、environment generation/expected-current、target durable mutex/
+owner epoch/journal、签名 receipt、同锁 stop/cutover、target-local break-glass 和 rollback 新鲜度。
+
+GitHub approvals API 无法区分普通批准与 admin bypass，因此 environment/review 明确降级为
+`provider_policy_observed` 纵深证据，不能创建或替代 `platform_authorized`；即使 GitHub 管理员削弱该
+防线，仍不能建立平台 command/run authorization 或 target operation。审查记录为
+`docs/releases/2026-08-27-t8-cicd-security-design-review.md`。Current 仍只登记发布证据；本轮未添加凭证、
+route、Worker、Ingress、target gateway 或 workflow，未修改 GitHub/服务器配置，未 dispatch、提交、推送、
+创建 PR 或接触 production。非交互续跑按技能规则跳过外部跨模型 CLI。
+
+## 95. 2026-08-27 T8.1a 受限 CI/CD 纯领域合同完成
+
+新增 `lib/restricted-cicd-domain.ts` 与 `tests/restricted-cicd-domain.test.mjs`，在不引入网络、数据库、secret、
+route、GitHub SDK 或 runtime 的前提下冻结 strict command、完整 approval snapshot、server-owned dispatch、
+exact provider job/operation identity、policy observation、target reservation、owner epoch/journal sequence、
+step idempotency/probe、严格签名 receipt 输入和 target/provider 状态优先级。GitHub environment 证据继续只
+表示 `provider_policy_observed`，不能产生平台授权；Current trigger 继续 disabled。
+
+实现经过三轮 fresh-context 对抗复审。初轮/次轮暴露的完整 snapshot/receipt 缺失、job/operation 欠绑定、
+checkpoint 可能重复副作用、provider 提前终态化、stale-owner receipt 与未来 approval snapshot 均已用 RED→
+GREEN 测试关闭，最终无剩余 Critical/High。远端 Node 22.21.1 定向 10/10、TypeScript、ESLint、8 条架构
+边界和 secret scan 通过，证据 SHA-256 为
+`14f31c67a1b11c22b6565ed2eb0dfa80af48d587d58864907f548ea43914ac4f`；一次性 localhost PostgreSQL 16.14
+下全量 1459/1459，SHA-256 为
+`0bc17e10a18d8dd400c6286d5cc74313fd14f15f1921f797ef2bf01c8aef179f`。详细记录见
+`docs/releases/2026-08-27-t8-1a-restricted-cicd-domain.md`。下一切片只放行 T8.1b PostgreSQL 追加事实与窄
+gateway；本轮未提交、推送、创建 PR、dispatch 或接触 production。
+
+## 96. 2026-08-27 T8.1b 受限 CI/CD PostgreSQL 事实与窄 gateway 完成
+
+新增 `0077_restricted_cicd_facts.sql`，把 command、approval、activation、environment generation、Worker
+attempt/fence、exact run authorization、delivery、Auditor attestation、target operation/owner epoch、provider
+event、deployment/stop receipt 与 sticky stop 建成追加事实，并由固定参数的 `SECURITY DEFINER` gateway
+维护最小投影。事实表启用 RLS、拒绝 `PUBLIC` 和 `UPDATE/DELETE`；四个 release 机器角色均为 `NOLOGIN`，
+只获各自 gateway。`0078_harden_internal_registration_link_role_trigger.sql` 同时修复既有 Maintenance
+最小权限角色写入触发器的 invoker 权限缺口。
+
+三轮 fresh-context 对抗复审无 Critical，共关闭十项 High：旧事件清新租约、reservation 未持续占环境、
+provider/receipt 到达顺序 fail-open、stop 无目标确认、owner takeover 缺失、receipt 阶段跳跃/倒退、成功后
+冲突终态未阻断、历史 owner replay、跨 command 阻断被覆盖、terminal 后重新 takeover。最终 gateway 强制
+receipt phase 偏序、全量事实单调聚合、环境级 sticky blocker、exact active-operation CAS、target-local owner
+epoch、operation-independent signed stop receipts 与 fresh-activation clear acknowledgement；普通成功路径不能
+清除其他 command 的未解决阻断。
+
+验证全部在 `an-saas` 的 Node 22.21.1/PostgreSQL 16.14 临时容器执行：定向 PostgreSQL 11/11，0076→
+0077→0078 与幂等重跑 1/1，fresh 79 migrations + least-privilege role policy `findings=[]`，release recovery/
+role policy 18/18，TypeScript、ESLint、8/8 架构边界通过，全量串行 1472/1472（0 skipped，93.7 秒）。本地
+secret scan 覆盖 3132 个 tracked/untracked candidates、0 finding，`git diff --check` 通过。详细证据见
+`docs/releases/2026-08-27-t8-1b-restricted-cicd-postgres.md`。
+
+Current 仍只登记发布证据：没有 route、可登录 release credential、Worker、Ingress、target deployment
+process、workflow 或 dispatch，总开关仍关闭。下一切片只放行 T8.1c 默认关闭 Worker、短期 App token、
+binding drift 与固定 dispatch adapter。本轮未提交、推送、创建 PR、修改 preview/DNS、dispatch 或接触
+production。
+
+## 97. 2026-08-27 T8.1c 默认关闭 release Worker 完成
+
+新增独立 `release-orchestrator` 进程、严格 GitHub.com provider binding、App JWT/单 installation/单仓库短期
+token、control tag/commit/workflow digest drift 核验、固定 dispatch envelope、exact run 核验与数据库
+persist-before-POST。`providerBindingSha256` 由代码对固定材料重算；PostgreSQL 保存同一不可变材料并在 claim
+时逐项相等，run URL 不再依赖仓库硬编码。未知 POST 不重试；过期 `dispatching` 会先原子转为
+`worker_recovery`、阻塞环境，再允许任何新 claim。
+
+`agentnovas_release_worker` 现在是可登录但初建 `PASSWORD NULL` 的窄角色，运行开关仍默认为 false；它无直接
+表/sequence 权限，只能调用固定 security-definer gateway。角色策略同时审计登录属性、双向 membership、
+schema CREATE、sequence ACL 和 routine allowlist。systemd 把 `/etc/agentnovas` 的 key/binding 只读映射到与
+容器一致的 `/run/secrets` 路径。
+
+三轮 fresh-context 审查无 Critical，关闭 provider digest 自证、崩溃恢复不可达、NOLOGIN 进程不可用、仓库
+身份硬编码、secret path 不一致，以及可登录 Worker 漏审/双向 SET ROLE 两类 High。`an-saas` 隔离验证完成
+80 个迁移、真实 role template 与 `findings=[]`、PostgreSQL crash recovery、provider/Worker/部署/角色定向
+测试、TypeScript 和 ESLint。详细证据见
+`docs/releases/2026-08-27-t8-1c-restricted-cicd-worker.md`。未配置真实 GitHub credential、未 dispatch、未替换
+preview、未提交/推送/创建 PR，也未接触 production；下一切片仅放行 T8.2a 默认关闭 Ingress/reconciliation。
+
+## 98. 2026-08-27 T8.2a 默认关闭 Ingress 与 provider reconciliation 完成
+
+新增独立 `release-webhook-ingress`、raw-body HMAC-SHA256、256 KiB 上限、严格 `workflow_run` locator、delivery
+去重与只保存规范化 envelope 的 append-only gateway。Webhook 仍只是唤醒/证据事实；Worker 必须查询 exact
+GitHub run 并重验 repository/workflow/ref/commit/attempt/status/conclusion 后才能追加 provider 权威事实。
+0080 对账 gateway 排除已有 terminal provider fact 的命令，Worker 主循环每轮独立执行 reconciliation 与
+dispatch，避免缺 receipt 的 `settling` 命令永久饿死另一环境。
+
+`agentnovas_release_ingress` 是 `PASSWORD NULL`、无直接表/sequence 权限的窄 LOGIN role。裸机 systemd 的
+Ingress 与 Worker 改为互不共享 group 的专用 UID，通过 `LoadCredential=` 接收各自 root-owned credential，
+Web/Ingress/Worker 均隐藏 `/etc/agentnovas`，release units 另启用 proc 隔离。容器仍按独立 secret mount 和
+network 分域；checked-in Ingress/Worker 开关均为 false，Nginx 没有 public release webhook route。
+
+两轮 fresh-context 复审关闭 systemd 信任域塌缩和 terminal reconciliation 饥饿两项 High，最终无剩余
+Critical/High。`an-saas` 隔离验证完成 fresh 81 migrations、真实 least-privilege role template 与
+`findings=[]`、PostgreSQL 14/14、Ingress/Worker/systemd/deployment 30/30、扩大定向套件 68/68、TypeScript
+与 ESLint。详细证据见
+`docs/releases/2026-08-27-t8-2a-restricted-cicd-ingress-reconciliation.md`。未配置真实 credential、未发布
+webhook、未 dispatch、未替换 preview、未提交/推送/创建 PR，也未接触 production；下一切片仅放行 T8.2b
+默认关闭 target gateway/OIDC/journal/receipt。
+
+## 99. 2026-08-27 T8.2b 默认关闭 target gateway 完成
+
+新增独立 target deployment gateway 和 mTLS 控制面、exact-run GitHub OIDC、0081–0083 exact request/journal
+sequence/target authority gateway、operation/environment 双锁 durable journal、固定 digest deploy/backup adapter、
+owner-fenced marker、target-signed receipt 与受托管 Ed25519 SPKI keyring。target 本地 sticky stop 支持平台数据库
+离线 break-glass、锁忙 single-flight durable pending 和恢复回填；解除必须依次完成 target ack、平台不同
+maker/checker clear、新 activation/generation 与 target local clear。
+
+三轮 fresh-context 对抗复审无 Critical，关闭实现未纳入 target binding、离线多 stop 分叉、锁忙丢 stop、
+production 只看 DB 接收时间、跨轮换旧 receipt 无法重放、过期 authority 恢复仍产生副作用等全部 High；
+最终同轮无剩余 Critical/High，poison pending Medium 也已关闭。恢复现在只允许无副作用的物理/marker probe，
+任何 pull/backup/migration/新 cutover 前都重新验证 authority；本地已签名 receipt 在 DB append 前持久化，
+跨轮换按 receipt key ID 与签发时间选择历史验证公钥；deployment、stop 和 clear-ack receipt 都先持久化
+exact signed bytes 再写 DB，响应丢失后不得用新 key 重新签名同一 receipt ID。
+
+`an-saas` 隔离验证完成 TypeScript、target 31/31、fresh 84 migrations、真实 least-privilege role template、
+role policy `findings=[]`、PostgreSQL + target 44/44 和 ESLint。详细证据见
+`docs/releases/2026-08-27-t8-2b-restricted-cicd-target.md`。总开关仍为 false；未配置真实 credential、dispatch、
+启动 release 服务、替换 preview/DNS、提交、推送、创建 PR或接触 production。下一切片仅放行 T8.2c 默认
+关闭的 Maintenance 请求/审批/activation/stop API/UI；专用 workflow、G7 和生产启用仍阻断。
+T8.2d/G7 还必须补齐 backup retention、实际 restore rehearsal 版本/`verified_at` 与 target manifest 支持
+schema range；当前 TOC/hash/freshness/restore-plan 不能单独宣称 rollback 可恢复性验收完成。
+
+## 100. 2026-08-27 T8.2c 默认关闭的 Maintenance 控制面完成
+
+Maintenance `/releases` 已提供请求、审批、activation、stop/clear 的严格 API/UI，但下游运行时继续关闭。
+高风险人工动作拆成 Compose-only 的 `release-identity-verifier` 与 `release-control`：前者独立持有 WebAuthn
+policy/credential 验证能力且永远不接收 raw session，后者不持有 WebAuthn policy 且只能调用数据库强制消费
+assertion 的单一 gateway。Maintenance Web 只持自身数据库角色与两份不同 HTTP secret，通过一次性
+action-bound authority 协调两服务；authority 在数据库内绑定 actor、session hash、recent MFA、permission、
+operation、mutation digest、idempotency/request 与 TTL。
+
+0084 新增的 authority/assertion/consumption 均为 RLS 追加事实。control transaction 内重算 mutation digest、
+核对并锁定全部绑定、原子消费 assertion，然后才执行对应窄 mutation；verifier/control 响应丢失及已消费结果
+跨 TTL 重试只返回原结果。跨 actor/session 替换、裸 mutation、verifier 读取 session/执行 control、control
+登记 assertion 均由数据库权限和回归测试拒绝。两个服务只在 `restricted-cicd` Compose profile 中出现，
+backplane-only、无 published port、默认关闭；未为旧 systemd 迁移路径添加不可验证的半成品 unit。
+
+最终 fresh-context 对抗复审无剩余 Critical/High。`an-saas` 完成 fresh 85 migrations、least privilege 与
+role policy `findings=[]`；source/contract/security 118/118、PostgreSQL 24/24、TypeScript、ESLint、
+Maintenance production build、Compose profile config 和官方 Playwright 1.62.1 production Chromium 4/4
+全部通过。浏览器覆盖四断点、axe、键盘、audience、console/network 和零确认弹窗。详细证据见
+`docs/releases/2026-08-27-t8-2c-restricted-cicd-maintenance.md`。
+
+本轮未提交、推送、创建 PR、dispatch、配置真实 secret、启动 release 服务、替换三个测试域名/DNS 或接触
+production。下一切片为 T8.2d/G7：专用 workflow、environment/runner fixture、实际 restore/rollback 与
+失陷演练、backup retention/schema compatibility 和不可变 evidence manifest；在其通过及用户明确首次生产
+授权前，Current 仍只登记发布证据。
+
+## 101. 2026-08-27 T8.2d1 专用 workflow、独立 Auditor 与恢复证据完成
+
+新增只接受七个冻结输入的 `restricted-deployment.yml`，Runner 只取得 exact-run OIDC，不接收 SSH、数据库或
+target 长期凭证。target 公开入口只接受 schema v2；0085 v3 内部 gateway 在数据库内从
+command/run/job/OIDC `jti` 派生 authorization、operation 与 nonce；0086 v4 gateway 先校验 exact activation
+冻结的 Auditor trust digest，再委托 v3 派生标识。target 角色只获 v4 权限，不再拥有 raw v2/v3 reserve 权限。
+
+新增默认关闭的 Compose-only `release-provider-security-auditor`，使用独立只读 GitHub App、Ed25519 key、
+caller secret 和只拥有 append-attestation gateway 的 LOGIN 数据库角色。Auditor 重新查询 exact run、
+environment、active tag ruleset、review history 与 attempt job，拒绝 rejected、自审、非冻结 reviewer、ruleset
+bypass、environment/runner/config 漂移；target 只有先取得绑定 OIDC `jti`/claims digest 的短时签名事实才可
+进入 v4 reservation。GitHub environment 仍只是 `provider_policy_observed`，不替代平台 maker/checker、首次
+生产授权或 target fencing。
+
+同时新增 11 项 G7 证据 manifest 生成器，并在隔离 PostgreSQL 16.14 上实际完成 185 表、87 migration 的
+`pg_dump`/restore/registry 校验。`an-saas` 验证包括 workflow/Auditor/target/role/config 49/49、PostgreSQL
+15/15、全量串行 1567/1567、TypeScript、完整 ESLint、三端 production build、restricted Compose profile config、
+6430 个仓库候选文件 secret scan 0 finding、fresh 87 migrations 与真实 role policy
+`findings=[]`。详细记录见 `docs/releases/2026-08-27-t8-2d1-workflow-auditor-recovery.md`。
+
+本切片没有配置真实 GitHub App/environment/ruleset/runner，也没有 dispatch、启动 release 服务、替换 preview/
+DNS、提交、推送、创建 PR或接触 production。下一步仅为经授权的 T8.2d2 真实 provider fixture、staging/
+production/rollback 与失陷演练、双人封存 G7；在完成前所有 release 开关继续为 false，Current 仍只登记证据。
+
+## 102. 2026-08-27 T8.2d2a staging/production CI/CD 实例隔离完成
+
+provider binding 现把 `environment` 纳入规范化 material/digest，dispatch preparation 也拒绝跨环境 snapshot。
+0087 新增 environment-scoped v2 claim、reconciliation 和 expired-dispatch recovery；真实 PostgreSQL 故障注入
+证明 staging 的过期 dispatch 不会阻塞或被 production Worker 恢复。target 启动时另外要求 GitHub binding 与
+本地 adapter environment 完全相等。
+
+部署面已拆成 staging/production 两套 Worker 与两套 Auditor Compose 服务，以及使用不同 Linux identity 的
+systemd template。每套实例使用独立 env/binding/policy/App/attestation/shared-secret source。production config
+audit 要求同环境 Worker/Auditor 成对启停，并在启用时运行只读 preflight，核对 environment、repository、
+workflow、control commit、runner 与 policy digest，阻止误把 staging 配置复制给 production。
+
+同轮把 G7 evidence 升级为 schema v2，逐 gate 绑定 subject/provider fixture/assertion/artifact/time window 与
+`externalWritesEnabled=false`；Auditor environment digest 也绑定 exact custom deployment branch policy。
+`an-saas` 最终验证为环境/进程/配置 47/47、preflight/audit 11/11、PostgreSQL 25/25、fresh fixture 30/30、
+全量串行 1575/1575、TypeScript、完整 ESLint、8 条架构边界、restricted Compose config 和三端 production
+build 通过。fresh 受控数据库由专用 migrator 应用 88/88 migrations，最小权限 role policy 为 `findings=[]`；
+secret scan 检查 6435 个 candidate files，无 finding。详细记录见
+`docs/releases/2026-08-27-t8-2d2a-environment-isolation.md`。
+
+GitHub 只读检查确认目标仓库尚无 environment/ruleset/restricted workflow，当前凭证也无 runner list 权限；
+因此真实 provider fixture/G7 尚未完成。用户已允许在 `an-saas` 使用 `test.agentnovas.com`、
+`ops-test.agentnovas.com`、`main-test.agentnovas.com` 做后续测试部署替换；本切片收口时仍未执行 GitHub 写入、
+push/control tag、dispatch、服务启用、域名替换、提交、PR 或 production 操作。所有 release 开关保持 false；
+下一切片先审计测试部署现状，再进入授权范围内的 staging/rollback/失陷演练。
+
+## 103. 2026-08-27 T8.2d2b 三域 preview 已安全替换
+
+经用户授权，`an-saas` 的 `test.agentnovas.com`、`ops-test.agentnovas.com`、
+`main-test.agentnovas.com` 已替换为 `preview-7c047b6-wt-20260827T013000Z`。本次只替换 preview 三端 Web，
+未触碰 beta.6/production。候选 source SHA-256 为 `5c924295…e10d844`，artifact SHA-256 为
+`37aeecae…50897a22`；三个新镜像均 healthy、restart=0、启动日志 error marker=0。
+
+替换前生成并验证了 754152-byte custom-format PostgreSQL backup；preview migration 已升至当前 88 个，
+最小权限 role policy 为 `findings=[]`。loopback/公网 health、错误 Host、跨 audience 路由、10 轮稳定性和
+隔离 Chromium 三域检查均通过。浏览器结果为三页 200、0 console/pageerror/request failure/5xx，截图人工核对
+正常。preview 配置审计现为 `core_configuration=ready`，所有 Worker、Release 服务、Email、provider 和外部
+写入仍显式 disabled。完整身份、证据 hash 和回滚信息见
+`docs/releases/2026-08-27-t8-2d2b-preview-deployment.md`。
+
+该候选来自未提交 worktree，仍不是正式 release；未执行 GitHub 写入、push/tag/PR/dispatch 或真实 provider
+调用。真实 provider fixture、staging/rollback/失陷演练及双人 G7 继续保持 `HOLD`。
+
+## 104. 2026-08-27 T8.2d2b 容器数据库角色门禁固化
+
+新增 `scripts/release/container-postgres-role-policy-gate.mjs` 和 5 项回归测试，解决 Compose 内 PostgreSQL
+服务名无法通过 role-policy loopback 限制、以往需要人工拼 tunnel/容器命令的问题。入口校验受控容器名、
+绝对 migrator env 路径和显式非 `latest` Runtime image；Docker 调用不经 shell，数据库 URL 只在一次性容器
+内改写为 `127.0.0.1:5432`，不会进入宿主机参数或输出。默认只生成无凭证计划，执行必须带
+`--execute`；Docker 失败、畸形 JSON 或 finding 非空均 fail closed。
+
+本地 RED→GREEN 后，`an-saas` 的固定 `node:22.21.1-bookworm` 工具容器通过 5/5；随后对
+`agentnovas-riverton-preview-postgres-1` 和当前 preview Runtime image 真实执行，结果为
+`{"database":"agentnovas","findings":[]}`。证据写入当前 preview release 的
+`container-role-policy-gate.log`，SHA-256 为
+`c2a5ab86a88fc46c95e024a706e841e991a09aa61fa959772943738674b618f2`。两份发布 Runbook 已改用该受支持
+入口。最终又在全新 PostgreSQL 16.14 Bookworm fixture 上串行通过 1580/1580，TypeScript、完整 ESLint、
+8/8 架构边界全部通过；6443 个 candidate files 的 secret scan 无 finding。质量日志与 secret scan SHA-256
+分别为 `bead35f3…a2717b`、`6015e879…ddd085`，临时容器和匿名数据卷均已删除。未启用 Worker/外部写入，
+未操作 GitHub 或 production；下一步仍是获授权后的真实 GitHub fixture 与 G7 演练。
+
+## 105. 2026-08-27 T8.2d2b 容器 PostgreSQL 备份门禁固化
+
+新增 `scripts/release/container-postgres-backup-gate.mjs` 与 5 项回归，和 role-policy 门禁共用严格的 Docker
+容器名、绝对 mount source 与非 `latest` image reference 校验。入口默认只输出无凭证计划，显式
+`--execute` 后以 exclusive create/`0600` 新建受控 `.dump`，将 PostgreSQL 容器内 `pg_dump` custom-format
+stdout 直接流式写盘；随后用显式 PostgreSQL tools image、只读目录 mount 执行 `pg_restore --list` 并计算
+SHA-256。审查阶段发现初版错误使用数据库容器 `POSTGRES_USER`，会在 preview 变成 `postgres`/BYPASSRLS；
+该实现已在交付前撤回。最终入口只读挂载专用 migrator env，由固定 PostgreSQL tools image 内已有的 Perl
+core 严格读取唯一 URL、percent-decode 用户/密码/库名并拆成 `PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE`，
+然后在数据库容器 network namespace 中强制 `--enable-row-security`；URL 不进入宿主机或容器进程 argv。
+dump、空文件、TOC 或 hash 失败均 fail closed，
+且只删除该次新建的不完整目标，不覆盖任何既有备份。
+
+Node 22.21.1 远端定向验证为两个门禁 10/10。初版超级用户 backup 及日志已按精确 hash 核对后删除，未
+计入合格证据；最终用 migrator 合规入口重新生成
+`preview-post-gates-20260827T023000Z.dump`：1175131 bytes、mode 0600、SHA-256
+`7bc93482dfc811f38b0e949e31309a7b7fae351ce2ccd22ac78a4d06ab6c642e`、`tocVerified: true`；门禁日志
+SHA-256 为 `dd5b6215…a3c1f4`。两份发布 Runbook 已明确 TOC 校验不能代替隔离恢复。未迁移数据库、未启用
+Worker/外部写入、未操作 GitHub 或 production。最终在全新 PostgreSQL 16.14 Bookworm 数据卷串行通过
+1585/1585，TypeScript、完整 ESLint 与 8/8 架构边界通过；临时容器及匿名 volume 已删除。质量日志
+SHA-256 为 `55547621…0af004`。最终 secret scan 覆盖 6448 个 candidate files、无 finding，日志 SHA-256
+为 `1887d9bc…362210`。下一步仍是获授权后的真实 GitHub fixture 与 G7 演练。
+
+## 106. 2026-08-27 Client 信息架构、通知与六套主题切片
+
+Client 主导航已收敛为总览、交易中心、策略中心、行情和 AI 助手五个入口；交易、策略、账户中心和设置使用
+页内 Tab 承载原有能力，旧稳定地址通过统一映射继续兼容。通知入口迁至顶栏右上角，产品文案统一为“通知”；
+个人偏好集中到设置页。外观设置新增 `system | light | dark` 模式与
+`classic | harbor | forest` 调色板，首帧脚本同时恢复模式和调色板；六套主题均基于 `--rv-*` 语义令牌，
+业务状态色不随调色板变化。0088 migration 让设备会话查询只返回未撤销且仍在 idle、absolute 和 session
+有效期内的记录。
+
+验证优先在 `an-saas` 隔离目录
+`/opt/agentnovas-riverton-preview/validations/client-ui-20260827-fE0bQp/source` 完成：Node 22.21.1、
+TypeScript、完整 ESLint、Client production build、8/8 架构边界以及隔离 PostgreSQL 全量
+`1593/1593` 测试通过。数据库变更前备份为同级 `preview-before-0088.dump`，1178139 bytes、0600、
+TOC 已验证，SHA-256 为
+`942a4350fe19f787ac58533e2c70a1f0e52229168c02d637eb7b7d63c4551f1d`。
+
+仅 `test.agentnovas.com` 的 Client preview 已替换为镜像
+`agentnovas-riverton-preview-client:preview-client-ui-20260827-ia1`
+（image digest `sha256:f4816e4de75a10aa707c8890df65af9a9d7bb267e91c376d76480da18ba86eab`）。
+公网首页、登录、live/ready health 均为 200；错误 Host、Ops Host 和 Maintenance Host 直达 Client 端口均为
+404。Ops、Maintenance 的容器身份和启动时间未改变，production 未接触。回滚候选仍为
+`preview-7c047b6-wt-20260827T013000Z`。
+
+Chrome 扩展、native host 和浏览器进程诊断均正常，且可列出/接管测试标签；但读取页面、截图或打开新测试
+标签均在浏览器扩展侧超时，因此 320/768/1024/1440、六套主题与登录态交互的真实 Chrome 人工验收尚未
+形成证据。恢复该浏览器控制后应优先完成这项验收；在此之前不要把本切片认定为 production-ready。
+本轮未提交、推送、创建 PR，也未修改 Ops、Maintenance 或 production。
+
+## 107. 2026-08-28 Client 数据看板与设置降噪切片
+
+根据真实页面截图复核，Client Shell 已移除侧栏的“客户端 · 模拟盘”“客户工作台”重复标签和顶栏面包屑；
+`/dashboard` 的产品名称统一改为“数据看板”。设置页只保留个人资料、外观、安全和通知四个用户可配置 Tab。
+版本化商业披露底层合同与 `/legal/consent` 兼容地址继续保留，用于创建付费会员订单时的作用域化确认，
+但不再作为普通设置入口或常驻页面展示。
+
+通知偏好页移除了未接入的 Telegram、WhatsApp 和技术状态字符串，改为免打扰时段与通知类型两个清晰区块；
+站内/邮件控件使用一致的响应式网格，320px 下改为逐类卡片。修改下拉框不再逐项发请求，所有渠道与时段由
+“保存通知设置”一次批量提交；强制类别只显示“始终保留”，不提供关闭选项。
+
+数据看板删除欢迎 Hero、会员申请、积分、通知、账单、下一步和常用工具等竞争信息，也不再请求这些接口。
+页面只读取 `/api/trading-hall/paper/portfolio`，展示组合总权益、累计收益、当前持仓、运行中策略和三张官方
+策略表现；Paper 模拟边界保留为紧凑说明。相关汇总新增当前持仓数量，并由单元测试锁定。
+
+增量同步至 `an-saas` 隔离验证目录后，固定 Node 22.21.1 环境的完整 ESLint、TypeScript、52/52 相关回归、
+Client production build 和镜像 build 全部通过。仅 `test.agentnovas.com` Client 被替换为
+`agentnovas-riverton-preview-client:preview-client-ui-20260828-ia2`
+（image ID `sha256:9f87c8652f6b4623894397691d34ee5999061579857ee8566dd7bcc26d60ffe5`）；容器 healthy、
+restart=0，公网 root/live/ready/dashboard/通知设置均为 200，错误 Host 与 Ops/Maintenance Host 直达 Client
+端口均为 404。Ops 和 Maintenance 的容器 ID、镜像及启动时间保持不变，production 未接触。
+
+Chrome 可发现并接管已登录的 Client 标签，但刷新、DOM 读取和截图仍在扩展侧超时，因此本切片的真实 Chrome
+四断点截图证据仍待浏览器控制恢复后补齐。未提交、推送或创建 PR。
+
+## 108. 2026-08-28 Client 通知与模拟组合终版收敛切片
+
+Client 顶栏通知不再直接展示内部 `category`、`templateKey` 或 payload 键值。新增纯展示模型，将会员、绩效账单、
+安全、策略、账户等事件翻译为客户可读标题与说明；未知事件使用中性兜底，不泄露内部请求标识。通知设置新增
+显式“启用免打扰”开关：无已保存时段时默认关闭，关闭状态向服务端提交 `null`，不会因保存其他偏好而静默启用
+22:00–07:00；时间控件禁用态、标签关联和移动端布局继续使用语义令牌。
+
+“模拟组合”页已移除与“交易决策”重复的决策流水、原始证据、平台测试账户摘要和产品边界矩阵，不再请求
+`/api/trading-hall` 或 platform demo summary。页面只读取客户模拟组合与成交，集中展示权益、现金、收益、持仓、
+最近更新和必要的启停控制；成交表移除内部决策轮 ID，并将买卖方向改为中文。AI 助手的策略操作入口改为
+`/strategies?tab=research`，不再错误跳回交易大厅。
+
+本切片在 `an-saas` 的 Node 22.21.1 隔离环境完成 RED→GREEN：定向 27/27、扩大客户端回归 58/58、
+TypeScript、完整 ESLint 和 Client production build 全部通过。仅 `test.agentnovas.com` Client 替换为
+`agentnovas-riverton-preview-client:preview-client-ui-20260828-ia3`（image ID
+`sha256:a67d7efb229b831c35292168c5ec8268ae66aef23f65dec89f0acce8311cd7b0`）；容器 healthy、restart=0，公网
+root/dashboard/模拟组合/通知设置/AI 助手/live/ready 均为 200，错误 Host 与 Ops/Maintenance Host 直达 Client
+端口均为 404。Ops 和 Maintenance 的容器 ID、镜像及启动时间未变化，production 未接触。
+
+Chrome 仍可列出并接管已登录标签，但刷新和 DOM 快照连续超时，因此真实登录态截图、四断点与六主题视觉证据
+仍未补齐，不能据此宣称 production-ready。本轮未提交、推送或创建 PR。
+
+## 109. 2026-08-28 Client 账户中心终版收敛切片
+
+账户中心的会员、AI 积分、钱包、充值和绩效账单已统一为客户表达。会员页不再重复展示 AI 积分，也不再显示
+计划代码、合同 hash 或内部版本；商业披露仍按 ADR 0013 的作用域化确认保留，但只展示客户可理解的文件名称。
+AI 积分页移除账本版本、内部统计键与 Beta/不可变账本等技术文案。钱包流水通过纯展示模型翻译业务类型，隐藏
+source type/ID 和余额版本；充值订单把 order/funds/risk 状态映射为中文客户状态，页面不再展示服务商名称、
+回调术语或原始状态码，同时继续保留服务端充值订单、幂等键和不可伪造地址边界。
+
+绩效账单移除了“证据链”、Operations/checker、revision、内部策略代码、高水位提交和不可变时间线等后台术语，
+改为账单周期、费用计算、策略收益明细与处理进度。状态统一为待确认、已确认、需要调整、待支付、已结清或无需
+支付；策略代码由展示模型映射为客户名称。账户中心 Tab 的“钱包与账本”同步精简为“钱包”。底层归属范围、
+隐私投影、支付幂等和确定性费用计算没有改变，真实永续订单路由仍保持禁用。
+
+`an-saas` 隔离目录
+`/opt/agentnovas-riverton-preview/validations/client-final-20260828-account/source` 完成账户中心专项 26/26、
+客户端核心回归 65/65、TypeScript、完整 ESLint 和 Client production build，均通过。仅
+`test.agentnovas.com` Client 替换为
+`agentnovas-riverton-preview-client:preview-client-ui-20260828-ia4`（image ID
+`sha256:9e6a47c480c4025dc1ed9719b3b6ddf7b0ac35c9587b1b9115db594b2061bbac`）；新容器
+`928a29a10be9…` healthy。公网 root、dashboard、账户中心五个 Tab、live/ready 均为 200，错误 Host 直达
+Client 端口为 404，最近五分钟日志无 error marker。Ops 容器 `fe9221de44dd…` 与 Maintenance 容器
+`a3ce5e94f491…` 在部署前后完全相同，production 未接触。
+
+Chrome 浏览器连接可以建立，但新标签导航、DOM 读取与截图再次连续超时；按浏览器故障恢复规则停止重试。因此
+本切片的真实登录态视觉、四断点与六主题证据仍待扩展恢复后补齐，不能据此宣称 production-ready。本轮未提交、
+推送或创建 PR。
+
+## 110. 2026-08-29 M1.1 三端 Shell 与五中心路由完成
+
+Operations 与 Maintenance 已和 Client 一样使用类型化 Section、Hub Tab、默认 Tab 与 legacy route 映射。
+三端主导航均收敛为五个入口；旧稳定地址继续分发到对应 Hub，必要的详情标识和查询参数保留。共享 Shell 支持
+别名路径激活，Hub 使用统一 Tab、页面容器和 `<main>` 语义。Operations 的商业/治理入口与 Maintenance 的
+集成/配置/发布安全入口已全部改为规范 Hub 地址，旧地址仍兼容。
+
+浏览器验收发现策略研究、回测相关 API 当前由 API Policy 明确禁用，而 Client 仍会主动请求并产生 503。代码
+能力没有删除，但客户入口现按 Gate 失败关闭为无操作的“策略中心”状态，不再把未接通能力显示成可用功能。
+同轮修复了行情快捷键以及会员计划、协议版本文字的 WCAG AA 对比度；会员卡片改用不透明语义表面，不降低
+axe 标准。定向 RED→GREEN、TypeScript、完整 ESLint、三端 production build 和隔离 PostgreSQL 全量
+`1608/1608` 已通过；最终官方 Playwright 1.62.1 production Chromium 三端 Gate 为 `20/20`，覆盖四档宽度、
+键盘、axe、Host/Cookie/audience/RBAC、失败请求与外部副作用关闭。Gate 日志 SHA-256 为
+`227b928e258da308585bfaf4454c8f8e8e59338aa4d0cb9be55fe503bc4f3ed7`。
+
+测试站当前为：Client
+`agentnovas-riverton-preview-client:preview-m1-s1-20260829-ia2`
+（image ID `sha256:d2ec1d526af96863a91d3a7ac05cbc8f09974e2e0e43774e0252bbc31605dc4a`，source
+SHA-256 `115801610f8ba8aa29749bf0f0a9575704cb80653a7ebaece1ec94e2106889af`）；Operations 与
+Maintenance 保持 `preview-m1-s1-20260829-ia1`，image ID 分别为
+`sha256:9eb43b8f83f1c444a127f6a4d00c4e7cd2912ea8b7ded5aa8a111f01285f1bec` 与
+`sha256:f20e737e5c17bccf4360b01ec87bd57d1ea39b92f29551b6109856f5e455c6d0`。三个容器均
+healthy、restart=0；五轮公网 ready 全为 200，Client 错误 Operations Host 直达为 404，日志 error marker=0。
+HTTP 与稳定性证据 SHA-256 分别为
+`f3ed383dbe8cdbe376ada2cac75820e918760c4ad0ec9ebf0f2d6caefad14c91` 和
+`cdb7a6ca0ebf27f72e6d3e752ed073798ce57b175454079cd700440dde5c3967`。Client 回滚镜像仍为
+`preview-8a027f2-20260828T084532Z`。
+
+本切片未迁移数据库、未启用真实交易/资金出站/外部 Worker、未接触 production，也未提交、推送或创建 PR。
+下一切片为 M1.2 三端数据看板精简。
+
+## 111. 2026-08-29 M1.2 三端数据看板精简完成
+
+Client `/dashboard` 已只保留组合总权益、累计收益、当前持仓、需关注组合、运行中策略和最近策略活动；来源、
+口径、更新时间及 Paper 边界均显式展示，会员、Credits、通知、内部状态、解释性占位和重复快捷入口不再进入
+数据看板。Operations 运营看板按当前 RBAC 只汇总可见的客户、入账、财务审批、停控与 live readiness，
+无权限时不渲染空的待处理区。Maintenance 系统运行看板改用真实 health/readiness、Worker 健康、失败审计和
+发布身份，不再把邮件、支付或 provider 配置冒充系统健康。三端均只有刷新这一项主要操作。
+
+新增数据看板信息合同回归，并同步三端 production Chromium 断言。`an-saas` Node 22.21.1 隔离 PostgreSQL
+最终全量为 `1609/1609`；TypeScript、完整 ESLint 和三端 production build 全部通过。官方 Playwright
+1.62.1 三端 canonical Gate 为 `20/20`，覆盖 320/768/1024/1440、键盘、axe、Host/Cookie/audience/RBAC、
+数据看板真实来源与外部副作用关闭。全量、静态构建、Operations 构建与浏览器日志 SHA-256 分别为
+`5444270d6443531a8a345db84688712835d6911107785229a218cc45d24d64c6`、
+`fa499d26073cb7b2f3899531e837fdacdef5ed0187717bbb3dd6d59bfe7e8a04`、
+`59670edaa8b4b3ddac73b41d94cdb5dbdbeed50d32a62e14414c64a7331c7ca2` 与
+`94f309e2eca8478ae004bc1cc14200ac068b58ddaacb44d94d0edf93c7344460`。
+
+三个测试站已统一部署 `preview-m1-s2-20260829-dashboard1`，源码快照 SHA-256 为
+`6d91033dee02b166b870cae97c6ef8cb0c3bc4a884c3f8da07b73f899b97449d`。Client、Operations、Maintenance
+镜像 ID 分别为 `sha256:2beabb3b1d222595bf7252639b2f0943ae5e0768c596e6df519b3da2c3123e89`、
+`sha256:81173c4884d8bf997b0a810e91c78229184d5fa9b9bf65b1c797d8f0e4c5c655`、
+`sha256:136174f0ea9f7a2b111a1e9abc78107135dafc7d8d5c4ec1336c1e8c083e7032`；均 healthy、restart=0。
+三站 root/live/ready 和公开 HTTPS 全部为 200，三组跨端错误 Host 均为 404，连续五轮 readiness 为 200，
+最近日志 error marker 为 0。部署证据清单 SHA-256 为
+`772e991621f37a08fa042bf41e5cf625a13fc49262e3a0188214bbcafc6eb7da`。
+
+首次健康门禁因脚本手工推导容器名、遗漏 Compose `-1` 实例后缀而误报 missing；自动回滚正常完成，确认上一
+版本健康后改用 `docker compose ps --format json` 的服务事实重新部署并通过。预览 overlay 的显式继承和该
+门禁问题均已写入 `.learnings/`，数据库卷始终未替换。隔离测试 PostgreSQL 与网络已精确清理。本切片无迁移，
+未启用真实交易、资金出站、外部 Worker，未接触 production，也未提交、推送或创建 PR。下一切片为 M1.3
+三端设置、主题与语言。
+
+## 112. 2026-08-29 M1.3–M1.5 三端极简安全版完成
+
+M1.3 已新增 audience 隔离的 `UserAppPreference` 与 `0089_user_app_preferences.sql`，并由
+`GET/PATCH /api/account/preferences` 从 Session 推导 audience。三端设置统一承载个人资料、外观/语言和
+账户安全；Client 另保留通知偏好。Client 使用七语 allowlist、默认英语，Operations/Maintenance 使用中英、
+默认简体中文；`system | light | dark` 与 `classic | harbor | forest` 在绘制前恢复。偏好 UI 只提交可编辑字段，
+不会把 GET 的 `audience/updatedAt` 回传给严格 PATCH。
+
+M1.4 已把通知固定到 Client 顶栏右上角，旧通知地址复用同一列表；设置不再展示协议 Tab，版本化法律确认只在
+公开法律页和付费等必要节点保留。过期、撤销和超时设备会话由查询层过滤；三端既有客户、交易、商业、配置、
+治理和安全能力已归入五个 Hub。Operations 客户查询新增 exchange account 的窄列授权，不包含任何凭证引用或
+提现授权列；Maintenance health/readiness 只获得迁移、研究、商业订单、绩效账单与计划版本的聚合必需列。
+两次授权变更前的 PostgreSQL custom dump 均为 0600 且 TOC 已验证：
+`pre-ops-exchange-metadata-acl.dump` SHA-256
+`3965484023383268b3753cda3dfed19c730e6db437da605c0b0c9046e1ba5d5a`，
+`pre-maint-health-acl.dump` SHA-256
+`ed7e8cedad389947f80bf95a450618d4eb61bfb959e43e6e8410bea102d032bf`。最终数据库角色策略为
+`findings: []`。
+
+M1.5 最终测试站版本为 `preview-m1-s5-20260829-visual1`：Client、Operations、Maintenance image ID 分别为
+`sha256:e2f0f27bf590e55dd4d07462fe337a11fe10a5f6dddeb98be19e1a164464c741`、
+`sha256:710fde35f954ead1bc9e5cfdd66e419b6f34b6c17181f4003f0a9bd2391e5262`、
+`sha256:a7b20f619de1ec71d5b813d9dc0b09e306a5cfb8c3e163f604b4025df1f625e3`；三容器均 healthy、
+restart=0。镜像构建日志 SHA-256 为
+`5a506cd3c4e0b143b9ebf1c9a793f616857d1eb75c675912e3bf664d18ad926e`，镜像清单 SHA-256 为
+`d2e6e30dae8576883d1eab5fd8d4cb60697083f3fbf500e3dc4bdaff90b01ae7`。数据库容器启动时间未变化，
+仍挂载 `agentnovas-riverton-preview-pg-m1-s3-20260829-preferences1`，未替换或重启。
+
+最终远端 Node 22.21.1 隔离 PostgreSQL 全量为 `1639/1639`，无跳过；TypeScript、完整 ESLint、8 条架构
+边界、三端 Web key custody、仓库秘密扫描和三端 production build 全部通过。通过的全量测试与静态门禁日志
+SHA-256 分别为 `ca2d6262312f11b4341dd5925d890adb24a89fd81a5bc17acf7a45a2490f2076` 和
+`64dd660d1b06d81aec70bd64d1fa53549c8d94452e720792cbbd82e920ec4fd4`。一次先行全量运行因把源码只读挂载且
+精简 Node 镜像无 Git，产生 12 个 `EROFS` 和 5 个 `git ENOENT` 编排失败；改用可写质量工作区与包含 Git 的
+同版本 Node 镜像后原样重跑全绿，没有删除或放宽断言。
+
+官方 Playwright 1.62.1 对三个测试域名完成 18 张六主题截图、320/768/1024/1440、严重/关键 axe、五入口、
+通知开关/Escape、偏好保存/刷新/恢复默认、设置 Tab 横排和跨 audience Cookie 隔离。三端应用自身的外部请求、
+凭证 URL、console 问题、page error 和失败响应均为 0，验收 Session 已清零；报告 SHA-256 为
+`6e799245203fc7d62e69f424271152264667a86abf735eea0ed85b065897a5fc`。Cloudflare edge 仍为浏览器 UA 注入
+`static.cloudflareinsights.com` beacon，并产生 SRI warning；runner 只对这一个已识别 edge 请求返回空脚本并
+单独计数，未知外部请求仍严格为 0。该 zone 注入应由 Cloudflare 管理员关闭，不能表述为应用发起的请求已为
+物理零。
+
+首次浏览器自动化在 React hydration 前触发了原生 GET，旧测试密码短暂进入 URL/工具日志；该密码已立即轮换，
+全部旧 Session 已撤销，并增加登录表单 `method=post`、浏览器 URL 拦截和回归测试。当前凭据只保存在远端 0600
+保护文件，证据和文档均不包含其值。
+
+公网 `test.agentnovas.com`、`ops-test.agentnovas.com`、`main-test.agentnovas.com` 登录页均为 200，三个错误
+Host 直达均为 404。未修改 production，未开放真实交易、真实永续、资金出站、外部 Worker 或受限部署，也未
+提交、推送或创建 PR。M1 只证明测试站极简安全基线；下一纵向切片应继续 G1 身份与权限闭环，并保留真实邮件、
+生产 MFA 与 ADR-0022 未决项的 Gate。

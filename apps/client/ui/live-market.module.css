@@ -8,7 +8,7 @@
 
 .page { display: grid; gap: 1rem; max-width: var(--rv-content-max); }
 
-.title { display: grid; gap: 0.3rem; }
+.title { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.75rem 1rem; align-items: start; }
 .title h1 { margin: 0; font-size: 1.25rem; }
 .title p { margin: 0; color: var(--rv-muted-foreground); font-size: 0.8125rem; }
 .title time { color: var(--rv-subtle-foreground); font-size: 0.6875rem; }
@@ -46,6 +46,13 @@
   background: var(--rv-card);
 }
 
+.selectorPanel {
+  position: relative;
+  grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr);
+  align-items: end;
+  padding: 0.75rem;
+}
+
 .symbolSelect {
   display: grid;
   gap: 0.2rem;
@@ -72,7 +79,19 @@
 .chartEmpty { display: grid; place-items: center; gap: 0.35rem; min-height: 14rem; text-align: center; }
 .chartEmpty b { color: var(--rv-foreground); font-size: 0.9375rem; }
 
-.searchBox { display: grid; gap: 0.4rem; }
+.searchBox {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  background: var(--rv-input);
+}
+
+.searchBox kbd { color: var(--rv-muted-foreground); font: inherit; font-size: 0.6875rem; }
 
 .searchBox input,
 .searchSelect {
@@ -86,7 +105,24 @@
   font-size: 0.875rem;
 }
 
-.searchResults { display: grid; gap: 0.3rem; max-height: 16rem; overflow-y: auto; }
+.searchBox input { padding-inline: 0; border: 0; background: transparent; }
+
+.searchResults {
+  position: absolute;
+  top: calc(100% - 0.5rem);
+  left: 0.75rem;
+  z-index: 12;
+  display: grid;
+  gap: 0.3rem;
+  width: min(28rem, calc(100% - 1.5rem));
+  max-height: 16rem;
+  padding: 0.5rem;
+  overflow-y: auto;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-card);
+  box-shadow: 0 1rem 2rem var(--rv-overlay);
+}
 
 .searchSelect {
   display: grid;
@@ -278,10 +314,19 @@
 
 .legendUp { color: var(--rv-up); }
 .legendDown { color: var(--rv-down); }
-.symbolIndex { display: grid; gap: 0.3rem; }
+.symbolIndex {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  padding-bottom: 0.1rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.symbolIndex > span { position: sticky; left: 0; flex: 0 0 auto; padding-right: 0.25rem; color: var(--rv-subtle-foreground); background: var(--rv-card); font-size: 0.6875rem; }
 
 .symbolChip {
-  padding: 0.2rem 0.55rem;
+  flex: 0 0 auto;
+  padding: 0;
   border: 1px solid var(--rv-border);
   border-radius: var(--rv-radius-sm);
   background: var(--rv-background);
@@ -290,6 +335,8 @@
   font-size: 0.6875rem;
   cursor: pointer;
 }
+
+.symbolChip .symbolSelect { display: flex; align-items: center; min-height: 2.4rem; padding: 0.35rem 0.6rem; border: 0; white-space: nowrap; }
 
 .symbolChip.active,
 .categoryTabs button.active {
@@ -303,3 +350,21 @@
 .refreshRate[data-streaming] { color: var(--rv-success-ink); }
 
 .chartFooter { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; font-size: 0.6875rem; }
+
+@media (max-width: 768px) {
+  .title, .selectorPanel { grid-template-columns: minmax(0, 1fr); }
+  .titleActions { justify-content: space-between; }
+  .instrumentSummary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .instrumentName, .summaryPrice { grid-column: 1 / -1; }
+  .terminalChart { padding-inline: 0.5rem; }
+  .chartTools { width: 100%; overflow-x: auto; flex-wrap: nowrap; }
+  .chartTools > * { flex: 0 0 auto; }
+}
+
+@media (max-width: 420px) {
+  .categoryTabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .categoryTabs button { width: 100%; }
+  .searchBox kbd { display: none; }
+  .instrumentSummary { grid-template-columns: minmax(0, 1fr); }
+  .instrumentSummary > * { grid-column: 1; }
+}

@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("Maintenance exposes a permission-scoped configuration release workspace", async () => {
   const [routes, navigation, application] = await Promise.all([
     read("app/riverton-route-contract.ts"),
-    read("apps/maintenance/ui/navigation.ts"),
+    read("apps/maintenance/ui/maintenance-information-architecture.ts"),
     read("apps/maintenance/ui/maintenance-app.tsx"),
   ]);
   assert.match(routes, /"configurations"/);

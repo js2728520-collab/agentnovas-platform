@@ -1,14 +1,21 @@
-import { exerciseResponsiveWidths, expectAudienceNavigation, test } from "./support/quality-test";
+import { exerciseResponsiveWidths, expect, expectAudienceNavigation, test } from "./support/quality-test";
 import { readQualityRuntime } from "./support/runtime";
 
 test("checker overview and approval queue are responsive, accessible and audience-isolated", async ({ page }) => {
   for (const [path, heading] of [
-    ["/", "运营概览"],
+    ["/", "运营看板"],
     ["/approvals", "审批中心"],
+    ["/governance?tab=approvals", "审批中心"],
   ] as const) {
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "operations");
   }
+  await page.goto("/", { waitUntil: "networkidle" });
+  await expect(page.getByText("权限范围内客户", { exact: true })).toBeVisible();
+  await expect(page.getByText(/数据来源：客户$/)).toBeVisible();
+  await expect(page.getByText("累计充值入账", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("待资金审批", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 2, name: "需要关注" })).toHaveCount(0);
 });
 
 test("checker reveals explicitly granted customer fields only after entering an audited reason", async ({ page }) => {

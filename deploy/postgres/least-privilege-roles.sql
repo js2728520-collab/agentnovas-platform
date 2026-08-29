@@ -46,7 +46,13 @@ BEGIN
     'agentnovas_configuration_activation_worker',
     'agentnovas_demo_execution_worker',
     'agentnovas_runtime_worker',
-    'agentnovas_execution_service'
+    'agentnovas_execution_service',
+    'agentnovas_release_worker',
+    'agentnovas_release_control',
+    'agentnovas_release_identity_verifier',
+    'agentnovas_release_ingress',
+    'agentnovas_release_auditor',
+    'agentnovas_release_target_gateway'
   ] LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
       EXECUTE format('CREATE ROLE %I LOGIN PASSWORD NULL NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', role_name);
@@ -55,7 +61,10 @@ BEGIN
     END IF;
   END LOOP;
 
-  FOREACH role_name IN ARRAY ARRAY['agentnovas_payment_worker','agentnovas_research_worker'] LOOP
+  FOREACH role_name IN ARRAY ARRAY[
+    'agentnovas_payment_worker',
+    'agentnovas_research_worker'
+  ] LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', role_name);
     ELSE
@@ -84,11 +93,31 @@ REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
   agentnovas_payment_worker,
-  agentnovas_research_worker;
+  agentnovas_research_worker,
+  agentnovas_release_worker,
+  agentnovas_release_control,
+  agentnovas_release_identity_verifier,
+  agentnovas_release_ingress,
+  agentnovas_release_auditor,
+  agentnovas_release_target_gateway;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM agentnovas_payment_worker;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM agentnovas_payment_worker;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM agentnovas_research_worker;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM agentnovas_research_worker;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM
+  agentnovas_release_worker,
+  agentnovas_release_control,
+  agentnovas_release_identity_verifier,
+  agentnovas_release_ingress,
+  agentnovas_release_auditor,
+  agentnovas_release_target_gateway;
+REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM
+  agentnovas_release_worker,
+  agentnovas_release_control,
+  agentnovas_release_identity_verifier,
+  agentnovas_release_ingress,
+  agentnovas_release_auditor,
+  agentnovas_release_target_gateway;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM
   agentnovas_client_web,
   agentnovas_client_auth,
@@ -98,7 +127,13 @@ REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM
   agentnovas_notification_worker,
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
-  agentnovas_runtime_worker;
+  agentnovas_runtime_worker,
+  agentnovas_release_worker,
+  agentnovas_release_control,
+  agentnovas_release_identity_verifier,
+  agentnovas_release_ingress,
+  agentnovas_release_auditor,
+  agentnovas_release_target_gateway;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM
   agentnovas_client_web,
   agentnovas_client_auth,
@@ -108,7 +143,13 @@ REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM
   agentnovas_notification_worker,
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
-  agentnovas_runtime_worker;
+  agentnovas_runtime_worker,
+  agentnovas_release_worker,
+  agentnovas_release_control,
+  agentnovas_release_identity_verifier,
+  agentnovas_release_ingress,
+  agentnovas_release_auditor,
+  agentnovas_release_target_gateway;
 
 GRANT CONNECT ON DATABASE :"agentnovas_database" TO
   agentnovas_migrator,
@@ -120,7 +161,13 @@ GRANT CONNECT ON DATABASE :"agentnovas_database" TO
   agentnovas_notification_worker,
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
-  agentnovas_runtime_worker;
+  agentnovas_runtime_worker,
+  agentnovas_release_worker,
+  agentnovas_release_control,
+  agentnovas_release_identity_verifier,
+  agentnovas_release_ingress,
+  agentnovas_release_auditor,
+  agentnovas_release_target_gateway;
 GRANT USAGE ON SCHEMA public TO
   agentnovas_client_auth,
   agentnovas_client_web,
@@ -130,7 +177,13 @@ GRANT USAGE ON SCHEMA public TO
   agentnovas_notification_worker,
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
-  agentnovas_runtime_worker;
+  agentnovas_runtime_worker,
+  agentnovas_release_worker,
+  agentnovas_release_control,
+  agentnovas_release_identity_verifier,
+  agentnovas_release_ingress,
+  agentnovas_release_auditor,
+  agentnovas_release_target_gateway;
 GRANT CREATE, USAGE ON SCHEMA public TO agentnovas_migrator;
 
 -- The first controlled bootstrap adopts only objects in this explicitly bound
@@ -177,6 +230,24 @@ BEGIN
   END LOOP;
 END
 $ownership$;
+
+-- ALTER OWNER does not reconstruct an explicit ACL that was already written by
+-- earlier migrations. On a fresh database, tables such as users already have
+-- Web-role grants, so reassigning their owner can otherwise leave the migrator
+-- named as owner but unable to SELECT/INSERT its own table. Restore only the
+-- owner-control role here; runtime roles remain governed by the exact grants
+-- below and by FORCE RLS.
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO agentnovas_migrator;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO agentnovas_migrator;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO agentnovas_migrator;
+
+-- This trigger reads the token-bearing internal link table while guarding
+-- Maintenance/Operations writes to roles and role_permissions. Keep the read
+-- behind the migrator-owned SECURITY DEFINER function; never grant the Web
+-- roles direct SELECT on internal_registration_links.
+ALTER FUNCTION public.protect_internal_registration_link_role()
+  SET search_path TO pg_catalog, public;
+REVOKE ALL ON FUNCTION public.protect_internal_registration_link_role() FROM PUBLIC;
 
 -- Converge identity ACLs even on upgraded clusters that still contain a
 -- legacy/third-party role. RLS also uses an explicit role allowlist, but stale
@@ -338,7 +409,7 @@ GRANT EXECUTE ON FUNCTION
 TO agentnovas_client_auth;
 
 -- Operations receives commercial/customer/control-plane tables, but no provider,
--- exchange, model-key, or Maintenance configuration tables.
+-- exchange credential columns, model-key, or Maintenance configuration tables.
 GRANT SELECT ON
   applications, organizations, permission_definitions, role_templates,
   role_template_versions, roles, role_permissions, user_role_assignments,
@@ -395,6 +466,12 @@ GRANT INSERT ON organizations, internal_registration_link_uses
   TO agentnovas_ops_web;
 GRANT DELETE ON sessions, auth_tokens, auth_rate_limit_buckets,
   user_mfa_recovery_codes TO agentnovas_ops_web;
+-- Customer detail may show account identity and readiness, never credential or
+-- withdrawal authority material. Keep this column-scoped instead of granting the table.
+GRANT SELECT (
+  id, customer_id, exchange, label, environment, status,
+  can_read, can_trade, last_checked_at, created_at
+) ON exchange_accounts TO agentnovas_ops_web;
 
 -- Maintenance receives technical control-plane tables and shared identity/RBAC,
 -- but not customer wallets, ledger, commercial payment evidence, or trading P&L.
@@ -419,6 +496,7 @@ GRANT SELECT ON
   TO agentnovas_maint_web;
 GRANT SELECT ON platform_demo_accounts_safe TO agentnovas_maint_web;
 GRANT SELECT ON maintenance_ai_usage_events_safe TO agentnovas_maint_web;
+GRANT SELECT ON maintenance_strategy_work_records_safe TO agentnovas_maint_web;
 GRANT INSERT, UPDATE ON
   users, sessions, auth_tokens, user_mfa_totp_credentials, user_mfa_recovery_codes,
   access_change_requests, access_change_decisions, authorization_audit_events,
@@ -443,6 +521,19 @@ GRANT USAGE, SELECT ON SEQUENCE configuration_test_results_sequence_no_seq,
   configuration_activations_sequence_no_seq TO agentnovas_maint_web;
 GRANT DELETE ON sessions, auth_tokens, auth_rate_limit_buckets,
   user_mfa_recovery_codes TO agentnovas_maint_web;
+-- System overview exposes aggregate readiness and queue ages only. These
+-- column grants intentionally omit customer ids, amounts, strategy payloads,
+-- provider data, and migration timestamps.
+GRANT SELECT (name, checksum, commit_sha)
+  ON _agentnovas_migrations TO agentnovas_maint_web;
+GRANT SELECT (status, next_attempt_at, created_at)
+  ON strategy_research_runs TO agentnovas_maint_web;
+GRANT SELECT (status, created_at)
+  ON commercial_membership_orders TO agentnovas_maint_web;
+GRANT SELECT (status, created_at)
+  ON performance_fee_statements TO agentnovas_maint_web;
+GRANT SELECT (status, price_currency)
+  ON commercial_plan_versions TO agentnovas_maint_web;
 
 -- Provider callbacks use a dedicated role that cannot read users, wallets,
 -- ledger postings, sessions, RBAC, or unrelated integration credentials.
@@ -481,6 +572,14 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO
   agentnovas_client_web,
   agentnovas_ops_web,
   agentnovas_maint_web;
+
+-- Per-user appearance and locale are available to every Web audience only
+-- through session-token-bound gateways. No Web role receives direct access to
+-- another user's or another audience's preference row.
+GRANT EXECUTE ON FUNCTION
+  public.user_app_preference_read(text,timestamptz),
+  public.user_app_preference_upsert(text,text,text,text,timestamptz)
+  TO agentnovas_client_web,agentnovas_ops_web,agentnovas_maint_web;
 
 GRANT SELECT ON notification_provider_configs, notification_email_suppressions, users TO agentnovas_notification_worker;
 GRANT SELECT, UPDATE ON memberships, official_paper_portfolios TO agentnovas_notification_worker;
@@ -565,6 +664,79 @@ GRANT SELECT (id, customer_id, exchange, environment, status, can_trade, withdra
 
 -- 客户端与运营端读共享决策轮，用于展示七阶段叙述。
 GRANT SELECT ON strategy_decision_rounds TO agentnovas_client_web, agentnovas_ops_web;
+
+-- T8.1c gives only the release Worker a LOGIN role so the separately gated
+-- process can authenticate. A newly created role still has PASSWORD NULL and
+-- the runtime switch remains false; secret provisioning is external to Git.
+DO $restricted_cicd_acl_convergence$
+DECLARE gateway record;
+DECLARE role_row record;
+BEGIN
+  FOR gateway IN
+    SELECT procedure.oid::regprocedure AS identity
+      FROM pg_proc AS procedure
+      JOIN pg_namespace AS namespace ON namespace.oid=procedure.pronamespace
+     WHERE namespace.nspname='public' AND procedure.proname LIKE 'release\_workflow\_%' ESCAPE '\'
+  LOOP
+    EXECUTE format('ALTER FUNCTION %s SET search_path TO pg_catalog, public',gateway.identity);
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC',gateway.identity);
+    FOR role_row IN SELECT rolname FROM pg_roles WHERE rolname<>'agentnovas_migrator' LOOP
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM %I',gateway.identity,role_row.rolname);
+    END LOOP;
+  END LOOP;
+  FOR role_row IN SELECT rolname FROM pg_roles WHERE rolname<>'agentnovas_migrator' LOOP
+    EXECUTE format('REVOKE ALL ON TABLE public.release_workflow_safe_status FROM %I',role_row.rolname);
+  END LOOP;
+  REVOKE ALL ON TABLE public.release_workflow_safe_status FROM PUBLIC;
+END
+$restricted_cicd_acl_convergence$;
+
+GRANT SELECT ON release_workflow_safe_status TO agentnovas_maint_web;
+GRANT EXECUTE ON FUNCTION public.release_workflow_read_maintenance_control(integer)
+  TO agentnovas_maint_web;
+GRANT EXECUTE ON FUNCTION public.release_workflow_issue_human_action_authority(text,text,text,text,text,text,text)
+  TO agentnovas_maint_web;
+GRANT EXECUTE ON FUNCTION
+  public.release_workflow_execute_human_action(text,text,text,text)
+  TO agentnovas_release_control;
+GRANT EXECUTE ON FUNCTION
+  public.release_workflow_record_human_action_assertion(
+    text,text,text,text,text,text,text,text,text,bigint,text,text,timestamptz,timestamptz,
+    text,text,text,text,text
+  ),
+  public.release_workflow_resolve_human_action_assertion(text,text,text,text,text,text)
+  TO agentnovas_release_identity_verifier;
+GRANT EXECUTE ON FUNCTION
+  public.release_workflow_recover_expired_dispatch_v2(text),
+  public.release_workflow_claim_next_reconciliation_v2(text,text,jsonb),
+  public.release_workflow_claim_next_command_v2(text,text,integer,text,text,text,text,text,text,text,text,text,jsonb),
+  public.release_workflow_begin_dispatch(text,text,bigint,text),
+  public.release_workflow_record_dispatch_unknown(text,text,bigint,text,text),
+  public.release_workflow_bind_provider_run(text,text,bigint,text,text,text),
+  public.release_workflow_reject_bound_run(text,text,text,bigint,text,text,text),
+  public.release_workflow_append_provider_event(text,text,text,bigint,text,text,text,jsonb,timestamptz),
+  public.release_workflow_worker_heartbeat(text,text,text,bigint,text,timestamptz)
+  TO agentnovas_release_worker;
+GRANT EXECUTE ON FUNCTION
+  public.release_workflow_append_delivery(text,text,text,text,text,text,integer,text,text,text,text,text,integer)
+  TO agentnovas_release_ingress;
+GRANT EXECUTE ON FUNCTION
+  public.release_workflow_append_run_policy_attestation(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,timestamptz)
+  TO agentnovas_release_auditor;
+GRANT EXECUTE ON FUNCTION
+  public.release_workflow_reserve_workflow_target_request_v4(text,text,text,text,text,text,text,bigint,text,text,text,text,text,text,text),
+  public.release_workflow_validate_target_authority_v2(text,bigint,text,bigint,text,text,text),
+  public.release_workflow_validate_target_cutover_v2(text,bigint,text,bigint,text,text,text,text,text,text,text,timestamptz),
+  public.release_workflow_recover_target_operation_v2(text,text,text,text),
+  public.release_workflow_list_recoverable_target_operations_v2(text,text,text,text),
+  public.release_workflow_assert_migration_registry(text),
+  public.release_workflow_takeover_target_operation(text,text,bigint,bigint,text,text,text),
+  public.release_workflow_append_target_receipt(text,text,text,text,jsonb,text,text,text,bigint,bigint,text,text,boolean),
+  public.release_workflow_target_request_stop(text,text,text,text,text),
+  public.release_workflow_prepare_target_clear_ack_v2(text,text,bigint,text,text,text),
+  public.release_workflow_validate_target_stop_cleared_v2(text,text,bigint,text,text),
+  public.release_workflow_append_stop_receipt_v2(text,text,text,bigint,text,text,text,text,text,jsonb,text,text,text,text,text,boolean)
+  TO agentnovas_release_target_gateway;
 
 -- No ALTER DEFAULT PRIVILEGES are granted to application roles. Re-run this
 -- database-bound template after forward migrations so new tables remain closed.

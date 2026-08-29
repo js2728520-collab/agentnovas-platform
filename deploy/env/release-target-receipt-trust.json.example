@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1",
+  "algorithm": "Ed25519",
+  "canonicalization": "agentnovas-canonical-json-v1",
+  "keys": [
+    {
+      "keyId": "replace-with-approved-key-id",
+      "spkiSha256": "replace-with-64-hex-spki-sha256",
+      "publicKeySpkiBase64": "replace-with-base64-encoded-ed25519-spki-der",
+      "notBefore": "2026-01-01T00:00:00.000Z",
+      "notAfter": "2027-01-01T00:00:00.000Z",
+      "revokedAt": null,
+      "compromisedAt": null
+    }
+  ]
+}

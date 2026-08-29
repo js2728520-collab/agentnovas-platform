@@ -9,8 +9,13 @@
 ## 1. 服务器准备
 
 - 安装 Linux、Node.js 22.21+、PostgreSQL 16+、Nginx 和 Certbot。
-- 创建无登录用户 `agentnovas`，将只读应用制品部署到 `/opt/agentnovas/current`。
+- 创建无登录用户 `agentnovas`，并为受限发布控制面另建无登录、无共享组的
+  `agentnovas-release-worker` 与 `agentnovas-release-ingress`；三者不得互相加入 supplementary group。
+  将所有身份均可读的只读应用制品部署到 `/opt/agentnovas/current`，不得因此放宽任何 secret 目录。
 - 从 `deploy/env/*.env.example` 分别建立 `/etc/agentnovas/client.env`、`operations.env`、`maintenance.env`、`notification.env`、`demo.env`、`runtime.env`、`migrator.env`；所有者为 `root:agentnovas`，权限为 `0640` 或更严格。Beta 不建立或加载 legacy `research.env`，不得合并成共享密钥文件。
+- `release-orchestrator.env`、`release-webhook.env` 以及两套 binding/key/secret 源文件必须为
+  `root:root 0400`。对应 unit 由 systemd `LoadCredential=` 读取后才交给各自专用 UID；Web、Ingress、Worker
+  进程均把 `/etc/agentnovas` 设为不可见，不能把源文件改成 `agentnovas` 或 world-readable 来排障。
 - 为每个进程创建最小权限 PostgreSQL 用户。Client 的业务连接必须使用 `agentnovas_client_web`，登录投影连接必须使用独立 `agentnovas_client_auth`；两者都不能直读身份/邀请表。模型和交易所密钥的加密主密钥不得提交到 Git。
 - Cloudflare 只作为 DNS 注册商/权威 DNS 使用，三个站点记录必须为 DNS-only，直接指向 Linux/Nginx。
 
@@ -24,6 +29,23 @@ pg_dump --format=custom --file=/var/backups/agentnovas/predeploy.dump "$DATABASE
 sha256sum /var/backups/agentnovas/predeploy.dump
 ```
 
+容器化 PostgreSQL 不把数据库端口或连接串暴露到宿主机时，使用发布备份门禁代替手工重定向：
+
+```bash
+npm run release:postgres-backup:container -- \
+  --container=agentnovas-riverton-postgres-1 \
+  --postgres-tools-image=postgres:16.14-bookworm \
+  --migrator-env-file=/etc/agentnovas-riverton/migrator.env \
+  --output="/var/backups/agentnovas/predeploy-${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}.dump" \
+  --execute
+```
+
+输出文件必须是绝对路径下尚不存在的受控 `.dump` 名称；入口以 `0600`/exclusive create 建立文件，直接
+流式写入 custom-format dump，再用只读目录挂载执行 `pg_restore --list` 并计算 SHA-256。专用 migrator
+连接只通过只读 env mount 进入一次性工具容器，并强制 `--enable-row-security`；URL 不进入宿主机参数或
+工具进程 argv。dump、TOC 或 hash 任一步失败时只删除本次
+新建的不完整文件；省略 `--execute` 只输出无凭证计划。TOC 可读不能代替后续隔离恢复和逐表验证。
+
 先在隔离数据库恢复备份并验证关键表行数、登录、租户隔离和官方 Paper 队列。Fresh 环境由管理员先执行 `deploy/postgres/bootstrap-migrator.sql`，随后只使用 migrator 连接执行迁移，再由管理员以单事务执行 `deploy/postgres/least-privilege-roles.sql`，最后运行 `scripts/release/postgres-role-policy.mjs`：
 
 ```bash
@@ -33,6 +55,23 @@ DATABASE_URL='postgresql://agentnovas_migrator@127.0.0.1/agentnovas' npm run pos
 RELEASE_ROLE_POLICY_DATABASE_URL='postgresql://agentnovas_migrator@127.0.0.1/agentnovas' \
   node scripts/release/postgres-role-policy.mjs
 ```
+
+容器发布不得把 Compose 服务名传给只接受 loopback 的角色校验器，也不得把数据库 URL 展开到宿主机命令
+参数。数据库容器和带显式版本的 Runtime image 已存在时，改用受支持的容器网络门禁；它只挂载 migrator
+env，在数据库容器的 network namespace 内把连接主机改为 `127.0.0.1`，且必须显式 `--execute`：
+
+```bash
+npm run release:postgres-role-policy:container -- \
+  --container=agentnovas-riverton-postgres-1 \
+  --runtime-image="agentnovas-riverton-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}" \
+  --migrator-env-file=/etc/agentnovas-riverton/migrator.env \
+  --execute
+```
+
+省略 `--execute` 只输出不含凭证的 Docker 执行计划。容器名、绝对 env 路径和非 `latest` image reference
+均会先校验；命令失败、非 JSON 输出或任一 finding 都会 fail closed。宿主机未安装 Node 时，在受控的
+Node 22.21+ 工具容器内运行同一 npm/script 入口，并只在发布管理员已有 Docker 权限的前提下挂载 Docker
+socket；不得复制、打印或 source migrator env。
 
 `postgres/migrations/*.sql` 按文件名顺序执行，registry checksum 不变时可安全重跑。迁移失败或角色策略出现 finding 时禁止启动新版本，恢复上一应用制品；涉及不可逆数据变更时，从已验证备份恢复到新的数据库实例后再切换连接串。
 
@@ -54,7 +93,11 @@ RELEASE_ROLE_POLICY_DATABASE_URL='postgresql://agentnovas_migrator@127.0.0.1/age
 
 Client 还要反向验证：Web 角色直查身份/邀请表或调用登录投影必须返回 `42501`，Auth 角色调用 session 完成或 reset 消费必须返回 `42501`。Payment Worker 与 legacy Research 角色必须为 `NOLOGIN`。任一实际角色不匹配、可继承/切换到其他运行角色或拒绝测试未生效，都应停止切流并重新执行最小角色模板；禁止临时改用管理员连接。
 
-恢复证据与迁移集合严格绑定。当前记录覆盖截至 `0043` 的 44 个迁移和 139 张表；加入、改名或修改任何迁移后，必须重新执行隔离 fresh/N-1/rerun/concurrent 和 backup/restore，并以脚本实际输出更新表数与 checksum，旧证据不得继续用于发布。FORCE RLS 环境必须使用专用 `agentnovas_migrator` 和 `pg_dump --enable-row-security`，不得以 `BYPASSRLS` 规避策略。
+恢复证据与迁移集合严格绑定。2026-08-26 当前记录覆盖截至 `0076` 的 77 个迁移和 154 张基础表；
+fresh、76→77 N-1、rerun、双 migrator 并发和 backup/restore 均已在隔离 PostgreSQL 16.14 通过。
+加入、改名或修改任何迁移后，必须重新执行同一组演练并以脚本实际输出更新表数与 checksum，旧证据
+不得继续用于发布。FORCE RLS 环境必须使用专用 `agentnovas_migrator` 和
+`pg_dump --enable-row-security`，不得以 `BYPASSRLS` 规避策略。
 
 ## 3. 启动顺序
 
@@ -85,6 +128,20 @@ Client 还要反向验证：Web 角色直查身份/邀请表或调用登录投�
 ## 4. systemd 与 Nginx
 
 复制 `deploy/systemd/*.service` 到 `/etc/systemd/system/`，复制 Nginx 示例并先执行 `nginx -t`。Web 和 Worker 使用同一个只读部署目录；运行时只允许写入 `/var/lib/agentnovas`。
+
+安装 release units 前先验证专用身份与 credential 隔离：
+
+```bash
+getent passwd agentnovas-release-worker
+getent passwd agentnovas-release-ingress
+test "$(stat -c '%U:%G:%a' /etc/agentnovas/release-orchestrator-app.pem)" = root:root:400
+test "$(stat -c '%U:%G:%a' /etc/agentnovas/release-webhook-secret)" = root:root:400
+systemd-analyze verify /etc/systemd/system/agentnovas-release-orchestrator.service
+systemd-analyze verify /etc/systemd/system/agentnovas-release-webhook-ingress.service
+```
+
+两套 release unit 的 `User=`、credential namespace 和数据库角色必须不同；任一专用身份能读取另一套
+credential 或任一 Web 身份能读取 `/etc/agentnovas`，均视为 G7 阻断。
 
 证书直接使用 Certbot 申请和续期：
 

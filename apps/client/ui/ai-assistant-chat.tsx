@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 import styles from "./ai-assistant-chat.module.css";
 
@@ -54,14 +55,14 @@ function apiErrorCode(payload: unknown) {
   return String((error as { code?: unknown }).code || "");
 }
 
-function formatRelative(value: string) {
+function formatRelative(value: string, t: (value: string) => string) {
   const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) return "刚刚";
+  if (!Number.isFinite(timestamp)) return t("刚刚");
   const minutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000));
-  if (minutes < 1) return "刚刚";
-  if (minutes < 60) return `${minutes} 分钟前`;
-  if (minutes < 1_440) return `${Math.floor(minutes / 60)} 小时前`;
-  return `${Math.floor(minutes / 1_440)} 天前`;
+  if (minutes < 1) return t("刚刚");
+  if (minutes < 60) return `${minutes} ${t("分钟前")}`;
+  if (minutes < 1_440) return `${Math.floor(minutes / 60)} ${t("小时前")}`;
+  return `${Math.floor(minutes / 1_440)} ${t("天前")}`;
 }
 
 export default function AiAssistantChat({
@@ -71,6 +72,7 @@ export default function AiAssistantChat({
   title: string;
   onOpenStrategies: () => void;
 }) {
+  const { locale, t } = useAppLocale();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -95,7 +97,7 @@ export default function AiAssistantChat({
   const currentRequestRef = useRef<PendingAiRequest | null>(null);
   const persistedUserMessageIdsRef = useRef(new Set<string>());
   const active = conversations.find((item) => item.id === activeId) || null;
-  const prompts = ["BTC 当前行情与风险如何？", "解释我的持仓风险", "当前跟随策略有哪些？", "帮我生成一个策略"];
+  const prompts = ["BTC 当前行情与风险如何？", "解释我的持仓风险", "当前跟随策略有哪些？", "帮我生成一个策略"].map(t);
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ block: "nearest" });
@@ -110,7 +112,7 @@ export default function AiAssistantChat({
     setPromptMessageId("");
     const response = await fetch(`/api/ai/conversations/${encodeURIComponent(id)}`, { cache: "no-store" });
     const payload = await response.json().catch(() => null) as { messages?: Message[] } | null;
-    if (!response.ok) throw new Error(apiError(payload, "对话加载失败"));
+    if (!response.ok) throw new Error(apiError(payload, t("对话加载失败")));
     const loadedMessages = Array.isArray(payload?.messages) ? payload.messages : [];
     persistedUserMessageIdsRef.current = new Set(loadedMessages.filter((message) => message.role === "user").map((message) => message.id));
     setMessages(loadedMessages);
@@ -123,7 +125,7 @@ export default function AiAssistantChat({
       body: JSON.stringify({ purpose: "consultation" }),
     });
     const payload = await response.json().catch(() => null) as { conversation?: Conversation } | null;
-    if (!response.ok || !payload?.conversation) throw new Error(apiError(payload, "新建对话失败"));
+    if (!response.ok || !payload?.conversation) throw new Error(apiError(payload, t("新建对话失败")));
     setConversations((items) => [payload.conversation!, ...items]);
     persistedUserMessageIdsRef.current = new Set();
     setMessages([]);
@@ -141,13 +143,13 @@ export default function AiAssistantChat({
       try {
         const response = await fetch("/api/ai/conversations", { cache: "no-store" });
         const payload = await response.json().catch(() => null) as { conversations?: Conversation[] } | null;
-        if (!response.ok) throw new Error(apiError(payload, "对话列表加载失败"));
+        if (!response.ok) throw new Error(apiError(payload, t("对话列表加载失败")));
         const items = Array.isArray(payload?.conversations) ? payload.conversations : [];
         if (cancelled) return;
         if (items[0]) {
           const detailResponse = await fetch(`/api/ai/conversations/${encodeURIComponent(items[0].id)}`, { cache: "no-store" });
           const detail = await detailResponse.json().catch(() => null) as { messages?: Message[] } | null;
-          if (!detailResponse.ok) throw new Error(apiError(detail, "对话加载失败"));
+          if (!detailResponse.ok) throw new Error(apiError(detail, t("对话加载失败")));
           if (cancelled) return;
           setConversations(items);
           setActiveId(items[0].id);
@@ -161,7 +163,7 @@ export default function AiAssistantChat({
             body: JSON.stringify({ purpose: "consultation" }),
           });
           const created = await createResponse.json().catch(() => null) as { conversation?: Conversation } | null;
-          if (!createResponse.ok || !created?.conversation) throw new Error(apiError(created, "新建对话失败"));
+          if (!createResponse.ok || !created?.conversation) throw new Error(apiError(created, t("新建对话失败")));
           if (cancelled) return;
           setConversations([created.conversation]);
           setActiveId(created.conversation.id);
@@ -169,14 +171,14 @@ export default function AiAssistantChat({
           setMessages([]);
         }
       } catch (caught) {
-        if (!cancelled) setError(caught instanceof Error ? caught.message : "AI 对话服务暂不可用");
+        if (!cancelled) setError(caught instanceof Error ? caught.message : t("AI 对话服务暂不可用"));
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     void initialLoad();
     return () => { cancelled = true; };
-  }, []);
+  }, [t]);
 
   async function newConversation() {
     if (sending || cancelling) return;
@@ -184,7 +186,7 @@ export default function AiAssistantChat({
     try {
       await createConversation();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "新建对话失败");
+      setError(caught instanceof Error ? caught.message : t("新建对话失败"));
     }
   }
 
@@ -194,7 +196,7 @@ export default function AiAssistantChat({
     try {
       await loadConversation(id);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "对话加载失败");
+      setError(caught instanceof Error ? caught.message : t("对话加载失败"));
     } finally {
       setLoading(false);
     }
@@ -209,7 +211,7 @@ export default function AiAssistantChat({
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      setError(apiError(payload, "归档对话失败"));
+      setError(apiError(payload, t("归档对话失败")));
       return;
     }
     const remaining = conversations.filter((item) => item.id !== activeId);
@@ -270,7 +272,7 @@ export default function AiAssistantChat({
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         requestStillProcessing = response.status === 409 && apiErrorCode(payload) === "AI_REQUEST_IN_PROGRESS";
-        throw new Error(apiError(payload, `AI 服务返回 ${response.status}`));
+        throw new Error(apiError(payload, `${t("AI 服务返回")} ${response.status}`));
       }
       await consumeAiEventStream(response, (event, data) => {
         if (event === "meta") {
@@ -309,10 +311,10 @@ export default function AiAssistantChat({
             : item));
         } else if (event === "error") {
           terminalError = true;
-          throw new Error(String(data.message || "AI 回复暂时不可用"));
+          throw new Error(String(data.message || t("AI 回复暂时不可用")));
         }
       });
-      if (!completed) throw new Error("AI 响应在完成确认前中断");
+      if (!completed) throw new Error(t("AI 响应在完成确认前中断"));
       setRetryRequest(null);
     } catch (caught) {
       setStreamingText("");
@@ -332,12 +334,12 @@ export default function AiAssistantChat({
       const ambiguous = !response || requestStillProcessing || (response.ok && !terminalError && !completed);
       if (ambiguous) {
         setRetryRequest(pendingRequest);
-        setError("请求结果尚未确认。请重试原请求以查询同一结果；系统会复用请求标识，不会再次调用模型或重复扣费。");
+        setError(t("请求结果尚未确认。请重试原请求以查询同一结果；系统会复用请求标识，不会再次调用模型或重复扣费。"));
       } else {
         if (!userMessagePersisted) {
           setMessages((items) => items.filter((item) => item.id !== temporaryId));
         }
-        setError(caught instanceof Error ? caught.message : "AI 回复暂时不可用");
+        setError(caught instanceof Error ? caught.message : t("AI 回复暂时不可用"));
       }
     } finally {
       if (requestControllerRef.current === controller) requestControllerRef.current = null;
@@ -366,20 +368,20 @@ export default function AiAssistantChat({
       });
       const payload = await response.json().catch(() => null) as { inference?: AiCancellation } | null;
       if (!response.ok || !payload?.inference?.state) {
-        throw new Error(apiError(payload, "取消结果暂未确认，请稍后重试原请求查询最终状态"));
+        throw new Error(apiError(payload, t("取消结果暂未确认，请稍后重试原请求查询最终状态")));
       }
       if (payload.inference.state === "succeeded") {
         await loadConversation(pendingRequest.conversationId);
-        setNotice("回复已在取消前完成，已加载最终结果；Credits 按实际用量结算。");
+        setNotice(t("回复已在取消前完成，已加载最终结果；Credits 按实际用量结算。"));
       } else if (payload.inference.state === "cancelled") {
-        setNotice("生成已取消，Credits 预留已释放；已发送的问题仍保留在当前会话中。");
+        setNotice(t("生成已取消，Credits 预留已释放；已发送的问题仍保留在当前会话中。"));
       } else {
-        setNotice("请求已经结束且 Credits 预留已释放，可重新发起问题。");
+        setNotice(t("请求已经结束且 Credits 预留已释放，可重新发起问题。"));
       }
     } catch (caught) {
       cancelRequestedRef.current = false;
       setRetryRequest(pendingRequest);
-      setError(caught instanceof Error ? caught.message : "取消结果暂未确认，请稍后重试原请求查询最终状态");
+      setError(caught instanceof Error ? caught.message : t("取消结果暂未确认，请稍后重试原请求查询最终状态"));
     } finally {
       setCancelling(false);
     }
@@ -394,49 +396,49 @@ export default function AiAssistantChat({
         method: "POST",
       });
       const payload = await response.json().catch(() => null) as { strategy?: { id?: string }; message?: string; warnings?: string[] } | null;
-      if (!response.ok || !payload?.strategy?.id) throw new Error(apiError(payload, "策略保存失败"));
+      if (!response.ok || !payload?.strategy?.id) throw new Error(apiError(payload, t("策略保存失败")));
       const strategyId = payload.strategy.id;
       setSavedStrategyMessageIds((current) => ({ ...current, [messageId]: strategyId }));
       setStrategySaveNotices((current) => ({
         ...current,
         [messageId]: payload.warnings?.length
-          ? `已保存；兼容提示：${payload.warnings.join("；")}`
-          : payload.message || "已保存到我的策略",
+          ? `${t("已保存；兼容提示：")}${payload.warnings.join(locale === "zh-CN" ? "；" : "; ")}`
+          : payload.message || t("已保存到我的策略"),
       }));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "策略保存失败");
+      setError(caught instanceof Error ? caught.message : t("策略保存失败"));
     } finally {
       setSavingStrategyMessageId("");
     }
   }
 
   return <>
-    <div className={styles.pageHead}><div><h1>{title}</h1><p>与你的 AI 量化团队持续对话，历史由服务端安全保存</p></div></div>
+    <div className={styles.pageHead}><div><h1>{t(title)}</h1><p>{t("与你的 AI 量化团队持续对话，历史由服务端安全保存")}</p></div></div>
     <div className={styles.workspace}>
       <aside className={styles.history}>
-        <header><div><b>对话记录</b><small>仅当前账号可见</small></div><button type="button" onClick={() => void newConversation()} disabled={sending || cancelling}>＋ 新建对话</button></header>
-        <div className={styles.historyList} aria-label="AI 对话列表">
-          {conversations.map((item) => <button key={item.id} className={item.id === activeId ? styles.active : undefined} type="button" onClick={() => void selectConversation(item.id)} aria-current={item.id === activeId ? "page" : undefined}><i>{item.purpose === "strategy" ? "策" : "AI"}</i><span><b>{item.title}</b><small>{formatRelative(item.lastMessageAt)} · {item.messageCount} 条消息</small></span><em>›</em></button>)}
-          {!loading && !conversations.length && <p className={styles.empty}>还没有对话</p>}
+        <header><div><b>{t("对话记录")}</b><small>{t("仅当前账号可见")}</small></div><button type="button" onClick={() => void newConversation()} disabled={sending || cancelling}>{t("＋ 新建对话")}</button></header>
+        <div className={styles.historyList} aria-label={t("AI 对话列表")}>
+          {conversations.map((item) => <button key={item.id} className={item.id === activeId ? styles.active : undefined} type="button" onClick={() => void selectConversation(item.id)} aria-current={item.id === activeId ? "page" : undefined}><i>{item.purpose === "strategy" ? "S" : "AI"}</i><span><b>{item.title}</b><small>{formatRelative(item.lastMessageAt, t)} · {item.messageCount} {t("条消息")}</small></span><em>›</em></button>)}
+          {!loading && !conversations.length && <p className={styles.empty}>{t("还没有对话")}</p>}
         </div>
-        <footer><span><i />持久化对话服务</span><small>不会执行交易</small></footer>
+        <footer><span><i />{t("持久化对话服务")}</span><small>{t("不会执行交易")}</small></footer>
       </aside>
       <section className={styles.main} aria-busy={loading || sending || cancelling}>
-        <header className={styles.pageHead}><div><span className={styles.eyebrow}>AI CONSULTATION</span><h2>AI 助手</h2><p>行情分析、决策解读、平台与会员规则问答。回答只基于服务端的行情快照、决策轮记录与平台合同事实。</p></div><div className={styles.headerActions}>{sending && activeInferenceRequestId && <button className={styles.cancel} type="button" disabled={cancelling} onClick={() => void cancelGeneration()}>{cancelling ? "正在取消…" : "取消生成"}</button>}<span className={styles.status}><i />{cancelling ? "正在取消" : sending ? "回复生成中" : "平台模型服务"}</span></div></header>
-        <div className={styles.current}><span>当前会话</span><b>{active?.title || "新对话"}</b><small>市场分析 · 风险解释 · 策略研究</small>{active && <button className={styles.archive} type="button" onClick={() => void archiveConversation()}>归档</button>}</div>
-        {error && <div className={styles.error} role="alert"><span>{error}</span>{retryRequest && <button type="button" disabled={sending} onClick={() => void send(undefined, retryRequest)}>{sending ? "正在查询原请求…" : "重试原请求"}</button>}</div>}
+        <header className={styles.pageHead}><div><span className={styles.eyebrow}>AI CONSULTATION</span><h2>{t("AI 助手")}</h2><p>{t("行情分析、决策解读、平台与会员规则问答。回答只基于服务端的行情快照、决策轮记录与平台合同事实。")}</p></div><div className={styles.headerActions}>{sending && activeInferenceRequestId && <button className={styles.cancel} type="button" disabled={cancelling} onClick={() => void cancelGeneration()}>{t(cancelling ? "正在取消…" : "取消生成")}</button>}<span className={styles.status}><i />{t(cancelling ? "正在取消" : sending ? "回复生成中" : "平台模型服务")}</span></div></header>
+        <div className={styles.current}><span>{t("当前会话")}</span><b>{active?.title || t("新对话")}</b><small>{t("市场分析 · 风险解释 · 策略研究")}</small>{active && <button className={styles.archive} type="button" onClick={() => void archiveConversation()}>{t("归档")}</button>}</div>
+        {error && <div className={styles.error} role="alert"><span>{error}</span>{retryRequest && <button type="button" disabled={sending} onClick={() => void send(undefined, retryRequest)}>{t(sending ? "正在查询原请求…" : "重试原请求")}</button>}</div>}
         {notice && <div className={styles.notice} role="status">{notice}</div>}
         <div className={styles.messages} aria-live="polite">
-          {loading && <div className={styles.empty}>正在加载对话…</div>}
-          {!loading && !messages.length && <div className={styles.empty}><b>开始一段真实对话</b><span>可以咨询行情依据、持仓风险，或讨论一个待回测策略。</span></div>}
-          {messages.map((message) => <article className={message.role === "user" ? styles.messageUser : undefined} key={message.id}><i>{message.role === "user" ? "我" : "AI"}</i><div><b>{message.role === "user" ? "我" : "AI 团队"}</b>{message.role === "assistant" ? <AiMessageContent content={message.content} autoPrompt={message.id === promptMessageId} onAnswer={(answer) => void send(answer)} onSaveStrategy={() => void saveStrategy(message.id)} strategySaveNotice={strategySaveNotices[message.id]} strategySaveState={savedStrategyMessageIds[message.id] || message.savedStrategyId ? "saved" : savingStrategyMessageId === message.id ? "saving" : "idle"} /> : <p>{message.content}</p>}<small>{message.generationMode === "guided_rules" ? "平台规则引导 · " : message.model ? `${message.model} · ` : ""}{formatRelative(message.createdAt)}</small></div></article>)}
-          {sending && <article className={styles.streaming}><i>AI</i><div><b>AI 助手</b>{streamingText ? <AiMessageContent content={streamingText} streaming /> : <div className={styles.generatingDots} role="status"><span>正在生成回复</span><i /><i /><i /></div>}<small>正在分析当前会话…</small></div></article>}
-          {suggestedAction === "strategy" && <button type="button" className={styles.openStrategy} onClick={onOpenStrategies}>前往策略工作室创建可回测规则 →</button>}
+          {loading && <div className={styles.empty}>{t("正在加载对话…")}</div>}
+          {!loading && !messages.length && <div className={styles.empty}><b>{t("开始一段真实对话")}</b><span>{t("可以咨询行情依据、持仓风险，或讨论一个待回测策略。")}</span></div>}
+          {messages.map((message) => <article className={message.role === "user" ? styles.messageUser : undefined} key={message.id}><i>{message.role === "user" ? t("我") : "AI"}</i><div><b>{message.role === "user" ? t("我") : t("AI 团队")}</b>{message.role === "assistant" ? <AiMessageContent content={message.content} autoPrompt={message.id === promptMessageId} onAnswer={(answer) => void send(answer)} onSaveStrategy={() => void saveStrategy(message.id)} strategySaveNotice={strategySaveNotices[message.id]} strategySaveState={savedStrategyMessageIds[message.id] || message.savedStrategyId ? "saved" : savingStrategyMessageId === message.id ? "saving" : "idle"} /> : <p>{message.content}</p>}<small>{message.generationMode === "guided_rules" ? t("平台规则引导 · ") : message.model ? `${message.model} · ` : ""}{formatRelative(message.createdAt, t)}</small></div></article>)}
+          {sending && <article className={styles.streaming}><i>AI</i><div><b>{t("AI 助手")}</b>{streamingText ? <AiMessageContent content={streamingText} streaming /> : <div className={styles.generatingDots} role="status"><span>{t("正在生成回复")}</span><i /><i /><i /></div>}<small>{t("正在分析当前会话…")}</small></div></article>}
+          {suggestedAction === "strategy" && <button type="button" className={styles.openStrategy} onClick={onOpenStrategies}>{t("前往策略工作室创建可回测规则 →")}</button>}
           <div ref={messageEndRef} />
         </div>
-        <section className={styles.prompts}><header><b>快速问题</b><span>点击填入输入框</span></header><div>{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => setQuestion(prompt)} disabled={sending || cancelling}>{prompt}<i>→</i></button>)}</div></section>
-        <label className={styles.composer}><textarea aria-label="AI 对话内容" maxLength={2_000} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="输入你想咨询的问题…" disabled={sending || cancelling || loading} /><button type="button" onClick={() => void send()} disabled={sending || cancelling || loading || !question.trim()}>发送问题 →</button></label>
-        <small className={styles.disclaimer}>请勿提交 API Key、密码、私钥或令牌。AI 内容仅用于信息与策略研究，不构成投资建议。</small>
+        <section className={styles.prompts}><header><b>{t("快速问题")}</b><span>{t("点击填入输入框")}</span></header><div>{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => setQuestion(prompt)} disabled={sending || cancelling}>{prompt}<i>→</i></button>)}</div></section>
+        <label className={styles.composer}><textarea aria-label={t("AI 对话内容")} maxLength={2_000} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={t("输入你想咨询的问题…")} disabled={sending || cancelling || loading} /><button type="button" onClick={() => void send()} disabled={sending || cancelling || loading || !question.trim()}>{t("发送问题 →")}</button></label>
+        <small className={styles.disclaimer}>{t("请勿提交 API Key、密码、私钥或令牌。AI 内容仅用于信息与策略研究，不构成投资建议。")}</small>
       </section>
     </div>
   </>;

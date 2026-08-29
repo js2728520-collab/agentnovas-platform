@@ -59,6 +59,10 @@ export async function GET(request: Request) {
     ]);
     const response = {
       checkedAt: new Date().toISOString(),
+      release: {
+        version: process.env.RIVERTON_RELEASE_TAG?.trim() || null,
+        commitSha: (process.env.GIT_COMMIT_SHA || process.env.RIVERTON_COMMIT_SHA)?.trim() || null,
+      },
       database: {
         status: "ready",
         pool: { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount },

@@ -30,6 +30,8 @@ export type ConsoleNavigationItem = {
   icon: string;
   badge?: string;
   requiredPermissions?: string[];
+  /** Stable legacy paths that should keep the owning hub highlighted. */
+  activePaths?: string[];
 };
 
 /**
@@ -165,6 +167,7 @@ export type MaintenanceWorkerStatus = {
 };
 export type MaintenanceWorkerHealth = {
   checkedAt: string;
+  release: { version: string | null; commitSha: string | null };
   database: {
     status: string;
     pool: { total: number; idle: number; waiting: number };
@@ -262,13 +265,13 @@ export function apiErrorMessage(payload: unknown, fallback: string) {
   return typeof value.message === "string" ? value.message : fallback;
 }
 
-export function formatDecimal(value: string | number | null | undefined, maximumFractionDigits = 6) {
+export function formatDecimal(value: string | number | null | undefined, maximumFractionDigits = 6, locale = "zh-CN") {
   const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number.toLocaleString("zh-CN", { maximumFractionDigits }) : "0";
+  return Number.isFinite(number) ? number.toLocaleString(locale, { maximumFractionDigits }) : "0";
 }
 
-export function formatDateTime(value: string | null | undefined) {
+export function formatDateTime(value: string | null | undefined, locale = "zh-CN") {
   if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("zh-CN", { hour12: false });
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString(locale, { hour12: false });
 }

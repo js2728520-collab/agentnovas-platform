@@ -1,42 +1,80 @@
-/* 通知偏好设置。 */
+.page { display: grid; gap: 1rem; }
 
-.settings { display: grid; gap: 1rem; }
+.pageHeading { padding: .25rem 0 .5rem; }
+.pageHeading h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.025em; }
+.pageHeading p,
+.sectionHeading p { margin: .35rem 0 0; color: var(--rv-muted-foreground); line-height: 1.6; }
 
-.widgetHead {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--rv-border);
-  font-size: 0.875rem;
+.form { display: grid; gap: 1rem; }
+.panel { padding: 1.25rem; border: 1px solid var(--rv-border); border-radius: var(--rv-radius-md); background: var(--rv-card); }
+.sectionHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.sectionHeading h2 { margin: 0; font-size: 1rem; }
+.sectionHeading p { font-size: .8125rem; }
+
+.quietToggle { display: flex; align-items: flex-start; gap: .75rem; width: fit-content; margin-bottom: 1rem; cursor: pointer; }
+.quietToggle input { width: 1rem; height: 1rem; margin: .15rem 0 0; accent-color: var(--rv-primary); }
+.quietToggle label { display: grid; gap: .2rem; cursor: pointer; }
+.quietToggle strong { color: var(--rv-foreground); font-size: .875rem; }
+.quietToggle small { color: var(--rv-muted-foreground); font-size: .75rem; font-weight: 500; }
+
+.timeFields { display: flex; flex-wrap: wrap; gap: .75rem; }
+.timeFields label,
+.channelControl { display: grid; gap: .4rem; color: var(--rv-muted-foreground); font-size: .75rem; font-weight: 650; }
+.timeFields input,
+.channelControl select {
+  min-height: 2.5rem;
+  padding: .45rem .65rem;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-sm);
+  color: var(--rv-foreground);
+  background: var(--rv-background);
+  font: inherit;
+}
+.timeFields input { min-width: 9.5rem; }
+.timeFields input:hover,
+.channelControl select:hover { border-color: var(--rv-border-strong); }
+.timeFields input:disabled { cursor: not-allowed; opacity: .55; }
+
+.preferenceHeader,
+.preferenceRow { display: grid; grid-template-columns: minmax(10rem, 1fr) repeat(2, minmax(8.5rem, 11rem)); gap: 1rem; align-items: center; }
+.preferenceHeader { padding: 0 .75rem .55rem; color: var(--rv-muted-foreground); font-size: .75rem; font-weight: 700; }
+.preferenceList { border-top: 1px solid var(--rv-border); }
+.preferenceRow { padding: .85rem .75rem; border-bottom: 1px solid var(--rv-border); }
+.preferenceRow:last-child { border-bottom: 0; }
+.categoryLabel { display: flex; align-items: center; gap: .5rem; }
+.categoryLabel strong { font-size: .875rem; }
+.categoryLabel small { padding: .15rem .45rem; border-radius: 999px; color: var(--rv-muted-foreground); background: var(--rv-muted); font-size: .6875rem; white-space: nowrap; }
+.channelControl > span { display: none; }
+.channelControl select { width: 100%; }
+
+.formActions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
+.primaryButton,
+.secondaryButton { min-height: 2.5rem; padding: .55rem .9rem; border-radius: var(--rv-radius-sm); font: inherit; font-weight: 750; cursor: pointer; }
+.primaryButton { border: 1px solid var(--rv-primary); color: var(--rv-primary-foreground); background: var(--rv-primary-strong); }
+.secondaryButton { border: 1px solid var(--rv-border-strong); color: var(--rv-foreground); background: var(--rv-card); }
+.primaryButton:disabled { cursor: not-allowed; opacity: .55; }
+.loading { margin: 0; color: var(--rv-muted-foreground); }
+.success,
+.error { margin: 0; font-size: .8125rem; }
+.success { color: var(--rv-success-ink); }
+.error { color: var(--rv-danger-ink); }
+
+@media (max-width: 620px) {
+  .panel { padding: 1rem; }
+  .preferenceHeader { display: none; }
+  .preferenceList { display: grid; gap: .75rem; border-top: 0; }
+  .preferenceRow { grid-template-columns: 1fr 1fr; gap: .75rem; padding: 1rem; border: 1px solid var(--rv-border); border-radius: var(--rv-radius-sm); }
+  .preferenceRow:last-child { border-bottom: 1px solid var(--rv-border); }
+  .categoryLabel { grid-column: 1 / -1; }
+  .channelControl > span { display: block; }
+  .timeFields { display: grid; grid-template-columns: 1fr 1fr; }
+  .timeFields input { width: 100%; min-width: 0; }
 }
 
-.channelGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 0.75rem;
+@media (max-width: 380px) {
+  .preferenceRow,
+  .timeFields { grid-template-columns: 1fr; }
+  .categoryLabel { grid-column: 1; }
+  .formActions { align-items: stretch; flex-direction: column; }
+  .primaryButton { width: 100%; }
 }
-
-.quietHours {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-  align-items: center;
-  font-size: 0.8125rem;
-}
-
-.preferenceTable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8125rem;
-}
-
-.preferenceTable th,
-.preferenceTable td {
-  padding: 0.45rem 0.625rem;
-  text-align: left;
-  border-bottom: 1px solid var(--rv-border);
-}
-
-.preferenceTable thead th { background: var(--rv-table-header); color: var(--rv-muted-foreground); }

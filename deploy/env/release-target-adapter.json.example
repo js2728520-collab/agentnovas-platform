@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1",
+  "environment": "staging",
+  "dockerBinary": "/usr/bin/docker",
+  "pgRestoreBinary": "/usr/bin/pg_restore",
+  "dockerConfigDirectory": "/var/lib/agentnovas-release-target/docker",
+  "composeFile": "/opt/agentnovas/current/deploy/container/compose.yml",
+  "composeOverrideFile": "/opt/agentnovas/current/deploy/container/restricted-cicd.override.yml",
+  "composeProject": "agentnovas-riverton",
+  "imagePrefix": "ghcr.io/js2728520-collab/agentnovas-riverton",
+  "secretDirectory": "/etc/agentnovas-riverton",
+  "backupDirectory": "/var/backups/agentnovas-release-target",
+  "markerFile": "/var/lib/agentnovas-release-target/active-release.json",
+  "ports": {
+    "client": 3100,
+    "operations": 3101,
+    "maintenance": 3102
+  },
+  "healthUrls": {
+    "client": "http://127.0.0.1:3100/api/health/ready",
+    "operations": "http://127.0.0.1:3101/api/health/ready",
+    "maintenance": "http://127.0.0.1:3102/api/health/ready"
+  }
+}

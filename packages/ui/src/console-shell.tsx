@@ -14,10 +14,15 @@ import {
 } from "@/packages/contracts/src/riverton-ui";
 
 import { Icon, isIconName } from "./icon";
-import { ThemeToggle } from "./theme-toggle";
+import { useAppLocale } from "./app-locale-context";
 
 function isActivePath(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  const path = href.split("?")[0] || "/";
+  return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`);
+}
+
+function isActiveItem(pathname: string, item: { href: string; activePaths?: string[] }) {
+  return isActivePath(pathname, item.href) || Boolean(item.activePaths?.some((path) => isActivePath(pathname, path)));
 }
 
 export function ConsoleShell({
@@ -44,6 +49,8 @@ export function ConsoleShell({
   const pathname = usePathname() || "/";
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
+  const { t } = useAppLocale();
+  const localizedAppName = t(appName);
 
   const groups = useMemo(
     () => visibleNavigationGroups(navigation, access.permissions),
@@ -51,7 +58,7 @@ export function ConsoleShell({
   );
   const currentItem = useMemo(
     () => flattenNavigation(groups)
-      .filter((item) => isActivePath(pathname, item.href))
+      .filter((item) => isActiveItem(pathname, item))
       .sort((left, right) => right.href.length - left.href.length)[0],
     [groups, pathname],
   );
@@ -113,12 +120,12 @@ export function ConsoleShell({
   }
 
   return <main className={`rc-console rc-${appKind}`} data-nav={menuOpen ? "open" : undefined}>
-    <a className="rc-skip-link" href="#rc-console-content">跳到主要内容</a>
+    <a className="rc-skip-link" href="#rc-console-content">{t("跳到主要内容")}</a>
     <button
       className="rc-console-backdrop"
       type="button"
       tabIndex={-1}
-      aria-label="关闭导航菜单"
+      aria-label={t("关闭导航菜单")}
       onClick={() => setMenuOpen(false)}
     />
 
@@ -129,20 +136,20 @@ export function ConsoleShell({
       aria-hidden={compactNavigation && !menuOpen ? true : undefined}
       role={compactNavigation && menuOpen ? "dialog" : undefined}
       aria-modal={compactNavigation && menuOpen ? true : undefined}
-      aria-label={`${appName}菜单`}
+      aria-label={`${localizedAppName} ${t("菜单")}`}
     >
-      <Link className="rc-console-brand" href="/" aria-label={`Riverton Capital ${appName}`}>
+      <Link className="rc-console-brand" href="/" aria-label={`Riverton Capital ${localizedAppName}`}>
         {appKind === "client"
           ? <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="186px" alt="Riverton Capital" />
           : <span aria-hidden="true">RC</span>}
-        <b>{appKind === "client" ? null : "Riverton Capital"}<small>{appName}</small></b>
+        <b>{appKind === "client" ? null : "Riverton Capital"}<small>{localizedAppName}</small></b>
       </Link>
 
-      <nav aria-label={`${appName}导航`}>
+      <nav aria-label={`${localizedAppName} ${t("导航")}`}>
         {groups.map((group) => <div className="rc-nav-group" key={group.label}>
-          <div className="rc-nav-label">{group.label}</div>
+          <div className="rc-nav-label">{t(group.label)}</div>
           {group.items.map((item) => {
-            const active = isActivePath(pathname, item.href);
+            const active = isActiveItem(pathname, item);
             return <Link
               key={item.href}
               className={active ? "active" : undefined}
@@ -151,7 +158,7 @@ export function ConsoleShell({
               onClick={() => setMenuOpen(false)}
             >
               <Icon name={isIconName(item.icon) ? item.icon : "dashboard"} />
-              <span>{item.label}{item.description && <small>{item.description}</small>}</span>
+              <span>{t(item.label)}{item.description && <small>{t(item.description)}</small>}</span>
               {item.badge && <b>{item.badge}</b>}
             </Link>;
           })}
@@ -160,13 +167,15 @@ export function ConsoleShell({
 
       <footer>
         <i aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</i>
-        <div><b>{displayName}</b><small>{accountLabel}</small></div>
+        <Link className="rc-account-link" href="/settings" aria-label={`${displayName} ${t("设置")}`}>
+          <b>{displayName}</b><small>{t(accountLabel)} · {t("设置")}</small>
+        </Link>
         <button
           className="rc-icon-btn"
           type="button"
           onClick={() => void logout()}
-          title="退出登录"
-          aria-label="退出登录"
+          title={t("退出登录")}
+          aria-label={t("退出登录")}
         ><Icon name="logout" /></button>
       </footer>
     </aside>
@@ -177,21 +186,20 @@ export function ConsoleShell({
           ref={menuButtonRef}
           className="rc-icon-btn rc-menu-btn"
           type="button"
-          aria-label={menuOpen ? "关闭导航菜单" : "打开导航菜单"}
+          aria-label={menuOpen ? t("关闭导航菜单") : t("打开导航菜单")}
           aria-expanded={menuOpen}
           aria-controls="rc-console-nav"
           onClick={() => setMenuOpen((value) => !value)}
         ><Icon name="menu" /></button>
 
-        <nav className="rc-breadcrumb" aria-label="面包屑">
-          <Link href="/">{appName}</Link>
+        <nav className="rc-breadcrumb" aria-label={t("面包屑")}>
+          <Link href="/">{localizedAppName}</Link>
           <span aria-hidden="true"><Icon name="chevron-right" size={14} /></span>
-          <span aria-current="page">{currentItem?.label ?? "当前页面"}</span>
+          <span aria-current="page">{currentItem ? t(currentItem.label) : t("当前页面")}</span>
         </nav>
 
         <div className="rc-topbar-actions">
-          <span className="rc-env-badge"><i aria-hidden="true" />{statusText}</span>
-          <ThemeToggle />
+          <span className="rc-env-badge"><i aria-hidden="true" />{t(statusText)}</span>
         </div>
       </header>
 

@@ -5,50 +5,22 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import {
-  visibleNavigationGroups,
-  type ConsoleNavigationGroup,
-  type EffectiveAccessPayload,
-  type ViewerPayload,
-} from "@/packages/contracts/src/riverton-ui";
+import { visibleNavigationGroups, type ConsoleNavigationGroup, type EffectiveAccessPayload, type ViewerPayload } from "@/packages/contracts/src/riverton-ui";
 import { Icon, isIconName } from "@/packages/ui/src/icon";
-import { ThemeToggle } from "@/packages/ui/src/theme-toggle";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
+import { clientPrimaryNavigation, resolveClientSection } from "./client-information-architecture";
+import { ClientNotifications } from "./client-notifications";
 import styles from "./client-portal-shell.module.css";
 
 /**
  * 客户端导航。刻意不复用内部控制台外壳，也不出现指向 "/" 的链接——
  * "/" 是公开落地页，已登录客户的品牌链接必须落在 /dashboard。
  */
-const navigationGroups: ConsoleNavigationGroup[] = [
-  { label: "交易", items: [
-    { href: "/dashboard", label: "交易总览", icon: "dashboard" },
-    { href: "/trading-hall", label: "交易大厅", icon: "hall", requiredPermissions: ["client.paper.view"] },
-    { href: "/paper", label: "模拟组合", icon: "paper", requiredPermissions: ["client.paper.view"] },
-    { href: "/market", label: "行情", icon: "chart" },
-    { href: "/assistant", label: "AI 助手", icon: "activity" },
-  ] },
-  { label: "策略实验室", items: [
-    { href: "/studio", label: "策略实验室", icon: "lab", requiredPermissions: ["client.paper.view"] },
-    { href: "/backtests", label: "策略回测", icon: "calculator", requiredPermissions: ["client.paper.view"] },
-  ] },
-  { label: "账户", items: [
-    { href: "/membership", label: "会员中心", icon: "crown", requiredPermissions: ["client.membership.view"] },
-    { href: "/credits", label: "AI 积分", icon: "coins", requiredPermissions: ["client.credits.view"] },
-    { href: "/performance-statements", label: "绩效账单", icon: "receipt", requiredPermissions: ["client.membership.view"] },
-    { href: "/wallet", label: "资产与账本", icon: "wallet", requiredPermissions: ["client.wallet.view"] },
-    { href: "/wallet/deposits", label: "充值记录", icon: "deposit", requiredPermissions: ["client.wallet.view"] },
-  ] },
-  { label: "其他", items: [
-    { href: "/notifications", label: "通知中心", icon: "bell" },
-    { href: "/account/security", label: "账户与安全", icon: "shield" },
-    { href: "/legal/consent", label: "披露与条款", icon: "file" },
-    { href: "/support", label: "帮助与支持", icon: "inbox" },
-  ] },
-];
+const navigationGroups: ConsoleNavigationGroup[] = [{ label: "主导航", items: clientPrimaryNavigation }];
 
 function isActivePath(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return resolveClientSection(pathname) === resolveClientSection(href);
 }
 
 export function ClientPortalShell({ viewer, access, children }: {
@@ -58,19 +30,18 @@ export function ClientPortalShell({ viewer, access, children }: {
 }) {
   const pathname = usePathname() || "/dashboard";
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [compact, setCompact] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const { t } = useAppLocale();
 
-  const groups = useMemo(
-    () => visibleNavigationGroups(navigationGroups, access.permissions),
+  const navigationItems = useMemo(
+    () => visibleNavigationGroups(navigationGroups, access.permissions).flatMap((group) => group.items),
     [access.permissions],
   );
-  const currentLabel = useMemo(() => groups
-    .flatMap((group) => group.items)
-    .filter((item) => isActivePath(pathname, item.href))
-    .sort((left, right) => right.href.length - left.href.length)[0]?.label ?? "客户页面",
-  [groups, pathname]);
   const displayName = viewer.nickname || viewer.username || viewer.email.split("@")[0];
 
   useEffect(() => {
@@ -122,18 +93,38 @@ export function ClientPortalShell({ viewer, access, children }: {
     };
   }, [compact, menuOpen]);
 
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) setAccountMenuOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setAccountMenuOpen(false);
+        accountButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [accountMenuOpen]);
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
     window.location.assign("/login?next=%2Fdashboard");
   }
 
   return <div className={styles.shell}>
-    <a className={styles.skipLink} href="#client-main-content">跳到主要内容</a>
+    <a className={styles.skipLink} href="#client-main-content">{t("跳到主要内容")}</a>
     <button
       className={`${styles.backdrop} ${menuOpen ? styles.open : ""}`}
       type="button"
       tabIndex={-1}
-      aria-label="关闭客户导航"
+      aria-label={t("关闭客户导航")}
       onClick={() => setMenuOpen(false)}
     />
 
@@ -145,44 +136,29 @@ export function ClientPortalShell({ viewer, access, children }: {
       aria-hidden={compact && !menuOpen ? true : undefined}
       role={compact && menuOpen ? "dialog" : undefined}
       aria-modal={compact && menuOpen ? true : undefined}
-      aria-label="客户导航菜单"
+      aria-label={t("客户导航菜单")}
     >
-      <Link className={styles.brand} href="/dashboard" aria-label="Riverton Capital 交易总览">
+      <Link className={styles.brand} href="/dashboard" aria-label={`Riverton Capital ${t("数据看板")}`}>
         <Image src="/riverton-capital-logo.png" width={2193} height={324} sizes="186px" alt="Riverton Capital" priority />
-        <small>客户端 · 模拟盘</small>
       </Link>
 
-      <nav className={styles.nav} aria-label="客户导航">
-        {groups.map((group) => <div className={styles.navGroup} key={group.label}>
-          <div className={styles.navLabel}>{group.label}</div>
-          {group.items.map((item) => {
-            const active = isActivePath(pathname, item.href);
-            return <Link
-              key={item.href}
-              className={active ? styles.active : undefined}
-              href={item.href}
-              aria-current={active ? "page" : undefined}
-              onClick={() => setMenuOpen(false)}
-            >
-              <Icon name={isIconName(item.icon) ? item.icon : "dashboard"} />
-              {item.label}
-              {item.badge && <b>{item.badge}</b>}
-            </Link>;
-          })}
-        </div>)}
+      <nav className={styles.nav} aria-label={t("客户导航")}>
+        {navigationItems.map((item) => {
+          const active = isActivePath(pathname, item.href);
+          return <Link
+            key={item.href}
+            className={active ? styles.active : undefined}
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+            onClick={() => setMenuOpen(false)}
+          >
+            <Icon name={isIconName(item.icon) ? item.icon : "dashboard"} />
+            {t(item.label)}
+            {item.badge && <b>{item.badge}</b>}
+          </Link>;
+        })}
       </nav>
 
-      <div className={styles.account}>
-        <i className={styles.avatar} aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</i>
-        <div><b>{displayName}</b><small>{viewer.email}</small></div>
-        <button
-          className={styles.iconLink}
-          type="button"
-          onClick={() => void logout()}
-          title="退出登录"
-          aria-label="退出登录"
-        ><Icon name="logout" /></button>
-      </div>
     </aside>
 
     <section className={styles.main}>
@@ -191,26 +167,32 @@ export function ClientPortalShell({ viewer, access, children }: {
           ref={menuButtonRef}
           className={`${styles.iconLink} ${styles.menuButton}`}
           type="button"
-          aria-label={menuOpen ? "关闭客户导航" : "打开客户导航"}
+          aria-label={menuOpen ? t("关闭客户导航") : t("打开客户导航")}
           aria-expanded={menuOpen}
           aria-controls="client-mobile-nav"
           onClick={() => setMenuOpen((value) => !value)}
         ><Icon name="menu" /></button>
 
-        <nav className={styles.crumb} aria-label="面包屑">
-          <Link href="/dashboard">客户中心</Link>
-          <span aria-hidden="true"><Icon name="chevron-right" size={14} /></span>
-          <span aria-current="page">{currentLabel}</span>
-        </nav>
-
         <div className={styles.headerActions}>
-          <span className={styles.envBadge}><i aria-hidden="true" />模拟盘 · 实盘路由已关闭</span>
-          <Link className={styles.iconLink} href="/notifications" title="通知中心" aria-label="通知中心"><Icon name="bell" /></Link>
-          <ThemeToggle />
+          <span className={styles.envBadge}><i aria-hidden="true" />{t("模拟盘 · 实盘路由已关闭")}</span>
+          <ClientNotifications key={pathname === "/notifications" ? "legacy-open" : "topbar"} initialOpen={pathname === "/notifications"} />
+          <div className={styles.accountMenu} ref={accountMenuRef}>
+            <button ref={accountButtonRef} className={styles.accountTrigger} type="button" aria-label={t("用户菜单")} aria-expanded={accountMenuOpen} aria-controls="client-account-menu" onClick={() => setAccountMenuOpen((value) => !value)}>
+              <i className={styles.avatar} aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</i>
+              <span>{displayName}</span>
+            </button>
+            {accountMenuOpen && <div id="client-account-menu" className={styles.accountPopover} role="menu">
+              <div><b>{displayName}</b><small>{viewer.email}</small></div>
+              <Link href="/account-center" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Icon name="wallet" />{t("账户中心")}</Link>
+              <Link href="/settings" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Icon name="settings" />{t("设置")}</Link>
+              <Link href="/support" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Icon name="inbox" />{t("帮助与支持")}</Link>
+              <button type="button" role="menuitem" onClick={() => void logout()}><Icon name="logout" />{t("退出登录")}</button>
+            </div>}
+          </div>
         </div>
       </header>
 
-      <div id="client-main-content" className={styles.content} tabIndex={-1}>{children}</div>
+      <main id="client-main-content" className={styles.content} tabIndex={-1}>{children}</main>
     </section>
   </div>;
 }

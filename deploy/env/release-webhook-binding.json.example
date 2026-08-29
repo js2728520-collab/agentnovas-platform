@@ -1,0 +1,11 @@
+{
+  "provider": "github_actions",
+  "repositoryOwner": "agentnovas",
+  "repositoryName": "platform",
+  "repositoryId": "1",
+  "workflowId": "1",
+  "workflowPath": ".github/workflows/restricted-deployment.yml",
+  "workflowControlRef": "refs/tags/replace-with-protected-control-tag",
+  "controlCommitSha": "0000000000000000000000000000000000000000",
+  "webhookSecretFile": "/run/secrets/release-webhook-secret"
+}

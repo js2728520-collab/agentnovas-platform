@@ -11,7 +11,8 @@ async function source(file) {
 
 function assertPathsCovered(contents, paths, file) {
   for (const path of paths) {
-    assert.match(contents, new RegExp(`(?:["'\\x60])${path.replaceAll("/", "\\/")}(?:["'\\x60])`), `${file} must cover ${path}`);
+    const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.match(contents, new RegExp(`(?:["'\\x60])${escapedPath}(?:["'\\x60])`), `${file} must cover ${path}`);
   }
 }
 
@@ -19,11 +20,18 @@ test("the browser suite covers every stable Client beta page", async () => {
   const contents = await source("client-ui.spec.ts");
   assertPathsCovered(contents, [
     "/",
+    "/dashboard",
+    "/trading",
+    "/strategies",
+    "/account-center",
+    "/settings",
+    "/assistant",
     "/membership",
     "/membership/orders",
     "/credits",
     "/paper",
     "/trading-hall",
+    "/work-records",
     "/performance-statements",
     "/wallet",
     "/wallet/deposits",
@@ -41,14 +49,14 @@ test("Operations and Maintenance cases cover representative stable pages and aud
   const checker = await source("operations-checker-ui.spec.ts");
   const maintenance = await source("maintenance-admin-ui.spec.ts");
 
-  assertPathsCovered(maker, ["/customers", "/accounts", "/membership-orders", "/performance-statements", "/credits", "/deposits", "/ledger", "/finance"], "operations-maker-ui.spec.ts");
+  assertPathsCovered(maker, ["/customers", "/accounts", "/membership-orders", "/performance-statements", "/credits", "/deposits", "/ledger", "/finance", "/commercial?tab=finance", "/commercial?tab=membership", "/governance?tab=operators", "/settings?tab=appearance"], "operations-maker-ui.spec.ts");
   assertPathsCovered(await source("g1-identity-security.spec.ts"), ["/invitations"], "g1-identity-security.spec.ts");
-  assertPathsCovered(checker, ["/", "/approvals"], "operations-checker-ui.spec.ts");
+  assertPathsCovered(checker, ["/", "/approvals", "/governance?tab=approvals"], "operations-checker-ui.spec.ts");
   assert.match(`${maker}\n${checker}`, /expectAudienceNavigation\(page,\s*"operations"\)/);
   assert.equal((maker.match(/\btest\(/g) ?? []).length, 3, "maker coverage includes the no-PII negative case");
   assert.equal((checker.match(/\btest\(/g) ?? []).length, 2, "checker coverage includes the audited PII reveal case");
 
-  assertPathsCovered(maintenance, ["/", "/health", "/models", "/integrations", "/integrations/sources", "/integrations/email", "/integrations/payments", "/integrations/demo-exchanges", "/settings", "/configurations", "/audit", "/releases", "/ai-usage"], "maintenance-admin-ui.spec.ts");
+  assertPathsCovered(maintenance, ["/", "/health", "/models", "/integrations", "/integrations/sources", "/integrations/email", "/integrations/payments", "/integrations/demo-exchanges", "/settings?tab=appearance", "/configurations", "/audit", "/releases", "/ai-usage", "/work-records", "/?tab=health", "/ai-strategy?tab=models", "/integrations?tab=email", "/configurations?tab=platform", "/releases?tab=technical-audit"], "maintenance-admin-ui.spec.ts");
   assert.match(maintenance, /expectAudienceNavigation\(page,\s*"maintenance"\)/);
   assert.match(maintenance, /运行确定性测试/);
   assert.match(maintenance, /postDataJSON\(\)/);

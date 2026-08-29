@@ -184,13 +184,13 @@ export const text: Record<Lang, Record<string, string>> = {
   },
 };
 const notificationLabels: Record<Lang, string> = {
-  "zh-CN": "通知中心",
-  "zh-TW": "通知中心",
+  "zh-CN": "通知",
+  "zh-TW": "通知",
   "en-US": "Notifications",
   "ru-RU": "Уведомления",
   "es-ES": "Notificaciones",
-  "ja-JP": "通知センター",
-  "ko-KR": "알림 센터",
+  "ja-JP": "通知",
+  "ko-KR": "알림",
 };
 for (const lang of Object.keys(notificationLabels) as Lang[])
   text[lang].security = notificationLabels[lang];

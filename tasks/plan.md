@@ -1,6 +1,6 @@
 # Implementation Plan：AgentNovas 全平台 V3 升级
 
-状态：Phase 1 进行中；T1.1–T1.6 已实现，G1 真实邮件与生产 MFA 开启态验收待完成
+状态：M1 三端极简安全版已完成；Phase 1 继续进行，G1 真实邮件与生产 MFA 开启态验收待完成
 工作分支：`codex/platform-v3-doc-sync`
 需求真源：`docs/product/PRD.md`
 路线图：`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md`
@@ -10,7 +10,7 @@
 
 在不破坏当前受控 Beta/Paper 可运行基线的前提下，把系统分阶段升级为完整三端交易平台。每个阶段提供可运行的纵向切片、独立 Gate 和回滚点；真实现货、永续、提现/划转和 CI/CD 触发分别解锁。
 
-用户已授权按本计划实施并在当前分支本地提交。外部产品参数未冻结的阶段仍保持阻断，
+用户已授权按本计划实施，但未授权提交、推送或创建 PR。外部产品参数未冻结的阶段仍保持阻断，
 不得用假设替代 P-01–P-12 的需求方结论。
 
 ## 2. 已冻结架构决定
@@ -87,11 +87,40 @@
 **涉及：** `docs/architecture/CAPABILITY_MIGRATION_MATRIX.md`、`docs/api/API_CATALOG.md`。
 **规模：** M。
 
+### T0.4：仓库密钥扫描器非普通文件加固
+
+**状态：** 已完成。产品切片 T4.2 仍等待 P-05，本切片先消除标准质量门对用户未跟踪嵌套工作树目录触发 `EISDIR` 的已知债务。
+
+**描述：** 让仓库密钥扫描器显式区分 Git 返回的普通文件和目录候选；目录不得导致扫描中止或计入已扫描文件，普通文件读取失败仍必须失败关闭。
+
+**验收：** 嵌套 Git 工作树目录候选可安全跳过；其中 Git 实际枚举的普通文件仍会扫描；除已删除文件和非普通文件外的读取错误不被静默吞掉。
+**验证：** 先失败后通过的文件系统回归、`npm run quality:secret-scan`、全量测试、TypeScript、ESLint、架构边界、key custody、production dependency audit 和差异检查。
+**依赖：** 无产品参数依赖；不得修改或删除用户的 `.claude/` 嵌套工作树。
+**可能涉及：** `scripts/quality/repository-secret-scan.mjs`、`tests/repository-secret-scan.test.mjs`、任务与交接文档。
+**规模：** S。
+
 ### Checkpoint P0
 
-- [ ] G0 通过。
-- [ ] 用户确认 Phase 1 范围、资源和顺序。
-- [ ] 当前 Beta 全量 Gate 保持绿。
+- [-] G0 双轨执行：P-10 已冻结，其余参数仅阻断对应能力；M1 不依赖项继续。
+- [x] 用户确认 M1 三端极简安全版范围与纵向切片顺序。
+- [x] 当前 Beta 全量 Gate 保持绿（2026-08-29：远端 1639/1639）。
+
+## 4.1 M1：三端极简安全版
+
+**状态：** 已完成（2026-08-29）。切片 0–5 已在三端测试域名验收；Paper/Demo、真实交易、资金出站和受限部署的既有失败关闭边界保持不变。
+
+**切片顺序：**
+
+1. [x] 基线与文档真源：审计工作树、路由、权限、迁移和 Gate，修正 Target/Current 与依赖状态。
+2. [x] 三端 Shell 与五中心路由：建立类型化 Section/Tab/legacy 映射，主导航每端不超过五项。
+3. [x] 三端数据看板：只保留有来源、口径、时间和状态的客户/运营/技术决策数据，每端一个主要操作。
+4. [x] 设置、主题与语言：新增 `(userId, appAudience)` 偏好，Client 七语默认英语，内部端中英默认简体中文，六主题首帧恢复。
+5. [x] 现有功能归位与冗余清理：通知、设备、法律确认、假 provider/按钮和低频页面按目标信息架构收口。
+6. [x] 体验与远端验收：在 `an-saas` 完成质量检查，仅部署三个测试域名，并完成四断点、键盘、axe、Host/Cookie/RBAC/PII/Secret 联测。
+
+**完成定义：** 每个 Hub 测试默认/非法 Tab、旧路由、刷新、权限、空/加载/失败/恢复；新增数据库变更具备 fresh/rerun/N-1/最小权限证据；三端构建和浏览器 Gate 通过。未决参数在安全检查点停止，不用占位值替代决定。
+
+**发布约束：** 不修改生产，不开放真实永久合约订单，不自行提交、推送或创建 PR。
 
 ## 5. Phase 1：身份、权限和注册链接
 
@@ -403,7 +432,7 @@ T2.4b 继续等待 P-01/provider registry，不因纯合同完成而解锁持久
 
 1. `T3.1c-FF1`：`client.strategy_research` 全局功能开关 v1，严格 `{enabled:boolean}` schema、服务端确定性测试器、Client 最小权限 current 网关和“只能收窄环境 Gate”的消费者。
 2. `T3.1c-FF2`：用户/组织/应用版本/百分比/独立时窗 targeting，作为 T3.3 的新 schema 版本单独设计和验收，不改变 FF1 语义。
-3. `T3.1c-Brand/Domain`、`Prompt/Skill`、`Pricing`：分别在 P-10/P-11、
+3. `T3.1c-Brand/Domain`、`Prompt/Skill`、`Pricing`：品牌可按已冻结 P-10 推进；域名、Prompt/Skill、Pricing 分别在 P-11、
    `docs/product/PROMPT_SKILL_V1_REQUIREMENTS_CONFIRMATION.md` 的 PS-01–PS-06、P-07/P-08
    参数确认后接入，禁止占位值生效。
 
@@ -415,7 +444,7 @@ T2.4b 继续等待 P-01/provider registry，不因纯合同完成而解锁持久
 
 **验收：** 消费者只读取 active 精确版本；历史订单/执行引用版本 ID；具体族不能借通用 JSON 绕过安全 Gate。
 **验证：** 每配置族合同、确定性测试证据、消费者 N-1、最小数据库权限、浏览器与回滚演练。
-**依赖：** T3.1b；具体族分别受 P-07/P-08/P-10/P-11 阻断。
+**依赖：** T3.1b；具体族分别受 P-07/P-08/P-11 与 PS-01–PS-06 阻断，P-10 不再阻断品牌主题实现。
 **规模：** 每族 S/M。
 
 ### T3.2：套餐、Credits、退款和优惠
@@ -451,17 +480,17 @@ T2.4b 继续等待 P-01/provider registry，不因纯合同完成而解锁持久
 
 ### T3.10–T3.11：六主题与 i18n 基础
 
-**描述：** 建立三浅三深 token、图表/Logo/状态色和英语默认语言优先级。
+**描述：** 建立经典、海湾、松林三组调色板的明暗 token、图表/Logo/状态色和分端语言优先级。
 
-**验收：** 六主题完整；偏好 > 浏览器/地区 > 英语；无闪烁和不可读状态。
+**验收：** 六主题完整；Client 七语默认英语，Operations/Maintenance 中英默认简体中文；登录/本地/浏览器优先级按 audience 正确且无闪烁和不可读状态。
 **验证：** visual regression、contrast、四断点、SSR/hydration。
-**依赖：** P-10。
+**依赖：** P-10 已冻结；服务端偏好与三端翻译不再受产品参数阻断。
 **规模：** M。
 
-**分阶段：** T3.11a 先完成不依赖 P-10 视觉稿的纯 locale allowlist、公开 Client 英语首屏、
-匿名保存偏好和浏览器语言解析，只使用 `navigator.languages`，不引入 IP/GPS 定位。T3.11b 再完成
-已登录三端、认证/错误页、邮件、格式化器和数据库偏好一致性；其覆盖语言及 Maintenance
-`defaultLocale` 是否可覆盖英语仍待需求方确认。六主题继续等待 P-10。
+**分阶段：** T3.11a 已完成纯 locale allowlist、公开 Client 英语首屏、匿名保存偏好和浏览器语言解析，
+只使用 `navigator.languages`，不引入 IP/GPS 定位。T3.11b 按已冻结范围完成已登录三端、认证/错误页、
+邮件、格式化器和 audience 数据库偏好一致性；Client 使用七语并默认英语，Operations/Maintenance
+使用中英并默认简体中文。六主题按已冻结 P-10 继续三端适配和视觉验收。
 
 **T3.11a 实施证据（2026-08-24）：** 唯一七语言 allowlist、有界浏览器别名解析、英语 fallback、
 匿名 localStorage 偏好和公开 Client 动态字典已实现；不使用 IP/GPS/时区推断。自动加载与人工选择
@@ -477,7 +506,7 @@ production build、production audit 0 和真实 nginx 检查。云端 standalone
 **T3.11b1 边界：** 先用 forward migration 把新账号 `users.locale` 默认改为 `en-US`，并以
 `NOT VALID` 七语言 CHECK 约束未来写入，不批量修改或假定既有账号值是显式偏好。实际 PostgreSQL
 必须证明历史未知值保留、新非法值拒绝、七语言通过和迁移可重放；用户修改 API 与三端消费留给
-语言范围确认后的 T3.11b2。
+T3.11b2 的 audience 偏好实现。
 
 **T3.11b1 实施证据（2026-08-24）：** migration `0073`、SQLite/Drizzle 默认和实际 PostgreSQL
 测试已完成，实现提交 `bfeb9bb`。定向 locale 合同/数据库 8/8、完整 0000–0073 migration 链相关
@@ -491,7 +520,7 @@ production audit 0、官方 nginx 1.29.8 检查通过；源码归档摘要在本
 ### Checkpoint P3
 
 - [ ] 配置/价格历史与审批 Gate 通过。
-- [ ] 六主题和英语主旅程通过无障碍/性能基线。
+- [ ] 六主题和分端语言主旅程通过无障碍/性能基线。
 
 ## 8. Phase 4：AI 助手与策略市场
 
@@ -566,7 +595,7 @@ Client 67、Operations 62、Maintenance 51 页，production audit 0，最终浏�
 
 ### T4.1d：工作记录详情与受控导出（对应任务看板 T4.13）
 
-**状态：** 进行中。该能力不依赖 P-01–P-12，不改变真实订单硬关闭边界。
+**状态：** 已完成。该能力不依赖 P-01–P-12，不改变真实订单硬关闭边界。
 
 **目标合同：** Client 通过 `/work-records` 查看属于自己的历史决策轮，并进入稳定详情页查看完整七阶段公开对话、固定策略名称与版本、行情快照摘要、客户组合准入、模拟订单意图、成交回执和审计标识。公共决策内容按 ADR-0018 共享，客户准入和成交必须按当前用户所有权隔离；纯 hold 轮也必须可见。Maintenance 仅通过独立敏感权限、近期 MFA 策略和页面内审计原因导出脱敏安全投影，不获得客户业务原表或原始用户 ID。
 
@@ -578,7 +607,7 @@ Client 67、Operations 62、Maintenance 51 页，production audit 0，最终浏�
 4. WR4 Maintenance 投影：新增 security-barrier 安全视图，只暴露伪名用户和 allowlist 字段；Maintenance DB role 只获得该视图 SELECT，新敏感权限不得覆盖显式撤权墓碑。
 5. WR5 Maintenance 导出：使用 `POST /api/maintenance/work-records/export`，日期最多 31 天、最多 1,000 条、请求体严格、same-origin、幂等与页面内 3–500 字审计原因；返回无公式注入风险的 JSON，不落本地文件、不回显原始用户 ID/PII/模型凭证/错误原文。
 
-**当前进度：** WR1、WR2 与六个月数据库删除保护已完成。共享轮严格匹配订阅期间固定版本；只有纯 `hold` 且无客户周期才显示“无需准入”，其他缺周期轮显示“未记录”。订阅区间由数据库校验客户/订阅/部署/版本/卡片/品种/模式一致性并拒绝重叠，启停使用同一 advisory lock 串行化；列表查询使用热路径索引和 5 秒只读事务超时。WR3–WR5 仍待后续切片。
+**当前进度：** WR1–WR5、六个月数据库删除保护和 T4.13c 最终总 Gate 均已完成。共享轮严格匹配订阅期间固定版本；只有纯 `hold` 且无客户周期才显示“无需准入”，其他缺周期轮显示“未记录”。订阅区间由数据库校验客户/订阅/部署/版本/卡片/品种/模式一致性并拒绝重叠，启停使用同一 advisory lock 串行化；列表查询使用热路径索引和 5 秒只读事务超时。Client 已提供真实导航、游标“加载更多”、列表/详情安全投影、公共决策与个人准入分离说明、可聚焦七阶段/表格滚动区。Maintenance 已提供只读 security-barrier 安全视图、独立敏感权限和 `/work-records` 页面；受控 JSON 导出严格限制 31 个 UTC 自然日与 1,000 条，只记录元数据审计，相同 actor/key/payload 重放同一结果且不重复审计。最终三端 production Chromium 20/20 覆盖空浏览器登录、Host/Cookie audience、权限链接、五设备、四断点、axe、Client 工作记录与 Maintenance 真实下载；固定 Node 22.21.1 云端三端构建和 Nginx 配置门禁通过。
 
 **验收：** 跨客户 IDOR 返回统一 404；纯 hold 与有组合准入两类记录均可追溯；列表分页不重复不遗漏；导出调用写入追加式审计且重放不重复生成审计事件；记录保留合同至少六个月，任何清理器不得提前删除关联决策、事件、意图和回执。
 
@@ -712,13 +741,54 @@ Client 67、Operations 62、Maintenance 51 页，production audit 0，最终浏�
 
 ## 12. Phase 8：Maintenance CI/CD 控制面
 
+### T8.0：受限 CI/CD 委托 ADR 与威胁模型
+
+**状态：** 已完成。ADR-0024 与 `RESTRICTED_CICD_DELEGATION_SPEC.md` 已通过多轮 fresh-context 对抗复审，
+关闭 dispatch/run 关联、direct dispatch/rerun、机器 G7/首次生产授权、environment generation、control/
+workflow/App 漂移、OIDC、Auditor、target mutex/journal/receipt、stop/cutover 竞态、Runner 失陷、TOCTOU 和
+rollback freshness 等 Critical/High。GitHub environment 明确只作 `provider_policy_observed` 纵深防御，
+不能替代平台授权。Current 仍只登记发布证据，未加入凭证、route、Worker、Ingress、target gateway 或
+workflow；放行仅允许开始 T8.1a 纯 domain contract。
+
+**验收：** Web 与 CI secret/egress 分离；任意 repository/workflow/ref/inputs/Shell/SSH/SQL 不存在于
+公共 DTO；dispatch accepted 不等于成功；G7 前默认关闭且可回退到只登记证据。
+**验证：** ADR/Target/Current/roadmap/capability/task 状态一致性、官方 GitHub 合同链接、Markdown 链接、
+secret scan 和差异检查；运行时未变，因此不以构建或浏览器结果冒充安全设计评审。
+**依赖：** ADR-0014、ADR-0016、ADR-0021、T3.1。
+**涉及：** `docs/adr/0024-restricted-cicd-delegation.md`、
+`docs/specs/RESTRICTED_CICD_DELEGATION_SPEC.md` 与相关任务/状态文档。
+**规模：** M（安全设计专项）。
+
 ### T8.1：固定 workflow 与短期凭证适配器
 
 **描述：** 限定仓库、workflow、ref、环境和动作，不接受任意命令。
 
+**状态：** T8.1a–T8.2c、T8.2d1、T8.2d2a 与 T8.2d2b 已完成（2026-08-27）；T8.2d2b 已把当前候选
+安全替换到三域 Web-only preview，并验证 backup/migration/role/config/浏览器/回滚锚点；exclusive-create
+custom dump/TOC/hash 与容器 network namespace role-policy 两个发布门禁也已固化并在 preview 实例复验。
+下一切片为经授权的
+真实 provider fixture、失陷演练与 G7。PostgreSQL 已覆盖
+追加 command/approval/activation/generation/attempt/auth/delivery/provider/target/stop 事实、窄事务 gateway、
+RLS/ACL、环境级 sticky blocker、owner epoch 和 receipt phase 偏序；运行时 trigger 仍 disabled。
+
 **验收：** Maintenance 无长期 token；参数注入失败；调用幂等。
 **验证：** security tests、secret scan、失陷演练。
-**依赖：** T3.1。
+**增量任务：** T8.1a 纯 domain contract；T8.1b PostgreSQL 命令/审批/lease/delivery/stop 事实；
+T8.1c 默认关闭的独立 Worker、GitHub App 短期令牌与固定 dispatch adapter。三轮对抗复审已关闭
+binding 自证、崩溃恢复、角色登录/审计、仓库硬编码和 secret path 等全部 Critical/High。T8.2a 已补齐
+独立 Ingress、raw-body HMAC、append-only delivery 和 exact-run reconciliation；两轮复审关闭 systemd 信任域
+隔离与 terminal reconciliation 饥饿两项 High。T8.2b 已完成 exact-run OIDC、target authority/CAS、双锁
+durable journal、固定 digest adapter、签名 receipt/keyring rotation、离线 break-glass stop 与三阶段 clear；
+三轮复审最终无 Critical/High。T8.2c 已增加默认关闭的 Maintenance 控制 API/UI，并将 WebAuthn verifier 与
+release-control 拆成 Compose-only 独立信任域：verifier 不接收 raw session，control 不持有 WebAuthn policy，
+数据库以一次性 action authority 原子消费 assertion 并保存可跨 TTL 精确重放的结果；最终对抗复审无
+Critical/High。T8.2d1 已交付七输入专用 workflow、独立只读 Auditor、数据库内 v4 Auditor-trust-bound
+reservation、实际 185 表/87 migration restore rehearsal 和 11 项 evidence manifest 生成器；T8.2d2a 又完成
+environment-bound provider digest、环境级 claim/reconciliation/recovery、四实例 Worker/Auditor 拓扑与启动
+preflight。T8.2d2b 已完成三域 preview 替换及无凭证泄露的容器 backup/role-policy 发布入口，所有 Restricted CI/CD
+与外部写入 Gate 仍显式关闭；下一增量
+T8.2d2c 仅为真实 GitHub environment/ruleset/reviewer/runner fixture、演练与 G7，运行时仍不得越过批准范围。
+**依赖：** T8.0、T3.1。
 **规模：** M。
 
 ### T8.2：staging/production/rollback 状态闭环
@@ -730,6 +800,26 @@ Client 67、Operations 62、Maintenance 51 页，production audit 0，最终浏�
 **依赖：** T8.1。
 **规模：** M。
 
+**T8.2c 验证：** `an-saas` Node 22.21.1/PostgreSQL 16.14 fresh 85 migrations、role policy
+`findings=[]`；受限 CI/CD source/contract 118/118，PostgreSQL 24/24；TypeScript、ESLint、Maintenance
+production build 与 Compose profile config 通过；官方 Playwright 1.62.1 Chromium 的 Maintenance
+四断点/axe/键盘/console/network 4/4。详细记录见
+`docs/releases/2026-08-27-t8-2c-restricted-cicd-maintenance.md`。
+
+**T8.2d1 验证：** `an-saas` Node 22.21.1/PostgreSQL 16.14 完成 workflow/Auditor/target/role/config
+49/49、PostgreSQL 15/15、全量串行 1567/1567、TypeScript、完整 ESLint、三端 production build 与 Compose profile config；fresh 87 migrations 后真实 role
+policy `findings=[]`，实际 restore rehearsal 校验 185 张表与 87 个 registry 项。详细记录见
+`docs/releases/2026-08-27-t8-2d1-workflow-auditor-recovery.md`。真实 provider fixture、演练、G7 和首次生产
+授权均未完成。
+
+**T8.2d2a/d2b 验证：** `an-saas` 全量串行 1575/1575、TypeScript、完整 ESLint、8 条架构边界、三端
+production build、fresh 88 migrations、role policy `findings=[]` 与 6435-file secret scan 通过；随后
+`preview-7c047b6-wt-20260827T013000Z` 完成可读 backup、preview 88-current-migration 升级、三域替换、
+Host/audience/health、10 轮稳定性及隔离 Chromium 零 console/page/network/5xx 验证。preview config audit 为
+`core_configuration=ready`，全部 Restricted CI/CD/Worker/provider/外部写入仍 disabled。详细记录见
+`docs/releases/2026-08-27-t8-2d2a-environment-isolation.md` 与
+`docs/releases/2026-08-27-t8-2d2b-preview-deployment.md`。
+
 ### Checkpoint P8
 
 - [ ] G7 通过。
@@ -737,9 +827,32 @@ Client 67、Operations 62、Maintenance 51 页，production audit 0，最终浏�
 
 ## 13. Phase 9：全平台发布收口
 
+### T9.0：隔离 preview 部署候选与发布路径演练
+
+**状态：** 已完成。2026-08-26 在 `an-saas` 的独立 preview project、数据库卷、网络和三组测试域名上
+部署 `preview-7c047b6-wt-20260826T142018Z`，未切换或重启正式服务。
+
+**描述：** 用当前工作树构建三端 Web 与 runtime 镜像，先备份 preview 数据库，再执行迁移、最小权限
+模板、角色策略、应用切换、HTTPS/Host/audience/浏览器/日志 smoke，并保留可直接重建的上一应用回滚点。
+
+**验收：** 三端容器健康；外部 live/ready 为 200；错误 Host 与跨 audience 路由为 404；Maintenance
+导出未登录为 401；CSP/HSTS/frame/nosniff 齐全；浏览器零 console/page error；迁移幂等复跑为
+0 applied；角色策略无 finding；Maintenance 只读脱敏视图而不能读原表；正式容器和数据库不变。
+**验证：** 1449/1449 Node 测试、TypeScript、ESLint、8 条架构边界、三端 production build、bundle
+budget、key custody、production-only audit、迁移/角色策略、真实 HTTPS 与隔离 Chromium。
+**依赖：** 用户已授权替换三个 preview 域名；不包含 Git push、生产部署、真实外部写入或能力开放。
+**涉及：** `docs/runbooks/riverton-three-app-ui.md`、`docs/DEVELOPMENT_HANDOFF.md` 和本任务状态。
+**规模：** M（发布演练）。
+
 ### T9.1：全量合同、迁移、质量和恢复
 
 **描述：** 更新 Current Spec/API/OpenAPI/Runbook/ADR，执行全量测试、迁移、恢复、回滚和安全扫描。
+
+**状态：** 已完成。Current System/Client/Maintenance Spec、功能说明、API Catalog、OpenAPI、能力矩阵、
+质量证据与 Runbook 已回填当前工作记录、充值、preview 和 77 迁移/154 表恢复事实；API inventory 270
+条 method route、OpenAPI 53 个 path、Markdown 本地链接和已知陈旧状态探针均通过。77 迁移 fresh、
+76→77 N-1、幂等复跑、双 migrator 并发、154 表 backup/restore 逐表行数与 registry 一致，以及
+preview 应用失败后的旧镜像回滚均已有目标环境证据。性能与更广泛运维演练属于后续 T9.2。
 
 **验收：** 本次启用能力的全部 Gate 通过，未启用能力明确关闭。
 **验证：** quality release pipeline、真实浏览器、恢复/回滚演练。
@@ -749,6 +862,11 @@ Client 67、Operations 62、Maintenance 51 页，production audit 0，最终浏�
 ### T9.2：运营演练与灰度发布
 
 **描述：** 完成客服、风控、财务、事故、密钥泄露、provider 故障和回滚演练，再逐 capability 灰度。
+
+**当前进度：** 技术质量子 Gate 已完成：r4 精确源码在禁网隔离 PostgreSQL、全部外部写入关闭下完成
+20/20 canonical Chromium/axe；三次 Lighthouse 均通过，代表运行 performance 0.98、accessibility 1、
+best practices 1、LCP 1785 ms、CLS 0、TBT 148 ms。客服、风控、财务、事故、provider 故障和密钥
+泄露的人员/流程演练仍属于 9.5，不能以自动化测试替代。
 
 **验收：** 发布清单明确 provider/product/capability；监控和停止条件可执行。
 **验证：** canary、首小时监控、复盘。
@@ -777,7 +895,6 @@ Client 67、Operations 62、Maintenance 51 页，production audit 0，最终浏�
 
 ## 16. 需要用户/需求方确认
 
-- P-01–P-12 产品参数。
-- Phase 1 是否作为首个开发阶段。
+- P-01–P-09、P-11、P-12 产品参数；P-10 已冻结。
 - 每阶段资源、负责人和验收日期。
 - 真实永续、提现/划转和自动部署是否分别获准立项；未明确授权时保持 `BLOCKED`。

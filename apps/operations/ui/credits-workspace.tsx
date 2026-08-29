@@ -14,6 +14,7 @@ import {
   StatusBadge,
 } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 type CreditAccountView = {
   customerId: string;
@@ -46,6 +47,7 @@ type PendingAction =
   | { kind: "decision"; adjustment: CreditAdjustmentView; decision: "approve" | "reject"; idempotencyKey: string };
 
 export function CreditsWorkspace({ canAdjust, canApprove }: { canAdjust: boolean; canApprove: boolean }) {
+  const { locale, t } = useAppLocale();
   const [ready, setReady] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [draftCustomerId, setDraftCustomerId] = useState("");
@@ -76,9 +78,9 @@ export function CreditsWorkspace({ canAdjust, canApprove }: { canAdjust: boolean
   }, [cursor, customerId, ready]);
   const resource = useApiData<CursorPage<CreditAccountView>>(
     url,
-    "Credits 账户读取失败",
+    t("Credits 账户读取失败"),
   );
-  const adjustments = useApiData<CursorPage<CreditAdjustmentView>>("/api/operations/credit-adjustments?limit=50", "Credits 调整队列读取失败");
+  const adjustments = useApiData<CursorPage<CreditAdjustmentView>>("/api/operations/credit-adjustments?limit=50", t("Credits 调整队列读取失败"));
   useEffect(() => {
     if (!ready) return;
     const params = new URLSearchParams();
@@ -103,11 +105,15 @@ export function CreditsWorkspace({ canAdjust, canApprove }: { canAdjust: boolean
         body: JSON.stringify(create ? { customerId: pending.customerId, amountDelta, evidenceReference, reason: note } : { decision: pending.decision, note }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(apiErrorMessage(payload, create ? "Credits 调整提交失败" : "Credits 调整复核失败"));
-      setMessage(create ? "Credits 调整已提交，尚未改变客户余额。" : pending.decision === "approve" ? "Credits 调整已复核并写入不可变分录。" : "Credits 调整已拒绝，客户余额未改变。");
+      if (!response.ok) {
+        const fallback = t(create ? "Credits 调整提交失败" : "Credits 调整复核失败");
+        const detail = apiErrorMessage(payload, fallback);
+        throw new Error(locale === "zh-CN" || !/[\u3400-\u9fff]/.test(detail) ? detail : fallback);
+      }
+      setMessage(create ? t("Credits 调整已提交，尚未改变客户余额。") : pending.decision === "approve" ? t("Credits 调整已复核并写入不可变分录。") : t("Credits 调整已拒绝，客户余额未改变。"));
       setPending(null); setConfirming(false); setAmountDelta(""); setEvidenceReference("");
       await Promise.all([resource.refresh(), adjustments.refresh()]);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Credits 操作失败"); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : t("Credits 操作失败")); }
     finally { setBusy(false); }
   }
 
@@ -115,15 +121,15 @@ export function CreditsWorkspace({ canAdjust, canApprove }: { canAdjust: boolean
     <>
       <PageHeading
         eyebrow="AI CREDITS"
-        title="客户 Credits"
-        description="账户列表为当前 RBAC 数据范围内的只读余额投影；人工调整采用申请人与复核人分离，批准后才写入不可变分录。"
+        title={t("客户 Credits")}
+        description={t("账户列表为当前 RBAC 数据范围内的只读余额投影；人工调整采用申请人与复核人分离，批准后才写入不可变分录。")}
         actions={
           <button
             className="rc-button"
             type="button"
             onClick={() => void resource.refresh()}
           >
-            刷新
+            {t("刷新")}
           </button>
         }
       />
@@ -132,7 +138,7 @@ export function CreditsWorkspace({ canAdjust, canApprove }: { canAdjust: boolean
         <header>
           <div>
             <small>SCOPED READ ONLY</small>
-            <h2>Credits 账户</h2>
+            <h2>{t("Credits 账户")}</h2>
           </div>
         </header>
         <form
@@ -144,7 +150,7 @@ export function CreditsWorkspace({ canAdjust, canApprove }: { canAdjust: boolean
           }}
         >
           <label>
-            <span>客户 ID（精确）</span>
+            <span>{t("客户 ID（精确）")}</span>
             <input
               maxLength={100}
               value={draftCustomerId}
@@ -152,29 +158,29 @@ export function CreditsWorkspace({ canAdjust, canApprove }: { canAdjust: boolean
             />
           </label>
           <button className="rc-primary" type="submit">
-            查询
+            {t("查询")}
           </button>
         </form>
         {!ready || (resource.loading && !resource.data) ? (
-          <LoadingState label="正在读取 Credits 账户…" />
+          <LoadingState label={t("正在读取 Credits 账户…")} />
         ) : resource.error && !resource.data ? (
           <ErrorState message={resource.error} retry={resource.refresh} />
         ) : !resource.data?.data.length ? (
           <EmptyState
-            title="没有 Credits 账户"
-            description="当前查询或数据范围内没有客户账户。"
+            title={t("没有 Credits 账户")}
+            description={t("当前查询或数据范围内没有客户账户。")}
           />
         ) : (
           <div className="rc-table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>客户</th>
-                  <th>可用</th>
-                  <th>冻结</th>
-                  <th>账户状态</th>
-                  <th>更新时间</th>
-                  {canAdjust ? <th>调整</th> : null}
+                  <th>{t("客户")}</th>
+                  <th>{t("可用")}</th>
+                  <th>{t("冻结")}</th>
+                  <th>{t("账户状态")}</th>
+                  <th>{t("更新时间")}</th>
+                  {canAdjust ? <th>{t("调整")}</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -182,15 +188,15 @@ export function CreditsWorkspace({ canAdjust, canApprove }: { canAdjust: boolean
                   <tr key={account.customerId}>
                     <td>
                       <code>{account.customerId}</code>
-                      <small>版本 {account.version}</small>
+                      <small>{t("版本")} {account.version}</small>
                     </td>
-                    <td>{formatDecimal(account.available, 0)}</td>
-                    <td>{formatDecimal(account.reserved, 0)}</td>
+                    <td>{formatDecimal(account.available, 0, locale)}</td>
+                    <td>{formatDecimal(account.reserved, 0, locale)}</td>
                     <td>
                       <StatusBadge value={account.accountStatus} />
                     </td>
-                    <td>{formatDateTime(account.updatedAt)}</td>
-                    {canAdjust ? <td><button className="rc-button" type="button" onClick={() => { setAmountDelta(""); setEvidenceReference(""); setConfirming(false); setPending({ kind: "create", customerId: account.customerId, idempotencyKey: crypto.randomUUID() }); }}>发起调整</button></td> : null}
+                    <td>{formatDateTime(account.updatedAt, locale)}</td>
+                    {canAdjust ? <td><button className="rc-button" type="button" onClick={() => { setAmountDelta(""); setEvidenceReference(""); setConfirming(false); setPending({ kind: "create", customerId: account.customerId, idempotencyKey: crypto.randomUUID() }); }}>{t("发起调整")}</button></td> : null}
                   </tr>
                 ))}
               </tbody>
@@ -206,17 +212,17 @@ export function CreditsWorkspace({ canAdjust, canApprove }: { canAdjust: boolean
                 setCursor(resource.data?.page.nextCursor ?? "")
               }
             >
-              下一页
+              {t("下一页")}
             </button>
           </div>
         )}
       </section>
       <section className="rc-panel">
-        <header><div><small>MAKER / CHECKER</small><h2>Credits 调整队列</h2></div><button className="rc-button" type="button" onClick={() => void adjustments.refresh()}>刷新队列</button></header>
-        {adjustments.loading && !adjustments.data ? <LoadingState label="正在读取调整队列…" /> : adjustments.error && !adjustments.data ? <ErrorState message={adjustments.error} retry={adjustments.refresh} /> : !adjustments.data?.data.length ? <EmptyState title="没有 Credits 调整" description="当前数据范围内没有调整申请。" /> : <div className="rc-table-wrap"><table><thead><tr><th>申请</th><th>客户</th><th>调整数</th><th>依据</th><th>状态</th><th>复核</th></tr></thead><tbody>{adjustments.data.data.map((adjustment) => <tr key={adjustment.id}><td><b>{adjustment.requestNo}</b><small>{adjustment.requestedBy.email ?? adjustment.requestedBy.userId}</small><small>{formatDateTime(adjustment.requestedAt)}</small></td><td><code>{adjustment.customerId}</code><small>{adjustment.customerEmail ?? "—"}</small></td><td>{formatDecimal(adjustment.amountDelta, 0)}</td><td><small>{adjustment.reason}</small><small>{adjustment.evidenceReference || "未附外部引用"}</small></td><td><StatusBadge value={adjustment.status} /></td><td>{canApprove && adjustment.canReview && adjustment.status === "pending" ? <div className="rc-action-row"><button className="rc-button" type="button" onClick={() => { setPending({ kind: "decision", adjustment, decision: "approve", idempotencyKey: crypto.randomUUID() }); setConfirming(true); }}>批准</button><button className="rc-button rc-danger-button" type="button" onClick={() => { setPending({ kind: "decision", adjustment, decision: "reject", idempotencyKey: crypto.randomUUID() }); setConfirming(true); }}>拒绝</button></div> : adjustment.status === "pending" && !adjustment.canReview ? <StatusBadge value="禁止自审" /> : <small>{adjustment.decisionNote ?? "—"}</small>}</td></tr>)}</tbody></table></div>}
+        <header><div><small>MAKER / CHECKER</small><h2>{t("Credits 调整队列")}</h2></div><button className="rc-button" type="button" onClick={() => void adjustments.refresh()}>{t("刷新队列")}</button></header>
+        {adjustments.loading && !adjustments.data ? <LoadingState label={t("正在读取调整队列…")} /> : adjustments.error && !adjustments.data ? <ErrorState message={adjustments.error} retry={adjustments.refresh} /> : !adjustments.data?.data.length ? <EmptyState title={t("没有 Credits 调整")} description={t("当前数据范围内没有调整申请。")} /> : <div className="rc-table-wrap"><table><thead><tr><th>{t("申请")}</th><th>{t("客户")}</th><th>{t("调整数")}</th><th>{t("依据")}</th><th>{t("状态")}</th><th>{t("复核")}</th></tr></thead><tbody>{adjustments.data.data.map((adjustment) => <tr key={adjustment.id}><td><b>{adjustment.requestNo}</b><small>{adjustment.requestedBy.email ?? adjustment.requestedBy.userId}</small><small>{formatDateTime(adjustment.requestedAt, locale)}</small></td><td><code>{adjustment.customerId}</code><small>{adjustment.customerEmail ?? "—"}</small></td><td>{formatDecimal(adjustment.amountDelta, 0, locale)}</td><td><small>{adjustment.reason}</small><small>{adjustment.evidenceReference || t("未附外部引用")}</small></td><td><StatusBadge value={adjustment.status} /></td><td>{canApprove && adjustment.canReview && adjustment.status === "pending" ? <div className="rc-action-row"><button className="rc-button" type="button" onClick={() => { setPending({ kind: "decision", adjustment, decision: "approve", idempotencyKey: crypto.randomUUID() }); setConfirming(true); }}>{t("批准")}</button><button className="rc-button rc-danger-button" type="button" onClick={() => { setPending({ kind: "decision", adjustment, decision: "reject", idempotencyKey: crypto.randomUUID() }); setConfirming(true); }}>{t("拒绝")}</button></div> : adjustment.status === "pending" && !adjustment.canReview ? <StatusBadge value={t("禁止自审")} /> : <small>{adjustment.decisionNote ?? "—"}</small>}</td></tr>)}</tbody></table></div>}
       </section>
-      {pending?.kind === "create" ? <section className="rc-panel rc-detail-panel"><header><div><small>{pending.customerId}</small><h2>填写 Credits 调整数</h2></div><button className="rc-button" type="button" onClick={() => setPending(null)}>取消</button></header><div className="rc-form rc-form-grid"><label>调整数（正数发放，负数扣减）<input inputMode="numeric" value={amountDelta} onChange={(event) => setAmountDelta(event.target.value)} placeholder="例如 1000 或 -100" /></label><label>外部凭证/工单引用（可选）<input maxLength={500} value={evidenceReference} onChange={(event) => setEvidenceReference(event.target.value)} /></label><p className="rc-wide-field">此步骤只提交申请；不同复核人批准后才会改变余额。负向调整不能使余额为负。</p><div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !/^-?[1-9]\d*$/.test(amountDelta)} onClick={() => setConfirming(true)}>继续填写原因并确认</button></div></div></section> : null}
-      <ConfirmActionDialog open={confirming && pending !== null} title={pending?.kind === "create" ? "提交 Credits 调整申请" : `${pending?.decision === "approve" ? "批准" : "拒绝"} Credits 调整`} description={pending?.kind === "create" ? "请填写业务原因。提交后余额不会立即改变，必须由另一名有权限的复核人处理。" : "复核结果会进入不可变 Credits 分录或以拒绝状态留档。"} confirmLabel="确认提交" busy={busy} onCancel={() => { setConfirming(false); if (pending?.kind === "decision") setPending(null); }} onConfirm={(reason) => void submitPending(reason)} />
+      {pending?.kind === "create" ? <section className="rc-panel rc-detail-panel"><header><div><small>{pending.customerId}</small><h2>{t("填写 Credits 调整数")}</h2></div><button className="rc-button" type="button" onClick={() => setPending(null)}>{t("取消")}</button></header><div className="rc-form rc-form-grid"><label>{t("调整数（正数发放，负数扣减）")}<input inputMode="numeric" value={amountDelta} onChange={(event) => setAmountDelta(event.target.value)} placeholder={t("例如 1000 或 -100")} /></label><label>{t("外部凭证/工单引用（可选）")}<input maxLength={500} value={evidenceReference} onChange={(event) => setEvidenceReference(event.target.value)} /></label><p className="rc-wide-field">{t("此步骤只提交申请；不同复核人批准后才会改变余额。负向调整不能使余额为负。")}</p><div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !/^-?[1-9]\d*$/.test(amountDelta)} onClick={() => setConfirming(true)}>{t("继续填写原因并确认")}</button></div></div></section> : null}
+      <ConfirmActionDialog open={confirming && pending !== null} title={pending?.kind === "create" ? t("提交 Credits 调整申请") : `${pending?.decision === "approve" ? t("批准") : t("拒绝")} Credits ${t("调整")}`} description={pending?.kind === "create" ? t("请填写业务原因。提交后余额不会立即改变，必须由另一名有权限的复核人处理。") : t("复核结果会进入不可变 Credits 分录或以拒绝状态留档。")} confirmLabel={t("确认提交")} busy={busy} onCancel={() => { setConfirming(false); if (pending?.kind === "decision") setPending(null); }} onConfirm={(reason) => void submitPending(reason)} />
     </>
   );
 }

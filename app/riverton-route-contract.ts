@@ -1,8 +1,8 @@
 import type { AppAudience } from "@/lib/riverton-apps";
 
-const CLIENT_ROUTES = new Set(["login", "dashboard", "legal", "account", "membership", "credits", "performance-statements", "paper", "trading-hall", "work-records", "market", "assistant", "studio", "backtests", "wallet", "notifications", "support"]);
-const OPERATIONS_ROUTES = new Set(["login", "account", "accounts", "customers", "team", "data-center", "membership-orders", "performance-statements", "credits", "deposits", "ledger", "finance", "approvals", "access", "kill-switches", "live-routing", "invitations"]);
-const MAINTENANCE_ROUTES = new Set(["login", "account", "models", "integrations", "health", "readiness", "ai-usage", "safety", "settings", "configurations", "releases", "access", "audit"]);
+const CLIENT_ROUTES = new Set(["login", "dashboard", "trading", "strategies", "account-center", "settings", "legal", "account", "membership", "credits", "performance-statements", "paper", "trading-hall", "work-records", "market", "assistant", "studio", "backtests", "wallet", "notifications", "support"]);
+const OPERATIONS_ROUTES = new Set(["login", "settings", "account", "accounts", "customers", "team", "data-center", "trading-operations", "commercial", "governance", "membership-orders", "performance-statements", "credits", "deposits", "ledger", "finance", "approvals", "access", "kill-switches", "live-routing", "invitations"]);
+const MAINTENANCE_ROUTES = new Set(["login", "account", "ai-strategy", "models", "integrations", "health", "readiness", "ai-usage", "work-records", "safety", "settings", "configurations", "releases", "access", "audit"]);
 
 export function isRivertonAppRoute(audience: AppAudience, segments: string[]) {
   const root = segments[0];
@@ -15,6 +15,7 @@ export function isRivertonAppRoute(audience: AppAudience, segments: string[]) {
       return segments.length === 1 || (segments.length === 2 && segments[1] === "consent");
     }
     if (root === "account") return segments.length === 2 && segments[1] === "security";
+    if (["trading", "strategies", "account-center", "settings"].includes(root)) return segments.length === 1;
     if (root === "wallet") return segments.length === 1 || (segments.length === 2 && segments[1] === "deposits");
     if (root === "membership") return segments.length === 1 || (segments.length === 2 && segments[1] === "orders");
     if (root === "performance-statements") return segments.length <= 2;
@@ -27,6 +28,7 @@ export function isRivertonAppRoute(audience: AppAudience, segments: string[]) {
 
   if (audience === "operations" && OPERATIONS_ROUTES.has(root)) {
     if (root === "account") return segments.length === 2 && segments[1] === "security";
+    if (root === "settings") return segments.length === 1;
     if (["deposits", "membership-orders", "performance-statements"].includes(root)) return segments.length <= 2;
     if (root === "access") return segments.length === 1 || (segments.length === 2 && segments[1] === "audit");
     return segments.length === 1;

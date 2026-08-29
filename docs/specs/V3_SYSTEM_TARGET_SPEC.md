@@ -139,9 +139,24 @@ schema、服务端确定性测试和 Client 最小权限网关接管策略研究
 身份、部署元数据和时间提供，环境 Gate 仍是上限，配置只能进一步收窄。其他配置消费者仍未实现，
 因此本节整体仍为 `PARTIAL/TARGET`，不能把其他控制面 current 当作业务配置已经接管运行时。
 
+### 10.1 应用偏好与首帧恢复
+
+- `UserAppPreference` 以 `(userId, appAudience)` 唯一，字段固定为 `locale`、`themeMode = system | light | dark`、`themePalette = classic | harbor | forest`。
+- `GET/PATCH /api/account/preferences` 从会话推导 audience，按应用语言 allowlist 校验并支持部分幂等 upsert；浏览器不能借请求字段修改其他 audience 偏好。
+- Client 七语默认英语；Operations/Maintenance 中英默认简体中文。Client 的匿名语言顺序包含浏览器支持语言，内部端不根据浏览器语言自动切换。
+- 登录、匿名、退出和换设备均通过绘制前脚本恢复当前 audience 的语言、模式和调色板，避免白闪或跨端串值。
+
+实施快照（2026-08-29）：领域模型、`0089_user_app_preferences.sql`、会话绑定数据库 gateway、
+三端设置页、六主题语义令牌、首帧恢复、Client 七语 allowlist/覆盖和内部端中英上下文已实现；迁移链、
+三端构建及六主题浏览器证据已通过 M1 测试站验收。应用偏好这一层为 `CURRENT`；Phase 3 的品牌/域名、
+Prompt/技能、价格/Credits 等其他配置消费者仍为 `PARTIAL/TARGET`，不得据此宣称 G8 或完整 PRD 已完成。
+
 ## 11. Maintenance CI/CD 控制面
 
 当前不可变发布证据表继续作为真源。V3 可增加预定义 workflow trigger：
+
+专项实现边界由 ADR-0024 与 `RESTRICTED_CICD_DELEGATION_SPEC.md` 定义；设计完成不改变当前只登记证据
+事实，G7 前 Worker、API/UI 和 production trigger 必须保持 disabled。
 
 - Maintenance 只传版本 ID、环境、动作、原因和幂等键。
 - 适配器换取短期凭证，不保存长期 CI token。

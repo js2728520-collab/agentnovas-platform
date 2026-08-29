@@ -69,6 +69,17 @@ test("Worker 在下发之前检查就绪状态", async () => {
   assert.ok(gate < dispatch, "就绪检查必须排在下发之前");
 });
 
+test("Operations 开通与批准接口复用命名闸门，关停接口保持可用", async () => {
+  const [collectionRoute, itemRoute] = await Promise.all([
+    readFile(new URL("../app/api/operations/live-routing/route.operations.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/operations/live-routing/[id]/route.operations.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(collectionRoute, /isLiveExecutionReady\(\)/, "申请开通必须检查命名闸门");
+  assert.match(itemRoute, /isLiveExecutionReady\(\)/, "批准开通必须检查命名闸门");
+  const deleteHandler = itemRoute.slice(itemRoute.indexOf("export async function DELETE"));
+  assert.doesNotMatch(deleteHandler, /isLiveExecutionReady\(\)/, "关停是降风险动作，不得被就绪闸门阻挡");
+});
+
 test("清单清空后 isLiveExecutionReady 会自然变真", () => {
   // 它不是一个可以直接翻的开关：清单里每条都必须先有实现和测试。
   assert.equal(isLiveExecutionReady(), LIVE_EXECUTION_BLOCKERS.length === 0);

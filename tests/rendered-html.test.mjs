@@ -23,10 +23,11 @@ test("the server entry dispatches the Riverton shell without relying on generate
   assert.match(shell, /Riverton Capital/);
 });
 
-test("keeps the Riverton Capital shell and core modules present", async () => {
-  const [css, portal, layout, metadata, packageJson] = await Promise.all([
+test("keeps the Riverton Capital shell and gated core modules present", async () => {
+  const [css, portal, strategyStudio, layout, metadata, packageJson] = await Promise.all([
     read("apps/client/ui/client-public-landing.module.css"),
     read("apps/client/ui/client-portal.tsx"),
+    read("apps/client/ui/strategy-studio.tsx"),
     read("app/layout.tsx"),
     read("lib/riverton-metadata.ts"),
     read("package.json"),
@@ -39,7 +40,10 @@ test("keeps the Riverton Capital shell and core modules present", async () => {
   assert.match(portal, /TradingExperience/);
   assert.match(portal, /MembershipExperience/);
   assert.match(portal, /DecisionHall/);
-  assert.match(portal, /StrategyStudio/);
+  // 策略实现仍保留，但在研究/回测 API Gate 关闭时不得由客户门户加载。
+  assert.match(strategyStudio, /export default function StrategyStudio/);
+  assert.match(portal, /StrategyCenterUnavailable/);
+  assert.doesNotMatch(portal, /import\("\.\/strategy-studio"\)/);
   assert.match(portal, /AiAssistantChat/);
   // 这些是 P4 删掉的遗留界面，不得重新出现在门户里。
   assert.doesNotMatch(portal, /ConnectLive|CommunityStrategyCenter|StrategyDetail/);

@@ -184,8 +184,8 @@ export function ClientPublicLanding() {
       page === "market"
         ? "/market"
         : page === "trading"
-          ? "/paper"
-          : "/trading-hall";
+          ? "/trading?tab=portfolios"
+          : "/trading?tab=hall";
     window.location.assign(
       page === "home"
         ? "/"

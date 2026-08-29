@@ -24,8 +24,13 @@ test.before(async () => {
     INSERT INTO permission_definitions (key, application_id, label, sensitive, status)
     VALUES
       ('maint.ai_usage.view', 'maintenance', '查看 AI 用量与可靠性', true, 'active'),
+      ('maint.work_records.export', 'maintenance', '导出脱敏工作记录', true, 'active'),
       ('maint.releases.view', 'maintenance', '查看发布版本', false, 'active'),
       ('maint.releases.manage', 'maintenance', '登记发布版本', true, 'active'),
+      ('maint.releases.workflow.view', 'maintenance', '查看受限发布工作流', false, 'active'),
+      ('maint.releases.workflow.stage', 'maintenance', '请求与复核 staging 发布', true, 'active'),
+      ('maint.releases.workflow.production.request', 'maintenance', '请求 production 发布', true, 'active'),
+      ('maint.releases.workflow.activation.request', 'maintenance', '请求发布 activation', true, 'active'),
       ('maint.configuration_versions.view', 'maintenance', '查看版本化配置', false, 'active'),
       ('maint.configuration_versions.manage', 'maintenance', '管理配置草稿与测试', true, 'active')
     ON CONFLICT (key) DO NOTHING
@@ -74,7 +79,7 @@ test("an invited internal member, explicit assignment, audience token, and encry
   assert.equal(delivery.secret_expires_at.toISOString(), "2026-08-22T00:00:00.000Z");
 });
 
-test("a technical member receives only a Maintenance role, activation audience, and AI usage permission", async () => {
+test("a technical member receives only a Maintenance role, activation audience, and technical permissions", async () => {
   await provisionInternalMember(pool, {
     actorUserId: "manager",
     userId: "technician",
@@ -100,6 +105,7 @@ test("a technical member receives only a Maintenance role, activation audience, 
   assert.equal(assignment.application_id, "maintenance");
   assert.equal(assignment.code, "maint_technical");
   assert.ok(assignment.permissions.includes("maint.ai_usage.view"));
+  assert.ok(assignment.permissions.includes("maint.work_records.export"));
   assert.equal(assignment.permissions.some((permission) => permission.startsWith("ops.")), false);
 
   const token = (await pool.query("SELECT token_audience FROM auth_tokens WHERE user_id = 'technician'")).rows[0];

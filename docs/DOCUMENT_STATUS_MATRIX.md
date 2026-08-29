@@ -1,6 +1,6 @@
 # AgentNovas 文档状态与同步矩阵
 
-更新日期：2026-08-24
+更新日期：2026-08-28
 目标分支：`codex/platform-v3-doc-sync`
 
 ## 1. 状态说明
@@ -33,22 +33,29 @@
 | `specs/MARKET_SOURCE_BINDING_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.4a provider-independent 选择/解析、不可变绑定与双 fingerprint 已实现；T2.4b 持久化、UI、Runtime 和历史迁移等待 P-01/provider registry |
 | `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T4.3a 普通对话取消、provider abort、原请求重放与 Credits 单终态已实现；固定 Credits 价格等待 P-08 |
 | `specs/MAINTENANCE_AI_USAGE_ANALYTICS_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T3.9a UTC 请求创建 cohort、可信成功 Token、settled Credits、已记录非取消失败率和脱敏多维分析已通过完整 Gate；T3.9b 固定价格仍等待 P-08 |
+| `specs/STRATEGY_WORK_RECORDS_SPEC.md` | `CURRENT_BASELINE/TARGET_TRUTH` | T4.13 Client 列表/详情、六个月保留和 Maintenance security-barrier 脱敏导出已完成；真实订单继续关闭 |
+| `specs/RESTRICTED_CICD_DELEGATION_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT/RUNTIME_BLOCKED` | T8.2a–T8.2d2b 已交付默认关闭的 Ingress、target、Maintenance control、workflow、独立 Auditor、环境隔离和测试域 Web-only preview；真实 provider fixture/G7/首次生产授权未完成，Current trigger 仍关闭 |
 | `quality/FULL_PLATFORM_V3_GATES.md` | `TARGET_TRUTH` | 分能力验收和发布门禁 |
 | `roadmap/FULL_PLATFORM_V3_ROADMAP.md` | `TARGET_TRUTH` | 分阶段升级顺序 |
 | `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md` | `TARGET_TRUTH` | 当前基础与 V3 差距 |
 | `adr/0021-full-platform-v3-gated-upgrade.md` | `TARGET_TRUTH` | 目标范围与当前基线并存的决策 |
 | `adr/0022-client-email-and-five-device-security.md` | `CURRENT_BASELINE/PROVISIONAL` | Client 邮箱与设备安全合同；两项产品参数待确认 |
 | `adr/0023-deferred-mfa-enforcement-rollout.md` | `CURRENT_BASELINE/TARGET_TRUTH` | MFA 能力保留、当前关闭与生产启用门禁 |
+| `adr/0024-restricted-cicd-delegation.md` | `TARGET_TRUTH/ACCEPTED` | Maintenance 受限 CI/CD 委托、精确 run/OIDC、target fencing/receipt 与 G7 前失败关闭；仅允许增量切片实现 |
 
 任务执行真源位于仓库根 `tasks/plan.md` 与 `tasks/todo.md`。
+
+2026-08-28 已冻结的跨文档实施决定：三端各采用不超过五个主入口的业务中心；Client 使用七种现有语言并默认英语，Operations/Maintenance 仅使用简体中文和英语并默认简体中文；P-10 采用 Riverton 经典、海湾、松林三组调色板的明暗配对。P-01–P-09、P-11、P-12 继续按依赖范围失败关闭，不阻断不依赖这些参数的 M1 极简安全版。
+
+2026-08-29 M1 三端极简安全版切片 0–5 已通过测试站 Gate；对应五中心、数据看板、设置、偏好、六主题、语言范围和现有能力归位为当前实现事实。完整 PRD、G0、G1–G8 与 production 发布仍按各自未完成项保持 `TARGET/BLOCKED`，不得由 M1 状态覆盖。
 
 ## 3. 当前实现基线
 
 | 文档 | 状态 | V3 使用方式 |
 | --- | --- | --- |
 | `product/FUNCTIONAL_DESCRIPTION.md` | `CURRENT_BASELINE` | 保留当前 Beta/Paper 完整功能事实 |
-| `specs/SYSTEM_SPEC.md` | `CURRENT_BASELINE` | 当前运行架构与硬关闭证据 |
-| `specs/CLIENT_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Client 合同 |
+| `specs/SYSTEM_SPEC.md` | `CURRENT_BASELINE` | 当前运行架构、77 迁移/恢复证据与硬关闭合同 |
+| `specs/CLIENT_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Client 与工作记录合同 |
 | `specs/OPERATIONS_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Operations 合同，组织 UI/邀请将迁移 |
 | `specs/MAINTENANCE_APP_SPEC.md` | `CURRENT_BASELINE` | 当前 Maintenance、T3.9a AI 用量安全聚合与只登记发布证据合同 |
 | `specs/RELEASE_VERSION_MANAGEMENT_SPEC.md` | `CURRENT_BASELINE` | 当前不可变发布证据；V3 后续增加受限 trigger |
@@ -61,6 +68,7 @@
 | `runbooks/commercial-beta-operations.md` | `CURRENT_BASELINE` | 当前 Beta Operations 操作 |
 | `runbooks/commercial-beta-release-and-rollback.md` | `CURRENT_BASELINE` | 当前部署和回滚 |
 | `runbooks/production-accounts-and-configuration.md` | `CURRENT_BASELINE` | 当前账号与外部配置 |
+| `runbooks/phase9-operational-drills.md` | `CURRENT_BASELINE` | T9.5 六场人员/流程演练、SLA、停止条件与证据模板；自动测试不能替代签字记录 |
 | `runbooks/riverton-three-app-ui.md` | `CURRENT_BASELINE` | 当前三端 UI 运行方式 |
 | `runbooks/self-hosted-strategy-research.md` | `CURRENT_BASELINE` | 当前自托管 Research/Runtime |
 | `runbooks/udun-deposit-gateway.md` | `CURRENT_BASELINE` | 当前 deposit-only 能力 |
@@ -93,6 +101,7 @@
 | 0021 | V3 目标范围和分阶段 Gate 的当前决策 |
 | 0022 | Client 邮箱与五设备安全当前合同；第六设备和城市定位仍为 provisional |
 | 0023 | MFA 当前默认不强制、能力保留并在正式生产 Gate 后统一开启 |
+| 0024 | 受限 CI/CD 安全设计已通过 T8.0；G7 前只登记证据 |
 
 ADR 原文不因目标升级批量改写；新决定使用新 ADR supersede。
 

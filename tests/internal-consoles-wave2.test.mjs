@@ -5,12 +5,12 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("Operations navigation exposes only contracted commercial Beta workspaces", async () => {
-  const app = await Promise.all([read("apps/operations/ui/operations-app.tsx"), read("apps/operations/ui/navigation.ts")]).then((parts) => parts.join("\n"));
-  assert.match(app, /href: "\/membership-orders"[\s\S]*ops\.membership_orders\.view/);
-  assert.match(app, /href: "\/performance-statements"[\s\S]*ops\.performance_fees\.view/);
+  const app = await Promise.all([read("apps/operations/ui/operations-app.tsx"), read("apps/operations/ui/operations-information-architecture.ts")]).then((parts) => parts.join("\n"));
+  assert.match(app, /href: "\/commercial\?tab=membership"[\s\S]*ops\.membership_orders\.view/);
+  assert.match(app, /href: "\/commercial\?tab=statements"[\s\S]*ops\.performance_fees\.view/);
   assert.match(app, /MembershipOrdersWorkspace/);
   assert.match(app, /PerformanceStatementsWorkspace/);
-  assert.match(app, /href: "\/credits"[\s\S]*ops\.credits\.view/);
+  assert.match(app, /href: "\/commercial\?tab=credits"[\s\S]*ops\.credits\.view/);
   assert.match(app, /CreditsWorkspace/);
   assert.doesNotMatch(app, /策略市场|自动结算|经营分析/);
 });

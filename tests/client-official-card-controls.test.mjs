@@ -10,9 +10,9 @@ test("Client official-card controls use paper-only routes and distinguish access
   assert.match(experience, /\/api\/platform-strategy-subscriptions\/\$\{portfolio\.runtime\.subscriptionId\}/);
   assert.match(experience, /riskConsent:\s*true/);
   assert.match(experience, /mode:\s*"paper"/);
-  assert.match(experience, /不代表 Worker 健康/);
-  assert.match(experience, /允许新开仓/);
-  assert.doesNotMatch(experience, /ACTIVE:\s*"运行中"/);
+  assert.match(experience, /策略已启用不代表已经产生模拟成交/);
+  assert.match(experience, /ACTIVE:\s*"已启用"/);
+  assert.doesNotMatch(experience, /Worker 健康|ACTIVE:\s*"运行中"/);
   assert.doesNotMatch(experience, /exchangeAccount|\/api\/exchange-accounts|客户交易所/);
 });
 

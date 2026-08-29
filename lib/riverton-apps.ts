@@ -66,6 +66,20 @@ function normalizeHost(host: string | undefined) {
   return (host ?? "").split(",")[0]?.trim().toLowerCase().replace(/:\d+$/, "") ?? "";
 }
 
+function configuredAppHost(
+  app: RivertonAppDefinition,
+  environment: Record<string, string | undefined>,
+) {
+  const configured = environment.RIVERTON_APP_HOST?.trim().toLowerCase();
+  if (!configured) return app.domain;
+  if (configured.length > 253 || !configured.includes(".") || !/[a-z]/.test(configured)) return null;
+  const labels = configured.split(".");
+  if (labels.some((label) => label.length < 1
+    || label.length > 63
+    || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return null;
+  return configured;
+}
+
 function configuredLocalPort(
   audience: AppAudience,
   environment: Record<string, string | undefined>,
@@ -86,9 +100,10 @@ export function resolveAppAudienceStrict(input: {
   const host = normalizeHost(input.host);
   if (isAppAudience(configured)) {
     const configuredApp = appById.get(configured)!;
+    const expectedHost = configuredAppHost(configuredApp, environment);
     const localPort = configuredLocalPort(configured, environment);
-    if (localPort === null) return null;
-    if (host === configuredApp.domain) return configured;
+    if (expectedHost === null || localPort === null) return null;
+    if (host === expectedHost) return configured;
     if (host === "localhost" || host === "127.0.0.1") {
       const port = (input.host ?? "").match(/:(\d+)$/)?.[1];
       return port === String(localPort) ? configured : null;

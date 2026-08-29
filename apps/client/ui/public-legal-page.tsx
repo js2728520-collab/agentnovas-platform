@@ -2,6 +2,7 @@
 
 import { useApiData } from "@/packages/ui/src/use-api-data";
 import { EmptyState, ErrorState, LoadingState } from "@/packages/ui/src/page-state";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 import { parseLegalMarkdown } from "./legal-markdown";
 import styles from "./public-legal-page.module.css";
@@ -55,12 +56,13 @@ function LegalMarkdown({ source }: { source: string }) {
 }
 
 export function PublicLegalPage() {
+  const { t } = useAppLocale();
   const resource = useApiData<{ documents: PublicLegalDocument[] }>(
     "/api/platform/legal",
-    "条款读取失败",
+    t("条款读取失败"),
   );
 
-  if (resource.loading && !resource.data) return <LoadingState label="正在读取条款…" />;
+  if (resource.loading && !resource.data) return <LoadingState label={t("正在读取条款…")} />;
   if (resource.error && !resource.data) return <ErrorState message={resource.error} retry={resource.refresh} />;
 
   const documents = resource.data?.documents ?? [];
@@ -71,31 +73,31 @@ export function PublicLegalPage() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <h1>条款与披露</h1>
-        <p>以下为当前生效版本。变更会产生新版本，已注册客户需要重新确认后才能继续使用。</p>
+        <h1>{t("条款与披露")}</h1>
+        <p>{t("以下为当前生效版本。变更会产生新版本，已注册客户需要重新确认后才能继续使用。")}</p>
       </header>
 
       {ordered.length === 0 ? (
         // 一条都没发布时说实话，而不是显示一个空壳页面。
         <EmptyState
-          title="条款尚未发布"
-          description="平台正在准备正式条款文本。在此之前请勿注册或充值——没有可供你确认的条款，就没有可依据的服务约定。"
+          title={t("条款尚未发布")}
+          description={t("平台正在准备正式条款文本。在此之前请勿注册或充值——没有可供你确认的条款，就没有可依据的服务约定。")}
         />
       ) : (
         <div className={styles.documents}>
           {ordered.map((document) => (
             <section key={document.documentType} id={document.documentType} className={styles.document}>
               <header className={styles.documentHead}>
-                <h2>{DOCUMENT_LABELS[document.documentType] ?? document.documentType}</h2>
+                <h2>{t(DOCUMENT_LABELS[document.documentType] ?? document.documentType)}</h2>
                 <span className={styles.version}>
-                  第 {document.version} 版
+                  {t("第")} {document.version} {t("版")}
                   {/* 哈希公开：客户可以核对自己当初同意的版本与现在展示的是否同一份。 */}
                   <code>{document.contentSha256.slice(0, 12)}</code>
                 </span>
               </header>
               {document.contentMarkdown
                 ? <LegalMarkdown source={document.contentMarkdown} />
-                : <p className={styles.missing}>该文档已登记版本但尚未填写正文。</p>}
+                : <p className={styles.missing}>{t("该文档已登记版本但尚未填写正文。")}</p>}
             </section>
           ))}
         </div>

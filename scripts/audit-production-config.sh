@@ -3,6 +3,7 @@ set +x
 set -euo pipefail
 
 secret_dir=${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}
+repository_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 findings=0
 
 fail() {
@@ -71,7 +72,7 @@ same_value() {
   fi
 }
 
-for name in client operations maintenance notification configuration-activation runtime demo migrator execution; do
+for name in client operations maintenance notification configuration-activation release-control release-identity-verifier release-orchestrator-staging release-orchestrator-production release-auditor-staging release-auditor-production release-webhook runtime demo migrator execution; do
   file="$secret_dir/$name.env"
   if [ ! -f "$file" ]; then
     fail "$name.env:missing"
@@ -89,6 +90,13 @@ operations="$secret_dir/operations.env"
 maintenance="$secret_dir/maintenance.env"
 notification="$secret_dir/notification.env"
 configuration_activation="$secret_dir/configuration-activation.env"
+release_orchestrator_staging="$secret_dir/release-orchestrator-staging.env"
+release_orchestrator_production="$secret_dir/release-orchestrator-production.env"
+release_auditor_staging="$secret_dir/release-auditor-staging.env"
+release_auditor_production="$secret_dir/release-auditor-production.env"
+release_control="$secret_dir/release-control.env"
+release_identity_verifier="$secret_dir/release-identity-verifier.env"
+release_webhook="$secret_dir/release-webhook.env"
 runtime="$secret_dir/runtime.env"
 demo="$secret_dir/demo.env"
 migrator="$secret_dir/migrator.env"
@@ -100,9 +108,43 @@ if [ "$findings" -eq 0 ]; then
   for key in DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY NOTIFICATION_TOKEN_ENCRYPTION_KEY; do
     required_value "$operations" "$key" || true
   done
-  for key in DATABASE_URL PAYMENT_WEBHOOK_DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY INTEGRATION_CREDENTIAL_ENCRYPTION_KEY LLM_PROFILE_ENCRYPTION_KEY; do
+  for key in DATABASE_URL RELEASE_IDENTITY_VERIFIER_URL RELEASE_IDENTITY_VERIFIER_SHARED_SECRET RELEASE_CONTROL_GATEWAY_URL RELEASE_CONTROL_GATEWAY_SHARED_SECRET PAYMENT_WEBHOOK_DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY INTEGRATION_CREDENTIAL_ENCRYPTION_KEY LLM_PROFILE_ENCRYPTION_KEY; do
     required_value "$maintenance" "$key" || true
   done
+  if optional_present "$maintenance" RELEASE_CONTROL_DATABASE_URL; then
+    fail "maintenance.env:RELEASE_CONTROL_DATABASE_URL:must_not_be_present"
+  fi
+  if optional_present "$maintenance" RELEASE_IDENTITY_VERIFIER_DATABASE_URL; then
+    fail "maintenance.env:RELEASE_IDENTITY_VERIFIER_DATABASE_URL:must_not_be_present"
+  fi
+  for key in RIVERTON_RELEASE_CONTROL_SERVICE RELEASE_CONTROL_ENABLED RELEASE_CONTROL_DATABASE_URL RELEASE_CONTROL_GATEWAY_SHARED_SECRET; do
+    required_value "$release_control" "$key" || true
+  done
+  required_boolean "$release_control" RELEASE_CONTROL_ENABLED || true
+  required_boolean "$release_control" RIVERTON_RELEASE_CONTROL_SERVICE || true
+  if [ "$(value_of "$release_control" RIVERTON_RELEASE_CONTROL_SERVICE 2>/dev/null || printf false)" != "true" ]; then
+    fail "release-control.env:RIVERTON_RELEASE_CONTROL_SERVICE:must_be_true"
+  fi
+  release_control_database_url=$(value_of "$release_control" RELEASE_CONTROL_DATABASE_URL 2>/dev/null || printf 'missing')
+  case "$release_control_database_url" in
+    postgresql://agentnovas_release_control@*/*|postgresql://agentnovas_release_control:*@*/*|postgres://agentnovas_release_control@*/*|postgres://agentnovas_release_control:*@*/*) ;;
+    *) fail "release-control.env:RELEASE_CONTROL_DATABASE_URL:dedicated_role_required" ;;
+  esac
+  same_value "release-control-gateway-shared-secret" "$maintenance" RELEASE_CONTROL_GATEWAY_SHARED_SECRET "$release_control" RELEASE_CONTROL_GATEWAY_SHARED_SECRET
+  for key in RIVERTON_RELEASE_IDENTITY_VERIFIER_SERVICE RELEASE_IDENTITY_VERIFIER_ENABLED RELEASE_IDENTITY_VERIFIER_DATABASE_URL RELEASE_IDENTITY_VERIFIER_SHARED_SECRET RELEASE_IDENTITY_VERIFIER_WEBAUTHN_POLICY_FILE; do
+    required_value "$release_identity_verifier" "$key" || true
+  done
+  required_boolean "$release_identity_verifier" RELEASE_IDENTITY_VERIFIER_ENABLED || true
+  required_boolean "$release_identity_verifier" RIVERTON_RELEASE_IDENTITY_VERIFIER_SERVICE || true
+  if [ "$(value_of "$release_identity_verifier" RIVERTON_RELEASE_IDENTITY_VERIFIER_SERVICE 2>/dev/null || printf false)" != "true" ]; then
+    fail "release-identity-verifier.env:RIVERTON_RELEASE_IDENTITY_VERIFIER_SERVICE:must_be_true"
+  fi
+  release_identity_verifier_database_url=$(value_of "$release_identity_verifier" RELEASE_IDENTITY_VERIFIER_DATABASE_URL 2>/dev/null || printf 'missing')
+  case "$release_identity_verifier_database_url" in
+    postgresql://agentnovas_release_identity_verifier@*/*|postgresql://agentnovas_release_identity_verifier:*@*/*|postgres://agentnovas_release_identity_verifier@*/*|postgres://agentnovas_release_identity_verifier:*@*/*) ;;
+    *) fail "release-identity-verifier.env:RELEASE_IDENTITY_VERIFIER_DATABASE_URL:dedicated_role_required" ;;
+  esac
+  same_value "release-identity-verifier-shared-secret" "$maintenance" RELEASE_IDENTITY_VERIFIER_SHARED_SECRET "$release_identity_verifier" RELEASE_IDENTITY_VERIFIER_SHARED_SECRET
   for file in "$client" "$operations" "$maintenance"; do
     required_boolean "$file" MFA_ENFORCEMENT_ENABLED || true
   done
@@ -119,6 +161,37 @@ if [ "$findings" -eq 0 ]; then
   esac
   required_boolean "$configuration_activation" CONFIGURATION_ACTIVATION_WORKER_ENABLED || true
   required_boolean "$maintenance" CONFIGURATION_ACTIVATION_WORKER_ENABLED || true
+  for release_orchestrator in "$release_orchestrator_staging" "$release_orchestrator_production"; do
+    for key in RELEASE_ORCHESTRATOR_DATABASE_URL RELEASE_ORCHESTRATOR_BINDING_FILE RELEASE_ORCHESTRATOR_WORKER_ID RELEASE_ORCHESTRATOR_INTERVAL_MS RELEASE_ORCHESTRATOR_LEASE_SECONDS; do
+      required_value "$release_orchestrator" "$key" || true
+    done
+    release_orchestrator_database_url=$(value_of "$release_orchestrator" RELEASE_ORCHESTRATOR_DATABASE_URL 2>/dev/null || printf 'missing')
+    case "$release_orchestrator_database_url" in
+      postgresql://agentnovas_release_worker@*/*|postgresql://agentnovas_release_worker:*@*/*|postgres://agentnovas_release_worker@*/*|postgres://agentnovas_release_worker:*@*/*) ;;
+      *) fail "$(basename "$release_orchestrator"):RELEASE_ORCHESTRATOR_DATABASE_URL:dedicated_role_required" ;;
+    esac
+    required_boolean "$release_orchestrator" RELEASE_ORCHESTRATOR_WORKER_ENABLED || true
+  done
+  for release_auditor in "$release_auditor_staging" "$release_auditor_production"; do
+    for key in RELEASE_AUDITOR_DATABASE_URL RELEASE_AUDITOR_HOST RELEASE_AUDITOR_PORT; do
+      required_value "$release_auditor" "$key" || true
+    done
+    release_auditor_database_url=$(value_of "$release_auditor" RELEASE_AUDITOR_DATABASE_URL 2>/dev/null || printf 'missing')
+    case "$release_auditor_database_url" in
+      postgresql://agentnovas_release_auditor@*/*|postgresql://agentnovas_release_auditor:*@*/*|postgres://agentnovas_release_auditor@*/*|postgres://agentnovas_release_auditor:*@*/*) ;;
+      *) fail "$(basename "$release_auditor"):RELEASE_AUDITOR_DATABASE_URL:dedicated_role_required" ;;
+    esac
+    required_boolean "$release_auditor" RELEASE_AUDITOR_ENABLED || true
+  done
+  for key in RELEASE_WEBHOOK_DATABASE_URL RELEASE_WEBHOOK_BINDING_FILE RELEASE_WEBHOOK_HOST RELEASE_WEBHOOK_PORT; do
+    required_value "$release_webhook" "$key" || true
+  done
+  release_webhook_database_url=$(value_of "$release_webhook" RELEASE_WEBHOOK_DATABASE_URL 2>/dev/null || printf 'missing')
+  case "$release_webhook_database_url" in
+    postgresql://agentnovas_release_ingress@*/*|postgresql://agentnovas_release_ingress:*@*/*|postgres://agentnovas_release_ingress@*/*|postgres://agentnovas_release_ingress:*@*/*) ;;
+    *) fail "release-webhook.env:RELEASE_WEBHOOK_DATABASE_URL:dedicated_role_required" ;;
+  esac
+  required_boolean "$release_webhook" RELEASE_WEBHOOK_INGRESS_ENABLED || true
   for key in RESEARCH_DATABASE_URL LLM_PROFILE_ENCRYPTION_KEY; do required_value "$runtime" "$key" || true; done
   for key in DATABASE_URL INTEGRATION_CREDENTIAL_ENCRYPTION_KEY; do required_value "$demo" "$key" || true; done
   for key in DATABASE_URL POSTGRES_MIGRATION_SCHEMA GIT_COMMIT_SHA; do required_value "$migrator" "$key" || true; done
@@ -167,12 +240,104 @@ case "$notification_send" in
   *) printf 'notification_email_send=invalid\n'; fail "notification_email_send:invalid" ;;
 esac
 
+release_identity_verifier_enabled=$(value_of "$release_identity_verifier" RELEASE_IDENTITY_VERIFIER_ENABLED 2>/dev/null || printf 'unknown')
+case "$release_identity_verifier_enabled" in
+  true)
+    printf 'release_identity_verifier=enabled\n'
+    item=release-identity-verifier-webauthn-policy.json
+    if [ ! -f "$secret_dir/$item" ]; then
+      fail "$item:missing_while_verifier_enabled"
+    else
+      mode=$(mode_of "$secret_dir/$item")
+      case "$mode" in 400|440) ;; *) fail "$item:unsafe_permissions" ;; esac
+    fi
+    ;;
+  false) printf 'release_identity_verifier=disabled\n' ;;
+  *) printf 'release_identity_verifier=invalid\n'; fail "release_identity_verifier:invalid" ;;
+esac
+
+release_webhook_enabled=$(value_of "$release_webhook" RELEASE_WEBHOOK_INGRESS_ENABLED 2>/dev/null || printf 'unknown')
+case "$release_webhook_enabled" in
+  true)
+    printf 'release_webhook_ingress=enabled\n'
+    for item in release-webhook-binding.json release-webhook-secret; do
+      if [ ! -f "$secret_dir/$item" ]; then
+        fail "$item:missing_while_ingress_enabled"
+        continue
+      fi
+      mode=$(mode_of "$secret_dir/$item")
+      case "$item:$mode" in
+        release-webhook-binding.json:400|release-webhook-binding.json:440|release-webhook-binding.json:600|release-webhook-binding.json:640) ;;
+        release-webhook-secret:400|release-webhook-secret:440) ;;
+        *) fail "$item:unsafe_permissions" ;;
+      esac
+    done
+    ;;
+  false) printf 'release_webhook_ingress=disabled\n' ;;
+  *) printf 'release_webhook_ingress=invalid\n'; fail "release_webhook_ingress:invalid" ;;
+esac
+
 configuration_activation_enabled=$(value_of "$configuration_activation" CONFIGURATION_ACTIVATION_WORKER_ENABLED 2>/dev/null || printf 'unknown')
 case "$configuration_activation_enabled" in
   true) printf 'configuration_activation_worker=enabled\n' ;;
   false) printf 'configuration_activation_worker=disabled\n' ;;
   *) printf 'configuration_activation_worker=invalid\n'; fail "configuration_activation_worker:invalid" ;;
 esac
+
+for environment in staging production; do
+  if [ "$environment" = staging ]; then
+    release_orchestrator=$release_orchestrator_staging
+    release_auditor=$release_auditor_staging
+  else
+    release_orchestrator=$release_orchestrator_production
+    release_auditor=$release_auditor_production
+  fi
+  release_orchestrator_enabled=$(value_of "$release_orchestrator" RELEASE_ORCHESTRATOR_WORKER_ENABLED 2>/dev/null || printf 'unknown')
+  case "$release_orchestrator_enabled" in
+    true)
+      printf 'release_orchestrator_worker_%s=enabled\n' "$environment"
+      for suffix in binding.json app.pem; do
+        item="release-orchestrator-$environment-$suffix"
+        if [ ! -f "$secret_dir/$item" ]; then fail "$item:missing_while_worker_enabled"; continue; fi
+        mode=$(mode_of "$secret_dir/$item")
+        case "$suffix:$mode" in
+          binding.json:400|binding.json:440|binding.json:600|binding.json:640|app.pem:400|app.pem:440) ;;
+          *) fail "$item:unsafe_permissions" ;;
+        esac
+      done
+      ;;
+    false) printf 'release_orchestrator_worker_%s=disabled\n' "$environment" ;;
+    *) printf 'release_orchestrator_worker_%s=invalid\n' "$environment"; fail "release_orchestrator_worker_$environment:invalid" ;;
+  esac
+
+  release_auditor_enabled=$(value_of "$release_auditor" RELEASE_AUDITOR_ENABLED 2>/dev/null || printf 'unknown')
+  case "$release_auditor_enabled" in
+    true)
+      printf 'release_provider_security_auditor_%s=enabled\n' "$environment"
+      for suffix in policy.json app.pem attestation-ed25519.pem shared-secret; do
+        item="release-auditor-$environment-$suffix"
+        if [ ! -f "$secret_dir/$item" ]; then fail "$item:missing_while_auditor_enabled"; continue; fi
+        mode=$(mode_of "$secret_dir/$item")
+        case "$suffix:$mode" in
+          policy.json:400|policy.json:440|policy.json:600|policy.json:640|app.pem:400|app.pem:440|attestation-ed25519.pem:400|attestation-ed25519.pem:440|shared-secret:400|shared-secret:440) ;;
+          *) fail "$item:unsafe_permissions" ;;
+        esac
+      done
+      ;;
+    false) printf 'release_provider_security_auditor_%s=disabled\n' "$environment" ;;
+    *) printf 'release_provider_security_auditor_%s=invalid\n' "$environment"; fail "release_provider_security_auditor_$environment:invalid" ;;
+  esac
+  if [ "$release_orchestrator_enabled" != "$release_auditor_enabled" ]; then
+    fail "restricted_cicd_${environment}:worker_auditor_enablement_mismatch"
+  elif [ "$release_orchestrator_enabled" = true ]; then
+    if ! node --experimental-strip-types "$repository_root/scripts/release/restricted-cicd-instance-config.mjs" \
+      "$environment" \
+      "$secret_dir/release-orchestrator-$environment-binding.json" \
+      "$secret_dir/release-auditor-$environment-policy.json"; then
+      fail "restricted_cicd_${environment}:instance_config_invalid"
+    fi
+  fi
+done
 
 for item in \
   "$client:PAYMENT_WORKER_ENABLED" \

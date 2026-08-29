@@ -11,6 +11,7 @@ import {
   StatusBadge,
 } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 import styles from "./invitations-workspace.module.css";
 
@@ -49,18 +50,19 @@ const internalRoleLabels: Record<string, string> = {
 };
 
 export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
+  const { locale, t } = useAppLocale();
   const resource = useApiData<{ link: MyLink | null; canCreate: boolean }>(
     "/api/invitations/link",
-    "邀请链接读取失败",
+    t("邀请链接读取失败"),
   );
   const staff = useApiData<{
     links: StaffLink[];
     invitableRoles: string[];
     organizations: Array<{ id: string; name: string }>;
-  }>("/api/invitations/staff-link", "员工邀请链接读取失败");
+  }>("/api/invitations/staff-link", t("员工邀请链接读取失败"));
   const experience = useApiData<{ account: ExperienceAccount | null }>(
     "/api/organization/experience-account",
-    "体验账号读取失败",
+    t("体验账号读取失败"),
   );
   const [issued, setIssued] = useState<{ link: string; replaced: boolean; kind: "customer" | "staff"; registrationLinkId?: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,6 +70,13 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
   const [copied, setCopied] = useState(false);
   const [selectedStaffRole, setSelectedStaffRole] = useState("");
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
+  const [activePanel, setActivePanel] = useState<"customer" | "staff" | "experience">("customer");
+
+  function localizedApiError(payload: unknown, fallbackKey: string) {
+    const fallback = t(fallbackKey);
+    const detail = apiErrorMessage(payload, fallback);
+    return locale === "zh-CN" || !/[\u3400-\u9fff]/.test(detail) ? detail : fallback;
+  }
 
   async function generate() {
     if (busy) return;
@@ -76,11 +85,11 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
     try {
       const response = await fetch("/api/invitations/link", { method: "POST" });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(apiErrorMessage(payload, "生成邀请链接失败"));
+      if (!response.ok) throw new Error(localizedApiError(payload, "生成邀请链接失败"));
       setIssued({ link: payload.link, replaced: Boolean(payload.replacedPreviousLink), kind: "customer" });
       await resource.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "生成邀请链接失败");
+      setMessage(error instanceof Error ? error.message : t("生成邀请链接失败"));
     } finally {
       setBusy(false);
     }
@@ -102,7 +111,7 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
         }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(apiErrorMessage(payload, "生成权限注册链接失败"));
+      if (!response.ok) throw new Error(localizedApiError(payload, "生成权限注册链接失败"));
       setIssued({
         link: payload.link,
         replaced: Boolean(payload.replacedPreviousLink),
@@ -111,7 +120,7 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
       });
       await staff.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "生成权限注册链接失败");
+      setMessage(error instanceof Error ? error.message : t("生成权限注册链接失败"));
     } finally {
       setBusy(false);
     }
@@ -128,17 +137,17 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
         body: JSON.stringify({ linkId }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(apiErrorMessage(payload, "作废权限注册链接失败"));
+      if (!response.ok) throw new Error(localizedApiError(payload, "作废权限注册链接失败"));
       setIssued(null);
       await staff.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "作废权限注册链接失败");
+      setMessage(error instanceof Error ? error.message : t("作废权限注册链接失败"));
     } finally {
       setBusy(false);
     }
   }
 
-  if (resource.loading) return <LoadingState label="正在读取邀请链接…" />;
+  if (resource.loading) return <LoadingState label={t("正在读取邀请链接…")} />;
   if (resource.error) return <ErrorState message={resource.error} retry={resource.refresh} />;
 
   const existing = resource.data?.link ?? null;
@@ -149,23 +158,30 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
   return (
     <section className={styles.workspace}>
       <PageHeading
-        eyebrow="获客"
-        title="我的邀请链接"
-        description="一条链接反复使用，不需要为每个客户单独创建。通过它注册的客户会自动归因到你，以及你的上级与分公司。"
+        eyebrow={t("运营治理")}
+        title={t("注册链接")}
+        description={t("集中管理客户邀请、员工授权链接与独立体验账号。")}
       />
 
       {message ? <p className={styles.message}>{message}</p> : null}
 
-      {issued ? (
+      <div className="rc-action-row" role="tablist" aria-label={t("注册链接类型")}>
+        {([
+          ["customer", t("客户邀请")],
+          ["staff", t("员工授权")],
+          ["experience", t("体验账号")],
+        ] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={activePanel === value} className={activePanel === value ? "rc-primary" : "rc-button"} onClick={() => { setActivePanel(value); setIssued(null); setCopied(false); }}>{label}</button>)}
+      </div>
+
+      {issued && ((activePanel === "staff") === (issued.kind === "staff")) ? (
         <div className={styles.issued}>
           <h3 className={styles.issuedTitle}>
-            {issued.kind === "staff" ? "权限注册链接" : "客户邀请链接"}
-            {issued.replaced ? "已重新生成，旧链接失效" : "已生成"}
+            {issued.kind === "staff" ? t("权限注册链接") : t("客户邀请链接")}
+            {issued.replaced ? ` · ${t("已重新生成，旧链接失效")}` : ` · ${t("已生成")}`}
           </h3>
           <p className={styles.warning}>
-            链接只在这里显示这一次。请立即保存——想要回它只能重新生成，
-            而重新生成会让当前这条立刻失效。
-            {issued.kind === "staff" ? "权限注册链接长期有效，直到手动作废或重新生成。" : ""}
+            {t("链接只在这里显示一次，请立即保存；重新生成会让当前链接立刻失效。")}
+            {issued.kind === "staff" ? ` ${t("权限注册链接长期有效，直到手动作废或重新生成。")}` : ""}
           </p>
           <div className={styles.linkRow}>
             <code className={styles.link}>{issued.link}</code>
@@ -184,60 +200,55 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
                 setCopied(true);
               }}
             >
-              {copied ? "已复制" : "复制"}
+              {copied ? t("已复制") : t("复制")}
             </button>
           </div>
         </div>
       ) : null}
 
-      {existing ? (
+      {activePanel === "customer" ? <>{existing ? (
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <StatusBadge value={existing.status === "active" ? "生效中" : existing.status} />
-            <span className={styles.meta}>{formatDateTime(existing.createdAt)} 创建</span>
+            <StatusBadge value={existing.status === "active" ? t("生效中") : existing.status} />
+            <span className={styles.meta}>{formatDateTime(existing.createdAt, locale)} {t("创建")}</span>
           </div>
           <dl className={styles.stats}>
             <div>
-              <dt>已带来注册</dt>
+              <dt>{t("已带来注册")}</dt>
               <dd className={styles.count}>{existing.useCount}</dd>
             </div>
             <div>
-              <dt>最近一次使用</dt>
-              <dd>{existing.lastUsedAt ? formatDateTime(existing.lastUsedAt) : "尚未被使用"}</dd>
+              <dt>{t("最近一次使用")}</dt>
+              <dd>{existing.lastUsedAt ? formatDateTime(existing.lastUsedAt, locale) : t("尚未被使用")}</dd>
             </div>
           </dl>
           <p className={styles.note}>
-            链接明文不保存在系统里，因此这里显示不出它本身。
-            如果链接丢了或需要作废，重新生成一条。
+            {t("链接明文不保存在系统里；如果链接丢失或需要作废，请重新生成。")}
           </p>
           {canCreate ? (
             <button className={styles.danger} type="button" disabled={busy} onClick={generate}>
-              {busy ? "正在重新生成…" : "重新生成（当前链接立即失效）"}
+              {busy ? t("正在重新生成…") : t("重新生成（当前链接立即失效）")}
             </button>
           ) : null}
         </div>
       ) : (
         <EmptyState
-          title="还没有邀请链接"
+          title={t("还没有邀请链接")}
           description={canCreate
-            ? "生成一条之后就可以一直用，不需要为每个客户单独创建。"
-            : "当前角色不能生成邀请链接，请联系上级。"}
+            ? t("生成后可重复使用，不需要为每个客户单独创建。")
+            : t("当前角色不能生成邀请链接，请联系上级。")}
         />
       )}
 
       {!existing && canCreate ? (
         <button className={styles.primary} type="button" disabled={busy} onClick={generate}>
-          生成我的邀请链接
+          {t("生成我的邀请链接")}
         </button>
-      ) : null}
+      ) : null}</> : null}
 
-      <section className={styles.staffSection}>
-        <PageHeading
-          eyebrow="团队"
-          title="权限注册链接"
-          description="按低于你的角色生成长期可复用链接。注册者不能选择或扩大权限，注册成功后账号与权限立即生效。"
-        />
-        {staff.loading ? <LoadingState label="正在读取权限注册链接…" /> : null}
+      {activePanel === "staff" ? <section className={styles.staffSection}>
+        <header><div><small>{t("团队")}</small><h2>{t("权限注册链接")}</h2><p>{t("按低于你的角色生成长期可复用链接。注册者不能选择或扩大权限。")}</p></div></header>
+        {staff.loading ? <LoadingState label={t("正在读取权限注册链接…")} /> : null}
         {staff.error ? <ErrorState message={staff.error} retry={staff.refresh} /> : null}
         {!staff.loading && !staff.error ? (
           staff.data?.invitableRoles.length ? (
@@ -246,7 +257,7 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
                 <div className={styles.engageForm}>
                   <div className={styles.formRow}>
                     <label className={styles.field}>
-                      <span className={styles.fieldLabel}>授予角色</span>
+                      <span className={styles.fieldLabel}>{t("授予角色")}</span>
                       <select
                         className={styles.select}
                         value={effectiveStaffRole}
@@ -256,19 +267,19 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
                         }}
                       >
                         {staff.data.invitableRoles.map((role) => (
-                          <option key={role} value={role}>{internalRoleLabels[role] ?? role}</option>
+                          <option key={role} value={role}>{t(internalRoleLabels[role] ?? role)}</option>
                         ))}
                       </select>
                     </label>
                     {effectiveStaffRole !== "branch_admin" && staff.data.organizations.length ? (
                       <label className={styles.field}>
-                        <span className={styles.fieldLabel}>锁定分公司</span>
+                        <span className={styles.fieldLabel}>{t("锁定分公司")}</span>
                         <select
                           className={styles.select}
                           value={selectedOrganizationId}
                           onChange={(event) => setSelectedOrganizationId(event.target.value)}
                         >
-                          <option value="">请选择分公司</option>
+                          <option value="">{t("请选择分公司")}</option>
                           {staff.data.organizations.map((organization) => (
                             <option key={organization.id} value={organization.id}>{organization.name}</option>
                           ))}
@@ -281,10 +292,10 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
                       disabled={busy || (staffOrganizationRequired && !selectedOrganizationId)}
                       onClick={generateStaffLink}
                     >
-                      生成或重新生成链接
+                      {t("生成或重新生成链接")}
                     </button>
                   </div>
-                  <p className={styles.note}>同一角色和分公司重新生成时，旧链接在同一事务中立即作废。</p>
+                  <p className={styles.note}>{t("同一角色和分公司重新生成时，旧链接在同一事务中立即作废。")}</p>
                 </div>
               ) : null}
               {staff.data.links.length ? (
@@ -292,54 +303,50 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
                   {staff.data.links.map((link) => (
                     <li className={`${styles.card} ${link.status === "revoked" ? styles.released : ""}`} key={link.id}>
                       <div className={styles.cardHead}>
-                        <StatusBadge value={link.status === "active" ? "生效中" : "已作废"} />
-                        <strong>{link.targetRoleLabel}</strong>
+                        <StatusBadge value={t(link.status === "active" ? "生效中" : "已作废")} />
+                        <strong>{t(link.targetRoleLabel)}</strong>
                       </div>
                       <p className={styles.note}>
-                        范围：{link.organizationMode === "CREATE_BRANCH" ? "注册时创建分公司" : link.organizationName ?? link.organizationId}
+                        {t("范围：")}{link.organizationMode === "CREATE_BRANCH" ? t("注册时创建分公司") : link.organizationName ?? link.organizationId}
                       </p>
-                      <p className={styles.note}>权限 {link.permissionSnapshot.length} 项 · 创建人：当前账号</p>
+                      <p className={styles.note}>{t("权限")} {link.permissionSnapshot.length} {t("项")} · {t("创建人：当前账号")}</p>
                       <dl className={styles.stats}>
-                        <div><dt>注册次数</dt><dd className={styles.count}>{link.useCount}</dd></div>
-                        <div><dt>最近使用</dt><dd>{link.lastUsedAt ? formatDateTime(link.lastUsedAt) : "尚未使用"}</dd></div>
-                        <div><dt>创建时间</dt><dd>{formatDateTime(link.createdAt)}</dd></div>
+                        <div><dt>{t("注册次数")}</dt><dd className={styles.count}>{link.useCount}</dd></div>
+                        <div><dt>{t("最近使用")}</dt><dd>{link.lastUsedAt ? formatDateTime(link.lastUsedAt, locale) : t("尚未使用")}</dd></div>
+                        <div><dt>{t("创建时间")}</dt><dd>{formatDateTime(link.createdAt, locale)}</dd></div>
                       </dl>
                       {link.status === "active" && canManage ? (
                         <button className={styles.danger} type="button" disabled={busy} onClick={() => revokeStaffLink(link.id)}>
-                          立即作废
+                          {t("立即作废")}
                         </button>
                       ) : null}
                     </li>
                   ))}
                 </ul>
-              ) : <EmptyState title="还没有权限注册链接" description="选择一个低于你的角色后生成。" />}
+              ) : <EmptyState title={t("还没有权限注册链接")} description={t("选择一个低于你的角色后生成。")} />}
             </>
           ) : (
             <EmptyState
-              title="当前角色不能生成权限注册链接"
-              description="员工没有下级角色，不能继续向下授权。"
+              title={t("当前角色不能生成权限注册链接")}
+              description={t("员工没有下级角色，不能继续向下授权。")}
             />
           )
         ) : null}
-      </section>
+      </section> : null}
 
-      <section className={styles.staffSection}>
-        <PageHeading
-          eyebrow="熟悉业务"
-          title="我的体验账号"
-          description="一个独立的客户账号，用来从客户视角看产品。它不计入任何业绩统计——否则用自己的账号交易会算成自己的业绩。"
-        />
-        {experience.loading ? <LoadingState label="正在读取体验账号…" /> : null}
+      {activePanel === "experience" ? <section className={styles.staffSection}>
+        <header><div><small>{t("熟悉业务")}</small><h2>{t("我的体验账号")}</h2><p>{t("独立客户账号用于查看客户端，不计入任何业绩统计。")}</p></div></header>
+        {experience.loading ? <LoadingState label={t("正在读取体验账号…")} /> : null}
         {experience.error ? <ErrorState message={experience.error} retry={experience.refresh} /> : null}
         {!experience.loading && !experience.error ? (
           experience.data?.account ? (
             <div className={styles.card}>
               <p className={styles.note}>
-                已开通：<code className={styles.link}>{experience.data.account.email}</code>
+                {t("已开通：")}<code className={styles.link}>{experience.data.account.email}</code>
               </p>
-              <p className={styles.note}>用途：{experience.data.account.reason}</p>
+              <p className={styles.note}>{t("用途：")}{experience.data.account.reason}</p>
               <p className={styles.note}>
-                用这个邮箱和密码登录<strong>客户端</strong>即可。它是独立账号，与工号账号互不影响。
+                {t("使用该邮箱和密码登录客户端；它与工号账号相互独立。")}
               </p>
             </div>
           ) : (
@@ -363,56 +370,45 @@ export function InvitationsWorkspace({ canManage }: { canManage: boolean }) {
                     }),
                   });
                   const payload = await response.json().catch(() => ({}));
-                  if (!response.ok) throw new Error(apiErrorMessage(payload, "开通体验账号失败"));
-                  setMessage(String(payload.message ?? "体验账号已开通"));
+                  if (!response.ok) throw new Error(localizedApiError(payload, "开通体验账号失败"));
+                  setMessage(typeof payload.message === "string" && (locale === "zh-CN" || !/[\u3400-\u9fff]/.test(payload.message)) ? payload.message : t("体验账号已开通"));
                   await experience.refresh();
                 } catch (error) {
-                  setMessage(error instanceof Error ? error.message : "开通体验账号失败");
+                  setMessage(error instanceof Error ? error.message : t("开通体验账号失败"));
                 } finally {
                   setBusy(false);
                 }
               }}
             >
-              <h3 className={styles.formTitle}>开通体验账号</h3>
+              <h3 className={styles.formTitle}>{t("开通体验账号")}</h3>
               <p className={styles.formNote}>
-                需要一个与工号账号不同的邮箱——同一个邮箱注册两个账号，登录时分不清进的是哪一个。
-                每人只能开通一个。
+                {t("请使用与工号账号不同的邮箱；每人只能开通一个体验账号。")}
               </p>
               <div className={styles.formRow}>
                 <label className={styles.field}>
-                  <span className={styles.fieldLabel}>邮箱</span>
+                  <span className={styles.fieldLabel}>{t("邮箱")}</span>
                   <input className={styles.input} name="email" type="email" required />
                 </label>
                 <label className={styles.field}>
-                  <span className={styles.fieldLabel}>手机号</span>
+                  <span className={styles.fieldLabel}>{t("手机号")}</span>
                   <input className={styles.input} name="phone" required />
                 </label>
               </div>
               <div className={styles.formRow}>
                 <label className={styles.field}>
-                  <span className={styles.fieldLabel}>密码（至少 12 位）</span>
+                  <span className={styles.fieldLabel}>{t("密码（至少 12 位）")}</span>
                   <input className={styles.input} name="password" type="password" minLength={12} required />
                 </label>
                 <label className={styles.field}>
-                  <span className={styles.fieldLabel}>用途</span>
-                  <input className={styles.input} name="reason" placeholder="例如：熟悉客户端下单流程" required />
+                  <span className={styles.fieldLabel}>{t("用途")}</span>
+                  <input className={styles.input} name="reason" placeholder={t("例如：熟悉客户端下单流程")} required />
                 </label>
               </div>
-              <button className={styles.secondary} type="submit" disabled={busy}>开通</button>
+              <button className={styles.secondary} type="submit" disabled={busy}>{t("开通")}</button>
             </form>
           )
         ) : null}
-      </section>
-
-      <section className={styles.explainer}>
-        <h3 className={styles.sectionTitle}>这条链接是怎么工作的</h3>
-        <ul className={styles.list}>
-          <li>链接里带你的识别码，注册时系统据此把客户归因到你、你的上级和分公司。</li>
-          <li>可以无限次使用，发给一个人和发给一百个人是同一条链接。</li>
-          <li>「已带来注册」的数字异常上涨，通常意味着链接被转发到了预期之外的地方。</li>
-          <li>重新生成会让旧链接立刻失效——这也是撤销一条外泄链接的唯一办法。</li>
-        </ul>
-      </section>
+      </section> : null}
 
     </section>
   );

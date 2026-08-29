@@ -27,23 +27,20 @@ const audienceNavigationContract: Record<QualityAudience, {
   forbiddenLabels: string[];
 }> = {
   client: {
-    // 这份契约要守的是「客户端只看得到客户端的东西」，不是某几个字。
-    // 但字得对得上：下面这些标签与 aria-label 都是从 client-portal-shell 的实际
-    // 导航定义抄来的，原来那套（「客户工作台」「七智能体交易大厅」「钱包与账本」、
-    // aria-label「客户端资产中心导航」）在 UI 里已经全部改过名。
+    // 客户端主导航只保留五个产品中心；个人偏好与账户动作由右上角用户菜单承载。
     navigationName: "客户导航",
-    requiredLabels: ["交易总览", "交易大厅", "模拟组合", "会员中心", "AI 积分", "资产与账本", "通知中心"],
+    requiredLabels: ["数据看板", "交易中心", "策略中心", "行情", "AI 助手"],
     forbiddenLabels: ["运营概览", "客户管理", "系统概览", "模型与 Agent"],
   },
   operations: {
     navigationName: "运营端导航",
-    requiredLabels: ["运营概览"],
-    forbiddenLabels: ["客户工作台", "会员中心", "七智能体交易大厅", "系统概览", "模型与 Agent"],
+    requiredLabels: ["运营看板", "客户与账户", "商业与财务", "运营治理"],
+    forbiddenLabels: ["运营概览", "客户管理", "会员订单", "系统概览", "模型与 Agent"],
   },
   maintenance: {
     navigationName: "运维端导航",
-    requiredLabels: ["系统概览", "系统健康", "模型与 Agent", "配置发布", "版本发布"],
-    forbiddenLabels: ["客户工作台", "会员中心", "七智能体交易大厅", "运营概览", "客户管理", "会员订单"],
+    requiredLabels: ["系统运行", "AI 与策略", "外部集成", "平台配置", "发布与安全"],
+    forbiddenLabels: ["系统概览", "系统健康", "工作记录导出", "模型与 Agent", "配置发布", "版本发布", "运营概览", "客户管理", "会员订单"],
   },
 };
 

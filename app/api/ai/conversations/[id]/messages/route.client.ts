@@ -26,9 +26,19 @@ import { idempotencyKey } from "@/lib/commercial-request-validation";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
 import { normalizeAiMessage } from "@/lib/ai-safety";
+import { readUserAppPreference } from "@/lib/user-app-preference-service";
+import type { UserAppLocale } from "@/lib/user-app-preference";
 
 const encoder = new TextEncoder();
-const disclaimer = "AI 内容仅用于信息与策略研究，不构成投资建议或收益承诺。";
+const disclaimers: Record<UserAppLocale, string> = {
+  "en-US": "AI content is for information and strategy research only. It is not investment advice or a return promise.",
+  "zh-CN": "AI 内容仅用于信息与策略研究，不构成投资建议或收益承诺。",
+  "zh-TW": "AI 內容僅供資訊與策略研究，不構成投資建議或收益承諾。",
+  "ru-RU": "Материалы ИИ предназначены только для информации и исследования стратегий, а не для инвестиционных рекомендаций или обещаний доходности.",
+  "es-ES": "El contenido de IA es solo informativo y para investigar estrategias; no constituye asesoramiento de inversión ni una promesa de rentabilidad.",
+  "ja-JP": "AI の内容は情報提供と戦略研究のみを目的とし、投資助言や収益の保証ではありません。",
+  "ko-KR": "AI 콘텐츠는 정보 제공 및 전략 연구용이며 투자 조언이나 수익 약속이 아닙니다.",
+};
 
 type StoredChatResult = {
   text: string;
@@ -71,7 +81,7 @@ function streamChatResult(result: StoredChatResult) {
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await ensureDatabaseSchema();
-    const { user } = await requireAccessPermission(request, "client.paper.view");
+    const { user, session } = await requireAccessPermission(request, "client.paper.view");
     const { id } = await params;
     const body = await readAiJson(request);
     let content: string;
@@ -86,13 +96,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const conversation = await getOwnedAiConversation(user.id, id);
     const pool = await getPostgresPool();
+    const preference = await readUserAppPreference(pool, session.tokenHash);
+    const locale = preference.locale;
+    const disclaimer = disclaimers[locale];
     const key = idempotencyKey(request);
     const correlationRequestId = request.headers.get("x-request-id")?.trim().slice(0, 160) || crypto.randomUUID();
     await reconcileExpiredClientAiInferences(pool, {
       userId: user.id,
       requestId: correlationRequestId,
     });
-    const requestPayload = { conversationId: id, message: content };
+    const requestPayload = { conversationId: id, message: content, locale };
     const replayed = await readClientAiInferenceReplay(pool, {
       userId: user.id,
       operation: "assistant_message",
@@ -166,6 +179,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             history: history.map((message) => ({ role: message.role, content: message.content })),
             context,
             config,
+            locale: preference.locale,
             signal: request.signal,
           });
           if (!("metering" in result)) throw new Error("AI_PROVIDER_METERING_MISSING");

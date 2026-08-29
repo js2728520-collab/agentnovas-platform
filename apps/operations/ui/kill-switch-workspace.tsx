@@ -12,6 +12,7 @@ import {
   StatusBadge,
 } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 import styles from "./kill-switch-workspace.module.css";
 
@@ -46,9 +47,10 @@ type PendingAction =
   | { kind: "approve-release"; entry: KillSwitchView };
 
 export function KillSwitchWorkspace({ canManage }: { canManage: boolean }) {
+  const { locale, t } = useAppLocale();
   const resource = useApiData<{ switches: KillSwitchView[] }>(
     "/api/operations/kill-switches",
-    "熔断开关读取失败",
+    t("熔断开关读取失败"),
   );
   const [dimension, setDimension] = useState<KillSwitchView["dimension"]>("exchange");
   const [scopeValue, setScopeValue] = useState("");
@@ -72,23 +74,27 @@ export function KillSwitchWorkspace({ canManage }: { canManage: boolean }) {
         body: JSON.stringify(request.body),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(apiErrorMessage(payload, "熔断操作失败"));
+      if (!response.ok) {
+        const fallback = t("熔断操作失败");
+        const detail = apiErrorMessage(payload, fallback);
+        throw new Error(locale === "zh-CN" || !/[\u3400-\u9fff]/.test(detail) ? detail : fallback);
+      }
       setMessage(pending.kind === "engage"
-        ? "熔断已生效，该范围内不再开新仓；平仓不受影响。"
+        ? t("熔断已生效，该范围内不再开新仓；平仓不受影响。")
         : pending.kind === "request-release"
-          ? "解除申请已提交，熔断仍然生效，需另一位运营批准。"
-          : "熔断已解除，该范围恢复开新仓。");
+          ? t("解除申请已提交，熔断仍然生效，需另一位运营批准。")
+          : t("熔断已解除，该范围恢复开新仓。"));
       setPending(null);
       setScopeValue("");
       await resource.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "熔断操作失败");
+      setMessage(error instanceof Error ? error.message : t("熔断操作失败"));
     } finally {
       setBusy(false);
     }
   }
 
-  if (resource.loading) return <LoadingState label="正在读取熔断开关…" />;
+  if (resource.loading) return <LoadingState label={t("正在读取熔断开关…")} />;
   if (resource.error) return <ErrorState message={resource.error} retry={resource.refresh} />;
 
   const switches = resource.data?.switches ?? [];
@@ -98,9 +104,9 @@ export function KillSwitchWorkspace({ canManage }: { canManage: boolean }) {
   return (
     <section className={styles.workspace}>
       <PageHeading
-        eyebrow="风控"
-        title="交易熔断"
-        description="按交易所、客户账户或策略卡暂停新开仓。平仓永远不受熔断影响——退出能力不依赖任何一层在线。"
+        eyebrow={t("风控")}
+        title={t("交易熔断")}
+        description={t("按交易所、客户账户或策略卡暂停新开仓。平仓永远不受熔断影响——退出能力不依赖任何一层在线。")}
       />
 
       {message ? <p className={styles.message}>{message}</p> : null}
@@ -114,67 +120,66 @@ export function KillSwitchWorkspace({ canManage }: { canManage: boolean }) {
             setPending({ kind: "engage", dimension, scopeValue: scopeValue.trim() });
           }}
         >
-          <h3 className={styles.formTitle}>挂起熔断</h3>
+          <h3 className={styles.formTitle}>{t("挂起熔断")}</h3>
           <p className={styles.formNote}>
-            挂起立即生效，无需复核——出事的时候没有时间等第二个人批准。
-            解除则必须由另一位运营批准。
+            {t("挂起立即生效，无需复核——出事的时候没有时间等第二个人批准。解除则必须由另一位运营批准。")}
           </p>
           <div className={styles.formRow}>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>维度</span>
+              <span className={styles.fieldLabel}>{t("维度")}</span>
               <select
                 className={styles.select}
                 value={dimension}
                 onChange={(event) => setDimension(event.target.value as KillSwitchView["dimension"])}
               >
                 {(Object.keys(DIMENSION_LABELS) as KillSwitchView["dimension"][]).map((key) => (
-                  <option key={key} value={key}>{DIMENSION_LABELS[key]}</option>
+                  <option key={key} value={key}>{t(DIMENSION_LABELS[key])}</option>
                 ))}
               </select>
             </label>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>对象</span>
+              <span className={styles.fieldLabel}>{t("对象")}</span>
               <input
                 className={styles.input}
                 value={scopeValue}
                 onChange={(event) => setScopeValue(event.target.value)}
-                placeholder={DIMENSION_HINTS[dimension]}
+                placeholder={t(DIMENSION_HINTS[dimension])}
               />
             </label>
             <button className={styles.danger} type="submit" disabled={busy || !scopeValue.trim()}>
-              挂起熔断
+              {t("挂起熔断")}
             </button>
           </div>
-          <p className={styles.hint}>{DIMENSION_HINTS[dimension]}</p>
+          <p className={styles.hint}>{t(DIMENSION_HINTS[dimension])}</p>
         </form>
       ) : null}
 
-      <h3 className={styles.sectionTitle}>生效中（{active.length}）</h3>
+      <h3 className={styles.sectionTitle}>{t("生效中")}（{active.length}）</h3>
       {active.length === 0 ? (
-        <EmptyState title="当前没有生效中的熔断" description="所有交易所、账户与策略卡均可正常开新仓。" />
+        <EmptyState title={t("当前没有生效中的熔断")} description={t("所有交易所、账户与策略卡均可正常开新仓。")} />
       ) : (
         <ul className={styles.list}>
           {active.map((entry) => (
             <li key={entry.id} className={styles.card}>
               <div className={styles.cardHead}>
-                <StatusBadge value={DIMENSION_LABELS[entry.dimension]} />
+                <StatusBadge value={t(DIMENSION_LABELS[entry.dimension])} />
                 <span className={styles.scope}>{entry.scopeValue}</span>
               </div>
               <p className={styles.reason}>{entry.reason}</p>
               <p className={styles.meta}>
-                {formatDateTime(entry.engagedAt)} 由 {entry.engagedBy} 挂起
+                {formatDateTime(entry.engagedAt, locale)} {t("由")} {entry.engagedBy} {t("挂起")}
               </p>
               {canManage ? (
                 entry.releaseRequestId ? (
                   <div className={styles.actions}>
-                    <span className={styles.pendingNote}>已有解除申请，等待另一位运营批准</span>
+                    <span className={styles.pendingNote}>{t("已有解除申请，等待另一位运营批准")}</span>
                     <button
                       className={styles.secondary}
                       type="button"
                       disabled={busy}
                       onClick={() => setPending({ kind: "approve-release", entry })}
                     >
-                      批准解除
+                      {t("批准解除")}
                     </button>
                   </div>
                 ) : (
@@ -185,7 +190,7 @@ export function KillSwitchWorkspace({ canManage }: { canManage: boolean }) {
                       disabled={busy}
                       onClick={() => setPending({ kind: "request-release", entry })}
                     >
-                      申请解除
+                      {t("申请解除")}
                     </button>
                   </div>
                 )
@@ -195,21 +200,21 @@ export function KillSwitchWorkspace({ canManage }: { canManage: boolean }) {
         </ul>
       )}
 
-      <h3 className={styles.sectionTitle}>历史（{history.length}）</h3>
+      <h3 className={styles.sectionTitle}>{t("历史")}（{history.length}）</h3>
       {history.length === 0 ? (
-        <EmptyState title="暂无历史记录" description="解除过的熔断会保留在这里，作为事后复盘的依据。" />
+        <EmptyState title={t("暂无历史记录")} description={t("解除过的熔断会保留在这里，作为事后复盘的依据。")} />
       ) : (
         <ul className={styles.list}>
           {history.map((entry) => (
             <li key={entry.id} className={`${styles.card} ${styles.released}`}>
               <div className={styles.cardHead}>
-                <StatusBadge value={DIMENSION_LABELS[entry.dimension]} />
+                <StatusBadge value={t(DIMENSION_LABELS[entry.dimension])} />
                 <span className={styles.scope}>{entry.scopeValue}</span>
               </div>
               <p className={styles.reason}>{entry.reason}</p>
               <p className={styles.meta}>
-                {formatDateTime(entry.engagedAt)} 由 {entry.engagedBy} 挂起
-                {entry.releasedAt ? ` · ${formatDateTime(entry.releasedAt)} 由 ${entry.releasedBy} 解除` : ""}
+                {formatDateTime(entry.engagedAt, locale)} {t("由")} {entry.engagedBy} {t("挂起")}
+                {entry.releasedAt ? ` · ${formatDateTime(entry.releasedAt, locale)} ${t("由")} ${entry.releasedBy} ${t("解除")}` : ""}
               </p>
             </li>
           ))}
@@ -218,15 +223,15 @@ export function KillSwitchWorkspace({ canManage }: { canManage: boolean }) {
 
       {pending ? (
         <ConfirmActionDialog
-          title={pending.kind === "engage" ? "挂起熔断"
-            : pending.kind === "request-release" ? "申请解除熔断" : "批准解除熔断"}
+          title={pending.kind === "engage" ? t("挂起熔断")
+            : pending.kind === "request-release" ? t("申请解除熔断") : t("批准解除熔断")}
           description={pending.kind === "engage"
-            ? `确认后 ${DIMENSION_LABELS[pending.dimension]}「${pending.scopeValue}」范围内立即停止开新仓。平仓不受影响。`
+            ? `${t("确认后")} ${t(DIMENSION_LABELS[pending.dimension])} “${pending.scopeValue}” ${t("范围内立即停止开新仓。平仓不受影响。")}`
             : pending.kind === "request-release"
-              ? "提交申请后熔断仍然生效，需要另一位运营批准才会真正解除。"
-              : "批准后该范围立即恢复开新仓。发起人不能批准自己的申请。"}
+              ? t("提交申请后熔断仍然生效，需要另一位运营批准才会真正解除。")
+              : t("批准后该范围立即恢复开新仓。发起人不能批准自己的申请。")}
           open
-          confirmLabel={pending.kind === "engage" ? "挂起" : pending.kind === "request-release" ? "提交申请" : "批准解除"}
+          confirmLabel={pending.kind === "engage" ? t("挂起") : pending.kind === "request-release" ? t("提交申请") : t("批准解除")}
           busy={busy}
           onCancel={() => setPending(null)}
           onConfirm={submitPending}

@@ -2,8 +2,8 @@
 
 > 文档状态：`CURRENT_BASELINE`。本文只登记当前真实 route 和 Policy，不提前虚构 V3 endpoint。V3 目标 API 家族见 [`../specs/V3_SYSTEM_TARGET_SPEC.md`](../specs/V3_SYSTEM_TARGET_SPEC.md)；每个家族只有在合同、实现和 Gate 完成后才能写入本目录并改为 `CURRENT`。
 
-日期：2026-08-24
-范围：当前包含 203 个 route 文件、268 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。V3 Current→Target 的代码、数据库、页面、Worker 和 Gate 映射见 [`../architecture/CAPABILITY_MIGRATION_MATRIX.md`](../architecture/CAPABILITY_MIGRATION_MATRIX.md)。
+日期：2026-08-29
+范围：当前包含 219 个 route 文件、283 个 HTTP method route，全部进入同一机器可读 inventory。本文是人类索引，不替代 CI policy 证明；精确数量由 `scripts/generate-api-route-inventory.mjs --check` 生成和校验。V3 Current→Target 的代码、数据库、页面、Worker 和 Gate 映射见 [`../architecture/CAPABILITY_MIGRATION_MATRIX.md`](../architecture/CAPABILITY_MIGRATION_MATRIX.md)。
 
 ## 0. V3 目标接口族（尚不是当前合同）
 
@@ -42,7 +42,7 @@
 
 本目录中标记 `recent MFA` 的策略实现均受服务端 `MFA_ENFORCEMENT_ENABLED` 约束：当前准备阶段为 `false`，其他权限、scope、Origin、幂等、限流和审计继续执行；正式生产按 ADR-0023 三端统一设为 `true` 后生效。
 
-## 2. Access 与账户（33）
+## 2. Access 与账户（34）
 
 | 路由 | 方法 | 所有权 | 状态/说明 |
 | --- | --- | --- | --- |
@@ -60,6 +60,7 @@
 | `/api/account/llm-config` | GET, PUT | C | DISABLED/BETA；客户 BYOK、私有端点和私有密钥已硬关闭，Client 只使用平台 Profile |
 | `/api/account/llm-config/test` | POST | C | DISABLED/BETA；不接受客户密钥测试 |
 | `/api/account/password` | POST | C/O/M | KEEP；校验当前密码、Argon2id、撤销其他会话与审计 |
+| `/api/account/preferences` | GET, PATCH | C/O/M | CURRENT；audience 从当前会话推导；语言按应用 allowlist 校验，主题模式与调色板幂等 upsert；不接受客户端指定 audience |
 | `/api/account/profile` | GET, PATCH | C | KEEP |
 | `/api/account/sessions` | GET, POST, DELETE | C/O/M | CURRENT；列出/单会话撤销；POST 原子退出全部设备并清当前 Cookie |
 | `/api/auth/forgot-password` | POST | C | KEEP；内部 audience 404，需限流 |
@@ -208,6 +209,7 @@
 | `/api/maintenance/demo-exchanges/[id]/verify` | POST | M | KEEP；固定测试域名、原因、幂等审计 |
 | `/api/maintenance/audit` | GET | M | KEEP；Demo/模型/集成/设置/安全/身份 allowlist 安全投影，domain/action/status/cursor 与 requestId/traceId |
 | `/api/maintenance/ai-usage` | GET | M | CURRENT（T3.9a）；`maint.ai_usage.view` 敏感只读；按 UTC 请求创建 cohort 聚合已预留 inference，返回可信成功 Token、settled Credits、已记录非取消失败率及组织快照质量/稳定伪名用户/模型 revision/Agent/功能/日期维度；默认 30 天、最大 90 天、高基数 Top 50，`no-store`；不返回原始用户 ID、PII、AI 内容、错误原文或模型凭证，失败率不代表系统/provider 可用率 |
+| `/api/maintenance/work-records/export` | POST | M | CURRENT（T4.13b）；`maint.work_records.export` 独立敏感权限、同源、8 KiB 严格 body、持久化幂等和追加式元数据审计；UTC 最多 31 天/1,000 条，JSON 明示截断且服务端不落文件；只读 security-barrier 安全投影和稳定伪名，不返回客户业务原表 ID、PII、原始证据、模型/provider、错误原文或凭证 |
 | `/api/maintenance/configuration-versions` | GET, POST | M | CURRENT（T3.1a）；查询或幂等创建不含秘密的不可变配置草稿，按 `(kind,key,audience)` 并发分配版本号 |
 | `/api/maintenance/configuration-versions/[id]/tests` | POST | M | CURRENT（T3.1c-FF1/FF2）；功能开关 v1/v2 只接收原因并由服务端生成确定性结果/证据；尚未注册的其他配置族保留人工 passed/failed 证据，审批后均禁止补写 |
 | `/api/maintenance/configuration-versions/[id]/approval` | POST | M | CURRENT（T3.1a）；不同人员 approve/reject，创建者不可自审 |
@@ -250,6 +252,6 @@
 
 ## 10. 下一步
 
-1. 机器可读 inventory 是 268 个 method route 的发布真源；本文仅维护人类可读的所有权与产品状态。
+1. 机器可读 inventory 是 283 个 method route 的发布真源；本文仅维护人类可读的所有权与产品状态。
 2. `DISABLED/BETA` 路径不得因未来重构重新暴露；重新启用必须先更新 PRD、ADR、policy、测试与页面合同。
 3. `openapi-controlled-beta.yaml` 只描述核心浏览器合同，不能替代完整 API Policy。

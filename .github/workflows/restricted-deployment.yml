@@ -1,0 +1,69 @@
+name: Restricted Riverton deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      schema_version:
+        required: true
+        type: string
+      command_id:
+        required: true
+        type: string
+      release_version_id:
+        required: true
+        type: string
+      environment:
+        required: true
+        type: choice
+        options: [staging, production]
+      action:
+        required: true
+        type: choice
+        options: [deploy, rollback]
+      artifact_manifest_sha256:
+        required: true
+        type: string
+      environment_generation:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agentnovas-deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Reject reruns before repository or network use
+        if: ${{ github.run_attempt != 1 }}
+        run: exit 1
+      - name: Checkout the frozen control commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Use the pinned Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.21.1
+          cache: npm
+      - name: Submit the exact OIDC-bound request
+        env:
+          INPUT_SCHEMA_VERSION: ${{ inputs.schema_version }}
+          INPUT_COMMAND_ID: ${{ inputs.command_id }}
+          INPUT_RELEASE_VERSION_ID: ${{ inputs.release_version_id }}
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_ARTIFACT_MANIFEST_SHA256: ${{ inputs.artifact_manifest_sha256 }}
+          INPUT_ENVIRONMENT_GENERATION: ${{ inputs.environment_generation }}
+          RESTRICTED_CICD_TARGET_URL: ${{ vars.RESTRICTED_CICD_TARGET_URL }}
+          RESTRICTED_CICD_OIDC_AUDIENCE: ${{ vars.RESTRICTED_CICD_OIDC_AUDIENCE }}
+        run: node --experimental-strip-types scripts/release/restricted-cicd-workflow-client.mjs

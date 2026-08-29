@@ -6,9 +6,9 @@
 
 文档版本：1.0
 
-基线日期：2026-08-21
+基线日期：2026-08-26
 
-代码基线：`bef7a4c` 及其之前的集成提交
+代码基线：`codex/platform-v3-doc-sync` 当前工作树；不可变生产事实仍以 `docs/releases/` 为准
 适用范围：5–20 名受邀客户的受控商业 Beta
 
 ## 1. 文档目的
@@ -58,6 +58,7 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 | AI Credits | `CURRENT` | 与钱包、Paper 和 Demo 资金隔离，余额不可为负 |
 | 三张官方 Paper 组合 | `CURRENT` | 每卡独立 10,000 USDT，仅现货、仅做多、无杠杆 |
 | 七智能体交易大厅 | `CURRENT` | 七阶段顺序、决策轮、Paper 回执和 Demo 安全摘要已落地 |
+| Client 工作记录与 Maintenance 脱敏导出 | `CURRENT` | 固定策略版本、订阅期间、公共七阶段、个人准入/模拟执行、六个月保留和 security-barrier 安全投影已通过完整 Gate |
 | 平台 Demo 交易所 | `CONFIG_REQUIRED` | 支持 OKX Demo、Binance Spot Testnet、Bybit Demo；没有凭证时不宣称已连接 |
 | 站内通知 | `CURRENT` | 收件箱、已读、偏好和免打扰可用 |
 | Email | `CONFIG_REQUIRED` | 域名、Key、Webhook、模板、suppression、allowlist 和 Worker 授权均满足后才能真实发送 |
@@ -76,9 +77,9 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 
 | 应用 | 主要用户 | 核心职责 |
 | --- | --- | --- |
-| Client | 受邀客户 | 账号、披露、会员、Credits、策略研究、回测、Paper、七智能体、账单、钱包和通知 |
+| Client | 受邀客户 | 账号、披露、会员、Credits、策略研究、回测、Paper、七智能体、工作记录、账单、钱包和通知 |
 | Operations | 运营 maker、checker、客服、财务 | 客户、组织、会员凭证、双审、Credits 调整、周分成、账本、财务和业务 RBAC |
-| Maintenance | 技术管理员、安全管理员、发布人员 | 模型、Agent 绑定、外部集成、Worker、紧急暂停、披露发布、版本发布、技术 RBAC 和审计 |
+| Maintenance | 技术管理员、安全管理员、发布人员 | 模型、Agent 绑定、AI 用量、工作记录脱敏导出、外部集成、Worker、紧急暂停、配置/披露/版本发布、技术 RBAC 和审计 |
 
 ### 4.2 隔离方式
 
@@ -158,6 +159,7 @@ Riverton Capital 是基于 AgentNovas 技术平台构建的 AI 策略研究和�
 | `/paper` | 模拟组合 | 查看三张官方组合汇总、持仓、运行状态 | `client.paper.view` |
 | `/paper/[portfolioId]` | 组合详情 | 查看单卡现金、权益、盈亏、持仓和成交 | 本人组合 |
 | `/trading-hall` | 七智能体交易大厅 | 三卡、七角色、决策轮、Paper 和 Demo 证据 | `client.paper.view` |
+| `/work-records`、`/work-records/[id]` | 工作记录 | 本人订阅期间的公共七阶段、行情摘要、个人准入和模拟意图/成交；未知或越权统一 404 | `client.paper.view` |
 | `/assistant` | AI 助手 | 持久对话、流式回复、4 个必要快捷问题、直接取消和同请求安全重试；不提供分析标的选择或旧 8 卡片 | 已登录、`client.paper.view` |
 | `/studio` | 策略研发 | 多 Agent 研究、确定性目标输入、策略 DSL、候选编辑和不可变版本 | 已登录、策略研发 Gate |
 | `/market` | 行情中心 | 品种搜索、报价、K 线、新闻与来源新鲜度；不提供观察名单 | 已登录 |
@@ -498,12 +500,13 @@ checker 可以：
 
 ### 10.6 充值历史和人工操作
 
-- Beta 不允许创建新充值订单；
-- Operations 只查询历史订单、统计、渠道、网络、状态和交易哈希；
+- Client 可在优盾 deposit-only 配置完整时创建 USDT 充值订单并取得 provider 返回的专属地址；
+- Operations 查询真实订单、统计、渠道、网络、状态和交易哈希；
 - 列表和详情使用一致的 PII 脱敏策略；
-- maker 可以为历史订单提交人工调查或处理请求并填写原因；
+- maker 可以为待复核订单提交人工入账/拒绝申请，或为异常订单提交调查请求并填写原因；
 - 不同 checker 可以批准或拒绝；
-- 审批结果只表示申请已记录，不表示链上资金或账本已自动变更。
+- 只有批准事务同时完成订单状态、平衡账本、钱包版本、审计和通知才表示已入账；申请创建或普通调查
+  审批本身不代表链上资金或账本已变化。
 
 ### 10.7 账本与财务
 
@@ -536,6 +539,8 @@ checker 可以：
 | --- | --- | --- |
 | `/` | 系统概览 | 数据库、Worker、队列、邮件、支付和配置摘要 |
 | `/models` | 模型与 Agent | LLM Profile、不可变修订、测试、回滚和角色绑定 |
+| `/ai-usage` | AI 用量 | 有界 UTC cohort、可信 Token、settled Credits 和脱敏维度 |
+| `/work-records` | 工作记录导出 | 独立敏感权限下的 31 天/1,000 条脱敏 JSON 导出和元数据审计 |
 | `/integrations` | 服务集成 | Email、支付、Demo 和公共数据源总览 |
 | `/integrations/sources` | 数据与新闻 | 固定公共只读源的配置、健康、陈旧和安全测试 |
 | `/integrations/email` | 邮件服务 | 域名、Key、Webhook、模板、suppression、allowlist 和最近测试 |

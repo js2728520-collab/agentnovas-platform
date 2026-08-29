@@ -3,7 +3,7 @@ x-document-status: CURRENT_BASELINE
 x-v3-target-spec: ../specs/V3_SYSTEM_TARGET_SPEC.md
 info:
   title: Riverton Capital Controlled Beta API
-  version: 2.2.0-beta
+  version: 2.3.0-beta
   description: >-
     当前受控 Beta 的核心浏览器接口合同，不是 V3 目标 API 清单。客户 paper 与平台 Demo 证据分离；
     优盾 deposit-only 客户充值可在目标商户配置和双人复核 Gate 下启用；提现、划转、自动扣款、客户交易所密钥、真实现货/永续和其他生产外部操作不启用。
@@ -67,6 +67,51 @@ paths:
                 $ref: '#/components/schemas/Viewer'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /api/account/preferences:
+    get:
+      tags: [Auth]
+      summary: 查询当前用户在当前应用的语言与主题偏好
+      description: audience 只从当前应用会话推导；响应不缓存。无显式记录时返回该 audience 的安全默认值。
+      responses:
+        '200':
+          description: 当前应用偏好
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [preference]
+                properties:
+                  preference: { $ref: '#/components/schemas/UserAppPreference' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Auth]
+      summary: 更新当前用户在当前应用的语言与主题偏好
+      description: >-
+        支持部分更新并幂等 upsert。请求不得包含 audience 或未知字段；Client 支持七种语言，
+        Operations 与 Maintenance 只支持简体中文和英语。修改结果写入审计日志。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserAppPreferencePatch' }
+      responses:
+        '200':
+          description: 更新后的当前应用偏好
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [ok, preference]
+                properties:
+                  ok: { type: boolean, const: true }
+                  preference: { $ref: '#/components/schemas/UserAppPreference' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /api/access/me/effective:
     get:
       tags: [Access]
@@ -816,6 +861,84 @@ paths:
               schema: { $ref: '#/components/schemas/ApiError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/maintenance/work-records/export:
+    post:
+      tags: [Maintenance]
+      summary: 导出脱敏策略工作记录安全投影
+      description: >-
+        需要 maint.work_records.export、同源请求和 Idempotency-Key。UTC 日期包含两端且最多 31 天；
+        每次最多返回 1,000 条，达到上限时明确 truncated=true。结果只含稳定伪名用户和业务白名单字段，
+        不包含原始用户/部署/决策轮 ID、PII、原始 evidence/payload、模型/provider、错误原文或凭证。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [from, to, reason]
+              properties:
+                from: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+                to: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200':
+          description: 本次响应内的脱敏 JSON；服务端不落导出文件，相同绑定安全重放且只写一条审计
+          headers:
+            Cache-Control:
+              schema: { type: string, const: 'private, no-store, max-age=0' }
+            Content-Disposition:
+              schema: { type: string }
+            X-Export-Retention:
+              schema: { type: string, const: idempotency-record-only }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [period, generatedAt, limit, truncated, data]
+                properties:
+                  period:
+                    type: object
+                    additionalProperties: false
+                    required: [from, to, timezone]
+                    properties:
+                      from: { type: string, format: date }
+                      to: { type: string, format: date }
+                      timezone: { type: string, const: UTC }
+                  generatedAt: { type: string, format: date-time }
+                  limit: { type: integer, const: 1000 }
+                  truncated: { type: boolean }
+                  data:
+                    type: array
+                    maxItems: 1000
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [workRecordRef, userRef, strategyCode, strategyVersion, symbol, timeframe, decisionStatus, completeness, executionMode, admissionStatus, orderIntentCount, fillReceiptCount, occurredAt, isSharedDecision, realOrderRoutingEnabled]
+                      properties:
+                        workRecordRef: { type: string }
+                        userRef: { type: string, pattern: '^USR-[A-F0-9]{12}$' }
+                        strategyCode: { type: string }
+                        strategyVersion: { type: string }
+                        symbol: { type: string }
+                        timeframe: { type: string }
+                        decisionStatus: { type: string }
+                        completeness: { type: string }
+                        executionMode: { type: string, enum: [shadow, paper] }
+                        admissionStatus: { type: string, enum: [not_required, not_recorded, recorded, risk_rejected, failed] }
+                        orderIntentCount: { type: integer, minimum: 0 }
+                        fillReceiptCount: { type: integer, minimum: 0 }
+                        occurredAt: { type: string, format: date-time }
+                        isSharedDecision: { type: boolean }
+                        realOrderRoutingEnabled: { type: boolean, const: false }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { description: 请求体超过 8 KiB }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /api/maintenance/releases:
     get:
       tags: [Maintenance]
@@ -914,6 +1037,30 @@ components:
       in: cookie
       name: rc_maint_session
   schemas:
+    UserAppPreference:
+      type: object
+      additionalProperties: false
+      required: [audience, locale, themeMode, themePalette, updatedAt]
+      properties:
+        audience: { type: string, enum: [client, operations, maintenance], readOnly: true }
+        locale:
+          type: string
+          enum: [en-US, zh-CN, zh-TW, ru-RU, es-ES, ja-JP, ko-KR]
+          description: Operations 与 Maintenance 只允许 zh-CN、en-US；服务端按会话 audience 校验。
+        themeMode: { type: string, enum: [system, light, dark] }
+        themePalette: { type: string, enum: [classic, harbor, forest] }
+        updatedAt: { type: string, format: date-time, readOnly: true }
+    UserAppPreferencePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        locale:
+          type: string
+          enum: [en-US, zh-CN, zh-TW, ru-RU, es-ES, ja-JP, ko-KR]
+          description: Operations 与 Maintenance 只允许 zh-CN、en-US。
+        themeMode: { type: string, enum: [system, light, dark] }
+        themePalette: { type: string, enum: [classic, harbor, forest] }
     MaintenanceAiUsageOrganizationAttribution:
       type: object
       additionalProperties: false

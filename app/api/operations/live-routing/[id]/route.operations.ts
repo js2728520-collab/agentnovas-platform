@@ -3,6 +3,7 @@ import { auditLogs } from "@/db/schema";
 import { requireAccessPermission } from "@/lib/access-control";
 import { responseError } from "@/lib/session";
 import { grantLiveRouting, revokeLiveRouting } from "@/lib/execution/live-routing-admin";
+import { isLiveExecutionReady } from "@/packages/domain/src/execution/live-readiness";
 
 /**
  * PATCH 批准开通（必须由另一位运营），DELETE 关停（单人即时）。
@@ -13,6 +14,12 @@ import { grantLiveRouting, revokeLiveRouting } from "@/lib/execution/live-routin
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { user } = await requireAccessPermission(request, "ops.trading.manage");
+    if (!isLiveExecutionReady()) {
+      return Response.json({
+        code: "LIVE_EXECUTION_NOT_READY",
+        error: "实盘安全闸门尚未通过，不能批准开通路由",
+      }, { status: 503 });
+    }
     const { id } = await context.params;
     const result = await grantLiveRouting({ id, grantedBy: user.id });
     if (!result.granted) {

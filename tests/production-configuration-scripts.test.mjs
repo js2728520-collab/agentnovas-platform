@@ -36,6 +36,10 @@ NOTIFICATION_EMAIL_SEND_ENABLED=false
 `,
   "maintenance.env": `NODE_ENV=production
 DATABASE_URL=postgresql://maintenance
+RELEASE_IDENTITY_VERIFIER_URL=http://127.0.0.1:3315
+RELEASE_IDENTITY_VERIFIER_SHARED_SECRET=release-identity-shared-secret-at-least-48-characters
+RELEASE_CONTROL_GATEWAY_URL=http://127.0.0.1:3314
+RELEASE_CONTROL_GATEWAY_SHARED_SECRET=release-control-shared-secret-at-least-48-characters
 PAYMENT_WEBHOOK_DATABASE_URL=postgresql://payment-webhook
 TRUST_PROXY_HOPS=1
 MFA_TOTP_ENCRYPTION_KEY=internal-mfa-key
@@ -54,11 +58,45 @@ DEMO_EXECUTION_WORKER_ENABLED=false
 CONFIGURATION_ACTIVATION_WORKER_ENABLED=false
 PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED=false
 `,
+  "release-control.env": `NODE_ENV=production
+RIVERTON_RELEASE_CONTROL_SERVICE=true
+RELEASE_CONTROL_ENABLED=false
+RELEASE_CONTROL_DATABASE_URL=postgresql://agentnovas_release_control@127.0.0.1:5432/agentnovas
+RELEASE_CONTROL_GATEWAY_SHARED_SECRET=release-control-shared-secret-at-least-48-characters
+`,
+  "release-identity-verifier.env": `NODE_ENV=production
+RIVERTON_RELEASE_IDENTITY_VERIFIER_SERVICE=true
+RELEASE_IDENTITY_VERIFIER_ENABLED=false
+RELEASE_IDENTITY_VERIFIER_DATABASE_URL=postgresql://agentnovas_release_identity_verifier@127.0.0.1:5432/agentnovas
+RELEASE_IDENTITY_VERIFIER_SHARED_SECRET=release-identity-shared-secret-at-least-48-characters
+RELEASE_IDENTITY_VERIFIER_WEBAUTHN_POLICY_FILE=/run/secrets/release-identity-verifier-webauthn-policy.json
+`,
   "configuration-activation.env": `NODE_ENV=production
 CONFIGURATION_ACTIVATION_DATABASE_URL=postgresql://agentnovas_configuration_activation_worker@127.0.0.1:5432/agentnovas
 CONFIGURATION_ACTIVATION_WORKER_ENABLED=false
 CONFIGURATION_ACTIVATION_WORKER_INTERVAL_MS=5000
 CONFIGURATION_ACTIVATION_WORKER_BATCH_SIZE=50
+`,
+  "release-orchestrator-staging.env": `NODE_ENV=production
+RELEASE_ORCHESTRATOR_WORKER_ENABLED=false
+RELEASE_ORCHESTRATOR_DATABASE_URL=postgresql://agentnovas_release_worker@127.0.0.1:5432/agentnovas
+RELEASE_ORCHESTRATOR_BINDING_FILE=/run/secrets/release-orchestrator-binding.json
+RELEASE_ORCHESTRATOR_WORKER_ID=release-worker-staging-test
+RELEASE_ORCHESTRATOR_INTERVAL_MS=30000
+RELEASE_ORCHESTRATOR_LEASE_SECONDS=300
+`,
+  "release-auditor-staging.env": `NODE_ENV=production
+RELEASE_AUDITOR_ENABLED=false
+RELEASE_AUDITOR_DATABASE_URL=postgresql://agentnovas_release_auditor@127.0.0.1:5432/agentnovas
+RELEASE_AUDITOR_HOST=127.0.0.1
+RELEASE_AUDITOR_PORT=3316
+`,
+  "release-webhook.env": `NODE_ENV=production
+RELEASE_WEBHOOK_INGRESS_ENABLED=false
+RELEASE_WEBHOOK_DATABASE_URL=postgresql://agentnovas_release_ingress@127.0.0.1:5432/agentnovas
+RELEASE_WEBHOOK_BINDING_FILE=/run/secrets/release-webhook-binding.json
+RELEASE_WEBHOOK_HOST=127.0.0.1
+RELEASE_WEBHOOK_PORT=3004
 `,
   "notification.env": `NODE_ENV=production
 DATABASE_URL=postgresql://notification
@@ -96,6 +134,11 @@ EXECUTION_SERVICE_PORT=3020
 GIT_COMMIT_SHA=test
 `,
 };
+
+fixtures["release-orchestrator-production.env"] = fixtures["release-orchestrator-staging.env"]
+  .replace("release-worker-staging-test", "release-worker-production-test");
+fixtures["release-auditor-production.env"] = fixtures["release-auditor-staging.env"]
+  .replace("RELEASE_AUDITOR_PORT=3316", "RELEASE_AUDITOR_PORT=3317");
 
 async function fixtureDirectory() {
   const directory = await mkdtemp(join(tmpdir(), "agentnovas-config-test-"));
@@ -141,6 +184,11 @@ test("the production audit reports readiness facts without exposing configuratio
     assert.match(result.stdout, /resend_configuration=incomplete/);
     assert.match(result.stdout, /udun_configuration=incomplete/);
     assert.match(result.stdout, /notification_email_send=disabled/);
+    assert.match(result.stdout, /release_orchestrator_worker_staging=disabled/);
+    assert.match(result.stdout, /release_orchestrator_worker_production=disabled/);
+    assert.match(result.stdout, /release_provider_security_auditor_staging=disabled/);
+    assert.match(result.stdout, /release_provider_security_auditor_production=disabled/);
+    assert.match(result.stdout, /release_identity_verifier=disabled/);
     assert.doesNotMatch(result.stdout + result.stderr, /postgresql:\/\/|shared-notification-key|shared-llm-key/);
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -207,6 +255,24 @@ test("the production audit rejects a configuration Worker DSN using another data
     await assert.rejects(
       run("scripts/audit-production-config.sh", [], { RIVERTON_SECRET_DIR: directory }),
       (error) => error.stderr.includes("configuration-activation.env:CONFIGURATION_ACTIVATION_DATABASE_URL:dedicated_role_required"),
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("restricted CI/CD Worker and Auditor enablement cannot diverge within an environment", async () => {
+  const directory = await fixtureDirectory();
+  try {
+    await replaceEnvValue(
+      directory,
+      "release-orchestrator-staging.env",
+      "RELEASE_ORCHESTRATOR_WORKER_ENABLED",
+      "true",
+    );
+    await assert.rejects(
+      run("scripts/audit-production-config.sh", [], { RIVERTON_SECRET_DIR: directory }),
+      (error) => error.stderr.includes("restricted_cicd_staging:worker_auditor_enablement_mismatch"),
     );
   } finally {
     await rm(directory, { recursive: true, force: true });

@@ -20,7 +20,7 @@ function cookieValue(request: Request, name: string) {
 export async function currentSession(
   request: Request,
   options: { allowPrimaryInternal?: boolean } = {},
-): Promise<{ user: CurrentUser; session: CurrentSession; recentMfa: boolean } | null> {
+): Promise<{ user: CurrentUser; session: CurrentSession; recentMfa: boolean; sessionSecret: string } | null> {
   const audience = resolveAppAudienceStrict({ host: request.headers.get("host") ?? undefined });
   if (!audience) return null;
   const names = [cookieNameForAudience(audience), ...(audience === "client" ? ["an_session"] : [])];
@@ -75,7 +75,7 @@ export async function currentSession(
         .where(and(eq(sessions.id, row.session.id), isNull(sessions.revokedAt)));
     }
   }
-  return { ...row, recentMfa: assurance.recentMfa };
+  return { ...row, recentMfa: assurance.recentMfa, sessionSecret: token };
 }
 
 export async function currentUser(request: Request): Promise<CurrentUser | null> {

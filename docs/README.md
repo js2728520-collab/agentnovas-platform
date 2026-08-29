@@ -19,6 +19,7 @@
 | 运维、安全 | `specs/V3_MAINTENANCE_APP_TARGET_SPEC.md` → ADR-0019/0020/0021/0022/0023 → V3 Gate → 当前 Runbook |
 | QA、交付 | `quality/FULL_PLATFORM_V3_GATES.md` → V3 Roadmap → 当前证据/Runbook |
 | 发布值班、事故负责人 | `runbooks/commercial-beta-release-and-rollback.md` → 当前版本 `releases/` 部署记录 |
+| Phase 9 演练主持人 | `runbooks/phase9-operational-drills.md` → `releases/2026-08-26-r4-preview-operational-drill.md` |
 
 ## 核心文档
 
@@ -51,6 +52,7 @@
 - `runbooks/commercial-beta-release-and-rollback.md`：发布、首小时监控、回滚和数据恢复。
 - `runbooks/udun-deposit-gateway.md`：优盾商户配置、币种映射、回调、复核、停用和事故处理。
 - `runbooks/production-accounts-and-configuration.md`：三端验收账号、凭证取回、配置审计、Resend、优盾、LLM 与 Demo 的安全配置步骤和填空脚本。
+- `runbooks/phase9-operational-drills.md`：客服、风控、财务、事故、provider 故障与密钥泄露的人员演练步骤、SLA、停止条件和证据模板。
 - `releases/2026-08-22-v1.0.0-beta.5-deployment.md`：当前 `v1.0.0-beta.5` 的 Client 工作台、身份/数据库边界、真实账号 smoke、浏览器证据、配置事实和 `beta.3` 回滚目标。
 - `releases/2026-08-22-v1.0.0-beta.3-deployment.md`：前一成功版本 `v1.0.0-beta.3` 的公开着陆页修复、真实部署过程和历史回滚目标。
 - `releases/2026-08-22-v1.0.0-beta.2-deployment.md`：前一版本 `v1.0.0-beta.2` 的真实部署过程、证据、异常和历史回滚目标。

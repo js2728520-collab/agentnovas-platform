@@ -1,6 +1,6 @@
 # 策略工作记录与受控导出规格
 
-状态：`TARGET_TRUTH / IMPLEMENTING`。Client 历史列表/详情与 Maintenance 脱敏导出按 T4.13 分两个纵向增量实施；真实订单路由继续关闭。
+状态：`CURRENT`。Client 历史列表/详情、Maintenance 脱敏导出和 T4.13c 最终三端浏览器总 Gate 均已完成；真实订单路由继续关闭。
 
 ## 1. 目标
 
@@ -72,7 +72,7 @@
 - same-origin、`Idempotency-Key`、最多 8 KiB 请求体；
 - body 仅允许 `from`、`to`、`reason`；UTC 日期两端包含，最大 31 天，`reason` 为 3–500 字；
 - 每次最多 1,000 条，超过时返回 `truncated=true`，不静默声称完整；
-- 导出 JSON，响应设置 `content-disposition: attachment`、`no-store` 和 `x-export-retention: none`；服务端不落导出文件；
+- 导出 JSON，响应设置 `content-disposition: attachment`、`no-store` 和 `x-export-retention: idempotency-record-only`；服务端不向文件系统或对象存储落导出文件，脱敏响应仅保存在不可变幂等终态记录中以支持安全重放；
 - 相同 actor + Idempotency-Key + 请求摘要只返回相同结果并只写一条审计；键冲突返回 409；
 - 审计只记录日期、条数、截断状态、查询摘要和原因，不记录导出正文。
 

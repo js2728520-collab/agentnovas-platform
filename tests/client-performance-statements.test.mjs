@@ -68,7 +68,7 @@ test("client performance statement detail is ownership scoped and privacy projec
   assert.match(route, /cache-control["']:\s*["']no-store/);
 });
 
-test("client statement workspace provides list, detail, timeline and honest payment boundaries", async () => {
+test("client statement workspace provides customer-readable list, detail and payment progress", async () => {
   const workspace = await read("apps/client/ui/performance-statements-workspace.tsx");
   const portal = await read("apps/client/ui/client-portal.tsx");
   const shell = await read("apps/client/ui/client-portal-shell.tsx");
@@ -78,22 +78,19 @@ test("client statement workspace provides list, detail, timeline and honest paym
   assert.match(workspace, /LoadingState/);
   assert.match(workspace, /ErrorState/);
   assert.match(workspace, /EmptyState/);
-  assert.match(workspace, /不会自动扣款/);
-  assert.match(workspace, /当前已提交高水位/);
-  assert.match(workspace, /付款复核通过后预计高水位/);
-  assert.match(workspace, /预计高水位尚未提交/);
-  assert.doesNotMatch(workspace, /<dt>结算后高水位<\/dt>/);
+  assert.match(workspace, /费用计算/);
+  assert.match(workspace, /处理进度/);
+  assert.match(workspace, /strategyLabel/);
+  assert.doesNotMatch(workspace, /证据链|Operations|checker|IMMUTABLE|UTC 周期|REVISION|SETTLEMENT BASIS/);
   assert.match(portal, /PerformanceStatementsWorkspace/);
-  assert.match(shell, /href:\s*"\/performance-statements"/);
+  assert.match(portal, /href: "\/account-center\?tab=statements"/);
+  assert.match(shell, /href="\/account-center"/);
 });
 
-test("client home loads the latest statement and unread count as independent summaries", async () => {
+test("client data dashboard leaves billing and notification details in their dedicated surfaces", async () => {
   const home = await read("apps/client/ui/client-home-workspace.tsx");
   const inbox = await read("app/api/notifications/inbox/route.client.ts");
-  assert.match(home, /\/api\/membership\/performance-statements\?limit=1/);
-  assert.match(home, /\/api\/notifications\/inbox\?summary=1/);
-  assert.match(home, /label="最新绩效账单"/);
-  assert.match(home, /label="未读通知"/);
+  assert.doesNotMatch(home, /\/api\/membership\/performance-statements|\/api\/notifications\/inbox/);
   assert.match(inbox, /summary/);
   assert.match(inbox, /isNull\(notificationDeliveries\.readAt\)/);
 });

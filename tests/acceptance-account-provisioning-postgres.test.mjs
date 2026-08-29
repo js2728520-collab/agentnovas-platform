@@ -175,6 +175,11 @@ test("the CLI never accepts passwords in command arguments or prints credential 
   const source = await readFile(new URL("../scripts/provision-acceptance-accounts.mjs", import.meta.url), "utf8");
   assert.match(source, /ALLOW_ACCEPTANCE_ACCOUNT_PROVISIONING/);
   assert.match(source, /ACCEPTANCE_CREDENTIAL_OUTPUT/);
+  assert.match(source, /ACCEPTANCE_LOGIN_PROFILE/);
+  assert.match(source, /https:\/\/test\.agentnovas\.com\/login/);
+  assert.match(source, /https:\/\/ops-test\.agentnovas\.com\/login/);
+  assert.match(source, /https:\/\/main-test\.agentnovas\.com\/login/);
+  assert.match(source, /仅允许 production 或 test/);
   assert.match(source, /randomToken/);
   assert.doesNotMatch(source, /process\.argv|console\.log\([^)]*password|stdout\.write\([^)]*password/i);
   assert.match(source, /mode:\s*0o600/);

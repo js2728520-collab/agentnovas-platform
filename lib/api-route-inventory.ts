@@ -515,6 +515,50 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/account/preferences",
+    "source": "app/api/account/preferences/route.shared.ts",
+    "audiences": [
+      "client",
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireCurrentSession"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "PATCH",
+    "route": "/api/account/preferences",
+    "source": "app/api/account/preferences/route.shared.ts",
+    "audiences": [
+      "client",
+      "operations",
+      "maintenance"
+    ],
+    "authentication": "session",
+    "sessionAuthHelpers": [
+      "requireCurrentSession"
+    ],
+    "permissionKeys": [],
+    "permissionMfa": {},
+    "scope": "none",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
     "route": "/api/account/profile",
     "source": "app/api/account/profile/route.client.ts",
     "audiences": [
@@ -2786,6 +2830,248 @@ export const API_ROUTE_INVENTORY = [
   },
   {
     "method": "GET",
+    "route": "/api/maintenance/release-workflow",
+    "source": "app/api/maintenance/release-workflow/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.view"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "none",
+    "pii": "none",
+    "sensitivity": "normal",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/release-workflow/activations",
+    "source": "app/api/maintenance/release-workflow/activations/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.activation.request"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.activation.request": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/release-workflow/activations/:id/production-enablement",
+    "source": "app/api/maintenance/release-workflow/activations/[id]/production-enablement/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.production.enable"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.production.enable": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/release-workflow/activations/:id/review",
+    "source": "app/api/maintenance/release-workflow/activations/[id]/review/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.activation.approve"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.activation.approve": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/release-workflow/commands/production",
+    "source": "app/api/maintenance/release-workflow/commands/production/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.production.request"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.production.request": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/release-workflow/commands/production/:id/review",
+    "source": "app/api/maintenance/release-workflow/commands/production/[id]/review/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.production.approve"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.production.approve": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/release-workflow/commands/staging",
+    "source": "app/api/maintenance/release-workflow/commands/staging/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.stage"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.stage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/release-workflow/commands/staging/:id/review",
+    "source": "app/api/maintenance/release-workflow/commands/staging/[id]/review/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.stage"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.stage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/release-workflow/stops",
+    "source": "app/api/maintenance/release-workflow/stops/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.stop"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.stop": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/release-workflow/stops/release",
+    "source": "app/api/maintenance/release-workflow/stops/release/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.stop.release"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.stop.release": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/release-workflow/stops/release/:id/review",
+    "source": "app/api/maintenance/release-workflow/stops/release/[id]/review/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.releases.workflow.stop.release"
+    ],
+    "permissionMfa": {
+      "maint.releases.workflow.stop.release": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "GET",
     "route": "/api/maintenance/releases",
     "source": "app/api/maintenance/releases/route.maintenance.ts",
     "audiences": [
@@ -2912,6 +3198,28 @@ export const API_ROUTE_INVENTORY = [
     "scope": "platform",
     "mfa": "recent",
     "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/work-records/export",
+    "source": "app/api/maintenance/work-records/export/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.work_records.export"
+    ],
+    "permissionMfa": {
+      "maint.work_records.export": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "masked",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": true

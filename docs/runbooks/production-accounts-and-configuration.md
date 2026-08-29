@@ -88,6 +88,7 @@ sudo docker run --rm \
   --network agentnovas-riverton-backplane \
   --env-file /etc/agentnovas-riverton/migrator.env \
   -e ALLOW_ACCEPTANCE_ACCOUNT_PROVISIONING=1 \
+  -e ACCEPTANCE_LOGIN_PROFILE=production \
   -e ACCEPTANCE_CLIENT_EMAIL=client-admin@agentnovas.com \
   -e ACCEPTANCE_OPERATIONS_EMAIL=operations-admin@agentnovas.com \
   -e ACCEPTANCE_MAINTENANCE_EMAIL=maintenance-admin@agentnovas.com \

@@ -8,6 +8,7 @@ import {
 import { boundedAiHistory, requestAiText, type AiProviderMessage } from "@/lib/ai-provider";
 import { strategyDraftFromAiMessage } from "@/lib/ai-strategy-save";
 import { StrategyDslValidationError } from "@/packages/domain/src/strategy-dsl";
+import type { UserAppLocale } from "@/lib/user-app-preference";
 
 /**
  * 策略 DSL 修复循环的重试次数（不含首次生成）。
@@ -36,16 +37,31 @@ function strategyDslIssues(text: string): string[] | null {
 
 export type AssistantHistoryMessage = { role: "user" | "assistant"; content: string };
 
+export function responseLanguageForLocale(locale: UserAppLocale | undefined) {
+  const languages: Record<UserAppLocale, string> = {
+    "en-US": "English",
+    "zh-CN": "Simplified Chinese",
+    "zh-TW": "Traditional Chinese",
+    "ru-RU": "Russian",
+    "es-ES": "Spanish",
+    "ja-JP": "Japanese",
+    "ko-KR": "Korean",
+  };
+  return languages[locale ?? "zh-CN"];
+}
+
 export async function generateAssistantReply(options: {
   latestMessage: string;
   history: AssistantHistoryMessage[];
   context: AssistantContext;
   config: ResolvedLlmConfig | null;
+  locale?: UserAppLocale;
   signal?: AbortSignal;
 }) {
   const intent = classifyAssistantIntent(options.latestMessage);
   const memory = buildSessionWorkingMemory(options.history, options.latestMessage);
   if (!options.config) return guidedAssistantReply(options.latestMessage, options.context, memory);
+  const responseLanguage = responseLanguageForLocale(options.locale);
   const system = `你是 Riverton Capital 的 AI 助手。你服务四类问题，不做闲聊式泛泛回答：
 1. 行情分析——基于服务端行情快照解释走势、结构、支撑阻力与技术指标。
 2. 决策分析——解释七智能体决策轮：这一轮做了什么判断，确定性风控为什么放行或拒绝。
@@ -70,7 +86,7 @@ export async function generateAssistantReply(options: {
 - 用户要求生成完整策略且关键条件已齐备时，必须增加“JSON DSL 草稿”区块，并在一个 json 代码块中只输出平台规范对象：schemaVersion 必须为 1；side 必须为 long_only；entry.all 为 1 至 4 条规则；exit.any 为 0 至 4 条规则，exit 还必须包含 stopLossPct、takeProfitPct；risk 必须包含 positionPct、maxDrawdownPct、dailyLossLimitPct、consecutiveLossLimit。规则仅允许 ema_cross(type,fastPeriod,slowPeriod,direction bullish/bearish)、rsi_threshold(type,period,operator lte/gte,value)、channel_breakout(type,period,direction above/below)、volume_ratio(type,period,operator lte/gte,value)。不要输出 operator、conditions、cross、enabled、capitalManagement 或额外字段。JSON 之外可以解释，但不得声称平台 Schema 未提供。
 - 平台事实类问题不需要“失效条件”，但要说明数字来自平台合同常量；快照未提供的项目直接说未提供。
 - 决策分析要按七阶段顺序讲，并明确指出哪一阶段给出了阻断理由；缺阶段时说明该轮不完整，不要补齐。
-- 使用简洁中文，通常不超过 800 字。
+- Output language: ${responseLanguage}. 全部解释、标题、问题和候选项必须使用该语言；JSON DSL 的字段名和枚举值保持平台规范英文。通常不超过 800 字。
 
 当前意图：${intent}
 会话工作记忆：${JSON.stringify(memory)}

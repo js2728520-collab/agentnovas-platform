@@ -137,8 +137,8 @@ test("four-identity membership evidence and maker-checker activation remains sid
     await expect(page.getByText(/3 天试用已在确认后由服务端开通/)).toBeVisible();
     await Promise.all([
       page.waitForURL(`${clientOrigin}/dashboard`),
-      // next 指向 /dashboard 时按钮文案是「进入交易总览」；带别的 next 才是「继续访问原页面」。
-      page.getByRole("link", { name: "进入交易总览" }).click(),
+      // next 指向 /dashboard 时按钮文案是「进入数据看板」；带别的 next 才是「继续访问原页面」。
+      page.getByRole("link", { name: "进入数据看板" }).click(),
     ]);
 
     const confirmedLegal = await expectJson<LegalConsentPayload>(await client.get("/api/membership/legal-consent", {
@@ -248,7 +248,7 @@ test("four-identity membership evidence and maker-checker activation remains sid
     await page.getByRole("button", { name: "登录" }).click();
     await expect(page).toHaveURL(`${operationsOrigin}/`);
     await expect(page.getByRole("heading", { name: "绑定双重验证" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "运营概览" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "运营看板" })).toBeVisible();
   } finally {
     await Promise.all(contexts.map((context) => context.dispose()));
     await fixturePool.end();

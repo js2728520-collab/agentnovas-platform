@@ -14,12 +14,10 @@ test("membership experience uses commercial truth sources and contains no simula
     "/api/membership/plans",
     "/api/membership/me",
     "/api/membership/orders",
-    "/api/credits/me",
   ]) assert.match(source, new RegExp(endpoint.replaceAll("/", "\\/")));
 
   assert.match(source, /paymentInstructionsStatus/);
-  assert.match(source, /creditError/);
-  assert.match(source, /积分服务暂不可用/);
+  assert.doesNotMatch(source, /\/api\/credits\/me|creditError|积分服务暂不可用/);
   assert.doesNotMatch(source, /<aside className=\{styles\.balance\}/);
   assert.match(source, /acceptedDocumentVersionIds/);
   assert.match(source, /idempotency-key/);
@@ -30,9 +28,9 @@ test("membership experience uses commercial truth sources and contains no simula
 
 test("membership experience constrains long legal content at narrow widths", async () => {
   const styles = await read("apps/client/ui/membership-experience.module.css");
-  assert.match(styles, /\.root\{[^}]*min-width:0/);
-  assert.match(styles, /\.legalItem[^}]*min-width:0/);
-  assert.match(styles, /\.legalItem[^}]*overflow-wrap:anywhere/);
+  assert.match(styles, /\.root\s*\{[^}]*min-width:\s*0/);
+  assert.match(styles, /\.legalItem[^}]*min-width:\s*0/);
+  assert.match(styles, /\.legalItem[^}]*overflow-wrap:\s*anywhere/);
 });
 
 test("commercial disclosure consent records the current seven-document bundle without creating an order", async () => {
@@ -49,41 +47,40 @@ test("commercial disclosure consent records the current seven-document bundle wi
   assert.doesNotMatch(legal, /\/api\/membership\/orders|planCode|付款成功|会员已激活/);
 });
 
-test("client home uses permission-gated live summaries instead of static KPI", async () => {
+test("client data dashboard uses only customer paper performance data", async () => {
   const home = await read("apps/client/ui/client-home-workspace.tsx");
-  for (const endpoint of [
-    "/api/membership/me",
-    "/api/membership/orders?limit=1",
-    "/api/credits/me",
-    "/api/trading-hall/paper/portfolio",
-  ]) assert.ok(home.includes(endpoint), `missing live summary endpoint: ${endpoint}`);
+  assert.ok(home.includes("/api/trading-hall/paper/portfolio"));
   assert.match(home, /hasAnyPermission/);
   assert.match(home, /useApiData/);
-  assert.match(home, /deriveClientHomeTask/);
+  assert.match(home, /derivePaperPortfolioSummary/);
+  assert.doesNotMatch(home, /deriveClientHomeTask|\/api\/membership|\/api\/credits|\/api\/notifications/);
   assert.doesNotMatch(home, /rc-kpi-grid|单卡模拟本金|<strong>10,000<\/strong>|<strong>3<\/strong>/);
 });
 
 test("wallet remains read-only while deposits use the server-side Udun order boundary", async () => {
   const wallet = await read("apps/client/ui/wallet-workspace.tsx");
   const deposits = await read("apps/client/ui/deposit-workspace.tsx");
-  assert.match(wallet, /只读/);
   assert.doesNotMatch(wallet, /创建充值订单/);
+  assert.doesNotMatch(wallet, /method:\s*"(?:POST|PUT|PATCH|DELETE)"/);
   assert.match(deposits, /UDUN/);
   assert.match(deposits, /\/api\/wallet\/deposit-orders/);
   assert.match(deposits, /method:\s*"POST"/);
   assert.match(deposits, /idempotency-key/);
+  assert.match(wallet, /ledgerEntryLabel/);
+  assert.match(deposits, /depositOrderLabel/);
   assert.doesNotMatch(deposits, /QRCode|fakeAddress|0x[a-fA-F0-9]{20,}|T[A-Za-z0-9]{30,}/);
 });
 
-test("client notification settings expose unintegrated external channels without demo verification", async () => {
-  const workspace = await read("apps/client/ui/notification-workspace.tsx");
+test("client notification settings expose one consistent in-app and email form", async () => {
+  const workspace = await read("apps/client/ui/notification-preferences-workspace.tsx");
   const settings = await read("apps/client/ui/client-notification-settings.tsx");
   const preferencesRoute = await read("app/api/notifications/preferences/route.client.ts");
   const preferencesPolicy = await read("lib/notification-preferences.ts");
   assert.match(workspace, /ClientNotificationSettings/);
-  assert.match(settings, /not_integrated/);
+  assert.match(workspace, /通知偏好/);
   assert.match(settings, /\/api\/notifications\/preferences/);
-  assert.doesNotMatch(settings, /verificationCode|演示验证码|\/api\/notifications\/channels/);
+  assert.match(settings, /保存通知设置/);
+  assert.doesNotMatch(settings, /Telegram|WhatsApp|not_integrated|verificationCode|演示验证码|\/api\/notifications\/channels/);
   assert.match(preferencesRoute, /normalizeNotificationPreferenceBatch/);
   assert.match(preferencesPolicy, /new Set\(\["in_app", "email"\]\)/);
   assert.match(preferencesRoute, /readResearchJson\(request, 4_096\)/);
@@ -103,10 +100,10 @@ test("trading experience reads official paper evidence and never presents client
   const source = `${entry}\n${experience}`;
   assert.match(source, /\/api\/trading-hall\/paper\/portfolio/);
   assert.match(source, /\/api\/trading-hall\/paper\/trades/);
-  assert.match(source, /\/api\/trading-hall/);
-  assert.match(source, /\/api\/trading-hall\/paper\/platform-demo-summary/);
-  assert.match(source, /脱敏的平台测试账户摘要/);
-  assert.match(source, /不会改变客户 Paper 余额、成交或绩效账单/);
+  assert.match(source, /<h1>\{t\("模拟组合"\)\}<\/h1>/);
+  assert.doesNotMatch(experience, /clientRequest<TradingHallPayload>\("\/api\/trading-hall"/);
+  assert.doesNotMatch(experience, /\/api\/trading-hall\/paper\/platform-demo-summary/);
+  assert.doesNotMatch(experience, /七阶段决策轮|平台 Demo 安全摘要|脱敏的平台测试账户摘要/);
   assert.doesNotMatch(source, /\/api\/exchange-accounts|\/api\/portfolio|\/api\/trading\/emergency-stop/);
   assert.doesNotMatch(source, /连接交易所|API Key/);
 });
@@ -128,7 +125,7 @@ test("the trading hall presents server strategy state without simulated live act
   assert.match(workspace, /tradingHallStrategyPresentation/);
   assert.match(workspace, /tradingHallEnvironmentLabel/);
   assert.match(workspace, /角色位置仅为界面示意，不代表智能体正在运行/);
-  assert.match(workspace, /三套AI策略服务端状态/);
+  assert.match(workspace, /三套 AI 策略服务端状态/);
   assert.doesNotMatch(workspace, /影子运行/);
   assert.doesNotMatch(workspace, /三套AI策略实时监控/);
   assert.doesNotMatch(workspace, /<small>运行策略<\/small>/);

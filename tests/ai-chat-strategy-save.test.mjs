@@ -144,7 +144,7 @@ test("agent chat renders generation progress as a new assistant reply, not butto
 
   assert.match(chat, /styles\.generatingDots/);
   assert.match(chat, /正在生成回复/);
-  assert.match(chat, />发送问题 →<\/button>/);
+  assert.match(chat, />\{t\("发送问题 →"\)\}<\/button>/);
   assert.doesNotMatch(chat, /\{sending \? "生成中…" : "发送问题 →"\}/);
   assert.match(styles, /\.generatingDots/);
   assert.match(styles, /@keyframes assistant-generating-dot/);

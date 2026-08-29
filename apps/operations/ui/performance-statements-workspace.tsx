@@ -22,6 +22,7 @@ import {
   StatusBadge,
 } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 type PendingDecision =
   | { stage: "assessment"; decision: "approve" | "reject"; idempotencyKey: string }
@@ -52,6 +53,7 @@ export function PerformanceStatementsWorkspace({
 }
 
 function PerformanceStatementQueue({ canGenerate }: { canGenerate: boolean }) {
+  const { locale, t } = useAppLocale();
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState("");
   const [cursor, setCursor] = useState("");
@@ -74,7 +76,7 @@ function PerformanceStatementQueue({ canGenerate }: { canGenerate: boolean }) {
     if (cursor) params.set("cursor", cursor);
     return `/api/operations/performance-statements?${params}`;
   }, [cursor, ready, status]);
-  const resource = useApiData<CursorPage<PerformanceFeeStatement>>(url, "周分成账单读取失败");
+  const resource = useApiData<CursorPage<PerformanceFeeStatement>>(url, t("周分成账单读取失败"));
   useEffect(() => {
     if (!ready) return;
     const params = new URLSearchParams();
@@ -91,11 +93,11 @@ function PerformanceStatementQueue({ canGenerate }: { canGenerate: boolean }) {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
         body: JSON.stringify({ userId: customerId.trim() }),
-      }, "周分成账单生成失败");
-      setMessage("上一完整 UTC 周的 paper 模拟净收益账单已生成，尚未完成业务审批或付款复核。");
+      }, t("周分成账单生成失败"), locale, t("会话已过期，正在返回登录页"));
+      setMessage(t("上一完整 UTC 周的 paper 模拟净收益账单已生成，尚未完成业务审批或付款复核。"));
       setCustomerId("");
       await refresh();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "周分成账单生成失败"); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : t("周分成账单生成失败")); }
     finally { setBusy(false); }
   }
 
@@ -106,31 +108,31 @@ function PerformanceStatementQueue({ canGenerate }: { canGenerate: boolean }) {
   return <>
     <PageHeading
       eyebrow="PAPER PERFORMANCE FEES"
-      title="周分成账单"
-      description="仅按上一完整 UTC 周汇总三卡已平仓 paper 模拟净收益；业务审批与付款复核分离。"
-      actions={<button className="rc-button" type="button" onClick={() => void refresh()}>刷新</button>}
+      title={t("周分成账单")}
+      description={t("仅按上一完整 UTC 周汇总三卡已平仓 paper 模拟净收益；业务审批与付款复核分离。")}
+      actions={<button className="rc-button" type="button" onClick={() => void refresh()}>{t("刷新")}</button>}
     />
     <div className="rc-live" aria-live="polite">{message}</div>
     {canGenerate && <section className="rc-panel">
-      <header><div><small>MAKER ACTION</small><h2>生成上一完整 UTC 周账单</h2><p>服务端固定解析官方三卡和会员快照；浏览器不能选择策略或收益口径。</p></div></header>
+      <header><div><small>MAKER ACTION</small><h2>{t("生成上一完整 UTC 周账单")}</h2><p>{t("服务端固定解析官方三卡和会员快照；浏览器不能选择策略或收益口径。")}</p></div></header>
       <form className="rc-filter-row" onSubmit={(event) => { event.preventDefault(); void generate(); }}>
-        <label><span>客户 ID</span><input required maxLength={100} value={customerId} onChange={(event) => setCustomerId(event.target.value)} /></label>
-        <button className="rc-primary" type="submit" disabled={busy || !customerId.trim()}>{busy ? "正在生成…" : "生成周账单"}</button>
+        <label><span>{t("客户 ID")}</span><input required maxLength={100} value={customerId} onChange={(event) => setCustomerId(event.target.value)} /></label>
+        <button className="rc-primary" type="submit" disabled={busy || !customerId.trim()}>{busy ? t("正在生成…") : t("生成周账单")}</button>
       </form>
     </section>}
     <section className="rc-panel">
-      <header><div><small>URL FILTERS</small><h2>分成队列</h2></div><label><span>状态</span><select value={status} onChange={(event) => { setStatus(event.target.value); setCursor(""); }}><option value="">全部状态</option><option value="SUBMITTED">等待业务审批</option><option value="APPROVED">已审批</option><option value="INVOICED">等待付款复核</option><option value="PAID">已付款复核</option><option value="CLOSED_NO_FEE">零费用关闭</option><option value="REJECTED">已拒绝</option></select></label></header>
-      {!ready || (resource.loading && !resource.data) ? <LoadingState label="正在读取周分成账单…" />
+      <header><div><small>URL FILTERS</small><h2>{t("分成队列")}</h2></div><label><span>{t("状态")}</span><select value={status} onChange={(event) => { setStatus(event.target.value); setCursor(""); }}><option value="">{t("全部状态")}</option><option value="SUBMITTED">{t("等待业务审批")}</option><option value="APPROVED">{t("已审批")}</option><option value="INVOICED">{t("等待付款复核")}</option><option value="PAID">{t("已付款复核")}</option><option value="CLOSED_NO_FEE">{t("零费用关闭")}</option><option value="REJECTED">{t("已拒绝")}</option></select></label></header>
+      {!ready || (resource.loading && !resource.data) ? <LoadingState label={t("正在读取周分成账单…")} />
         : resource.error && !resource.data ? <ErrorState message={resource.error} retry={resource.refresh} />
-          : !resource.data?.data.length ? <EmptyState title="没有周分成账单" description="当前筛选与数据范围内没有账单。" />
-            : <div className="rc-table-wrap"><table><thead><tr><th>周期</th><th>客户</th><th>paper 模拟净收益</th><th>应收</th><th>状态</th></tr></thead><tbody>{resource.data.data.map((statement) => <tr key={statement.id}>
-              <td><Link className="rc-table-link" href={`/performance-statements/${encodeURIComponent(statement.id)}`}>{formatDateTime(statement.cycleStartedAt)}</Link><small>至 {formatDateTime(statement.cycleEndedAt)} · 修订 {statement.revision}</small></td>
+          : !resource.data?.data.length ? <EmptyState title={t("没有周分成账单")} description={t("当前筛选与数据范围内没有账单。")} />
+            : <div className="rc-table-wrap"><table><thead><tr><th>{t("周期")}</th><th>{t("客户")}</th><th>{t("paper 模拟净收益")}</th><th>{t("应收")}</th><th>{t("状态")}</th></tr></thead><tbody>{resource.data.data.map((statement) => <tr key={statement.id}>
+              <td><Link className="rc-table-link" href={`/performance-statements/${encodeURIComponent(statement.id)}`}>{formatDateTime(statement.cycleStartedAt, locale)}</Link><small>{t("至")} {formatDateTime(statement.cycleEndedAt, locale)} · {t("修订")} {statement.revision}</small></td>
               <td><code>{statement.customerId}</code></td>
-              <td>{formatDecimal(statement.weeklyNetRealizedPnl)} USDT<small>模拟费 {statement.simulatedFees ? formatDecimal(statement.simulatedFees) : "不可用"} · 亏损结转 {formatDecimal(statement.lossCarry)}</small></td>
-              <td><b>{formatDecimal(statement.feeAmount)} USDT</b><small>计费基数 {formatDecimal(statement.billableProfit)} · 费率 {Number(statement.feeRate) * 100}%</small></td>
-              <td><StatusBadge value={statement.status} /><small>{statement.replacesStatementId ? `替代 ${statement.replacesStatementId}` : "首版"}</small></td>
+              <td>{formatDecimal(statement.weeklyNetRealizedPnl, 6, locale)} USDT<small>{t("模拟费")} {statement.simulatedFees ? formatDecimal(statement.simulatedFees, 6, locale) : t("不可用")} · {t("亏损结转")} {formatDecimal(statement.lossCarry, 6, locale)}</small></td>
+              <td><b>{formatDecimal(statement.feeAmount, 6, locale)} USDT</b><small>{t("计费基数")} {formatDecimal(statement.billableProfit, 6, locale)} · {t("费率")} {Number(statement.feeRate) * 100}%</small></td>
+              <td><StatusBadge value={statement.status} /><small>{statement.replacesStatementId ? `${t("替代")} ${statement.replacesStatementId}` : t("首版")}</small></td>
             </tr>)}</tbody></table></div>}
-      {resource.data?.page.hasMore && <div className="rc-action-row"><button className="rc-button" type="button" onClick={() => setCursor(resource.data?.page.nextCursor ?? "")}>下一页</button></div>}
+      {resource.data?.page.hasMore && <div className="rc-action-row"><button className="rc-button" type="button" onClick={() => setCursor(resource.data?.page.nextCursor ?? "")}>{t("下一页")}</button></div>}
     </section>
   </>;
 }
@@ -146,9 +148,10 @@ function PerformanceStatementDetailWorkspace({
   canRecordPaymentEvidence: boolean;
   canApprovePayment: boolean;
 }) {
+  const { locale, t } = useAppLocale();
   const resource = useApiData<PerformanceStatementDetail>(
     `/api/operations/performance-statements/${encodeURIComponent(statementId)}`,
-    "周分成账单详情读取失败",
+    t("周分成账单详情读取失败"),
   );
   const [showEvidence, setShowEvidence] = useState(false);
   const [pending, setPending] = useState<PendingDecision | null>(null);
@@ -160,17 +163,17 @@ function PerformanceStatementDetailWorkspace({
       method: "POST",
       headers: { "content-type": "application/json", "idempotency-key": key },
       body: JSON.stringify(body),
-    }, "周分成操作失败");
+    }, t("周分成操作失败"), locale, t("会话已过期，正在返回登录页"));
   }
 
   async function recordEvidence(input: PaymentEvidenceInput) {
     setBusy(true); setMessage("");
     try {
       await mutate("/payment-evidence", input, crypto.randomUUID());
-      setMessage("外部付款凭证已记录，账单尚未标记 PAID，高水位尚未提交。");
+      setMessage(t("外部付款凭证已记录，账单尚未标记 PAID，高水位尚未提交。"));
       setShowEvidence(false);
       await refresh();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "付款凭证记录失败"); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : t("付款凭证记录失败")); }
     finally { setBusy(false); }
   }
 
@@ -186,13 +189,13 @@ function PerformanceStatementDetailWorkspace({
         ...(paymentEvidenceId ? { paymentEvidenceId } : {}),
       }, pending.idempotencyKey);
       setMessage(pending.stage === "assessment"
-        ? "业务审批已记录；仅形成应收或零费用关闭，不表示已收款，也不会自动扣款。"
+        ? t("业务审批已记录；仅形成应收或零费用关闭，不表示已收款，也不会自动扣款。")
         : pending.decision === "approve" && result.status === "PAID"
-          ? "付款复核已记录，账单标记 PAID 并由服务端事务提交高水位；平台未执行外部支付。"
-          : "付款复核决定已记录；未执行外部退款或资金操作。");
+          ? t("付款复核已记录，账单标记 PAID 并由服务端事务提交高水位；平台未执行外部支付。")
+          : t("付款复核决定已记录；未执行外部退款或资金操作。"));
       setPending(null);
       await refresh();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "周分成审批失败"); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : t("周分成审批失败")); }
     finally { setBusy(false); }
   }
 
@@ -200,64 +203,64 @@ function PerformanceStatementDetailWorkspace({
     await resource.refresh();
   }
 
-  if (resource.loading && !resource.data) return <LoadingState label="正在读取周分成详情…" />;
+  if (resource.loading && !resource.data) return <LoadingState label={t("正在读取周分成详情…")} />;
   if (resource.error && !resource.data) return <ErrorState message={resource.error} retry={resource.refresh} />;
-  if (!resource.data) return <ErrorState message="周分成详情不可用" retry={resource.refresh} />;
+  if (!resource.data) return <ErrorState message={t("周分成详情不可用")} retry={resource.refresh} />;
   const { statement, evidence, decisions, actions } = resource.data;
   return <>
     <PageHeading
       eyebrow={`REVISION ${statement.revision}`}
-      title="paper 模拟净收益分成"
-      description="业务审批、外部付款凭证和付款 checker 是三个独立阶段；只有最终付款复核才提交高水位。"
-      actions={<><Link className="rc-button" href="/performance-statements">返回队列</Link><button className="rc-button" type="button" onClick={() => void refresh()}>刷新</button></>}
+      title={t("paper 模拟净收益分成")}
+      description={t("业务审批、外部付款凭证和付款 checker 是三个独立阶段；只有最终付款复核才提交高水位。")}
+      actions={<><Link className="rc-button" href="/commercial?tab=statements">{t("返回队列")}</Link><button className="rc-button" type="button" onClick={() => void refresh()}>{t("刷新")}</button></>}
     />
     <div className="rc-live" aria-live="polite">{message}</div>
-    <section className="rc-kpi-grid" aria-label="周分成摘要">
-      <article><small>状态</small><strong className="rc-kpi-status"><StatusBadge value={statement.status} /></strong><span>修订 {statement.revision}</span></article>
-      <article><small>paper 累计净已实现</small><strong>{formatDecimal(statement.cumulativeNetRealizedPnl)} USDT</strong><span>仅官方三卡已平仓口径</span></article>
-      <article><small>本周净已实现</small><strong>{formatDecimal(statement.weeklyNetRealizedPnl)} USDT</strong><span>模拟手续费 {statement.simulatedFees ? `${formatDecimal(statement.simulatedFees)} USDT` : "历史快照不可用"}</span></article>
-      <article><small>高水位</small><strong>{formatDecimal(statement.highWaterMarkBefore)} → {formatDecimal(statement.highWaterMarkAfter)}</strong><span>仅付款复核后提交新高水位</span></article>
-      <article><small>亏损结转</small><strong>{formatDecimal(statement.lossCarry)} USDT</strong><span>未重新超过高水位不计费</span></article>
-      <article><small>计费基数</small><strong>{formatDecimal(statement.billableProfit)} USDT</strong><span>已结算高水位 {formatDecimal(statement.settledHighWaterMark)}</span></article>
-      <article><small>应收</small><strong>{formatDecimal(statement.feeAmount)} USDT</strong><span>费率 {Number(statement.feeRate) * 100}%</span></article>
+    <section className="rc-kpi-grid" aria-label={t("周分成摘要")}>
+      <article><small>{t("状态")}</small><strong className="rc-kpi-status"><StatusBadge value={statement.status} /></strong><span>{t("修订")} {statement.revision}</span></article>
+      <article><small>{t("paper 累计净已实现")}</small><strong>{formatDecimal(statement.cumulativeNetRealizedPnl, 6, locale)} USDT</strong><span>{t("仅官方三卡已平仓口径")}</span></article>
+      <article><small>{t("本周净已实现")}</small><strong>{formatDecimal(statement.weeklyNetRealizedPnl, 6, locale)} USDT</strong><span>{t("模拟手续费")} {statement.simulatedFees ? `${formatDecimal(statement.simulatedFees, 6, locale)} USDT` : t("历史快照不可用")}</span></article>
+      <article><small>{t("高水位")}</small><strong>{formatDecimal(statement.highWaterMarkBefore, 6, locale)} → {formatDecimal(statement.highWaterMarkAfter, 6, locale)}</strong><span>{t("仅付款复核后提交新高水位")}</span></article>
+      <article><small>{t("亏损结转")}</small><strong>{formatDecimal(statement.lossCarry, 6, locale)} USDT</strong><span>{t("未重新超过高水位不计费")}</span></article>
+      <article><small>{t("计费基数")}</small><strong>{formatDecimal(statement.billableProfit, 6, locale)} USDT</strong><span>{t("已结算高水位")} {formatDecimal(statement.settledHighWaterMark, 6, locale)}</span></article>
+      <article><small>{t("应收")}</small><strong>{formatDecimal(statement.feeAmount, 6, locale)} USDT</strong><span>{t("费率")} {Number(statement.feeRate) * 100}%</span></article>
     </section>
     <section className="rc-panel">
-      <header><div><small>OFFICIAL THREE-CARD SNAPSHOT</small><h2>三卡周度核对</h2></div></header>
-      {!statement.strategyBreakdown.length ? <EmptyState title="历史明细快照不可用" description="该账单仍保留汇总值，但不能伪造缺失的三卡明细。" /> : <div className="rc-card-list">{statement.strategyBreakdown.map((strategy) => <article key={strategy.strategyCode}><header><b>{strategy.strategyCode}</b></header><p>净已实现 {formatDecimal(strategy.weeklyNetRealizedPnl)} USDT</p><small>毛已实现 {formatDecimal(strategy.weeklyGrossRealizedPnl)} · 模拟手续费 {formatDecimal(strategy.simulatedFees)}</small></article>)}</div>}
+      <header><div><small>OFFICIAL THREE-CARD SNAPSHOT</small><h2>{t("三卡周度核对")}</h2></div></header>
+      {!statement.strategyBreakdown.length ? <EmptyState title={t("历史明细快照不可用")} description={t("该账单仍保留汇总值，但不能伪造缺失的三卡明细。")} /> : <div className="rc-card-list">{statement.strategyBreakdown.map((strategy) => <article key={strategy.strategyCode}><header><b>{strategy.strategyCode}</b></header><p>{t("净已实现")} {formatDecimal(strategy.weeklyNetRealizedPnl, 6, locale)} USDT</p><small>{t("毛已实现")} {formatDecimal(strategy.weeklyGrossRealizedPnl, 6, locale)} · {t("模拟手续费")} {formatDecimal(strategy.simulatedFees, 6, locale)}</small></article>)}</div>}
     </section>
     <section className="rc-panel">
-      <header><div><small>{formatDateTime(statement.cycleStartedAt)} — {formatDateTime(statement.cycleEndedAt)}</small><h2>业务审批</h2></div></header>
+      <header><div><small>{formatDateTime(statement.cycleStartedAt, locale)} — {formatDateTime(statement.cycleEndedAt, locale)}</small><h2>{t("业务审批")}</h2></div></header>
       {canApprove && actions.canReviewAssessment ? <div className="rc-action-row">
-        <button className="rc-button" type="button" onClick={() => setPending({ stage: "assessment", decision: "approve", idempotencyKey: crypto.randomUUID() })}>批准业务账单</button>
-        <button className="rc-button rc-danger-button" type="button" onClick={() => setPending({ stage: "assessment", decision: "reject", idempotencyKey: crypto.randomUUID() })}>拒绝并允许受控重开</button>
-      </div> : statement.status === "SUBMITTED" && <p className="rc-muted">当前账户不可自审，或缺少业务审批权限。</p>}
+        <button className="rc-button" type="button" onClick={() => setPending({ stage: "assessment", decision: "approve", idempotencyKey: crypto.randomUUID() })}>{t("批准业务账单")}</button>
+        <button className="rc-button rc-danger-button" type="button" onClick={() => setPending({ stage: "assessment", decision: "reject", idempotencyKey: crypto.randomUUID() })}>{t("拒绝并允许受控重开")}</button>
+      </div> : statement.status === "SUBMITTED" && <p className="rc-muted">{t("当前账户不可自审，或缺少业务审批权限。")}</p>}
     </section>
     <section className="rc-panel">
-      <header><div><small>{evidence.length} 条凭证</small><h2>外部付款复核</h2></div></header>
-      {!evidence.length ? <EmptyState title="尚无付款凭证" description="账单形成应收后，由 maker 记录外部付款凭证。" /> : <div className="rc-card-list">{evidence.map((item) => <article key={item.id}>
+      <header><div><small>{evidence.length} {t("条凭证")}</small><h2>{t("外部付款复核")}</h2></div></header>
+      {!evidence.length ? <EmptyState title={t("尚无付款凭证")} description={t("账单形成应收后，由 maker 记录外部付款凭证。")} /> : <div className="rc-card-list">{evidence.map((item) => <article key={item.id}>
         <header><div><b>{item.referenceMasked}</b><small>{item.kind}</small></div><StatusBadge value={item.status} /></header>
-        <p>{formatDecimal(item.amount)} {item.currency} · {formatDateTime(item.occurredAt)}</p>
-        <small>记录人 {item.recordedByUserId} · 附注仅保留于受控审计记录</small>
+        <p>{formatDecimal(item.amount, 6, locale)} {item.currency} · {formatDateTime(item.occurredAt, locale)}</p>
+        <small>{t("记录人")} {item.recordedByUserId} · {t("附注仅保留于受控审计记录")}</small>
         {canApprovePayment && item.canReview && <div className="rc-action-row rc-card-actions">
-          <button className="rc-button" type="button" onClick={() => setPending({ stage: "payment", decision: "approve", evidence: item, idempotencyKey: crypto.randomUUID() })}>复核为已支付</button>
-          <button className="rc-button rc-danger-button" type="button" onClick={() => setPending({ stage: "payment", decision: "reject", evidence: item, idempotencyKey: crypto.randomUUID() })}>拒绝该凭证</button>
+          <button className="rc-button" type="button" onClick={() => setPending({ stage: "payment", decision: "approve", evidence: item, idempotencyKey: crypto.randomUUID() })}>{t("复核为已支付")}</button>
+          <button className="rc-button rc-danger-button" type="button" onClick={() => setPending({ stage: "payment", decision: "reject", evidence: item, idempotencyKey: crypto.randomUUID() })}>{t("拒绝该凭证")}</button>
         </div>}
       </article>)}</div>}
       <div className="rc-action-row">
-        {canRecordPaymentEvidence && actions.canRecordPaymentEvidence && <button className="rc-button" type="button" disabled={busy} onClick={() => setShowEvidence(true)}>记录外部付款凭证</button>}
-        {canApprovePayment && statement.status === "INVOICED" && !actions.canReviewPayment && <span className="rc-muted">当前账户不可复核自己记录的凭证。</span>}
+        {canRecordPaymentEvidence && actions.canRecordPaymentEvidence && <button className="rc-button" type="button" disabled={busy} onClick={() => setShowEvidence(true)}>{t("记录外部付款凭证")}</button>}
+        {canApprovePayment && statement.status === "INVOICED" && !actions.canReviewPayment && <span className="rc-muted">{t("当前账户不可复核自己记录的凭证。")}</span>}
       </div>
     </section>
     <section className="rc-panel">
-      <header><div><small>{decisions.length} 条决定</small><h2>不可变审批轨迹</h2></div></header>
-      {!decisions.length ? <EmptyState title="尚无审批记录" description="每个阶段的 checker 决定会在这里显示。" /> : <div className="rc-card-list">{decisions.map((item) => <article key={item.id}><header><b>{item.stage} · {item.decision}</b><StatusBadge value="审批已记录" /></header><small>{item.reviewerUserId} · {formatDateTime(item.createdAt)} · 凭证 {item.paymentEvidenceId || "—"}</small></article>)}</div>}
+      <header><div><small>{decisions.length} {t("条决定")}</small><h2>{t("不可变审批轨迹")}</h2></div></header>
+      {!decisions.length ? <EmptyState title={t("尚无审批记录")} description={t("每个阶段的 checker 决定会在这里显示。")} /> : <div className="rc-card-list">{decisions.map((item) => <article key={item.id}><header><b>{item.stage} · {item.decision}</b><StatusBadge value={t("审批已记录")} /></header><small>{item.reviewerUserId} · {formatDateTime(item.createdAt, locale)} · {t("凭证")} {item.paymentEvidenceId || "—"}</small></article>)}</div>}
     </section>
     {showEvidence && <PaymentEvidenceForm currency="USDT" busy={busy} onCancel={() => setShowEvidence(false)} onSubmit={(input) => void recordEvidence(input)} />}
     <ConfirmActionDialog
       open={Boolean(pending)}
-      title={pending?.stage === "assessment" ? `${pending.decision === "approve" ? "批准" : "拒绝"}业务账单` : `${pending?.decision === "approve" ? "批准" : "拒绝"}付款凭证`}
-      description={pending?.stage === "assessment" ? "业务批准只形成应收或零费用关闭，不会自动收款或更新高水位。" : "付款批准只确认外部凭证并提交高水位，不会执行外部支付。"}
-      confirmLabel="确认记录决定"
+      title={pending?.stage === "assessment" ? `${pending.decision === "approve" ? t("批准") : t("拒绝")} ${t("业务账单")}` : `${pending?.decision === "approve" ? t("批准") : t("拒绝")} ${t("付款凭证")}`}
+      description={pending?.stage === "assessment" ? t("业务批准只形成应收或零费用关闭，不会自动收款或更新高水位。") : t("付款批准只确认外部凭证并提交高水位，不会执行外部支付。")}
+      confirmLabel={t("确认记录决定")}
       busy={busy}
       onCancel={() => setPending(null)}
       onConfirm={(reason) => void decide(reason)}

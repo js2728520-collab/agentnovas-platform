@@ -17,9 +17,24 @@ const emails = {
   operations: process.env.ACCEPTANCE_OPERATIONS_EMAIL?.trim(),
   maintenance: process.env.ACCEPTANCE_MAINTENANCE_EMAIL?.trim(),
 };
+const loginProfile = process.env.ACCEPTANCE_LOGIN_PROFILE?.trim() || "production";
+const loginUrls = {
+  production: {
+    client: "https://agentnovas.com/login",
+    operations: "https://zht.agentnovas.com/login",
+    maintenance: "https://xm.agentnovas.com/login",
+  },
+  test: {
+    client: "https://test.agentnovas.com/login",
+    operations: "https://ops-test.agentnovas.com/login",
+    maintenance: "https://main-test.agentnovas.com/login",
+  },
+};
 if (!connectionString || !outputInput || Object.values(emails).some((email) => !email)) {
   throw new Error("DATABASE_URL、ACCEPTANCE_CREDENTIAL_OUTPUT 和三端 ACCEPTANCE_*_EMAIL 均为必填环境变量");
 }
+if (!(loginProfile in loginUrls)) throw new Error("ACCEPTANCE_LOGIN_PROFILE 仅允许 production 或 test");
+const selectedLoginUrls = loginUrls[loginProfile];
 
 const credentialDirectory = await realpath("/run/credentials");
 const outputPath = resolve(outputInput);
@@ -47,7 +62,7 @@ const credentialDocument = {
     client: {
       email: credentials.client.email,
       password: credentials.client.password,
-      loginUrl: "https://agentnovas.com/login",
+      loginUrl: selectedLoginUrls.client,
       mfa: process.env.MFA_ENFORCEMENT_ENABLED === "true"
         ? "Optional; enrollment is available in account security settings."
         : "Available but not enforced in the current pre-production rollout.",
@@ -55,7 +70,7 @@ const credentialDocument = {
     operations: {
       email: credentials.operations.email,
       password: credentials.operations.password,
-      loginUrl: "https://zht.agentnovas.com/login",
+      loginUrl: selectedLoginUrls.operations,
       mfa: process.env.MFA_ENFORCEMENT_ENABLED === "true"
         ? "TOTP enrollment is required immediately after primary authentication."
         : "Available but not enforced in the current pre-production rollout.",
@@ -63,7 +78,7 @@ const credentialDocument = {
     maintenance: {
       email: credentials.maintenance.email,
       password: credentials.maintenance.password,
-      loginUrl: "https://xm.agentnovas.com/login",
+      loginUrl: selectedLoginUrls.maintenance,
       mfa: process.env.MFA_ENFORCEMENT_ENABLED === "true"
         ? "TOTP enrollment is required immediately after primary authentication."
         : "Available but not enforced in the current pre-production rollout.",

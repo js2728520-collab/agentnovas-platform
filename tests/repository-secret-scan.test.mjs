@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -71,5 +71,44 @@ test("repository scan includes untracked non-ignored files before staging", asyn
     assert.deepEqual(result.findings, [{ path: "release-note.txt", finding: "GitHub token" }]);
   } finally {
     await rm(repository, { recursive: true, force: true });
+  }
+});
+
+test("repository scan skips an untracked nested repository directory without skipping regular files", async () => {
+  const repository = await mkdtemp(join(tmpdir(), "agentnovas-secret-scan-nested-repository-"));
+  try {
+    await execFileAsync("git", ["init", "-q"], { cwd: repository });
+    await writeFile(join(repository, "release-note.txt"), "No credentials in this release.\n");
+
+    const nestedRepository = join(repository, "nested-worktree");
+    await mkdir(nestedRepository);
+    await execFileAsync("git", ["init", "-q"], { cwd: nestedRepository });
+    await writeFile(join(nestedRepository, "README.md"), "Nested repository contents are independently managed.\n");
+
+    const result = await scanTrackedRepository(repository);
+
+    assert.equal(result.scannedFiles, 1);
+    assert.deepEqual(result.findings, []);
+  } finally {
+    await rm(repository, { recursive: true, force: true });
+  }
+});
+
+test("repository scan reads a symbolic link itself instead of following it outside the repository", async () => {
+  const repository = await mkdtemp(join(tmpdir(), "agentnovas-secret-scan-symlink-repository-"));
+  const externalDirectory = await mkdtemp(join(tmpdir(), "agentnovas-secret-scan-symlink-target-"));
+  try {
+    await execFileAsync("git", ["init", "-q"], { cwd: repository });
+    const externalFile = join(externalDirectory, "external.txt");
+    await writeFile(externalFile, `token=ghp_${"c".repeat(36)}\n`);
+    await symlink(externalFile, join(repository, "external-reference"));
+
+    const result = await scanTrackedRepository(repository);
+
+    assert.equal(result.scannedFiles, 1);
+    assert.deepEqual(result.findings, []);
+  } finally {
+    await rm(repository, { recursive: true, force: true });
+    await rm(externalDirectory, { recursive: true, force: true });
   }
 });

@@ -100,6 +100,21 @@
   --rv-chart-4: oklch(0.68 0.19 325);
   --rv-chart-5: oklch(0.68 0.16 155);
 
+  /* —— 外观设置预览（只用于展示可选主题，不参与业务语义）—— */
+  --rv-preview-light-surface: oklch(1 0 0);
+  --rv-preview-light-muted: oklch(0.94 0 0);
+  --rv-preview-dark-surface: oklch(0.235 0 0);
+  --rv-preview-dark-muted: oklch(0.34 0 0);
+  --rv-preview-classic-surface: oklch(0.985 0 0);
+  --rv-preview-classic-primary: oklch(0.692 0.141 243.716);
+  --rv-preview-classic-brand: oklch(0.72 0.115 168);
+  --rv-preview-harbor-surface: oklch(0.96 0.02 238);
+  --rv-preview-harbor-primary: oklch(0.63 0.155 236);
+  --rv-preview-harbor-brand: oklch(0.70 0.12 205);
+  --rv-preview-forest-surface: oklch(0.96 0.018 165);
+  --rv-preview-forest-primary: oklch(0.60 0.13 184);
+  --rv-preview-forest-brand: oklch(0.70 0.12 158);
+
   /* —— 骨架屏 —— */
   --rv-skeleton-base: oklch(0.97 0 0);
   --rv-skeleton-highlight: oklch(0.985 0 0);
@@ -138,13 +153,11 @@
     --rv-primary: oklch(0.66 0.135 247);
     --rv-primary-foreground: oklch(1 0 0);
     --rv-primary-ink: oklch(0.82 0.09 247);
-  --rv-primary-strong: oklch(0.54 0.135 247);
     --rv-primary-strong: oklch(0.54 0.135 247);
     --rv-primary-soft: oklch(0.329 0.030 247);
 
     --rv-brand: oklch(0.78 0.12 168);
     --rv-brand-soft: oklch(0.355 0.026 168);
-  --rv-brand-ink: oklch(0.78 0.12 168);
     --rv-brand-ink: oklch(0.78 0.12 168);
 
     --rv-success: oklch(0.696 0.17 162.48);
@@ -232,6 +245,141 @@
   --rv-skeleton-highlight: oklch(0.44 0 0);
 
   --rv-focus-ring: 0 0 0 3px oklch(0.66 0.135 247 / 32%);
+}
+
+/* —— 三组调色板 × 浅深模式 = 六套完整主题 —— */
+:root[data-palette="harbor"] {
+  --rv-background: oklch(0.985 0.009 238);
+  --rv-card: oklch(0.998 0.004 238);
+  --rv-muted: oklch(0.958 0.014 238);
+  --rv-border: oklch(0.905 0.018 238);
+  --rv-border-strong: oklch(0.83 0.025 238);
+  --rv-sidebar: oklch(0.968 0.015 238);
+  --rv-table-header: oklch(0.965 0.013 238);
+  --rv-row-hover: oklch(0.95 0.018 238);
+  --rv-primary: oklch(0.65 0.15 238);
+  --rv-primary-ink: oklch(0.43 0.15 238);
+  --rv-primary-strong: oklch(0.50 0.15 238);
+  --rv-primary-soft: oklch(0.952 0.027 238);
+  --rv-brand: oklch(0.70 0.12 205);
+  --rv-brand-soft: oklch(0.95 0.023 205);
+  --rv-brand-ink: oklch(0.42 0.11 205);
+  --rv-chart-1: oklch(0.62 0.18 238);
+  --rv-chart-2: oklch(0.66 0.14 205);
+  --rv-chart-3: oklch(0.66 0.13 275);
+  --rv-chart-4: oklch(0.67 0.17 320);
+  --rv-chart-5: oklch(0.64 0.14 165);
+  --rv-focus-ring: 0 0 0 3px oklch(0.65 0.15 238 / 26%);
+}
+
+:root[data-palette="forest"] {
+  --rv-background: oklch(0.985 0.009 165);
+  --rv-card: oklch(0.998 0.004 165);
+  --rv-muted: oklch(0.958 0.014 165);
+  --rv-border: oklch(0.905 0.018 165);
+  --rv-border-strong: oklch(0.83 0.025 165);
+  --rv-sidebar: oklch(0.968 0.015 165);
+  --rv-table-header: oklch(0.965 0.013 165);
+  --rv-row-hover: oklch(0.95 0.018 165);
+  --rv-primary: oklch(0.61 0.13 184);
+  --rv-primary-ink: oklch(0.39 0.12 184);
+  --rv-primary-strong: oklch(0.46 0.13 184);
+  --rv-primary-soft: oklch(0.948 0.027 184);
+  --rv-brand: oklch(0.70 0.12 158);
+  --rv-brand-soft: oklch(0.95 0.024 158);
+  --rv-brand-ink: oklch(0.40 0.11 158);
+  --rv-chart-1: oklch(0.60 0.15 184);
+  --rv-chart-2: oklch(0.62 0.14 158);
+  --rv-chart-3: oklch(0.63 0.13 245);
+  --rv-chart-4: oklch(0.66 0.17 305);
+  --rv-chart-5: oklch(0.66 0.14 92);
+  --rv-focus-ring: 0 0 0 3px oklch(0.61 0.13 184 / 26%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="harbor"]:not([data-theme="light"]),
+  :root[data-palette="forest"]:not([data-theme="light"]) {
+    --rv-background: oklch(0.21 0.025 var(--rv-palette-hue));
+    --rv-card: oklch(0.265 0.027 var(--rv-palette-hue));
+    --rv-muted: oklch(0.295 0.026 var(--rv-palette-hue));
+    --rv-sidebar: oklch(0.19 0.025 var(--rv-palette-hue));
+    --rv-table-header: oklch(0.278 0.025 var(--rv-palette-hue));
+    --rv-row-hover: oklch(0.3 0.028 var(--rv-palette-hue));
+    --rv-border: oklch(1 0 0 / 12%);
+    --rv-border-strong: oklch(1 0 0 / 22%);
+  }
+  :root[data-palette="harbor"]:not([data-theme="light"]) {
+    --rv-palette-hue: 238;
+    --rv-primary: oklch(0.72 0.13 238);
+    --rv-primary-ink: oklch(0.82 0.09 238);
+    --rv-primary-strong: oklch(0.52 0.13 238);
+    --rv-primary-soft: oklch(0.32 0.04 238);
+    --rv-brand: oklch(0.76 0.11 205);
+    --rv-brand-soft: oklch(0.34 0.035 205);
+    --rv-brand-ink: oklch(0.80 0.09 205);
+    --rv-chart-1: oklch(0.76 0.14 238);
+    --rv-chart-2: oklch(0.78 0.12 205);
+    --rv-chart-3: oklch(0.76 0.13 278);
+    --rv-chart-4: oklch(0.75 0.16 324);
+    --rv-chart-5: oklch(0.76 0.14 162);
+  }
+  :root[data-palette="forest"]:not([data-theme="light"]) {
+    --rv-palette-hue: 165;
+    --rv-primary: oklch(0.72 0.12 184);
+    --rv-primary-ink: oklch(0.82 0.085 184);
+    --rv-primary-strong: oklch(0.50 0.12 184);
+    --rv-primary-soft: oklch(0.31 0.038 184);
+    --rv-brand: oklch(0.76 0.12 158);
+    --rv-brand-soft: oklch(0.34 0.038 158);
+    --rv-brand-ink: oklch(0.80 0.10 158);
+    --rv-chart-1: oklch(0.76 0.13 184);
+    --rv-chart-2: oklch(0.76 0.14 158);
+    --rv-chart-3: oklch(0.76 0.12 242);
+    --rv-chart-4: oklch(0.75 0.15 304);
+    --rv-chart-5: oklch(0.78 0.13 92);
+  }
+}
+
+:root[data-theme="dark"][data-palette="harbor"],
+:root[data-theme="dark"][data-palette="forest"] {
+  --rv-background: oklch(0.21 0.025 var(--rv-palette-hue));
+  --rv-card: oklch(0.265 0.027 var(--rv-palette-hue));
+  --rv-muted: oklch(0.295 0.026 var(--rv-palette-hue));
+  --rv-sidebar: oklch(0.19 0.025 var(--rv-palette-hue));
+  --rv-table-header: oklch(0.278 0.025 var(--rv-palette-hue));
+  --rv-row-hover: oklch(0.3 0.028 var(--rv-palette-hue));
+  --rv-border: oklch(1 0 0 / 12%);
+  --rv-border-strong: oklch(1 0 0 / 22%);
+}
+:root[data-theme="dark"][data-palette="harbor"] {
+  --rv-palette-hue: 238;
+  --rv-primary: oklch(0.72 0.13 238);
+  --rv-primary-ink: oklch(0.82 0.09 238);
+  --rv-primary-strong: oklch(0.52 0.13 238);
+  --rv-primary-soft: oklch(0.32 0.04 238);
+  --rv-brand: oklch(0.76 0.11 205);
+  --rv-brand-soft: oklch(0.34 0.035 205);
+  --rv-brand-ink: oklch(0.80 0.09 205);
+  --rv-chart-1: oklch(0.76 0.14 238);
+  --rv-chart-2: oklch(0.78 0.12 205);
+  --rv-chart-3: oklch(0.76 0.13 278);
+  --rv-chart-4: oklch(0.75 0.16 324);
+  --rv-chart-5: oklch(0.76 0.14 162);
+}
+:root[data-theme="dark"][data-palette="forest"] {
+  --rv-palette-hue: 165;
+  --rv-primary: oklch(0.72 0.12 184);
+  --rv-primary-ink: oklch(0.82 0.085 184);
+  --rv-primary-strong: oklch(0.50 0.12 184);
+  --rv-primary-soft: oklch(0.31 0.038 184);
+  --rv-brand: oklch(0.76 0.12 158);
+  --rv-brand-soft: oklch(0.34 0.038 158);
+  --rv-brand-ink: oklch(0.80 0.10 158);
+  --rv-chart-1: oklch(0.76 0.13 184);
+  --rv-chart-2: oklch(0.76 0.14 158);
+  --rv-chart-3: oklch(0.76 0.12 242);
+  --rv-chart-4: oklch(0.75 0.15 304);
+  --rv-chart-5: oklch(0.78 0.13 92);
 }
 
 /*

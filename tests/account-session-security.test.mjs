@@ -23,7 +23,10 @@ test("Client account security is a stable route with profile, password and sessi
   const workspace = await read("apps/client/ui/account-security-workspace.tsx");
   assert.match(contract, /"account"/);
   assert.match(portal, /AccountSecurityWorkspace/);
-  assert.match(shell, /\/account\/security/);
+  assert.match(shell, /href="\/settings"/);
+  assert.match(portal, /\["settings", "account"\]/);
+  assert.doesNotMatch(portal, /\["settings", "account", "legal"\]/);
+  assert.match(portal, /section="security"/);
   for (const endpoint of ["/api/account/profile", "/api/account/password", "/api/account/sessions"]) assert.ok(workspace.includes(endpoint));
   assert.match(workspace, /aria-live/);
   assert.match(workspace, /确认/);
@@ -54,7 +57,9 @@ test("Client support page shows only configured public channels and no fake tick
   assert.match(portal, /SupportWorkspace/);
   assert.match(shell, /\/support/);
   assert.match(support, /\/api\/platform\/settings/);
-  assert.match(support, /Telegram 尚未配置/);
-  assert.match(support, /客服邮箱尚未配置/);
+  assert.match(support, /system\?\.telegramSupportUrl &&/);
+  assert.match(support, /system\?\.supportEmail &&/);
+  assert.match(support, /hasChannel \?/);
+  assert.doesNotMatch(support, /Telegram 尚未配置|客服邮箱尚未配置/);
   assert.doesNotMatch(support, /提交工单|工单已创建|ticket.*created/i);
 });

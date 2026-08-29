@@ -1,3 +1,7 @@
+"use client";
+
+import { useAppLocale } from "./app-locale-context";
+
 export function InlineAuditReasonField({
   id,
   value,
@@ -15,22 +19,23 @@ export function InlineAuditReasonField({
   hint?: string;
   className?: string;
 }) {
+  const { t } = useAppLocale();
   const hintId = `${id}-hint`;
   return (
     <label className={className} htmlFor={id}>
-      {label}
+      {t(label)}
       <textarea
         aria-describedby={hintId}
         id={id}
         maxLength={500}
         minLength={minLength}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="请填写可审计的业务原因"
+        placeholder={t("请填写可审计的业务原因")}
         required
         rows={2}
         value={value}
       />
-      <small id={hintId}>{hint} 至少 {minLength} 个字符。</small>
+      <small id={hintId}>{t(hint)} {t("至少")} {minLength} {t("个字符。")}</small>
     </label>
   );
 }

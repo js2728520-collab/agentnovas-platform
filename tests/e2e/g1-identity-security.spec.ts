@@ -35,9 +35,9 @@ async function authenticateInBrowser(page: IsolatedPage, email: string, password
 test("Client、Operations、Maintenance 从空浏览器登录后进入各自首页", async ({ browser }) => {
   const runtime = await readQualityRuntime();
   const cases = [
-    ["client", runtime.identities.client, "/dashboard", /欢迎回来/],
-    ["operations", runtime.identities.operationsMaker, "/", "运营概览"],
-    ["maintenance", runtime.identities.maintenanceAdmin, "/", "系统概览"],
+    ["client", runtime.identities.client, "/dashboard", /数据看板/],
+    ["operations", runtime.identities.operationsMaker, "/", "运营看板"],
+    ["maintenance", runtime.identities.maintenanceAdmin, "/", "系统运行"],
   ] as const;
   const contexts = await Promise.all(cases.map(([audience]) => createIsolatedQualityBrowser(browser, audience)));
   try {
@@ -90,7 +90,7 @@ test("Operations 权限链接完成浏览器注册、冻结角色和作废闭环
     await login(registrant.page, email, password);
     await expect(registrant.page).toHaveURL(`${operationsOrigin}/`);
     await expect(registrant.page.getByRole("heading", { name: "绑定双重验证" })).toHaveCount(0);
-    await expect(registrant.page.getByRole("heading", { name: "运营概览" })).toBeVisible();
+    await expect(registrant.page.getByRole("heading", { name: "运营看板" })).toBeVisible();
   } finally {
     await registrant.close();
   }

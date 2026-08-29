@@ -20,11 +20,21 @@
 - [!] P-07：四档套餐 USDT 价格、权益、Credits 和生效日。
 - [!] P-08：每次 AI 对话 Credits 值和模型/功能分档。
 - [!] P-09：提现/划转网络、限额、白名单、服务费、审批和退款。
-- [!] P-10：六主题设计稿、品牌 token 和 Logo 资源。
+- [x] P-10：冻结 Riverton 经典、海湾、松林三组调色板及明暗配对；六主题三端测试站视觉验收已完成。
 - [!] P-11：正式域名冻结日。
 - [!] P-12：目标验收日期和业务节点。
 - [x] 生成 Current → V3 代码/数据库/页面/route/Worker/测试详细矩阵（203 route 文件、268 method route、72 页面 pattern、73 迁移和 7 个后台进程均已核对）。
 - [x] 用户已确认需求并授权按分阶段计划推进；每个高风险能力仍需独立 Gate，不等于生产发布批准。
+- [x] 0.4 仓库密钥扫描器安全处理 Git 返回的嵌套工作树目录候选，恢复标准 `quality:secret-scan` 门禁且不吞掉普通文件读取错误。
+
+## M1：三端极简安全版
+
+- [x] M1.0 基线审计并同步 PRD、三端 Target Spec、Gate、路线图、能力矩阵和 P-01–P-12 依赖状态。
+- [x] M1.1 三端 Shell 与五中心路由；旧稳定地址映射到 Hub/Tab，非法 Tab 回退安全默认值。
+- [x] M1.2 三端数据看板仅保留有来源、口径、时间和状态的决策数据。
+- [x] M1.3 三端统一设置、六主题、分端语言和 audience 隔离的服务端偏好。
+- [x] M1.4 现有功能归位、Client 通知与设备过滤、法律确认按业务节点收口并删除假入口。
+- [x] M1.5 `an-saas` 全量质量、三个测试域名部署和三端浏览器/四断点/无障碍联测。
 
 ## Phase 1：身份、权限与注册链接
 
@@ -82,7 +92,7 @@
   - [-] 3.1c 品牌/域名/协议、功能开关、Prompt/技能和价格配置族逐项接入。
     - [x] 3.1c-FF1 `client.strategy_research` 全局开关 v1：严格 schema、服务端确定性测试、最小权限 current 消费者、运行时双 Gate 和回滚证据。
     - [x] 3.1c-FF2 用户/组织/应用版本/百分比/独立时窗 targeting：严格 schema v2、稳定分桶、服务端上下文、最小权限 current 消费者和回滚证据。
-    - [!] 3.1c-Brand/Domain 品牌与域名消费者，等待 P-10/P-11。
+    - [-] 3.1c-Brand/Domain 品牌消费者可按已冻结 P-10 推进；正式域名消费者仍等待 P-11。
     - [!] 3.1c-Prompt/Skill Prompt 与技能配置族 schema、测试器和消费者，等待 PS-01–PS-06 实施边界确认。
     - [!] 3.1c-Pricing 价格与 Credits 消费者，等待 P-07/P-08。
 - [ ] 3.2 品牌、域名、协议和多语言配置。
@@ -95,12 +105,12 @@
 - [-] 3.9 Token 用户/组织/模型/Agent/日期/功能/费用/失败率统计。
   - [x] 3.9a Maintenance `/ai-usage` 只读分析：按 UTC 请求创建 cohort 汇总已预留 inference，提供可信成功 Token、settled Credits、已记录非取消失败率，以及组织请求级快照（含 legacy 证据质量）、稳定伪名用户、模型 revision、Agent、功能和日期维度；最多 90 天、各高基数维度 Top 50，页面内直接应用日期且无确认弹窗；全量 1430/1430、云端三端 production build 与本地真实 Chromium/axe 20/20 已通过。
   - [!] 3.9b 固定对话费用及模型/功能价格分档，等待 P-08；不得把当前可信 Token 用量和 settled Credits 描述为已确认固定价格，也不得把已记录 cohort 的非取消失败率描述为系统/provider 可用率。
-- [ ] 3.10 三浅三深六主题和图表/Logo/状态色。
-- [-] 3.11 英语默认、浏览器/地区推断和偏好持久化。
+- [x] 3.10 经典/海湾/松林三组调色板明暗配对；三端语义 token、首帧恢复、Logo/状态色和六主题测试站视觉 Gate 已完成。
+- [-] 3.11 分端默认语言、浏览器解析和 audience 偏好持久化。
   - [x] 3.11a 公开 Client 着陆页：allowlist、保存偏好 > 浏览器语言 > 英语、无 IP 定位和匿名持久化。
   - [-] 3.11b 已登录偏好与全站一致性。
     - [x] 3.11b1 新账号数据库默认英语、七语言写入约束且不改写既有账号。
-    - [!] 3.11b2 已登录三端、认证/错误页/邮件一致性及 Maintenance override，等待语言范围确认。
+    - [-] 3.11b2 已登录三端 audience 偏好、应用 Shell/Hub 覆盖与语言范围已完成；认证/错误页/邮件的逐文案人工语言审校仍待后续 Gate。
 - [ ] 3.12 完成配置、计费、主题无障碍与性能 Gate。
 
 ## Phase 4：AI 助手与策略市场
@@ -121,14 +131,14 @@
 - [ ] 4.10 用户/运营风控/自动风控/全局熔断停止路径。
 - [ ] 4.11 在 Paper/Demo 完成端到端跟单，不发送真实订单。
 - [ ] 4.12 完成 G3 和策略市场浏览器验收。
-- [-] 4.13 工作记录详情与 Maintenance 受控导出。
-  - [-] 4.13a Client 历史列表/详情：公共七阶段、固定策略版本、行情摘要、个人准入、模拟意图/成交和审计标识；所有权、订阅时间窗、游标分页与统一 404 失败关闭。
+- [x] 4.13 工作记录详情与 Maintenance 受控导出。
+  - [x] 4.13a Client 历史列表/详情：公共七阶段、固定策略版本、行情摘要、个人准入、模拟意图/成交和审计标识；所有权、订阅时间窗、游标分页与统一 404 失败关闭。
     - [x] 4.13a-BE 不可变订阅区间、Client 列表/详情 API、安全投影、固定版本、统一 404、热路径索引/超时和 API/Nginx/OpenAPI 合同。
-    - [ ] 4.13a-UI `/work-records` 列表/详情、导航、四断点、键盘和 axe。
-  - [ ] 4.13b Maintenance 脱敏导出：独立敏感权限、security-barrier 安全投影、伪名用户、31 天/1,000 条上限、页面内审计原因、same-origin/幂等与追加式审计。
-  - [-] 4.13c 至少六个月保留合同、PostgreSQL/API 安全测试、四断点/axe、云端三端构建和本地真实浏览器三端登录/主旅程 Gate。
+    - [x] 4.13a-UI `/work-records` 列表/详情、导航、四断点、键盘和 axe。
+  - [x] 4.13b Maintenance 脱敏导出：独立敏感权限、security-barrier 安全投影、伪名用户、31 天/1,000 条上限、页面内审计原因、same-origin/幂等与追加式审计。
+  - [x] 4.13c 至少六个月保留合同、PostgreSQL/API 安全测试、四断点/axe、云端三端构建和本地真实浏览器三端登录/主旅程 Gate。
     - [x] 4.13c-DB 六个月最低删除保护、所有权/空档/固定版本/纯 hold/非 hold 缺准入/IDOR/分页 PostgreSQL 回归。
-    - [ ] 4.13c-E2E 等 UI 与 Maintenance 导出完成后执行本地主旅程、四断点和 axe。
+    - [x] 4.13c-E2E 最终三端完整 production Chromium 登录/主旅程、四断点、axe、audience 隔离和工作记录导出总 Gate。
 
 ## Phase 5：真实现货与自动跟单
 
@@ -164,21 +174,26 @@
 
 ## Phase 8：Maintenance CI/CD 控制面
 
-- [B] 8.1 固定仓库/workflow/ref/environment/action 合同。
-- [B] 8.2 短期凭证适配器，Maintenance 无长期 token。
-- [B] 8.3 staging 触发、回调验签和追加证据。
-- [B] 8.4 production 双审和同制品 staging 前置。
-- [B] 8.5 rollback 合法目标和数据库兼容检查。
-- [B] 8.6 参数注入、回放、乱序、失败和控制面失陷测试。
+- [x] 8.0 ADR-0024、威胁模型、独立凭证域、精确 run/OIDC、target fencing/journal/stop、Auditor 与失陷降级已通过多轮 fresh-context 复审；Current 仍只登记证据。
+- [x] 8.1 固定仓库/workflow/ref/environment/action 合同。
+  - [x] 8.1a 纯 domain contract：严格公共 DTO、服务端 dispatch envelope、完整 snapshot/receipt、状态优先级、exact policy/operation binding、owner epoch/journal sequence 和参数注入拒绝。
+  - [x] 8.1b PostgreSQL 命令/审批/lease/delivery/provider/target/stop 追加事实、窄 gateway、RLS/ACL、最小角色与并发/乱序测试。
+  - [x] 8.1c 默认关闭的独立 Worker、GitHub App 短期令牌、binding drift、persist-before-POST、崩溃恢复与固定 dispatch adapter。
+- [x] 8.2 默认关闭的短期凭证适配器，Maintenance 无长期 token。
+- [-] 8.3 staging 触发、回调验签和追加证据；T8.2a Ingress/reconciliation、T8.2b target gateway/OIDC/journal/receipt、T8.2c 分离 WebAuthn verifier/control 与 Maintenance 控制 API/UI、T8.2d1 专用 workflow/独立 Auditor/v4 Auditor-trust-bound reservation/restore/manifest、T8.2d2a staging/production provider/进程/恢复隔离与启动 preflight、T8.2d2b 三域 Web-only preview 替换、default-off config audit 与容器 backup/role-policy 发布门禁已完成；下一步 T8.2d2c 是经授权的真实 provider fixture、演练与 G7。
+- [ ] 8.4 production 双审和同制品 staging 前置。
+- [ ] 8.5 rollback 合法目标和数据库兼容检查。
+- [ ] 8.6 参数注入、回放、乱序、失败和控制面失陷测试。
 - [B] 8.7 G7 和应急回退到“只登记证据”。
 
 ## Phase 9：全平台收口与发布
 
-- [ ] 9.1 Current Spec、API Catalog、OpenAPI、ADR、Runbook 全部回填真实状态。
-- [ ] 9.2 全量 unit/contract/PostgreSQL/security/browser/axe/performance。
-- [ ] 9.3 migration fresh/N-1/rerun/concurrent/backup/restore/rollback。
-- [ ] 9.4 secret/PII/dependency/container/DB role 和网络边界审计。
-- [ ] 9.5 客服、风控、财务、事故、provider 故障和密钥泄露演练。
-- [ ] 9.6 明确本次启用的 provider/product/capability 清单。
-- [ ] 9.7 canary、首小时监控、停止条件和复盘。
+- [x] 9.0 在 `an-saas` 隔离 preview 完成当前工作树候选的数据库备份、迁移/角色策略、四镜像构建、三域替换、回滚点和 HTTPS/Host/audience/浏览器/日志验收；2026-08-27 又以 `preview-7c047b6-wt-20260827T013000Z` 刷新到当前 88 个 migration 与 T8.2d2a 代码，正式服务未变。
+- [x] 9.1 Current Spec、API Catalog、OpenAPI、ADR、Runbook 全部回填真实状态；已消除工作记录、充值和 77 迁移/154 表恢复证据的陈旧冲突。
+- [x] 9.2 全量 unit/contract/PostgreSQL/security/browser/axe/performance：1449/1449、20/20 canonical Chromium/axe、三次 Lighthouse 与全部静态/安全 Gate 绑定 r4 候选通过。
+- [x] 9.3 migration fresh/N-1/rerun/concurrent/backup/restore/rollback：77 个迁移、154 张基础表在 `an-saas` 隔离 PostgreSQL 16.14 完成，临时资源已清理。
+- [x] 9.4 secret/PII/dependency/container/DB role 和网络边界审计：仓库 3117 个候选文件 0 secret finding、42/42 PII/API 策略定向测试；r4 三端只读/non-root/cap-drop/no-new-privileges/loopback，六条实际连接命中六个最小角色，preview 与 production DB 容器/卷/网络隔离。开发工具链原 17 项临时例外已于 2026-08-27 清零：完整 audit 0、1449/1449、20/20 browser、三端 build/Bundle、Lighthouse 13.4.1、type/lint/架构边界与 release evidence 均通过。
+- [ ] 9.5 客服、风控、财务、事故、provider 故障和密钥泄露演练：六场 Runbook/记录表已就绪，隔离技术注入 105/105 通过；真实人员、响应时长和 director/recorder 签字尚未执行，不能以自动测试代替。
+- [x] 9.6 已冻结 r4 首轮 canary 的 provider/product/capability 清单：只开三端受控 Web/站内/Paper 已存数据与管理面，无真实 provider、外部 Worker、充值、邮件、Demo、模型推理、真实订单、资金出站或 CI/CD trigger。
+- [x] 9.7 r4 P0 preview Web-only canary、首小时监控、停止条件和复盘完成：108/108 HTTP 200、p95 194 ms、72/72 容器样本健康、0 restart/5xx/error marker。开发依赖清零后，r5 dependency-only refresh 又完成 9/9 初始 HTTPS smoke、12/12 Host 失败关闭和 60/60 稳定性采样（p95 172 ms、0 restart/5xx/error marker）；preview KEEP，production/付费 Beta HOLD。
 - [ ] 9.8 用户批准发布；未经授权不推送、不创建 PR、不开放生产能力。

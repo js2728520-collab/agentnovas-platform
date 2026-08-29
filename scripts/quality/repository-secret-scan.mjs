@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { basename, extname } from "node:path";
+import { lstat, readFile, readlink } from "node:fs/promises";
+import { basename, extname, join } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -36,9 +36,18 @@ export async function scanTrackedRepository(repositoryRoot = process.cwd()) {
   for (const path of paths) {
     let body;
     try {
-      body = await readFile(`${repositoryRoot}/${path}`);
+      const candidatePath = join(repositoryRoot, path);
+      const metadata = await lstat(candidatePath);
+      if (metadata.isDirectory()) continue;
+      if (metadata.isSymbolicLink()) {
+        body = Buffer.from(await readlink(candidatePath), "utf8");
+      } else {
+        if (!metadata.isFile()) continue;
+        body = await readFile(candidatePath);
+      }
     } catch (error) {
-      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") continue;
+      if (error && typeof error === "object" && "code" in error
+        && (error.code === "ENOENT" || error.code === "EISDIR")) continue;
       throw error;
     }
     scannedFiles += 1;

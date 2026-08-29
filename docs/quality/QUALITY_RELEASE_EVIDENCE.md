@@ -94,18 +94,69 @@ The implementation follows the official Playwright guidance for [web servers](ht
 ## Current release status and external boundary
 
 - CI `quality-release` job 已集成；基础设施级 egress deny、生产 DNS/TLS 和真实外部 provider smoke 仍由部署环境负责。
-- 当前三端初始 JS/CSS gzip：Client 188,677/9,386 bytes，Operations 185,268/8,704 bytes，Maintenance 185,448/8,704 bytes，均通过 200/50 KiB 预算。
-- 18 个 canonical Playwright 场景使用五个合成身份与四档 viewport，覆盖三端空浏览器表单登录、Host/Cookie audience 隔离、权限链接、五设备/全量退出、会员 maker-checker、Client/Operations/Maintenance 稳定路由、axe 和 console/network；另有 MFA-on 3/3 与同库 rollout 9 旅程全部通过。
-- 最新三次 Lighthouse performance 均为 0.99，accessibility 与 best practices 均为 1.00；LCP 2,221/2,163/2,162 ms，CLS 均为 0，TBT 24/4.2/3.3 ms，全部满足 Gate 预算。登录由 audience Server Component 在导入已认证应用树之前分发，不启动 session 数据树或受保护根路由预取，并关闭登录页未使用字体的 preload。
-- 本机恢复演练已在 2026-08-23 由专用 `agentnovas_migrator` 对 fresh 源库覆盖 63 个迁移和 146 张表；迁移 registry checksum、表集合与逐表行数在恢复前后完全一致，一次性源库、目标库和临时 dump 均已清理，临时 `CREATEDB` 已撤销。`pg_dump --enable-row-security` 在不授予 `BYPASSRLS` 的前提下完整验证 `0043` 的 FORCE RLS。本轮新增范围为 `0044`–`0062`，其中 `0050`–`0053` 是执行对账、熔断、实盘路由与实盘现货部署，`0060`–`0062` 是组合账本的 book 维度、对账手续费与实盘落账；实盘仍由 `isLiveExecutionReady()` 关闭，演练未执行任何真实商户请求或资金操作。该证据只对截至 `0062` 的当前迁移集合有效；新增、改名或 checksum 变化会自动使恢复 Gate 失效，必须重跑演练，不能手工递增文档数字。
+- 当前 lockfile 的三端初始 JS/CSS gzip：Client 204,739/16,263 bytes，Operations 193,125/11,660 bytes，Maintenance 193,304/11,660 bytes，均通过 200/50 KiB 预算。Client 距 JS 上限仅 61 bytes，后续任何前端变更都必须重新测量，不能沿用本次结论。
+- 2026-08-26 r4 preview 候选的 20 个 canonical Playwright 场景使用合成身份与四档 viewport，覆盖三端空浏览器登录、Host/Cookie audience 隔离、权限链接、五设备/全量退出、会员 maker-checker、Client/Operations/Maintenance 稳定路由、客户 PII 原因审计、Client 工作记录、Maintenance AI 用量/工作记录导出、axe 和 console/network；20/20 通过，外部写入为 false，质量 schema 与 runtime secrets 已清理。另有 MFA-on 3/3 与同库 rollout 9 旅程的既有专项证据。
+- 同一 r4 源码在未人为限制宿主 CPU、1 GiB shm 的隔离 runner 中完成三次 Lighthouse。三次 performance 为 0.97/0.96/0.98，accessibility 与 best practices 均为 1.00；LCP 1805/2431/1785 ms，CLS 均为 0，TBT 167/151/148 ms。代表运行 JS/CSS/image transfer 为 177,513/18,098/10,166 bytes，全部满足 Gate 预算。一个先行的 2 CPU 人工上限 runner 因 TBT 325–441 ms 失败，该结果保留为编排条件证据，不计作通过；取消额外 CPU cap 后的标准三次运行才是当前发布 Gate。
+- 最新恢复演练于 2026-08-27 在 `an-saas` 由专用 `agentnovas_migrator` 对隔离 fresh PostgreSQL 16.14
+  源库执行，覆盖截至 `0086` 的 87 个迁移和 185 张基础表。custom dump restore、迁移 registry checksum
+  与表集合均通过，恢复目标标记 `retained: false`，一次性源库、恢复目标和临时 PostgreSQL 客户端 volume
+  均已清理；migrator 的 `CREATEDB` 临时能力也已撤销。`pg_dump --enable-row-security` 未使用
+  `BYPASSRLS`；实盘仍由 `isLiveExecutionReady()` 关闭，演练未执行真实商户请求或资金操作。该证据只对
+  截至 `0086` 的当前
+  迁移集合有效；新增、改名或 checksum 变化会自动使恢复 Gate 失效，必须重跑，不能手工递增数字。
 - 本 runner 验证角色模板、Client Web/Auth 攻击矩阵和隔离测试，但不替代目标环境的进程角色 smoke。每次部署仍须从 Client 两条连接及 Operations、Maintenance、各 Worker、payment webhook、migrator 的实际 secret/env 执行 `SELECT current_user` 并保存脱敏结果；不得记录连接串或口令。
+- r4 preview 已补做目标环境进程角色 smoke：Client Web/Auth、Operations Web、Maintenance Web、payment webhook、migrator 六条实际连接分别返回 `agentnovas_client_web`、`agentnovas_client_auth`、`agentnovas_ops_web`、`agentnovas_maint_web`、`agentnovas_payment_webhook`、`agentnovas_migrator`。三端容器以 `node` 用户、只读根文件系统、`cap_drop=ALL`、`no-new-privileges` 运行，只把 3000 映射到宿主 `127.0.0.1:3200–3202`；各自 env 以只读 bind mount 挂载，普通容器环境中敏感键为 0。backplane 为 internal，Web 只连接 backplane/edge；未启用 Worker profile 时 egress 网络不创建，四份 Worker env 没有数据库连接且运行实例为 0。preview 与 production PostgreSQL 的容器 ID、数据卷和 backplane 均不同。脱敏证据保存在 r4 release 的 `security-runtime-audit-final.log`，SHA-256 为 `105bccc77e9da808eda6a9876568d5d6265de46b96796d125c193c0a143981af`。
+- 开发依赖停止项关闭后，三域已刷新到 `preview-7c047b6-wt-20260826T161203Z`。四镜像均绑定 source hash `e5c9acbf9d741922e7984686066b2f99c6c5678840553e0d309e1afb26f64f47`；Web 容器继续保持 non-root/read-only/cap-drop/no-new-privileges、普通敏感 env 0、仅 backplane/edge、Worker 0。初始 HTTPS/Host smoke 9/9 为 200、12 个错误/cross-audience Host 为 404；随后 10 个采样点的 60/60 live/ready 为 200，p95 172 ms、最大 241 ms，0 restart/app error/Caddy 5xx。preview registry 的 78 条包含第 84 节已登记的旧候选历史行，当前源码 77 个迁移且无 source-only 缺口；没有修改 registry 或 production。
 - 真实 Email、Demo、Payment、交易或 DNS/TLS smoke 不属于本 runner。没有凭证时产品以 `not_configured/configured_not_sent/disabled` 安全降级；若决定启用，必须在独立 staging 记录中补充真实 provider 证据。
+- r4 首轮 canary 的精确启用范围见 `docs/releases/2026-08-26-r4-preview-capability-manifest.md`：允许三端受控 Web、站内通知、已持久化 Paper/工作记录和 Operations/Maintenance 管理面；所有真实 provider 与外部 Worker均关闭。数据库虽然有 8 个启用 LLM Profile 和 10 个绑定，但没有 r4 真实 provider smoke，因此只开放 Profile/绑定管理，不把真实模型推理纳入 canary。
 
-## Temporary development-tool vulnerability exception
+## Development-tool vulnerability exception closed
 
-当前 lockfile 报告生产依赖 high/critical 为 0；完整开发工具链仍有 17 项（3 low、5 moderate、9 high、0 critical）。这是临时发布工程例外，不是生产风险豁免。
+2026-08-27 已关闭原 17 项开发工具链临时例外。lockfile 通过受控 override 使用 `esbuild 0.28.2`、
+`lighthouse 13.4.1`、`tmp 0.2.7` 和 `uuid 11.1.1`；`extract-zip` 不再存在。没有采用
+`npm audit fix --force` 提议的 `drizzle-kit 0.18.1` / `@lhci/cli 0.1.0` 破坏性降级。
 
-- Owner: Platform Release Engineering.
-- Controls: trusted lockfile only; no untrusted fixture/source input; isolated CI runner; no provider secrets; loopback PostgreSQL; infrastructure egress deny; evidence retained for no more than 14 days.
-- Deadline: 2026-08-28 and in all cases before the first paid Beta invitation is opened.
-- Exit evidence: upgrade or override the affected development chains, rerun full `npm audit`, browser, Lighthouse, type, lint, and release evidence gates, and record production high/critical at zero. If the deadline is missed, Gate 6 remains failed.
+- 完整 `npm audit --audit-level=low`：0 vulnerability；production 子集因此同样为 0。
+- Node 22.21.1 隔离 PostgreSQL 全量测试：1449/1449；并发角色隔离复现 4 路均 5/5。
+- TypeScript、ESLint、8 条架构边界通过；三端 production build 和 Bundle Gate 通过。
+- canonical Chromium/axe 20/20；Lighthouse 13.4.1 三次采样通过，代表运行 performance 0.96、accessibility 1.00、best practices 1.00、LCP 2436 ms、CLS 0、TBT 162 ms。
+- `quality:release` 已重新组合并验证 E2E、Bundle、Lighthouse 与 cleanup 证据；`externalWritesEnabled=false`。
+
+证据位于 `an-saas:/opt/agentnovas-riverton-preview/validations/audit-zero-20260826T1532Z/`；完整审计、
+全量测试、E2E、Lighthouse、release manifest 的 SHA-256 分别为
+`df33ebcb533ac533badec1ea3e65ed6fdd36b1bd20dde21e75e5b729abb7d9cd`、
+`69b3f5bf158ba36b84c7da8f40086570df39688e7a6484aa2c512f13f5d21d7a`、
+`ebb325da72224acf8f9ae5239b0ec4f2cf6566edb4ffb39e3d9ada0fd1e6e887`、
+`fe42c6263b0c43b5bc5cc8a32b8777502d4919592f38b5ff06b214905dfe24d6`、
+`3893360bdd778bf94d6911407174bfb63709b8d4e7e23af9e30eba5680b80179`。原 2026-08-28 / 首个付费
+Beta 前停止条件已满足并关闭；这不替代 T9.5 人员演练或 production 发布授权。
+
+## M1 三端极简安全版测试站证据（2026-08-29）
+
+当前测试站不可变版本为 `preview-m1-s5-20260829-visual1`，只部署到
+`test.agentnovas.com`、`ops-test.agentnovas.com` 和 `main-test.agentnovas.com`。三个 Web 容器均
+healthy、restart=0；公开登录页为 200，错误 Host 直达为 404。数据库容器未重启，数据卷保持
+`agentnovas-riverton-preview-pg-m1-s3-20260829-preferences1`。
+
+- 三端 image ID：Client `sha256:e2f0f27bf590e55dd4d07462fe337a11fe10a5f6dddeb98be19e1a164464c741`；Operations
+  `sha256:710fde35f954ead1bc9e5cfdd66e419b6f34b6c17181f4003f0a9bd2391e5262`；Maintenance
+  `sha256:a7b20f619de1ec71d5b813d9dc0b09e306a5cfb8c3e163f604b4025df1f625e3`。
+- image build / inspect SHA-256：
+  `5a506cd3c4e0b143b9ebf1c9a793f616857d1eb75c675912e3bf664d18ad926e` /
+  `d2e6e30dae8576883d1eab5fd8d4cb60697083f3fbf500e3dc4bdaff90b01ae7`。
+- Node 22.21.1 + 隔离 PostgreSQL 全量 `1639/1639`，日志 SHA-256
+  `ca2d6262312f11b4341dd5925d890adb24a89fd81a5bc17acf7a45a2490f2076`；TypeScript、完整 ESLint、
+  8 条架构边界与三端 key custody 日志 SHA-256
+  `64dd660d1b06d81aec70bd64d1fa53549c8d94452e720792cbbd82e920ec4fd4`。仓库 secret scan 覆盖 3286
+  个 tracked/untracked candidate，零 finding。
+- PostgreSQL 角色策略 `findings: []`，证据 SHA-256
+  `23e1445af2cc6f5b32602a1b221cf2b28f99f7347d21b75ef8bbf9800b52ec88`。
+- Playwright 报告 SHA-256
+  `6e799245203fc7d62e69f424271152264667a86abf735eea0ed85b065897a5fc`，含 18 张三端六主题截图；覆盖
+  320/768/1024/1440、严重/关键 axe、无横向溢出、五入口、通知、偏好恢复、设置 Tab、Host/Cookie
+  audience 隔离。三端未知外部请求、凭证 URL、应用 console/page error 与失败响应均为 0。
+
+Cloudflare edge 会为浏览器 UA 注入 `static.cloudflareinsights.com` beacon，并产生 SRI warning；测试 runner
+只对该单一已识别 edge 请求返回空脚本、单独计数，不把它混入应用外部请求。关闭该注入需要 Cloudflare zone
+管理员操作，仍是测试环境外部配置事项。M1 证据不证明 G8 production 域名/邮件/性能/跨职能发布，也不开放
+真实交易、永续、资金出站、外部 Worker 或受限部署。

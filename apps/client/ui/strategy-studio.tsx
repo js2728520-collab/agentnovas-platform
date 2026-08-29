@@ -460,7 +460,7 @@ export default function StrategyStudio({ brief: seed }: { brief?: Record<string,
       </label>
       {briefField("indicators", "候选指标")}
     </div>
-    <header><div><small>MULTI-AGENT RESEARCH</small><h3>多 Agent 策略研发与验证</h3><p>模型负责提出与审查，参数搜索、真实历史回测、评分和准入由确定性引擎完成。切换页面后，后台研发任务会继续运行。</p></div><span className={ready ? styles.ready : styles.waiting}>{ready ? "7 个角色已配置" : "等待角色配置"}</span></header>
+    <header><div><small>MULTI-AGENT RESEARCH</small><h1>多 Agent 策略研发与验证</h1><p>模型负责提出与审查，参数搜索、真实历史回测、评分和准入由确定性引擎完成。切换页面后，后台研发任务会继续运行。</p></div><span className={ready ? styles.ready : styles.waiting}>{ready ? "7 个角色已配置" : "等待角色配置"}</span></header>
     <div className={styles.roleStrip}>{roles.map(role => <span key={role.role}><b>{roleNames[role.role] || role.role}</b><small>{role.modelName}</small></span>)}</div>
     <div className={styles.launchGrid}>
       <div className={styles.modeGrid}>{modes.map(item => <button type="button" className={mode === item.id ? styles.selected : undefined} key={item.id} onClick={() => { setMode(item.id); setTargetConfirmed(false); }}><b>{item.name}</b><small>{item.detail}</small></button>)}</div>

@@ -128,6 +128,200 @@ services:
       postgres: { condition: service_healthy }
     networks: [backplane]
 
+  release-orchestrator-staging:
+    <<: *worker-security
+    profiles: [restricted-cicd]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/release-orchestrator-staging.env, --experimental-strip-types, scripts/release-orchestrator-worker.mjs]
+    environment:
+      NODE_USE_ENV_PROXY: "1"
+    secrets:
+      - source: release_orchestrator_staging_env
+        target: release-orchestrator-staging.env
+      - source: release_orchestrator_staging_binding
+        target: release-orchestrator-binding.json
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: release_orchestrator_staging_app_key
+        target: release-orchestrator-app.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane, egress]
+
+  release-orchestrator-production:
+    <<: *worker-security
+    profiles: [restricted-cicd]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/release-orchestrator-production.env, --experimental-strip-types, scripts/release-orchestrator-worker.mjs]
+    environment:
+      NODE_USE_ENV_PROXY: "1"
+    secrets:
+      - source: release_orchestrator_production_env
+        target: release-orchestrator-production.env
+      - source: release_orchestrator_production_binding
+        target: release-orchestrator-binding.json
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: release_orchestrator_production_app_key
+        target: release-orchestrator-app.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane, egress]
+
+  release-provider-security-auditor-staging:
+    <<: *worker-security
+    profiles: [restricted-cicd]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/release-auditor-staging.env, --experimental-strip-types, scripts/release-provider-security-auditor.mjs]
+    environment:
+      NODE_USE_ENV_PROXY: "1"
+      RELEASE_AUDITOR_HOST: "0.0.0.0"
+      RELEASE_AUDITOR_POLICY_FILE: /run/secrets/release-auditor-policy.json
+      RELEASE_AUDITOR_APP_PRIVATE_KEY_FILE: /run/secrets/release-auditor-app.pem
+      RELEASE_AUDITOR_ATTESTATION_PRIVATE_KEY_FILE: /run/secrets/release-auditor-attestation-ed25519.pem
+      RELEASE_AUDITOR_SHARED_SECRET_FILE: /run/secrets/release-auditor-shared-secret
+    ports:
+      - "127.0.0.1:${RELEASE_AUDITOR_HOST_PORT:-3316}:3316"
+    secrets:
+      - source: release_auditor_staging_env
+        target: release-auditor-staging.env
+      - source: release_auditor_staging_policy
+        target: release-auditor-policy.json
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: release_auditor_staging_app_key
+        target: release-auditor-app.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: release_auditor_staging_attestation_key
+        target: release-auditor-attestation-ed25519.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: release_auditor_staging_shared_secret
+        target: release-auditor-shared-secret
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane, egress]
+
+  release-provider-security-auditor-production:
+    <<: *worker-security
+    profiles: [restricted-cicd]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/release-auditor-production.env, --experimental-strip-types, scripts/release-provider-security-auditor.mjs]
+    environment:
+      NODE_USE_ENV_PROXY: "1"
+      RELEASE_AUDITOR_HOST: "0.0.0.0"
+      RELEASE_AUDITOR_POLICY_FILE: /run/secrets/release-auditor-policy.json
+      RELEASE_AUDITOR_APP_PRIVATE_KEY_FILE: /run/secrets/release-auditor-app.pem
+      RELEASE_AUDITOR_ATTESTATION_PRIVATE_KEY_FILE: /run/secrets/release-auditor-attestation-ed25519.pem
+      RELEASE_AUDITOR_SHARED_SECRET_FILE: /run/secrets/release-auditor-shared-secret
+    ports:
+      - "127.0.0.1:${RELEASE_AUDITOR_PRODUCTION_HOST_PORT:-3317}:3316"
+    secrets:
+      - source: release_auditor_production_env
+        target: release-auditor-production.env
+      - source: release_auditor_production_policy
+        target: release-auditor-policy.json
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: release_auditor_production_app_key
+        target: release-auditor-app.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: release_auditor_production_attestation_key
+        target: release-auditor-attestation-ed25519.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: release_auditor_production_shared_secret
+        target: release-auditor-shared-secret
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane, egress]
+
+  release-webhook-ingress:
+    <<: *worker-security
+    profiles: [restricted-cicd]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/release-webhook.env, --experimental-strip-types, scripts/release-webhook-ingress.mjs]
+    environment:
+      RELEASE_WEBHOOK_HOST: "0.0.0.0"
+    secrets:
+      - source: release_webhook_env
+        target: release-webhook.env
+      - source: release_webhook_binding
+        target: release-webhook-binding.json
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: release_webhook_secret
+        target: release-webhook-secret
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane, edge]
+
+  release-identity-verifier:
+    <<: *worker-security
+    profiles: [restricted-cicd]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/release-identity-verifier.env, --experimental-strip-types, scripts/release-identity-verifier.mjs]
+    environment:
+      RELEASE_IDENTITY_VERIFIER_HOST: "0.0.0.0"
+    secrets:
+      - source: release_identity_verifier_env
+        target: release-identity-verifier.env
+      - source: release_identity_verifier_webauthn_policy
+        target: release-identity-verifier-webauthn-policy.json
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane]
+
+  release-control:
+    <<: *worker-security
+    profiles: [restricted-cicd]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/release-control.env, --experimental-strip-types, scripts/release-control-gateway.mjs]
+    environment:
+      RELEASE_CONTROL_HOST: "0.0.0.0"
+    secrets:
+      - source: release_control_env
+        target: release-control.env
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane]
+
   runtime-worker:
     <<: *worker-security
     profiles: [workers]
@@ -200,6 +394,50 @@ secrets:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/notification.env
   configuration_activation_env:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/configuration-activation.env
+  release_orchestrator_staging_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-orchestrator-staging.env
+  release_orchestrator_staging_binding:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-orchestrator-staging-binding.json
+  release_orchestrator_staging_app_key:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-orchestrator-staging-app.pem
+  release_orchestrator_production_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-orchestrator-production.env
+  release_orchestrator_production_binding:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-orchestrator-production-binding.json
+  release_orchestrator_production_app_key:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-orchestrator-production-app.pem
+  release_auditor_staging_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-auditor-staging.env
+  release_auditor_staging_policy:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-auditor-staging-policy.json
+  release_auditor_staging_app_key:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-auditor-staging-app.pem
+  release_auditor_staging_attestation_key:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-auditor-staging-attestation-ed25519.pem
+  release_auditor_staging_shared_secret:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-auditor-staging-shared-secret
+  release_auditor_production_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-auditor-production.env
+  release_auditor_production_policy:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-auditor-production-policy.json
+  release_auditor_production_app_key:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-auditor-production-app.pem
+  release_auditor_production_attestation_key:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-auditor-production-attestation-ed25519.pem
+  release_auditor_production_shared_secret:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-auditor-production-shared-secret
+  release_webhook_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-webhook.env
+  release_webhook_binding:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-webhook-binding.json
+  release_webhook_secret:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-webhook-secret
+  release_identity_verifier_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-identity-verifier.env
+  release_identity_verifier_webauthn_policy:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-identity-verifier-webauthn-policy.json
+  release_control_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/release-control.env
   runtime_env:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/runtime.env
   demo_env:

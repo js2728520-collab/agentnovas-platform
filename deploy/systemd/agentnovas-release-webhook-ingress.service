@@ -1,0 +1,35 @@
+[Unit]
+Description=AgentNovas restricted GitHub webhook ingress
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agentnovas-release-ingress
+Group=agentnovas-release-ingress
+WorkingDirectory=/opt/agentnovas/current
+EnvironmentFile=/etc/agentnovas/release-webhook.env
+LoadCredential=release-webhook-binding.json:/etc/agentnovas/release-webhook-binding.json
+LoadCredential=release-webhook-secret:/etc/agentnovas/release-webhook-secret
+Environment=RELEASE_WEBHOOK_BINDING_FILE=%d/release-webhook-binding.json
+Environment=RELEASE_WEBHOOK_SECRET_FILE=%d/release-webhook-secret
+ExecStart=/usr/bin/npm run service:release-webhook-ingress
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+InaccessiblePaths=/etc/agentnovas
+
+[Install]
+WantedBy=multi-user.target

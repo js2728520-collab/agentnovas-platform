@@ -8,11 +8,13 @@ import { ResearchApiError } from "./research-errors.ts";
 const MAINTENANCE_IDEMPOTENCY_OPERATIONS = new Set([
   "maintenance.source_integration.test",
   "maintenance.trading.emergency_stop",
+  "maintenance.work_records.export",
 ] as const);
 
 export type MaintenanceIdempotencyOperation =
   | "maintenance.source_integration.test"
-  | "maintenance.trading.emergency_stop";
+  | "maintenance.trading.emergency_stop"
+  | "maintenance.work_records.export";
 
 export type MaintenanceIdempotencyDescriptor = {
   operation: MaintenanceIdempotencyOperation;

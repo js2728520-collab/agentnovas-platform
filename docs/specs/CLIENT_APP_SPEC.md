@@ -4,11 +4,11 @@
 
 ## 1. 目标与导航
 
-Client 为受邀用户提供登录/设置密码、商业披露确认、试用与会员、AI credits、三张官方 paper 组合、七智能体记录、平台 Demo 证据、研究/回测、只读钱包和通知。保留多语言与 Riverton 深色视觉，不做无关改版。
+Client 为受邀用户提供登录/设置密码、商业披露确认、试用与会员、AI credits、三张官方 paper 组合、七智能体记录、可追溯工作记录、平台 Demo 证据、研究/回测、只读钱包和通知。保留多语言与 Riverton 深色视觉，不做无关改版。
 
-稳定路由：`/`、`/login`、`/dashboard`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements`、`/performance-statements/[id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/wallet`、`/wallet/deposits`、`/notifications`、`/account/security`、`/support`；`/workspace` 是登录和 `client.paper.view` 双重守卫后的策略/Agent 按需入口。普通客户不得看到旧 Admin/Ops/Maint 导航或代码文案。
+稳定路由：`/`、`/login`、`/dashboard`、`/legal/consent`、`/membership`、`/membership/orders`、`/credits`、`/performance-statements`、`/performance-statements/[id]`、`/paper`、`/paper/[portfolioId]`、`/trading-hall`、`/work-records`、`/work-records/[id]`、`/wallet`、`/wallet/deposits`、`/notifications`、`/account/security`、`/support`；`/workspace` 是登录和 `client.paper.view` 双重守卫后的策略/Agent 按需入口。普通客户不得看到旧 Admin/Ops/Maint 导航或代码文案。
 
-实现状态（2026-08-22）：`/` 是公开产品着陆页，`/dashboard` 是认证后的客户交易总览；登录默认进入 `/dashboard`，客户 Shell 内不存在指向 `/` 的产品导航。`/legal/consent` 允许所有已登录 Client 读取并保存当前七正文版本；只有新建会员订单要求当前版本确认，Paper、行情、通知和账户安全不再被全局重定向。`/workspace` 按需加载保留的策略、Agent、回测和账户工作区，并嵌入同一客户 Shell，不再显示第二套顶栏、侧栏或登录页。
+实现状态（2026-08-28）：`/` 是公开产品着陆页，`/dashboard` 是认证后的客户数据看板；登录默认进入 `/dashboard`，客户 Shell 内不存在指向 `/` 的产品导航。数据看板只展示当前账户的 Paper 组合权益、收益、持仓和策略状态。`/legal/consent` 仅作为付费会员下单所需的版本化商业披露确认页保留，不再出现在普通设置 Tab 中；Paper、行情、通知和账户安全不受披露全局重定向。`/workspace` 按需加载保留的策略、Agent、回测和账户工作区，并嵌入同一客户 Shell，不再显示第二套顶栏、侧栏或登录页。
 
 ## 2. 身份与商业披露
 
@@ -60,6 +60,15 @@ Client 为受邀用户提供登录/设置密码、商业披露确认、试用与
 | `demo_filled` | 平台测试账户回执，不代表客户真实成交 |
 
 页面不得硬编码行情、风险、收益、会议结论、provider 连接或执行成功。阶段缺失显示 incomplete；无行为的真实交易、紧急停止和客户交易所连接入口隐藏。
+
+### 5.1 工作记录
+
+- `/work-records` 只查询当前客户订阅期间、固定策略版本的持久化记录，使用不透明游标分页；
+- `/work-records/[id]` 把共享公共七阶段与当前客户的组合准入、模拟意图和模拟成交明确分区；
+- 只有纯 `hold` 且无客户周期时显示“无需组合准入”，其他缺周期轮显示“未记录”，不推断已放行；
+- 未知、越权、订阅空档和版本错配统一 404；响应私有且不缓存；
+- 页面只展示 allowlist 证据和行情安全摘要，不直接输出原始 JSON、其他客户标识、模型凭证或错误原文；
+- 所有记录持续声明 `realOrderRoutingEnabled=false`，查看详情不调用 LLM、不触发订单或外部写入。
 
 ## 6. 钱包和通知
 

@@ -3,15 +3,30 @@ import { readQualityRuntime } from "./support/runtime";
 
 test("maintenance health and audit workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
   for (const [path, heading] of [
-    ["/", "系统概览"],
+    ["/", "系统运行"],
     ["/health", "系统健康"],
     ["/audit", "技术审计"],
     ["/releases", "版本发布"],
     ["/configurations", "配置发布"],
+    ["/work-records", "工作记录脱敏导出"],
+    ["/?tab=health", "系统健康"],
+    ["/configurations?tab=platform", "平台与客服"],
+    ["/releases?tab=technical-audit", "技术审计"],
+    ["/settings?tab=appearance", "外观与语言"],
   ] as const) {
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "maintenance");
+    if (path === "/releases") {
+      await expect(page.getByRole("heading", { name: "受限 CI/CD 控制" })).toBeVisible();
+      await expect(page.getByText("Worker、Ingress、目标网关和专用 workflow 未通过 G7 前仍保持关闭", { exact: false })).toBeVisible();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+    }
   }
+  await page.goto("/", { waitUntil: "networkidle" });
+  await expect(page.getByText("失败任务", { exact: true })).toBeVisible();
+  await expect(page.getByText("当前版本", { exact: true })).toBeVisible();
+  await expect(page.getByText(/数据来源：健康、Worker、队列、就绪检查与技术审计接口/)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "需要处理" })).toBeVisible();
 });
 
 test("maintenance model and integration workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
@@ -21,6 +36,8 @@ test("maintenance model and integration workspaces are responsive, accessible an
     ["/integrations/email", "邮件服务"],
     ["/integrations/payments", "优盾充值通道"],
     ["/integrations/demo-exchanges", "平台 Demo 交易所"],
+    ["/ai-strategy?tab=models", "模型与 Agent"],
+    ["/integrations?tab=email", "邮件服务"],
   ] as const) {
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "maintenance");
@@ -28,7 +45,7 @@ test("maintenance model and integration workspaces are responsive, accessible an
 });
 
 test("maintenance configuration and controls submit inline without confirmation dialogs", async ({ page }) => {
-  await page.goto("/settings", { waitUntil: "domcontentloaded" });
+  await page.goto("/configurations?tab=platform", { waitUntil: "domcontentloaded" });
   const save = page.getByRole("button", { name: "保存设置" });
   await expect(save).toBeDisabled();
   await page.getByLabel("设置变更原因").fill("日常平台配置维护");
@@ -128,7 +145,7 @@ test("maintenance configuration and controls submit inline without confirmation 
   }
 });
 
-test("maintenance AI usage is truthful, accessible, dialog-free, and recoverable from an invalid shared URL", async ({ browser, page }) => {
+test("maintenance AI usage and work-record export are truthful, accessible, dialog-free, and recoverable", async ({ browser, page }) => {
   await exerciseResponsiveWidths(page, "/ai-usage", "AI 用量与可靠性");
   await expectAudienceNavigation(page, "maintenance");
   const overview = page.getByRole("region", { name: "AI 用量总览" });
@@ -171,4 +188,24 @@ test("maintenance AI usage is truthful, accessible, dialog-free, and recoverable
   } finally {
     await isolated.close({ allowedStatuses: [400] });
   }
+
+  await page.goto("/work-records", { waitUntil: "domcontentloaded" });
+  await page.getByLabel("导出原因（3–500 字）").fill("浏览器验证 Maintenance 脱敏工作记录导出");
+  const from = await page.getByLabel("开始日期（UTC）").inputValue();
+  const to = await page.getByLabel("结束日期（UTC）").inputValue();
+  const responsePending = page.waitForResponse((response) => response.url().endsWith("/api/maintenance/work-records/export") && response.request().method() === "POST");
+  const downloadPending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "生成并下载脱敏 JSON" }).click();
+  const [response, download] = await Promise.all([responsePending, downloadPending]);
+  expect(response.status()).toBe(200);
+  expect(response.request().postDataJSON()).toEqual({
+    from,
+    to,
+    reason: "浏览器验证 Maintenance 脱敏工作记录导出",
+  });
+  expect(response.request().headers()["idempotency-key"]).toMatch(/^work-record-export:/);
+  expect(response.headers()["x-export-retention"]).toBe("idempotency-record-only");
+  expect(download.suggestedFilename()).toBe(`strategy-work-records-${from}-${to}.json`);
+  await expect(page.getByText(/已导出 \d+ 条记录/)).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
