@@ -4001,7 +4001,8 @@ Secret Broker、版本/指纹、Provider 与回调测试历史、原子启用 Ga
 `automatic:<action>` 标记。
 
 合并同时补齐干净 CI 的两个缺口：`package-lock.json` 现在锁定 Puppeteer 可选 `proxy-agent@8.0.2` 依赖树，干净
-Node 22.21.1 环境的 `npm ci` 可重放；根 `pretest` 先构建 AI workspace 包，测试不再依赖残留 `dist`。Client 默认
+Node 22.21.1 环境的 `npm ci` 可重放；根 `pretest` 和独立 `test:apps` Gate 都先构建 AI workspace 包，测试与
+三端质量构建不再依赖残留 `dist`。Client 默认
 语言已冻结为英语，因此 production HTML smoke 改为验证英文落地页主视觉，同时继续校验落地页与未登录工作台不会
 串页。三端质量构建会释放可重建的 outer server/cache；smoke 因而直接启动 Next 16 官方
 `.next-client/standalone/server.js`，验证实际部署制品，不再依赖已经清理的 `next start` 中间目录。
