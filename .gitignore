@@ -40,6 +40,7 @@ AgentNovas-超级管理员登录信息.md
 .vercel
 
 /dist/
+/packages/*/dist/
 /.wrangler/
 /.local-backups/
 /outputs/

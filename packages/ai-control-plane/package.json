@@ -1,0 +1,29 @@
+{
+  "name": "@agentnovas/ai-control-plane",
+  "version": "0.1.0",
+  "description": "Framework-independent model configuration, binding, invocation, usage, and budget contracts.",
+  "type": "module",
+  "sideEffects": false,
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "node --test --experimental-strip-types ../../tests/ai-control-plane-package.test.mjs"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

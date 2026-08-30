@@ -1,0 +1,38 @@
+{
+  "name": "@agentnovas/ai-control-plane-react",
+  "version": "0.1.0",
+  "description": "Accessible React management components for @agentnovas/ai-control-plane.",
+  "type": "module",
+  "sideEffects": false,
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@agentnovas/ai-control-plane": "0.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.3.0 <20"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "react": "19.2.6"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

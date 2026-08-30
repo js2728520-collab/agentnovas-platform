@@ -2,16 +2,23 @@
   "name": "agentnovas-platform",
   "version": "1.0.0-beta.6",
   "private": true,
+  "workspaces": [
+    "packages/ai-control-plane",
+    "packages/ai-control-plane-react"
+  ],
   "engines": {
     "node": ">=22.21.0"
   },
   "scripts": {
+    "build:packages": "npm run build --workspace @agentnovas/ai-control-plane && npm run build --workspace @agentnovas/ai-control-plane-react",
+    "test:packages": "npm run build:packages && node --test --experimental-strip-types tests/ai-control-plane-package.test.mjs tests/ai-control-plane-react-package.test.mjs",
+    "pack:packages": "npm run build:packages && node scripts/quality/pack-ai-control-plane-packages.mjs",
     "dev": "NODE_USE_ENV_PROXY=1 next dev",
     "dev:client": "RIVERTON_APP_AUDIENCE=client NODE_USE_ENV_PROXY=1 next dev -p 3000",
     "dev:operations": "RIVERTON_APP_AUDIENCE=operations NODE_USE_ENV_PROXY=1 next dev -p 3001",
     "dev:maintenance": "RIVERTON_APP_AUDIENCE=maintenance NODE_USE_ENV_PROXY=1 next dev -p 3002",
     "prebuild": "npm run icons:generate",
-    "build": "next build",
+    "build": "npm run build:packages && next build",
     "build:client": "RIVERTON_APP_AUDIENCE=client next build",
     "build:operations": "RIVERTON_APP_AUDIENCE=operations next build",
     "build:maintenance": "RIVERTON_APP_AUDIENCE=maintenance next build",

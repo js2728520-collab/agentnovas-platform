@@ -6,8 +6,8 @@
 ## 当前切片：可复用 AI 控制面
 
 - [x] 冻结组件 Spec、ADR、威胁模型、角色目录、fallback 与迁移/回滚边界。
-- [-] 建立 core/React 两个 `0.1.0` 内部包、RED 测试、构建和 tarball 安装验收。
-- [ ] 实现 `0093_ai_control_plane.sql` 与旧 Profile/绑定原地兼容迁移。
+- [x] 建立 core/React 两个 `0.1.0` 内部包、RED 测试、构建和 tarball 安装验收。
+- [-] 实现 `0093_ai_control_plane.sql` 与旧 Profile/绑定原地兼容迁移。
 - [ ] 实现 `0094_ai_secret_custody.sql`、Secret Broker、离线旧 Key 迁移和 key-custody Gate。
 - [ ] 实现 loopback AI Gateway、OpenAI-compatible adapter、幂等、取消、fallback 与 Fake Provider 测试。
 - [ ] 接入 12 角色、旧 API facade、Client/Research/Runtime 调用与统一 Usage Event。
