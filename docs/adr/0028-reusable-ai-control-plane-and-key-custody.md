@@ -24,11 +24,14 @@ Client AI 又隐式复用 `report` 与 `proposal_a`。连接测试结果不持�
 9. 预算是软告警；请求大小、Token、并发和速率是 Gateway 硬门禁。P-08 前不按价格自动停业务。
 10. 迁移保留旧 ID、FK、API 和表作为兼容/回滚基础，不在本切片删除历史。
 11. Gateway 与全部真实 Provider 能力默认关闭；legacy Research Worker 和真实永续路由继续硬关闭。
+12. Broker 支持以 `brokerKeyId` 选择私钥 generation 的受限 keyring；公钥切换后，旧 generation 保留到旧命令
+    清空和回滚窗口结束，避免轮换造成待处理 envelope 永久失败。
 
 ## 安全边界
 
 - Browser、Maintenance Web、Client Web 不取得明文 Key 或 Broker 私钥。
 - Broker 只处理有摘要、租约和 fencing 的命令，原子写入 0600 受管文件。
+- Broker keyring 目录为 0700，文件名是 `sha256(brokerKeyId)`，不会把外部 ID 解释为路径。
 - Gateway 使用独立数据库角色和服务鉴权，不接 Nginx，不接受任意 URL 或 operation。
 - AgentNovas 只允许公共 HTTPS；私网/本机端点失败关闭。
 - Provider 响应是不可信数据，仍需业务层结构化校验；Gateway 不能修改 DSL、风控或订单意图。

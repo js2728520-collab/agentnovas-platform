@@ -67,6 +67,7 @@
 | `quality/ACCEPTANCE_AND_RELEASE_GATES.md` | `CURRENT_BASELINE` | 当前 Beta 发布门禁 |
 | `quality/QUALITY_RELEASE_EVIDENCE.md` | `CURRENT_BASELINE` | 当前自动质量证据生成方式 |
 | `runbooks/commercial-beta-maintenance.md` | `CURRENT_BASELINE` | 当前 Beta Maintenance 操作 |
+| `runbooks/ai-control-plane.md` | `TARGET_TRUTH/IMPLEMENTING` | AI 控制面迁移、Secret Broker/Gateway、密钥轮换、日常配置、用量与回滚 |
 | `runbooks/commercial-beta-operations.md` | `CURRENT_BASELINE` | 当前 Beta Operations 操作 |
 | `runbooks/commercial-beta-release-and-rollback.md` | `CURRENT_BASELINE` | 当前部署和回滚 |
 | `runbooks/production-accounts-and-configuration.md` | `CURRENT_BASELINE` | 当前账号与外部配置 |
