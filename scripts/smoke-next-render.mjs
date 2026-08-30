@@ -32,13 +32,16 @@ async function waitForHtml(url, child, output) {
 
 const port = await availablePort();
 assert.equal(typeof port, "number");
-const nextBin = fileURLToPath(new URL("../node_modules/next/dist/bin/next", import.meta.url));
+const standaloneRoot = fileURLToPath(new URL("../.next-client/standalone/", import.meta.url));
+const standaloneServer = fileURLToPath(new URL("../.next-client/standalone/server.js", import.meta.url));
 let logs = "";
-const child = spawn(process.execPath, [nextBin, "start", "-H", "127.0.0.1", "-p", String(port)], {
-  cwd: fileURLToPath(new URL("..", import.meta.url)),
+const child = spawn(process.execPath, [standaloneServer], {
+  cwd: standaloneRoot,
   env: {
     ...process.env,
     NODE_ENV: "production",
+    HOSTNAME: "127.0.0.1",
+    PORT: String(port),
     RIVERTON_APP_AUDIENCE: "client",
     RIVERTON_APP_LOCAL_PORT: String(port),
   },

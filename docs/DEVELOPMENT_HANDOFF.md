@@ -4003,7 +4003,8 @@ Secret Broker、版本/指纹、Provider 与回调测试历史、原子启用 Ga
 合并同时补齐干净 CI 的两个缺口：`package-lock.json` 现在锁定 Puppeteer 可选 `proxy-agent@8.0.2` 依赖树，干净
 Node 22.21.1 环境的 `npm ci` 可重放；根 `pretest` 先构建 AI workspace 包，测试不再依赖残留 `dist`。Client 默认
 语言已冻结为英语，因此 production HTML smoke 改为验证英文落地页主视觉，同时继续校验落地页与未登录工作台不会
-串页。
+串页。三端质量构建会释放可重建的 outer server/cache；smoke 因而直接启动 Next 16 官方
+`.next-client/standalone/server.js`，验证实际部署制品，不再依赖已经清理的 `next start` 中间目录。
 
 最终复验在 `an-saas` 的一次性源码目录、Node 22.21.1 容器和隔离 PostgreSQL 16 中完成。干净 `npm ci` 成功；
 串行全量测试首轮 1,745 项中 1,742 passed、1 skipped，另 2 项因 Docker 服务名被测试安全策略拒绝为非 loopback
