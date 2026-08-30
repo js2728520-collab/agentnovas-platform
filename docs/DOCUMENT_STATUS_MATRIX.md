@@ -33,6 +33,7 @@
 | `specs/MARKET_SOURCE_BINDING_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.4a provider-independent 选择/解析、不可变绑定与双 fingerprint 已实现；T2.4b 持久化、UI、Runtime 和历史迁移等待 P-01/provider registry |
 | `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T4.3a 普通对话取消、provider abort、原请求重放与 Credits 单终态已实现；固定 Credits 价格等待 P-08 |
 | `specs/MAINTENANCE_AI_USAGE_ANALYTICS_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T3.9a UTC 请求创建 cohort、可信成功 Token、settled Credits、已记录非取消失败率和脱敏多维分析已通过完整 Gate；T3.9b 固定价格仍等待 P-08 |
+| `specs/AI_CONTROL_PLANE_COMPONENT_SPEC.md` | `TARGET_TRUTH/IMPLEMENTING` | 可复用 Connection/Deployment/Binding 控制面、独立密钥域、本机 Gateway、统一用量与软预算合同；真实 Provider 默认关闭 |
 | `specs/STRATEGY_WORK_RECORDS_SPEC.md` | `CURRENT_BASELINE/TARGET_TRUTH` | T4.13 Client 列表/详情、六个月保留和 Maintenance security-barrier 脱敏导出已完成；真实订单继续关闭 |
 | `specs/RESTRICTED_CICD_DELEGATION_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT/RUNTIME_BLOCKED` | T8.2a–T8.2d2b 已交付默认关闭的 Ingress、target、Maintenance control、workflow、独立 Auditor、环境隔离和测试域 Web-only preview；真实 provider fixture/G7/首次生产授权未完成，Current trigger 仍关闭 |
 | `quality/FULL_PLATFORM_V3_GATES.md` | `TARGET_TRUTH` | 分能力验收和发布门禁 |
@@ -42,6 +43,7 @@
 | `adr/0022-client-email-and-five-device-security.md` | `CURRENT_BASELINE/PROVISIONAL` | Client 邮箱与设备安全合同；两项产品参数待确认 |
 | `adr/0023-deferred-mfa-enforcement-rollout.md` | `CURRENT_BASELINE/TARGET_TRUTH` | MFA 能力保留、当前关闭与生产启用门禁 |
 | `adr/0024-restricted-cicd-delegation.md` | `TARGET_TRUTH/ACCEPTED` | Maintenance 受限 CI/CD 委托、精确 run/OIDC、target fencing/receipt 与 G7 前失败关闭；仅允许增量切片实现 |
+| `adr/0028-reusable-ai-control-plane-and-key-custody.md` | `TARGET_TRUTH/ACCEPTED` | AI 控制面分层资源、可复用包、Secret Broker、loopback Gateway 与全调用用量合同 |
 
 任务执行真源位于仓库根 `tasks/plan.md` 与 `tasks/todo.md`。
 
@@ -102,6 +104,7 @@
 | 0022 | Client 邮箱与五设备安全当前合同；第六设备和城市定位仍为 provisional |
 | 0023 | MFA 当前默认不强制、能力保留并在正式生产 Gate 后统一开启 |
 | 0024 | 受限 CI/CD 安全设计已通过 T8.0；G7 前只登记证据 |
+| 0028 | 可复用 AI 控制面与模型密钥托管；真实 Provider 与外部 AI Worker 继续默认关闭 |
 
 ADR 原文不因目标升级批量改写；新决定使用新 ADR supersede。
 

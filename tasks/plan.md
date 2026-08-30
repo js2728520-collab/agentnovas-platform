@@ -1,10 +1,22 @@
 # Implementation Plan：AgentNovas 全平台 V3 升级
 
-状态：M1 三端极简安全版已完成；Phase 1 继续进行，G1 真实邮件与生产 MFA 开启态验收待完成
-工作分支：`codex/platform-v3-doc-sync`
+状态：M1 三端极简安全版已完成；可复用 AI 控制面独立切片实施中
+工作分支：`codex/ai-control-plane-reuse`（从 `62261ec` 独立工作树开始）
 需求真源：`docs/product/PRD.md`
 路线图：`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md`
 质量门禁：`docs/quality/FULL_PLATFORM_V3_GATES.md`
+
+## 当前切片：可复用 AI 控制面与模型密钥托管
+
+目标：把现有模型 Profile、Agent binding 与 Client-only AI 用量演进为可打包的
+Connection/Deployment/Binding 控制面、独立 Secret Broker、loopback AI Gateway 和全调用用量。真实 Provider、
+Research/Runtime 外部调用与真实订单继续默认关闭。
+
+依赖顺序：Spec/ADR → 包合同 → PostgreSQL 迁移 → Broker/Gateway → AgentNovas facade/消费者 → UI/用量 →
+全量 Gate。每一阶段使用 RED/GREEN、定向测试和本地原子提交；合并前 rebase 到最新文档分支并重跑全部 Gate。
+
+验收以 `docs/specs/AI_CONTROL_PLANE_COMPONENT_SPEC.md` 为真源；本切片不得发布 Registry、push、创建 PR、
+部署测试站或使用真实 Provider Key。
 
 ## 1. 目标
 
