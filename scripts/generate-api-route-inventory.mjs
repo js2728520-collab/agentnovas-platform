@@ -311,7 +311,10 @@ function sensitivePermissionKeys(source) {
 }
 
 function piiForRoute(route) {
-  if (route === "/api/maintenance/ai-usage" || route === "/api/maintenance/work-records/export") return "masked";
+  if (route === "/api/maintenance/ai-usage" || route === "/api/maintenance/work-records/export"
+    || route === "/api/maintenance/email/status" || route === "/api/maintenance/email/secrets") return "masked";
+  if (route === "/api/maintenance/email/test" || route === "/api/maintenance/email/tests"
+    || route.startsWith("/api/maintenance/email/recipients")) return "full";
   if (["/api/account/profile", "/api/data-center", "/api/employee/tasks", "/api/organization/members"].includes(route)
     || route.startsWith("/api/finance/payout-profiles") || route.startsWith("/api/operations/deposits")
     || route.startsWith("/api/operations/customers")) return "full";

@@ -38,11 +38,11 @@ test.before(async () => {
       idle_expires_at,absolute_expires_at
     ) VALUES
       ('client-session','client-user','client-token','client',
-       '2026-08-30T00:00:00.000Z','primary',
-       '2026-08-30T00:00:00.000Z','2026-08-30T00:00:00.000Z'),
+       '2099-12-31T00:00:00.000Z','primary',
+       '2099-12-31T00:00:00.000Z','2099-12-31T00:00:00.000Z'),
       ('client-opt-in-session','client-opt-in','client-opt-in-token','client',
-       '2026-08-30T00:00:00.000Z','none',
-       '2026-08-30T00:00:00.000Z','2026-08-30T00:00:00.000Z');
+       '2099-12-31T00:00:00.000Z','none',
+       '2099-12-31T00:00:00.000Z','2099-12-31T00:00:00.000Z');
   `);
 });
 
@@ -62,7 +62,7 @@ test("Client can pre-enroll MFA from a complete session while enforcement is dis
     sessionTokenHash: "client-opt-in-token",
     audience: "client",
     code,
-    idleExpiresAt: "2026-08-30T00:00:00.000Z",
+    idleExpiresAt: "2099-12-31T00:00:00.000Z",
     environment,
     now,
   });

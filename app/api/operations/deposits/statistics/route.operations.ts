@@ -23,7 +23,7 @@ export async function GET(request: Request) {
              COALESCE(SUM(credited_amount), 0)::text AS total_credited,
              COALESCE(SUM(fee_amount), 0)::text AS total_fees,
              COUNT(*) FILTER (WHERE order_status = 'MANUAL_REVIEW')::text AS review_orders,
-             COUNT(*) FILTER (WHERE order_status = 'FAILED')::text AS failed_orders
+             COUNT(*) FILTER (WHERE order_status IN ('ADDRESS_UNKNOWN','ADDRESS_FAILED','FAILED'))::text AS failed_orders
       FROM deposit_orders
       WHERE ${where.join(" AND ")}
     `, params);

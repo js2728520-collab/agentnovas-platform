@@ -1,6 +1,6 @@
 # AgentNovas 文档状态与同步矩阵
 
-更新日期：2026-08-28
+更新日期：2026-08-30
 目标分支：`codex/platform-v3-doc-sync`
 
 ## 1. 状态说明
@@ -33,6 +33,8 @@
 | `specs/MARKET_SOURCE_BINDING_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.4a provider-independent 选择/解析、不可变绑定与双 fingerprint 已实现；T2.4b 持久化、UI、Runtime 和历史迁移等待 P-01/provider registry |
 | `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T4.3a 普通对话取消、provider abort、原请求重放与 Credits 单终态已实现；固定 Credits 价格等待 P-08 |
 | `specs/MAINTENANCE_AI_USAGE_ANALYTICS_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T3.9a UTC 请求创建 cohort、可信成功 Token、settled Credits、已记录非取消失败率和脱敏多维分析已通过完整 Gate；T3.9b 固定价格仍等待 P-08 |
+| `specs/EMAIL_SERVICE_MANAGEMENT_MODULE_SPEC.md` | `CURRENT_BASELINE/TARGET_TRUTH` | 可复用邮件概况、非秘密配置、明确测试收件人、投递历史和 Worker/Resend 证据闭环 |
+| `specs/UDUN_DEPOSIT_SERVICE_COMPLETION_SPEC.md` | `CURRENT_BASELINE/TARGET_TRUTH/READY_FOR_LIVE_TEST` | 优盾 deposit-only 配置托管、币种校验、回调、建址状态机和双审入账合同；真实小额闭环待外部测试商户参数与逐次授权 |
 | `specs/STRATEGY_WORK_RECORDS_SPEC.md` | `CURRENT_BASELINE/TARGET_TRUTH` | T4.13 Client 列表/详情、六个月保留和 Maintenance security-barrier 脱敏导出已完成；真实订单继续关闭 |
 | `specs/RESTRICTED_CICD_DELEGATION_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT/RUNTIME_BLOCKED` | T8.2a–T8.2d2b 已交付默认关闭的 Ingress、target、Maintenance control、workflow、独立 Auditor、环境隔离和测试域 Web-only preview；真实 provider fixture/G7/首次生产授权未完成，Current trigger 仍关闭 |
 | `quality/FULL_PLATFORM_V3_GATES.md` | `TARGET_TRUTH` | 分能力验收和发布门禁 |
@@ -68,6 +70,7 @@
 | `runbooks/commercial-beta-operations.md` | `CURRENT_BASELINE` | 当前 Beta Operations 操作 |
 | `runbooks/commercial-beta-release-and-rollback.md` | `CURRENT_BASELINE` | 当前部署和回滚 |
 | `runbooks/production-accounts-and-configuration.md` | `CURRENT_BASELINE` | 当前账号与外部配置 |
+| `runbooks/resend-email-configuration.md` | `CURRENT_BASELINE` | Resend secret 装载、最小权限、受控启用、投递验收与回滚 |
 | `runbooks/phase9-operational-drills.md` | `CURRENT_BASELINE` | T9.5 六场人员/流程演练、SLA、停止条件与证据模板；自动测试不能替代签字记录 |
 | `runbooks/riverton-three-app-ui.md` | `CURRENT_BASELINE` | 当前三端 UI 运行方式 |
 | `runbooks/self-hosted-strategy-research.md` | `CURRENT_BASELINE` | 当前自托管 Research/Runtime |
@@ -102,6 +105,9 @@
 | 0022 | Client 邮箱与五设备安全当前合同；第六设备和城市定位仍为 provisional |
 | 0023 | MFA 当前默认不强制、能力保留并在正式生产 Gate 后统一开启 |
 | 0024 | 受限 CI/CD 安全设计已通过 T8.0；G7 前只登记证据 |
+| 0025 | 邮件服务管理闭环、哈希测试授权、可复用 UI 与 API Key/Webhook Secret 进程托管边界 |
+| 0026 | 取代 0025 的只读/账号绑定测试地址；独立收件人验证、浏览器加密只写配置与 Secret Broker 当前合同 |
+| 0027 | 优盾 deposit-only 完成合同；Payment Secret Broker、严格协议、原子激活 Gate、未知建址结果和真实小额验收边界 |
 
 ADR 原文不因目标升级批量改写；新决定使用新 ADR supersede。
 

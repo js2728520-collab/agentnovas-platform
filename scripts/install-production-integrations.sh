@@ -18,6 +18,10 @@ mode_of() {
   if stat -c '%a' "$1" >/dev/null 2>&1; then stat -c '%a' "$1"; else stat -f '%Lp' "$1"; fi
 }
 
+ownership_of() {
+  if stat -c '%u:%g' "$1" >/dev/null 2>&1; then stat -c '%u:%g' "$1"; else stat -f '%u:%g' "$1"; fi
+}
+
 mode=$(mode_of "$answer_file")
 case "$mode" in
   400|600) ;;
@@ -127,9 +131,10 @@ for name in client maintenance notification; do
 done
 
 update_env_file() {
-  local file=$1
+  local file=$1 target_ownership
   shift
   local update_keys=() update_values=() seen=() key value index line current_key replacement_index tmp
+  target_ownership=$(ownership_of "$file")
   while [ "$#" -gt 0 ]; do
     update_keys[${#update_keys[@]}]=$1
     update_values[${#update_values[@]}]=$2
@@ -169,6 +174,11 @@ update_env_file() {
     fi
     index=$((index + 1))
   done
+  if ! chown "$target_ownership" "$tmp"; then
+    rm -f "$tmp"
+    printf 'failed to preserve target secret-file ownership: %s\n' "$file" >&2
+    exit 77
+  fi
   chmod 0440 "$tmp"
   mv -f "$tmp" "$file"
   chmod 0440 "$file"

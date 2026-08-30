@@ -10,7 +10,10 @@ test("ordinary Maintenance configuration uses an inline audit reason without con
     "apps/maintenance/ui/email-integration-workspace.tsx",
     "apps/maintenance/ui/source-integrations-workspace.tsx",
   ]) {
-    const source = await read(path);
+    const sharedEmailControls = path.endsWith("email-integration-workspace.tsx")
+      ? await read("packages/ui/src/email-service-manager/email-service-configuration.tsx")
+      : "";
+    const source = `${await read(path)}\n${sharedEmailControls}`;
     assert.match(source, /InlineAuditReasonField/);
     assert.doesNotMatch(source, /ConfirmActionDialog/);
   }

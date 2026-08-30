@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("Client address creation uses the safe projection, server-side runtime secret, and no static address", async () => {
   const route = await read("app/api/wallet/deposit-orders/route.client.ts");
   assert.match(route, /client_payment_provider_configs_safe/);
-  assert.match(route, /readUdunRuntimeConfig/);
+  assert.match(route, /resolveUdunRuntimeConfig/);
   assert.match(route, /requestUdunDepositAddress/);
   assert.match(route, /idempotencyKey\(request\)/);
   assert.match(route, /existingOpenOrder/);

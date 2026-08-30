@@ -12,6 +12,7 @@ export const EXPECTED_RELEASE_DATABASE_ROLES = Object.freeze([
   "agentnovas_execution_service",
   "agentnovas_payment_webhook",
   "agentnovas_notification_worker",
+  "agentnovas_email_secret_broker",
   "agentnovas_configuration_activation_worker",
   "agentnovas_demo_execution_worker",
   "agentnovas_runtime_worker",
@@ -267,11 +268,17 @@ const WORKER_TABLES = new Map([
     "memberships",
     "notification_deliveries",
     "notification_email_suppressions",
+    "notification_email_test_recipients",
+    "notification_preferences",
     "notification_provider_configs",
     "official_paper_portfolios",
     "official_paper_positions",
     "users",
     "worker_instances",
+  ])],
+  ["agentnovas_email_secret_broker", new Set([
+    "notification_email_secret_broker_heartbeats",
+    "notification_email_secret_requests",
   ])],
   ["agentnovas_configuration_activation_worker", new Set([
     "configuration_activations",
@@ -336,6 +343,13 @@ const WORKER_TABLES = new Map([
 ]);
 
 const WORKER_TABLE_PRIVILEGES = new Map([
+  ["agentnovas_notification_worker", new Map([
+    ["notification_email_test_recipients", new Set(["SELECT"])],
+  ])],
+  ["agentnovas_email_secret_broker", new Map([
+    ["notification_email_secret_broker_heartbeats", new Set(["SELECT","INSERT","UPDATE"])],
+    ["notification_email_secret_requests", new Set(["SELECT","UPDATE"])],
+  ])],
   ["agentnovas_configuration_activation_worker", new Map([
     ["configuration_activations", new Set(["SELECT"])],
     ["configuration_approvals", new Set(["SELECT"])],

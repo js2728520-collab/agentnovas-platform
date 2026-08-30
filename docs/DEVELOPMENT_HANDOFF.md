@@ -3755,3 +3755,189 @@ SHA-256 分别为 `ca2d6262312f11b4341dd5925d890adb24a89fd81a5bc17acf7a45a2490f2
 Host 直达均为 404。未修改 production，未开放真实交易、真实永续、资金出站、外部 Worker 或受限部署，也未
 提交、推送或创建 PR。M1 只证明测试站极简安全基线；下一纵向切片应继续 G1 身份与权限闭环，并保留真实邮件、
 生产 MFA 与 ADR-0022 未决项的 Gate。
+
+## 113. 2026-08-29 Resend 测试投递闭环
+
+仅在 `an-saas` 的 Riverton preview 环境启用 Notification Worker 邮件发送；收件人白名单限制为需求方已确认的
+单一验收邮箱，密钥与邮箱均未进入 Git、日志或交接文档。`agentnovas.com` 发信域、受限 Sending Key、九类
+Webhook 与 provider readiness 已配置完成。真实验收邮件获得 Resend HTTP 200，随后收到并持久化
+`email.sent` 与 `email.delivered`；旧的未使用 Key `an` 已从 Resend 控制台撤销。
+
+启用 Worker 时复现 `42501 permission denied for table notification_preferences`。根因为投递领取查询会左连接
+用户通知偏好，但 `agentnovas_notification_worker` 的最小权限清单和角色策略漏列该表。修复仅增加
+`notification_preferences` 的 `SELECT`，并新增合同断言；测试数据库应用同一最小授权后 Worker 心跳恢复，
+`emailSendEnabled`、`emailEnvironmentReady` 与 allowlist 状态均为 true。生产环境未修改，真实交易、资金出站
+与其他外部 Worker 仍保持关闭。
+
+后续环境配置、轮换与故障恢复统一按 `docs/runbooks/resend-email-configuration.md` 执行；该 Runbook 已固化本次
+遇到的 env GID 丢失、`notification_preferences` 最小权限缺口、旧队列白名单拒绝和 Compose overlay 误用风险。
+
+## 114. 2026-08-29 可复用邮件服务管理闭环
+
+Maintenance 的“外部集成 → 邮件”已从单一状态页重构为可复用的“概况 / 配置 / 测试与记录”模块。纯领域合同位于
+`packages/notifications/src/email-service-management.ts`，无 I/O 的 UI 位于
+`packages/ui/src/email-service-manager/`，AgentNovas 适配器只负责 API、轮询和本地化。页面现在明确显示当前登录
+Maintenance 账号的测试收件地址、授权和抑制状态、Provider 外发授权、API Key/Webhook Secret 的非秘密存在投影，
+以及 queued/sent/delivered/failed、Webhook 时间、受限 Provider 引用和可操作错误说明。320px 下状态徽标不再断行，
+邮件状态和错误说明不再与中文界面混排。
+
+0090 migration 新增 `notification_email_test_recipients`，只保存规范化邮箱 SHA-256；Maintenance Web 可审计授权或
+撤销当前操作者自己的测试地址，Notification Worker 只有 SELECT。该数据库授权只适用于
+`maintenance_email_test`，普通客户邮件仍受环境 allowlist 控制。Provider 配置写入使用持久幂等操作，要求权限、
+recent MFA、同源和 3–500 字原因。Resend API Key 仍只在 Worker，Webhook Secret 仍只在 Maintenance，浏览器、
+数据库、日志和 API 均不读取或回显明文。Worker 每 5 秒刷新测试地址授权，无需为授权变更重启。
+
+远端 PostgreSQL 变更前备份位于
+`/opt/agentnovas-riverton-preview/backups/email-management-20260829/pre-0090-email-service-management.dump`，
+1186670 bytes、0600、TOC 已验证，SHA-256 为
+`33fa8c06d153a4e8524c16ff46838e0d27e16177c08f5e13647251bb0b7cd448`。0090 首次应用后立即重放为 0 applied / 91 skipped；
+最小角色策略 `findings=[]`。远端全量串行测试为 1654 passed、0 failed、1 skipped；日志 SHA-256
+`d5e67376805847196956fd12a47e218df5c2282bab89b737f0e3918134d2e214`。最终视觉增量回归 38/38、TypeScript、完整
+ESLint 和 Maintenance production build 通过；对应日志 SHA-256 分别为
+`7aa3b0a30debf8980be50053c4f8ec6cd851a77931001b15a7e150cab6b883fd` 和
+`d06a9a587dadfce71e11aecc7a9048b71d4baa2db9cc3c2b42c35b78456ee0b7`。
+
+最终测试站候选为 `preview-email-mgmt-20260829-2`，Maintenance image ID
+`sha256:e409603c8fb23b50220ad602dc486cb5dfcf696fbc8a082fba4b839f95fd10da`；仅 Maintenance 被第二次重建，Client、
+Operations、PostgreSQL 和 Notification Worker 容器 ID 未改变。三站 ready 与 Maintenance live 连续 5 轮 200，
+错误 Host 直达 Maintenance 端口连续 5 轮 404，Maintenance 新容器 error marker 为 0。
+
+最终隔离 Playwright 报告位于
+`/opt/agentnovas-riverton-preview/validations/email-management-browser-20260829-10/email-service/email-service-acceptance-report.json`，
+0600，SHA-256 `0d79c8a5e87a8d98dd5ee2718c12044fdf1b5672f61f36dd673a8d3503965922`。三个 Tab、明确收件人、配置入口、历史反馈、
+键盘、配置页 320/1440px、测试页 320/768/1024/1440px 和 axe 全部通过；应用外部请求、console、page error、
+失败响应均为 0。Cloudflare 自动注入脚本产生 3 条已单列的 SRI 告警，不计作应用日志。
+
+当前事实仍是 `degraded`：最近一条旧测试为 `failed / RECIPIENT_NOT_ALLOWLISTED`，页面现在完整展示这项反馈；当前
+地址已授权、未抑制，测试按钮可用。本轮没有再次发送真实邮件（报告 `realEmailSent=false`），因此不会把之前
+section 113 的历史成功或当前按钮就绪冒充为新的送达证据。下一次真实复测必须再次取得需求方确认。未修改生产、
+未提交、推送或创建 PR。
+
+## 115. 2026-08-29 邮件管理真实投递复测
+
+需求方明确授权后，在 `an-saas` 的测试站执行了一次邮件管理真实闭环。首次请求使用既有 Maintenance 合成验收账号，
+Resend 已接受并产生 `email.sent`，随后为 `email.delivery_delayed`；诊断确认该账号位于没有 MX 的测试子域，因此不能
+把它当作可收信地址，也没有对该 delivery ID 重复发送。
+
+为避免修改现有高权限账号身份，新增受控测试夹具，从服务器外 0600 allowlist 文件读取唯一收件地址，创建一次性
+Maintenance 用户和自定义角色；角色只含 `maint.email_integrations.manage` 一项权限。隔离 Chromium 在页面核对
+当前账号与收件地址一致后只点击一次发送。新 delivery `e570d346-d870-4665-949c-d2229155488b` 获得 HTTP 202，随后
+已验签并处理 `email.sent` 与 `email.delivered`；本地投递终态为 `delivered`，`last_error` 为空。队列时间为
+`2026-08-29T06:49:45.053Z`，Provider 送达事件时间为 `2026-08-29T06:49:46.318Z`。
+
+浏览器报告位于
+`/opt/agentnovas-riverton-preview/validations/email-delivery-closure-20260829-2/closure/closure/email-service-delivery-report.json`，
+0600，SHA-256 为 `15c2d0ae3bc0e110617bbd497e094ab326eb25a191a3e529badf65de2603e197`。报告记录
+`requestAccepted=true`、`sent=true`、`delivered=true`，外部浏览器请求、应用 console、page error 和失败响应均为 0。
+
+验收后已立即执行 teardown：临时用户和角色为 `disabled`，assignment 为 `revoked`，活动 Session 为 0，数据库测试
+地址授权已撤销，临时凭据文件已删除；生命周期留下 2 条授权审计。生产环境、Client、Operations、真实交易、支付和
+资金出站均未修改；本轮未提交、未推送、未创建 PR。
+
+## 116. 2026-08-29 邮件服务可写配置 v2
+
+ADR-0026 已把 ADR-0025 的只读、账号绑定测试地址扩展为完整可写控制面。`0091` 增加独立测试收件人的加密地址、
+验证码、启停/删除生命周期、明确 `test_recipient_id`、密文 Secret request 与专用 Broker 心跳。Maintenance 页面现在
+可以用空白只写字段成对安装/轮换 Resend API Key 与 Webhook Secret；浏览器使用 RSA-OAEP + AES-GCM envelope，
+Maintenance Web、PostgreSQL、API、日志和审计均不能取得明文。独立 Email Secret Broker 没有 HTTP 或外网，只能用
+`agentnovas_email_secret_broker` 角色领取密文请求、写版本化 secret 与自己的心跳。
+
+测试收件人已与管理员账号解耦，支持新增并发验证码、验证、重发、停用、启用和软删除；地址使用独立 AES-GCM 密钥，
+验证码明文不落库。测试页只列出 verified、active、未 suppression 的地址，明确显示本次目标，并展示 queued/sent、
+验签 Webhook 最终事件、受限 Provider 引用和稳定错误码。公网 Webhook URL 固定从严格校验的
+`RIVERTON_APP_HOST` 生成，不能再显示容器内部 `0.0.0.0:3000`。
+
+测试数据库变更前备份为
+`/opt/agentnovas-riverton-preview/backups/email-v2-pre0091-20260829T075819Z.dump`，1351509 bytes、0600，
+SHA-256 `85bb8efb13dc3589418b08ca3f4fc6c630a14570818706e0b8c53773786d5d35`。`0091` 已应用并由迁移 registry
+确认；最终角色策略为 `findings: []`。最终远端 Node 22.21.1 TypeScript、完整 ESLint 和相关回归为
+126 passed、0 failed、2 skipped；跳过项只因测试容器缺少 OpenSSL/多 POSIX group，安装器主机测试另行通过。
+Maintenance 与 Runtime production image build 均通过。
+
+测试站版本为 `preview-email-mgmt-v2-20260829-1`，最终 source artifact SHA-256 记录在该 release 的
+`release.env`，避免在被哈希的源码文档内形成自引用。只重建 Maintenance、Notification Worker
+和 Email Secret Broker；Client、Operations 与 production 未修改。最终 Maintenance 为 healthy/ready，Broker 心跳
+`running` 且无错误码；审计输出 `core_configuration=ready`、`email_secret_broker_configuration=ready`、
+`resend_configuration=ready`。
+
+受保护 Browser 证据位于
+`/opt/agentnovas-riverton-preview/releases/preview-email-mgmt-v2-20260829-1/validations/email-service-v2/`，目录
+0700、文件 0600；报告 SHA-256 为 `13bd38a27942fc3ba8769c9f3a4b60680f9898b6195fec7c94617b6f0b4af57b`。
+Playwright 1.62.1 覆盖三个 Tab、两个不预填的只写字段、正确公网 Webhook、独立收件人选择、历史反馈、键盘、axe、
+配置页 320/1440px 和测试页 320/768/1024/1440px；严重无障碍、应用外部请求、console、page error 与失败响应均为
+0。Cloudflare 注入的 3 条 SRI 告警单独计数。
+
+本轮 Browser 报告明确为 `realEmailSent=false`，没有点击“新增并发送验证码”或“发送测试邮件”。历史 delivered/sent/
+failed 只作为既有证据展示。一次性验收账号、角色、assignment、Session 和 active recipient 已撤销，临时凭据与 `/run`
+证据副本、Playwright 临时依赖 volume 已删除；持久受保护证据、deleted recipient、审计和历史投递保留。若要验证实际
+密钥写入或新邮件送达，仍需需求方对当次 secret 轮换和真实外发分别明确授权。本轮未提交、推送或创建 PR。
+
+## 117. 2026-08-30 优盾充值服务完成至 ready_for_live_test
+
+ADR-0027 与 `UDUN_DEPOSIT_SERVICE_COMPLETION_SPEC` 已按优盾当前中文开发中心、旧英文协议和官方调试工具冻结协议：
+正式回调以 `application/x-www-form-urlencoded` 信封为主并保留严格 JSON 兼容，签名为小写 MD5
+`body + key + nonce + timestamp`；地址字段版本必须显式选择 `mainCoinType` 或 `coinType`，禁止失败后换字段重试。
+配置只允许 HTTPS 优盾专属网关、数字商户号、API Key、精确 Maintenance 公网回调和完整币种映射。API Catalog、
+OpenAPI、Runbook、状态矩阵、任务看板和 ADR 已同步，当前与目标状态不再混写。
+
+`0092_udun_deposit_service_completion.sql` 已增加 Payment Secret request/heartbeat、配置版本和指纹、追加式 Provider/
+回调测试记录、Client 安全视图，以及 `ADDRESS_PROVISIONING / ADDRESS_UNKNOWN / ADDRESS_FAILED` 建址状态。Client 先以
+幂等键和开放订单唯一索引预留订单，再调用一次 Provider；未知结果不自动重试。回调只接受充值证据，成功仍进入
+`MANUAL_REVIEW`，Operations 不同人员批准后才写钱包和双式账本。提现、划转、代付、自动扣款、自动退款、二维码和
+真实交易继续不可达。
+
+独立 Payment Secret Broker 使用浏览器 RSA-OAEP + AES-GCM 信封、专用最小权限数据库角色、版本化受管文件和原子
+manifest；Maintenance Web、Client Web、PostgreSQL、API、日志和审计不取得商户明文。Maintenance 支付页已形成
+“概况 / 配置 / 测试与记录”三页签：只写安装/轮换、币种映射、Provider 支持币种校验、公网回调探测、追加式历史和
+服务端重算的原子启用 Gate。视觉复核修正了页签纵向散落，并增加左右方向键/Home/End；`mainCoinType` 与
+`tokenCoinType` 均不再预填示例，必须从当前商户 `/mch/support-coins` 结果取得。Client 只展示服务端当前可用网络、
+复制地址和进行中订单轮询；Operations 可筛选和统计三种不确定建址状态。
+
+测试数据库变更前备份为
+`/opt/agentnovas-riverton-preview/backups/payment-20260830-pre0092/pre-0092-udun-service-completion.dump`，
+1,366,949 bytes、0600、TOC 已验证，SHA-256
+`ad1682d58509b5860003f29166325dc9a025bce9a02b808137b642d431cf9db5`。迁移首轮为 `1 applied / 92 skipped`，
+重放为 `0 applied / 93 skipped`，证据 SHA-256 分别为
+`b564b126591257534a7e67efaa493b7b7e9a6282aa1809a0d91f8ffc09cb729d` 与
+`21de68a762f3975d232672441f4a25c027ba74ac67270e77889ca46d1c3d5094`；最终角色策略 `findings: []`。
+Node 22.21.1 全量为 1,691 项、1,690 passed、0 failed、1 个环境跳过；该跳过仅是安装器的 POSIX 双 group fixture，
+核心安装器测试另行通过。最终 TypeScript、完整 ESLint、支付专项、Client 七语合同及四张 production image build
+全部通过。
+
+测试站版本为 `preview-payment-mgmt-20260830-1`，发布源码 artifact SHA-256 为
+`9b932c3179ebfd70fb25e37d3a7a9368c302f14d73e7a6bfa4f0a282772abb97`。最终 Client、Operations、Maintenance、Runtime
+镜像 ID 分别为
+`sha256:59da23977dd37aa78004776c8dce7672ed6370f9b6bf571953842002a3a2fdad`、
+`sha256:aad91773fba420ff021d9354b8de34be17b7604aa2ee099fca274e74212afe55`、
+`sha256:0a1013f628cd1f3ad2691cc239298dc5ea49dc881c6cc58cbbf69bc240a708bc`、
+`sha256:7211e32f7390a2376f0ec051ed0aa8f5cdb6aed95a9c3024d77417db1b1ec2c3`。三站公网 readiness 均为 200，
+Web 容器 healthy、restart=0；Broker 为 running、心跳无错误，最近日志错误标记为 0。PostgreSQL 容器 ID、启动时间
+与数据卷未改变。
+
+最终受保护 Browser 证据位于
+`/opt/agentnovas-riverton-preview/releases/preview-payment-mgmt-20260830-1/validations/payment-browser-final-5/`，
+报告 SHA-256 `818032d21d8fec11d619885a829e9a7cf6512e29674d47010de636873250299d`。Playwright 1.62.1 覆盖
+Client、Operations、Maintenance，320/768/1024/1440 四档宽度，配置页独立四断点、横向页签与键盘操作、空白只写
+字段、动态网络、未知建址状态、严重 axe 违规、console/page error/失败响应和秘密样式扫描；严重违规和应用问题均为 0。
+报告明确 `realAddressCreated=false`、`realTransferSent=false`。
+
+当前状态严格为 `ready_for_live_test`，不是“真实支付已完成”：测试站没有优盾商户 Secret，Provider 外发与通道启用均
+保持关闭。下一步只能由获授权操作者在 `main-test.agentnovas.com` 的只写配置页装载测试商户参数，完成支持币种与
+公网回调测试，再对一次 1 USDT/TRC20 小额转账作逐次明确授权；之后仍需 Operations 双人复核到账。临时验证
+PostgreSQL 和依赖卷已清理，发布源码无 `.env*`。生产环境未修改，本轮未提交、未推送、未创建 PR。
+
+## 118. 2026-08-30 提交前工作树清理与复验
+
+本地 `.claude/worktrees/audit-remediation-plan` 已确认是包含独立 `.git`、`node_modules` 和 Next.js 构建产物的工具
+工作树，不属于产品源码。仓库现通过 `/.claude/worktrees/` 忽略该类目录；本地工作树本身未删除。提交候选未发现
+`.env*`、私钥、凭据文件或真实 Provider Token；仓库自带 secret scan 覆盖 3,358 个 tracked/untracked 候选文件并通过。
+
+复验发现 `tests/client-account-mfa-postgres.test.mjs` 的固定 Session 在 2026-08-30 00:00 UTC 到期，导致同日稍后运行时
+Client MFA opt-in 用例失败。只将测试 Session 与确认后的 idle expiry 改为明确的 2099 测试边界；生产 MFA 函数、
+Session 过期策略和数据库合同均未修改。定向回归为 2 passed、0 failed。
+
+最终在 `an-saas` 的隔离 Node 22.21.1 容器与一次性 PostgreSQL 16 中按 `--test-concurrency=1` 串行复验：1,692 项中
+1,691 passed、0 failed、1 skipped；跳过项仍是环境能力夹具。TypeScript `--incremental false`、完整 ESLint、
+`npm audit --audit-level=high` 和 Client/Operations/Maintenance 三端 production build 全部通过，审计为 0 vulnerabilities。
+隔离 PostgreSQL 容器、Docker network 和 `/tmp/agentnovas-commit-review-TKwbtg` 已删除。本次复验未连接测试站数据库、
+未发送邮件、未调用优盾、未创建充值地址或转账、未修改 production，也未推送远端。

@@ -13,6 +13,34 @@
 用户已授权按本计划实施，但未授权提交、推送或创建 PR。外部产品参数未冻结的阶段仍保持阻断，
 不得用假设替代 P-01–P-12 的需求方结论。
 
+## 当前切片：邮件服务管理闭环 v2
+
+状态：已完成（2026-08-29）。ADR-0026 已取代 ADR-0025 的只读、账号绑定测试地址决定；测试站已完成迁移、最小权限、部署与非发信 Browser Gate。
+
+1. [x] 冻结独立收件人、浏览器加密、Secret Broker、动态密钥文件和失败关闭合同。
+2. [x] 先写失败测试并迁移独立收件人、验证码、selected delivery 与配置请求数据模型。
+3. [x] 实现收件人新增/验证/重发/启停/删除 API，以及 Worker 解密和模板隔离。
+4. [x] 实现只写密钥安装/轮换 API、最小权限 Broker、原子文件更新和安全状态投影。
+5. [x] 完成 Maintenance 配置和测试 UI：明确 Sender/Webhook/更新时间/操作者、收件人选择和完整结果。
+6. [x] 在 `an-saas` 完成 fresh/rerun、role policy、测试、TypeScript、lint、Maintenance build 与 Browser Gate。
+7. [x] 只替换 `main-test.agentnovas.com` 及其 Notification/Broker 支撑进程；未改 Client、Operations 或 production，未自动发送验证码或测试邮件，未提交或推送。
+
+边界：Maintenance Web、数据库、日志和审计均不得取得 Resend 密钥明文；Broker 不得读取其他服务密钥；测试收件人地址使用独立密钥加密，不复用交易或通用集成密钥。
+
+## 当前切片：优盾充值服务完整闭环
+
+状态：`ready_for_live_test`（2026-08-30）。代码、迁移、最小权限、三端测试站和无真实资金浏览器 Gate 已完成；规格以 `docs/specs/UDUN_DEPOSIT_SERVICE_COMPLETION_SPEC.md` 与 ADR-0027 为准。真实完成仍需从只写页面装载测试商户参数，并执行一次明确授权的 1 USDT/TRC20 小额闭环。
+
+1. [x] 对照优盾当前官方中英文开发中心与调试工具，冻结 form 回调、签名、地址字段版本差异、安全边界和完成定义。
+2. [x] 先写失败测试，锁定 form/JSON 回调、严格字段、币种匹配、回调可达、配置 Broker、订单先预留后建址和动态网络。
+3. [x] 新增 Payment Secret Broker、只写配置 API、受管文件、独立最小权限角色与迁移。
+4. [x] 完成 Maintenance 配置、Provider 测试、回调探测、记录和原子激活 Gate。
+5. [x] 完成 Client 动态网络、地址状态机、复制和进行中订单自动刷新；Operations 同步补齐不确定建址状态筛选。
+6. [x] 在 `an-saas` 完成迁移 fresh/rerun、最小权限、测试、TypeScript、lint、四镜像 build 和三端浏览器 Gate。
+7. [x] 只替换三个测试站及 Payment Secret Broker；当前无真实测试商户参数，明确停在 `ready_for_live_test`，未创建真实地址、未发起转账、未伪造真实闭环。
+
+边界：真实成功回调仍只进入 `MANUAL_REVIEW`，Operations 双人批准后才入账；提现、划转、代付、自动扣款、自动退款、二维码和生产启用继续关闭。
+
 ## 2. 已冻结架构决定
 
 - 自托管 Linux、Node.js 22.21+、PostgreSQL、Nginx、Certbot；不增加 Cloudflare Runtime 或 Redis。

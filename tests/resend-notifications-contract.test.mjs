@@ -68,11 +68,15 @@ test("Maintenance email test enqueues a real auditable delivery instead of repor
 
 test("Maintenance email status is derived from non-secret worker readiness evidence", async () => {
   const route = await readFile(new URL("../app/api/maintenance/email/status/route.maintenance.ts", import.meta.url), "utf8");
+  const service = await readFile(new URL("../lib/email-service-management.ts", import.meta.url), "utf8");
   const worker = await readFile(new URL("../scripts/notification-worker.mjs", import.meta.url), "utf8");
-  assert.match(route, /metadata_json/);
-  assert.match(route, /metadata\.apiKeyPresent/);
-  assert.match(route, /metadata\.emailEnvironmentReady/);
-  assert.match(route, /row\?\.status === "active"/);
+  assert.match(route, /loadEmailServiceOverview/);
+  assert.match(route, /publicAppOriginForAudience\("maintenance"\)/);
+  assert.doesNotMatch(route, /new URL\([^\n]+request\.url/);
+  assert.match(service, /metadata_json/);
+  assert.match(service, /metadata\.apiKeyPresent/);
+  assert.match(service, /metadata\.emailEnvironmentReady/);
+  assert.match(service, /provider\?\.status === "active"/);
   assert.doesNotMatch(route, /process\.env\.RESEND_API_KEY/);
   assert.match(worker, /apiKeyPresent/);
   assert.match(worker, /emailEnvironmentReady/);

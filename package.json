@@ -51,6 +51,8 @@
     "worker:payment": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/payment-worker.mjs",
     "worker:notification": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/notification-worker.mjs",
     "worker:configuration-activation": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/configuration-activation-worker.mjs",
+    "worker:email-secret-broker": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/email-secret-broker-worker.mjs",
+    "worker:payment-secret-broker": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/payment-secret-broker-worker.mjs",
     "worker:release-orchestrator": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/release-orchestrator-worker.mjs",
     "service:release-webhook-ingress": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/release-webhook-ingress.mjs",
     "service:release-target": "node --experimental-strip-types scripts/release-target-gateway.mjs",

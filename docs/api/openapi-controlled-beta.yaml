@@ -453,7 +453,7 @@ paths:
               type: object
               required: [network, amount]
               properties:
-                network: { type: string, enum: [TRC20, ERC20, BEP20] }
+                network: { type: string, description: 必须来自同一接口 GET 返回的 options.networks }
                 amount: { type: string, pattern: '^\\d+(\\.\\d{1,18})?$' }
       responses:
         '201': { description: 优盾真实地址已生成；不表示到账 }
@@ -471,10 +471,20 @@ paths:
       requestBody:
         required: true
         content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [timestamp, nonce, sign, body]
+              properties:
+                timestamp: { type: string }
+                nonce: { type: string }
+                sign: { type: string, pattern: '^[a-fA-F0-9]{32}$' }
+                body: { type: string, description: 优盾签名覆盖的原始 JSON 字符串 }
           application/json:
             schema:
               type: object
               required: [timestamp, nonce, sign, body]
+              description: 兼容信封；优盾当前调试工具和正式合同优先使用 form-urlencoded
               properties:
                 timestamp: { type: string }
                 nonce: { type: string }
@@ -593,7 +603,43 @@ paths:
       summary: 支付服务商安全状态
       responses:
         '200':
-          description: 不含密钥的 provider 列表
+          description: 不含密钥的 provider、Broker、启用 Gate 与追加式测试记录
+  /api/maintenance/payment-secrets/status:
+    get:
+      tags: [Maintenance]
+      summary: 查询优盾只写配置与 Payment Secret Broker 安全状态
+      responses:
+        '200': { description: 配置存在、版本指纹、请求终态与 Broker 心跳；不含密文或明文 }
+  /api/maintenance/payment-secrets/public-key:
+    get:
+      tags: [Maintenance]
+      summary: 取得浏览器加密商户配置所需的 Broker 公钥
+      responses:
+        '200': { description: 当前 key ID、RSA 公钥和加密算法 }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/maintenance/payment-secrets/requests:
+    post:
+      tags: [Maintenance]
+      summary: 幂等提交加密的完整优盾商户配置安装或轮换请求
+      description: Maintenance Web 与数据库只处理加密信封；独立 Broker 解密并原子写入受管文件。
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202': { description: 请求已入队；以请求查询接口取得 applied/failed 终态 }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: 操作、加密信封或审计原因无效 }
+  /api/maintenance/payment-secrets/requests/{id}:
+    get:
+      tags: [Maintenance]
+      summary: 查询优盾商户配置请求终态
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: pending/applying/applied/failed/superseded 与安全错误码 }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/maintenance/payment-providers/{id}/configuration:
     patch:
       tags: [Maintenance]
@@ -619,6 +665,19 @@ paths:
         - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200': { description: 签名接口测试通过；未创建地址或交易 }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/maintenance/payment-providers/{id}/callback-test:
+    post:
+      tags: [Maintenance]
+      summary: 验证优盾公网回调的 DNS、TLS、Nginx 与应用验签链路
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: 公网请求到达固定回调并收到预期验签拒绝；未写订单或资金事实 }
         '503': { $ref: '#/components/responses/Unavailable' }
   /api/maintenance/payment-providers/{id}/status:
     patch:

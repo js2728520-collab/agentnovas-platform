@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from "pg";
 
 import { RESEND_SENDER_ADDRESS, RESEND_SENDER_DOMAIN } from "./notifications.ts";
 import { decryptNotificationToken } from "./notification-secrets.ts";
+import { decryptEmailTestRecipient, decryptEmailVerificationCode } from "./email-test-recipient-crypto.ts";
 
 export const NOTIFICATION_MAX_ATTEMPTS = 5;
 export const NOTIFICATION_LEASE_SECONDS = 60;
@@ -29,7 +30,9 @@ export type ClaimedEmailDelivery = {
   secretKind: string | null;
   secretExpiresAt: Date | string | null;
   attempts: number;
-  recipient: string;
+  recipient: string | null;
+  testRecipientId: string | null;
+  testRecipientStatus: string | null;
 };
 
 export type SendResult =
@@ -62,7 +65,9 @@ async function materializeNotificationPayload(
   now: Date,
 ) {
   const payload = parsePayload(value);
-  if (templateKey !== "verify_email" && templateKey !== "reset_password" && templateKey !== "internal_account_invite") return payload;
+  const tokenTemplate = templateKey === "verify_email" || templateKey === "reset_password" || templateKey === "internal_account_invite";
+  const recipientVerification = templateKey === "maintenance_email_recipient_verification";
+  if (!tokenTemplate && !recipientVerification) return payload;
   const expiresAt = secretExpiresAt instanceof Date
     ? secretExpiresAt.getTime()
     : typeof secretExpiresAt === "string"
@@ -72,6 +77,12 @@ async function materializeNotificationPayload(
     throw new Error("INVALID_PAYLOAD");
   }
   if (expiresAt <= now.getTime()) throw new Error("TOKEN_EXPIRED");
+  if (recipientVerification) {
+    const encryptedCode = boundedString(payload, "encryptedCode", MAX_TOKEN_LENGTH * 2);
+    const { encryptedCode: _encryptedCode, ...metadata } = payload;
+    void _encryptedCode;
+    return { ...metadata, code: await decryptEmailVerificationCode(encryptedCode, environment) };
+  }
   const encryptedToken = boundedString(payload, "encryptedToken", MAX_TOKEN_LENGTH * 2);
   const { encryptedToken: _encryptedToken, ...metadata } = payload;
   void _encryptedToken;
@@ -206,6 +217,17 @@ export function renderNotificationEmail(templateKey: string, payloadJson: unknow
         "收到此邮件只证明发送链路可达；最终投递状态仍以已验证的 Resend Webhook 事件为准。",
       ]);
     }
+    case "maintenance_email_recipient_verification": {
+      const code = boundedString(payload, "code", 6);
+      const label = boundedString(payload, "label", 80);
+      if (!/^\d{6}$/.test(code)) throw new Error("INVALID_PAYLOAD");
+      return email("验证 AgentNovas 测试收件邮箱", [
+        `地址标签：${label}`,
+        `验证码：${code}`,
+        "验证码 10 分钟内有效。请只在 Maintenance 邮件配置页面输入。",
+        "如果这不是你的操作，请忽略此邮件。",
+      ]);
+    }
     case "strategy_delist_notice":
     case "strategy_modify_notice": {
       const strategyName = boundedString(payload, "strategyName");
@@ -248,14 +270,41 @@ export function notificationRecipientAllowed(value: string, environment: Record<
   return notificationEmailAllowlist(environment).has(value.trim().toLowerCase());
 }
 
-export function notificationSendEnvironmentReady(environment: Record<string, string | undefined>) {
+export async function notificationDatabaseTestRecipientAllowed(
+  pool: Pick<Pool, "query">,
+  value: string,
+) {
+  const result = await pool.query(
+    `SELECT 1 FROM notification_email_test_recipients
+      WHERE recipient_hash=$1 AND status='active' LIMIT 1`,
+    [notificationRecipientHash(value)],
+  );
+  return result.rows.length > 0;
+}
+
+export async function notificationDatabaseTestAllowlistConfigured(pool: Pick<Pool, "query">) {
+  const result = await pool.query<{ configured: boolean }>(`
+    SELECT EXISTS(
+      SELECT 1 FROM notification_email_test_recipients
+       WHERE status IN ('pending_verification','active')
+    ) AS configured
+  `);
+  return result.rows[0]?.configured === true;
+}
+
+export function notificationSendEnvironmentReady(
+  environment: Record<string, string | undefined>,
+  options: { databaseTestRecipientsConfigured?: boolean } = {},
+) {
   return environment.NOTIFICATION_WORKER_ENABLED === "true"
     && environment.NOTIFICATION_EMAIL_SEND_ENABLED === "true"
     && environment.NODE_ENV !== "test"
     && Boolean(environment.RESEND_API_KEY?.trim())
     && Boolean(environment.NOTIFICATION_TOKEN_ENCRYPTION_KEY?.trim())
     && (environment.NOTIFICATION_TOKEN_ENCRYPTION_KEY?.trim().length ?? 0) >= 32
-    && notificationEmailAllowlist(environment).size > 0;
+    && (options.databaseTestRecipientsConfigured !== true
+      || (environment.EMAIL_TEST_RECIPIENT_ENCRYPTION_KEY?.trim().length ?? 0) >= 32)
+    && (notificationEmailAllowlist(environment).size > 0 || options.databaseTestRecipientsConfigured === true);
 }
 
 export function providerConfigAllowsSend(config: unknown) {
@@ -358,6 +407,27 @@ export async function claimNextEmailDelivery(pool: Pick<Pool, "connect">, input:
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const capabilities = await client.query<{ test_recipient_supported: boolean }>(`
+      SELECT EXISTS (
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_schema = ANY(current_schemas(false))
+           AND table_name = 'notification_deliveries'
+           AND column_name = 'test_recipient_id'
+      ) AS test_recipient_supported
+    `);
+    const testRecipientSupported = capabilities.rows[0]?.test_recipient_supported === true;
+    const testRecipientProjection = testRecipientSupported ? `
+                delivery.test_recipient_id,
+                CASE WHEN delivery.test_recipient_id IS NULL
+                  THEN users.email ELSE test_recipient.recipient_ciphertext END AS recipient,
+                test_recipient.status AS test_recipient_status,` : `
+                NULL::text AS test_recipient_id,
+                users.email AS recipient,
+                NULL::text AS test_recipient_status,`;
+    const testRecipientJoin = testRecipientSupported ? `
+           LEFT JOIN notification_email_test_recipients AS test_recipient
+             ON test_recipient.id=delivery.test_recipient_id` : "";
     const result = await client.query(
       `WITH candidate AS (
          SELECT delivery.id,
@@ -367,13 +437,14 @@ export async function claimNextEmailDelivery(pool: Pick<Pool, "connect">, input:
                 delivery.secret_kind,
                 delivery.secret_expires_at,
                 delivery.attempts,
-                users.email AS recipient,
+                ${testRecipientProjection}
                 COALESCE(zone.name, 'UTC') AS user_timezone,
                 preference.quiet_start,
                 preference.quiet_end,
                 $2::timestamptz AT TIME ZONE COALESCE(zone.name, 'UTC') AS local_now
            FROM notification_deliveries AS delivery
            JOIN users ON users.id = delivery.user_id
+           ${testRecipientJoin}
            LEFT JOIN pg_timezone_names AS zone ON zone.name = users.timezone
            LEFT JOIN notification_preferences AS preference
              ON preference.user_id = delivery.user_id
@@ -447,7 +518,9 @@ export async function claimNextEmailDelivery(pool: Pick<Pool, "connect">, input:
                  delivery.secret_kind AS "secretKind",
                  delivery.secret_expires_at AS "secretExpiresAt",
                  delivery.attempts,
-                 quiet.recipient`,
+                 quiet.recipient,
+                 quiet.test_recipient_id AS "testRecipientId",
+                 quiet.test_recipient_status AS "testRecipientStatus"`,
       [input.workerId, input.now.toISOString(), NOTIFICATION_MAX_ATTEMPTS, input.leaseSeconds ?? NOTIFICATION_LEASE_SECONDS],
     );
     await client.query("COMMIT");
@@ -476,9 +549,9 @@ export async function markEmailSent(pool: Pick<Pool, "query">, input: {
         SET status = CASE WHEN status IN ('delivered', 'failed') THEN status ELSE 'sent' END,
             provider_message_id = $3,
             sent_at = COALESCE(sent_at, $4),
-            payload_json = CASE WHEN template_key IN ('verify_email','reset_password','internal_account_invite') THEN '{}' ELSE payload_json END,
-            secret_kind = CASE WHEN template_key IN ('verify_email','reset_password','internal_account_invite') THEN NULL ELSE secret_kind END,
-            secret_expires_at = CASE WHEN template_key IN ('verify_email','reset_password','internal_account_invite') THEN NULL ELSE secret_expires_at END,
+            payload_json = CASE WHEN template_key IN ('verify_email','reset_password','internal_account_invite','maintenance_email_recipient_verification') THEN '{}' ELSE payload_json END,
+            secret_kind = CASE WHEN template_key IN ('verify_email','reset_password','internal_account_invite','maintenance_email_recipient_verification') THEN NULL ELSE secret_kind END,
+            secret_expires_at = CASE WHEN template_key IN ('verify_email','reset_password','internal_account_invite','maintenance_email_recipient_verification') THEN NULL ELSE secret_expires_at END,
             last_error = CASE WHEN status = 'failed' THEN last_error ELSE NULL END,
             lease_owner = NULL, lease_expires_at = NULL, updated_at = $4
       WHERE id = $1 AND lease_owner = $2
@@ -500,9 +573,9 @@ export async function markEmailFailed(pool: Pick<Pool, "query">, input: {
   return fencedUpdate(pool,
     `UPDATE notification_deliveries
         SET status = $3, last_error = $4, scheduled_at = CASE WHEN $3 = 'queued' THEN $5 ELSE scheduled_at END,
-            payload_json = CASE WHEN $3 = 'failed' AND template_key IN ('verify_email','reset_password','internal_account_invite') THEN '{}' ELSE payload_json END,
-            secret_kind = CASE WHEN $3 = 'failed' AND template_key IN ('verify_email','reset_password','internal_account_invite') THEN NULL ELSE secret_kind END,
-            secret_expires_at = CASE WHEN $3 = 'failed' AND template_key IN ('verify_email','reset_password','internal_account_invite') THEN NULL ELSE secret_expires_at END,
+            payload_json = CASE WHEN $3 = 'failed' AND template_key IN ('verify_email','reset_password','internal_account_invite','maintenance_email_recipient_verification') THEN '{}' ELSE payload_json END,
+            secret_kind = CASE WHEN $3 = 'failed' AND template_key IN ('verify_email','reset_password','internal_account_invite','maintenance_email_recipient_verification') THEN NULL ELSE secret_kind END,
+            secret_expires_at = CASE WHEN $3 = 'failed' AND template_key IN ('verify_email','reset_password','internal_account_invite','maintenance_email_recipient_verification') THEN NULL ELSE secret_expires_at END,
             lease_owner = NULL, lease_expires_at = NULL, updated_at = $6
       WHERE id = $1 AND lease_owner = $2`,
     [input.deliveryId, input.workerId, retry ? "queued" : "failed", input.errorCode.slice(0, 200), scheduledAt, input.now.toISOString()],
@@ -520,7 +593,7 @@ export async function purgeExpiredNotificationSecrets(pool: Pick<Pool, "query">,
             lease_owner = NULL,
             lease_expires_at = NULL,
             updated_at = $1
-      WHERE secret_kind IN ('reset_password', 'internal_account_invite')
+      WHERE secret_kind IN ('reset_password', 'internal_account_invite', 'maintenance_email_recipient_verification')
         AND (
           status IN ('sent', 'delivered', 'failed')
           OR secret_expires_at <= $1::timestamptz
@@ -536,14 +609,35 @@ export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: C
   now?: () => Date;
   send?: typeof sendResendEmail;
   environment?: Record<string, string | undefined>;
+  databaseTestRecipientAllowed?: (recipient: string) => Promise<boolean>;
 }) {
   let rendered: NotificationEmail;
   let errorCode: string | null = null;
   const processingStartedAt = input.now?.() ?? new Date();
   const environment = input.environment ?? process.env;
-  if (!validateEmailRecipient(delivery.recipient)) {
+  let recipient = delivery.recipient;
+  if (delivery.testRecipientId) {
+    try {
+      recipient = delivery.recipient ? await decryptEmailTestRecipient(delivery.recipient, environment) : null;
+    } catch {
+      recipient = null;
+      errorCode = "TEST_RECIPIENT_DECRYPTION_FAILED";
+    }
+  }
+  const isVerification = delivery.templateKey === "maintenance_email_recipient_verification";
+  const isMaintenanceTest = delivery.templateKey === "maintenance_email_test";
+  if (!errorCode && Boolean(delivery.testRecipientId) !== (isVerification || isMaintenanceTest)) {
+    errorCode = "INVALID_RECIPIENT_BINDING";
+  } else if (!errorCode && isVerification && delivery.testRecipientStatus !== "pending_verification") {
+    errorCode = "TEST_RECIPIENT_NOT_PENDING";
+  } else if (!errorCode && isMaintenanceTest && delivery.testRecipientStatus !== "active") {
+    errorCode = "TEST_RECIPIENT_NOT_AUTHORIZED";
+  } else if (!errorCode && !validateEmailRecipient(recipient)) {
     errorCode = "INVALID_RECIPIENT";
-  } else if (!notificationRecipientAllowed(delivery.recipient, environment)) {
+  } else if (!errorCode && !isVerification && !notificationRecipientAllowed(recipient!, environment)
+    && !(isMaintenanceTest
+      && input.databaseTestRecipientAllowed
+      && await input.databaseTestRecipientAllowed(recipient!))) {
     errorCode = "RECIPIENT_NOT_ALLOWLISTED";
   } else {
     try {
@@ -566,7 +660,7 @@ export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: C
     await markEmailFailed(pool, { deliveryId: delivery.id, workerId: input.workerId, errorCode, retryable: false, attempts: delivery.attempts, now: input.now?.() ?? new Date() });
     return { status: "failed" as const, errorCode };
   }
-  if (await isNotificationRecipientSuppressed(pool, delivery.recipient)) {
+  if (await isNotificationRecipientSuppressed(pool, recipient!)) {
     const suppressionError = "RECIPIENT_SUPPRESSED";
     await markEmailFailed(pool, { deliveryId: delivery.id, workerId: input.workerId, errorCode: suppressionError, retryable: false, attempts: delivery.attempts, now: input.now?.() ?? new Date() });
     return { status: "failed" as const, errorCode: suppressionError };
@@ -574,7 +668,7 @@ export async function processClaimedEmail(pool: Pick<Pool, "query">, delivery: C
   const result = await (input.send ?? sendResendEmail)({
     apiKey: input.apiKey,
     deliveryId: delivery.id,
-    recipient: delivery.recipient,
+    recipient: recipient!,
     rendered: rendered!,
   });
   if (result.ok) {

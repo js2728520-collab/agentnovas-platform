@@ -1,28 +1,38 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { canonicalPayloadHash } from "@/lib/commercial-idempotency";
-import { maintenanceCorrelation, maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { loadActiveEmailTestRecipient } from "@/lib/email-test-recipient-management";
+import { maintenanceCorrelation, recordMaintenanceAudit } from "@/lib/maintenance-audit";
 import { maintenanceIdempotencyKeyHash } from "@/lib/maintenance-idempotency";
-import { providerConfigAllowsSend, validateEmailRecipient } from "@/lib/notification-email-worker";
+import { providerConfigAllowsSend } from "@/lib/notification-email-worker";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
+import { normalizeEmailTestCommand } from "@/packages/notifications/src/email-service-management";
 
 export async function POST(request: Request) {
   try {
     const { user } = await requireAccessPermission(request, "maint.email_integrations.manage");
-    const body = await readResearchJson(request);
-    const reason = maintenanceReason(body.reason);
-    if (!validateEmailRecipient(user.email)) throw new ResearchApiError("TEST_RECIPIENT_UNAVAILABLE", "当前管理员没有可用于测试的有效邮箱", 422);
+    let command;
+    try {
+      command = normalizeEmailTestCommand(await readResearchJson(request));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "EMAIL_TEST_FIELDS_INVALID";
+      throw new ResearchApiError(code, "必须选择有效的已验证收件地址并填写测试原因", 422);
+    }
+    const { recipientId, reason } = command;
     const pool = await getPostgresPool();
     const queuedAt = new Date().toISOString();
     const deliveryId = crypto.randomUUID();
     const correlation = maintenanceCorrelation(request);
     const idempotencyKeyHash = maintenanceIdempotencyKeyHash(request.headers.get("idempotency-key") ?? "");
-    const requestFingerprint = canonicalPayloadHash({ actorUserId: user.id, reason });
+    const requestFingerprint = canonicalPayloadHash({ actorUserId: user.id, recipientId, reason });
     const dedupeKey = `maintenance-email-test:${idempotencyKeyHash}`;
     const client = await pool.connect();
     let delivery: { id: string; status: string; scheduled_at: Date | string } | undefined;
+    let recipientAddress = "";
     try {
       await client.query("BEGIN");
+      const selectedRecipient = await loadActiveEmailTestRecipient(client, recipientId);
+      recipientAddress = selectedRecipient.address;
       const provider = await client.query(`
         SELECT provider,channel,status,sender_domain,settings_json
         FROM notification_provider_configs
@@ -52,21 +62,22 @@ export async function POST(request: Request) {
       }
       const inserted = await client.query<{ id: string; status: string; scheduled_at: Date | string }>(`
         INSERT INTO notification_deliveries(
-          id,user_id,channel,category,template_key,payload_json,status,scheduled_at,dedupe_key
-        ) VALUES($1,$2,'email','api_security','maintenance_email_test',$3,'queued',$4,$5)
+          id,user_id,test_recipient_id,channel,category,template_key,payload_json,status,scheduled_at,dedupe_key
+        ) VALUES($1,$2,$3,'email','api_security','maintenance_email_test',$4,'queued',$5,$6)
         ON CONFLICT(dedupe_key) DO NOTHING
         RETURNING id,status,scheduled_at
-      `, [deliveryId,user.id,JSON.stringify({ requestedAt: queuedAt, requestFingerprint }),queuedAt,dedupeKey]);
+      `, [deliveryId,user.id,recipientId,JSON.stringify({ requestedAt: queuedAt, requestFingerprint }),queuedAt,dedupeKey]);
       delivery = inserted.rows[0];
       if (!delivery) {
         const existing = await client.query<{
           id: string;
           user_id: string;
+          test_recipient_id: string | null;
           status: string;
           scheduled_at: Date | string;
           payload_json: { requestFingerprint?: unknown } | string;
         }>(`
-          SELECT id,user_id,status,scheduled_at,payload_json FROM notification_deliveries
+          SELECT id,user_id,test_recipient_id,status,scheduled_at,payload_json FROM notification_deliveries
           WHERE dedupe_key=$1
           LIMIT 1
         `, [dedupeKey]);
@@ -76,6 +87,7 @@ export async function POST(request: Request) {
           : replay?.payload_json;
         if (!replay
           || replay.user_id !== user.id
+          || replay.test_recipient_id !== recipientId
           || replayPayload?.requestFingerprint !== requestFingerprint) {
           throw new ResearchApiError("IDEMPOTENCY_CONFLICT", "Idempotency-Key 已用于其他邮件测试请求", 409);
         }
@@ -106,6 +118,8 @@ export async function POST(request: Request) {
       ok: true,
       status: delivery.status,
       deliveryId: delivery.id,
+      recipientId,
+      recipient: recipientAddress,
       message: "测试邮件请求已记录；当前状态不代表已发送或已送达",
       queuedAt: new Date(delivery.scheduled_at).toISOString(),
     }, { status: 202 });

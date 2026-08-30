@@ -1,6 +1,7 @@
 import { ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { getPostgresPool } from "@/lib/postgres";
 import { applyResendWebhookEvent, verifyResendWebhook } from "@/lib/resend-webhook";
+import { resolveEmailSecret } from "@/lib/email-secret-broker";
 
 const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 
@@ -14,7 +15,7 @@ function webhookError(error: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const secret = process.env.RESEND_WEBHOOK_SECRET?.trim();
+    const secret = await resolveEmailSecret("maintenance");
     if (!secret) throw new ResearchApiError("SERVICE_NOT_CONFIGURED", "Resend Webhook 签名密钥尚未配置", 503);
 
     const declaredLength = Number(request.headers.get("content-length") || 0);

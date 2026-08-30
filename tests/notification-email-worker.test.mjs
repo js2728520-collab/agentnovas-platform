@@ -17,10 +17,14 @@ import {
   validateEmailRecipient,
 } from "../lib/notification-email-worker.ts";
 import { encryptNotificationToken } from "../lib/notification-secrets.ts";
+import { encryptEmailTestRecipient,encryptEmailVerificationCode } from "../lib/email-test-recipient-crypto.ts";
 
 const tokenEnvironment = {
   NOTIFICATION_TOKEN_ENCRYPTION_KEY: "test-notification-token-key-longer-than-thirty-two-characters",
   NOTIFICATION_EMAIL_ALLOWLIST: "person@example.com",
+};
+const recipientEnvironment={
+  EMAIL_TEST_RECIPIENT_ENCRYPTION_KEY: "test-recipient-key-longer-than-thirty-two-characters",
 };
 
 test("known notification templates render bounded escaped email", () => {
@@ -265,6 +269,69 @@ test("non-allowlisted and suppressed recipients fail closed before provider send
   });
   assert.deepEqual(suppressed, { status: "failed", errorCode: "RECIPIENT_SUPPRESSED" });
   assert.equal(sent, false);
+});
+
+test("independent recipient verification decrypts only inside the worker and renders the one-time code",async()=>{
+  const recipient="independent.qa@example.net";
+  const encryptedRecipient=await encryptEmailTestRecipient(recipient,recipientEnvironment);
+  const encryptedCode=await encryptEmailVerificationCode("042019",recipientEnvironment);
+  const queries=[];
+  const pool={ query: async(sql,parameters)=>{
+    queries.push({ sql,parameters });
+    if (/notification_email_suppressions/.test(sql)) return { rowCount: 0,rows: [] };
+    return { rowCount: 1,rows: [] };
+  } };
+  let outbound=null;
+  const result=await processClaimedEmail(pool,{
+    id: "recipient-verification-delivery",userId: "operator",templateKey: "maintenance_email_recipient_verification",
+    payloadJson: { encryptedCode,label: "外部验收邮箱" },secretKind: "maintenance_email_recipient_verification",
+    secretExpiresAt: "2026-08-20T00:10:00.000Z",attempts: 1,recipient: encryptedRecipient,
+    testRecipientId: "recipient-1",testRecipientStatus: "pending_verification",
+  },{
+    workerId: "worker-1",apiKey: "test-key",environment: recipientEnvironment,
+    now: ()=>new Date("2026-08-20T00:00:00.000Z"),
+    send: async input=>{ outbound=input;return { ok: true,providerMessageId: "provider-verification-1" }; },
+  });
+  assert.deepEqual(result,{ status: "sent",providerMessageId: "provider-verification-1" });
+  assert.equal(outbound.recipient,recipient);
+  assert.match(outbound.rendered.text,/042019/);
+  assert.doesNotMatch(JSON.stringify(queries),/042019|independent\.qa@example\.net/);
+});
+
+test("independent delivery requires an active recipient and explicit database authorization",async()=>{
+  const encryptedRecipient=await encryptEmailTestRecipient("independent.qa@example.net",recipientEnvironment);
+  const updates=[];
+  const pool={ query: async(sql,parameters)=>{
+    updates.push({ sql,parameters });
+    if (/notification_email_suppressions/.test(sql)) return { rowCount: 0,rows: [] };
+    return { rowCount: 1,rows: [] };
+  } };
+  const base={
+    id: "maintenance-test-delivery",userId: "operator",templateKey: "maintenance_email_test",
+    payloadJson: { requestedAt: "2026-08-20T00:00:00.000Z" },secretKind: null,secretExpiresAt: null,
+    attempts: 1,recipient: encryptedRecipient,testRecipientId: "recipient-1",testRecipientStatus: "active",
+  };
+  let sends=0;
+  const blocked=await processClaimedEmail(pool,base,{
+    workerId: "worker-1",apiKey: "test-key",environment: recipientEnvironment,
+    now: ()=>new Date("2026-08-20T00:00:00.000Z"),databaseTestRecipientAllowed: async()=>false,
+    send: async()=>{ sends+=1;return { ok: true,providerMessageId: "never" }; },
+  });
+  assert.deepEqual(blocked,{ status: "failed",errorCode: "RECIPIENT_NOT_ALLOWLISTED" });
+  const sent=await processClaimedEmail(pool,{ ...base,id: "maintenance-test-delivery-allowed" },{
+    workerId: "worker-1",apiKey: "test-key",environment: recipientEnvironment,
+    now: ()=>new Date("2026-08-20T00:00:00.000Z"),databaseTestRecipientAllowed: async value=>value==="independent.qa@example.net",
+    send: async input=>{ sends+=1;assert.equal(input.recipient,"independent.qa@example.net");return { ok: true,providerMessageId: "provider-test-1" }; },
+  });
+  assert.deepEqual(sent,{ status: "sent",providerMessageId: "provider-test-1" });
+  assert.equal(sends,1);
+  const disabled=await processClaimedEmail(pool,{ ...base,id: "maintenance-test-delivery-disabled",testRecipientStatus: "disabled" },{
+    workerId: "worker-1",apiKey: "test-key",environment: recipientEnvironment,
+    now: ()=>new Date("2026-08-20T00:00:00.000Z"),databaseTestRecipientAllowed: async()=>true,
+    send: async()=>{ sends+=1;return { ok: true,providerMessageId: "never" }; },
+  });
+  assert.deepEqual(disabled,{ status: "failed",errorCode: "TEST_RECIPIENT_NOT_AUTHORIZED" });
+  assert.equal(sends,1);
 });
 
 test("a fenced delivery update is never reported as sent", async () => {

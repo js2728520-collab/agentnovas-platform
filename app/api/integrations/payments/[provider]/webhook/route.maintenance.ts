@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 
 import { requestIdFor } from "@/lib/api-policy";
+import { resolveUdunRuntimeConfig } from "@/lib/payment-secret-broker";
 import { getPaymentWebhookPostgresPool } from "@/lib/postgres";
 import { ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import {
-  assertFreshUdunTimestamp, parseUdunDepositCallback, parseUdunEnvelope,
-  readUdunRuntimeConfig, verifyUdunEnvelope,
+  assertFreshUdunTimestamp, parseUdunDepositCallback, parseUdunHttpEnvelope,
+  verifyUdunEnvelope,
 } from "@/lib/udun-payment";
 
 function sha256(value: string) { return createHash("sha256").update(value, "utf8").digest("hex"); }
@@ -21,12 +22,10 @@ export async function POST(request: Request, context: { params: Promise<{ provid
     if (Number.isFinite(contentLength) && contentLength > 65_536) throw new ResearchApiError("PAYLOAD_TOO_LARGE", "回调请求体过大", 413);
     const raw = await request.text();
     if (!raw || Buffer.byteLength(raw, "utf8") > 65_536) throw new ResearchApiError("PAYLOAD_TOO_LARGE", "回调请求体过大", 413);
-    let envelopeValue: unknown;
-    try { envelopeValue = JSON.parse(raw); } catch { throw new ResearchApiError("WEBHOOK_INVALID", "优盾回调格式无效", 400); }
     let envelope;
-    try { envelope = parseUdunEnvelope(envelopeValue); }
+    try { envelope = parseUdunHttpEnvelope(request.headers.get("content-type"), raw); }
     catch { throw new ResearchApiError("WEBHOOK_INVALID", "优盾回调格式无效", 400); }
-    const runtime = readUdunRuntimeConfig();
+    const runtime = await resolveUdunRuntimeConfig("maintenance");
     if (!verifyUdunEnvelope({ ...envelope, key: runtime.apiKey })) {
       throw new ResearchApiError("WEBHOOK_SIGNATURE_INVALID", "优盾回调验签失败", 401);
     }

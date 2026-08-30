@@ -85,8 +85,12 @@ test("reverse proxy contains no legacy research fast path", async () => {
   assert.doesNotMatch(nginx, /api\/strategy-research|proxy_read_timeout\s+3600s/);
 });
 
-test("reverse proxy hard-closes payment webhooks before the application", async () => {
+test("reverse proxy opens the exact Udun callback and hard-closes every other payment webhook", async () => {
   const nginx = await read("deploy/nginx/riverton-three-apps.conf");
+  const udunLocation = nginx.match(/location = \/api\/integrations\/payments\/udun\/webhook \{[\s\S]*?\n\s*\}/)?.[0] ?? "";
+  assert.match(udunLocation, /limit_except POST/);
+  assert.match(udunLocation, /proxy_pass http:\/\/riverton_maintenance/);
+  assert.match(udunLocation, /proxy_set_header Host \$host/);
   assert.match(nginx, /location ~ \^\/api\/integrations\/payments\/.+?\{\s*return 404;\s*\}/s);
   const paymentLocation = nginx.match(/location ~ \^\/api\/integrations\/payments\/.+?\n\s*\}/s)?.[0] ?? "";
   assert.doesNotMatch(paymentLocation, /proxy_pass/);

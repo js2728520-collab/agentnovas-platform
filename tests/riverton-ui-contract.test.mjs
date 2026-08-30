@@ -375,14 +375,14 @@ test("maintenance connectivity tests keep audited reasons without redundant conf
   for (const path of [
     "app/api/admin/agent-role-bindings/test/route.maintenance.ts",
     "app/api/admin/runtime-explanation-bindings/test/route.maintenance.ts",
-    "app/api/maintenance/email/test/route.maintenance.ts",
   ]) {
     assert.match(await read(path), /maintenanceReason/);
   }
+  assert.match(await read("app/api/maintenance/email/test/route.maintenance.ts"), /normalizeEmailTestCommand/);
   const models = await read("apps/maintenance/ui/models-workspace.tsx");
   assert.match(models, /kind: "test"/);
   assert.match(models, /InlineAuditReasonField/);
-  const email = await read("apps/maintenance/ui/email-integration-workspace.tsx");
+  const email = `${await read("apps/maintenance/ui/email-integration-workspace.tsx")}\n${await read("packages/ui/src/email-service-manager/email-service-tests.tsx")}`;
   assert.match(email, /InlineAuditReasonField/);
   assert.doesNotMatch(email, /ConfirmActionDialog/);
   const sources = await read("apps/maintenance/ui/source-integrations-workspace.tsx");

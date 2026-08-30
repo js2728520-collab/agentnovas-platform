@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveAppAudienceStrict } from "../lib/riverton-apps.ts";
+import { publicAppOriginForAudience, resolveAppAudienceStrict } from "../lib/riverton-apps.ts";
 
 test("uses the exact configured deployment host for a fixed audience", () => {
   const environment = {
@@ -17,6 +17,10 @@ test("uses the exact configured deployment host for a fixed audience", () => {
     host: "xm.agentnovas.com",
     environment,
   }), null);
+  assert.equal(
+    publicAppOriginForAudience("maintenance", environment),
+    "https://main-test.agentnovas.com",
+  );
   assert.equal(resolveAppAudienceStrict({
     host: "ops-test.agentnovas.com",
     environment,
@@ -48,4 +52,8 @@ test("keeps the canonical production host when no deployment override exists", (
     host: "xm.agentnovas.com",
     environment: { RIVERTON_APP_AUDIENCE: "maintenance" },
   }), "maintenance");
+  assert.equal(
+    publicAppOriginForAudience("maintenance", { RIVERTON_APP_AUDIENCE: "maintenance" }),
+    "https://xm.agentnovas.com",
+  );
 });

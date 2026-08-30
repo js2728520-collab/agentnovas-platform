@@ -127,23 +127,65 @@ export type MaintenanceAgentBinding = {
 };
 export type MaintenancePaymentProvider = {
   id: string; provider: string; channel: string; network: string | null;
-  configuredStatus: string; effectiveStatus: "disabled" | "incomplete" | "active";
+  configuredStatus: string; effectiveStatus: "disabled" | "incomplete" | "active" | "degraded";
   confirmationThreshold: number | null; hasSecret: boolean; merchantConfigured: boolean;
   gatewayConfigured: boolean; callbackConfigured: boolean; coinMappingConfigured: boolean;
   protocol: string | null; lastTestAt: string | null; lastTestStatus: string | null;
-  lastErrorCode: string | null; updatedAt: string;
+  addressRequestCoinField: string | null; configurationVersion: string | null;
+  configurationFingerprint: string | null; brokerAvailable: boolean; providerAuthorized: boolean;
+  activationReady: boolean; activationBlockers: string[];
+  lastErrorCode: string | null; lastCallbackTestAt: string | null;
+  lastCallbackTestStatus: string | null; lastCallbackErrorCode: string | null; updatedAt: string;
 };
 export type MaintenanceEmailStatus = {
-  provider: string; configured: boolean; senderDomainVerified: boolean; apiKeyPresent: boolean;
+  provider: string; senderAddress: string; senderDomain: string; configured: boolean; senderDomainVerified: boolean; apiKeyPresent: boolean;
   webhookSecretPresent: boolean; allowlistPresent: boolean; templatesReady: boolean;
-  suppressionReady: boolean; workerEnabled: boolean; sendAuthorized: boolean;
-  effectiveStatus: "ready" | "configured_not_sent";
+  suppressionReady: boolean; workerEnabled: boolean; environmentSendEnabled: boolean;
+  sendAuthorized: boolean; providerAuthorized: boolean;
+  effectiveStatus: "unconfigured" | "disabled" | "ready" | "degraded";
   lastTestAt: string | null;
-  lastTestStatus: string | null;
+  lastTestStatus: "queued" | "sent" | "delivered" | "failed" | null;
   lastTestErrorCode: string | null;
+  latestTest: {
+    id: string; recipient: string; recipientVisibility: "full" | "masked";
+    status: "queued" | "sent" | "delivered" | "failed"; queuedAt: string;
+    sentAt: string | null; providerEventAt: string | null; providerEventType: string | null;
+    providerMessageReference: string | null; lastErrorCode: string | null;
+  } | null;
+  testRecipient: { address: string; authorized: boolean; suppressed: boolean; available: boolean } | null;
   workerHeartbeatAt: string | null;
   contactAddresses: { support: string; security: string; billing: string; operations: string };
   inboundMailboxesVerified: boolean;
+  webhookUrl: string;
+  secretManagement: {
+    browserConfigurable: boolean;
+    broker: {
+      available: boolean;
+      keyId: string | null;
+      publicKeyPem: string | null;
+      heartbeatAt: string | null;
+      lastErrorCode: string | null;
+    };
+    latestRequest: {
+      id: string;
+      operation: "install" | "rotate";
+      status: "pending" | "applying" | "applied" | "failed" | "superseded";
+      keyId: string;
+      requestedBy: string | null;
+      requestedAt: string | null;
+      appliedAt: string | null;
+      failedAt: string | null;
+      updatedAt: string | null;
+      configurationVersion: string | null;
+      configurationFingerprint: string | null;
+      errorCode: string | null;
+    } | null;
+  } | null;
+  secretCustody: {
+    apiKey: "notification_worker_managed_file";
+    webhookSecret: "maintenance_managed_file";
+    browserManaged: true;
+  };
 };
 export type MaintenanceResourcePhase = "ready" | "loading" | "error" | "unknown";
 export type MaintenanceResourceDisplayStatus = "ready" | "loading" | "unavailable" | "unknown";

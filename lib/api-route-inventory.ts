@@ -2559,6 +2559,182 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": true
   },
   {
+    "method": "PATCH",
+    "route": "/api/maintenance/email/configuration",
+    "source": "app/api/maintenance/email/configuration/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.email_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/maintenance/email/recipients",
+    "source": "app/api/maintenance/email/recipients/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.email_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "full",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/email/recipients",
+    "source": "app/api/maintenance/email/recipients/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.email_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "full",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/maintenance/email/recipients/:id",
+    "source": "app/api/maintenance/email/recipients/[id]/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.email_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "full",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "PATCH",
+    "route": "/api/maintenance/email/recipients/:id",
+    "source": "app/api/maintenance/email/recipients/[id]/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.email_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "full",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/email/recipients/:id/verification",
+    "source": "app/api/maintenance/email/recipients/[id]/verification/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.email_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "full",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/maintenance/email/secrets",
+    "source": "app/api/maintenance/email/secrets/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.email_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "masked",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/email/secrets",
+    "source": "app/api/maintenance/email/secrets/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.email_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "masked",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
     "method": "GET",
     "route": "/api/maintenance/email/status",
     "source": "app/api/maintenance/email/status/route.maintenance.ts",
@@ -2577,7 +2753,7 @@ export const API_ROUTE_INVENTORY = [
     },
     "scope": "platform",
     "mfa": "conditional",
-    "pii": "none",
+    "pii": "masked",
     "sensitivity": "sensitive",
     "requiresSameOrigin": false,
     "idempotency": false
@@ -2599,10 +2775,32 @@ export const API_ROUTE_INVENTORY = [
     },
     "scope": "platform",
     "mfa": "recent",
-    "pii": "none",
+    "pii": "full",
     "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/maintenance/email/tests",
+    "source": "app/api/maintenance/email/tests/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.email_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.email_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "full",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "POST",
@@ -2675,6 +2873,28 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": false
   },
   {
+    "method": "POST",
+    "route": "/api/maintenance/payment-providers/:id/callback-test",
+    "source": "app/api/maintenance/payment-providers/[id]/callback-test/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.payment_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.payment_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
     "method": "PATCH",
     "route": "/api/maintenance/payment-providers/:id/configuration",
     "source": "app/api/maintenance/payment-providers/[id]/configuration/route.maintenance.ts",
@@ -2739,6 +2959,94 @@ export const API_ROUTE_INVENTORY = [
     "sensitivity": "sensitive",
     "requiresSameOrigin": true,
     "idempotency": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/maintenance/payment-secrets/public-key",
+    "source": "app/api/maintenance/payment-secrets/public-key/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.payment_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.payment_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/payment-secrets/requests",
+    "source": "app/api/maintenance/payment-secrets/requests/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.payment_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.payment_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": true
+  },
+  {
+    "method": "GET",
+    "route": "/api/maintenance/payment-secrets/requests/:id",
+    "source": "app/api/maintenance/payment-secrets/requests/[id]/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.payment_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.payment_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/maintenance/payment-secrets/status",
+    "source": "app/api/maintenance/payment-secrets/status/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.payment_integrations.manage"
+    ],
+    "permissionMfa": {
+      "maint.payment_integrations.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
   },
   {
     "method": "GET",

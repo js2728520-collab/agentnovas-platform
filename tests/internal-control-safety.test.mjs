@@ -13,13 +13,16 @@ test("Udun activation requires complete runtime config, coin mapping, and a pass
     read("app/api/maintenance/payment-providers/route.maintenance.ts"),
     read("app/api/maintenance/payment-providers/[id]/configuration/route.maintenance.ts"),
   ]);
-  assert.match(source, /readUdunRuntimeConfig/);
-  assert.match(source, /PAYMENT_PROVIDER_TEST_REQUIRED/);
+  assert.match(source, /resolveUdunRuntimeConfig/);
+  assert.match(source, /paymentActivationGate/);
+  assert.match(source, /last_callback_test_status/);
+  assert.match(source, /brokerAvailable/);
   assert.match(source, /tokenCoinType/);
   assert.match(source, /idempotencyKey\(request\)/);
   assert.match(list, /configuredStatus:\s*row\.status/);
   assert.match(list, /effectiveStatus:/);
-  assert.match(list, /runtimeSecretPresent/);
+  assert.match(list, /hasSecret/);
+  assert.match(list, /activationBlockers/);
   assert.match(configuration, /PAYMENT_PROVIDER_MUST_BE_DISABLED/);
   assert.match(configuration, /last_test_status=NULL/);
 });
