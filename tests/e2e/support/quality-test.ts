@@ -169,19 +169,47 @@ export async function expectCriticalAccessibility(page: Page) {
 }
 
 export async function expectResponsivePage(page: Page) {
-  const overflow = await page.evaluate(() => ({
-    clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-    offenders: Array.from(document.querySelectorAll<HTMLElement>("body *"))
-      .map((element) => {
-        const rect = element.getBoundingClientRect();
-        return { tag: element.tagName, id: element.id, className: element.className, left: rect.left, right: rect.right, width: rect.width };
-      })
-      .filter((item) => item.left < -1 || item.right > document.documentElement.clientWidth + 1)
-      .sort((a, b) => (b.right - document.documentElement.clientWidth) - (a.right - document.documentElement.clientWidth))
-      .slice(0, 12),
-  }));
-  expect(overflow.scrollWidth, JSON.stringify(overflow.offenders)).toBeLessThanOrEqual(overflow.clientWidth + 1);
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
+  const overflow = await page.evaluate(() => {
+    const elements = [document.body, ...Array.from(document.querySelectorAll<HTMLElement>("body *"))];
+    const measurements = elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        tag: element.tagName,
+        id: element.id,
+        className: element.className,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        overflowX: style.overflowX,
+        display: style.display,
+        position: style.position,
+      };
+    });
+    const clientWidth = document.documentElement.clientWidth;
+    return {
+      clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      offenders: measurements
+        .filter((item) => item.left < -1 || item.right > clientWidth + 1)
+        .sort((a, b) => (b.right - clientWidth) - (a.right - clientWidth))
+        .slice(0, 12),
+      overflowingContents: measurements
+        .filter((item) => item.scrollWidth > item.clientWidth + 1)
+        .sort((a, b) => (b.scrollWidth - b.clientWidth) - (a.scrollWidth - a.clientWidth))
+        .slice(0, 12),
+    };
+  });
+  expect(
+    overflow.scrollWidth,
+    JSON.stringify({ offenders: overflow.offenders, overflowingContents: overflow.overflowingContents }),
+  ).toBeLessThanOrEqual(overflow.clientWidth + 1);
 }
 
 export async function expectKeyboardEntry(page: Page) {
