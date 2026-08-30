@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 
 import { canonicalPayloadHash } from "./commercial-idempotency.ts";
+import { automaticAuditReason } from "./maintenance-audit.ts";
 import { runMaintenanceIdempotentCommand } from "./maintenance-idempotency.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
@@ -9,7 +10,6 @@ export const MAX_EXPORT_ROWS = 1_000;
 export type MaintenanceWorkRecordExportInput = {
   from: string;
   to: string;
-  reason: string;
 };
 
 type SafeExportRow = {
@@ -44,8 +44,8 @@ function validation(message: string, fields: string[]): never {
 
 export function parseMaintenanceWorkRecordExportInput(body: Record<string, unknown>): MaintenanceWorkRecordExportInput {
   const keys = Object.keys(body).sort();
-  if (keys.length !== 3 || keys[0] !== "from" || keys[1] !== "reason" || keys[2] !== "to") {
-    return validation("请求体只能包含 from、to 和 reason", ["body"]);
+  if (keys.length !== 2 || keys[0] !== "from" || keys[1] !== "to") {
+    return validation("请求体只能包含 from 和 to", ["body"]);
   }
   const from = typeof body.from === "string" ? body.from : "";
   const to = typeof body.to === "string" ? body.to : "";
@@ -56,11 +56,7 @@ export function parseMaintenanceWorkRecordExportInput(body: Record<string, unkno
   }
   const inclusiveDays = Math.floor((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
   if (inclusiveDays > 31) return validation("工作记录每次最多导出连续 31 个 UTC 自然日", ["from", "to"]);
-  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
-  if (reason.length < 3 || reason.length > 500) {
-    return validation("导出原因必须为 3–500 个字符", ["reason"]);
-  }
-  return { from, to, reason };
+  return { from, to };
 }
 
 export function maintenanceWorkRecordExportSafeText(value: unknown, maximum = 500) {
@@ -138,6 +134,7 @@ export async function runMaintenanceWorkRecordExport(pool: Pool, input: Maintena
   now?: Date;
 }) {
   const querySha256 = canonicalPayloadHash({ from: input.from, to: input.to });
+  const reason = automaticAuditReason("maintenance.work_records.export");
   const now = input.now ?? new Date();
   return runMaintenanceIdempotentCommand(pool, {
     operation: "maintenance.work_records.export",
@@ -145,7 +142,7 @@ export async function runMaintenanceWorkRecordExport(pool: Pool, input: Maintena
     subjectType: "strategy_work_record_export",
     subjectId: `query:${querySha256.slice(0, 24)}`,
     idempotencyKey: input.idempotencyKey,
-    payload: { from: input.from, to: input.to, reason: input.reason },
+    payload: { from: input.from, to: input.to, reason },
     requestId: input.requestId,
     traceId: input.traceId,
   }, async (client) => {
@@ -167,7 +164,8 @@ export async function runMaintenanceWorkRecordExport(pool: Pool, input: Maintena
         rowCount: response.data.length,
         truncated: response.truncated,
         querySha256,
-        reason: input.reason,
+        reason,
+        auditSource: "automatic",
       }),
       input.requestId ?? null,
       input.traceId ?? null,

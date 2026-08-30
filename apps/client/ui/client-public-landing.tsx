@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 
 import styles from "./client-public-landing.module.css";
@@ -15,6 +15,10 @@ import { appLocaleCookieName } from "@/packages/ui/src/theme-script";
 type Page = "home" | "login" | "hall" | "market" | "trading";
 
 type Lang = PlatformLocale;
+
+const subscribeToHydration = () => () => {};
+const clientHydratedSnapshot = () => true;
+const serverHydratedSnapshot = () => false;
 
 const languageNames: Record<Lang, string> = {
   "en-US": "English",
@@ -96,6 +100,11 @@ const initialLocaleData: LocaleData = {
 
 export function ClientPublicLanding() {
   const [lang, setLang] = useState<Lang>("en-US");
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    clientHydratedSnapshot,
+    serverHydratedSnapshot,
+  );
   const [localeData, setLocaleData] = useState<LocaleData>(initialLocaleData);
   const [localeLoading, setLocaleLoading] = useState(false);
   const [localeError, setLocaleError] = useState("");
@@ -227,7 +236,7 @@ export function ClientPublicLanding() {
             className={styles.langSelect}
             aria-label="Language"
             value={lang}
-            disabled={localeLoading}
+            disabled={!hydrated || localeLoading}
             onChange={(event) => void selectLanguage(event.target.value as Lang)}
           >
             {Object.entries(languageNames).map(([key, label]) => (

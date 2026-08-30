@@ -221,6 +221,7 @@ export function LiveRoutingWorkspace({ canManage }: { canManage: boolean }) {
               ? `${t("批准后")} ${pending.entry.exchange} · ${pending.entry.environment} ${t("将开始产生真实订单。发起人不能批准自己的申请。")}`
               : `${t("关停后")} ${pending.entry.exchange} · ${pending.entry.environment} ${t("立即停止真实下单。已有仓位不受影响，平仓照常。")}`}
           confirmLabel={pending.kind === "request" ? t("提交申请") : pending.kind === "grant" ? t("批准") : t("关停")}
+          reasonLabel={t("风险控制依据")}
           busy={busy}
           onCancel={() => setPending(null)}
           onConfirm={submitPending}

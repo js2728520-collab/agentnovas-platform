@@ -2,7 +2,7 @@ import { bindAgentRole, listAgentRoleBindings, missingAgentRoles, snapshotAgentR
 import { requireAccessPermission, requireAnyAccessPermission } from "@/lib/access-control";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
-import { maintenanceCorrelation, maintenanceReason } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { requeueResearchRunsPausedForRoles } from "@/lib/postgres-research-queue";
 import { readResearchJson, researchErrorResponse } from "@/lib/research-api";
 
@@ -29,7 +29,7 @@ export async function PUT(request: Request) {
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request, "maint.agent_bindings.manage");
     const body = await readResearchJson(request);
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.legacy_binding.update");
     const pool = await getPostgresPool();
     const binding = await bindAgentRole(pool, {
       actorUserId: user.id,

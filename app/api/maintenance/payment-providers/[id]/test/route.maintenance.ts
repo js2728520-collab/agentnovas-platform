@@ -1,6 +1,6 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { idempotencyKey } from "@/lib/commercial-api";
-import { maintenanceCorrelation, maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { maintenanceCorrelation, recordMaintenanceAudit } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { readUdunRuntimeConfig, testUdunConnectivity } from "@/lib/udun-payment";
@@ -10,7 +10,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { user } = await requireAccessPermission(request, "maint.payment_integrations.manage");
     idempotencyKey(request);
     const { id } = await context.params;
-    const reason = maintenanceReason((await readResearchJson(request, 4_096)).reason);
+    await readResearchJson(request, 4_096);
     if (process.env.PAYMENT_PROVIDER_TESTS_ENABLED !== "true") {
       throw new ResearchApiError("SERVICE_NOT_CONFIGURED", "支付服务商连通测试尚未启用", 503, { providerConfigId: id });
     }
@@ -28,7 +28,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     await recordMaintenanceAudit(pool, {
       actorUserId: user.id, action: "maintenance.payment_test_passed", subjectType: "payment_provider_config",
-      subjectId: id, reason, ...maintenanceCorrelation(request),
+      subjectId: id, ...maintenanceCorrelation(request),
     });
     return Response.json({ ok: true, status: "passed", providerConfigId: id, testedAt: new Date().toISOString() });
   } catch (error) {

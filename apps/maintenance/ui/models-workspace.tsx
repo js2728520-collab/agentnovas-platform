@@ -13,7 +13,6 @@ import { useMemo,useState } from "react";
 import { apiErrorMessage,formatDateTime } from "@/packages/contracts/src/riverton-ui";
 import { tradingHallAgentCatalog } from "@/packages/contracts/src/trading-hall";
 import { useAppLocale } from "@/packages/ui/src/app-locale-context";
-import { hasValidAuditReason,InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { ErrorState,LoadingState,PageHeading,StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 
@@ -78,7 +77,6 @@ export function ModelsWorkspace({ canManageProfiles,canManageBindings }: {
     "/api/maintenance/ai-control-plane/snapshot",t("AI 控制面读取失败"),
   );
   const [form,setForm] = useState(initialConfiguration);
-  const [reason,setReason] = useState("");
   const [message,setMessage] = useState("");
   const [busy,setBusy] = useState(false);
   const [managerVersion,setManagerVersion] = useState(0);
@@ -117,7 +115,7 @@ export function ModelsWorkspace({ canManageProfiles,canManageBindings }: {
         supportsStructuredOutput: form.supportsStructuredOutput,
         rateCurrency: form.inputCostPerMillion || form.outputCostPerMillion ? form.rateCurrency : "",
         inputCostPerMillion: form.inputCostPerMillion,outputCostPerMillion: form.outputCostPerMillion,
-        cachedInputCostPerMillion: form.cachedInputCostPerMillion,reason: reason.trim(),
+        cachedInputCostPerMillion: form.cachedInputCostPerMillion,
       }),
     });
     if (form.apiKey) {
@@ -130,7 +128,7 @@ export function ModelsWorkspace({ canManageProfiles,canManageBindings }: {
       });
       await jsonRequest("/api/maintenance/ai-control-plane/secret-commands",{
         method: "POST",headers: { "content-type": "application/json" },
-        body: JSON.stringify({ envelope,reason: reason.trim() }),
+        body: JSON.stringify({ envelope }),
       });
     }
     setForm(initialConfiguration());
@@ -213,11 +211,6 @@ export function ModelsWorkspace({ canManageProfiles,canManageBindings }: {
       </div>
     </section>
 
-    {(canManageProfiles || canManageBindings) && <section className="rc-panel">
-      <header><div><small>CHANGE AUDIT</small><h2>{t("本轮配置原因")}</h2><p>{t("配置、密钥托管、测试、绑定和预算变更都把原因与资源修订在同一事务中记录。")}</p></div></header>
-      <div className="rc-form"><InlineAuditReasonField id="ai-control-plane-reason" value={reason} onChange={setReason} label={t("配置与测试原因")} /></div>
-    </section>}
-
     {canManageProfiles && <section className="rc-panel" id="ai-control-plane-config-form">
       <header><div><small>RECOVERABLE SETUP</small><h2>{t("新增连接与模型部署")}</h2><p>{t("保存后先生成不可变修订，再用 Broker 公钥在浏览器加密 API Key；Web 仅接收密文命令。")}</p></div></header>
       <div className="rc-form rc-form-grid">
@@ -235,7 +228,7 @@ export function ModelsWorkspace({ canManageProfiles,canManageBindings }: {
         <label className="rc-check"><input type="checkbox" checked={form.supportsStreaming} onChange={(event) => setForm({ ...form,supportsStreaming: event.target.checked })} />{t("支持流式输出")}</label>
         <label className="rc-check"><input type="checkbox" checked={form.supportsStructuredOutput} onChange={(event) => setForm({ ...form,supportsStructuredOutput: event.target.checked })} />{t("支持结构化输出")}</label>
       </div>
-      <div className="rc-action-row"><button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(reason) || !form.connectionName || !form.baseUrl || !form.deploymentName || !form.modelId || (!form.hasManagedSecret && !form.apiKey) || Boolean(form.inputCostPerMillion) !== Boolean(form.outputCostPerMillion)} onClick={() => void mutate(saveConfiguration,form.apiKey ? t("配置修订与密钥托管命令已创建；Broker 处理完成后即可测试。") : t("新配置修订已创建并沿用当前受管密钥；请重新测试后再激活。"))}>{busy ? t("正在保存…") : form.connectionId ? t("保存为新修订") : t("保存并托管密钥")}</button></div>
+      <div className="rc-action-row"><button className="rc-primary" type="button" disabled={busy || !form.connectionName || !form.baseUrl || !form.deploymentName || !form.modelId || (!form.hasManagedSecret && !form.apiKey) || Boolean(form.inputCostPerMillion) !== Boolean(form.outputCostPerMillion)} onClick={() => void mutate(saveConfiguration,form.apiKey ? t("配置修订与密钥托管命令已创建；Broker 处理完成后即可测试。") : t("新配置修订已创建并沿用当前受管密钥；请重新测试后再激活。"))}>{busy ? t("正在保存…") : form.connectionId ? t("保存为新修订") : t("保存并托管密钥")}</button></div>
     </section>}
 
     <AiControlPlaneManager
@@ -252,12 +245,12 @@ export function ModelsWorkspace({ canManageProfiles,canManageBindings }: {
         ...(probe.models?.length ? [`${t("发现模型")} ${probe.models.join(", ")}`] : []),
         ...(probe.errorCode ? [`${t("安全错误码")} ${probe.errorCode}`] : []),
       ]}
-      renderDeploymentActions={canManageProfiles ? (deployment) => <div className="rc-action-row"><button className="rc-button" type="button" disabled={busy} onClick={() => prepareNewRevision(deployment)}>{t("创建新修订")}</button><button className="rc-button" type="button" disabled={busy || !deployment.currentRevisionId || !hasValidAuditReason(reason)} onClick={() => void mutate(
-        () => jsonRequest("/api/maintenance/ai-control-plane/probes",{ method: "POST",headers: { "content-type": "application/json" },body: JSON.stringify({ deploymentRevisionId: deployment.currentRevisionId,reason: reason.trim() }) }),
+      renderDeploymentActions={canManageProfiles ? (deployment) => <div className="rc-action-row"><button className="rc-button" type="button" disabled={busy} onClick={() => prepareNewRevision(deployment)}>{t("创建新修订")}</button><button className="rc-button" type="button" disabled={busy || !deployment.currentRevisionId} onClick={() => void mutate(
+        () => jsonRequest("/api/maintenance/ai-control-plane/probes",{ method: "POST",headers: { "content-type": "application/json" },body: JSON.stringify({ deploymentRevisionId: deployment.currentRevisionId }) }),
         t("连接、模型发现与最小调用测试已完成。"),
       )}>{t("测试当前修订")}</button></div> : undefined}
-      renderDeploymentRevisionActions={canManageProfiles ? (revision) => revision.isCurrent ? null : <button className="rc-button" type="button" disabled={busy || !hasValidAuditReason(reason)} onClick={() => void mutate(
-        () => jsonRequest(`/api/maintenance/ai-control-plane/deployments/${encodeURIComponent(revision.deploymentId)}/revisions`,{ method: "POST",headers: { "content-type": "application/json" },body: JSON.stringify({ sourceRevisionId: revision.id,expectedCurrentRevisionId: snapshot.deployments.find((item) => item.id === revision.deploymentId)?.currentRevisionId,reason: reason.trim() }) }),
+      renderDeploymentRevisionActions={canManageProfiles ? (revision) => revision.isCurrent ? null : <button className="rc-button" type="button" disabled={busy} onClick={() => void mutate(
+        () => jsonRequest(`/api/maintenance/ai-control-plane/deployments/${encodeURIComponent(revision.deploymentId)}/revisions`,{ method: "POST",headers: { "content-type": "application/json" },body: JSON.stringify({ sourceRevisionId: revision.id,expectedCurrentRevisionId: snapshot.deployments.find((item) => item.id === revision.deploymentId)?.currentRevisionId }) }),
         t("已从历史配置创建新的不可变回滚修订；重新测试后方可激活。"),
       )}>{t("回滚为新修订")}</button> : undefined}
     />
@@ -272,8 +265,8 @@ export function ModelsWorkspace({ canManageProfiles,canManageBindings }: {
           <div className="rc-form rc-form-grid">
             {[t("主模型"),`${t("回退")} 1`,`${t("回退")} 2`].map((label,index) => <label key={label}>{label}<select value={targets[index]} disabled={busy || (index > 0 && !targets[index - 1])} onChange={(event) => setTarget(role.key,index,event.target.value)}><option value="">{t("不配置")}</option>{snapshot.deployments.map((deployment) => <option key={deployment.id} value={deployment.currentRevisionId ?? ""} disabled={!deployment.currentRevisionId}>{deployment.name} · {deployment.modelId ?? t("未知模型")}</option>)}</select></label>)}
           </div>
-          <div className="rc-action-row"><button className="rc-button" type="button" disabled={busy || !targets[0] || !hasValidAuditReason(reason)} onClick={() => void mutate(
-            () => jsonRequest("/api/maintenance/ai-control-plane/bindings",{ method: "PUT",headers: { "content-type": "application/json" },body: JSON.stringify({ roleKey: role.key,deploymentRevisionIds: targets.filter(Boolean),enabled: true,reason: reason.trim() }) }),
+          <div className="rc-action-row"><button className="rc-button" type="button" disabled={busy || !targets[0]} onClick={() => void mutate(
+            () => jsonRequest("/api/maintenance/ai-control-plane/bindings",{ method: "PUT",headers: { "content-type": "application/json" },body: JSON.stringify({ roleKey: role.key,deploymentRevisionIds: targets.filter(Boolean),enabled: true }) }),
             t("角色绑定已生成新修订并激活。"),
           )}>{t("保存并激活")}</button></div>
         </article>;
@@ -289,8 +282,8 @@ export function ModelsWorkspace({ canManageProfiles,canManageBindings }: {
         <label>{t("单位")}<select value={budget.unit} onChange={(event) => setBudget({ ...budget,unit: event.target.value })}><option value="requests">requests</option><option value="tokens">tokens</option><option value="provider_cost">provider_cost</option><option value="platform_credits">platform_credits</option></select></label>
         <label>{t("上限（精确数值）")}<input value={budget.limit} inputMode="decimal" onChange={(event) => setBudget({ ...budget,limit: event.target.value.replace(/[^\d.]/g,"").replace(/(\..*)\./g,"$1") })} /></label>
       </div>
-      <button className="rc-button" type="button" disabled={busy || !budget.limit || !budget.scopeId || !hasValidAuditReason(reason)} onClick={() => void mutate(
-        () => jsonRequest("/api/maintenance/ai-control-plane/budgets",{ method: "PUT",headers: { "content-type": "application/json" },body: JSON.stringify({ ...budget,enabled: true,reason: reason.trim() }) }),
+      <button className="rc-button" type="button" disabled={busy || !budget.limit || !budget.scopeId} onClick={() => void mutate(
+        () => jsonRequest("/api/maintenance/ai-control-plane/budgets",{ method: "PUT",headers: { "content-type": "application/json" },body: JSON.stringify({ ...budget,enabled: true }) }),
         t("软预算已保存；超限不会自动停业务。"),
       )}>{t("保存软预算")}</button>
     </section>}

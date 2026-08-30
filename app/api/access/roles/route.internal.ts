@@ -77,6 +77,11 @@ export async function POST(request: Request) {
           VALUES ($1, $2, $3, $4)
         `, [crypto.randomUUID(), roleId, permission.permissionKey, permission.scope]);
       }
+      await client.query(`
+        INSERT INTO authorization_audit_events
+          (id, actor_user_id, application_id, action, subject_type, subject_id, before_json, after_json)
+        VALUES ($1, $2, $3, 'role.create', 'role', $4, '{}'::jsonb, $5::jsonb)
+      `, [crypto.randomUUID(), user.id, appId, roleId, JSON.stringify({ code, name, kind, status: "draft", auditSource: "automatic" })]);
       await client.query("COMMIT");
       return Response.json({ role: { id: roleId, applicationId, code, name, kind, status: "draft" } }, { status: 201 });
     } catch (error) {

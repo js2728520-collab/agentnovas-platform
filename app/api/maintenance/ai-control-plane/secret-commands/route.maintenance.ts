@@ -3,7 +3,7 @@ import type { SecretEnvelopeCommand } from "@agentnovas/ai-control-plane";
 import { requireAccessPermission } from "@/lib/access-control";
 import { enqueueSecretCommand } from "@/lib/ai-control-plane-repository";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
-import { maintenanceCorrelation,maintenanceReason } from "@/lib/maintenance-audit";
+import { automaticAuditReason,maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson,ResearchApiError,researchErrorResponse } from "@/lib/research-api";
 
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request,"maint.llm_profiles.manage");
     const body = await readResearchJson(request,64_000);
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.secret.store");
     const envelope = envelopeFrom(body);
     if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(envelope.commandId)) {
       throw new ResearchApiError("VALIDATION_ERROR","密钥命令 ID 无效",422,{ fields: ["commandId"] });

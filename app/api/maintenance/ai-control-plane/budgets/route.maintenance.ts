@@ -3,7 +3,7 @@ import type { BudgetPolicy } from "@agentnovas/ai-control-plane";
 import { requireAccessPermission } from "@/lib/access-control";
 import { upsertBudgetPolicy } from "@/lib/ai-control-plane-repository";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
-import { maintenanceCorrelation,maintenanceReason } from "@/lib/maintenance-audit";
+import { automaticAuditReason,maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson,ResearchApiError,researchErrorResponse } from "@/lib/research-api";
 
@@ -12,7 +12,7 @@ export async function PUT(request: Request) {
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request,"maint.llm_profiles.manage");
     const body = await readResearchJson(request);
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.budget.update");
     const scope = String(body.scope ?? "") as BudgetPolicy["scope"];
     const scopeId = String(body.scopeId ?? "").trim();
     const period = String(body.period ?? "") as "day" | "month";

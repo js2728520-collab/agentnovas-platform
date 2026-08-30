@@ -1,7 +1,7 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { rollbackControlPlaneDeployment } from "@/lib/ai-control-plane-repository";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
-import { maintenanceCorrelation,maintenanceReason } from "@/lib/maintenance-audit";
+import { automaticAuditReason,maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson,ResearchApiError,researchErrorResponse } from "@/lib/research-api";
 
@@ -22,7 +22,7 @@ export async function POST(request: Request,{ params }: {
     const { user } = await requireAccessPermission(request,"maint.llm_profiles.manage");
     const { id } = await params;
     const body = await readResearchJson(request,4_096);
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.deployment.rollback");
     const result = await rollbackControlPlaneDeployment(await getPostgresPool(),{
       deploymentId: resourceId(id,"deploymentId"),
       sourceRevisionId: resourceId(body.sourceRevisionId,"sourceRevisionId"),

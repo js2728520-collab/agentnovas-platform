@@ -240,6 +240,10 @@ test("four-identity membership evidence and maker-checker activation remains sid
     expect(customer?.email).toBe(runtime.identities.client.email.replace(/^(.{2})[^@]*/, "$1***"));
     expect(JSON.stringify(customerDirectory)).not.toContain(runtime.identities.client.email);
 
+    // Unload the authenticated Client application before clearing its cookies. Otherwise its
+    // in-flight portfolio refresh can observe the cleared session, start its own login redirect,
+    // and race the explicit cross-audience Operations navigation below.
+    await page.goto("about:blank");
     await page.context().clearCookies();
     const operationsOrigin = qualityBrowserOrigin("operations", qualityApplicationPorts(process.env)).baseURL;
     await page.goto(`${operationsOrigin}/login`);

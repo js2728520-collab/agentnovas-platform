@@ -1,5 +1,6 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { commercialJson, idempotencyKey, requestId } from "@/lib/commercial-api";
+import { automaticAuditReason } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { verifyReleaseVersion } from "@/lib/release-version-service";
 import { researchErrorResponse } from "@/lib/research-api";
@@ -10,7 +11,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { user } = await requireAccessPermission(request, APPROVE_PERMISSION);
     const { id } = await params;
-    const verification = await commercialJson(request, 4_096);
+    const verification = {
+      ...await commercialJson(request, 4_096),
+      reason: automaticAuditReason("maintenance.release.verify"),
+    };
     return Response.json(await verifyReleaseVersion(await getPostgresPool(), {
       releaseVersionId: id,
       reviewerUserId: user.id,

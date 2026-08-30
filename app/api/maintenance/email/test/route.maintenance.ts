@@ -1,6 +1,6 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { canonicalPayloadHash } from "@/lib/commercial-idempotency";
-import { maintenanceCorrelation, maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation, recordMaintenanceAudit } from "@/lib/maintenance-audit";
 import { maintenanceIdempotencyKeyHash } from "@/lib/maintenance-idempotency";
 import { providerConfigAllowsSend, validateEmailRecipient } from "@/lib/notification-email-worker";
 import { getPostgresPool } from "@/lib/postgres";
@@ -9,15 +9,15 @@ import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib
 export async function POST(request: Request) {
   try {
     const { user } = await requireAccessPermission(request, "maint.email_integrations.manage");
-    const body = await readResearchJson(request);
-    const reason = maintenanceReason(body.reason);
+    await readResearchJson(request);
+    const reason = automaticAuditReason("maintenance.email_test.queue");
     if (!validateEmailRecipient(user.email)) throw new ResearchApiError("TEST_RECIPIENT_UNAVAILABLE", "当前管理员没有可用于测试的有效邮箱", 422);
     const pool = await getPostgresPool();
     const queuedAt = new Date().toISOString();
     const deliveryId = crypto.randomUUID();
     const correlation = maintenanceCorrelation(request);
     const idempotencyKeyHash = maintenanceIdempotencyKeyHash(request.headers.get("idempotency-key") ?? "");
-    const requestFingerprint = canonicalPayloadHash({ actorUserId: user.id, reason });
+    const requestFingerprint = canonicalPayloadHash({ actorUserId: user.id, action: reason });
     const dedupeKey = `maintenance-email-test:${idempotencyKeyHash}`;
     const client = await pool.connect();
     let delivery: { id: string; status: string; scheduled_at: Date | string } | undefined;
@@ -90,7 +90,6 @@ export async function POST(request: Request) {
           action: "maintenance.email_test_queued",
           subjectType: "notification_delivery",
           subjectId: delivery.id,
-          reason,
           ...correlation,
         });
       }

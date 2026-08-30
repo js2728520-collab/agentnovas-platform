@@ -232,6 +232,7 @@ export function KillSwitchWorkspace({ canManage }: { canManage: boolean }) {
               : t("批准后该范围立即恢复开新仓。发起人不能批准自己的申请。")}
           open
           confirmLabel={pending.kind === "engage" ? t("挂起") : pending.kind === "request-release" ? t("提交申请") : t("批准解除")}
+          reasonLabel={t("事故或风险处置说明")}
           busy={busy}
           onCancel={() => setPending(null)}
           onConfirm={submitPending}

@@ -17,7 +17,8 @@ test("maintenance emergency control is RBAC protected and limited to official Pa
   const paperRepository = await read("lib/official-paper-repository.ts");
   const implementation = `${route}\n${paperRepository}`;
   assert.match(route, /maint\.emergency_pause\.execute/);
-  assert.match(route, /必须填写紧急暂停原因/);
+  assert.match(route, /必须填写事故或处置说明/);
+  assert.match(route, /事故或处置说明不能超过 240 个字符/);
   assert.match(route, /emergencyScopeForAccess/);
   assert.match(implementation, /official_paper_portfolios/);
   assert.match(implementation, /official_paper_positions/);
@@ -52,8 +53,8 @@ test("maintenance exposes explicit emergency controls through its own navigation
   const workspace = await read("apps/maintenance/ui/emergency-control-workspace.tsx");
   assert.match(app, /href: "\/releases\?tab=safety"/);
   assert.match(app, /maint\.emergency_pause\.execute/);
-  assert.match(workspace, /InlineAuditReasonField/);
-  assert.match(workspace, /hasValidAuditReason\(reason\)/);
+  assert.doesNotMatch(workspace, /InlineAuditReasonField|hasValidAuditReason/);
+  assert.match(workspace, /事故或处置说明（业务字段）/);
   assert.doesNotMatch(workspace, /ConfirmActionDialog/);
   assert.match(workspace, /官方 Paper/);
   assert.match(workspace, /平台 Demo/);
@@ -76,7 +77,7 @@ test("maintenance owns support settings while the client receives a public safe 
   const publicRoute = await read("app/api/platform/settings/route.client.ts");
   const workspace = await read("apps/maintenance/ui/platform-settings-workspace.tsx");
   assert.match(maintenanceRoute, /maint\.feature_flags\.manage/);
-  assert.match(maintenanceRoute, /maintenanceReason/);
+  assert.match(maintenanceRoute, /automaticAuditReason/);
   assert.match(publicRoute, /publicPlatformSettings/);
   assert.doesNotMatch(publicRoute, /security|billing|integrations/);
   assert.match(workspace, /Telegram 客服链接/);

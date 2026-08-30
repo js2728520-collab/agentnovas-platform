@@ -206,7 +206,7 @@ export async function rollbackLlmProfileRevision(pool: Pool, input: {
   traceId?: string | null;
 }) {
   const reason = input.reason.trim();
-  if (reason.length < 3 || reason.length > 500) throw new ResearchApiError("MODEL_ROLLBACK_REASON_INVALID", "回滚原因需要 3–500 个字符", 422);
+  if (reason.length < 3 || reason.length > 500) throw new ResearchApiError("MODEL_ROLLBACK_REASON_INVALID", "自动审计标记无效", 500);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");

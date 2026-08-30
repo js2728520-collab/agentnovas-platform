@@ -1,6 +1,6 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { idempotencyKey } from "@/lib/commercial-api";
-import { maintenanceCorrelation } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { readUdunRuntimeConfig } from "@/lib/udun-payment";
@@ -13,8 +13,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const body = await readResearchJson(request, 4_096);
     const status = String(body.status ?? "");
     if (status !== "disabled" && status !== "active") throw new ResearchApiError("VALIDATION_ERROR", "支付渠道状态无效", 422, { fields: ["status"] });
-    const reason = String(body.reason ?? "").trim().slice(0, 500);
-    if (!reason) throw new ResearchApiError("VALIDATION_ERROR", "必须填写支付渠道变更原因", 422, { fields: ["reason"] });
+    const reason = automaticAuditReason(status === "active" ? "maintenance.payment_provider.enable" : "maintenance.payment_provider.disable");
     const client = await (await getPostgresPool()).connect();
     try {
       await client.query("BEGIN");
@@ -40,7 +39,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         const correlation = maintenanceCorrelation(request);
         await client.query(`INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,request_id,trace_id)
           VALUES($1,$2,'payment_provider.status_changed','payment_provider_config',$3,$4,$5,$6)`, [
-          crypto.randomUUID(), user.id, id, JSON.stringify({ status, reason }), correlation.requestId, correlation.traceId,
+          crypto.randomUUID(), user.id, id, JSON.stringify({ status, reason, auditSource: "automatic" }), correlation.requestId, correlation.traceId,
         ]);
       }
       await client.query("COMMIT");

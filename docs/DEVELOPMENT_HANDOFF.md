@@ -3782,3 +3782,26 @@ Maintenance 201320 bytes，均低于 204800；本地 production Chromium canonic
 永续订单路由、客户 BYOK、固定 Credits 定价、Redis 与 Cloudflare Runtime 均未引入。下一步必须等待用户确认；
 确认后先由原工作区所有者处理干净状态，再 rebase 到最新 `codex/platform-v3-doc-sync` 并重跑全部 Gate。rebase
 通过后还要再次获得用户确认，才允许本地 fast-forward merge、正常移除工作树和删除已合并本地分支。
+
+## 114. 2026-08-30 通用审计输入退役与自动留痕完成
+
+Profile 测试成功后仍无法保存的根因，是模型页把通用“审计原因”作为保存按钮的额外前置条件。该 Gate、
+`InlineAuditReasonField`、`hasValidAuditReason` 及三端已识别的通用审计输入现已全部移除；模型、集成、平台
+设置、Demo、配置版本、发布、权限、普通账号、Session/MFA 与导出等流程只再检查真实业务前置条件、权限、
+busy 状态和原有安全 Gate。
+
+ADR-0029 规定审计事实由服务端拥有。Maintenance 审计 helper 只接受稳定 action 并在内部生成
+`automatic:<action>`，同时记录 `auditSource: "automatic"`；调用方不能传入自由文本 reason。新旧 AI API
+和其余兼容 API 即使收到旧客户端的通用 `reason` 也会忽略。既有 reason 列和历史人工记录保留，未做破坏性
+迁移。资金/充值/Credits、审批决定、事故处置、风控控制、真实路由依据和 PII 访问用途仍是业务事实，改用准确
+字段名并保留既有长度、RBAC、recent MFA、maker/checker 与幂等校验。
+
+最终本地证据：全量 Node/PostgreSQL 合同 `1692/1692`；TypeScript 与完整 ESLint 通过；Client production
+build 通过；production Chromium canonical Gate `20/20`，其中覆盖无需审计文字即可启用 Profile 保存按钮。
+完整 E2E 暴露的跨应用测试竞态也已修正：先卸载 Client 页面再清 Cookie，避免其未授权跳转与 Operations
+导航竞争。8 条架构边界、三端 Web key-custody（582/522/522 个部署 JS）、3363 文件秘密扫描和
+`npm audit --audit-level=high`（0 vulnerabilities）均通过。
+
+本轮没有 push、PR、部署、合并或关闭工作树，没有使用真实 Provider 凭证；Gateway、Secret Broker、
+Research Worker、Runtime 外部解释和真实交易继续默认关闭。候选仍保留在
+`codex/ai-control-plane-reuse` 与独立工作树，等待用户确认后才进入原定 rebase、重跑 Gate 和本地合并流程。

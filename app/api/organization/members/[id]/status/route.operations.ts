@@ -1,5 +1,6 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { canAccessOrganization } from "@/lib/operations-access";
+import { automaticAuditReason } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { canIssueInternalRegistrationLink } from "@/packages/domain/src/organization-provisioning";
@@ -12,9 +13,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await readResearchJson(request, 4_096);
     const action = body.action as MemberStatusAction;
-    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     if (!["deactivate", "restore"].includes(action)) throw new ResearchApiError("MEMBER_ACTION_INVALID", "成员操作无效", 422);
-    if (reason.length < 3 || reason.length > 500) throw new ResearchApiError("MEMBER_REASON_INVALID", "操作原因需要 3–500 个字符", 422);
     if (id === actor.id) throw new ResearchApiError("MEMBER_SELF_ACTION_FORBIDDEN", "不能停用或恢复当前账户", 403);
 
     const pool = await getPostgresPool();
@@ -56,6 +55,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const expected = action === "deactivate" ? "active" : "frozen";
       const nextStatus = action === "deactivate" ? "frozen" : "active";
       const auditAction = action === "deactivate" ? "organization.member_deactivated" : "organization.member_restored";
+      const reason = automaticAuditReason(auditAction);
       if (member.status === nextStatus) {
         await client.query("COMMIT");
         return Response.json({ ok: true, status: nextStatus, replayed: true });
@@ -80,7 +80,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       await client.query(`
         INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json,created_at)
         VALUES($1,$2,$3,'user',$4,$5,$6,$7)
-      `, [crypto.randomUUID(), actor.id, auditAction, id, JSON.stringify({ status: member.status }), JSON.stringify({ status: nextStatus, reason, revokedRegistrationLinks, requestId: request.headers.get("x-request-id") }), now]);
+      `, [crypto.randomUUID(), actor.id, auditAction, id, JSON.stringify({ status: member.status }), JSON.stringify({ status: nextStatus, reason, auditSource: "automatic", revokedRegistrationLinks, requestId: request.headers.get("x-request-id") }), now]);
       await client.query(`
         INSERT INTO notification_deliveries(id,user_id,channel,category,template_key,payload_json,status,scheduled_at,dedupe_key)
         VALUES($1,$2,'in_app','login_security',$3,$4,'queued',$5,$6)

@@ -3,7 +3,7 @@ import type { AiRoleKey } from "@agentnovas/ai-control-plane";
 import { requireAccessPermission } from "@/lib/access-control";
 import { updateBindingPolicy } from "@/lib/ai-control-plane-repository";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
-import { maintenanceCorrelation,maintenanceReason } from "@/lib/maintenance-audit";
+import { automaticAuditReason,maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson,ResearchApiError,researchErrorResponse } from "@/lib/research-api";
 
@@ -12,7 +12,7 @@ export async function PUT(request: Request) {
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request,"maint.agent_bindings.manage");
     const body = await readResearchJson(request);
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.binding.update");
     const roleKey = String(body.roleKey ?? "") as AiRoleKey;
     const deploymentRevisionIds = Array.isArray(body.deploymentRevisionIds)
       ? body.deploymentRevisionIds.map(String)

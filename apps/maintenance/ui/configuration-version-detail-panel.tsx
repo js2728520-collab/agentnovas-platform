@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import type { ConfigurationActivationAction, ConfigurationApprovalDecision, ConfigurationTestResult } from "@/lib/versioned-configuration-domain";
 import type { ConfigurationVersion } from "@/packages/contracts/src/versioned-configuration";
 import { formatDateTime } from "@/packages/contracts/src/riverton-ui";
-import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { StatusBadge } from "@/packages/ui/src/page-state";
 import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 import { changedTopLevelKeys, defaultScheduleLocal, localDateTimeWithOffset, offsetForLocalDateTime, shortHash } from "./configuration-version-ui";
@@ -18,21 +17,16 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
   canApprove: boolean;
   canActivate: boolean;
   busy: boolean;
-  onTest: (result: ConfigurationTestResult, evidenceSha256: string, reason: string) => Promise<void>;
-  onRegisteredTest: (reason: string) => Promise<void>;
-  onReview: (decision: ConfigurationApprovalDecision, reason: string) => Promise<void>;
-  onSchedule: (scheduledFor: string, reason: string) => Promise<void>;
-  onActivation: (action: ConfigurationActivationAction, reason: string) => Promise<void>;
+  onTest: (result: ConfigurationTestResult, evidenceSha256: string) => Promise<void>;
+  onRegisteredTest: () => Promise<void>;
+  onReview: (decision: ConfigurationApprovalDecision) => Promise<void>;
+  onSchedule: (scheduledFor: string) => Promise<void>;
+  onActivation: (action: ConfigurationActivationAction) => Promise<void>;
 }) {
   const { locale, t } = useAppLocale();
   const [testResult, setTestResult] = useState<ConfigurationTestResult>("passed");
   const [evidence, setEvidence] = useState("");
-  const [testReason, setTestReason] = useState("");
-  const [reviewReason, setReviewReason] = useState("");
   const [scheduleLocal, setScheduleLocal] = useState(defaultScheduleLocal);
-  const [scheduleReason, setScheduleReason] = useState("");
-  const [activationReason, setActivationReason] = useState("");
-  const [rollbackReason, setRollbackReason] = useState("");
   const [referenceNow, setReferenceNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setReferenceNow(Date.now()), 30_000);
@@ -65,37 +59,36 @@ export function ConfigurationVersionDetailPanel({ version, current, currentUserI
 
     {canManage && !version.approval ? registeredFeatureFlag
       ? <div className="rc-form rc-form-grid rc-config-action-block">
-        <InlineAuditReasonField id={`configuration-test-reason-${version.id}`} value={testReason} onChange={setTestReason} label={t("确定性测试原因")} hint={t("结果与证据 SHA-256 均由服务端根据不可变 payload 生成，浏览器不能指定。")} />
-        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(testReason)} onClick={() => void onRegisteredTest(testReason).then(() => setTestReason("")).catch(() => undefined)}>{busy ? t("正在测试…") : t("运行确定性测试")}</button></div>
+        <p className="rc-muted rc-wide-field">{t("结果与证据 SHA-256 均由服务端根据不可变 payload 生成，浏览器不能指定。")}</p>
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy} onClick={() => void onRegisteredTest().catch(() => undefined)}>{busy ? t("正在测试…") : t("运行确定性测试")}</button></div>
       </div>
       : <div className="rc-form rc-form-grid rc-config-action-block">
         <label>{t("测试结果")}<select value={testResult} onChange={(event) => setTestResult(event.target.value as ConfigurationTestResult)}><option value="passed">passed</option><option value="failed">failed</option></select></label>
         <label>{t("测试证据 SHA-256")}<input spellCheck={false} maxLength={64} value={evidence} onChange={(event) => setEvidence(event.target.value.toLowerCase())} /></label>
-        <InlineAuditReasonField id={`configuration-test-reason-${version.id}`} value={testReason} onChange={setTestReason} label={t("测试登记原因")} hint={t("这里只登记外部测试产生的证据，不会从浏览器执行自动测试。")} />
-        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || evidence.length !== 64 || !hasValidAuditReason(testReason)} onClick={() => void onTest(testResult, evidence, testReason).then(() => setTestReason("")).catch(() => undefined)}>{busy ? t("正在登记…") : t("登记测试证据")}</button></div>
+        <p className="rc-muted rc-wide-field">{t("这里只登记外部测试产生的证据，不会从浏览器执行自动测试。")}</p>
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || evidence.length !== 64} onClick={() => void onTest(testResult, evidence).catch(() => undefined)}>{busy ? t("正在登记…") : t("登记测试证据")}</button></div>
       </div> : null}
 
     {!version.approval && testPassed && canApprove ? <div className="rc-form rc-form-grid rc-config-action-block">
       {!independentlyReviewable ? <p className="rc-muted rc-wide-field">{t("创建者不能审批自己的配置版本，请由另一名具备审批权限的人员处理。")}</p> : <>
-        <InlineAuditReasonField id={`configuration-review-reason-${version.id}`} value={reviewReason} onChange={setReviewReason} label={t("审批原因")} hint={t("决定会直接写入不可变审批事实；拒绝后必须创建新版本。")} />
-        <div className="rc-action-row rc-wide-field"><button className="rc-button" type="button" disabled={busy || !hasValidAuditReason(reviewReason)} onClick={() => void onReview("reject", reviewReason).then(() => setReviewReason("")).catch(() => undefined)}>{t("拒绝版本")}</button><button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(reviewReason)} onClick={() => void onReview("approve", reviewReason).then(() => setReviewReason("")).catch(() => undefined)}>{t("批准版本")}</button></div>
+        <p className="rc-muted rc-wide-field">{t("决定会直接写入不可变审批事实；拒绝后必须创建新版本。")}</p>
+        <div className="rc-action-row rc-wide-field"><button className="rc-button" type="button" disabled={busy} onClick={() => void onReview("reject").catch(() => undefined)}>{t("拒绝版本")}</button><button className="rc-primary" type="button" disabled={busy} onClick={() => void onReview("approve").catch(() => undefined)}>{t("批准版本")}</button></div>
       </>}
     </div> : null}
 
     {version.approval?.decision === "approve" && !version.schedule && canApprove ? <div className="rc-form rc-form-grid rc-config-action-block">
       <label>{t("本地计划时间")}<input type="datetime-local" value={scheduleLocal} onChange={(event) => setScheduleLocal(event.target.value)} /><small>{Intl.DateTimeFormat().resolvedOptions().timeZone} · {t("明确 offset：")}{scheduledFor || t("待输入")}</small></label>
       <div><small>{t("UTC 预览")}</small><p>{scheduleUtc || t("请输入有效时间")}</p></div>
-      <InlineAuditReasonField id={`configuration-schedule-reason-${version.id}`} value={scheduleReason} onChange={setScheduleReason} label={t("调度原因")} hint={t("计划时间和原因会直接写入不可变调度事实。")} />
-      <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !scheduledFor || new Date(scheduledFor).getTime() < referenceNow || !hasValidAuditReason(scheduleReason)} onClick={() => void onSchedule(scheduledFor, scheduleReason).then(() => setScheduleReason("")).catch(() => undefined)}>{t("安排生效")}</button></div>
+      <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !scheduledFor || new Date(scheduledFor).getTime() < referenceNow} onClick={() => void onSchedule(scheduledFor).catch(() => undefined)}>{t("安排生效")}</button></div>
     </div> : null}
 
     {canActivate && version.schedule && !version.isCurrent ? <div className="rc-form rc-form-grid rc-config-action-block">
-      <InlineAuditReasonField id={`configuration-activation-reason-${version.id}`} value={activationReason} onChange={setActivationReason} label={t("激活原因")} hint={registeredFeatureFlag ? t("到达计划时间后会改变 current；策略研究入口从下一次请求开始按环境 Gate 与该版本的全局或定向规则共同判定。") : t("到达计划时间后会直接改变控制面 current；尚未接入运行时的配置族不会改变具体行为。") } />
-      <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !due || !hasValidAuditReason(activationReason)} onClick={() => void onActivation("activate", activationReason).then(() => setActivationReason("")).catch(() => undefined)}>{due ? t("立即激活") : t("尚未到计划时间")}</button></div>
+      <p className="rc-muted rc-wide-field">{registeredFeatureFlag ? t("到达计划时间后会改变 current；策略研究入口从下一次请求开始按环境 Gate 与该版本的全局或定向规则共同判定。") : t("到达计划时间后会直接改变控制面 current；尚未接入运行时的配置族不会改变具体行为。")}</p>
+      <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !due} onClick={() => void onActivation("activate").catch(() => undefined)}>{due ? t("立即激活") : t("尚未到计划时间")}</button></div>
     </div> : null}
     {canActivate && version.status === "superseded" ? <div className="rc-form rc-form-grid rc-config-action-block">
-      <InlineAuditReasonField id={`configuration-rollback-reason-${version.id}`} value={rollbackReason} onChange={setRollbackReason} label={t("回滚原因")} hint={t("提交后会直接把控制面 current 回滚到此历史版本，并保留完整事实链。")} />
-      <div className="rc-action-row rc-wide-field"><button className="rc-button" type="button" disabled={busy || !hasValidAuditReason(rollbackReason)} onClick={() => void onActivation("rollback", rollbackReason).then(() => setRollbackReason("")).catch(() => undefined)}>{t("回滚到此版本")}</button></div>
+      <p className="rc-muted rc-wide-field">{t("提交后会直接把控制面 current 回滚到此历史版本，并保留完整事实链。")}</p>
+      <div className="rc-action-row rc-wide-field"><button className="rc-button" type="button" disabled={busy} onClick={() => void onActivation("rollback").catch(() => undefined)}>{t("回滚到此版本")}</button></div>
     </div> : null}
   </section>;
 }

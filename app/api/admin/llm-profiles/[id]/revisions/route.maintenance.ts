@@ -4,7 +4,7 @@ import {
 } from "@/lib/ai-control-plane-compatibility";
 import { requireAccessPermission, requireAnyAccessPermission } from "@/lib/access-control";
 import { getPostgresPool } from "@/lib/postgres";
-import { maintenanceCorrelation, maintenanceReason } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -26,7 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await readResearchJson(request, 4_096);
     const revisionId = typeof body.revisionId === "string" ? body.revisionId : "";
     const expectedCurrentRevisionId = typeof body.expectedCurrentRevisionId === "string" ? body.expectedCurrentRevisionId : "";
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.legacy_profile.rollback");
     if (!revisionId || !expectedCurrentRevisionId) throw new ResearchApiError("MODEL_ROLLBACK_INVALID", "目标修订和当前修订快照均为必填", 422);
     const result = await rollbackCompatibilityLlmProfileRevision(await getPostgresPool(), {
       profileId: id,

@@ -7,7 +7,7 @@ import {
 import { requireAccessPermission } from "@/lib/access-control";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
-import { maintenanceCorrelation, maintenanceReason } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { maintenanceLlmProfileView } from "@/lib/maintenance-model-view";
 import { requeueResearchRunsPausedForRoles } from "@/lib/postgres-research-queue";
 import { readResearchJson, researchErrorResponse } from "@/lib/research-api";
@@ -17,7 +17,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request, "maint.llm_profiles.manage");
     const body = await readResearchJson(request);
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.legacy_profile.update");
     const input = body as CompatibilityLlmProfileInput;
     const { id } = await params;
     const pool = await getPostgresPool();

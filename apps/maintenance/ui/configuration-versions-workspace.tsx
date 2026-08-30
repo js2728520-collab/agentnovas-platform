@@ -96,40 +96,40 @@ function ConfigurationVersionsControl({ payload, refresh, currentUserId, canMana
     await runInline(() => mutation("/api/maintenance/configuration-versions", command, "configuration-create"), t("不可变配置草稿已创建；后续修改需要创建新版本。"));
   }
 
-  async function recordTest(version: ConfigurationVersion, result: ConfigurationTestResult, evidenceSha256: string, reason: string) {
-    await runInline(() => mutation(`/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}/tests`, { result, evidenceSha256, reason }, `configuration-test:${version.id}:${result}`), t("测试证据已登记；这不代表浏览器执行了自动测试。"));
+  async function recordTest(version: ConfigurationVersion, result: ConfigurationTestResult, evidenceSha256: string) {
+    await runInline(() => mutation(`/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}/tests`, { result, evidenceSha256 }, `configuration-test:${version.id}:${result}`), t("测试证据已登记；这不代表浏览器执行了自动测试。"));
   }
 
-  async function runRegisteredTest(version: ConfigurationVersion, reason: string) {
+  async function runRegisteredTest(version: ConfigurationVersion) {
     await runInline(
-      () => mutation(`/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}/tests`, { reason }, `configuration-family-test:${version.id}`),
+      () => mutation(`/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}/tests`, {}, `configuration-family-test:${version.id}`),
       t("服务端确定性测试已通过，结果与证据已绑定到该不可变 payload。"),
     );
   }
 
-  async function review(version: ConfigurationVersion, decision: ConfigurationApprovalDecision, reason: string) {
+  async function review(version: ConfigurationVersion, decision: ConfigurationApprovalDecision) {
     const base = `/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}`;
     await runInline(
-      () => mutation(`${base}/approval`, { decision, reason }, `configuration-approval:${version.id}:${decision}`),
+      () => mutation(`${base}/approval`, { decision }, `configuration-approval:${version.id}:${decision}`),
       decision === "approve" ? t("独立审批已批准并记录。") : t("独立审批已拒绝并记录。"),
     );
   }
 
-  async function schedule(version: ConfigurationVersion, scheduledFor: string, reason: string) {
+  async function schedule(version: ConfigurationVersion, scheduledFor: string) {
     const base = `/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}`;
     await runInline(
-      () => mutation(`${base}/schedule`, { scheduledFor, reason }, `configuration-schedule:${version.id}`),
+      () => mutation(`${base}/schedule`, { scheduledFor }, `configuration-schedule:${version.id}`),
       t("生效时间已按明确时区登记。"),
     );
   }
 
-  async function activate(version: ConfigurationVersion, action: ConfigurationActivationAction, reason: string) {
+  async function activate(version: ConfigurationVersion, action: ConfigurationActivationAction) {
     const base = `/api/maintenance/configuration-versions/${encodeURIComponent(version.id)}`;
     const runtimeMessage = action === "activate"
       ? t("控制面 current 已切换；策略研究入口将在下一次请求按环境 Gate 与 current 功能开关共同判定。")
       : t("控制面已回滚；策略研究入口将在下一次请求按环境 Gate 与回滚版本共同判定。");
     await runInline(
-      () => mutation(`${base}/activation`, { action, reason }, `configuration-activation:${version.id}:${action}`),
+      () => mutation(`${base}/activation`, { action }, `configuration-activation:${version.id}:${action}`),
       controlsStrategyResearch(version)
         ? runtimeMessage
         : action === "activate" ? t("控制面 current 已切换；该配置族尚未接管具体运行时消费者。") : t("控制面已回滚到所选历史版本；该配置族尚未接管具体运行时消费者。"),
@@ -152,6 +152,6 @@ function ConfigurationVersionsControl({ payload, refresh, currentUserId, canMana
       {payload.nextCursor ? <div className="rc-action-row"><button className="rc-button" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? t("正在读取…") : t("加载更早版本")}</button></div> : null}
       {loadMoreError ? <div className="rc-live" role="alert">{loadMoreError}</div> : null}
     </section>
-    {selected ? <ConfigurationVersionDetailPanel version={selected} current={current} currentUserId={currentUserId} canManage={canManage} canApprove={canApprove} canActivate={canActivate} busy={busy} onTest={(result, evidence, reason) => recordTest(selected, result, evidence, reason)} onRegisteredTest={(reason) => runRegisteredTest(selected, reason)} onReview={(decision, reason) => review(selected, decision, reason)} onSchedule={(scheduledFor, reason) => schedule(selected, scheduledFor, reason)} onActivation={(action, reason) => activate(selected, action, reason)} /> : null}
+    {selected ? <ConfigurationVersionDetailPanel version={selected} current={current} currentUserId={currentUserId} canManage={canManage} canApprove={canApprove} canActivate={canActivate} busy={busy} onTest={(result, evidence) => recordTest(selected, result, evidence)} onRegisteredTest={() => runRegisteredTest(selected)} onReview={(decision) => review(selected, decision)} onSchedule={(scheduledFor) => schedule(selected, scheduledFor)} onActivation={(action) => activate(selected, action)} /> : null}
   </>;
 }

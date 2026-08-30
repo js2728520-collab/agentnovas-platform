@@ -176,7 +176,7 @@ export async function submitCommercialDisclosure(
     await client.query(`
       INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json)
       VALUES($1,$2,'commercial.disclosure.submitted','commercial_disclosure_publish_request',$3,'{}'::jsonb,$4::jsonb)
-    `, [randomUUID(), input.actorUserId, id, JSON.stringify({ snapshotSha256, locale: normalized.locale, documentTypes: normalized.documents.map((document) => document.type) })]);
+    `, [randomUUID(), input.actorUserId, id, JSON.stringify({ snapshotSha256, locale: normalized.locale, documentTypes: normalized.documents.map((document) => document.type), reason: normalized.reason, auditSource: "automatic" })]);
     return projectRequest(inserted.rows[0]);
   });
 }
@@ -260,7 +260,7 @@ export async function decideCommercialDisclosure(
     await client.query(`
       INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json)
       VALUES($1,$2,$3,'commercial_disclosure_publish_request',$4,$5::jsonb,$6::jsonb)
-    `, [randomUUID(),input.reviewerUserId,`commercial.disclosure.${decidedStatus}`,row.id,JSON.stringify({ status: "pending" }),JSON.stringify({ status: decidedStatus, snapshotSha256: row.snapshot_sha256, note })]);
+    `, [randomUUID(),input.reviewerUserId,`commercial.disclosure.${decidedStatus}`,row.id,JSON.stringify({ status: "pending" }),JSON.stringify({ status: decidedStatus, snapshotSha256: row.snapshot_sha256, note, auditSource: "automatic" })]);
     return projectRequest(updated.rows[0]);
   });
 }

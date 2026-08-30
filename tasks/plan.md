@@ -1,6 +1,6 @@
 # Implementation Plan：AgentNovas 全平台 V3 升级
 
-状态：M1 三端极简安全版已完成；可复用 AI 控制面候选实现与本地 Gate 已完成，等待用户合并确认
+状态：M1 三端极简安全版、可复用 AI 控制面候选和服务端自动审计迁移已完成，等待用户合并确认
 工作分支：`codex/ai-control-plane-reuse`（从 `62261ec` 独立工作树开始）
 需求真源：`docs/product/PRD.md`
 路线图：`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md`
@@ -15,6 +15,11 @@ Research/Runtime 外部调用与真实订单继续默认关闭。
 依赖顺序：Spec/ADR → 包合同 → PostgreSQL 迁移 → Broker/Gateway → AgentNovas facade/消费者 → UI/用量 →
 全量 Gate。候选分支已按该顺序完成并通过本地 Gate；合并前仍须等待用户确认、rebase 到最新文档分支并重跑
 全部 Gate。
+
+追加纵向修复：按 ADR-0029 移除三端通用手工审计原因，以服务端 allowlisted action、actor、subject、
+request/trace、幂等和结果自动留痕。旧 `reason` 列/API 仅作兼容，不再信任浏览器文字；资金、拒绝、事故、
+风控和 PII 用途等业务语义字段继续保留。实施顺序为 Spec/RED → 自动审计 helper → AI Profile 完整旅程 →
+其余通用配置/权限/账号/发布流程 → 全量 Gate。
 
 验收以 `docs/specs/AI_CONTROL_PLANE_COMPONENT_SPEC.md` 为真源；本切片不得发布 Registry、push、创建 PR、
 部署测试站或使用真实 Provider Key。

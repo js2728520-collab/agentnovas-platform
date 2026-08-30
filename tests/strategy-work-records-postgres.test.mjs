@@ -268,7 +268,6 @@ test("Maintenance export replays one identical result and writes one metadata-on
     idempotencyKey: "work-record-export-key-0001",
     from: "2026-08-01",
     to: "2026-08-31",
-    reason: "月末客户争议核查",
     requestId: "request-work-export-0001",
     traceId: "trace-work-export-0001",
     now: new Date("2026-08-31T12:00:00.000Z"),
@@ -295,7 +294,8 @@ test("Maintenance export replays one identical result and writes one metadata-on
     rowCount: 4,
     truncated: false,
     querySha256: auditMetadata.querySha256,
-    reason: "月末客户争议核查",
+    reason: "automatic:maintenance.work_records.export",
+    auditSource: "automatic",
   });
   assert.match(auditMetadata.querySha256, /^[a-f0-9]{64}$/);
   assert.equal("data" in auditMetadata, false);
@@ -303,7 +303,7 @@ test("Maintenance export replays one identical result and writes one metadata-on
   assert.equal(audit.rows[0].trace_id, input.traceId);
 
   await assert.rejects(
-    runMaintenanceWorkRecordExport(pool, { ...input, reason: "相同键绑定了不同请求" }),
+    runMaintenanceWorkRecordExport(pool, { ...input, to: "2026-08-30" }),
     (error) => error?.code === "IDEMPOTENCY_KEY_COLLISION" && error?.status === 409,
   );
 });

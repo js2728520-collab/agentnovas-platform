@@ -5,7 +5,7 @@ import {
 import { requireAccessPermission, requireAnyAccessPermission } from "@/lib/access-control";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
-import { maintenanceCorrelation, maintenanceReason } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import {
   readResearchJson,
   researchErrorResponse,
@@ -34,7 +34,7 @@ export async function PUT(request: Request) {
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request, "maint.agent_bindings.manage");
     const body = await readResearchJson(request);
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.legacy_runtime_binding.update");
     const pool = await getPostgresPool();
     const binding = await bindRuntimeExplanationRole(pool, {
       actorUserId: user.id,

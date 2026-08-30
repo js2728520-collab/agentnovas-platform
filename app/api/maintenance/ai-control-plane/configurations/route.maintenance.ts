@@ -2,7 +2,7 @@ import { requireAccessPermission } from "@/lib/access-control";
 import { saveConnectionDeployment } from "@/lib/ai-control-plane-repository";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { normalizeLlmBaseUrl } from "@/lib/llm-endpoint";
-import { maintenanceCorrelation,maintenanceReason } from "@/lib/maintenance-audit";
+import { automaticAuditReason,maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson,ResearchApiError,researchErrorResponse } from "@/lib/research-api";
 
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request,"maint.llm_profiles.manage");
     const body = await readResearchJson(request,32_768);
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.configuration.save");
     const correlation = maintenanceCorrelation(request);
     const rateCard = optionalRateCard(body);
     const result = await saveConnectionDeployment(await getPostgresPool(),{

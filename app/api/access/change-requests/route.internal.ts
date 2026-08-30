@@ -3,6 +3,7 @@ import { accessPageCursor, accessUserScopePredicate, parseAccessPageCursor, scop
 import { lockScopedRoleForTarget } from "@/lib/access-role-authorization";
 import { parseAccessChangeRequest } from "@/lib/access-change-requests";
 import { getPostgresPool } from "@/lib/postgres";
+import { automaticAuditReason } from "@/lib/maintenance-audit";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
 const requestStatuses = new Set(["pending", "approved", "rejected", "cancelled"]);
@@ -94,9 +95,17 @@ export async function POST(request: Request) {
   try {
     const viewer = await requireCurrentAccessViewer(request);
     const body = await readResearchJson(request);
-    const change = parseAccessChangeRequest(body);
-    const reason = String(body.reason ?? "").trim().slice(0, 500);
-    if (!reason) throw new ResearchApiError("VALIDATION_ERROR", "必须填写权限变更原因", 422, { fields: ["reason"] });
+    const reason = automaticAuditReason("internal.access.change_request");
+    const afterRecord = body.after && typeof body.after === "object" && !Array.isArray(body.after)
+      ? body.after as Record<string, unknown>
+      : null;
+    const change = parseAccessChangeRequest({
+      ...body,
+      reason,
+      ...((body.changeType === "role_assign" || body.changeType === "role_revoke") && afterRecord
+        ? { after: { ...afterRecord, reason } }
+        : {}),
+    });
     const authorization = change.changeType === "role_assign" || change.changeType === "role_revoke"
       ? await requireCurrentAccessAssignmentAdmin(request)
       : await requireCurrentAccessAdmin(request);
@@ -165,6 +174,11 @@ export async function POST(request: Request) {
       `, [crypto.randomUUID(), change.applicationId, change.targetUserId, change.targetRoleId,
         change.changeType, JSON.stringify(change.before), JSON.stringify(change.after), user.id,
         reason]);
+      await client.query(`
+        INSERT INTO authorization_audit_events
+          (id, actor_user_id, application_id, action, subject_type, subject_id, before_json, after_json)
+        VALUES ($1, $2, $3, 'access_change.requested', 'access_change_request', $4, $5::jsonb, $6::jsonb)
+      `, [crypto.randomUUID(), user.id, appId, result.rows[0].id, JSON.stringify(change.before), JSON.stringify({ changeType: change.changeType, targetUserId: change.targetUserId, targetRoleId: change.targetRoleId, reason, auditSource: "automatic" })]);
       await client.query("COMMIT");
       return Response.json({ changeRequest: result.rows[0] }, { status: 201 });
     } catch (error) {

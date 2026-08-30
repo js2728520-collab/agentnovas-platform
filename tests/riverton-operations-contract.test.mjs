@@ -65,5 +65,7 @@ test("RBAC viewers, assignees and reviewers are authorized independently", async
   assert.doesNotMatch(decisions, /审批人不具备该应用的角色管理权限/);
   assert.match(revoke, /角色撤销必须提交权限变更申请/);
   assert.doesNotMatch(revoke, /UPDATE user_role_assignments/);
-  assert.match(await read("app/api/access/change-requests/route.internal.ts"), /必须填写权限变更原因/);
+  const changeRequests = await read("app/api/access/change-requests/route.internal.ts");
+  assert.match(changeRequests, /automaticAuditReason\("internal\.access\.change_request"\)/);
+  assert.doesNotMatch(changeRequests, /必须填写权限变更原因/);
 });

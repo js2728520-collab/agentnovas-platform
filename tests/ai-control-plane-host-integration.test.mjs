@@ -20,7 +20,8 @@ test("Maintenance exposes a bounded redacted control-plane API surface", async (
   assert.doesNotMatch(snapshot,/secret_ref|endpoint|ciphertext|provider_request_id/i);
   for (const source of [configurations,secretCommands,bindings,probes,budgets,rollback]) {
     assert.match(source,/requireAccessPermission/);
-    assert.match(source,/maintenanceReason/);
+    assert.match(source,/automaticAuditReason/);
+    assert.doesNotMatch(source,/body\.reason/);
     assert.doesNotMatch(source,/decryptLlmProfileSecret|encryptLlmProfileSecret/);
   }
   assert.match(secretKey,/readActiveSecretBrokerKey/);

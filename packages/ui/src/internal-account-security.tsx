@@ -42,7 +42,7 @@ export function InternalAccountSecurity() {
     window.setTimeout(() => resultRef.current?.focus(), 0);
   }
 
-  async function submit(reason: string) {
+  async function submit() {
     if (!dialog || busy) return;
     setBusy(true);
     setMessage("");
@@ -51,7 +51,7 @@ export function InternalAccountSecurity() {
         const response = await fetch("/api/auth/mfa/recovery-codes", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ reason }),
+          body: JSON.stringify({}),
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(apiErrorMessage(payload, t("恢复码轮换失败")));
@@ -62,7 +62,7 @@ export function InternalAccountSecurity() {
         const response = await fetch("/api/account/sessions", {
           method: "DELETE",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ sessionId: dialog.id, reason }),
+          body: JSON.stringify({ sessionId: dialog.id }),
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(apiErrorMessage(payload, t("会话撤销失败")));
@@ -108,6 +108,6 @@ export function InternalAccountSecurity() {
         </article>)}
       </div>}
     </section>
-    <ConfirmActionDialog open={dialog !== null} title={dialog === "rotate" ? "轮换全部恢复码" : "撤销登录设备"} description={dialog === "rotate" ? "提交后全部旧的未使用恢复码立即失效，新码只显示一次。" : "该设备会立即失去访问权限，审计记录仍会保留。"} confirmLabel="确认执行" busy={busy} onCancel={() => setDialog(null)} onConfirm={(reason) => void submit(reason)} />
+    <ConfirmActionDialog open={dialog !== null} title={dialog === "rotate" ? "轮换全部恢复码" : "撤销登录设备"} description={dialog === "rotate" ? "提交后全部旧的未使用恢复码立即失效，新码只显示一次。" : "该设备会立即失去访问权限，服务端自动保留审计记录。"} confirmLabel="确认执行" busy={busy} onCancel={() => setDialog(null)} onConfirm={() => void submit()} />
   </>;
 }

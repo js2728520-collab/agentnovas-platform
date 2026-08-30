@@ -2,10 +2,12 @@ import type { Pool } from "pg";
 
 import { ResearchApiError } from "./research-errors.ts";
 
-export function maintenanceReason(value: unknown) {
-  const reason = String(value ?? "").trim().slice(0, 500);
-  if (!reason) throw new ResearchApiError("VALIDATION_ERROR", "必须填写运维变更原因", 422, { fields: ["reason"] });
-  return reason;
+export function automaticAuditReason(action: string) {
+  const normalized = action.trim();
+  if (!/^[a-z][a-z0-9_]*(?:[.:][a-z][a-z0-9_]*){1,11}$/.test(normalized) || normalized.length > 180) {
+    throw new ResearchApiError("AUTOMATIC_AUDIT_ACTION_INVALID", "自动审计动作无效", 500);
+  }
+  return `automatic:${normalized}`;
 }
 
 function safeCorrelationId(value: string | null) {
@@ -25,11 +27,11 @@ export async function recordMaintenanceAudit(pool: Pick<Pool, "query">, input: {
   action: string;
   subjectType: string;
   subjectId: string;
-  reason: string;
   requestId?: string | null;
   traceId?: string | null;
   errorCode?: string | null;
 }) {
+  const reason = automaticAuditReason(input.action);
   await pool.query(`
     INSERT INTO audit_logs (
       id, actor_user_id, action, subject_type, subject_id, after_json,
@@ -37,7 +39,11 @@ export async function recordMaintenanceAudit(pool: Pick<Pool, "query">, input: {
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
   `, [
     crypto.randomUUID(), input.actorUserId, input.action, input.subjectType,
-    input.subjectId, JSON.stringify({ reason: input.reason }),
+    input.subjectId, JSON.stringify({
+      reason,
+      auditSource: "automatic",
+      action: input.action,
+    }),
     input.requestId ?? null, input.traceId ?? null, input.errorCode ?? null,
   ]);
 }

@@ -1,5 +1,6 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { commercialJson, idempotencyKey, requestId } from "@/lib/commercial-api";
+import { automaticAuditReason } from "@/lib/maintenance-audit";
 import { invokeRestrictedCicdControlGateway } from "@/lib/restricted-cicd-control-gateway-client";
 import { researchErrorResponse } from "@/lib/research-api";
 
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
     return Response.json(await invokeRestrictedCicdControlGateway({ request, operation: "activation.request",
       actorUserId: user.id, idempotencyKey: idempotencyKey(request), requestId: requestId(request),
       sessionSecret,
-      body: await commercialJson(request, 16_384),
+      body: { ...await commercialJson(request, 16_384), reason: automaticAuditReason("maintenance.release_workflow.activation.request") },
     }), { status: 201, headers: { "cache-control": "no-store" } });
   } catch (error) { return researchErrorResponse(error, request); }
 }

@@ -6,7 +6,7 @@ import {
 import { requireAccessPermission, requireAnyAccessPermission } from "@/lib/access-control";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
-import { maintenanceCorrelation, maintenanceReason } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { maintenanceLlmProfileView } from "@/lib/maintenance-model-view";
 import { readResearchJson, researchErrorResponse } from "@/lib/research-api";
 
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request, "maint.llm_profiles.manage");
     const body = await readResearchJson(request);
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.legacy_profile.create");
     const input = body as CompatibilityLlmProfileInput;
     const pool = await getPostgresPool();
     const profile = await saveCompatibilityLlmProfile(pool, {

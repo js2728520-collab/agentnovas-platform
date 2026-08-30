@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import type { ConfigurationAudience, ConfigurationKind } from "@/lib/versioned-configuration-domain";
-import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 import {
   configurationAudiences,
@@ -20,7 +19,6 @@ type DraftCommand = {
   audience: ConfigurationAudience;
   schemaVersion: number;
   payload: Record<string, unknown>;
-  reason: string;
 };
 
 const STRATEGY_RESEARCH_FLAG = {
@@ -56,7 +54,6 @@ export function ConfigurationVersionCreatePanel({ busy, onCreate, report }: {
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [payload, setPayload] = useState("{}");
-  const [reason, setReason] = useState("");
   const registeredFeatureFlag = kind === "feature_flag";
   const targetedFeatureFlag = registeredFeatureFlag && featureScope === "targeted";
 
@@ -93,7 +90,6 @@ export function ConfigurationVersionCreatePanel({ busy, onCreate, report }: {
             audience,
             schemaVersion: targetedFeatureFlag ? 2 : 1,
             payload: targetedFeatureFlag ? targetedPayload() : { enabled: featureEnabled },
-            reason,
           }
         : {
             kind,
@@ -101,10 +97,8 @@ export function ConfigurationVersionCreatePanel({ busy, onCreate, report }: {
             audience,
             schemaVersion,
             payload: parseConfigurationPayload(payload),
-            reason,
           };
       await onCreate(command);
-      setReason("");
     } catch (error) {
       report(error instanceof Error ? error.message : t("配置草稿创建失败"));
     }
@@ -134,7 +128,7 @@ export function ConfigurationVersionCreatePanel({ busy, onCreate, report }: {
   );
 
   return <section className="rc-panel">
-    <header><div><small>IMMUTABLE DRAFT</small><h2>{t("创建配置草稿")}</h2><p>{t("普通草稿会直接创建并记录原因；内容创建后不可覆盖，修改请创建下一版本。")}</p></div></header>
+    <header><div><small>IMMUTABLE DRAFT</small><h2>{t("创建配置草稿")}</h2><p>{t("普通草稿会直接创建并由服务端自动留痕；内容创建后不可覆盖，修改请创建下一版本。")}</p></div></header>
     <div className="rc-form rc-form-grid">
       <label>{t("配置类型")}<select value={kind} onChange={(event) => changeKind(event.target.value as ConfigurationKind)}>{configurationKinds.map((value) => <option key={value}>{value}</option>)}</select></label>
       <label>{t("作用端")}<select value={audience} disabled={registeredFeatureFlag} onChange={(event) => setAudience(event.target.value as ConfigurationAudience)}>{configurationAudiences.map((value) => <option key={value}>{value}</option>)}</select></label>
@@ -156,8 +150,7 @@ export function ConfigurationVersionCreatePanel({ busy, onCreate, report }: {
             <p className="rc-muted rc-wide-field">{t("主体（用户/组织任一）与版本、百分比、独立时窗各维度必须同时满足。环境 Gate 始终拥有最终上限。")}</p>
           </>}
       </> : <label className="rc-wide-field">{t("非秘密 JSON payload")}<textarea spellCheck={false} rows={9} value={payload} onChange={(event) => setPayload(event.target.value)} /><small>{t("不能保存 secret、password、token、API key、private key 或凭证字段，最大 64 KiB。")}</small></label>}
-      <InlineAuditReasonField id="configuration-draft-reason" value={reason} onChange={setReason} label={t("草稿创建原因")} />
-      <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !validKey || !targetingValid || !hasValidAuditReason(reason)} onClick={() => void submit()}>{busy ? t("正在创建…") : t("直接创建草稿")}</button></div>
+      <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={busy || !validKey || !targetingValid} onClick={() => void submit()}>{busy ? t("正在创建…") : t("直接创建草稿")}</button></div>
     </div>
   </section>;
 }

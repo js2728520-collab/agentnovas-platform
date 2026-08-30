@@ -5,6 +5,11 @@
 
 ## 当前切片：可复用 AI 控制面
 
+- [x] 按 ADR-0029 移除全部通用手工审计原因并改为服务端自动审计；保留资金、拒绝、事故、风控和 PII 用途等业务说明。
+- [x] 修复模型 Profile：测试成功后不再因审计原因缺失而禁用保存；新旧 AI API 均忽略旧通用 `reason`。
+- [x] 迁移 Maintenance 配置/集成/发布/导出、共享权限中心及 Operations 普通账号/组织管理流程。
+- [x] 完成自动审计合同、兼容、类型/lint/安全/三端构建与浏览器回归 Gate。
+
 - [x] 冻结组件 Spec、ADR、威胁模型、角色目录、fallback 与迁移/回滚边界。
 - [x] 建立 core/React 两个 `0.1.0` 内部包、RED 测试、构建和 tarball 安装验收。
 - [x] 实现 `0093_ai_control_plane.sql` 与旧 Profile/绑定原地兼容迁移。

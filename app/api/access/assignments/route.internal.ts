@@ -2,6 +2,7 @@ import { requireCurrentAccessAssignmentAdmin, requireCurrentAccessViewer } from 
 import { accessPageCursor, accessUserScopePredicate, parseAccessPageCursor, scopeCanDelegate } from "@/lib/access-center-scope";
 import { lockScopedRoleForTarget } from "@/lib/access-role-authorization";
 import { getPostgresPool } from "@/lib/postgres";
+import { automaticAuditReason } from "@/lib/maintenance-audit";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
 export async function GET(request: Request) {
@@ -131,10 +132,15 @@ export async function POST(request: Request) {
         role.application_id,
         body.expiresAt ? String(body.expiresAt) : null,
         user.id,
-        String(body.reason ?? "").slice(0, 500),
+        automaticAuditReason("internal.access.role.assign"),
         targetUserId,
       ]);
       if (!result.rows[0]) throw new ResearchApiError("CONFLICT", "用户或角色状态已变化", 409);
+      await client.query(`
+        INSERT INTO authorization_audit_events
+          (id, actor_user_id, application_id, action, subject_type, subject_id, before_json, after_json)
+        VALUES ($1, $2, $3, 'role.assign', 'user_role_assignment', $4, '{}'::jsonb, $5::jsonb)
+      `, [crypto.randomUUID(), user.id, appId, result.rows[0].id, JSON.stringify({ userId: targetUserId, roleId, status: "active", auditSource: "automatic" })]);
       await client.query("COMMIT");
       return Response.json({ assignment: result.rows[0] }, { status: 201 });
     } catch (error) {

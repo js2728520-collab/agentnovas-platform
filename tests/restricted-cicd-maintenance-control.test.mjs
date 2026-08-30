@@ -88,7 +88,7 @@ test("T8.2c UI communicates default-off behavior and uses accessible inline cont
   assert.match(ui, /Worker、Ingress、目标网关和专用 workflow 未通过 G7 前仍保持关闭/);
   assert.match(ui, /aria-live="polite"/);
   assert.match(ui, /aria-label="受限发布环境状态"/);
-  assert.match(ui, /InlineAuditReasonField/);
+  assert.doesNotMatch(ui, /InlineAuditReasonField|hasValidAuditReason|reason:\s*reason\.trim/);
   assert.match(ui, /structuredClone\(input\.body\)/);
   assert.match(ui, /pending\?\.body \?\? input\.body/);
   assert.match(ui, /requestId: crypto\.randomUUID\(\)/);

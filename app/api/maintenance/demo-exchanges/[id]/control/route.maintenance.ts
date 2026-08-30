@@ -9,7 +9,7 @@ import {
   completedPlatformDemoCommandResponse,
 } from "@/lib/platform-demo-admin-commands";
 import { idempotencyKey } from "@/lib/commercial-api";
-import { maintenanceCorrelation } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import {
   readResearchJson,
   ResearchApiError,
@@ -29,12 +29,6 @@ function controlInput(body: Record<string, unknown>) {
       fields: ["action"],
     });
   }
-  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
-  if (reason.length < 8 || reason.length > 500) {
-    throw new ResearchApiError("VALIDATION_ERROR", "reason 需为 8 到 500 个字符", 422, {
-      fields: ["reason"],
-    });
-  }
   const strategyCode =
     typeof body.strategyCode === "string" ? body.strategyCode.trim() : "";
   if (
@@ -45,7 +39,11 @@ function controlInput(body: Record<string, unknown>) {
       fields: ["strategyCode"],
     });
   }
-  return { action, reason, strategyCode: strategyCode || null };
+  return {
+    action,
+    reason: automaticAuditReason(`maintenance.demo.${action}`),
+    strategyCode: strategyCode || null,
+  };
 }
 
 export async function POST(
