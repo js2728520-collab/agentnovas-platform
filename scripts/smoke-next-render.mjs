@@ -60,10 +60,10 @@ try {
   assert.match(landingResponse.headers.get("content-type") || "", /^text\/html\b/i);
   const landing = await landingResponse.text();
   assert.match(landing, /Riverton Capital/i);
-  // 落地页的主视觉是七阶段决策链（ADR-0018）。服务端渲染出来才算数——
-  // 只靠 <title> 无法区分「渲染成功」和「壳子返回了但内容没渲染」。
-  assert.match(landing, /一支为你工作的 AI 量化团队/);
-  assert.match(landing, /市场分析师/);
+  // Client 默认英语。落地页的主视觉是七阶段决策链（ADR-0018），服务端渲染
+  // 出来才算数——只靠 <title> 无法区分「渲染成功」和「壳子返回了但内容没渲染」。
+  assert.match(landing, /An AI quant team working for you/);
+  assert.match(landing, /Market Analyst/);
   // 落地页不得混入门户外壳：那会让匿名访客看到会话验证态而不是营销页。
   assert.doesNotMatch(landing, /正在验证客户端会话/);
   assert.doesNotMatch(landing, /name=["']codex-preview["']/i);
@@ -73,7 +73,7 @@ try {
   assert.match(portal, /Riverton Capital/i);
   // 未登录访问门户路由应当渲染会话验证态，而不是把落地页当兜底。
   assert.match(portal, /正在验证客户端会话/);
-  assert.doesNotMatch(portal, /一支为你工作的 AI 量化团队/);
+  assert.doesNotMatch(portal, /An AI quant team working for you/);
 
   console.log(`Client production HTML smoke passed on port ${port}.`);
 } finally {

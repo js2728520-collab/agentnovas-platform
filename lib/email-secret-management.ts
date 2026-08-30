@@ -4,7 +4,7 @@ import type { Pool, PoolClient } from "pg";
 
 import type { EmailSecretEnvelope, EmailSecretOperation } from "../packages/notifications/src/email-service-management.ts";
 import { maskEmailAddress } from "../packages/notifications/src/email-service-management.ts";
-import { maintenanceCorrelation, recordMaintenanceAudit } from "./maintenance-audit.ts";
+import { automaticAuditReason, maintenanceCorrelation, recordMaintenanceAudit } from "./maintenance-audit.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
 type Queryable = Pick<Pool | PoolClient,"query">;
@@ -119,7 +119,6 @@ export async function createEmailSecretRequest(client: PoolClient,input: {
   actorUserId: string;
   operation: EmailSecretOperation;
   envelope: EmailSecretEnvelope;
-  reason: string;
   request: Request;
   environment?: Environment;
 }) {
@@ -136,18 +135,19 @@ export async function createEmailSecretRequest(client: PoolClient,input: {
     WHERE status='pending'`);
   const id = crypto.randomUUID();
   const correlation = maintenanceCorrelation(input.request);
+  const auditAction = `maintenance.email_secret.${input.operation}_requested`;
+  const reason = automaticAuditReason(auditAction);
   await client.query(`INSERT INTO notification_email_secret_requests(
     id,operation,key_id,envelope_json,status,requested_by_user_id,reason,request_id,trace_id
   ) VALUES($1,$2,$3,$4::jsonb,'pending',$5,$6,$7,$8)`,[
     id,input.operation,input.envelope.keyId,JSON.stringify(input.envelope),input.actorUserId,
-    input.reason,correlation.requestId,correlation.traceId,
+    reason,correlation.requestId,correlation.traceId,
   ]);
   await recordMaintenanceAudit(client,{
     actorUserId: input.actorUserId,
-    action: `maintenance.email_secret.${input.operation}_requested`,
+    action: auditAction,
     subjectType: "notification_email_secret_request",
     subjectId: id,
-    reason: input.reason,
     ...correlation,
   });
   return { request: safeRequest(await latestSecretRequest(client)) };

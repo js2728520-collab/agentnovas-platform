@@ -12,28 +12,23 @@ test("invitation links regenerate directly with an inline invalidation warning",
   assert.match(source, /当前链接立即失效/);
 });
 
-test("organization configuration uses one inline audit reason and direct actions", async () => {
+test("organization configuration submits direct actions with server-owned audit", async () => {
   const source = await read("apps/operations/ui/organization-workspace.tsx");
 
   assert.doesNotMatch(source, /ConfirmActionDialog|PendingAction|setPending/);
-  assert.match(source, /const \[auditReason, setAuditReason\] = useState\(""\)/);
-  assert.match(source, /审计原因（3–500 字）/);
-  assert.match(source, /maxLength=\{500\}/);
-  assert.match(source, /auditReason\.trim\(\)\.length >= 3/);
-  assert.match(source, /reason\.length < 3/);
-  assert.match(source, /body: JSON\.stringify\([^]*reason/);
+  assert.doesNotMatch(source, /auditReason|审计原因|reasonReady/);
+  assert.doesNotMatch(source, /body: JSON\.stringify\([^]*reason/);
+  assert.match(source, /disabled=\{busy/);
 });
 
-test("account lifecycle actions submit directly from one inline audit reason", async () => {
+test("account lifecycle actions submit directly with server-owned audit", async () => {
   const source = await read("apps/operations/ui/accounts-workspace.tsx");
 
   assert.doesNotMatch(source, /ConfirmActionDialog|setPending|pending/);
-  assert.match(source, /const \[auditReason, setAuditReason\] = useState\(""\)/);
-  assert.match(source, /账号生命周期审计原因（3–500 字）/);
-  assert.match(source, /auditReason\.trim\(\)\.length >= 3/);
-  assert.match(source, /reason\.length < 3/);
-  assert.match(source, /changeStatus\(account, auditReason\)/);
+  assert.doesNotMatch(source, /auditReason|审计原因|reasonReady/);
+  assert.match(source, /changeStatus\(account\)/);
   assert.match(source, /停用会立即撤销/);
+  assert.match(source, /服务端自动留痕/);
 });
 
 test("relationship reinvite and strategy rollback have no native confirmation", async () => {

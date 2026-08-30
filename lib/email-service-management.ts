@@ -263,7 +263,6 @@ function configurationError(error: unknown) {
 type EmailServiceConfigurationInput = {
   actorUserId: string;
   action: EmailConfigurationAction;
-  reason: string;
   request: Request;
   webhookSecretPresent: boolean;
 };
@@ -311,7 +310,6 @@ export async function applyEmailServiceConfiguration(client: PoolClient, input: 
     action: `maintenance.email_configuration.${input.action}`,
     subjectType: "notification_provider_config",
     subjectId: provider.id,
-    reason: input.reason,
     ...correlation,
   });
   return {

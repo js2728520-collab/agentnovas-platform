@@ -2,7 +2,7 @@ import { requireAccessPermission } from "@/lib/access-control";
 import { verifyPlatformDemoAccount } from "@/lib/platform-demo-execution";
 import { getPostgresPool } from "@/lib/postgres";
 import { idempotencyKey } from "@/lib/commercial-api";
-import { maintenanceCorrelation } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import {
   claimPlatformDemoAdminCommand,
   completePlatformDemoAdminCommand,
@@ -30,13 +30,8 @@ export async function POST(
         503,
       );
     }
-    const body = await readResearchJson(request, 4_096);
-    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
-    if (reason.length < 8 || reason.length > 500) {
-      throw new ResearchApiError("VALIDATION_ERROR", "reason 需为 8 到 500 个字符", 422, {
-        fields: ["reason"],
-      });
-    }
+    await readResearchJson(request, 4_096);
+    const reason = automaticAuditReason("maintenance.demo.verify");
     const { id } = await params;
     const commandKey = idempotencyKey(request);
     const pool = await getPostgresPool();

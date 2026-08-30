@@ -34,7 +34,6 @@ export function WorkRecordExportWorkspace() {
   const retryBinding = useRef<{ signature: string; key: string } | null>(null);
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
-  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ExportResult | null>(null);
@@ -49,7 +48,7 @@ export function WorkRecordExportWorkspace() {
   async function exportRecords(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const body = { from, to, reason: reason.trim() };
+    const body = { from, to };
     const signature = JSON.stringify(body);
     if (!retryBinding.current || retryBinding.current.signature !== signature) {
       retryBinding.current = { signature, key: `work-record-export:${crypto.randomUUID()}` };
@@ -86,8 +85,7 @@ export function WorkRecordExportWorkspace() {
     }
   }
 
-  const reasonLength = reason.trim().length;
-  const ready = Boolean(from && to && reasonLength >= 3 && reasonLength <= 500 && !busy);
+  const ready = Boolean(from && to && !busy);
   return <>
     <PageHeading
       eyebrow="CONTROLLED WORK-RECORD EXPORT"
@@ -95,12 +93,11 @@ export function WorkRecordExportWorkspace() {
       description={t("只导出安全视图中的伪名客户与业务白名单字段；不包含原始用户 ID、客户资料、模型内容、错误原文或任何凭证。")}
     />
     <section className="rc-panel" aria-labelledby="work-record-export-title">
-      <header><div><small>UTC · MAX 31 DAYS · MAX 1,000 ROWS</small><h2 id="work-record-export-title">{t("导出范围与审计原因")}</h2><p>{t("原因常驻页面，提交后直接生成 JSON，不使用二次确认弹窗。")}</p></div><StatusBadge value={t("敏感权限")} /></header>
+      <header><div><small>UTC · MAX 31 DAYS · MAX 1,000 ROWS</small><h2 id="work-record-export-title">{t("导出范围")}</h2><p>{t("提交后直接生成脱敏 JSON；操作者、范围、请求标识和结果由服务端自动留痕。")}</p></div><StatusBadge value={t("敏感权限")} /></header>
       <form className="rc-filter-grid" onSubmit={exportRecords}>
         <label>{t("开始日期（UTC）")}<input required type="date" value={from} max={to} onChange={(event) => updateField(() => setFrom(event.target.value))} /></label>
         <label>{t("结束日期（UTC）")}<input required type="date" value={to} min={from} onChange={(event) => updateField(() => setTo(event.target.value))} /></label>
-        <label className="rc-wide-field">{t("导出原因（3–500 字）")}<textarea required minLength={3} maxLength={500} rows={4} value={reason} onChange={(event) => updateField(() => setReason(event.target.value))} /></label>
-        <div className="rc-action-row"><button className="rc-primary" type="submit" disabled={!ready}>{busy ? t("正在生成…") : t("生成并下载脱敏 JSON")}</button><span className="rc-muted">{reasonLength}/500 {t("字")}</span></div>
+        <div className="rc-action-row"><button className="rc-primary" type="submit" disabled={!ready}>{busy ? t("正在生成…") : t("生成并下载脱敏 JSON")}</button></div>
       </form>
       <div className="rc-live" aria-live="polite" aria-atomic="true">
         {busy ? <p>{t("正在查询安全投影并写入追加式审计…")}</p> : null}

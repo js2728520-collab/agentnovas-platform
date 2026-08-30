@@ -6,18 +6,18 @@ import { useSearchParams } from "next/navigation";
 import { AccessDenied } from "@/packages/ui/src/page-state";
 import { useAppSessionContext } from "@/packages/ui/src/app-session-context";
 import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
-import { AppPreferenceSettings } from "@/packages/ui/src/app-preference-settings";
 import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
-import { ClientHomeWorkspace } from "./client-home-workspace";
-import { ClientHubTabs } from "./client-hub-tabs";
-import { StrategyCenterUnavailable } from "./strategy-center-unavailable";
 import {
   resolveAccountCenterTab,
   resolveSettingsTab,
   resolveTradingTab,
 } from "./client-information-architecture";
 
+const AppPreferenceSettings = dynamic(() => import("@/packages/ui/src/app-preference-settings").then((module) => module.AppPreferenceSettings));
+const ClientHomeWorkspace = dynamic(() => import("./client-home-workspace").then((module) => module.ClientHomeWorkspace));
+const ClientHubTabs = dynamic(() => import("./client-hub-tabs").then((module) => module.ClientHubTabs));
+const StrategyCenterUnavailable = dynamic(() => import("./strategy-center-unavailable").then((module) => module.StrategyCenterUnavailable));
 const CreditWorkspace = dynamic(() => import("./credit-workspace").then((module) => module.CreditWorkspace));
 const DepositWorkspace = dynamic(() => import("./deposit-workspace").then((module) => module.DepositWorkspace));
 const LegalConsentExperience = dynamic(() => import("./legal-consent-experience").then((module) => module.LegalConsentExperience));

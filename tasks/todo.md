@@ -1,7 +1,25 @@
 # AgentNovas 全平台 V3 任务看板
 
-分支：`codex/platform-v3-doc-sync`
+分支：`codex/ai-control-plane-reuse`
 状态说明：`[x]` 已完成并有证据；`[-]` 正在进行；`[ ]` 未开始；`[!]` 等待需求方/外部条件；`[B]` 安全或规则阻断。
+
+## 当前切片：可复用 AI 控制面
+
+- [x] 按 ADR-0029 移除全部通用手工审计原因并改为服务端自动审计；保留资金、拒绝、事故、风控和 PII 用途等业务说明。
+- [x] 修复模型 Profile：测试成功后不再因审计原因缺失而禁用保存；新旧 AI API 均忽略旧通用 `reason`。
+- [x] 迁移 Maintenance 配置/集成/发布/导出、共享权限中心及 Operations 普通账号/组织管理流程。
+- [x] 完成自动审计合同、兼容、类型/lint/安全/三端构建与浏览器回归 Gate。
+
+- [x] 冻结组件 Spec、ADR、威胁模型、角色目录、fallback 与迁移/回滚边界。
+- [x] 建立 core/React 两个 `0.1.0` 内部包、RED 测试、构建和 tarball 安装验收。
+- [x] 实现 `0093_ai_control_plane.sql` 与旧 Profile/绑定原地兼容迁移。
+- [x] 实现 `0094_ai_secret_custody.sql`、Secret Broker、离线旧 Key 迁移和 key-custody Gate。
+- [x] 实现 loopback AI Gateway、OpenAI-compatible adapter、幂等、取消、fallback 与 Fake Provider 测试。
+- [x] 接入 12 角色、旧 API facade、Client/Research/Runtime 调用与统一 Usage Event。
+- [x] 升级 `/ai-strategy` 模型/用量 UI、测试凭据、健康状态、软预算和告警。
+- [x] 完成 package/test/type/lint/security/三端 build/browser Gate，并形成候选验收证据。
+- [!] 等待用户确认后 rebase 到最新 `codex/platform-v3-doc-sync`；原工作区未提交邮件/支付改动必须先由其所有者处理。
+- [!] rebase 后重跑全部 Gate，用户再次确认后才允许本地 fast-forward merge 和关闭工作树。
 
 ## Phase 0：文档、参数与计划
 

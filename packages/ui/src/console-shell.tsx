@@ -14,7 +14,7 @@ import {
 } from "@/packages/contracts/src/riverton-ui";
 
 import { Icon, isIconName } from "./icon";
-import { useAppLocale } from "./app-locale-context";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 function isActivePath(pathname: string, href: string) {
   const path = href.split("?")[0] || "/";

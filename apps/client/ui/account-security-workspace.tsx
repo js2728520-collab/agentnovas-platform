@@ -93,12 +93,12 @@ export function AccountSecurityWorkspace({ viewer, section = "security" }: { vie
     }
   }
 
-  async function revokeSession(reason: string) {
+  async function revokeSession() {
     if (!revoking || busy) return;
     setBusy(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/account/sessions", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: revoking.id, reason }) });
+      const response = await fetch("/api/account/sessions", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: revoking.id }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, t("会话撤销失败")));
       setRevoking(null);
@@ -111,7 +111,7 @@ export function AccountSecurityWorkspace({ viewer, section = "security" }: { vie
     }
   }
 
-  async function revokeAllSessions(reason: string) {
+  async function revokeAllSessions() {
     if (busy) return;
     setBusy(true);
     setMessage(null);
@@ -119,7 +119,7 @@ export function AccountSecurityWorkspace({ viewer, section = "security" }: { vie
       const response = await fetch("/api/account/sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({}),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, t("全部设备退出失败")));
@@ -167,8 +167,8 @@ export function AccountSecurityWorkspace({ viewer, section = "security" }: { vie
       <header><div><small>ACTIVE SESSIONS</small><h2>{t("登录设备（最多 5 台）")}</h2></div><div className="rc-action-row"><button className="rc-button" type="button" onClick={() => void sessions.refresh()}>{t("重新读取")}</button><button className="rc-button" type="button" disabled={busy} onClick={() => setRevokeAllOpen(true)}>{t("退出全部设备")}</button></div></header>
       {sessions.loading && !sessions.data ? <LoadingState label="正在读取登录设备…" /> : sessions.error && !sessions.data ? <ErrorState message={sessions.error} retry={sessions.refresh} /> : <div className="rc-card-grid">{sessions.data?.sessions.length ? sessions.data.sessions.map((session) => <article className="rc-card" key={session.id}><header><StatusBadge value={session.current ? t("当前设备") : session.audience} /><time>{formatDateTime(session.lastSeenAt ?? session.createdAt, locale)}</time></header><h3>{session.device}</h3><p>{session.maskedIpAddress ?? t("未记录网络地址")}</p><dl><div><dt>{t("登录时间")}</dt><dd>{formatDateTime(session.createdAt, locale)}</dd></div><div><dt>{t("最长有效期")}</dt><dd>{formatDateTime(session.absoluteExpiresAt, locale)}</dd></div></dl>{session.current ? <p className="rc-muted">{t("当前设备请使用左侧“退出”。")}</p> : <footer><button className="rc-button" type="button" disabled={busy} onClick={() => setRevoking(session)}>{t("撤销此设备")}</button></footer>}</article>) : <p>{t("当前没有可展示的登录会话。")}</p>}</div>}
     </section>
-    <ConfirmActionDialog open={revoking !== null} title="撤销登录设备" description="该设备会立即失去会话权限；历史审计记录会保留。" confirmLabel="确认撤销" busy={busy} onCancel={() => setRevoking(null)} onConfirm={(reason) => void revokeSession(reason)} />
-    <ConfirmActionDialog open={revokeAllOpen} title="退出全部设备" description="当前设备和其他所有 Client 会话都会立即失效；历史审计记录会保留。" confirmLabel="确认全部退出" busy={busy} onCancel={() => setRevokeAllOpen(false)} onConfirm={(reason) => void revokeAllSessions(reason)} />
+    <ConfirmActionDialog open={revoking !== null} title="撤销登录设备" description="该设备会立即失去会话权限；服务端自动保留审计记录。" confirmLabel="确认撤销" busy={busy} onCancel={() => setRevoking(null)} onConfirm={() => void revokeSession()} />
+    <ConfirmActionDialog open={revokeAllOpen} title="退出全部设备" description="当前设备和其他所有 Client 会话都会立即失效；服务端自动保留审计记录。" confirmLabel="确认全部退出" busy={busy} onCancel={() => setRevokeAllOpen(false)} onConfirm={() => void revokeAllSessions()} />
     </>}
   </>;
 }

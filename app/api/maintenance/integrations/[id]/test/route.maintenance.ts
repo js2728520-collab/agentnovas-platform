@@ -1,6 +1,6 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { idempotencyKey } from "@/lib/commercial-api";
-import { maintenanceCorrelation } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { runIdempotentMaintenanceSourceIntegrationCheck } from "@/lib/maintenance-integration-catalog";
 import { getPostgresPool } from "@/lib/postgres";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
@@ -9,8 +9,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { user } = await requireAccessPermission(request, "maint.feature_flags.manage");
     const { id } = await params;
-    const body = await readResearchJson(request, 4_096);
-    const reason = typeof body.reason === "string" ? body.reason : "";
+    await readResearchJson(request, 4_096);
+    const reason = automaticAuditReason("maintenance.source_integration.test");
     let result;
     try {
       result = await runIdempotentMaintenanceSourceIntegrationCheck(await getPostgresPool(), {
@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } catch (error) {
       if (error instanceof ResearchApiError) throw error;
       const code = error instanceof Error ? error.message : "INTEGRATION_TEST_FAILED";
-      const mapped = code === "INTEGRATION_NOT_FOUND" ? ["集成不存在", 404] : code === "INTEGRATION_TEST_UNAVAILABLE" ? ["该集成尚未接入安全测试", 503] : code === "INTEGRATION_REASON_INVALID" ? ["测试原因需要 3–500 个字符", 422] : ["集成测试执行失败", 502];
+      const mapped = code === "INTEGRATION_NOT_FOUND" ? ["集成不存在", 404] : code === "INTEGRATION_TEST_UNAVAILABLE" ? ["该集成尚未接入安全测试", 503] : ["集成测试执行失败", 502];
       throw new ResearchApiError(code, mapped[0] as string, mapped[1] as number);
     }
     if (result.terminalStatus !== "succeeded") {

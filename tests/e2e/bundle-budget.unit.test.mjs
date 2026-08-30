@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
 
 import {
@@ -64,6 +64,28 @@ test("bundle measurement fails closed when Next manifests or route assets are mi
   const directory = await mkdtemp(join(tmpdir(), "agentnovas-quality-budget-empty-"));
   try {
     await assert.rejects(() => measureNextInitialAssets(directory, "/page"), /manifest/i);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("bundle measurement reads the deployable standalone manifest after intermediate server cleanup", async () => {
+  const directory = await mkdtemp(join(tmpdir(), ".next-quality-budget-"));
+  try {
+    const buildName = basename(directory);
+    await mkdir(join(directory, "static", "chunks"), { recursive: true });
+    await mkdir(join(directory, "standalone", buildName, "server", "app"), { recursive: true });
+    await writeFile(join(directory, "build-manifest.json"), JSON.stringify({ rootMainFiles: [] }));
+    await writeFile(
+      join(directory, "standalone", buildName, "server", "app", "page_client-reference-manifest.js"),
+      `globalThis.__RSC_MANIFEST = globalThis.__RSC_MANIFEST || {}; globalThis.__RSC_MANIFEST["/page"] = ${JSON.stringify({
+        entryJSFiles: { "[project]/app/page": ["static/chunks/page.js"] },
+        entryCSSFiles: {},
+      })};`,
+    );
+    await writeFile(join(directory, "static", "chunks", "page.js"), "export const deployed = true;");
+    const result = await measureNextInitialAssets(directory, "/page");
+    assert.deepEqual(result.assets, ["static/chunks/page.js"]);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

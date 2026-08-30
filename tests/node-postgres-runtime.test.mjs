@@ -13,7 +13,7 @@ test("uses native Next.js commands without Cloudflare runtime dependencies", asy
 
   assert.equal(packageJson.name, "agentnovas-platform");
   assert.match(packageJson.scripts.dev, /^(?:NODE_USE_ENV_PROXY=1 )?next dev\b/);
-  assert.equal(packageJson.scripts.build, "next build");
+  assert.equal(packageJson.scripts.build, "npm run build:packages && next build");
   assert.match(packageJson.scripts.start, /^(?:NODE_USE_ENV_PROXY=1 )?next start\b/);
   assert.match(packageJson.scripts["worker:research"], /NODE_USE_ENV_PROXY=1/);
   assert.equal(typeof packageJson.dependencies.next, "string");

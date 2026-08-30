@@ -1,5 +1,5 @@
 import { requireAccessPermission } from "@/lib/access-control";
-import { maintenanceCorrelation } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import {
   getSystemSettings,
@@ -26,9 +26,7 @@ export async function PUT(request: Request) {
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request, PERMISSION);
     const body = await readResearchJson(request);
-    const maintenanceReason = typeof body.maintenanceReason === "string" ? body.maintenanceReason.trim() : "";
-    if (maintenanceReason.length < 3) throw new ResearchApiError("VALIDATION_ERROR", "必须填写设置变更原因（至少 3 个字符）", 422, { fields: ["maintenanceReason"] });
-    if (maintenanceReason.length > 500) throw new ResearchApiError("VALIDATION_ERROR", "设置变更原因不能超过 500 个字符", 422, { fields: ["maintenanceReason"] });
+    const auditReason = automaticAuditReason("maintenance.platform_settings.update");
     if (!body.system || typeof body.system !== "object" || Array.isArray(body.system)) {
       throw new ResearchApiError("VALIDATION_ERROR", "系统设置必须是对象", 422, { fields: ["system"] });
     }
@@ -58,7 +56,7 @@ export async function PUT(request: Request) {
       await client.query(`
         INSERT INTO audit_logs (id, actor_user_id, action, subject_type, subject_id, before_json, after_json, request_id, trace_id, created_at)
         VALUES ($1, $2, 'platform.settings.system.updated', 'platform_settings', 'system', $3, $4, $5, $6, now())
-      `, [crypto.randomUUID(), user.id, JSON.stringify(before), JSON.stringify({ system: next, maintenanceReason }), correlation.requestId, correlation.traceId]);
+      `, [crypto.randomUUID(), user.id, JSON.stringify(before), JSON.stringify({ system: next, reason: auditReason, auditSource: "automatic" }), correlation.requestId, correlation.traceId]);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

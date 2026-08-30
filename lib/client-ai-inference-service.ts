@@ -322,13 +322,21 @@ export async function completeClientAiInference(pool: Pool, input: {
     }
     if (row.status === "succeeded") return replay(row);
     if (row.status !== "processing") return replay(row);
-    await settleAiCreditReservationInTransaction(client, {
+    const settlement = await settleAiCreditReservationInTransaction(client, {
       reservationId: input.reservationId,
       idempotencyKey: `client-ai:${input.requestId}:settle`,
       requestId: input.correlationRequestId,
       costModelVersion: "token-cost-v1",
       trustedUsage: input.trustedUsage,
     });
+    const usageSettlementAvailable = (await client.query<{ available: boolean }>(
+      "SELECT to_regprocedure('ai_settle_invocation_credits(text,text)') IS NOT NULL AS available",
+    )).rows[0]?.available === true;
+    if (usageSettlementAvailable) {
+      await client.query("SELECT ai_settle_invocation_credits($1,$2)",[
+        input.requestId,settlement.settledCredits,
+      ]);
+    }
     const result = input.persistResult
       ? await input.persistResult(client)
       : input.result;

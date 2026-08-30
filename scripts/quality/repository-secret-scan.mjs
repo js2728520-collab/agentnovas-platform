@@ -16,7 +16,11 @@ export function secretFindingForFile(path, contents) {
     || forbiddenBackupSuffixes.some((suffix) => lowerPath.endsWith(suffix))) {
     return "forbidden secret-bearing filename";
   }
-  if (/-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/.test(contents)) return "private key material";
+  // Match complete PEM material rather than documentation or source code that merely
+  // handles a PEM boundary. A real PEM has matching labels and a substantial base64 body.
+  if (/-----BEGIN ((?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY)-----\r?\n[A-Za-z0-9+/=\r\n]{64,}\r?\n-----END \1-----/.test(contents)) {
+    return "private key material";
+  }
   if (/\bAKIA[A-Z0-9]{16}\b/.test(contents)) return "AWS access key";
   if (/\bgh[pousr]_[A-Za-z0-9]{36,255}\b/.test(contents)) return "GitHub token";
   if (/\bsk-(?:live|proj)-[A-Za-z0-9_-]{20,}\b/.test(contents)) return "live provider token";

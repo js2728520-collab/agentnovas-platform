@@ -1,8 +1,8 @@
-import { bindAgentRole, listAgentRoleBindings, missingAgentRoles, snapshotAgentRoleBindings } from "@/lib/agent-model-profiles";
+import { bindAgentRole, listAgentRoleBindings, missingAgentRoles, snapshotAgentRoleBindings } from "@/lib/ai-control-plane-compatibility";
 import { requireAccessPermission, requireAnyAccessPermission } from "@/lib/access-control";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
-import { maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { requeueResearchRunsPausedForRoles } from "@/lib/postgres-research-queue";
 import { readResearchJson, researchErrorResponse } from "@/lib/research-api";
 
@@ -29,15 +29,16 @@ export async function PUT(request: Request) {
     await ensureDatabaseSchema();
     const { user } = await requireAccessPermission(request, "maint.agent_bindings.manage");
     const body = await readResearchJson(request);
-    const reason = maintenanceReason(body.reason);
+    const reason = automaticAuditReason("ai_control_plane.legacy_binding.update");
     const pool = await getPostgresPool();
     const binding = await bindAgentRole(pool, {
       actorUserId: user.id,
       role: String(body.role ?? ""),
       profileId: String(body.profileId ?? ""),
       enabled: body.enabled !== false,
+      reason,
+      requestId: maintenanceCorrelation(request).requestId ?? crypto.randomUUID(),
     });
-    await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.agent_binding_changed", subjectType: "agent_role", subjectId: String(body.role ?? ""), reason });
     const missingRoles = await missingAgentRoles(pool);
     const snapshot = missingRoles.length === 0 ? await snapshotAgentRoleBindings(pool) : null;
     const resumedRuns = snapshot

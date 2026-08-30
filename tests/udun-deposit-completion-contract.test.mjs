@@ -86,7 +86,7 @@ test("Maintenance payment management includes write-only secret configuration an
   assert.match(ui, /无法回显|不可回显/);
   assert.match(ui, /testHistory/);
   assert.match(ui, /run\.actor/);
-  assert.match(ui, /run\.reason/);
+  assert.doesNotMatch(ui, /run\.reason/);
   assert.match(ui, /\[mainCoinType, setMainCoinType\] = useState\(""\)/);
   assert.match(ui, /!mainCoinType\.trim\(\).*?!tokenCoinType\.trim\(\)/);
   assert.match(ui, /className="rc-hub-tabs"/);

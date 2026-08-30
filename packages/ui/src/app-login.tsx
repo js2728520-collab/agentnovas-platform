@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import type { AppAudience } from "@/lib/riverton-apps";
 import { apiErrorMessage, safeNextPath } from "@/packages/contracts/src/riverton-ui";
-import { useAppLocale } from "./app-locale-context";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 type LoginMode = "login" | "register" | "forgot" | "verify";
 type MfaFlow =

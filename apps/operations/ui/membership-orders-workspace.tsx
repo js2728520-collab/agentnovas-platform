@@ -247,6 +247,7 @@ function MembershipOrderDetailWorkspace({
         title={t(review?.decision === "approve" ? "批准会员订单" : "拒绝会员订单")}
         description={t(review?.decision === "approve" ? "批准事务将激活会员并发放一次 Credits，但不会执行外部收款。" : "拒绝只记录业务决定，不会执行退款或资金操作。")}
         confirmLabel={t(review?.decision === "approve" ? "确认批准" : "确认拒绝")}
+        reasonLabel={t("业务决定依据")}
         busy={busy}
         onCancel={() => setReview(null)}
         onConfirm={(reason) => void decide(reason)}

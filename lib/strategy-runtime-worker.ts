@@ -8,7 +8,9 @@ const RUNTIME_SLIPPAGE_TOLERANCE_PCT = Number(process.env.RUNTIME_SLIPPAGE_TOLER
 const RUNTIME_INTENT_VALID_FOR_MS = Number(process.env.RUNTIME_INTENT_VALID_FOR_MS || 60_000);
 
 import { assertBetaSpotRuntimeLease } from "./beta-legacy-runtime-guard.ts";
-import { resolveRuntimeExplanationRoleConfig } from "./agent-model-profiles.ts";
+import type { RuntimeExplanationRole } from "./ai-control-plane-compatibility.ts";
+import type { ResolvedLlmProfileConfig } from "./research-types.ts";
+import { resolveWorkerModelName } from "./ai-control-plane-worker.ts";
 import {
   assessPerpetualDataQuality,
   createPerpetualMarketAdapter,
@@ -72,6 +74,7 @@ import {
 import { completedRuntimeCandlesAt } from "../packages/domain/src/runtime/market-admission.ts";
 import {
   callRuntimeExplanationAgent,
+  callRuntimeExplanationAgentViaGateway,
   resolveRuntimeExplanationPrompt,
   validateRuntimeExplanationOutput,
 } from "./runtime-explanations.ts";
@@ -99,8 +102,12 @@ export type StrategyRuntimeWorkerDependencies = {
 
 export type RuntimeExplanationWorkerDependencies = {
   now?: () => Date;
-  resolveConfig?: typeof resolveRuntimeExplanationRoleConfig;
+  resolveConfig?: (
+    database: Pool,role: RuntimeExplanationRole,options: { revisionId?: string },
+  ) => Promise<ResolvedLlmProfileConfig<RuntimeExplanationRole> | null>;
   callExplanation?: typeof callRuntimeExplanationAgent;
+  callGatewayExplanation?: typeof callRuntimeExplanationAgentViaGateway;
+  resolveModelName?: typeof resolveWorkerModelName;
 };
 
 function asExchange(value: string): PerpetualExchange {
@@ -717,19 +724,30 @@ export async function processNextRuntimeExplanation(
   if (!job) return null;
   const startedAt = Date.now();
   try {
-    const resolveConfig = dependencies.resolveConfig ?? resolveRuntimeExplanationRoleConfig;
-    const config = await resolveConfig(database, job.explanationRole, { revisionId: job.profileRevisionId });
-    if (!config) throw new Error("运行时解释任务引用的模型修订不可用");
     const expectedPrompt = await resolveRuntimeExplanationPrompt(job.explanationRole);
     if (expectedPrompt.version !== job.promptVersion || expectedPrompt.hash !== job.promptHash) {
       throw new Error("运行时解释 Prompt 版本与任务快照不一致");
     }
-    const callExplanation = dependencies.callExplanation ?? callRuntimeExplanationAgent;
-    const result = await callExplanation({
-      config,
-      role: job.explanationRole,
-      context: job.context,
-    });
+    let result;
+    if (dependencies.resolveConfig || dependencies.callExplanation) {
+      if (!dependencies.resolveConfig || !dependencies.callExplanation) {
+        throw new Error("运行时解释测试依赖必须成对注入");
+      }
+      const config = await dependencies.resolveConfig(
+        database,job.explanationRole,{ revisionId: job.profileRevisionId },
+      );
+      if (!config) throw new Error("运行时解释任务引用的模型修订不可用");
+      result = await dependencies.callExplanation({ config,role: job.explanationRole,context: job.context });
+    } else {
+      const modelName = await (dependencies.resolveModelName ?? resolveWorkerModelName)(
+        database,job.profileRevisionId,
+      );
+      if (!modelName) throw new Error("运行时解释任务引用的模型修订不可用");
+      result = await (dependencies.callGatewayExplanation ?? callRuntimeExplanationAgentViaGateway)({
+        role: job.explanationRole,context: job.context,invocationId: `runtime:${job.id}`,
+        pinnedDeploymentRevisionId: job.profileRevisionId,modelName,
+      });
+    }
     const output = validateRuntimeExplanationOutput(result.output);
     await completeRuntimeExplanationJob(database, {
       jobId: job.id,

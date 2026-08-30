@@ -13,13 +13,19 @@ test("payment secret requests are exact, bounded, encrypted-only install or rota
   };
   assert.deepEqual(normalizePaymentSecretRequestCommand({
     operation: "rotate", envelope, reason: "轮换优盾测试商户配置并重新执行全部 Gate",
-  }), { operation: "rotate", envelope, reason: "轮换优盾测试商户配置并重新执行全部 Gate" });
+  }), { operation: "rotate", envelope });
+  assert.deepEqual(normalizePaymentSecretRequestCommand({ operation: "install", envelope }), {
+    operation: "install", envelope,
+  });
   assert.throws(() => normalizePaymentSecretRequestCommand({
     operation: "read", envelope, reason: "禁止读取配置",
   }), /PAYMENT_SECRET_OPERATION_INVALID/);
   assert.throws(() => normalizePaymentSecretRequestCommand({
     operation: "install", envelope: { ...envelope, apiKey: "never" }, reason: "拒绝额外字段",
   }), /PAYMENT_SECRET_ENVELOPE_FIELDS_INVALID/);
+  assert.throws(() => normalizePaymentSecretRequestCommand({
+    operation: "install", envelope, extra: true,
+  }), /PAYMENT_SECRET_REQUEST_FIELDS_INVALID/);
 });
 
 test("payment activation requires current secret, broker, provider and callback evidence", () => {

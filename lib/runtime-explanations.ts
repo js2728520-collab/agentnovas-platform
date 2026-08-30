@@ -1,6 +1,7 @@
-import { assertPublicLlmEndpoint } from "./llm-profile-connection.ts";
-import type { RuntimeExplanationRole } from "./agent-model-profiles.ts";
+import { assertPublicLlmEndpoint } from "./public-llm-endpoint.ts";
+import type { RuntimeExplanationRole } from "./ai-control-plane-compatibility.ts";
 import type { ResolvedLlmProfileConfig } from "./research-types.ts";
+import { requestAiGatewayInvocation } from "./ai-gateway-client.ts";
 
 export type RuntimeExplanationOutput = {
   summary: string;
@@ -22,6 +23,12 @@ const promptDefinitions: Record<RuntimeExplanationRole, { version: string; respo
     responsibility: "解释确定性风险边界为何允许或拒绝当前结论，不得批准被拒绝的交易",
   },
 };
+
+const gatewayRoles = {
+  market_summary: "runtime.market_summary",
+  adversarial_explanation: "runtime.adversarial_explanation",
+  risk_explanation: "runtime.risk_explanation",
+} as const;
 
 function sha256(value: string) {
   return crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))
@@ -112,6 +119,43 @@ export function runtimeExplanationTimeoutMs(environment: Record<string, string |
   const configured = Number(environment.STRATEGY_RUNTIME_EXPLANATION_TIMEOUT_MS);
   const requested = Number.isFinite(configured) && configured > 0 ? configured : 30_000;
   return Math.min(Math.max(requested, 5_000), 45_000);
+}
+
+export async function callRuntimeExplanationAgentViaGateway(options: {
+  role: RuntimeExplanationRole;
+  context: Record<string,unknown>;
+  invocationId: string;
+  pinnedDeploymentRevisionId: string;
+  modelName: string;
+  timeoutMs?: number;
+  fetchImpl?: typeof fetch;
+  environment?: Record<string,string | undefined>;
+}) {
+  const prompt = await resolveRuntimeExplanationPrompt(options.role);
+  const user = `以下为只读的确定性运行结果：\n<runtime_context>${boundedContext(options.context)}</runtime_context>`;
+  const result = await requestAiGatewayInvocation({
+    invocationId: options.invocationId,
+    roleKey: gatewayRoles[options.role],
+    operation: `runtime_explanation.${options.role}.${prompt.version}`,
+    pinnedDeploymentRevisionId: options.pinnedDeploymentRevisionId,
+    payload: {
+      messages: [{ role: "system",content: prompt.system },{ role: "user",content: user }],
+      maxOutputTokens: 1_200,
+    },
+    timeoutMs: options.timeoutMs ?? runtimeExplanationTimeoutMs(),
+    fetchImpl: options.fetchImpl,
+    environment: options.environment,
+  });
+  if (result.receipt.status !== "succeeded") {
+    throw new Error(`运行时解释模型调用失败（${result.receipt.errorCode ?? "unknown"}）`);
+  }
+  return {
+    role: options.role,
+    modelName: options.modelName,
+    promptVersion: prompt.version,
+    promptHash: prompt.hash,
+    output: parseOutput(result.content),
+  };
 }
 
 export async function callRuntimeExplanationAgent(options: {

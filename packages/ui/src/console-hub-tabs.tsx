@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import type { DataScope } from "@/lib/rbac";
 import { hasAnyPermission } from "@/packages/contracts/src/riverton-ui";
-import { useAppLocale } from "./app-locale-context";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 export type ConsoleHubTab<T extends string> = {
   value: T;

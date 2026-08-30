@@ -13,17 +13,14 @@ import {
 } from "../lib/client-ai-inference-service.ts";
 import { settleAiCreditReservation } from "../lib/ai-credit-service.ts";
 import { resolveClientPlatformLlmConfig } from "../lib/client-platform-llm.ts";
-import { encryptLlmProfileSecret } from "../lib/integration-credentials.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
 const schema = `client_ai_inference_${process.pid}_${Date.now()}`;
 const admin = new pg.Pool({ connectionString: databaseUrl, max: 2 });
 const pool = new pg.Pool({ connectionString: databaseUrl, max: 4, options: `-c search_path=${schema}` });
-const previousLlmKey = process.env.LLM_PROFILE_ENCRYPTION_KEY;
 
 test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
-  process.env.LLM_PROFILE_ENCRYPTION_KEY = "test-only-client-runtime-key-32-chars";
   await admin.query(`CREATE SCHEMA "${schema}"`);
   await pool.query(`
     CREATE TABLE organizations(id text PRIMARY KEY);
@@ -37,13 +34,20 @@ test.before(async () => {
     CREATE TABLE ai_credit_ledger_entries(id text PRIMARY KEY,account_id text NOT NULL REFERENCES ai_credit_accounts(id),entry_type text NOT NULL,available_delta numeric(36,0) NOT NULL,reserved_delta numeric(36,0) NOT NULL,balance_available numeric(36,0) NOT NULL CHECK(balance_available>=0),balance_reserved numeric(36,0) NOT NULL CHECK(balance_reserved>=0),source_type text NOT NULL,source_id text NOT NULL,reservation_id text REFERENCES ai_credit_reservations(id),cost_model_version text,usage_json jsonb,idempotency_key text UNIQUE NOT NULL,request_id text NOT NULL,created_by_user_id text,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(source_type,source_id,entry_type));
   `);
   await pool.query(await readFile(new URL("../postgres/migrations/0038_client_ai_runtime_credits.sql", import.meta.url), "utf8"));
+  await pool.query(`
+    CREATE VIEW client_ai_control_plane_bindings_safe AS
+    SELECT role,
+      CASE role WHEN 'report' THEN 'assistant_message' ELSE 'strategy_generation' END AS control_plane_role,
+      profile_id,revision_id,provider_name,model_name,
+      'binding:' || role AS binding_policy_revision_id
+    FROM client_ai_runtime_model_bindings
+  `);
   await pool.query("ALTER TABLE client_ai_inference_requests ADD COLUMN organization_id text, ADD COLUMN organization_attribution_mode text NOT NULL DEFAULT 'captured_at_request'");
   await pool.query("INSERT INTO organizations(id) VALUES('org-captured')");
   await pool.query("INSERT INTO users(id) VALUES('customer'),('poor-customer'),('settled-customer'),('cancel-customer'),('cancel-race-customer'),('cancel-complete-customer'),('cancel-settled-customer'),('other-customer')");
   await pool.query("INSERT INTO customer_attributions(id,customer_id,status,branch_id,effective_at,created_at) VALUES('attr-customer','customer','active','org-captured','2026-08-01','2026-08-01')");
   await pool.query("INSERT INTO llm_profiles(id,current_revision_id) VALUES('profile-1','revision-1')");
-  const encrypted = await encryptLlmProfileSecret("fixture-platform-secret");
-  await pool.query("INSERT INTO llm_profile_revisions(id,profile_id,provider_name,base_url,model_name,encrypted_api_key) VALUES('revision-1','profile-1','Fixture','https://llm.example.test/v1','fixture-model',$1)", [encrypted]);
+  await pool.query("INSERT INTO llm_profile_revisions(id,profile_id,provider_name,base_url,model_name,encrypted_api_key) VALUES('revision-1','profile-1','Fixture','https://llm.example.test/v1','fixture-model','legacy-ciphertext-not-runtime-truth')");
   await pool.query("INSERT INTO agent_role_bindings(id,role,llm_profile_id) VALUES('binding-report','report','profile-1'),('binding-proposal','proposal_a','profile-1')");
   await pool.query("INSERT INTO ai_credit_accounts(id,user_id,available_credits) VALUES('credits-customer','customer',10),('credits-poor','poor-customer',0),('credits-settled','settled-customer',10),('credits-cancel','cancel-customer',10),('credits-cancel-race','cancel-race-customer',10),('credits-cancel-complete','cancel-complete-customer',10),('credits-cancel-settled','cancel-settled-customer',10),('credits-other','other-customer',10)");
 });
@@ -52,18 +56,18 @@ test.after(async () => {
   await pool.end();
   await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
   await admin.end();
-  if (previousLlmKey === undefined) delete process.env.LLM_PROFILE_ENCRYPTION_KEY;
-  else process.env.LLM_PROFILE_ENCRYPTION_KEY = previousLlmKey;
 });
 
-test("safe runtime projection resolves only the paid Client roles with the dedicated key", async () => {
+test("safe runtime projection resolves only explicit paid Client roles without returning key material", async () => {
   for (const role of ["report", "proposal_a"]) {
     const resolved = await resolveClientPlatformLlmConfig(pool, role);
     assert.equal(resolved.role, role);
     assert.equal(resolved.profileId, "profile-1");
     assert.equal(resolved.revisionId, "revision-1");
-    assert.equal(resolved.apiKey, "fixture-platform-secret");
-    assert.equal(resolved.endpoint, "https://llm.example.test/v1/chat/completions");
+    assert.equal(resolved.roleKey, role === "report" ? "client.assistant_message" : "client.strategy_generation");
+    assert.equal(resolved.bindingPolicyRevisionId, `binding:${role}`);
+    assert.equal("apiKey" in resolved,false);
+    assert.equal("endpoint" in resolved,false);
   }
   await pool.query("UPDATE agent_role_bindings SET enabled=false WHERE role='proposal_a'");
   assert.equal(await resolveClientPlatformLlmConfig(pool, "proposal_a"), null);

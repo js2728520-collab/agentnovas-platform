@@ -1,6 +1,7 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { commercialJson, idempotencyKey } from "@/lib/commercial-api";
 import { readCommercialDisclosureControl, submitCommercialDisclosure } from "@/lib/commercial-disclosure-service";
+import { automaticAuditReason } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { researchErrorResponse } from "@/lib/research-api";
 
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
       actorUserId: user.id,
       idempotencyKey: idempotencyKey(request),
       requestId: request.headers.get("x-request-id") ?? crypto.randomUUID(),
-      submission: body,
+      submission: { ...body, reason: automaticAuditReason("maintenance.commercial_disclosure.submit") },
     });
     return Response.json(result, { status: 201, headers: { "cache-control": "no-store" } });
   } catch (error) {

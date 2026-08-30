@@ -4,6 +4,7 @@ import { lockScopedRoleForTarget } from "@/lib/access-role-authorization";
 import { parseAccessChangeRequest, type AccessChange } from "@/lib/access-change-requests";
 import { canApproveAccessChange } from "@/lib/rbac";
 import { getPostgresPool } from "@/lib/postgres";
+import { automaticAuditReason } from "@/lib/maintenance-audit";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 
 function requestedPermissionKeys(change: AccessChange) {
@@ -18,8 +19,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const body = await readResearchJson(request);
     const decision = String(body.decision ?? "");
     if (decision !== "approve" && decision !== "reject") throw new ResearchApiError("VALIDATION_ERROR", "审批决定无效", 422, { fields: ["decision"] });
-    const note = String(body.note ?? "").trim().slice(0, 500);
-    if (!note) throw new ResearchApiError("VALIDATION_ERROR", "必须填写审批意见", 422, { fields: ["note"] });
+    const note = automaticAuditReason(`internal.access.change_request.${decision}`);
     const pool = await getPostgresPool();
     const client = await pool.connect();
     let status: "approved" | "rejected";
@@ -118,7 +118,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         INSERT INTO authorization_audit_events
           (id, actor_user_id, application_id, action, subject_type, subject_id, before_json, after_json)
         VALUES ($1, $2, $3, $4, 'access_change_request', $5, $6::jsonb, $7::jsonb)
-      `, [crypto.randomUUID(), user.id, row.application_id, `access_change.${decision}`, id, JSON.stringify(change.before), JSON.stringify(decision === "approve" ? change.after : { decision: "rejected" })]);
+      `, [crypto.randomUUID(), user.id, row.application_id, `access_change.${decision}`, id, JSON.stringify(change.before), JSON.stringify({ ...(decision === "approve" ? change.after : { decision: "rejected" }), note, auditSource: "automatic" })]);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

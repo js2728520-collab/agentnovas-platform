@@ -12,23 +12,21 @@ async function source(path) {
   return readFile(new URL(path, import.meta.url), "utf8");
 }
 
-test("Maintenance work-record export accepts only a bounded UTC range and a meaningful reason", () => {
+test("Maintenance work-record export accepts only a bounded UTC range", () => {
   assert.deepEqual(parseMaintenanceWorkRecordExportInput({
     from: "2026-08-01",
     to: "2026-08-31",
-    reason: " 月末客户争议核查 ",
   }), {
     from: "2026-08-01",
     to: "2026-08-31",
-    reason: "月末客户争议核查",
   });
 
   for (const body of [
-    { from: "2026-07-31", to: "2026-08-31", reason: "超过三十一天" },
-    { from: "2026-08-02", to: "2026-08-01", reason: "日期顺序错误" },
-    { from: "2026-02-29", to: "2026-03-01", reason: "无效日期" },
-    { from: "2026-08-01", to: "2026-08-02", reason: "短" },
-    { from: "2026-08-01", to: "2026-08-02", reason: "合规原因", extra: true },
+    { from: "2026-07-31", to: "2026-08-31" },
+    { from: "2026-08-02", to: "2026-08-01" },
+    { from: "2026-02-29", to: "2026-03-01" },
+    { from: "2026-08-01", to: "2026-08-02", reason: "旧客户端人工原因会被拒绝" },
+    { from: "2026-08-01", to: "2026-08-02", extra: true },
   ]) {
     assert.throws(
       () => parseMaintenanceWorkRecordExportInput(body),
@@ -36,14 +34,6 @@ test("Maintenance work-record export accepts only a bounded UTC range and a mean
       JSON.stringify(body),
     );
   }
-  assert.throws(
-    () => parseMaintenanceWorkRecordExportInput({
-      from: "2026-08-01",
-      to: "2026-08-02",
-      reason: "原".repeat(501),
-    }),
-    (error) => error?.code === "VALIDATION_ERROR" && error?.status === 422,
-  );
 });
 
 test("Maintenance JSON export neutralizes spreadsheet formula prefixes and truncates honestly at 1000 rows", async () => {
@@ -81,7 +71,6 @@ test("Maintenance JSON export neutralizes spreadsheet formula prefixes and trunc
   const result = await buildMaintenanceWorkRecordExport(database, {
     from: "2026-08-01",
     to: "2026-08-31",
-    reason: "月末客户争议核查",
   }, new Date("2026-08-31T12:00:00.000Z"));
 
   assert.equal(result.data.length, 1_000);
@@ -138,7 +127,8 @@ test("Maintenance work-record export is isolated behind one sensitive permission
   assert.match(rolePolicy, /MAINTENANCE_WORK_RECORD_RAW_GRANT/);
 
   assert.match(ui, /工作记录脱敏导出/);
-  assert.match(ui, /导出原因/);
+  assert.doesNotMatch(ui, /导出原因|auditReason|InlineAuditReasonField/);
+  assert.match(ui, /服务端自动留痕/);
   assert.match(ui, /Idempotency-Key/);
   assert.match(ui, /不可变幂等终态记录/);
   assert.doesNotMatch(ui, /confirm\s*\(|window\.confirm|alert\s*\(/);

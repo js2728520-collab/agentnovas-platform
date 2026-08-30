@@ -106,7 +106,8 @@ test("Client production env documents the non-shared MFA key requirement", async
   const environment = await read("deploy/env/client.env.example");
   assert.match(environment, /MFA_TOTP_ENCRYPTION_KEY=.*at-least-32-characters/);
   assert.match(environment, /MFA_TOTP_ENCRYPTION_KEY[^\n]+must be identical across Client replicas/i);
-  assert.match(environment, /must not reuse[^\n]+LLM_PROFILE_ENCRYPTION_KEY/i);
+  assert.match(environment, /must not reuse[^\n]+AI Gateway credential/i);
+  assert.doesNotMatch(environment, /LLM_PROFILE_ENCRYPTION_KEY/);
 });
 
 test("Client commercial writes use the authenticated subject without reopening users", async () => {

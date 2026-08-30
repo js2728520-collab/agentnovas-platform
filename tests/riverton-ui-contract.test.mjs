@@ -327,19 +327,18 @@ test("client workspaces bind to real wallet, Udun deposit orders, and notificati
   assert.match(notifications, /ClientNotificationSettings/);
 });
 
-test("access center can publish approved draft roles with an audited reason", async () => {
+test("access center can publish approved draft roles with server-owned audit", async () => {
   const center = await read("packages/ui/src/access-center.tsx");
   const publish = await read("app/api/access/roles/[id]/publish/route.internal.ts");
   assert.match(center, /kind: "publish"/);
   assert.match(center, /role\.status === "draft"/);
-  assert.match(center, /InlineAuditReasonField/);
-  assert.match(center, /角色配置原因/);
-  assert.match(center, /模板配置原因/);
-  assert.match(center, /角色分配原因/);
+  assert.doesNotMatch(center, /InlineAuditReasonField|hasValidAuditReason|角色配置原因|模板配置原因|角色分配原因/);
+  assert.match(center, /服务端自动留痕/);
   assert.doesNotMatch(center, /setPending\(\{ kind: "(?:role|template|publish|assignment)"/);
   assert.match(center, /setPending\(\{ kind: "revoke"/);
   assert.match(center, /setPending\(\{ kind: "decision"/);
-  assert.match(publish, /必须填写发布原因/);
+  assert.match(publish, /automaticAuditReason/);
+  assert.doesNotMatch(publish, /body\.reason|必须填写发布原因/);
   assert.match(publish, /authorization_audit_events/);
   assert.match(center, /\/api\/access\/role-templates/);
   assert.match(center, /template_publish/);
@@ -368,31 +367,37 @@ test("payment connectivity tests require an explicit true feature switch", async
   const source = await read("app/api/maintenance/payment-providers/[id]/test/route.maintenance.ts");
   assert.match(source, /PAYMENT_PROVIDER_TESTS_ENABLED !== "true"/);
   assert.match(source, /503/);
-  assert.match(source, /maintenanceReason/);
+  assert.match(source, /recordMaintenanceAudit/);
 });
 
-test("maintenance connectivity tests keep audited reasons without redundant configuration dialogs", async () => {
+test("maintenance connectivity tests use server-owned audit without redundant configuration dialogs", async () => {
   for (const path of [
     "app/api/admin/agent-role-bindings/test/route.maintenance.ts",
     "app/api/admin/runtime-explanation-bindings/test/route.maintenance.ts",
   ]) {
-    assert.match(await read(path), /maintenanceReason/);
+    const source = await read(path);
+    assert.match(source, /automaticAuditReason/);
+    assert.doesNotMatch(source, /body\.reason/);
   }
   assert.match(await read("app/api/maintenance/email/test/route.maintenance.ts"), /normalizeEmailTestCommand/);
   const models = await read("apps/maintenance/ui/models-workspace.tsx");
-  assert.match(models, /kind: "test"/);
-  assert.match(models, /InlineAuditReasonField/);
-  const email = `${await read("apps/maintenance/ui/email-integration-workspace.tsx")}\n${await read("packages/ui/src/email-service-manager/email-service-tests.tsx")}`;
-  assert.match(email, /InlineAuditReasonField/);
+  assert.match(models, /\/api\/maintenance\/ai-control-plane\/probes/);
+  assert.match(models, /测试当前修订/);
+  assert.doesNotMatch(models, /InlineAuditReasonField|hasValidAuditReason/);
+  const email = await Promise.all([
+    read("apps/maintenance/ui/email-integration-workspace.tsx"),
+    read("packages/ui/src/email-service-manager/email-service-configuration.tsx"),
+    read("packages/ui/src/email-service-manager/email-service-tests.tsx"),
+  ]).then((parts) => parts.join("\n"));
+  assert.doesNotMatch(email, /InlineAuditReasonField|hasValidAuditReason/);
   assert.doesNotMatch(email, /ConfirmActionDialog/);
   const sources = await read("apps/maintenance/ui/source-integrations-workspace.tsx");
-  assert.match(sources, /InlineAuditReasonField/);
+  assert.doesNotMatch(sources, /InlineAuditReasonField|hasValidAuditReason/);
   assert.doesNotMatch(sources, /ConfirmActionDialog/);
   const payment = await read("apps/maintenance/ui/payment-integration-workspace.tsx");
   assert.match(payment, /DEPOSIT ONLY/);
-  assert.match(payment, /InlineAuditReasonField/);
+  assert.doesNotMatch(payment, /InlineAuditReasonField|hasValidAuditReason|statusReason/);
   assert.match(payment, /kind: "activate" \| "disable"/);
-  assert.match(payment, /hasValidAuditReason\(statusReason\)/);
   assert.doesNotMatch(payment, /ConfirmActionDialog/);
   assert.match(payment, /idempotency-key/);
 });

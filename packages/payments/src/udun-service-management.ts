@@ -17,6 +17,14 @@ function exactObject(value: unknown, keys: string[], code: string) {
   return input;
 }
 
+function commandObject(value: unknown, requiredKeys: string[], code: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(code);
+  const input = value as Record<string, unknown>;
+  const allowed = new Set([...requiredKeys, "reason"]);
+  if (requiredKeys.some(key => !(key in input)) || Object.keys(input).some(key => !allowed.has(key))) throw new Error(code);
+  return input;
+}
+
 function boundedBase64Url(value: unknown, minimum: number, maximum: number, code: string) {
   if (typeof value !== "string" || value.length < minimum || value.length > maximum || !/^[A-Za-z0-9_-]+$/.test(value)) {
     throw new Error(code);
@@ -41,13 +49,10 @@ export function normalizePaymentSecretEnvelope(value: unknown): PaymentSecretEnv
 export function normalizePaymentSecretRequestCommand(value: unknown): {
   operation: PaymentSecretOperation;
   envelope: PaymentSecretEnvelope;
-  reason: string;
 } {
-  const input = exactObject(value, ["operation", "envelope", "reason"], "PAYMENT_SECRET_REQUEST_FIELDS_INVALID");
+  const input = commandObject(value, ["operation", "envelope"], "PAYMENT_SECRET_REQUEST_FIELDS_INVALID");
   if (input.operation !== "install" && input.operation !== "rotate") throw new Error("PAYMENT_SECRET_OPERATION_INVALID");
-  const reason = typeof input.reason === "string" ? input.reason.trim() : "";
-  if (reason.length < 3 || reason.length > 500) throw new Error("PAYMENT_SECRET_REASON_INVALID");
-  return { operation: input.operation, envelope: normalizePaymentSecretEnvelope(input.envelope), reason };
+  return { operation: input.operation, envelope: normalizePaymentSecretEnvelope(input.envelope) };
 }
 
 type TestEvidence = {

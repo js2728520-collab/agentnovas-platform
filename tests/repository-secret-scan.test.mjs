@@ -13,13 +13,19 @@ const execFileAsync = promisify(execFile);
 test("secret scanner rejects tracked secret containers and private keys", () => {
   assert.equal(secretFindingForFile(".env.production", "SAFE=false"), "forbidden secret-bearing filename");
   assert.equal(secretFindingForFile("backup/customer.dump", "binary"), "forbidden secret-bearing filename");
-  assert.equal(secretFindingForFile("notes.txt", ["-----BEGIN", "OPENSSH PRIVATE KEY-----"].join(" ")), "private key material");
+  const privateKey = [
+    "-----BEGIN PRIVATE KEY-----",
+    "A".repeat(128),
+    "-----END PRIVATE KEY-----",
+  ].join("\n");
+  assert.equal(secretFindingForFile("notes.txt", privateKey), "private key material");
 });
 
 test("secret scanner permits templates, migrations and redacted examples", () => {
   assert.equal(secretFindingForFile(".env.example", "API_KEY=replace-me"), null);
   assert.equal(secretFindingForFile("postgres/migrations/0001.sql", "CREATE TABLE users(id text);"), null);
   assert.equal(secretFindingForFile("docs/runbook.md", "Authorization: [REDACTED]"), null);
+  assert.equal(secretFindingForFile("pem-parser.ts", 'value.includes("-----BEGIN PRIVATE KEY-----")'), null);
 });
 
 test("secret scanner detects high confidence provider tokens", () => {

@@ -147,7 +147,7 @@ same_value() {
   fi
 }
 
-for name in client operations maintenance notification configuration-activation release-control release-identity-verifier release-orchestrator-staging release-orchestrator-production release-auditor-staging release-auditor-production release-webhook runtime demo migrator execution; do
+for name in client operations maintenance notification configuration-activation release-control release-identity-verifier release-orchestrator-staging release-orchestrator-production release-auditor-staging release-auditor-production release-webhook research runtime ai-gateway ai-secret-broker demo migrator execution; do
   file="$secret_dir/$name.env"
   if [ ! -f "$file" ]; then
     fail "$name.env:missing"
@@ -173,18 +173,21 @@ release_control="$secret_dir/release-control.env"
 release_identity_verifier="$secret_dir/release-identity-verifier.env"
 release_webhook="$secret_dir/release-webhook.env"
 runtime="$secret_dir/runtime.env"
+research="$secret_dir/research.env"
+ai_gateway="$secret_dir/ai-gateway.env"
+ai_secret_broker="$secret_dir/ai-secret-broker.env"
 demo="$secret_dir/demo.env"
 migrator="$secret_dir/migrator.env"
 
 if [ "$findings" -eq 0 ]; then
-  for key in DATABASE_URL CLIENT_AUTH_DATABASE_URL TRUST_PROXY_HOPS LLM_PROFILE_ENCRYPTION_KEY MFA_TOTP_ENCRYPTION_KEY NOTIFICATION_TOKEN_ENCRYPTION_KEY; do
+  for key in DATABASE_URL CLIENT_AUTH_DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY NOTIFICATION_TOKEN_ENCRYPTION_KEY AI_GATEWAY_ENABLED AI_GATEWAY_URL AI_GATEWAY_SHARED_SECRET; do
     required_value "$client" "$key" || true
   done
   required_boolean "$client" PAYMENT_PROVIDER_OUTBOUND_ENABLED || true
   for key in DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY NOTIFICATION_TOKEN_ENCRYPTION_KEY; do
     required_value "$operations" "$key" || true
   done
-  for key in DATABASE_URL RELEASE_IDENTITY_VERIFIER_URL RELEASE_IDENTITY_VERIFIER_SHARED_SECRET RELEASE_CONTROL_GATEWAY_URL RELEASE_CONTROL_GATEWAY_SHARED_SECRET PAYMENT_WEBHOOK_DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY INTEGRATION_CREDENTIAL_ENCRYPTION_KEY LLM_PROFILE_ENCRYPTION_KEY; do
+  for key in DATABASE_URL RELEASE_IDENTITY_VERIFIER_URL RELEASE_IDENTITY_VERIFIER_SHARED_SECRET RELEASE_CONTROL_GATEWAY_URL RELEASE_CONTROL_GATEWAY_SHARED_SECRET PAYMENT_WEBHOOK_DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY INTEGRATION_CREDENTIAL_ENCRYPTION_KEY AI_GATEWAY_ENABLED AI_GATEWAY_URL AI_GATEWAY_SHARED_SECRET; do
     required_value "$maintenance" "$key" || true
   done
   required_boolean "$maintenance" PAYMENT_PROVIDER_TESTS_ENABLED || true
@@ -270,7 +273,42 @@ if [ "$findings" -eq 0 ]; then
     *) fail "release-webhook.env:RELEASE_WEBHOOK_DATABASE_URL:dedicated_role_required" ;;
   esac
   required_boolean "$release_webhook" RELEASE_WEBHOOK_INGRESS_ENABLED || true
-  for key in RESEARCH_DATABASE_URL LLM_PROFILE_ENCRYPTION_KEY; do required_value "$runtime" "$key" || true; done
+  for worker in "$research" "$runtime"; do
+    for key in RESEARCH_DATABASE_URL AI_GATEWAY_ENABLED AI_GATEWAY_URL AI_GATEWAY_SHARED_SECRET; do
+      required_value "$worker" "$key" || true
+    done
+    required_boolean "$worker" AI_GATEWAY_ENABLED || true
+  done
+  for web in "$client" "$maintenance"; do required_boolean "$web" AI_GATEWAY_ENABLED || true; done
+  for file in "$client" "$maintenance" "$research" "$runtime"; do
+    if optional_present "$file" LLM_PROFILE_ENCRYPTION_KEY; then
+      fail "$(basename "$file"):LLM_PROFILE_ENCRYPTION_KEY:must_not_be_present"
+    fi
+  done
+  for key in AI_GATEWAY_PROCESS AI_GATEWAY_ENABLED AI_GATEWAY_DATABASE_URL AI_GATEWAY_SHARED_SECRET AI_GATEWAY_PORT AI_GATEWAY_MAX_CONCURRENT AI_GATEWAY_MAX_PER_MINUTE AI_MANAGED_SECRET_DIRECTORY; do
+    required_value "$ai_gateway" "$key" || true
+  done
+  required_boolean "$ai_gateway" AI_GATEWAY_PROCESS || true
+  required_boolean "$ai_gateway" AI_GATEWAY_ENABLED || true
+  ai_gateway_database_url=$(value_of "$ai_gateway" AI_GATEWAY_DATABASE_URL 2>/dev/null || printf 'missing')
+  case "$ai_gateway_database_url" in
+    postgresql://agentnovas_ai_gateway@*/*|postgresql://agentnovas_ai_gateway:*@*/*|postgres://agentnovas_ai_gateway@*/*|postgres://agentnovas_ai_gateway:*@*/*) ;;
+    *) fail "ai-gateway.env:AI_GATEWAY_DATABASE_URL:dedicated_role_required" ;;
+  esac
+  for key in AI_SECRET_BROKER_PROCESS AI_SECRET_BROKER_ENABLED AI_SECRET_BROKER_DATABASE_URL AI_MANAGED_SECRET_DIRECTORY; do
+    required_value "$ai_secret_broker" "$key" || true
+  done
+  if ! optional_present "$ai_secret_broker" AI_SECRET_BROKER_PRIVATE_KEY_FILE \
+    && ! optional_present "$ai_secret_broker" AI_SECRET_BROKER_PRIVATE_KEY_DIRECTORY; then
+    fail "ai-secret-broker.env:private_key_file_or_directory:required"
+  fi
+  required_boolean "$ai_secret_broker" AI_SECRET_BROKER_PROCESS || true
+  required_boolean "$ai_secret_broker" AI_SECRET_BROKER_ENABLED || true
+  ai_secret_broker_database_url=$(value_of "$ai_secret_broker" AI_SECRET_BROKER_DATABASE_URL 2>/dev/null || printf 'missing')
+  case "$ai_secret_broker_database_url" in
+    postgresql://agentnovas_ai_secret_broker@*/*|postgresql://agentnovas_ai_secret_broker:*@*/*|postgres://agentnovas_ai_secret_broker@*/*|postgres://agentnovas_ai_secret_broker:*@*/*) ;;
+    *) fail "ai-secret-broker.env:AI_SECRET_BROKER_DATABASE_URL:dedicated_role_required" ;;
+  esac
   for key in DATABASE_URL INTEGRATION_CREDENTIAL_ENCRYPTION_KEY; do required_value "$demo" "$key" || true; done
   for key in DATABASE_URL POSTGRES_MIGRATION_SCHEMA GIT_COMMIT_SHA; do required_value "$migrator" "$key" || true; done
 
@@ -279,8 +317,14 @@ if [ "$findings" -eq 0 ]; then
   same_value "internal_mfa_operations_maintenance" "$operations" MFA_TOTP_ENCRYPTION_KEY "$maintenance" MFA_TOTP_ENCRYPTION_KEY
   same_value "mfa_enforcement_client_operations" "$client" MFA_ENFORCEMENT_ENABLED "$operations" MFA_ENFORCEMENT_ENABLED
   same_value "mfa_enforcement_client_maintenance" "$client" MFA_ENFORCEMENT_ENABLED "$maintenance" MFA_ENFORCEMENT_ENABLED
-  same_value "llm_client_maintenance" "$client" LLM_PROFILE_ENCRYPTION_KEY "$maintenance" LLM_PROFILE_ENCRYPTION_KEY
-  same_value "llm_runtime_maintenance" "$runtime" LLM_PROFILE_ENCRYPTION_KEY "$maintenance" LLM_PROFILE_ENCRYPTION_KEY
+  same_value "ai_gateway_client_gateway" "$client" AI_GATEWAY_SHARED_SECRET "$ai_gateway" AI_GATEWAY_SHARED_SECRET
+  same_value "ai_gateway_maintenance_gateway" "$maintenance" AI_GATEWAY_SHARED_SECRET "$ai_gateway" AI_GATEWAY_SHARED_SECRET
+  same_value "ai_gateway_research_gateway" "$research" AI_GATEWAY_SHARED_SECRET "$ai_gateway" AI_GATEWAY_SHARED_SECRET
+  same_value "ai_gateway_runtime_gateway" "$runtime" AI_GATEWAY_SHARED_SECRET "$ai_gateway" AI_GATEWAY_SHARED_SECRET
+  same_value "ai_gateway_url_client_maintenance" "$client" AI_GATEWAY_URL "$maintenance" AI_GATEWAY_URL
+  same_value "ai_gateway_url_client_research" "$client" AI_GATEWAY_URL "$research" AI_GATEWAY_URL
+  same_value "ai_gateway_url_client_runtime" "$client" AI_GATEWAY_URL "$runtime" AI_GATEWAY_URL
+  same_value "ai_managed_secret_directory" "$ai_gateway" AI_MANAGED_SECRET_DIRECTORY "$ai_secret_broker" AI_MANAGED_SECRET_DIRECTORY
   same_value "integration_demo_maintenance" "$demo" INTEGRATION_CREDENTIAL_ENCRYPTION_KEY "$maintenance" INTEGRATION_CREDENTIAL_ENCRYPTION_KEY
   same_value "configuration_activation_worker_state" "$configuration_activation" CONFIGURATION_ACTIVATION_WORKER_ENABLED "$maintenance" CONFIGURATION_ACTIVATION_WORKER_ENABLED
   same_value "payment-provider-outbound-state" "$client" PAYMENT_PROVIDER_OUTBOUND_ENABLED "$maintenance" PAYMENT_PROVIDER_OUTBOUND_ENABLED

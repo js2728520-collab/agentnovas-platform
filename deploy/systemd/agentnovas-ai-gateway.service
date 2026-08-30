@@ -1,0 +1,24 @@
+[Unit]
+Description=AgentNovas loopback AI Gateway
+After=network.target postgresql.service agentnovas-ai-secret-broker.service
+
+[Service]
+Type=simple
+User=agentnovas-ai
+Group=agentnovas-ai
+WorkingDirectory=/opt/agentnovas/current
+EnvironmentFile=/etc/agentnovas/ai-gateway.env
+ExecStart=/usr/bin/npm run service:ai-gateway
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectProc=invisible
+ProcSubset=pid
+InaccessiblePaths=/etc/agentnovas/secrets
+ReadOnlyPaths=/var/lib/agentnovas/ai-secrets
+
+[Install]
+WantedBy=multi-user.target

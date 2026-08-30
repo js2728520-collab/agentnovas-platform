@@ -1,6 +1,6 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { idempotencyKey } from "@/lib/commercial-api";
-import { maintenanceCorrelation, maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation, recordMaintenanceAudit } from "@/lib/maintenance-audit";
 import { runMaintenanceIdempotentExternalCommand } from "@/lib/maintenance-idempotency";
 import { recordPaymentProviderTestRun } from "@/lib/payment-provider-test-management";
 import { resolveUdunRuntimeConfig } from "@/lib/payment-secret-broker";
@@ -21,7 +21,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const { user } = await requireAccessPermission(request, "maint.payment_integrations.manage");
     const { id } = await context.params;
-    const reason = maintenanceReason((await readResearchJson(request, 4_096)).reason);
+    const body = await readResearchJson(request, 4_096);
+    if (Object.keys(body).some(key => key !== "reason")) {
+      throw new ResearchApiError("VALIDATION_ERROR", "支付测试请求包含未知字段", 422);
+    }
     if (process.env.PAYMENT_PROVIDER_TESTS_ENABLED !== "true") {
       throw new ResearchApiError("SERVICE_NOT_CONFIGURED", "支付服务商连通测试尚未启用", 503, { providerConfigId: id });
     }
@@ -38,12 +41,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!configurationVersion || !mainCoinType || !tokenCoinType) {
       throw new ResearchApiError("SERVICE_NOT_CONFIGURED", "必须先应用商户配置并保存币种映射", 503);
     }
+    const reason = automaticAuditReason("maintenance.payment_provider.test");
     const correlation = maintenanceCorrelation(request);
     const result = await runMaintenanceIdempotentExternalCommand<TestResponse>(pool, {
       operation: "maintenance.payment_provider.test", actorUserId: user.id,
       subjectType: "payment_provider_config", subjectId: id,
       idempotencyKey: idempotencyKey(request),
-      payload: { reason, configurationVersion, mainCoinType, tokenCoinType },
+      payload: { action: reason, configurationVersion, mainCoinType, tokenCoinType },
       ...correlation,
     }, async () => {
       const startedAt = new Date();
@@ -80,7 +84,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           await recordMaintenanceAudit(client, {
             actorUserId: user.id,
             action: status === "passed" ? "maintenance.payment_test_passed" : "maintenance.payment_test_failed",
-            subjectType: "payment_provider_config", subjectId: id, reason, errorCode, ...correlation,
+            subjectType: "payment_provider_config", subjectId: id, errorCode, ...correlation,
           });
         },
       };

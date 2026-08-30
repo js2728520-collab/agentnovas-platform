@@ -206,7 +206,6 @@ export function createQualityRunEnvironment({
     MFA_TOTP_ENCRYPTION_KEY: runtimeSecret(),
     INTEGRATION_CREDENTIAL_ENCRYPTION_KEY: runtimeSecret(),
     NOTIFICATION_TOKEN_ENCRYPTION_KEY: runtimeSecret(),
-    LLM_PROFILE_ENCRYPTION_KEY: runtimeSecret(),
     EXCHANGE_CREDENTIAL_ENCRYPTION_KEY: runtimeSecret(),
   };
   return {

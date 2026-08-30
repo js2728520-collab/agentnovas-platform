@@ -6,7 +6,6 @@ import Link from "next/link";
 import type { SystemSettings } from "@/lib/platform-settings-contract";
 import { requiredLegalDocumentTypes } from "@/packages/domain/src/commercial-membership-domain";
 import { apiErrorMessage, formatDateTime } from "@/packages/contracts/src/riverton-ui";
-import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 import { useAppLocale } from "@/packages/ui/src/app-locale-context";
@@ -101,8 +100,6 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
     ? Object.fromEntries(initial.activeBundle.documents.map((document) => [document.type, document.contentMarkdown]))
     : defaultDocuments(settings), [initial.activeBundle, settings]);
   const [documents, setDocuments] = useState<Record<string, string>>(initialDocuments);
-  const [submitReason, setSubmitReason] = useState("");
-  const [reviewReason, setReviewReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const submitKey = useRef(newIdempotencyKey("disclosure-submit"));
@@ -116,14 +113,14 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
   const identityComplete = Object.values(identity).every((value) => value.trim().length > 0);
   const documentSetComplete = requiredLegalDocumentTypes.every((type) => (documents[type] ?? "").trim().length >= 40);
 
-  async function submit(reason: string) {
+  async function submit() {
     setBusy(true);
     setMessage("");
     try {
       const response = await fetch("/api/maintenance/commercial-disclosures", {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": submitKey.current },
-        body: JSON.stringify({ locale: "zh-CN", reason, productIdentity: identity, documents }),
+        body: JSON.stringify({ locale: "zh-CN", productIdentity: identity, documents }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -132,7 +129,6 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
         throw new Error(locale === "zh-CN" || !/[\u3400-\u9fff]/.test(detail) ? detail : fallback);
       }
       submitKey.current = newIdempotencyKey("disclosure-submit");
-      setSubmitReason("");
       setMessage(t("发布申请已提交，必须由另一名有审批权限的运维人员复核后才会生效。"));
       await refresh();
     } catch (error) {
@@ -142,7 +138,7 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
     }
   }
 
-  async function decide(request: DisclosureRequest, decision: "approve" | "reject", note: string) {
+  async function decide(request: DisclosureRequest, decision: "approve" | "reject") {
     setBusy(true);
     setMessage("");
     const key = `${request.id}:${decision}`;
@@ -152,7 +148,7 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
       const response = await fetch(`/api/maintenance/commercial-disclosures/${encodeURIComponent(request.id)}/decision`, {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": commandKey },
-        body: JSON.stringify({ decision, note }),
+        body: JSON.stringify({ decision }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -161,7 +157,6 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
         throw new Error(locale === "zh-CN" || !/[\u3400-\u9fff]/.test(detail) ? detail : fallback);
       }
       reviewKeys.current.delete(key);
-      setReviewReason("");
       setMessage(decision === "approve" ? t("商业披露已发布；所有客户必须确认这个新版本。") : t("发布申请已拒绝，当前生效版本没有变化。"));
       await refresh();
     } catch (error) {
@@ -174,7 +169,6 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
   return <>
     <PageHeading eyebrow="COMMERCIAL DISCLOSURE CONTROL" title={t("平台商业披露")} description={t("平台维护版本化产品披露；发布采用提交人与复核人分离。这里记录商业合同与产品边界，不宣称外部法律意见。")} actions={<StatusBadge value={initial.readiness.activeBundlePublished ? `${t("生效版本")} ${initial.activeBundle?.version}` : t("尚未发布")} />} />
     <div className="rc-live" aria-live="polite">{message}</div>
-    {(canSubmit || canApprove) ? <section className="rc-panel"><header><div><small>INLINE AUDIT</small><h2>{t("发布与复核原因")}</h2><p>{t("填写对应原因后直接执行，不再弹出二次确认；提交人与复核人分离、不可变快照和服务端审计保持不变。")}</p></div></header><div className="rc-form rc-form-grid">{canSubmit ? <InlineAuditReasonField id="disclosure-submit-reason" value={submitReason} onChange={setSubmitReason} label={t("提交原因")} hint={t("提交会保存七项正文、产品身份和内容哈希快照，等待另一人复核。")} /> : null}{canApprove ? <InlineAuditReasonField id="disclosure-review-reason" value={reviewReason} onChange={setReviewReason} label={t("复核原因")} hint={t("批准会发布新版本并要求所有客户重新确认；拒绝不会改变当前版本。")} /> : null}</div></section> : null}
     <section className="rc-panel">
       <header><div><small>PUBLIC IDENTITY SNAPSHOT</small><h2>{t("发布身份与就绪状态")}</h2></div><Link className="rc-button" href="/configurations?tab=platform">{t("修改平台身份")}</Link></header>
       <dl className="rc-description-list">
@@ -189,7 +183,7 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
       <header><div><small>SEVEN VERSIONED DOCUMENTS</small><h2>{t("七项商业披露正文")}</h2></div><span>{documentSetComplete ? t("正文已满足长度校验") : t("正文未齐全")}</span></header>
       <div className="rc-form">
         {requiredLegalDocumentTypes.map((type) => <label className="rc-wide-field" key={type}>{t(labels[type] ?? type)}<textarea rows={7} maxLength={200000} value={documents[type] ?? ""} disabled={!canSubmit || busy} onChange={(event) => setDocuments((current) => ({ ...current, [type]: event.target.value }))} /><small>{(documents[type] ?? "").trim().length} {t("字符 · 发布后内容不可修改")}</small></label>)}
-        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={!canSubmit || busy || !identityComplete || !documentSetComplete || !hasValidAuditReason(submitReason) || initial.requests.some((request) => request.status === "PENDING")} onClick={() => void submit(submitReason.trim())}>{t("提交另一人复核")}</button></div>
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={!canSubmit || busy || !identityComplete || !documentSetComplete || initial.requests.some((request) => request.status === "PENDING")} onClick={() => void submit()}>{t("提交另一人复核")}</button></div>
       </div>
     </section>
     <section className="rc-panel">
@@ -197,7 +191,7 @@ function CommercialDisclosuresEditor({ initial, settings, currentUserId, canSubm
       <div className="rc-card-grid">
         {initial.requests.length === 0 ? <p>{t("暂无发布申请。")}</p> : initial.requests.map((request) => {
           const selfSubmitted = request.submittedByUserId === currentUserId;
-          return <article className="rc-card" key={request.id}><header><StatusBadge value={request.status} /><time>{formatDateTime(request.createdAt, locale)}</time></header><h3>{request.productIdentity.operatorName} · {request.locale}</h3><p>{request.submissionReason}</p><dl><div><dt>{t("正文")}</dt><dd>{request.documents.length} {t("项")}</dd></div><div><dt>{t("快照")}</dt><dd title={request.snapshotSha256}>{request.snapshotSha256.slice(0, 12)}…</dd></div></dl>{request.reviewNote ? <p>{t("复核说明：")}{request.reviewNote}</p> : null}{request.status === "PENDING" && selfSubmitted ? <p className="rc-muted">{t("提交人不能复核自己的发布申请。")}</p> : null}{request.status === "PENDING" && canApprove && !selfSubmitted ? <footer className="rc-action-row"><button className="rc-button" type="button" disabled={busy || !hasValidAuditReason(reviewReason)} onClick={() => void decide(request, "reject", reviewReason.trim())}>{t("拒绝")}</button><button className="rc-primary" type="button" disabled={busy || !hasValidAuditReason(reviewReason)} onClick={() => void decide(request, "approve", reviewReason.trim())}>{t("批准发布")}</button></footer> : null}</article>;
+          return <article className="rc-card" key={request.id}><header><StatusBadge value={request.status} /><time>{formatDateTime(request.createdAt, locale)}</time></header><h3>{request.productIdentity.operatorName} · {request.locale}</h3><dl><div><dt>{t("正文")}</dt><dd>{request.documents.length} {t("项")}</dd></div><div><dt>{t("快照")}</dt><dd title={request.snapshotSha256}>{request.snapshotSha256.slice(0, 12)}…</dd></div></dl>{request.status === "PENDING" && selfSubmitted ? <p className="rc-muted">{t("提交人不能复核自己的发布申请。")}</p> : null}{request.status === "PENDING" && canApprove && !selfSubmitted ? <footer className="rc-action-row"><button className="rc-button" type="button" disabled={busy} onClick={() => void decide(request, "reject")}>{t("拒绝")}</button><button className="rc-primary" type="button" disabled={busy} onClick={() => void decide(request, "approve")}>{t("批准发布")}</button></footer> : null}</article>;
         })}
       </div>
     </section>

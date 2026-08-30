@@ -131,8 +131,7 @@ test("Maintenance Demo safe view never selects credential ciphertext", async () 
   assert.match(verify, /maint\.demo_exchanges\.verify/);
   assert.match(verify, /PLATFORM_DEMO_VERIFICATION_ENABLED/);
   assert.match(verify, /verifyPlatformDemoAccount/);
-  assert.match(workspace, /InlineAuditReasonField/);
-  assert.match(workspace, /hasValidAuditReason\(controlReason,\s*8\)/);
+  assert.doesNotMatch(workspace, /InlineAuditReasonField|hasValidAuditReason|controlReason/);
   assert.doesNotMatch(workspace, /ConfirmActionDialog/);
   assert.match(workspace, /canVerify|canManage|canKill/);
 });

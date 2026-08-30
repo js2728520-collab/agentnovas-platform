@@ -137,7 +137,6 @@ test("quality runner derives a fail-closed child environment", () => {
     "MFA_TOTP_ENCRYPTION_KEY",
     "INTEGRATION_CREDENTIAL_ENCRYPTION_KEY",
     "NOTIFICATION_TOKEN_ENCRYPTION_KEY",
-    "LLM_PROFILE_ENCRYPTION_KEY",
     "EXCHANGE_CREDENTIAL_ENCRYPTION_KEY",
   ]) assert.ok(environment[key].length >= 32, key);
 });

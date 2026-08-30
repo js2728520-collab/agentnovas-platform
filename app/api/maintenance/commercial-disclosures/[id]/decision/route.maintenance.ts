@@ -1,6 +1,7 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { commercialJson, idempotencyKey } from "@/lib/commercial-api";
 import { decideCommercialDisclosure } from "@/lib/commercial-disclosure-service";
+import { automaticAuditReason } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { researchErrorResponse } from "@/lib/research-api";
 import { ResearchApiError } from "@/lib/research-errors";
@@ -14,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await commercialJson(request);
     const decision = body.decision;
     if (decision !== "approve" && decision !== "reject") throw new ResearchApiError("DISCLOSURE_DECISION_INVALID", "复核决定必须是 approve 或 reject", 422);
-    const note = typeof body.note === "string" ? body.note : "";
+    const note = automaticAuditReason(`maintenance.commercial_disclosure.${decision}`);
     return Response.json(await decideCommercialDisclosure(await getPostgresPool(), {
       requestId: id,
       reviewerUserId: user.id,

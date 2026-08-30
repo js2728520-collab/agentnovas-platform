@@ -261,6 +261,7 @@ function PerformanceStatementDetailWorkspace({
       title={pending?.stage === "assessment" ? `${pending.decision === "approve" ? t("批准") : t("拒绝")} ${t("业务账单")}` : `${pending?.decision === "approve" ? t("批准") : t("拒绝")} ${t("付款凭证")}`}
       description={pending?.stage === "assessment" ? t("业务批准只形成应收或零费用关闭，不会自动收款或更新高水位。") : t("付款批准只确认外部凭证并提交高水位，不会执行外部支付。")}
       confirmLabel={t("确认记录决定")}
+      reasonLabel={t("业务决定依据")}
       busy={busy}
       onCancel={() => setPending(null)}
       onConfirm={(reason) => void decide(reason)}

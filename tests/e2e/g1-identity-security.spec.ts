@@ -15,9 +15,9 @@ async function closeAllBrowsers(closures: Array<Promise<void>>) {
 
 async function login(page: IsolatedPage, email: string, password: string) {
   await page.goto("/login", { waitUntil: "domcontentloaded" });
-  await page.getByLabel("邮箱、手机号或用户名").fill(email);
-  await page.getByLabel("密码").fill(password);
-  await page.getByRole("button", { name: "登录" }).click();
+  await page.getByLabel(/邮箱、手机号或用户名|Email, phone number, or username/).fill(email);
+  await page.getByLabel(/密码|Password/, { exact: true }).fill(password);
+  await page.getByRole("button", { name: /登录|Sign in/, exact: true }).click();
 }
 
 async function authenticateInBrowser(page: IsolatedPage, email: string, password: string) {
@@ -35,7 +35,7 @@ async function authenticateInBrowser(page: IsolatedPage, email: string, password
 test("Client、Operations、Maintenance 从空浏览器登录后进入各自首页", async ({ browser }) => {
   const runtime = await readQualityRuntime();
   const cases = [
-    ["client", runtime.identities.client, "/dashboard", /数据看板/],
+    ["client", runtime.identities.client, "/dashboard", /数据看板|Dashboard/],
     ["operations", runtime.identities.operationsMaker, "/", "运营看板"],
     ["maintenance", runtime.identities.maintenanceAdmin, "/", "系统运行"],
   ] as const;
@@ -47,7 +47,7 @@ test("Client、Operations、Maintenance 从空浏览器登录后进入各自首�
       await login(isolated.page, identity.email, identity.password);
       await expect(isolated.page).toHaveURL(`${isolated.origin}${path}`);
       await expect(isolated.page.getByRole("heading", { name: heading })).toBeVisible();
-      await expect(isolated.page.getByRole("heading", { name: "绑定双重验证" })).toHaveCount(0);
+      await expect(isolated.page.getByRole("heading", { name: /绑定双重验证|Set up two-factor authentication/ })).toHaveCount(0);
     }
   } finally {
     await closeAllBrowsers(contexts.map((isolated) => isolated.close()));
@@ -70,7 +70,8 @@ test("Operations 权限链接完成浏览器注册、冻结角色和作废闭环
     sameSite: "Strict",
   }]);
   await page.goto(`${operationsOrigin}${invitationsPath}`, { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "权限注册链接" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "注册链接", exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "员工授权", exact: true }).click();
   await page.getByLabel("授予角色").selectOption("employee");
   await page.getByRole("button", { name: "生成或重新生成链接" }).click();
   const registrationLink = await page.locator("code").filter({ hasText: "/login#" }).textContent();
@@ -181,8 +182,8 @@ test("Client 五个浏览器、第六台拒绝、全量退出和邮件关闭降�
     await test.step("账户安全页撤销全部浏览器会话", async () => {
       const controller = contexts[0];
       await controller.page.goto("/account/security", { waitUntil: "domcontentloaded" });
-      await expect(controller.page.getByRole("heading", { name: "登录设备（最多 5 台）" })).toBeVisible();
-      await expect(controller.page.getByRole("button", { name: "退出全部设备", exact: true })).toBeVisible();
+      await expect(controller.page.getByRole("heading", { name: /登录设备（最多 5 台）|Signed-in devices \(maximum 5\)/ })).toBeVisible();
+      await expect(controller.page.getByRole("button", { name: /^(?:退出全部设备|Sign out all devices)$/ })).toBeVisible();
       const revokeResult = await controller.page.evaluate(async () => {
         const response = await fetch("/api/account/sessions", {
           method: "POST",
@@ -193,7 +194,7 @@ test("Client 五个浏览器、第六台拒绝、全量退出和邮件关闭降�
       });
       expect(revokeResult).toMatchObject({ status: 200, payload: { ok: true } });
       await controller.page.goto("/login", { waitUntil: "domcontentloaded" });
-      await expect(controller.page.getByRole("heading", { name: "安全登录" })).toBeVisible();
+      await expect(controller.page.getByRole("heading", { name: /安全登录|Secure sign in/ })).toBeVisible();
 
       await contexts[1].page.goto("/dashboard", { waitUntil: "domcontentloaded" });
       await expect(contexts[1].page).toHaveURL(/\/login\?next=/);
@@ -209,10 +210,10 @@ test("Client 五个浏览器、第六台拒绝、全量退出和邮件关闭降�
       contexts.push(verification);
       await login(verification.page, identity.email, identity.password);
       await expect(verification.page.getByText(/请先完成邮箱验证/)).toBeVisible();
-      await verification.page.getByRole("button", { name: "重发验证邮件" }).click();
-      await verification.page.getByRole("textbox", { name: "账户邮箱" }).fill(identity.email);
-      await verification.page.getByRole("button", { name: "重发验证邮件" }).click();
-      await expect(verification.page.getByText(/验证邮件已进入发送队列/)).toBeVisible();
+      await verification.page.getByRole("button", { name: /重发验证邮件|Resend verification email/ }).click();
+      await verification.page.getByRole("textbox", { name: /账户邮箱|Account email/ }).fill(identity.email);
+      await verification.page.getByRole("button", { name: /重发验证邮件|Resend verification email/ }).click();
+      await expect(verification.page.getByText(/验证邮件已进入发送队列|new message has been queued/i)).toBeVisible();
       const verificationEvidence = await pool.query(`
       SELECT token.used_at,token.expires_at,delivery.status AS delivery_status,delivery.payload_json
         FROM auth_tokens AS token

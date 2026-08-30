@@ -3,7 +3,6 @@
 import { useState, type KeyboardEvent } from "react";
 
 import { apiErrorMessage, formatDateTime, type MaintenancePaymentProvider } from "@/packages/contracts/src/riverton-ui";
-import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "@/packages/ui/src/page-state";
 import { encryptPaymentSecretPayload } from "@/packages/ui/src/payment-service-manager/browser-encryption";
 import { useApiData } from "@/packages/ui/src/use-api-data";
@@ -25,7 +24,7 @@ type SecretManagement = {
 type PaymentTestRun = {
   id: string; providerConfigId: string; kind: "provider_connectivity" | "callback_readiness";
   status: "passed" | "failed"; configurationVersion: string; errorCode: string | null;
-  actor: string | null; reason: string; startedAt: string; completedAt: string;
+  actor: string | null; startedAt: string; completedAt: string;
 };
 
 function commandKey(kind: string) { return `payment-${kind}-${Date.now()}-${crypto.randomUUID()}`; }
@@ -39,8 +38,6 @@ export function PaymentIntegrationWorkspace({ canManage }: { canManage: boolean 
     "/api/maintenance/payment-providers", t("支付配置读取失败"),
   );
   const [tab, setTab] = useState<WorkspaceTab>("overview");
-  const [auditReason, setAuditReason] = useState("");
-  const [statusReason, setStatusReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [mainCoinType, setMainCoinType] = useState("");
@@ -75,7 +72,7 @@ export function PaymentIntegrationWorkspace({ canManage }: { canManage: boolean 
     return payload as Record<string, unknown>;
   }
 
-  async function submit(commandToRun: PaymentCommand, reason: string) {
+  async function submit(commandToRun: PaymentCommand) {
     if (busy) return;
     setBusy(true); setMessage("");
     try {
@@ -86,9 +83,9 @@ export function PaymentIntegrationWorkspace({ canManage }: { canManage: boolean 
       const response = await fetch(`/api/maintenance/payment-providers/${encodeURIComponent(commandToRun.provider.id)}/${endpoint}`, {
         method: test || callbackTest ? "POST" : "PATCH",
         headers: { "content-type": "application/json", "idempotency-key": commandKey(commandToRun.kind) },
-        body: JSON.stringify(test || callbackTest ? { reason }
-          : configure ? { reason, mainCoinType, tokenCoinType, walletId: walletId || null }
-            : { reason, status: commandToRun.kind === "activate" ? "active" : "disabled" }),
+        body: JSON.stringify(test || callbackTest ? {}
+          : configure ? { mainCoinType, tokenCoinType, walletId: walletId || null }
+            : { status: commandToRun.kind === "activate" ? "active" : "disabled" }),
       });
       await responsePayload(response, t("优盾操作失败"));
       setMessage(test ? t("Provider 连通与目标 USDT 币种映射测试已通过；没有创建地址或发起转账。")
@@ -96,7 +93,6 @@ export function PaymentIntegrationWorkspace({ canManage }: { canManage: boolean 
           : configure ? t("币种映射已保存，Provider 与回调测试均需重新执行。")
             : commandToRun.kind === "activate" ? t("优盾充值通道已启用。")
               : t("优盾充值通道已停用；已有订单证据仍保留。"));
-      if (commandToRun.kind === "activate" || commandToRun.kind === "disable") setStatusReason("");
       await resource.refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : t("优盾操作失败")); }
     finally { setBusy(false); }
@@ -114,7 +110,7 @@ export function PaymentIntegrationWorkspace({ canManage }: { canManage: boolean 
   }
 
   async function submitSecretConfiguration() {
-    if (busy || !hasValidAuditReason(auditReason)) return;
+    if (busy) return;
     setBusy(true); setMessage("");
     try {
       const keyResponse = await fetch("/api/maintenance/payment-secrets/public-key", { cache: "no-store" });
@@ -130,7 +126,7 @@ export function PaymentIntegrationWorkspace({ canManage }: { canManage: boolean 
       const response = await fetch("/api/maintenance/payment-secrets/requests", {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": commandKey(`secret-${operation}`) },
-        body: JSON.stringify({ operation, envelope, reason: auditReason.trim() }),
+        body: JSON.stringify({ operation, envelope }),
       });
       const payload = await responsePayload(response, t("支付配置提交失败"));
       setApiKey("");
@@ -183,11 +179,10 @@ export function PaymentIntegrationWorkspace({ canManage }: { canManage: boolean 
             <div><dt>{t("Provider 测试")}</dt><dd>{provider.lastTestAt ? `${formatDateTime(provider.lastTestAt, locale)} · ${provider.lastTestStatus}` : t("尚未测试")}</dd></div>
             <div><dt>{t("公网回调测试")}</dt><dd>{provider.lastCallbackTestAt ? `${formatDateTime(provider.lastCallbackTestAt, locale)} · ${provider.lastCallbackTestStatus}` : t("尚未测试")}</dd></div>
           </dl>
-          {canManage && <footer className="rc-action-row"><InlineAuditReasonField id="payment-status-reason" value={statusReason}
-            onChange={setStatusReason} label={t("启停原因")} hint={t("启用后客户可请求真实地址；停用不会删除已有订单。")} />
+          {canManage && <footer className="rc-action-row">
             {provider.configuredStatus === "active"
-              ? <button className="rc-button rc-button-danger" type="button" disabled={busy || !hasValidAuditReason(statusReason)} onClick={() => void submit({ provider, kind: "disable" }, statusReason.trim())}>{t("停用通道")}</button>
-              : <button className="rc-button rc-button-primary" type="button" disabled={busy || !provider.activationReady || !hasValidAuditReason(statusReason)} onClick={() => void submit({ provider, kind: "activate" }, statusReason.trim())}>{t("启用充值")}</button>}
+              ? <button className="rc-button rc-button-danger" type="button" disabled={busy} onClick={() => void submit({ provider, kind: "disable" })}>{t("停用通道")}</button>
+              : <button className="rc-button rc-button-primary" type="button" disabled={busy || !provider.activationReady} onClick={() => void submit({ provider, kind: "activate" })}>{t("启用充值")}</button>}
           </footer>}
         </section>
       </> : tab === "configuration" ? <>
@@ -201,10 +196,9 @@ export function PaymentIntegrationWorkspace({ canManage }: { canManage: boolean 
             <label><span>API Key</span><input type="password" value={apiKey} onChange={event => setApiKey(event.target.value)} autoComplete="new-password" /></label>
             <label><span>{t("公网回调地址")}</span><input value={callbackUrl} onChange={event => setCallbackUrl(event.target.value)} placeholder="https://main-test.agentnovas.com/api/integrations/payments/udun/webhook" autoComplete="off" /></label>
             <label><span>{t("地址请求字段版本")}</span><select value={addressRequestCoinField} onChange={event => setAddressRequestCoinField(event.target.value as "mainCoinType" | "coinType")}><option value="mainCoinType">{t("mainCoinType（当前官方文档）")}</option><option value="coinType">{t("coinType（旧英文协议）")}</option></select></label>
-            <InlineAuditReasonField id="payment-configuration-reason" value={auditReason} onChange={setAuditReason} label={t("配置与测试原因")} />
           </div>
           <footer className="rc-action-row"><button className="rc-button rc-button-primary" type="button"
-            disabled={!canManage || busy || !secret?.browserConfigurable || !gatewayBaseUrl.trim() || !merchantId.trim() || !apiKey || !callbackUrl.trim() || !hasValidAuditReason(auditReason)}
+            disabled={!canManage || busy || !secret?.browserConfigurable || !gatewayBaseUrl.trim() || !merchantId.trim() || !apiKey || !callbackUrl.trim()}
             onClick={() => void submitSecretConfiguration()}>{provider.hasSecret ? t("轮换完整商户配置") : t("安装商户配置")}</button></footer>
         </section>
         <section className="rc-panel"><header><div><small>COIN MAPPING</small><h2>{t("USDT / TRC20 映射")}</h2>
@@ -214,7 +208,7 @@ export function PaymentIntegrationWorkspace({ canManage }: { canManage: boolean 
             <label><span>{t("USDT 币种编号")}</span><input name="tokenCoinType" value={tokenCoinType} onChange={event => setTokenCoinType(event.target.value)} /></label>
             <label><span>{t("钱包编号（可选）")}</span><input value={walletId} onChange={event => setWalletId(event.target.value)} /></label>
           </div>
-          <footer className="rc-action-row"><button className="rc-button" type="button" disabled={!canManage || busy || provider.configuredStatus !== "disabled" || !mainCoinType.trim() || !tokenCoinType.trim() || !hasValidAuditReason(auditReason)} onClick={() => void submit({ provider, kind: "configure" }, auditReason.trim())}>{t("保存币种映射")}</button></footer>
+          <footer className="rc-action-row"><button className="rc-button" type="button" disabled={!canManage || busy || provider.configuredStatus !== "disabled" || !mainCoinType.trim() || !tokenCoinType.trim()} onClick={() => void submit({ provider, kind: "configure" })}>{t("保存币种映射")}</button></footer>
         </section>
       </> : <section className="rc-panel"><header><div><small>VERIFICATION</small><h2>{t("测试与记录")}</h2>
         <p>{t("Provider 测试核对真实币种映射；回调测试核对 DNS、TLS、Nginx 和应用验签路由。两者都不会创建地址或转账。")}</p></div></header>
@@ -225,17 +219,16 @@ export function PaymentIntegrationWorkspace({ canManage }: { canManage: boolean 
           <div><dt>{t("回调错误码")}</dt><dd>{provider.lastCallbackErrorCode ?? "—"}</dd></div>
           <div><dt>{t("最近配置请求")}</dt><dd>{secret?.latestRequest ? `${secret.latestRequest.status} · ${secret.latestRequest.configurationFingerprint ?? "—"}` : t("尚无记录")}</dd></div>
         </dl>
-        <div className="rc-form"><InlineAuditReasonField id="payment-test-reason" value={auditReason} onChange={setAuditReason} label={t("测试原因")} /></div>
         <footer className="rc-action-row">
-          <button className="rc-button" type="button" disabled={!canManage || busy || !provider.hasSecret || !provider.coinMappingConfigured || !hasValidAuditReason(auditReason)} onClick={() => void submit({ provider, kind: "test" }, auditReason.trim())}>{t("Provider 连通测试与币种校验")}</button>
-          <button className="rc-button" type="button" disabled={!canManage || busy || !provider.hasSecret || !hasValidAuditReason(auditReason)} onClick={() => void submit({ provider, kind: "callbackTest" }, auditReason.trim())}>{t("测试公网回调")}</button>
+          <button className="rc-button" type="button" disabled={!canManage || busy || !provider.hasSecret || !provider.coinMappingConfigured} onClick={() => void submit({ provider, kind: "test" })}>{t("Provider 连通测试与币种校验")}</button>
+          <button className="rc-button" type="button" disabled={!canManage || busy || !provider.hasSecret} onClick={() => void submit({ provider, kind: "callbackTest" })}>{t("测试公网回调")}</button>
         </footer>
-        <div className="rc-table-wrap"><table><thead><tr><th>{t("测试目标")}</th><th>{t("结果")}</th><th>{t("配置版本")}</th><th>{t("操作者与原因")}</th><th>{t("开始 / 结束")}</th></tr></thead><tbody>
+        <div className="rc-table-wrap"><table><thead><tr><th>{t("测试目标")}</th><th>{t("结果")}</th><th>{t("配置版本")}</th><th>{t("操作者")}</th><th>{t("开始 / 结束")}</th></tr></thead><tbody>
           {(resource.data?.testHistory ?? []).filter(run => run.providerConfigId === provider.id).map(run => <tr key={run.id}>
             <td>{t(run.kind === "provider_connectivity" ? "Provider 连通与币种" : "公网回调链路")}</td>
             <td><StatusBadge value={run.status} /><small>{run.errorCode ?? t("无错误")}</small></td>
             <td>{run.configurationVersion}</td>
-            <td>{run.actor ?? "—"}<small>{run.reason}</small></td>
+            <td>{run.actor ?? "—"}</td>
             <td>{formatDateTime(run.startedAt, locale)}<small>{formatDateTime(run.completedAt, locale)}</small></td>
           </tr>)}
           {!(resource.data?.testHistory ?? []).some(run => run.providerConfigId === provider.id) && <tr><td colSpan={5}>{t("尚无支付测试记录")}</td></tr>}

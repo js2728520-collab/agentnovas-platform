@@ -1,7 +1,7 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { canonicalPayloadHash } from "@/lib/commercial-idempotency";
 import { loadActiveEmailTestRecipient } from "@/lib/email-test-recipient-management";
-import { maintenanceCorrelation, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation, recordMaintenanceAudit } from "@/lib/maintenance-audit";
 import { maintenanceIdempotencyKeyHash } from "@/lib/maintenance-idempotency";
 import { providerConfigAllowsSend } from "@/lib/notification-email-worker";
 import { getPostgresPool } from "@/lib/postgres";
@@ -16,15 +16,16 @@ export async function POST(request: Request) {
       command = normalizeEmailTestCommand(await readResearchJson(request));
     } catch (error) {
       const code = error instanceof Error ? error.message : "EMAIL_TEST_FIELDS_INVALID";
-      throw new ResearchApiError(code, "必须选择有效的已验证收件地址并填写测试原因", 422);
+      throw new ResearchApiError(code, "必须选择有效的已验证收件地址", 422);
     }
-    const { recipientId, reason } = command;
+    const { recipientId } = command;
+    const reason = automaticAuditReason("maintenance.email_test.queue");
     const pool = await getPostgresPool();
     const queuedAt = new Date().toISOString();
     const deliveryId = crypto.randomUUID();
     const correlation = maintenanceCorrelation(request);
     const idempotencyKeyHash = maintenanceIdempotencyKeyHash(request.headers.get("idempotency-key") ?? "");
-    const requestFingerprint = canonicalPayloadHash({ actorUserId: user.id, recipientId, reason });
+    const requestFingerprint = canonicalPayloadHash({ actorUserId: user.id, recipientId, action: reason });
     const dedupeKey = `maintenance-email-test:${idempotencyKeyHash}`;
     const client = await pool.connect();
     let delivery: { id: string; status: string; scheduled_at: Date | string } | undefined;
@@ -102,7 +103,6 @@ export async function POST(request: Request) {
           action: "maintenance.email_test_queued",
           subjectType: "notification_delivery",
           subjectId: delivery.id,
-          reason,
           ...correlation,
         });
       }

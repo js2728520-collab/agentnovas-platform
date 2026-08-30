@@ -1,4 +1,4 @@
-import type { AgentRole } from "./agent-model-profiles.ts";
+import type { AgentRole } from "./ai-control-plane-compatibility.ts";
 
 export type ResolvedLlmProfileConfig<Role extends string = string> = {
   role: Role;

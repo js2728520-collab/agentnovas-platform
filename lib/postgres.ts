@@ -7,6 +7,8 @@ let paymentWebhookPoolPromise: Promise<Pool> | undefined;
 let demoExecutionPoolPromise: Promise<Pool> | undefined;
 let releaseControlPoolPromise: Promise<Pool> | undefined;
 let releaseIdentityVerifierPoolPromise: Promise<Pool> | undefined;
+let aiSecretBrokerPoolPromise: Promise<Pool> | undefined;
+let aiGatewayPoolPromise: Promise<Pool> | undefined;
 
 /**
  * Drizzle is constructed while Next.js discovers Route Handlers during a
@@ -142,6 +144,54 @@ export async function getPostgresPool() {
     })();
   }
   return poolPromise;
+}
+
+async function isolatedServicePool(input: {
+  connectionString: string;
+  expectedRole: string;
+  applicationName: string;
+  maximumConnections: number;
+}) {
+  if (!input.connectionString) throw new Error(`${input.applicationName} database URL is not configured`);
+  if (configuredDatabaseRole(input.connectionString,input.applicationName) !== input.expectedRole) {
+    throw new Error(`${input.applicationName} database role is invalid`);
+  }
+  const { default: pg } = await import("pg");
+  const pool = new pg.Pool({
+    connectionString: input.connectionString,
+    max: input.maximumConnections,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+    application_name: input.applicationName,
+  });
+  const role = await pool.query<{ current_user: string }>("SELECT current_user");
+  if (role.rows[0]?.current_user !== input.expectedRole) {
+    await pool.end();
+    throw new Error(`${input.applicationName} PostgreSQL current role is invalid`);
+  }
+  return pool;
+}
+
+export async function getAiSecretBrokerPostgresPool() {
+  if (process.env.AI_SECRET_BROKER_PROCESS !== "true") throw new Error("AI Secret Broker process boundary is disabled");
+  aiSecretBrokerPoolPromise ??= isolatedServicePool({
+    connectionString: process.env.AI_SECRET_BROKER_DATABASE_URL?.trim() ?? "",
+    expectedRole: "agentnovas_ai_secret_broker",
+    applicationName: "agentnovas-ai-secret-broker",
+    maximumConnections: 2,
+  });
+  return aiSecretBrokerPoolPromise;
+}
+
+export async function getAiGatewayPostgresPool() {
+  if (process.env.AI_GATEWAY_PROCESS !== "true") throw new Error("AI Gateway process boundary is disabled");
+  aiGatewayPoolPromise ??= isolatedServicePool({
+    connectionString: process.env.AI_GATEWAY_DATABASE_URL?.trim() ?? "",
+    expectedRole: "agentnovas_ai_gateway",
+    applicationName: "agentnovas-ai-gateway",
+    maximumConnections: 8,
+  });
+  return aiGatewayPoolPromise;
 }
 
 export async function getDemoExecutionPostgresPool() {

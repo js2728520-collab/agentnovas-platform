@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       command = normalizeEmailRecipientCreateCommand(await readResearchJson(request, 4_096));
     } catch (error) {
       const code = error instanceof Error ? error.message : "EMAIL_RECIPIENT_FIELDS_INVALID";
-      throw new ResearchApiError(code, "测试收件地址、标签或变更原因无效", 422);
+      throw new ResearchApiError(code, "测试收件地址或标签无效", 422);
     }
     const correlation = maintenanceCorrelation(request);
     const responseRequestId = correlation.requestId ?? crypto.randomUUID();

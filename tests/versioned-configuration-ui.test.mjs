@@ -26,15 +26,12 @@ test("the complete configuration release flow stays inline without modal confirm
     read("apps/maintenance/ui/configuration-version-detail-panel.tsx"),
   ]);
   const ordinaryActions = `${create}\n${detail}`;
-  assert.match(ordinaryActions, /InlineAuditReasonField/);
+  assert.doesNotMatch(ordinaryActions, /InlineAuditReasonField|hasValidAuditReason|auditReason/);
   assert.match(ordinaryActions, /登记测试证据/);
   assert.match(workspace, /尚未接管具体运行时/);
   assert.doesNotMatch(workspace, /ConfirmActionDialog/);
   assert.doesNotMatch(workspace, /PendingAction|setPending/);
-  assert.match(detail, /审批原因/);
-  assert.match(detail, /调度原因/);
-  assert.match(detail, /激活原因/);
-  assert.match(detail, /回滚原因/);
+  assert.match(detail, /决定会直接写入不可变审批事实/);
   assert.doesNotMatch(detail, /确认立即激活|核对并安排生效/);
   assert.match(workspace, /nextCursor/);
   assert.match(workspace, /加载更早版本/);
@@ -63,7 +60,7 @@ test("registered strategy research flag uses a constrained draft form and server
   assert.match(detail, /运行确定性测试/);
   assert.match(detail, /结果与证据 SHA-256 均由服务端/);
   assert.match(workspace, /runRegisteredTest/);
-  assert.match(workspace, /\{ reason \}/);
+  assert.doesNotMatch(workspace, /\{ reason \}|reason:\s*reason/);
   assert.match(workspace, /策略研究入口将在下一次请求/);
   assert.match(workspace, /环境 Gate 与 current 功能开关/);
   assert.match(workspace, /全局或定向规则/);

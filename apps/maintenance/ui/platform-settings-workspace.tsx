@@ -4,7 +4,6 @@ import { useState } from "react";
 
 import { type SystemSettings } from "@/lib/platform-settings-contract";
 import { apiErrorMessage } from "@/packages/contracts/src/riverton-ui";
-import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import { ErrorState, LoadingState, PageHeading } from "@/packages/ui/src/page-state";
 import { useApiData } from "@/packages/ui/src/use-api-data";
 import { useAppLocale } from "@/packages/ui/src/app-locale-context";
@@ -24,7 +23,6 @@ export function PlatformSettingsWorkspace() {
 function PlatformSettingsEditor({ initial, refresh }: { initial: SystemSettings; refresh: () => Promise<void> }) {
   const { t } = useAppLocale();
   const [draft, setDraft] = useState<SystemSettings>(initial);
-  const [maintenanceReason, setMaintenanceReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -35,13 +33,12 @@ function PlatformSettingsEditor({ initial, refresh }: { initial: SystemSettings;
       const response = await fetch("/api/maintenance/platform-settings", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ system: draft, maintenanceReason }),
+        body: JSON.stringify({ system: draft }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, t("平台设置保存失败")));
       if (payload.system) setDraft(payload.system as SystemSettings);
       setMessage(String(payload.message || t("平台公开设置已保存。")));
-      setMaintenanceReason("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("平台设置保存失败"));
     } finally {
@@ -69,8 +66,7 @@ function PlatformSettingsEditor({ initial, refresh }: { initial: SystemSettings;
         <label>{t("默认语言")}<select value={draft.defaultLocale} onChange={(event) => update("defaultLocale", event.target.value as SystemSettings["defaultLocale"])}><option value="zh-CN">{t("简体中文")}</option><option value="zh-TW">{t("繁體中文")}</option><option value="en-US">English</option><option value="ru-RU">Русский</option><option value="es-ES">Español</option><option value="ja-JP">{t("日本語")}</option><option value="ko-KR">한국어</option></select></label>
         <label className="rc-wide-field">{t("维护公告")}<textarea rows={4} maxLength={500} value={draft.maintenanceBanner} onChange={(event) => update("maintenanceBanner", event.target.value)} placeholder={t("留空时客户端不显示公告")} /><small>{draft.maintenanceBanner.length}/500</small></label>
         <p className="rc-wide-field">{t("服务运营方、服务区域、客服邮箱和主域名会进入商业披露发布快照；任何一项为空都不能发布。Telegram 客服链接仅接受受支持域名的 HTTPS 地址。")}</p>
-        <InlineAuditReasonField id="platform-settings-reason" value={maintenanceReason} onChange={setMaintenanceReason} label={t("设置变更原因")} />
-        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={saving || !hasValidAuditReason(maintenanceReason)} onClick={() => void save()}>{saving ? t("正在保存…") : t("保存设置")}</button></div>
+        <div className="rc-action-row rc-wide-field"><button className="rc-primary" type="button" disabled={saving} onClick={() => void save()}>{saving ? t("正在保存…") : t("保存设置")}</button></div>
       </div>
     </section>
     <section className="rc-panel">

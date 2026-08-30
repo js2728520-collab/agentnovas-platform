@@ -33,12 +33,12 @@ const audienceNavigationContract: Record<QualityAudience, {
     forbiddenLabels: ["运营概览", "客户管理", "系统概览", "模型与 Agent"],
   },
   operations: {
-    navigationName: "运营端导航",
+    navigationName: "运营端 导航",
     requiredLabels: ["运营看板", "客户与账户", "商业与财务", "运营治理"],
     forbiddenLabels: ["运营概览", "客户管理", "会员订单", "系统概览", "模型与 Agent"],
   },
   maintenance: {
-    navigationName: "运维端导航",
+    navigationName: "运维端 导航",
     requiredLabels: ["系统运行", "AI 与策略", "外部集成", "平台配置", "发布与安全"],
     forbiddenLabels: ["系统概览", "系统健康", "工作记录导出", "模型与 Agent", "配置发布", "版本发布", "运营概览", "客户管理", "会员订单"],
   },
@@ -247,6 +247,7 @@ export async function createIsolatedQualityBrowser(
     baseURL: origin,
     acceptDownloads: false,
     serviceWorkers: "block",
+    storageState: { cookies: [], origins: [] },
   });
 
   await context.route("**/*", async (route) => {

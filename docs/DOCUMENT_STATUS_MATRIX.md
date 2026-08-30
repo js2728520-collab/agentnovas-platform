@@ -12,6 +12,7 @@
 | `FOUNDATION` | 仍可复用的专项设计基础 |
 | `HISTORICAL` | 不改写的发布、评估或阶段记录 |
 | `RETIRED` | 仅保留来源，不得作为执行指令 |
+| `CANDIDATE_COMPLETE` | 当前候选分支已实现并通过本地 Gate，尚未合并、部署或授权真实能力 |
 
 当 `TARGET_TRUTH` 与 `CURRENT_BASELINE` 不同时，开发按 Target 设计、按阶段任务迁移；生产运行仍遵守 Current 的失败关闭边界，直到对应 Gate 通过。
 
@@ -35,6 +36,8 @@
 | `specs/MAINTENANCE_AI_USAGE_ANALYTICS_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T3.9a UTC 请求创建 cohort、可信成功 Token、settled Credits、已记录非取消失败率和脱敏多维分析已通过完整 Gate；T3.9b 固定价格仍等待 P-08 |
 | `specs/EMAIL_SERVICE_MANAGEMENT_MODULE_SPEC.md` | `CURRENT_BASELINE/TARGET_TRUTH` | 可复用邮件概况、非秘密配置、明确测试收件人、投递历史和 Worker/Resend 证据闭环 |
 | `specs/UDUN_DEPOSIT_SERVICE_COMPLETION_SPEC.md` | `CURRENT_BASELINE/TARGET_TRUTH/READY_FOR_LIVE_TEST` | 优盾 deposit-only 配置托管、币种校验、回调、建址状态机和双审入账合同；真实小额闭环待外部测试商户参数与逐次授权 |
+| `specs/AI_CONTROL_PLANE_COMPONENT_SPEC.md` | `TARGET_TRUTH/CANDIDATE_COMPLETE` | 可复用 Connection/Deployment/Binding 控制面、独立密钥域、本机 Gateway、统一用量与软预算合同；本地 Gate 已通过，真实 Provider 默认关闭 |
+| `specs/AUTOMATIC_AUDIT_TRAIL_SPEC.md` | `CURRENT_TRUTH/COMPLETE` | 三端通用手工审计输入已退役，服务端自动审计、旧 API 兼容与业务说明保留边界均已通过完整 Gate |
 | `specs/STRATEGY_WORK_RECORDS_SPEC.md` | `CURRENT_BASELINE/TARGET_TRUTH` | T4.13 Client 列表/详情、六个月保留和 Maintenance security-barrier 脱敏导出已完成；真实订单继续关闭 |
 | `specs/RESTRICTED_CICD_DELEGATION_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT/RUNTIME_BLOCKED` | T8.2a–T8.2d2b 已交付默认关闭的 Ingress、target、Maintenance control、workflow、独立 Auditor、环境隔离和测试域 Web-only preview；真实 provider fixture/G7/首次生产授权未完成，Current trigger 仍关闭 |
 | `quality/FULL_PLATFORM_V3_GATES.md` | `TARGET_TRUTH` | 分能力验收和发布门禁 |
@@ -44,6 +47,8 @@
 | `adr/0022-client-email-and-five-device-security.md` | `CURRENT_BASELINE/PROVISIONAL` | Client 邮箱与设备安全合同；两项产品参数待确认 |
 | `adr/0023-deferred-mfa-enforcement-rollout.md` | `CURRENT_BASELINE/TARGET_TRUTH` | MFA 能力保留、当前关闭与生产启用门禁 |
 | `adr/0024-restricted-cicd-delegation.md` | `TARGET_TRUTH/ACCEPTED` | Maintenance 受限 CI/CD 委托、精确 run/OIDC、target fencing/receipt 与 G7 前失败关闭；仅允许增量切片实现 |
+| `adr/0028-reusable-ai-control-plane-and-key-custody.md` | `TARGET_TRUTH/ACCEPTED` | AI 控制面分层资源、可复用包、Secret Broker、loopback Gateway 与全调用用量合同 |
+| `adr/0029-server-owned-automatic-audit-trails.md` | `TARGET_TRUTH/ACCEPTED` | 服务端自动审计取代通用手工原因；旧列/API 兼容，业务语义说明继续保留 |
 
 任务执行真源位于仓库根 `tasks/plan.md` 与 `tasks/todo.md`。
 
@@ -67,6 +72,7 @@
 | `quality/ACCEPTANCE_AND_RELEASE_GATES.md` | `CURRENT_BASELINE` | 当前 Beta 发布门禁 |
 | `quality/QUALITY_RELEASE_EVIDENCE.md` | `CURRENT_BASELINE` | 当前自动质量证据生成方式 |
 | `runbooks/commercial-beta-maintenance.md` | `CURRENT_BASELINE` | 当前 Beta Maintenance 操作 |
+| `runbooks/ai-control-plane.md` | `TARGET_TRUTH/CANDIDATE_COMPLETE` | AI 控制面迁移、Secret Broker/Gateway、密钥轮换、日常配置、用量与回滚；候选分支等待合并确认 |
 | `runbooks/commercial-beta-operations.md` | `CURRENT_BASELINE` | 当前 Beta Operations 操作 |
 | `runbooks/commercial-beta-release-and-rollback.md` | `CURRENT_BASELINE` | 当前部署和回滚 |
 | `runbooks/production-accounts-and-configuration.md` | `CURRENT_BASELINE` | 当前账号与外部配置 |
@@ -108,6 +114,8 @@
 | 0025 | 邮件服务管理闭环、哈希测试授权、可复用 UI 与 API Key/Webhook Secret 进程托管边界 |
 | 0026 | 取代 0025 的只读/账号绑定测试地址；独立收件人验证、浏览器加密只写配置与 Secret Broker 当前合同 |
 | 0027 | 优盾 deposit-only 完成合同；Payment Secret Broker、严格协议、原子激活 Gate、未知建址结果和真实小额验收边界 |
+| 0028 | 可复用 AI 控制面与模型密钥托管；真实 Provider 与外部 AI Worker 继续默认关闭 |
+| 0029 | 通用审计事实由服务端动作目录和请求上下文生成；用户不再填写审计原因，业务说明保留 |
 
 ADR 原文不因目标升级批量改写；新决定使用新 ADR supersede。
 

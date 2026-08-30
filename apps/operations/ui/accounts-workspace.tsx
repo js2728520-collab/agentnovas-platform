@@ -28,7 +28,6 @@ export function AccountsWorkspace({ canManage }: { canManage: boolean }) {
     t("运营账号读取失败"),
   );
   const [query, setQuery] = useState("");
-  const [auditReason, setAuditReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const accounts = useMemo(() => {
@@ -40,11 +39,9 @@ export function AccountsWorkspace({ canManage }: { canManage: boolean }) {
         .includes(needle)
     ));
   }, [locale, query, resource.data?.accounts]);
-  const reasonReady = auditReason.trim().length >= 3 && auditReason.trim().length <= 500;
 
-  async function changeStatus(account: InternalAccount, rawReason: string) {
-    const reason = rawReason.trim();
-    if (busy || reason.length < 3 || reason.length > 500) return;
+  async function changeStatus(account: InternalAccount) {
+    if (busy) return;
     const action = account.status === "active" ? "deactivate" : "restore";
     setBusy(true);
     setMessage(t("正在更新账号状态…"));
@@ -52,12 +49,11 @@ export function AccountsWorkspace({ canManage }: { canManage: boolean }) {
       const response = await fetch(`/api/organization/members/${encodeURIComponent(account.id)}/status`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, reason }),
+        body: JSON.stringify({ action }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, t("账号状态更新失败")));
       setMessage(String(payload.message ?? t("账号状态已更新")));
-      setAuditReason("");
       await resource.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("账号状态更新失败"));
@@ -78,7 +74,7 @@ export function AccountsWorkspace({ canManage }: { canManage: boolean }) {
         <div><small>ACCOUNT DIRECTORY</small><h2>{t("内部账号生命周期")}</h2></div>
         <label>{t("搜索账号")}<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("邮箱、角色或状态")} /></label>
       </header>
-      {canManage ? <div className="rc-form"><label>{t("账号生命周期审计原因（3–500 字）")}<textarea rows={2} minLength={3} maxLength={500} value={auditReason} onChange={(event) => setAuditReason(event.target.value)} placeholder={t("例如：离职停用或复职恢复工单")} /></label><p className="rc-muted">{t("停用会立即撤销全部会话、未使用令牌和该账号签发的有效权限注册链接；恢复只允许重新登录，不会扩大原有权限。填写原因后直接点击目标账号的操作。")}</p></div> : null}
+      {canManage ? <p className="rc-muted">{t("停用会立即撤销全部会话、未使用令牌和该账号签发的有效权限注册链接；恢复只允许重新登录，不会扩大原有权限。操作者、目标、动作和结果由服务端自动留痕。")}</p> : null}
       {resource.loading && !resource.data ? <LoadingState />
         : resource.error && !resource.data ? <ErrorState message={resource.error} retry={resource.refresh} />
           : !accounts.length ? <EmptyState title={t("没有匹配账号")} description={t("调整搜索条件后重试。")} />
@@ -95,8 +91,8 @@ export function AccountsWorkspace({ canManage }: { canManage: boolean }) {
                   : <button
                       className={account.status === "active" ? "rc-button rc-danger-button" : "rc-button"}
                       type="button"
-                      disabled={busy || !reasonReady}
-                      onClick={() => void changeStatus(account, auditReason)}
+                      disabled={busy}
+                      onClick={() => void changeStatus(account)}
                     >{account.status === "active" ? t("停用") : t("恢复")}</button>}</td>
               </tr>)}</tbody>
             </table></div>}

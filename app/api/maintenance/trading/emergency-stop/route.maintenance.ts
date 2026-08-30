@@ -2,7 +2,7 @@ import type { Pool, PoolClient } from "pg";
 
 import { requireAccessPermission } from "@/lib/access-control";
 import { idempotencyKey } from "@/lib/commercial-api";
-import { maintenanceCorrelation } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { runMaintenanceIdempotentCommand } from "@/lib/maintenance-idempotency";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
@@ -100,9 +100,10 @@ export async function POST(request: Request) {
     const scope = await requestScope(request);
     const body = await readResearchJson(request, 4_096);
     if (typeof body.active !== "boolean") throw new ResearchApiError("VALIDATION_ERROR", "缺少紧急暂停状态", 422, { fields: ["active"] });
-    const reason = String(body.reason ?? "").trim();
-    if (reason.length < 3) throw new ResearchApiError("VALIDATION_ERROR", "必须填写紧急暂停原因（至少 3 个字符）", 422, { fields: ["reason"] });
-    if (reason.length > 240) throw new ResearchApiError("VALIDATION_ERROR", "紧急暂停原因不能超过 240 个字符", 422, { fields: ["reason"] });
+    const reason = String(body.incidentNote ?? body.reason ?? "").trim();
+    if (reason.length < 3) throw new ResearchApiError("VALIDATION_ERROR", "必须填写事故或处置说明（至少 3 个字符）", 422, { fields: ["incidentNote"] });
+    if (reason.length > 240) throw new ResearchApiError("VALIDATION_ERROR", "事故或处置说明不能超过 240 个字符", 422, { fields: ["incidentNote"] });
+    const auditReason = automaticAuditReason(body.active ? "maintenance.emergency_stop.pause" : "maintenance.emergency_stop.resume");
 
     const now = new Date();
     const correlation = maintenanceCorrelation(request);
@@ -115,6 +116,7 @@ export async function POST(request: Request) {
       payload: {
         active: body.active,
         reason,
+        auditReason,
         scope: scope.scopeType,
         organizationId: scope.organizationId,
       },
@@ -157,6 +159,8 @@ export async function POST(request: Request) {
         paperAccessOnly: true,
         platformDemoUnaffected: true,
         reason,
+        auditReason,
+        auditSource: "automatic",
       };
       await client.query(`
         INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,request_id,trace_id,created_at)

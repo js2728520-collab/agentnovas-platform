@@ -83,7 +83,6 @@ const selfLocalizingComponents = new Set([
   "EmptyState",
   "ErrorState",
   "EvidenceList",
-  "InlineAuditReasonField",
   "LoadingState",
   "PageHeading",
   "StatusBadge",

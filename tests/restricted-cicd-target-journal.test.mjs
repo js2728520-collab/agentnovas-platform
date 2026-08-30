@@ -227,9 +227,13 @@ test("startup removes only its own process-proven stale mutex", async () => {
   }
 });
 
-test("a live Linux owner is not reclaimed and release uses exact owner CAS", async () => {
+test("a live owner is not reclaimed and release uses exact owner CAS", async () => {
   const { root, journal } = await fixture();
-  const second = await createRestrictedCicdTargetJournal(root);
+  // Model Linux /proc liveness explicitly so the ownership contract is also
+  // deterministic on macOS development hosts.
+  const second = await createRestrictedCicdTargetJournal(root,{
+    isProcessAlive: async (lock) => lock.processId === process.pid,
+  });
   let entered;
   let allowReplacement;
   const acquired = new Promise((resolve) => { entered = resolve; });

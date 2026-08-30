@@ -1,4 +1,5 @@
 import { getPostgresPool } from "@/lib/postgres";
+import { automaticAuditReason } from "@/lib/maintenance-audit";
 import { readResearchJson, ResearchApiError, researchErrorResponse } from "@/lib/research-api";
 import { clearSessionCookieHeaders } from "@/lib/riverton-apps";
 import { requireCurrentSession } from "@/lib/session";
@@ -66,9 +67,8 @@ export async function DELETE(request: Request) {
     const current = await requireCurrentSession(request);
     const body = await readResearchJson(request, 2_048);
     const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
-    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    const reason = automaticAuditReason("shared.account.session.revoke");
     if (!sessionId || sessionId.length > 160) throw new ResearchApiError("SESSION_ID_INVALID", "会话标识无效", 422);
-    if (reason.length < 3 || reason.length > 500) throw new ResearchApiError("SESSION_REASON_INVALID", "撤销原因需要 3–500 个字符", 422);
     if (sessionId === current.session.id) throw new ResearchApiError("CURRENT_SESSION_LOGOUT_REQUIRED", "当前会话请使用退出登录", 422);
     const pool = await getPostgresPool();
     const client = await pool.connect();
@@ -88,7 +88,7 @@ export async function DELETE(request: Request) {
       await client.query(`
         INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,before_json,after_json,created_at)
         VALUES($1,$2,'account.session_revoked','session',$3,$4::jsonb,$5::jsonb,now())
-      `, [crypto.randomUUID(), current.user.id, sessionId, JSON.stringify({ active: true }), JSON.stringify({ active: false, audience: revoked.rows[0].app_audience, reason })]);
+      `, [crypto.randomUUID(), current.user.id, sessionId, JSON.stringify({ active: true }), JSON.stringify({ active: false, audience: revoked.rows[0].app_audience, reason, auditSource: "automatic" })]);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -105,11 +105,8 @@ export async function DELETE(request: Request) {
 export async function POST(request: Request) {
   try {
     const current = await requireCurrentSession(request);
-    const body = await readResearchJson(request, 2_048);
-    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
-    if (reason.length < 3 || reason.length > 500) {
-      throw new ResearchApiError("SESSION_REASON_INVALID", "退出原因需要 3–500 个字符", 422);
-    }
+    await readResearchJson(request, 2_048);
+    const reason = automaticAuditReason("shared.account.sessions.revoke_all");
     const pool = await getPostgresPool();
     const client = await pool.connect();
     let revokedCount = 0;
@@ -133,7 +130,7 @@ export async function POST(request: Request) {
       `, [
         crypto.randomUUID(),current.user.id,
         JSON.stringify({ activeSessions: revokedCount }),
-        JSON.stringify({ activeSessions: 0,reason,audience: current.session.appAudience }),
+        JSON.stringify({ activeSessions: 0,reason,audience: current.session.appAudience,auditSource: "automatic" }),
       ]);
       await client.query("COMMIT");
     } catch (error) {

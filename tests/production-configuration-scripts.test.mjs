@@ -15,7 +15,9 @@ const fixtures = {
 DATABASE_URL=postgresql://client
 CLIENT_AUTH_DATABASE_URL=postgresql://client-auth
 TRUST_PROXY_HOPS=1
-LLM_PROFILE_ENCRYPTION_KEY=shared-llm-key
+AI_GATEWAY_ENABLED=false
+AI_GATEWAY_URL=http://127.0.0.1:3030
+AI_GATEWAY_SHARED_SECRET=shared-ai-gateway-secret-at-least-48-characters
 MFA_TOTP_ENCRYPTION_KEY=client-mfa-key
 MFA_ENFORCEMENT_ENABLED=false
 NOTIFICATION_TOKEN_ENCRYPTION_KEY=shared-notification-key
@@ -47,7 +49,9 @@ TRUST_PROXY_HOPS=1
 MFA_TOTP_ENCRYPTION_KEY=internal-mfa-key
 MFA_ENFORCEMENT_ENABLED=false
 INTEGRATION_CREDENTIAL_ENCRYPTION_KEY=shared-integration-key
-LLM_PROFILE_ENCRYPTION_KEY=shared-llm-key
+AI_GATEWAY_ENABLED=false
+AI_GATEWAY_URL=http://127.0.0.1:3030
+AI_GATEWAY_SHARED_SECRET=shared-ai-gateway-secret-at-least-48-characters
 RESEND_WEBHOOK_SECRET=
 PAYMENT_WORKER_ENABLED=false
 PAYMENT_PROVIDER_TESTS_ENABLED=false
@@ -111,8 +115,34 @@ RESEND_API_KEY=
 `,
   "runtime.env": `NODE_ENV=production
 RESEARCH_DATABASE_URL=postgresql://runtime
-LLM_PROFILE_ENCRYPTION_KEY=shared-llm-key
+AI_GATEWAY_ENABLED=false
+AI_GATEWAY_URL=http://127.0.0.1:3030
+AI_GATEWAY_SHARED_SECRET=shared-ai-gateway-secret-at-least-48-characters
 STRATEGY_RUNTIME_ENABLED=false
+`,
+  "research.env": `NODE_ENV=production
+RESEARCH_DATABASE_URL=postgresql://research
+AI_GATEWAY_ENABLED=false
+AI_GATEWAY_URL=http://127.0.0.1:3030
+AI_GATEWAY_SHARED_SECRET=shared-ai-gateway-secret-at-least-48-characters
+STRATEGY_RESEARCH_ENABLED=false
+`,
+  "ai-gateway.env": `NODE_ENV=production
+AI_GATEWAY_PROCESS=true
+AI_GATEWAY_ENABLED=false
+AI_GATEWAY_DATABASE_URL=postgresql://agentnovas_ai_gateway@127.0.0.1:5432/agentnovas
+AI_GATEWAY_SHARED_SECRET=shared-ai-gateway-secret-at-least-48-characters
+AI_GATEWAY_PORT=3030
+AI_GATEWAY_MAX_CONCURRENT=8
+AI_GATEWAY_MAX_PER_MINUTE=120
+AI_MANAGED_SECRET_DIRECTORY=/var/lib/agentnovas/ai-secrets
+`,
+  "ai-secret-broker.env": `NODE_ENV=production
+AI_SECRET_BROKER_PROCESS=true
+AI_SECRET_BROKER_ENABLED=false
+AI_SECRET_BROKER_DATABASE_URL=postgresql://agentnovas_ai_secret_broker@127.0.0.1:5432/agentnovas
+AI_SECRET_BROKER_PRIVATE_KEY_FILE=/run/credentials/ai-broker-private.pem
+AI_MANAGED_SECRET_DIRECTORY=/var/lib/agentnovas/ai-secrets
 `,
   "demo.env": `NODE_ENV=production
 DATABASE_URL=postgresql://demo
@@ -279,7 +309,7 @@ test("the production audit reports readiness facts without exposing configuratio
     assert.match(result.stdout, /release_provider_security_auditor_staging=disabled/);
     assert.match(result.stdout, /release_provider_security_auditor_production=disabled/);
     assert.match(result.stdout, /release_identity_verifier=disabled/);
-    assert.doesNotMatch(result.stdout + result.stderr, /postgresql:\/\/|shared-notification-key|shared-llm-key/);
+    assert.doesNotMatch(result.stdout + result.stderr, /postgresql:\/\/|shared-notification-key|shared-ai-gateway-secret/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

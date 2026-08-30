@@ -1,6 +1,6 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { idempotencyKey } from "@/lib/commercial-api";
-import { maintenanceCorrelation } from "@/lib/maintenance-audit";
+import { automaticAuditReason, maintenanceCorrelation } from "@/lib/maintenance-audit";
 import { runMaintenanceIdempotentCommand } from "@/lib/maintenance-idempotency";
 import { loadPaymentSecretManagementStatus } from "@/lib/payment-secret-management";
 import { resolveUdunRuntimeConfig } from "@/lib/payment-secret-broker";
@@ -21,15 +21,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const { user } = await requireAccessPermission(request, "maint.payment_integrations.manage");
     const { id } = await context.params;
     const body = await readResearchJson(request, 4_096);
+    if (Object.keys(body).some(key => !["status", "reason"].includes(key))) {
+      throw new ResearchApiError("VALIDATION_ERROR", "支付渠道状态请求包含未知字段", 422);
+    }
     const status = String(body.status ?? "");
-    if (status !== "disabled" && status !== "active") throw new ResearchApiError("VALIDATION_ERROR", "支付渠道状态无效", 422, { fields: ["status"] });
-    const reason = String(body.reason ?? "").trim().slice(0, 500);
-    if (reason.length < 3) throw new ResearchApiError("VALIDATION_ERROR", "必须填写至少 3 个字符的支付渠道变更原因", 422, { fields: ["reason"] });
+    if (status !== "disabled" && status !== "active") {
+      throw new ResearchApiError("VALIDATION_ERROR", "支付渠道状态无效", 422, { fields: ["status"] });
+    }
+    const auditAction = status === "active"
+      ? "maintenance.payment_provider.enable" : "maintenance.payment_provider.disable";
+    const reason = automaticAuditReason(auditAction);
     const correlation = maintenanceCorrelation(request);
     const result = await runMaintenanceIdempotentCommand<StatusResponse>(await getPostgresPool(), {
       operation: "maintenance.payment_provider.status", actorUserId: user.id,
       subjectType: "payment_provider_config", subjectId: id,
-      idempotencyKey: idempotencyKey(request), payload: { status, reason }, ...correlation,
+      idempotencyKey: idempotencyKey(request), payload: { status, action: reason }, ...correlation,
     }, async client => {
       try {
         const existing = await client.query<{
@@ -60,10 +66,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
               && String(row.settings_json.tokenCoinType ?? "").trim()),
             providerAuthorized: process.env.PAYMENT_PROVIDER_OUTBOUND_ENABLED === "true",
             configurationVersion: row.secret_configuration_version,
-            providerTest: { status: row.last_test_status, at: row.last_test_at?.toISOString() ?? null,
-              configurationVersion: row.last_test_configuration_version },
-            callbackTest: { status: row.last_callback_test_status, at: row.last_callback_test_at?.toISOString() ?? null,
-              configurationVersion: row.last_callback_test_configuration_version },
+            providerTest: {
+              status: row.last_test_status, at: row.last_test_at?.toISOString() ?? null,
+              configurationVersion: row.last_test_configuration_version,
+            },
+            callbackTest: {
+              status: row.last_callback_test_status, at: row.last_callback_test_at?.toISOString() ?? null,
+              configurationVersion: row.last_callback_test_configuration_version,
+            },
           });
           if (!activation.ready) throw new ResearchApiError(
             "PAYMENT_ACTIVATION_GATES_FAILED", "启用前必须完成商户配置、Provider 与公网回调测试及外发授权", 409,
@@ -72,11 +82,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         }
         const changed = await client.query(`UPDATE payment_provider_configs SET status=$1,
           encrypted_secret_ref=CASE WHEN provider='udun' AND $1='active' THEN 'managed:payment-secret-broker' ELSE encrypted_secret_ref END,
-          updated_by_user_id=$2,updated_at=now() WHERE id=$3 AND status IS DISTINCT FROM $1 RETURNING id`, [status, user.id, id]);
+          updated_by_user_id=$2,updated_at=now() WHERE id=$3 AND status IS DISTINCT FROM $1 RETURNING id`,
+        [status, user.id, id]);
         if (changed.rows[0]) {
-          await client.query(`INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,request_id,trace_id)
-            VALUES($1,$2,'payment_provider.status_changed','payment_provider_config',$3,$4,$5,$6)`, [
-            crypto.randomUUID(), user.id, id, JSON.stringify({ status, reason }), correlation.requestId, correlation.traceId,
+          await client.query(`INSERT INTO audit_logs(
+            id,actor_user_id,action,subject_type,subject_id,after_json,request_id,trace_id
+          ) VALUES($1,$2,'payment_provider.status_changed','payment_provider_config',$3,$4,$5,$6)`, [
+            crypto.randomUUID(), user.id, id,
+            JSON.stringify({ status, reason, auditSource: "automatic", action: auditAction }),
+            correlation.requestId, correlation.traceId,
           ]);
         }
         return { terminalStatus: "succeeded", responseStatus: 200,

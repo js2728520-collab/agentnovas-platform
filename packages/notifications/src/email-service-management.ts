@@ -81,22 +81,12 @@ export function deriveEmailServiceEffectiveStatus(input: {
 
 export function normalizeEmailConfigurationCommand(value: unknown): {
   action: EmailConfigurationAction;
-  reason: string;
 } {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("EMAIL_CONFIGURATION_FIELDS_INVALID");
-  }
-  const input = value as Record<string, unknown>;
-  const keys = Object.keys(input).sort();
-  if (keys.length !== 2 || keys[0] !== "action" || keys[1] !== "reason") {
-    throw new Error("EMAIL_CONFIGURATION_FIELDS_INVALID");
-  }
+  const input = commandObject(value, ["action"], "EMAIL_CONFIGURATION_FIELDS_INVALID");
   if (typeof input.action !== "string" || !CONFIGURATION_ACTIONS.has(input.action as EmailConfigurationAction)) {
     throw new Error("EMAIL_CONFIGURATION_ACTION_INVALID");
   }
-  const reason = typeof input.reason === "string" ? input.reason.trim() : "";
-  if (reason.length < 3 || reason.length > 500) throw new Error("EMAIL_CONFIGURATION_REASON_INVALID");
-  return { action: input.action as EmailConfigurationAction, reason };
+  return { action: input.action as EmailConfigurationAction };
 }
 
 function exactObject(value: unknown, keys: string[], code: string) {
@@ -108,10 +98,12 @@ function exactObject(value: unknown, keys: string[], code: string) {
   return input;
 }
 
-function auditReason(value: unknown, code: string) {
-  const reason = typeof value === "string" ? value.trim() : "";
-  if (reason.length < 3 || reason.length > 500) throw new Error(code);
-  return reason;
+function commandObject(value: unknown, requiredKeys: string[], code: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(code);
+  const input = value as Record<string, unknown>;
+  const allowed = new Set([...requiredKeys, "reason"]);
+  if (Object.keys(input).some(key => !allowed.has(key)) || requiredKeys.some(key => !(key in input))) throw new Error(code);
+  return input;
 }
 
 function normalizedEmail(value: unknown) {
@@ -123,56 +115,50 @@ function normalizedEmail(value: unknown) {
 }
 
 export function normalizeEmailRecipientCreateCommand(value: unknown) {
-  const input = exactObject(value, ["email", "label", "reason"], "EMAIL_RECIPIENT_FIELDS_INVALID");
+  const input = commandObject(value, ["email", "label"], "EMAIL_RECIPIENT_FIELDS_INVALID");
   const label = typeof input.label === "string" ? input.label.trim() : "";
   if (label.length < 1 || label.length > 80) throw new Error("EMAIL_RECIPIENT_LABEL_INVALID");
   return {
     email: normalizedEmail(input.email),
     label,
-    reason: auditReason(input.reason, "EMAIL_RECIPIENT_REASON_INVALID"),
   };
 }
 
 export function normalizeEmailRecipientVerificationCommand(value: unknown):
-  | { action: "verify"; code: string; reason: string }
-  | { action: "resend"; reason: string } {
+  | { action: "verify"; code: string }
+  | { action: "resend" } {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("EMAIL_RECIPIENT_VERIFICATION_FIELDS_INVALID");
   const raw = value as Record<string, unknown>;
   if (typeof raw.action !== "string" || !RECIPIENT_VERIFICATION_ACTIONS.has(raw.action as EmailRecipientVerificationAction)) {
     throw new Error("EMAIL_RECIPIENT_VERIFICATION_ACTION_INVALID");
   }
   if (raw.action === "verify") {
-    const input = exactObject(value, ["action", "code", "reason"], "EMAIL_RECIPIENT_VERIFICATION_FIELDS_INVALID");
+    const input = commandObject(value, ["action", "code"], "EMAIL_RECIPIENT_VERIFICATION_FIELDS_INVALID");
     if (typeof input.code !== "string" || !/^\d{6}$/.test(input.code)) throw new Error("EMAIL_RECIPIENT_CODE_INVALID");
     return {
       action: "verify",
       code: input.code,
-      reason: auditReason(input.reason, "EMAIL_RECIPIENT_REASON_INVALID"),
     };
   }
-  const input = exactObject(value, ["action", "reason"], "EMAIL_RECIPIENT_VERIFICATION_FIELDS_INVALID");
-  return {
-    action: "resend",
-    reason: auditReason(input.reason, "EMAIL_RECIPIENT_REASON_INVALID"),
-  };
+  commandObject(value, ["action"], "EMAIL_RECIPIENT_VERIFICATION_FIELDS_INVALID");
+  return { action: "resend" };
 }
 
-export function normalizeEmailRecipientCommand(value: unknown): { action: EmailRecipientAction; reason: string } {
-  const input = exactObject(value, ["action", "reason"], "EMAIL_RECIPIENT_FIELDS_INVALID");
+export function normalizeEmailRecipientCommand(value: unknown): { action: EmailRecipientAction } {
+  const input = commandObject(value, ["action"], "EMAIL_RECIPIENT_FIELDS_INVALID");
   if (typeof input.action !== "string" || !RECIPIENT_ACTIONS.has(input.action as EmailRecipientAction)) {
     throw new Error("EMAIL_RECIPIENT_ACTION_INVALID");
   }
   return {
     action: input.action as EmailRecipientAction,
-    reason: auditReason(input.reason, "EMAIL_RECIPIENT_REASON_INVALID"),
   };
 }
 
-export function normalizeEmailTestCommand(value: unknown): { recipientId: string; reason: string } {
-  const input = exactObject(value, ["recipientId", "reason"], "EMAIL_TEST_FIELDS_INVALID");
+export function normalizeEmailTestCommand(value: unknown): { recipientId: string } {
+  const input = commandObject(value, ["recipientId"], "EMAIL_TEST_FIELDS_INVALID");
   const recipientId = typeof input.recipientId === "string" ? input.recipientId.trim() : "";
   if (!/^[A-Za-z0-9-]{8,80}$/.test(recipientId)) throw new Error("EMAIL_TEST_RECIPIENT_ID_INVALID");
-  return { recipientId, reason: auditReason(input.reason, "EMAIL_TEST_REASON_INVALID") };
+  return { recipientId };
 }
 
 function boundedBase64Url(value: unknown, minimum: number, maximum: number, code: string) {
@@ -199,16 +185,14 @@ export function normalizeEmailSecretEnvelope(value: unknown): EmailSecretEnvelop
 export function normalizeEmailSecretRequestCommand(value: unknown): {
   operation: EmailSecretOperation;
   envelope: EmailSecretEnvelope;
-  reason: string;
 } {
-  const input = exactObject(value, ["operation", "envelope", "reason"], "EMAIL_SECRET_REQUEST_FIELDS_INVALID");
+  const input = commandObject(value, ["operation", "envelope"], "EMAIL_SECRET_REQUEST_FIELDS_INVALID");
   if (typeof input.operation !== "string" || !EMAIL_SECRET_OPERATIONS.has(input.operation as EmailSecretOperation)) {
     throw new Error("EMAIL_SECRET_OPERATION_INVALID");
   }
   return {
     operation: input.operation as EmailSecretOperation,
     envelope: normalizeEmailSecretEnvelope(input.envelope),
-    reason: auditReason(input.reason, "EMAIL_SECRET_REASON_INVALID"),
   };
 }
 

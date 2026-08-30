@@ -3941,3 +3941,80 @@ Session 过期策略和数据库合同均未修改。定向回归为 2 passed、
 `npm audit --audit-level=high` 和 Client/Operations/Maintenance 三端 production build 全部通过，审计为 0 vulnerabilities。
 隔离 PostgreSQL 容器、Docker network 和 `/tmp/agentnovas-commit-review-TKwbtg` 已删除。本次复验未连接测试站数据库、
 未发送邮件、未调用优盾、未创建充值地址或转账、未修改 production，也未推送远端。
+## 119. 2026-08-30 可复用 AI 控制面候选完成
+
+从 `62261ec` 创建独立工作树 `/Users/kevin/Documents/Kevin/agentnovas-platform3/ai-control-plane-worktree` 和分支
+`codex/ai-control-plane-reuse`，没有携带、stash、暂存或覆盖原工作区的邮件/支付未提交改动。候选实现了
+`@agentnovas/ai-control-plane@0.1.0`、`@agentnovas/ai-control-plane-react@0.1.0`、Connection/Deployment/
+Binding 不可变修订、12 个显式角色、`0093`/`0094` 加法迁移、旧 API facade、独立 Secret Broker、loopback
+AI Gateway、统一 Usage Event、Rate Card、软预算和 `/ai-strategy?tab=models|usage` 管理旅程。
+
+最终本地证据为：包测试 12/12，临时空项目 tarball 安装/Node import/React TypeScript 消费通过；全量
+1683/1683；TypeScript、ESLint、8 条架构边界、3360 文件 secret scan、三端 production build、1621 个部署
+JS key-custody scan 与 `git diff --check` 通过。bundle gzip JS 为 Client 200147、Operations 201200、
+Maintenance 201320 bytes，均低于 204800；本地 production Chromium canonical 旅程 20/20，E2E 临时 schema
+与运行时测试秘密已清理，`externalWritesEnabled=false`。本机无关进程占用 3002，因此使用正式支持的
+`QUALITY_E2E_PORT_OFFSET=10` 在 3010–3012 运行，未终止该进程。完整证据见
+`docs/quality/AI_CONTROL_PLANE_ACCEPTANCE_2026-08-30.md`。
+
+代码审查额外修复了三项候选缺陷：预算告警查询多传一个 PostgreSQL bind 参数；传输层取消/超时/校验错误被
+错误归为 `network` 并可能违反 fallback 规则；IPv6 多播/丢弃/文档和其他保留地址未完全进入公共端点拒绝范围。
+三项均有回归测试。三端默认语言包改为按非中文 locale 延迟加载，Client 路由专属工作区按需加载；低磁盘质量
+构建只释放可重建的 outer server/cache，仍保留并扫描 standalone 部署树。
+
+本候选没有发布 Registry、push、创建 PR 或部署，没有真实 Provider 凭证验收。`AI_GATEWAY_ENABLED`、
+`AI_SECRET_BROKER_ENABLED`、`STRATEGY_RESEARCH_ENABLED`、`STRATEGY_RUNTIME_ENABLED` 继续默认 `false`；真实
+永续订单路由、客户 BYOK、固定 Credits 定价、Redis 与 Cloudflare Runtime 均未引入。下一步必须等待用户确认；
+确认后先由原工作区所有者处理干净状态，再 rebase 到最新 `codex/platform-v3-doc-sync` 并重跑全部 Gate。rebase
+通过后还要再次获得用户确认，才允许本地 fast-forward merge、正常移除工作树和删除已合并本地分支。
+
+## 120. 2026-08-30 通用审计输入退役与自动留痕完成
+
+Profile 测试成功后仍无法保存的根因，是模型页把通用“审计原因”作为保存按钮的额外前置条件。该 Gate、
+`InlineAuditReasonField`、`hasValidAuditReason` 及三端已识别的通用审计输入现已全部移除；模型、集成、平台
+设置、Demo、配置版本、发布、权限、普通账号、Session/MFA 与导出等流程只再检查真实业务前置条件、权限、
+busy 状态和原有安全 Gate。
+
+ADR-0029 规定审计事实由服务端拥有。Maintenance 审计 helper 只接受稳定 action 并在内部生成
+`automatic:<action>`，同时记录 `auditSource: "automatic"`；调用方不能传入自由文本 reason。新旧 AI API
+和其余兼容 API 即使收到旧客户端的通用 `reason` 也会忽略。既有 reason 列和历史人工记录保留，未做破坏性
+迁移。资金/充值/Credits、审批决定、事故处置、风控控制、真实路由依据和 PII 访问用途仍是业务事实，改用准确
+字段名并保留既有长度、RBAC、recent MFA、maker/checker 与幂等校验。
+
+最终本地证据：全量 Node/PostgreSQL 合同 `1692/1692`；TypeScript 与完整 ESLint 通过；Client production
+build 通过；production Chromium canonical Gate `20/20`，其中覆盖无需审计文字即可启用 Profile 保存按钮。
+完整 E2E 暴露的跨应用测试竞态也已修正：先卸载 Client 页面再清 Cookie，避免其未授权跳转与 Operations
+导航竞争。8 条架构边界、三端 Web key-custody（582/522/522 个部署 JS）、3363 文件秘密扫描和
+`npm audit --audit-level=high`（0 vulnerabilities）均通过。
+
+本轮没有 push、PR、部署、合并或关闭工作树，没有使用真实 Provider 凭证；Gateway、Secret Broker、
+Research Worker、Runtime 外部解释和真实交易继续默认关闭。候选仍保留在
+`codex/ai-control-plane-reuse` 与独立工作树，等待用户确认后才进入原定 rebase、重跑 Gate 和本地合并流程。
+
+## 121. 2026-08-30 PR #2 合并冲突收口与系统复验
+
+`codex/platform-v3-doc-sync` 已吸收 `origin/main@5f80ce665e71854e5ad6e22641c04df85a6ca9b2`。冲突处理保留
+原候选已经完成的邮件管理和优盾充值能力，同时并入 main 的可复用 AI 控制面与 ADR-0029 服务端自动审计：邮件继续
+包含独立测试收件人、只写 Secret Broker、三页签管理、投递历史和验签 Webhook 终态；支付继续包含只写 Payment
+Secret Broker、版本/指纹、Provider 与回调测试历史、原子启用 Gate、幂等建址和 Operations 人工复核。通用手填审计
+原因不再进入这些 API 或 UI，兼容请求中的旧 `reason` 只被忽略，数据库历史列由服务端写入稳定
+`automatic:<action>` 标记。
+
+合并同时补齐干净 CI 的两个缺口：`package-lock.json` 现在锁定 Puppeteer 可选 `proxy-agent@8.0.2` 依赖树，干净
+Node 22.21.1 环境的 `npm ci` 可重放；根 `pretest` 先构建 AI workspace 包，测试不再依赖残留 `dist`。Client 默认
+语言已冻结为英语，因此 production HTML smoke 改为验证英文落地页主视觉，同时继续校验落地页与未登录工作台不会
+串页。
+
+最终复验在 `an-saas` 的一次性源码目录、Node 22.21.1 容器和隔离 PostgreSQL 16 中完成。干净 `npm ci` 成功；
+串行全量测试首轮 1,745 项中 1,742 passed、1 skipped，另 2 项因 Docker 服务名被测试安全策略拒绝为非 loopback
+而主动终止；两项随后在共享隔离数据库 network namespace、使用 `127.0.0.1` 的原安全策略下均通过，因此没有代码
+失败。迁移首轮为 `95 applied / 0 skipped`，重放为 `0 applied / 95 skipped`；最小权限模板应用成功，role-policy
+返回 `findings: []`。TypeScript、完整 ESLint、8 条架构边界、3,435 文件 secret scan、
+`npm audit --audit-level=high`（0 vulnerabilities）、Client/Operations/Maintenance 三端 production build 与
+Client production HTML smoke 全部通过。三端 standalone 共扫描 1,685 个 JavaScript 文件，未包含交易所或模型
+凭证加解密能力。
+
+本次系统复验没有重新发送真实邮件，没有调用优盾、创建充值地址或发起转账，也没有部署测试站或修改生产环境。
+邮件真实送达继续以 section 115 的已验签 `email.delivered` 证据为准；支付状态继续严格为
+`ready_for_live_test`，不能表述为真实转账已验证。PR #2 只更新候选分支，不在本步骤合并到 `main`；合并必须等待
+需求方与实施者共同确认。

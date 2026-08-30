@@ -177,7 +177,10 @@ Web 层现在有两处需要凭证，都改为委托：
 
 ```bash
 # 三个 Web 构建的服务端产物里都不应再出现这个名字
-grep -rl EXCHANGE_CREDENTIAL_ENCRYPTION_KEY .next-client/server .next-operations/server .next-maintenance/server
+grep -rl EXCHANGE_CREDENTIAL_ENCRYPTION_KEY \
+  .next-client/standalone/.next-client/server \
+  .next-operations/standalone/.next-operations/server \
+  .next-maintenance/standalone/.next-maintenance/server
 ```
 
 在那之前，「Web 进程持有全部客户交易凭证的解密能力」这条已知缺口保持有效。

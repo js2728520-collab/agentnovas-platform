@@ -10,7 +10,7 @@ import {
   encryptEmailVerificationCode,
   hashEmailVerificationCode,
 } from "./email-test-recipient-crypto.ts";
-import { maintenanceCorrelation, recordMaintenanceAudit } from "./maintenance-audit.ts";
+import { automaticAuditReason, maintenanceCorrelation, recordMaintenanceAudit } from "./maintenance-audit.ts";
 import { notificationRecipientHash } from "./notification-email-worker.ts";
 import { ResearchApiError } from "./research-errors.ts";
 
@@ -138,7 +138,6 @@ export async function createEmailTestRecipient(client: PoolClient, input: {
   actorUserId: string;
   email: string;
   label: string;
-  reason: string;
   request: Request;
   idempotencyHash: string;
   environment?: Environment;
@@ -162,6 +161,8 @@ export async function createEmailTestRecipient(client: PoolClient, input: {
   const ciphertext = await encryptEmailTestRecipient(normalized, environment);
   const codeHash = hashEmailVerificationCode(recipientId, code, environment);
   const mask = maskEmailAddress(normalized);
+  const auditAction = "maintenance.email_recipient_created";
+  const reason = automaticAuditReason(auditAction);
   await client.query(`
     INSERT INTO notification_email_test_recipients(
       id,recipient_hash,recipient_ciphertext,recipient_mask,label,status,
@@ -188,7 +189,7 @@ export async function createEmailTestRecipient(client: PoolClient, input: {
       revoked_at=NULL,
       updated_at=EXCLUDED.updated_at,
       version=notification_email_test_recipients.version+1
-  `, [recipientId,recipientHash,ciphertext,mask,input.label,codeHash,expiresAt,now,input.actorUserId,input.reason]);
+  `, [recipientId,recipientHash,ciphertext,mask,input.label,codeHash,expiresAt,now,input.actorUserId,reason]);
   const verificationDeliveryId = await queueVerification(client, {
     actorUserId: input.actorUserId,
     recipientId,
@@ -200,10 +201,9 @@ export async function createEmailTestRecipient(client: PoolClient, input: {
   });
   await recordMaintenanceAudit(client, {
     actorUserId: input.actorUserId,
-    action: "maintenance.email_recipient_created",
+    action: auditAction,
     subjectType: "notification_email_test_recipient",
     subjectId: recipientId,
-    reason: input.reason,
     ...maintenanceCorrelation(input.request),
   });
   const row = await recipientById(client, recipientId);
@@ -237,7 +237,6 @@ export async function verifyEmailTestRecipient(client: PoolClient, input: {
   actorUserId: string;
   recipientId: string;
   code: string;
-  reason: string;
   request: Request;
   environment?: Environment;
   now?: Date;
@@ -261,17 +260,18 @@ export async function verifyEmailTestRecipient(client: PoolClient, input: {
       attemptsRemaining: Math.max(0, 4 - row.verification_attempts),
     });
   }
+  const auditAction = "maintenance.email_recipient_verified";
+  const reason = automaticAuditReason(auditAction);
   await client.query(`UPDATE notification_email_test_recipients
     SET status='active',verification_code_hash=NULL,verification_expires_at=NULL,
         verification_attempts=0,verified_at=$3,authorized_at=$3,revoked_at=NULL,
         updated_by_user_id=$2,reason=$4,updated_at=$3,version=version+1
-    WHERE id=$1`, [row.id,input.actorUserId,now,input.reason]);
+    WHERE id=$1`, [row.id,input.actorUserId,now,reason]);
   await recordMaintenanceAudit(client, {
     actorUserId: input.actorUserId,
-    action: "maintenance.email_recipient_verified",
+    action: auditAction,
     subjectType: "notification_email_test_recipient",
     subjectId: row.id,
-    reason: input.reason,
     ...maintenanceCorrelation(input.request),
   });
   return { recipient: await projectRecipient(await recipientById(client, row.id), environment) };
@@ -280,7 +280,6 @@ export async function verifyEmailTestRecipient(client: PoolClient, input: {
 export async function resendEmailTestRecipientVerification(client: PoolClient, input: {
   actorUserId: string;
   recipientId: string;
-  reason: string;
   request: Request;
   idempotencyHash: string;
   environment?: Environment;
@@ -297,10 +296,12 @@ export async function resendEmailTestRecipientVerification(client: PoolClient, i
   const code = input.verificationCodeFactory?.() ?? verificationCode();
   if (!/^\d{6}$/.test(code)) throw new Error("EMAIL_RECIPIENT_CODE_INVALID");
   const expiresAt = new Date(now.getTime() + 10 * 60_000);
+  const auditAction = "maintenance.email_recipient_verification_resent";
+  const reason = automaticAuditReason(auditAction);
   await client.query(`UPDATE notification_email_test_recipients
     SET verification_code_hash=$2,verification_expires_at=$3,verification_attempts=0,
         verification_sent_at=$4,updated_by_user_id=$5,reason=$6,updated_at=$4,version=version+1
-    WHERE id=$1`, [row.id,hashEmailVerificationCode(row.id,code,environment),expiresAt,now,input.actorUserId,input.reason]);
+    WHERE id=$1`, [row.id,hashEmailVerificationCode(row.id,code,environment),expiresAt,now,input.actorUserId,reason]);
   const verificationDeliveryId = await queueVerification(client, {
     actorUserId: input.actorUserId,
     recipientId: row.id,
@@ -312,10 +313,9 @@ export async function resendEmailTestRecipientVerification(client: PoolClient, i
   });
   await recordMaintenanceAudit(client, {
     actorUserId: input.actorUserId,
-    action: "maintenance.email_recipient_verification_resent",
+    action: auditAction,
     subjectType: "notification_email_test_recipient",
     subjectId: row.id,
-    reason: input.reason,
     ...maintenanceCorrelation(input.request),
   });
   return {
@@ -329,7 +329,6 @@ export async function updateEmailTestRecipient(client: PoolClient, input: {
   actorUserId: string;
   recipientId: string;
   action: EmailRecipientAction;
-  reason: string;
   request: Request;
   environment?: Environment;
   now?: Date;
@@ -341,17 +340,18 @@ export async function updateEmailTestRecipient(client: PoolClient, input: {
   if (!row.verified_at || !["active","disabled"].includes(row.status)) {
     throw new ResearchApiError("TEST_RECIPIENT_NOT_VERIFIED", "只有已验证地址可以启用或停用", 409);
   }
+  const auditAction = `maintenance.email_recipient_${input.action === "enable" ? "enabled" : "disabled"}`;
+  const reason = automaticAuditReason(auditAction);
   await client.query(`UPDATE notification_email_test_recipients
     SET status=$2,updated_by_user_id=$3,reason=$4,
         revoked_at=CASE WHEN $2::text='disabled' THEN $5::timestamptz ELSE NULL::timestamptz END,
         updated_at=$5,version=version+1
-    WHERE id=$1`, [row.id,nextStatus,input.actorUserId,input.reason,now]);
+    WHERE id=$1`, [row.id,nextStatus,input.actorUserId,reason,now]);
   await recordMaintenanceAudit(client, {
     actorUserId: input.actorUserId,
-    action: `maintenance.email_recipient_${input.action === "enable" ? "enabled" : "disabled"}`,
+    action: auditAction,
     subjectType: "notification_email_test_recipient",
     subjectId: row.id,
-    reason: input.reason,
     ...maintenanceCorrelation(input.request),
   });
   return { recipient: await projectRecipient(await recipientById(client,row.id),environment) };
@@ -360,23 +360,23 @@ export async function updateEmailTestRecipient(client: PoolClient, input: {
 export async function deleteEmailTestRecipient(client: PoolClient, input: {
   actorUserId: string;
   recipientId: string;
-  reason: string;
   request: Request;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
   const row = await recipientById(client,input.recipientId,true);
+  const auditAction = "maintenance.email_recipient_deleted";
+  const reason = automaticAuditReason(auditAction);
   await client.query(`UPDATE notification_email_test_recipients
     SET status='deleted',recipient_ciphertext=NULL,verification_code_hash=NULL,
         verification_expires_at=NULL,verification_attempts=0,deleted_at=$3,
         revoked_at=$3,updated_by_user_id=$2,reason=$4,updated_at=$3,version=version+1
-    WHERE id=$1`, [row.id,input.actorUserId,now,input.reason]);
+    WHERE id=$1`, [row.id,input.actorUserId,now,reason]);
   await recordMaintenanceAudit(client, {
     actorUserId: input.actorUserId,
-    action: "maintenance.email_recipient_deleted",
+    action: auditAction,
     subjectType: "notification_email_test_recipient",
     subjectId: row.id,
-    reason: input.reason,
     ...maintenanceCorrelation(input.request),
   });
   return { deleted: true, recipientId: row.id };

@@ -13,9 +13,12 @@ export const EXPECTED_RELEASE_DATABASE_ROLES = Object.freeze([
   "agentnovas_payment_webhook",
   "agentnovas_notification_worker",
   "agentnovas_email_secret_broker",
+  "agentnovas_payment_secret_broker",
   "agentnovas_configuration_activation_worker",
   "agentnovas_demo_execution_worker",
   "agentnovas_runtime_worker",
+  "agentnovas_ai_secret_broker",
+  "agentnovas_ai_gateway",
   "agentnovas_payment_worker",
   "agentnovas_research_worker",
   "agentnovas_release_worker",
@@ -198,6 +201,11 @@ const WEB_SECRET_TABLES = new Map([
     "platform_demo_accounts",
     "resend_webhook_events",
   ])],
+  ["agentnovas_maint_web", new Set([
+    "llm_configurations",
+    "llm_profile_revisions",
+    "llm_profiles",
+  ])],
 ]);
 
 const RELEASE_CONTROL_TABLES = new Set([
@@ -280,6 +288,11 @@ const WORKER_TABLES = new Map([
     "notification_email_secret_broker_heartbeats",
     "notification_email_secret_requests",
   ])],
+  ["agentnovas_payment_secret_broker", new Set([
+    "payment_provider_configs",
+    "payment_secret_broker_heartbeats",
+    "payment_secret_requests",
+  ])],
   ["agentnovas_configuration_activation_worker", new Set([
     "configuration_activations",
     "configuration_approvals",
@@ -297,8 +310,6 @@ const WORKER_TABLES = new Map([
     "worker_instances",
   ])],
   ["agentnovas_runtime_worker", new Set([
-    "llm_profile_revisions",
-    "llm_profiles",
     "market_data_snapshots",
     "memberships",
     "official_paper_fill_receipts",
@@ -309,7 +320,7 @@ const WORKER_TABLES = new Map([
     "platform_demo_accounts",
     "platform_demo_card_controls",
     "platform_demo_order_intents",
-    "runtime_explanation_bindings",
+    "worker_ai_deployment_revisions_safe",
     // 共享决策轮（0046–0048）：同一张卡、同一根 K 线只算一次。
     "strategy_decision_rounds",
     "strategy_deployments",
@@ -322,6 +333,30 @@ const WORKER_TABLES = new Map([
     "strategy_runtime_explanation_jobs",
     "strategy_versions",
     "worker_instances",
+  ])],
+  ["agentnovas_ai_secret_broker", new Set([
+    "ai_connection_revisions",
+    "ai_deployment_revisions",
+    "ai_legacy_secret_migration_receipts",
+    "ai_secret_broker_keys",
+    "ai_secret_commands",
+    "ai_secret_receipts",
+  ])],
+  ["agentnovas_ai_gateway", new Set([
+    "ai_binding_policies",
+    "ai_binding_policy_revisions",
+    "ai_binding_targets",
+    "ai_budget_policies",
+    "ai_connection_revisions",
+    "ai_control_plane_roles",
+    "ai_deployment_revisions",
+    "ai_invocation_receipts",
+    "ai_model_deployments",
+    "ai_probe_receipts",
+    "ai_provider_connections",
+    "ai_rate_card_revisions",
+    "ai_usage_events",
+    "gateway_client_ai_attribution_safe",
   ])],
   // 执行服务：全系统唯一能解密交易所凭证的进程。
   //
@@ -349,6 +384,24 @@ const WORKER_TABLE_PRIVILEGES = new Map([
   ["agentnovas_email_secret_broker", new Map([
     ["notification_email_secret_broker_heartbeats", new Set(["SELECT","INSERT","UPDATE"])],
     ["notification_email_secret_requests", new Set(["SELECT","UPDATE"])],
+  ])],
+  ["agentnovas_payment_secret_broker", new Map([
+    ["payment_provider_configs", new Set(["UPDATE"])],
+    ["payment_secret_broker_heartbeats", new Set(["SELECT", "INSERT", "UPDATE"])],
+    ["payment_secret_requests", new Set(["SELECT", "UPDATE"])],
+  ])],
+  ["agentnovas_ai_secret_broker", new Map([
+    ["ai_connection_revisions", new Set(["SELECT", "UPDATE"])],
+    ["ai_deployment_revisions", new Set(["SELECT", "UPDATE"])],
+    ["ai_legacy_secret_migration_receipts", new Set(["SELECT", "INSERT", "UPDATE"])],
+    ["ai_secret_broker_keys", new Set(["SELECT"])],
+    ["ai_secret_commands", new Set(["SELECT", "UPDATE"])],
+    ["ai_secret_receipts", new Set(["SELECT", "INSERT"])],
+  ])],
+  ["agentnovas_ai_gateway", new Map([
+    ["ai_invocation_receipts", new Set(["SELECT", "INSERT", "UPDATE"])],
+    ["ai_probe_receipts", new Set(["SELECT", "UPDATE"])],
+    ["ai_usage_events", new Set(["SELECT", "INSERT"])],
   ])],
   ["agentnovas_configuration_activation_worker", new Map([
     ["configuration_activations", new Set(["SELECT"])],

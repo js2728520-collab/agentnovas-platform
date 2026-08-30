@@ -116,6 +116,31 @@ test("AI usage report preserves exact metering, excludes cancellations from fail
   }
 });
 
+test("unified AI usage binds only the parameters referenced by each PostgreSQL query", async () => {
+  const calls = [];
+  const database = {
+    async query(sql, values) {
+      calls.push({ sql, values });
+      if (sql.includes("maintenance-ai-usage:report")) return { rows: [] };
+      if (sql.includes("maintenance-ai-usage:unified")) return { rows: [] };
+      if (sql.includes("maintenance-ai-usage:provider-cost")) return { rows: [] };
+      if (sql.includes("maintenance-ai-usage:budget-alerts")) return { rows: [] };
+      throw new Error("unexpected query");
+    },
+  };
+
+  await loadMaintenanceAiUsage(database, {
+    from: "2026-08-23",
+    to: "2026-08-24",
+    timezone: "UTC",
+  }, { includeUnified: true, includeProbeTraffic: false });
+
+  const byMarker = (marker) => calls.find(({ sql }) => sql.includes(marker));
+  assert.equal(byMarker("maintenance-ai-usage:unified").values.length, 3);
+  assert.equal(byMarker("maintenance-ai-usage:provider-cost").values.length, 3);
+  assert.deepEqual(byMarker("maintenance-ai-usage:budget-alerts").values, ["2026-08-23", "2026-08-24"]);
+});
+
 test("Maintenance usage route, permission, view, and UI are isolated and secret-safe", async () => {
   const [migration, grants, route, service, ui, app, nav, routeContract, rbac] = await Promise.all([
     source("../postgres/migrations/0074_maintenance_ai_usage_analytics.sql"),

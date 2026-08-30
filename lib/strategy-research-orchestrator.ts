@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 
 import { assertBetaResearchRuntimeDisabled } from "./beta-legacy-runtime-guard.ts";
-import { agentRoles, resolveAgentRoleConfig, missingAgentRoles, type AgentRole } from "./agent-model-profiles.ts";
+import { agentRoles,type AgentRole } from "./ai-control-plane-compatibility.ts";
 import { runPerpetualBacktestOnCandles, type BacktestResult, type HistoricalFundingRate } from "../packages/domain/src/backtest-engine.ts";
 import { cachePerpetualMarketData, loadCachedPerpetualMarketData } from "./postgres-market-cache.ts";
 import {
@@ -16,7 +16,7 @@ import {
   createPerpetualMarketAdapter,
   type PerpetualExchange,
 } from "./perpetual-market-adapters.ts";
-import { callStructuredResearchAgent } from "./research-agent.ts";
+import { callStructuredResearchAgentViaGateway } from "./research-agent.ts";
 import { buildResearchParameterVariants } from "./research-parameter-search.ts";
 import { runCheckpointedResearchStep } from "./research-steps.ts";
 import { canonicalJsonSha256 } from "../packages/domain/src/canonical-hash.ts";
@@ -178,11 +178,13 @@ function windowChunks<T>(items: T[], count: number) {
   return chunks;
 }
 
-async function agentCall(database: Pool, run: ResearchLease, role: AgentRole, context: Record<string, unknown>) {
+async function agentCall(run: ResearchLease,role: AgentRole,context: Record<string,unknown>,stepKey: string) {
   const pinned = run.agentRoleSnapshot?.[role];
-  const config = await resolveAgentRoleConfig(database, role, { revisionId: pinned?.revisionId });
-  if (!config) throw new Error(`Agent 角色 ${role} 尚未配置`);
-  return callStructuredResearchAgent({ config, role, context });
+  if (!pinned?.revisionId || !pinned.modelName) throw new Error(`Agent 角色 ${role} 尚未配置`);
+  return callStructuredResearchAgentViaGateway({
+    role,context,pinnedDeploymentRevisionId: pinned.revisionId,modelName: pinned.modelName,
+    invocationId: `research:${await canonicalJsonSha256({ runId: run.id,stepKey })}`,
+  });
 }
 
 async function reservedAgentCall(
@@ -208,7 +210,7 @@ async function reservedAgentCall(
     modelRevisionId: pinned?.revisionId,
     execute: async () => {
       await reserveResearchModelCalls(database, { runId: run.id, workerId });
-      return agentCall(database, run, role, context);
+      return agentCall(run,role,context,stepKey);
     },
   });
 }
@@ -510,7 +512,7 @@ async function evaluateCandidates(database: Pool, run: ResearchLease, workerId: 
 export async function processResearchStage(database: Pool, run: ResearchLease, workerId: string) {
   assertBetaResearchRuntimeDisabled();
   const pinnedMissing = agentRoles.filter(role => !run.agentRoleSnapshot?.[role]?.revisionId);
-  const missing = pinnedMissing.length === 0 ? [] : await missingAgentRoles(database);
+  const missing = pinnedMissing;
   if (missing.length) {
     await pauseResearchRunForMissingRoles(database, { runId: run.id, missingRoles: missing, workerId });
     return;

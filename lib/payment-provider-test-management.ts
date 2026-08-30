@@ -39,7 +39,6 @@ function safeTestRun(row: PaymentProviderTestRow) {
     configurationVersion: row.configuration_version,
     errorCode: row.error_code,
     actor: maskOperator(row.actor_email),
-    reason: row.reason,
     startedAt: iso(row.started_at),
     completedAt: iso(row.completed_at),
   };

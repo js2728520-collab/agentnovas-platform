@@ -90,17 +90,17 @@ export function EmailIntegrationWorkspace({ canManage }: { canManage: boolean })
     if (!controller.signal.aborted) setMessage(t("密钥配置仍在处理中；旧配置继续有效，可刷新查看最新状态。"));
   }
 
-  async function configurationChange(action: EmailConfigurationAction,reason: string) {
-    return mutate("/api/maintenance/email/configuration","PATCH",{ action,reason },t(action==="activate" ? "Provider 外发授权已启用" : "Provider 外发授权已关闭"));
+  async function configurationChange(action: EmailConfigurationAction) {
+    return mutate("/api/maintenance/email/configuration","PATCH",{ action },t(action==="activate" ? "Provider 外发授权已启用" : "Provider 外发授权已关闭"));
   }
 
-  async function secretChange(input: { operation: EmailSecretOperation;apiKey: string;webhookSecret: string;reason: string }) {
+  async function secretChange(input: { operation: EmailSecretOperation;apiKey: string;webhookSecret: string }) {
     const broker=status.data?.secretManagement?.broker;
     if (!broker?.available || !broker.keyId || !broker.publicKeyPem) { setMessage(t("Secret Broker 不可用，请刷新后重试"));return false; }
     setBusy(true);setMessage("");
     try {
       const envelope=await encryptEmailSecretPayload({ keyId: broker.keyId,publicKeyPem: broker.publicKeyPem,resendApiKey: input.apiKey,resendWebhookSecret: input.webhookSecret });
-      const response=await fetch("/api/maintenance/email/secrets",{ method: "POST",headers: { "content-type": "application/json","idempotency-key": crypto.randomUUID() },body: JSON.stringify({ operation: input.operation,envelope,reason: input.reason }) });
+      const response=await fetch("/api/maintenance/email/secrets",{ method: "POST",headers: { "content-type": "application/json","idempotency-key": crypto.randomUUID() },body: JSON.stringify({ operation: input.operation,envelope }) });
       const payload=await response.json().catch(()=>({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload,t("密钥请求提交失败")));
       const requestId=String(payload?.request?.id || "");
@@ -112,10 +112,10 @@ export function EmailIntegrationWorkspace({ canManage }: { canManage: boolean })
     finally { setBusy(false); }
   }
 
-  async function sendTest(recipientId: string,reason: string) {
+  async function sendTest(recipientId: string) {
     setBusy(true);setMessage("");
     try {
-      const response=await fetch("/api/maintenance/email/test",{ method: "POST",headers: { "content-type": "application/json","idempotency-key": crypto.randomUUID() },body: JSON.stringify({ recipientId,reason }) });
+      const response=await fetch("/api/maintenance/email/test",{ method: "POST",headers: { "content-type": "application/json","idempotency-key": crypto.randomUUID() },body: JSON.stringify({ recipientId }) });
       const payload=await response.json().catch(()=>({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload,t("邮件测试失败")));
       const recipient=String(payload.recipient || t("未知收件人"));
@@ -140,10 +140,10 @@ export function EmailIntegrationWorkspace({ canManage }: { canManage: boolean })
       onConfigurationChange={configurationChange}
       onSecretChange={secretChange}
       onRecipientCreate={input=>mutate("/api/maintenance/email/recipients","POST",input,t("收件地址已新增，验证码已排队"))}
-      onRecipientVerify={input=>mutate(`/api/maintenance/email/recipients/${encodeURIComponent(input.recipientId)}/verification`,"POST",{ action: "verify",code: input.code,reason: input.reason },t("收件地址验证成功"))}
-      onRecipientResend={input=>mutate(`/api/maintenance/email/recipients/${encodeURIComponent(input.recipientId)}/verification`,"POST",{ action: "resend",reason: input.reason },t("验证码已重新排队"))}
-      onRecipientChange={(input: { recipientId: string;action: EmailRecipientAction;reason: string })=>mutate(`/api/maintenance/email/recipients/${encodeURIComponent(input.recipientId)}`,"PATCH",{ action: input.action,reason: input.reason },t(input.action==="enable" ? "收件地址已启用" : "收件地址已停用"))}
-      onRecipientDelete={input=>mutate(`/api/maintenance/email/recipients/${encodeURIComponent(input.recipientId)}`,"DELETE",{ reason: input.reason },t("收件地址已删除"))}
+      onRecipientVerify={input=>mutate(`/api/maintenance/email/recipients/${encodeURIComponent(input.recipientId)}/verification`,"POST",{ action: "verify",code: input.code },t("收件地址验证成功"))}
+      onRecipientResend={input=>mutate(`/api/maintenance/email/recipients/${encodeURIComponent(input.recipientId)}/verification`,"POST",{ action: "resend" },t("验证码已重新排队"))}
+      onRecipientChange={(input: { recipientId: string;action: EmailRecipientAction })=>mutate(`/api/maintenance/email/recipients/${encodeURIComponent(input.recipientId)}`,"PATCH",{ action: input.action },t(input.action==="enable" ? "收件地址已启用" : "收件地址已停用"))}
+      onRecipientDelete={input=>mutate(`/api/maintenance/email/recipients/${encodeURIComponent(input.recipientId)}`,"DELETE",{},t("收件地址已删除"))}
       onSendTest={sendTest}
       onRefresh={refreshAll}
     />

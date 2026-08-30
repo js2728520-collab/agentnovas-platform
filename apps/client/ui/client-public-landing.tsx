@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 
 import styles from "./client-public-landing.module.css";
@@ -10,10 +10,15 @@ import {
   resolvePlatformLocale,
   type PlatformLocale,
 } from "@/lib/platform-locale";
+import { appLocaleCookieName } from "@/packages/ui/src/theme-script";
 
 type Page = "home" | "login" | "hall" | "market" | "trading";
 
 type Lang = PlatformLocale;
+
+const subscribeToHydration = () => () => {};
+const clientHydratedSnapshot = () => true;
+const serverHydratedSnapshot = () => false;
 
 const languageNames: Record<Lang, string> = {
   "en-US": "English",
@@ -95,6 +100,11 @@ const initialLocaleData: LocaleData = {
 
 export function ClientPublicLanding() {
   const [lang, setLang] = useState<Lang>("en-US");
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    clientHydratedSnapshot,
+    serverHydratedSnapshot,
+  );
   const [localeData, setLocaleData] = useState<LocaleData>(initialLocaleData);
   const [localeLoading, setLocaleLoading] = useState(false);
   const [localeError, setLocaleError] = useState("");
@@ -145,15 +155,24 @@ export function ClientPublicLanding() {
     return () => { cancelled = true; };
   }, []);
 
+  const persistLanguage = (nextLanguage: Lang) => {
+    try { window.localStorage.setItem(PLATFORM_LOCALE_STORAGE_KEY, nextLanguage); } catch {
+      // A language choice remains usable for this page even when persistence is unavailable.
+    }
+    document.cookie = `${appLocaleCookieName("client")}=${encodeURIComponent(nextLanguage)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  };
+
   const selectLanguage = async (nextLanguage: Lang) => {
-    if (nextLanguage === lang) return;
+    if (nextLanguage === lang) {
+      document.documentElement.lang = nextLanguage;
+      persistLanguage(nextLanguage);
+      return;
+    }
     const requestId = ++localeRequest.current;
     if (nextLanguage === "en-US") {
       setLocaleData(initialLocaleData);
       setLang(nextLanguage);
-      try { window.localStorage.setItem(PLATFORM_LOCALE_STORAGE_KEY, nextLanguage); } catch {
-        // A language choice remains usable for this page even when persistence is unavailable.
-      }
+      persistLanguage(nextLanguage);
       return;
     }
     setLocaleLoading(true);
@@ -167,9 +186,7 @@ export function ClientPublicLanding() {
         landingMore: locales.landingMore[nextLanguage],
       });
       setLang(nextLanguage);
-      try { window.localStorage.setItem(PLATFORM_LOCALE_STORAGE_KEY, nextLanguage); } catch {
-        // A language choice remains usable for this page even when persistence is unavailable.
-      }
+      persistLanguage(nextLanguage);
     } catch {
       if (requestId === localeRequest.current) {
         setLocaleError("Language resources could not be loaded. Please retry.");
@@ -219,7 +236,7 @@ export function ClientPublicLanding() {
             className={styles.langSelect}
             aria-label="Language"
             value={lang}
-            disabled={localeLoading}
+            disabled={!hydrated || localeLoading}
             onChange={(event) => void selectLanguage(event.target.value as Lang)}
           >
             {Object.entries(languageNames).map(([key, label]) => (

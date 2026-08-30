@@ -1,5 +1,6 @@
 import { requireAccessPermission } from "@/lib/access-control";
 import { commercialJson, commercialListInput, idempotencyKey, requestId } from "@/lib/commercial-api";
+import { automaticAuditReason } from "@/lib/maintenance-audit";
 import { getPostgresPool } from "@/lib/postgres";
 import { createReleaseVersion, readReleaseManagement } from "@/lib/release-version-service";
 import { researchErrorResponse } from "@/lib/research-api";
@@ -21,7 +22,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const { user } = await requireAccessPermission(request, MANAGE_PERMISSION);
-    const release = await commercialJson(request, 16_384);
+    const release = {
+      ...await commercialJson(request, 16_384),
+      reason: automaticAuditReason("maintenance.release.register"),
+    };
     const result = await createReleaseVersion(await getPostgresPool(), {
       actorUserId: user.id,
       idempotencyKey: idempotencyKey(request),

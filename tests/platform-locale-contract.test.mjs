@@ -90,6 +90,8 @@ test("public landing resolves saved and browser preferences without geolocation"
   assert.match(source, /resolvePlatformLocale/);
   assert.match(source, /localStorage\.getItem\(PLATFORM_LOCALE_STORAGE_KEY\)/);
   assert.match(source, /localStorage\.setItem\(PLATFORM_LOCALE_STORAGE_KEY, nextLanguage\)/);
+  assert.match(source, /appLocaleCookieName\("client"\)/);
+  assert.match(source, /encodeURIComponent\(nextLanguage\)/);
   assert.match(source, /browserLanguages: navigator\.languages/);
   assert.match(source, /import\("\.\/client-public-landing-locales"\)/);
   assert.match(source, /requestId !== localeRequest\.current/);

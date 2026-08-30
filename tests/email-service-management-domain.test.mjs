@@ -10,6 +10,7 @@ import {
   normalizeEmailRecipientCreateCommand,
   normalizeEmailRecipientVerificationCommand,
   normalizeEmailSecretRequestCommand,
+  normalizeEmailTestCommand,
   normalizeEmailTestHistoryLimit,
 } from "../packages/notifications/src/email-service-management.ts";
 
@@ -32,14 +33,14 @@ test("email service status does not report ready beside a newer failed test", ()
   assert.equal(deriveEmailServiceEffectiveStatus({ gates: { ...readyGates, apiKeyPresent: false }, latestTestStatus: null }), "unconfigured");
 });
 
-test("email configuration command is strict, normalized and requires an audit reason", () => {
+test("email configuration command keeps strict business fields and ignores legacy audit prose", () => {
   assert.deepEqual(normalizeEmailConfigurationCommand({
     action: "activate",
     reason: "  验证测试投递链路  ",
-  }), { action: "activate", reason: "验证测试投递链路" });
+  }), { action: "activate" });
+  assert.deepEqual(normalizeEmailConfigurationCommand({ action: "disable" }), { action: "disable" });
   assert.throws(() => normalizeEmailConfigurationCommand({ action: "activate", reason: "no", extra: true }), /EMAIL_CONFIGURATION_FIELDS_INVALID/);
   assert.throws(() => normalizeEmailConfigurationCommand({ action: "rotate_key", reason: "不能通过浏览器轮换" }), /EMAIL_CONFIGURATION_ACTION_INVALID/);
-  assert.throws(() => normalizeEmailConfigurationCommand({ action: "disable", reason: "x" }), /EMAIL_CONFIGURATION_REASON_INVALID/);
 });
 
 test("independent recipient commands are strict and never infer the signed-in account email", () => {
@@ -50,24 +51,25 @@ test("independent recipient commands are strict and never infer the signed-in ac
   }), {
     email: "qa.owner+mail@example.com",
     label: "外部验收邮箱",
-    reason: "新增独立测试收件地址",
   });
   assert.deepEqual(normalizeEmailRecipientVerificationCommand({
     action: "verify",
     code: "042019",
     reason: "验证收件邮箱所有权",
-  }), { action: "verify", code: "042019", reason: "验证收件邮箱所有权" });
+  }), { action: "verify", code: "042019" });
   assert.deepEqual(normalizeEmailRecipientVerificationCommand({
     action: "resend",
     reason: "原验证码已经过期",
-  }), { action: "resend", reason: "原验证码已经过期" });
+  }), { action: "resend" });
   assert.deepEqual(normalizeEmailRecipientCommand({ action: "disable", reason: "暂停该验收邮箱" }), {
     action: "disable",
-    reason: "暂停该验收邮箱",
   });
   assert.throws(() => normalizeEmailRecipientCreateCommand({ email: "invalid", label: "测试", reason: "新增测试地址" }), /EMAIL_RECIPIENT_ADDRESS_INVALID/);
   assert.throws(() => normalizeEmailRecipientVerificationCommand({ action: "verify", code: "12345", reason: "验证测试地址" }), /EMAIL_RECIPIENT_CODE_INVALID/);
   assert.throws(() => normalizeEmailRecipientCommand({ action: "delete", reason: "绕过删除接口" }), /EMAIL_RECIPIENT_ACTION_INVALID/);
+  assert.deepEqual(normalizeEmailTestCommand({ recipientId: "recipient-123", reason: "旧客户端说明" }), {
+    recipientId: "recipient-123",
+  });
 });
 
 test("write-only secret requests accept only a bounded encrypted envelope", () => {
@@ -85,7 +87,6 @@ test("write-only secret requests accept only a bounded encrypted envelope", () =
   }), {
     operation: "rotate",
     envelope,
-    reason: "轮换 Resend 密钥并保留旧配置直到原子切换",
   });
   assert.throws(() => normalizeEmailSecretRequestCommand({
     operation: "rotate",

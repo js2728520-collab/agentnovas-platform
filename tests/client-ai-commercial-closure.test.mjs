@@ -11,45 +11,52 @@ async function source(path) {
 
 const config = {
   providerName: "Fixture Provider",
-  endpoint: "https://llm.example.test/v1/chat/completions",
-  apiStyle: "chat_completions",
   model: "fixture-model",
-  apiKey: "fixture-only-key",
   source: "platform",
   role: "report",
+  roleKey: "client.assistant_message",
   profileId: "profile-1",
   revisionId: "revision-1",
+  bindingPolicyRevisionId: "binding-revision-1",
 };
 
-test("provider output carries validated provider metering", async () => {
+const gatewayEnvironment = {
+  AI_GATEWAY_ENABLED: "true",
+  AI_GATEWAY_URL: "http://127.0.0.1:3030",
+  AI_GATEWAY_SHARED_SECRET: "fixture-gateway-shared-secret-more-than-32-characters",
+};
+
+test("Gateway output carries validated provider metering", async () => {
   const result = await requestAiText(config, [{ role: "user", content: "hello" }], {
-    fetchImpl: async () => Response.json({
-      id: "chatcmpl-fixture-1",
-      choices: [{ message: { content: "measured answer" } }],
-      usage: { prompt_tokens: 123, completion_tokens: 45 },
-    }),
+    invocationId: "client-invocation-1",
+    environment: gatewayEnvironment,
+    fetchImpl: async () => Response.json({ content: "measured answer",receipt: {
+      invocationId: "client-invocation-1",requestHash: "a".repeat(64),status: "succeeded",
+      selectedCandidate: null,attemptCount: 1,usage: { inputTokens: 123,outputTokens: 45 },
+    } }),
   });
   assert.deepEqual(result, {
     text: "measured answer",
     metering: {
       source: "provider_metering",
-      providerRequestId: "chatcmpl-fixture-1",
-      usageId: "chatcmpl-fixture-1",
+      providerRequestId: "client-invocation-1",
+      usageId: "client-invocation-1",
       inputTokens: 123,
       outputTokens: 45,
     },
   });
 });
 
-test("provider output without a request id or reliable token usage fails closed", async () => {
-  for (const payload of [
-    { choices: [{ message: { content: "missing id" } }], usage: { prompt_tokens: 1, completion_tokens: 1 } },
-    { id: "chatcmpl-missing-usage", choices: [{ message: { content: "missing usage" } }] },
-    { id: "chatcmpl-invalid-usage", choices: [{ message: { content: "bad usage" } }], usage: { prompt_tokens: 1.5, completion_tokens: -1 } },
-  ]) {
+test("Gateway output without reliable token usage fails closed", async () => {
+  for (const usage of [null,{ inputTokens: 1.5,outputTokens: -1 }]) {
     await assert.rejects(
       requestAiText(config, [{ role: "user", content: "hello" }], {
-        fetchImpl: async () => Response.json(payload),
+        invocationId: "client-invocation-invalid",
+        environment: gatewayEnvironment,
+        fetchImpl: async () => Response.json({ content: "answer",receipt: {
+          invocationId: "client-invocation-invalid",requestHash: "b".repeat(64),status: "succeeded",
+          selectedCandidate: null,attemptCount: 1,usage,
+        } }),
       }),
       /可靠.*(?:请求|用量)|计量/,
     );
@@ -61,6 +68,7 @@ test("provider requests combine user cancellation with the bounded timeout", asy
   let providerSignal;
   const request = requestAiText(config, [{ role: "user", content: "cancel me" }], {
     signal: controller.signal,
+    environment: gatewayEnvironment,
     fetchImpl: async (_url, init) => {
       providerSignal = init?.signal;
       return new Promise((_resolve, reject) => {
@@ -74,7 +82,7 @@ test("provider requests combine user cancellation with the bounded timeout", asy
   assert.equal(providerSignal?.aborted, true);
 });
 
-test("Client model runtime uses the safe report/proposal projection and dedicated encryption key", async () => {
+test("Client model runtime uses the explicit-role control-plane projection without key custody", async () => {
   const [resolver, migration, grants] = await Promise.all([
     source("../lib/client-platform-llm.ts"),
     source("../postgres/migrations/0038_client_ai_runtime_credits.sql"),
@@ -86,8 +94,8 @@ test("Client model runtime uses the safe report/proposal projection and dedicate
   assert.match(grants, /GRANT SELECT ON client_ai_runtime_model_bindings TO agentnovas_client_web/i);
   const clientSection = grants.match(/-- Client[\s\S]*?(?=-- Operations)/)?.[0] ?? "";
   assert.doesNotMatch(clientSection, /GRANT SELECT ON[\s\S]*?\b(?:llm_profiles|llm_profile_revisions|agent_role_bindings)\b/i);
-  assert.match(resolver, /client_ai_runtime_model_bindings/);
-  assert.match(resolver, /decryptLlmProfileSecret/);
+  assert.match(resolver, /client_ai_control_plane_bindings_safe/);
+  assert.doesNotMatch(resolver, /decryptLlmProfileSecret|encrypted_api_key|apiKey|endpoint/);
   assert.doesNotMatch(resolver, /AI_API_(?:URL|KEY)|AI_MODEL|llm_profiles|llm_profile_revisions/);
 });
 

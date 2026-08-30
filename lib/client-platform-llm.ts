@@ -1,32 +1,30 @@
+import type { AiRoleKey } from "@agentnovas/ai-control-plane";
 import type { Pool, PoolClient } from "pg";
 
-import { decryptLlmProfileSecret } from "./integration-credentials.ts";
-import { normalizeLlmCompletionEndpoint } from "./llm-endpoint.ts";
+type Queryable = Pick<Pool | PoolClient,"query">;
 
-type Queryable = Pick<Pool | PoolClient, "query">;
-
+/** Compatibility names retained at the API boundary during the migration window. */
 export type ClientAiModelRole = "report" | "proposal_a";
 
 export type ResolvedLlmConfig = {
   providerName: string;
-  endpoint: string;
-  apiStyle: "chat_completions" | "responses";
   model: string;
-  apiKey: string;
   source: "platform";
   role: ClientAiModelRole;
+  roleKey: Extract<AiRoleKey,"client.assistant_message" | "client.strategy_generation">;
   profileId: string;
   revisionId: string;
+  bindingPolicyRevisionId: string;
 };
 
 type RuntimeProjectionRow = {
   role: ClientAiModelRole;
+  control_plane_role: "assistant_message" | "strategy_generation";
   profile_id: string;
   revision_id: string;
   provider_name: string;
-  base_url: string;
   model_name: string;
-  encrypted_api_key: string;
+  binding_policy_revision_id: string;
 };
 
 export async function resolveClientPlatformLlmConfig(
@@ -34,29 +32,26 @@ export async function resolveClientPlatformLlmConfig(
   role: ClientAiModelRole,
 ): Promise<ResolvedLlmConfig | null> {
   const result = await database.query<RuntimeProjectionRow>(`
-    SELECT role,profile_id,revision_id,provider_name,base_url,model_name,encrypted_api_key
-      FROM client_ai_runtime_model_bindings
-     WHERE role=$1
-     LIMIT 1
-  `, [role]);
+    SELECT role,control_plane_role,profile_id,revision_id,provider_name,model_name,binding_policy_revision_id
+    FROM client_ai_control_plane_bindings_safe
+    WHERE role=$1
+    LIMIT 1
+  `,[role]);
   const row = result.rows[0];
-  if (!row) return null;
-  try {
-    const target = normalizeLlmCompletionEndpoint(row.base_url);
-    const apiKey = await decryptLlmProfileSecret(row.encrypted_api_key);
-    if (!apiKey.trim() || apiKey.length > 4_096 || !row.model_name.trim() || row.model_name.length > 100) return null;
-    return {
-      providerName: row.provider_name,
-      endpoint: target.endpoint,
-      apiStyle: target.apiStyle,
-      model: row.model_name,
-      apiKey,
-      source: "platform",
-      role: row.role,
-      profileId: row.profile_id,
-      revisionId: row.revision_id,
-    };
-  } catch {
-    return null;
-  }
+  const expectedControlPlaneRole = role === "report" ? "assistant_message" : "strategy_generation";
+  if (!row || row.role !== role || row.control_plane_role !== expectedControlPlaneRole
+    || !row.binding_policy_revision_id || !row.profile_id || !row.revision_id
+    || !row.provider_name?.trim() || !row.model_name?.trim() || row.model_name.length > 200) return null;
+  return {
+    providerName: row.provider_name,
+    model: row.model_name,
+    source: "platform",
+    role: row.role,
+    roleKey: row.control_plane_role === "assistant_message"
+      ? "client.assistant_message"
+      : "client.strategy_generation",
+    profileId: row.profile_id,
+    revisionId: row.revision_id,
+    bindingPolicyRevisionId: row.binding_policy_revision_id,
+  };
 }

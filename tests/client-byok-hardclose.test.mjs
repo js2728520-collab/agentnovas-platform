@@ -61,37 +61,18 @@ test("Client-reachable workspaces contain no private key, endpoint, or BYOK modu
 
 test("Client AI uses only the platform model configuration and fails closed when it is absent", async () => {
   const { resolveClientPlatformLlmConfig } = await import("../lib/client-platform-llm.ts");
-  const { encryptLlmProfileSecret } = await import("../lib/integration-credentials.ts");
-  const previousKey = process.env.LLM_PROFILE_ENCRYPTION_KEY;
-  process.env.LLM_PROFILE_ENCRYPTION_KEY = "test-only-client-profile-key-32-chars";
-  try {
-    assert.equal(await resolveClientPlatformLlmConfig({ query: async () => ({ rows: [] }) }, "report"), null);
-    const encrypted = await encryptLlmProfileSecret("platform-test-key");
-    const row = (base_url) => ({
-      role: "report",
-      profile_id: "profile-1",
-      revision_id: "revision-1",
-      provider_name: "Platform AI",
-      base_url,
-      model_name: "platform-model",
-      encrypted_api_key: encrypted,
-    });
-    assert.equal(await resolveClientPlatformLlmConfig({ query: async () => ({ rows: [row("http://127.0.0.1:11434/v1")] }) }, "report"), null);
-    assert.deepEqual(await resolveClientPlatformLlmConfig({ query: async () => ({ rows: [row("https://llm.example.test/v1")] }) }, "report"), {
-      providerName: "Platform AI",
-      endpoint: "https://llm.example.test/v1/chat/completions",
-      apiStyle: "chat_completions",
-      model: "platform-model",
-      apiKey: "platform-test-key",
-      source: "platform",
-      role: "report",
-      profileId: "profile-1",
-      revisionId: "revision-1",
-    });
-  } finally {
-    if (previousKey === undefined) delete process.env.LLM_PROFILE_ENCRYPTION_KEY;
-    else process.env.LLM_PROFILE_ENCRYPTION_KEY = previousKey;
-  }
+  assert.equal(await resolveClientPlatformLlmConfig({ query: async () => ({ rows: [] }) }, "report"), null);
+  const row = {
+    role: "report",control_plane_role: "assistant_message",
+    profile_id: "profile-1",revision_id: "revision-1",provider_name: "Platform AI",
+    model_name: "platform-model",binding_policy_revision_id: "binding-revision-1",
+  };
+  assert.equal(await resolveClientPlatformLlmConfig({ query: async () => ({ rows: [{ ...row,control_plane_role: "strategy_generation" }] }) }, "report"), null);
+  assert.deepEqual(await resolveClientPlatformLlmConfig({ query: async () => ({ rows: [row] }) }, "report"), {
+    providerName: "Platform AI",model: "platform-model",source: "platform",role: "report",
+    roleKey: "client.assistant_message",profileId: "profile-1",revisionId: "revision-1",
+    bindingPolicyRevisionId: "binding-revision-1",
+  });
 
   const [conversationRoute, strategyRoute, resolver] = await Promise.all([
     source("../app/api/ai/conversations/[id]/messages/route.client.ts"),
@@ -103,7 +84,7 @@ test("Client AI uses only the platform model configuration and fails closed when
     assert.match(route, /PLATFORM_MODEL_NOT_CONFIGURED/);
     assert.doesNotMatch(route, /resolveLlmConfig|llmConfigurations|user-\$\{/);
   }
-  assert.doesNotMatch(resolver, /getDb|llmConfigurations|userId|encryptedApiKey/);
+  assert.doesNotMatch(resolver, /getDb|llmConfigurations|userId|encryptedApiKey|decryptLlmProfileSecret|apiKey|endpoint/);
 });
 
 test("Client database grants remain independent of legacy LLM configuration storage", async () => {

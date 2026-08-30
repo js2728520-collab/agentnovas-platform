@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 
 import { apiErrorMessage, formatDateTime, formatDecimal } from "@/packages/contracts/src/riverton-ui";
-import { hasValidAuditReason, InlineAuditReasonField } from "@/packages/ui/src/inline-audit-reason-field";
 import {
   EmptyState,
   ErrorState,
@@ -88,13 +87,11 @@ export function DemoExchangesWorkspace({
     "/api/maintenance/demo-exchanges",
     t("Demo 账户安全视图读取失败"),
   );
-  const [verifyReason, setVerifyReason] = useState("");
-  const [controlReason, setControlReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const controlKeys = useRef(new Map<string, string>());
 
-  async function execute(actionToRun: DemoAction, reason: string) {
+  async function execute(actionToRun: DemoAction) {
     if (busy) return;
     setBusy(true);
     setMessage("");
@@ -114,7 +111,6 @@ export function DemoExchangesWorkspace({
             "idempotency-key": idempotencyKey,
           },
           body: JSON.stringify({
-            reason,
             ...(actionToRun.action === "verify" ? {} : { action: actionToRun.action }),
             ...(actionToRun.strategyCode
               ? { strategyCode: actionToRun.strategyCode }
@@ -155,7 +151,7 @@ export function DemoExchangesWorkspace({
   }
 
   function verifyAccount(account: DemoAccountView) {
-    void execute({ account, action: "verify" }, verifyReason.trim());
+    void execute({ account, action: "verify" });
   }
 
   if (resource.loading && !resource.data) {
@@ -201,7 +197,6 @@ export function DemoExchangesWorkspace({
           <span>{t("不提供任何 UI 入口")}</span>
         </article>
       </section>
-      {(canVerify || canManage || canKill) ? <section className="rc-panel"><header><div><small>INLINE AUDIT</small><h2>{t("Demo 验证与安全控制")}</h2><p>{t("填写对应原因后直接执行，不再弹出二次确认；账户启停、Kill、恢复、权限、幂等和运行时外写 Gate 保持不变。")}</p></div></header><div className="rc-form rc-form-grid">{canVerify ? <InlineAuditReasonField id="demo-verification-reason" value={verifyReason} onChange={setVerifyReason} minLength={8} label={t("连接验证原因")} /> : null}{(canManage || canKill) ? <InlineAuditReasonField id="demo-control-reason" value={controlReason} onChange={setControlReason} minLength={8} label={t("安全控制原因")} hint={t("控制只更新平台 Demo 账户或策略卡状态，不会创建、撤销或声称执行任何订单。")} /> : null}</div></section> : null}
       {!resource.data?.accounts.length ? (
         <EmptyState
           title={t("尚无平台 Demo 账户")}
@@ -272,7 +267,7 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    disabled={busy || !hasValidAuditReason(verifyReason, 8)}
+                    disabled={busy}
                     onClick={() => verifyAccount(account)}
                   >
                     {t("验证 Demo 连接")}
@@ -282,8 +277,8 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    disabled={busy || !account.configured || !account.verificationFresh || !hasValidAuditReason(controlReason, 8)}
-                    onClick={() => void execute({ account, action: "enable" }, controlReason.trim())}
+                    disabled={busy || !account.configured || !account.verificationFresh}
+                    onClick={() => void execute({ account, action: "enable" })}
                   >
                     {t("启用账户")}
                   </button>
@@ -292,8 +287,8 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    disabled={busy || !hasValidAuditReason(controlReason, 8)}
-                    onClick={() => void execute({ account, action: "disable" }, controlReason.trim())}
+                    disabled={busy}
+                    onClick={() => void execute({ account, action: "disable" })}
                   >
                     {t("停用账户")}
                   </button>
@@ -302,8 +297,8 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button rc-danger-button"
                     type="button"
-                    disabled={busy || !hasValidAuditReason(controlReason, 8)}
-                    onClick={() => void execute({ account, action: "kill" }, controlReason.trim())}
+                    disabled={busy}
+                    onClick={() => void execute({ account, action: "kill" })}
                   >
                     {t("紧急 Kill")}
                   </button>
@@ -312,8 +307,8 @@ export function DemoExchangesWorkspace({
                   <button
                     className="rc-button"
                     type="button"
-                    disabled={busy || !hasValidAuditReason(controlReason, 8)}
-                    onClick={() => void execute({ account, action: "resume" }, controlReason.trim())}
+                    disabled={busy}
+                    onClick={() => void execute({ account, action: "resume" })}
                   >
                     {t("解除 Kill（保持停用）")}
                   </button>
@@ -340,12 +335,12 @@ export function DemoExchangesWorkspace({
                         <button
                           className="rc-button rc-danger-button"
                           type="button"
-                          disabled={busy || !hasValidAuditReason(controlReason, 8)}
+                          disabled={busy}
                           onClick={() => void execute({
                               account,
                               action: "card_kill",
                               strategyCode: card.strategyCode,
-                            }, controlReason.trim())}
+                            })}
                         >
                           {t("停止该卡")}
                         </button>
@@ -354,12 +349,12 @@ export function DemoExchangesWorkspace({
                         <button
                           className="rc-button"
                           type="button"
-                          disabled={busy || !hasValidAuditReason(controlReason, 8)}
+                          disabled={busy}
                           onClick={() => void execute({
                               account,
                               action: "card_resume",
                               strategyCode: card.strategyCode,
-                            }, controlReason.trim())}
+                            })}
                         >
                           {t("恢复该卡")}
                         </button>

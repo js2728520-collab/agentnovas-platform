@@ -70,6 +70,11 @@ export async function POST(request: Request) {
         INSERT INTO role_template_versions (id, template_id, version, permissions_json, change_summary, published_by_user_id)
         VALUES ($1, $2, 1, $3::jsonb, $4, $5)
       `, [crypto.randomUUID(), templateId, JSON.stringify(permissions), String(body.changeSummary ?? "initial").slice(0, 500), user.id]);
+      await client.query(`
+        INSERT INTO authorization_audit_events
+          (id, actor_user_id, application_id, action, subject_type, subject_id, before_json, after_json)
+        VALUES ($1, $2, $3, 'role_template.publish', 'role_template', $4, '{}'::jsonb, $5::jsonb)
+      `, [crypto.randomUUID(), user.id, appId, templateId, JSON.stringify({ code, name, version: 1, auditSource: "automatic" })]);
       await client.query("COMMIT");
       return Response.json({ roleTemplate: { id: templateId, applicationId, code, name, version: 1 } }, { status: 201 });
     } catch (error) {
