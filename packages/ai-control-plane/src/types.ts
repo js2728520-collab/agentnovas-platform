@@ -190,9 +190,9 @@ export type RateCardRevision = {
 
 export type BudgetPolicy = {
   id: string;
-  scope: "platform" | "organization" | "role" | "deployment";
+  scope: "platform" | "organization" | "consumer" | "role" | "deployment";
   scopeId: string;
-  unit: "requests" | "tokens" | "provider_cost";
+  unit: "requests" | "tokens" | "provider_cost" | "platform_credits";
   limit: string;
   warningPercentage: number;
   enabled: boolean;

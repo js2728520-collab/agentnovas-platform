@@ -8,6 +8,10 @@ import {
 import { normalizeLlmBaseUrl, normalizeLlmCompletionEndpoint } from "./llm-endpoint.ts";
 import { ResearchApiError } from "./research-errors.ts";
 import type { ResolvedAgentRoleConfig, ResolvedLlmProfileConfig } from "./research-types.ts";
+import {
+  synchronizeLegacyBinding,
+  synchronizeLegacyProfile,
+} from "./ai-control-plane-repository.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
 
@@ -277,27 +281,40 @@ export async function bindRuntimeExplanationRole(database: Queryable, options: {
   assertRuntimeExplanationRole(options.role);
   const actorUserId = requiredText(options.actorUserId, "操作人", 160);
   const profileId = requiredText(options.profileId, "模型 Profile", 160);
-  const exists = await database.query("SELECT 1 FROM llm_profiles WHERE id = $1", [profileId]);
-  if (!exists.rows[0]) throw new Error("模型 Profile 不存在");
-  const result = await database.query<{ id: string; role: RuntimeExplanationRole; llm_profile_id: string; enabled: boolean; updated_at: Date }>(`
-    INSERT INTO runtime_explanation_bindings (
-      id, role, llm_profile_id, enabled, updated_by_user_id
-    ) VALUES ($1, $2, $3, $4, $5)
-    ON CONFLICT (role) DO UPDATE SET
-      llm_profile_id = EXCLUDED.llm_profile_id,
-      enabled = EXCLUDED.enabled,
-      updated_by_user_id = EXCLUDED.updated_by_user_id,
-      updated_at = now()
-    RETURNING id, role, llm_profile_id, enabled, updated_at
-  `, [crypto.randomUUID(), options.role, profileId, options.enabled !== false, actorUserId]);
-  const row = result.rows[0];
-  return {
-    id: row.id,
-    role: row.role,
-    profileId: row.llm_profile_id,
-    enabled: row.enabled,
-    updatedAt: row.updated_at,
-  };
+  const pool = database as Queryable & { connect?: () => Promise<PoolClient> };
+  const client = pool.connect ? await pool.connect() : database as PoolClient;
+  const release = Boolean(pool.connect);
+  try {
+    await client.query("BEGIN");
+    const exists = await client.query("SELECT 1 FROM llm_profiles WHERE id = $1", [profileId]);
+    if (!exists.rows[0]) throw new Error("模型 Profile 不存在");
+    const result = await client.query<{ id: string; role: RuntimeExplanationRole; llm_profile_id: string; enabled: boolean; updated_at: Date }>(`
+      INSERT INTO runtime_explanation_bindings (
+        id, role, llm_profile_id, enabled, updated_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (role) DO UPDATE SET
+        llm_profile_id = EXCLUDED.llm_profile_id,
+        enabled = EXCLUDED.enabled,
+        updated_by_user_id = EXCLUDED.updated_by_user_id,
+        updated_at = now()
+      RETURNING id, role, llm_profile_id, enabled, updated_at
+    `, [crypto.randomUUID(), options.role, profileId, options.enabled !== false, actorUserId]);
+    await synchronizeLegacyBinding(client, options.role);
+    await client.query("COMMIT");
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      role: row.role,
+      profileId: row.llm_profile_id,
+      enabled: row.enabled,
+      updatedAt: row.updated_at,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    if (release) client.release();
+  }
 }
 
 export async function listRuntimeExplanationBindings(database: Queryable, options: { visibility: "administrator" }): Promise<AdministratorBindingView<RuntimeExplanationRole>[]>;
@@ -395,6 +412,7 @@ export async function saveLlmProfile(database: Queryable, options: {
     const updated = await client.query<ProfileRow>(`
       UPDATE llm_profiles SET current_revision_id = $2 WHERE id = $1 RETURNING *
     `, [id, revisionId]);
+    await synchronizeLegacyProfile(client, id);
     await client.query("COMMIT");
     return profileFromRow(updated.rows[0] ?? result.rows[0]);
   } catch (error) {
@@ -414,30 +432,45 @@ export async function bindAgentRole(database: Queryable, options: {
   assertAgentRole(options.role);
   const actorUserId = requiredText(options.actorUserId, "操作人", 160);
   const profileId = requiredText(options.profileId, "模型 Profile", 160);
-  const exists = await database.query("SELECT 1 FROM llm_profiles WHERE id = $1", [profileId]);
-  if (!exists.rows[0]) throw new Error("模型 Profile 不存在");
-  const result = await database.query<BindingRow>(`
-    INSERT INTO agent_role_bindings (
-      id, role, llm_profile_id, enabled, updated_by_user_id
-    ) VALUES ($1, $2, $3, $4, $5)
-    ON CONFLICT (role) DO UPDATE SET
-      llm_profile_id = EXCLUDED.llm_profile_id,
-      enabled = EXCLUDED.enabled,
-      updated_by_user_id = EXCLUDED.updated_by_user_id,
-      updated_at = now()
-    RETURNING id, role, llm_profile_id, enabled, updated_at,
-      '' AS model_name, '' AS profile_name, '' AS provider_name,
-      '' AS base_url, '' AS encrypted_api_key, '' AS masked_api_key,
-      false AS profile_enabled
-  `, [crypto.randomUUID(), options.role, profileId, options.enabled !== false, actorUserId]);
-  const row = result.rows[0];
-  return {
-    id: row.id,
-    role: row.role,
-    profileId: row.llm_profile_id,
-    enabled: row.enabled,
-    updatedAt: row.updated_at,
-  };
+  const pool = database as Queryable & { connect?: () => Promise<PoolClient> };
+  const client = pool.connect ? await pool.connect() : database as PoolClient;
+  const release = Boolean(pool.connect);
+  try {
+    await client.query("BEGIN");
+    const exists = await client.query("SELECT 1 FROM llm_profiles WHERE id = $1", [profileId]);
+    if (!exists.rows[0]) throw new Error("模型 Profile 不存在");
+    const result = await client.query<BindingRow>(`
+      INSERT INTO agent_role_bindings (
+        id, role, llm_profile_id, enabled, updated_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (role) DO UPDATE SET
+        llm_profile_id = EXCLUDED.llm_profile_id,
+        enabled = EXCLUDED.enabled,
+        updated_by_user_id = EXCLUDED.updated_by_user_id,
+        updated_at = now()
+      RETURNING id, role, llm_profile_id, enabled, updated_at,
+        '' AS model_name, '' AS profile_name, '' AS provider_name,
+        '' AS base_url, '' AS encrypted_api_key, '' AS masked_api_key,
+        false AS profile_enabled
+    `, [crypto.randomUUID(), options.role, profileId, options.enabled !== false, actorUserId]);
+    await synchronizeLegacyBinding(client, options.role);
+    if (options.role === "report") await synchronizeLegacyBinding(client, "assistant_message");
+    if (options.role === "proposal_a") await synchronizeLegacyBinding(client, "strategy_generation");
+    await client.query("COMMIT");
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      role: row.role,
+      profileId: row.llm_profile_id,
+      enabled: row.enabled,
+      updatedAt: row.updated_at,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    if (release) client.release();
+  }
 }
 
 async function bindingRows(database: Queryable) {
