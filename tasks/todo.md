@@ -8,11 +8,13 @@
 - [x] 冻结组件 Spec、ADR、威胁模型、角色目录、fallback 与迁移/回滚边界。
 - [x] 建立 core/React 两个 `0.1.0` 内部包、RED 测试、构建和 tarball 安装验收。
 - [x] 实现 `0093_ai_control_plane.sql` 与旧 Profile/绑定原地兼容迁移。
-- [-] 实现 `0094_ai_secret_custody.sql`、Secret Broker、离线旧 Key 迁移和 key-custody Gate。
-- [ ] 实现 loopback AI Gateway、OpenAI-compatible adapter、幂等、取消、fallback 与 Fake Provider 测试。
-- [ ] 接入 12 角色、旧 API facade、Client/Research/Runtime 调用与统一 Usage Event。
-- [ ] 升级 `/ai-strategy` 模型/用量 UI、测试凭据、健康状态、软预算和告警。
-- [ ] 完成 package/test/type/lint/security/三端 build/browser Gate，汇报证据后等待合并确认。
+- [x] 实现 `0094_ai_secret_custody.sql`、Secret Broker、离线旧 Key 迁移和 key-custody Gate。
+- [x] 实现 loopback AI Gateway、OpenAI-compatible adapter、幂等、取消、fallback 与 Fake Provider 测试。
+- [x] 接入 12 角色、旧 API facade、Client/Research/Runtime 调用与统一 Usage Event。
+- [x] 升级 `/ai-strategy` 模型/用量 UI、测试凭据、健康状态、软预算和告警。
+- [x] 完成 package/test/type/lint/security/三端 build/browser Gate，并形成候选验收证据。
+- [!] 等待用户确认后 rebase 到最新 `codex/platform-v3-doc-sync`；原工作区未提交邮件/支付改动必须先由其所有者处理。
+- [!] rebase 后重跑全部 Gate，用户再次确认后才允许本地 fast-forward merge 和关闭工作树。
 
 ## Phase 0：文档、参数与计划
 

@@ -17,8 +17,7 @@ test("maintenance health and audit workspaces are responsive, accessible and aud
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "maintenance");
     if (path === "/releases") {
-      await expect(page.getByRole("heading", { name: "受限 CI/CD 控制" })).toBeVisible();
-      await expect(page.getByText("Worker、Ingress、目标网关和专用 workflow 未通过 G7 前仍保持关闭", { exact: false })).toBeVisible();
+      await expect(page.getByText("平台控制面只登记证据，不从浏览器执行部署、迁移、切流或回滚命令。", { exact: true })).toBeVisible();
       await expect(page.getByRole("dialog")).toHaveCount(0);
     }
   }

@@ -3,7 +3,7 @@
 import type { AppAudience } from "@/lib/riverton-apps";
 import type { EffectiveAccessPayload, ViewerPayload } from "@/packages/contracts/src/riverton-ui";
 import { AppPreferenceSettings } from "./app-preference-settings";
-import { useAppLocale } from "./app-locale-context";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 import { ConsoleHubTabs } from "./console-hub-tabs";
 import { InternalAccountSecurity } from "./internal-account-security";
 import { PageHeading } from "./page-state";

@@ -6,7 +6,7 @@ import { apiErrorMessage, formatDateTime } from "@/packages/contracts/src/rivert
 import { ConfirmActionDialog } from "./confirm-action-dialog";
 import { ErrorState, LoadingState, PageHeading, StatusBadge } from "./page-state";
 import { useApiData } from "./use-api-data";
-import { useAppLocale } from "./app-locale-context";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 type RecoveryStatus = {
   enforcementEnabled: boolean;

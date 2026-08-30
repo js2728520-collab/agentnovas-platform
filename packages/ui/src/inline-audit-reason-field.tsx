@@ -1,6 +1,6 @@
 "use client";
 
-import { useAppLocale } from "./app-locale-context";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 export function InlineAuditReasonField({
   id,

@@ -178,6 +178,9 @@ test("OpenAI-compatible adapter discovers models and normalizes chat usage throu
 
 test("OpenAI-compatible adapter classifies provider errors without leaking response payloads", () => {
   const adapter = createOpenAiCompatibleAdapter({ transport: async () => ({ status: 500, body: {} }) });
+  assert.deepEqual(adapter.classifyError({ code: "cancelled", detail: "must not be returned" }), { code: "cancelled" });
+  assert.deepEqual(adapter.classifyError({ code: "timeout" }), { code: "timeout" });
+  assert.deepEqual(adapter.classifyError({ code: "validation" }), { code: "validation" });
   assert.deepEqual(adapter.classifyError({ status: 401 }), { code: "authentication", status: 401 });
   assert.deepEqual(adapter.classifyError({ status: 429 }), { code: "rate_limited", status: 429 });
   assert.deepEqual(adapter.classifyError({ status: 503 }), { code: "provider_5xx", status: 503 });

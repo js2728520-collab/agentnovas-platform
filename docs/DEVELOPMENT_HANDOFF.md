@@ -3755,3 +3755,30 @@ SHA-256 分别为 `ca2d6262312f11b4341dd5925d890adb24a89fd81a5bc17acf7a45a2490f2
 Host 直达均为 404。未修改 production，未开放真实交易、真实永续、资金出站、外部 Worker 或受限部署，也未
 提交、推送或创建 PR。M1 只证明测试站极简安全基线；下一纵向切片应继续 G1 身份与权限闭环，并保留真实邮件、
 生产 MFA 与 ADR-0022 未决项的 Gate。
+
+## 113. 2026-08-30 可复用 AI 控制面候选完成
+
+从 `62261ec` 创建独立工作树 `/Users/kevin/Documents/Kevin/agentnovas-platform3/ai-control-plane-worktree` 和分支
+`codex/ai-control-plane-reuse`，没有携带、stash、暂存或覆盖原工作区的邮件/支付未提交改动。候选实现了
+`@agentnovas/ai-control-plane@0.1.0`、`@agentnovas/ai-control-plane-react@0.1.0`、Connection/Deployment/
+Binding 不可变修订、12 个显式角色、`0093`/`0094` 加法迁移、旧 API facade、独立 Secret Broker、loopback
+AI Gateway、统一 Usage Event、Rate Card、软预算和 `/ai-strategy?tab=models|usage` 管理旅程。
+
+最终本地证据为：包测试 12/12，临时空项目 tarball 安装/Node import/React TypeScript 消费通过；全量
+1683/1683；TypeScript、ESLint、8 条架构边界、3360 文件 secret scan、三端 production build、1621 个部署
+JS key-custody scan 与 `git diff --check` 通过。bundle gzip JS 为 Client 200147、Operations 201200、
+Maintenance 201320 bytes，均低于 204800；本地 production Chromium canonical 旅程 20/20，E2E 临时 schema
+与运行时测试秘密已清理，`externalWritesEnabled=false`。本机无关进程占用 3002，因此使用正式支持的
+`QUALITY_E2E_PORT_OFFSET=10` 在 3010–3012 运行，未终止该进程。完整证据见
+`docs/quality/AI_CONTROL_PLANE_ACCEPTANCE_2026-08-30.md`。
+
+代码审查额外修复了三项候选缺陷：预算告警查询多传一个 PostgreSQL bind 参数；传输层取消/超时/校验错误被
+错误归为 `network` 并可能违反 fallback 规则；IPv6 多播/丢弃/文档和其他保留地址未完全进入公共端点拒绝范围。
+三项均有回归测试。三端默认语言包改为按非中文 locale 延迟加载，Client 路由专属工作区按需加载；低磁盘质量
+构建只释放可重建的 outer server/cache，仍保留并扫描 standalone 部署树。
+
+本候选没有发布 Registry、push、创建 PR 或部署，没有真实 Provider 凭证验收。`AI_GATEWAY_ENABLED`、
+`AI_SECRET_BROKER_ENABLED`、`STRATEGY_RESEARCH_ENABLED`、`STRATEGY_RUNTIME_ENABLED` 继续默认 `false`；真实
+永续订单路由、客户 BYOK、固定 Credits 定价、Redis 与 Cloudflare Runtime 均未引入。下一步必须等待用户确认；
+确认后先由原工作区所有者处理干净状态，再 rebase 到最新 `codex/platform-v3-doc-sync` 并重跑全部 Gate。rebase
+通过后还要再次获得用户确认，才允许本地 fast-forward merge、正常移除工作树和删除已合并本地分支。

@@ -82,7 +82,9 @@ export function createPinnedProviderTransport(options: {
         });
       });
       providerRequest.setTimeout(timeoutMs,() => providerRequest.destroy(transportFailure("timeout")));
-      providerRequest.on("error",error => finishError(error));
+      providerRequest.on("error",error => finishError(
+        request.signal?.aborted ? transportFailure("cancelled") : error,
+      ));
       if (body) providerRequest.write(body);
       providerRequest.end();
     });

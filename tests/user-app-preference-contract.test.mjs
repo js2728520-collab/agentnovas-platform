@@ -162,3 +162,25 @@ test("the server-resolved locale is provided to every application workspace", as
   assert.match(consoleShell, /useAppLocale/);
   assert.match(hubTabs, /useAppLocale/);
 });
+
+test("audience builds defer the locale catalog while preserving non-Chinese locales on demand", async () => {
+  const [nextConfig, runtimeContext] = await Promise.all([
+    read("next.config.ts"),
+    read("packages/ui/src/app-locale-context-runtime.tsx"),
+  ]);
+
+  assert.match(nextConfig, /const audienceLocaleEntry = appAudience/);
+  assert.match(nextConfig, /"@\/packages\/ui\/src\/app-locale-context": audienceLocaleEntry/);
+  assert.doesNotMatch(runtimeContext, /client-business-translations\.generated/);
+  assert.match(runtimeContext, /locale === "zh-CN"/);
+  assert.match(runtimeContext, /import\("\.\/app-locale-context"\)/);
+  assert.match(runtimeContext, /module\.localizeAppText/);
+  for (const path of [
+    "packages/ui/src/console-shell.tsx",
+    "packages/ui/src/console-hub-tabs.tsx",
+    "packages/ui/src/page-state.tsx",
+    "packages/ui/src/internal-settings-workspace.tsx",
+  ]) {
+    assert.match(await read(path), /@\/packages\/ui\/src\/app-locale-context/);
+  }
+});

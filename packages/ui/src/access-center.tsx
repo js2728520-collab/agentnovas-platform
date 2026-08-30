@@ -10,7 +10,7 @@ import { ConfirmActionDialog } from "./confirm-action-dialog";
 import { hasValidAuditReason, InlineAuditReasonField } from "./inline-audit-reason-field";
 import { EmptyState, ErrorState, LoadingState, PageHeading, StatusBadge } from "./page-state";
 import { useApiData } from "./use-api-data";
-import { useAppLocale } from "./app-locale-context";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 type PermissionDefinition = { key: string; appId: AppAudience; label: string; sensitive: boolean };
 type DirectAction = { kind: "role" } | { kind: "template" } | { kind: "publish"; role: AccessRole } | { kind: "assignment" };

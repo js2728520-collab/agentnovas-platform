@@ -4,6 +4,9 @@ const appAudience = process.env.RIVERTON_APP_AUDIENCE;
 const audienceEntry = appAudience
   ? `@/app/audience/${appAudience}-root`
   : null;
+const audienceLocaleEntry = appAudience
+  ? "@/packages/ui/src/app-locale-context-runtime"
+  : null;
 const releaseTag = process.env.RIVERTON_RELEASE_TAG?.trim();
 const deploymentId = releaseTag?.replace(/[^A-Za-z0-9_-]/g, "-");
 const commitSha = process.env.GIT_COMMIT_SHA?.trim().toLowerCase();
@@ -58,7 +61,12 @@ const nextConfig: NextConfig = {
   ...(appAudience ? { distDir: `.next-${appAudience}` } : {}),
   turbopack: {
     root: process.cwd(),
-    ...(audienceEntry ? { resolveAlias: { "@/app/audience/current-root": audienceEntry } } : {}),
+    ...((audienceEntry || audienceLocaleEntry) ? { resolveAlias: {
+      ...(audienceEntry ? { "@/app/audience/current-root": audienceEntry } : {}),
+      ...(audienceLocaleEntry ? {
+        "@/packages/ui/src/app-locale-context": audienceLocaleEntry,
+      } : {}),
+    } } : {}),
   },
 };
 

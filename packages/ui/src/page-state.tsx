@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useAppLocale } from "./app-locale-context";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 export function LoadingState({ label = "正在读取数据…" }: { label?: string }) {
   const { t } = useAppLocale();

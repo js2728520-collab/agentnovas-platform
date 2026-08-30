@@ -60,3 +60,21 @@ test("pinned Provider transport produces safe timeout and response-size failures
     (error) => error?.code === "validation",
   );
 });
+
+test("pinned Provider transport preserves user cancellation as a terminal failure", async () => {
+  const controller = new AbortController();
+  const abortedFake = fakeRequest(({ request }) => {
+    controller.abort();
+    request.destroy(new DOMException("cancelled", "AbortError"));
+  });
+  const transport = createPinnedProviderTransport({ endpointPolicy: policy,requestImpl: abortedFake.request });
+  await assert.rejects(
+    transport({
+      method: "GET",
+      url: "https://provider.example/v1/models",
+      headers: {},
+      signal: controller.signal,
+    }),
+    (error) => error?.code === "cancelled",
+  );
+});

@@ -126,7 +126,13 @@ export function createOpenAiCompatibleAdapter(options: { transport: ProviderTran
       };
     },
     classifyError(error) {
-      const value = error as { status?: unknown; name?: unknown } | null;
+      const value = error as { code?: unknown; status?: unknown; name?: unknown } | null;
+      const code = typeof value?.code === "string" ? value.code : "";
+      if (code === "cancelled" || code === "timeout" || code === "validation"
+        || code === "authentication" || code === "configuration" || code === "budget"
+        || code === "permission" || code === "output_contract") {
+        return { code };
+      }
       if (value?.name === "AbortError") return { code: "timeout" };
       const status = Number.isInteger(value?.status) ? Number(value?.status) : undefined;
       if (status === 401 || status === 403) return { code: "authentication", status };

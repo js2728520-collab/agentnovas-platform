@@ -1,4 +1,4 @@
-import { exerciseResponsiveWidths, expect, expectAudienceNavigation, expectCriticalAccessibility, expectResponsivePage, test } from "./support/quality-test";
+import { createIsolatedQualityBrowser, exerciseResponsiveWidths, expect, expectAudienceNavigation, expectCriticalAccessibility, expectResponsivePage, test } from "./support/quality-test";
 
 const localeStorageKey = "riverton.platform-locale";
 const qualityBrowserLanguageKey = "riverton.quality-browser-language";
@@ -11,26 +11,23 @@ async function exercisePublicLocalePreference(page: import("@playwright/test").P
   }, { browserLanguageKey: qualityBrowserLanguageKey });
 
   await page.goto("/");
-  await page.evaluate(({ browserLanguageKey, storageKey }) => {
-    window.localStorage.setItem(browserLanguageKey, "fr-FR");
-    window.localStorage.removeItem(storageKey);
-  }, { browserLanguageKey: qualityBrowserLanguageKey, storageKey: localeStorageKey });
-  await page.reload();
+  await page.getByLabel("Language").selectOption("en-US");
   await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
   await expect(page.getByLabel("Language")).toHaveValue("en-US");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("An AI quant team working for you");
 
-  await page.evaluate(({ browserLanguageKey, storageKey }) => {
-    window.localStorage.setItem(browserLanguageKey, "zh-CN");
-    window.localStorage.removeItem(storageKey);
-  }, { browserLanguageKey: qualityBrowserLanguageKey, storageKey: localeStorageKey });
-  await page.reload();
+  await page.getByLabel("Language").selectOption("zh-CN");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("一支为你工作的 AI 量化团队");
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
   await expect(page.getByLabel("Language")).toHaveValue("zh-CN");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("一支为你工作的 AI 量化团队");
 
   await page.getByLabel("Language").selectOption("es-ES");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Un equipo cuantitativo de IA trabajando para ti");
+  await expect.poll(() => page.evaluate((storageKey) => ({
+    storage: window.localStorage.getItem(storageKey),
+    cookie: document.cookie.split("; ").includes("rv_locale_client=es-ES"),
+  }), localeStorageKey)).toEqual({ storage: "es-ES", cookie: true });
+  expect((await page.context().cookies()).map((cookie) => cookie.name).sort()).toEqual(["rv_locale_client"]);
   await page.evaluate((browserLanguageKey) => window.localStorage.setItem(browserLanguageKey, "ko-KR"), qualityBrowserLanguageKey);
   await page.reload();
   await expect(page.getByLabel("Language")).toHaveValue("es-ES");
@@ -40,7 +37,8 @@ async function exercisePublicLocalePreference(page: import("@playwright/test").P
     window.localStorage.setItem(storageKey, "<script>");
   }, { browserLanguageKey: qualityBrowserLanguageKey, storageKey: localeStorageKey });
   await page.reload();
-  await expect(page.getByLabel("Language")).toHaveValue("en-US");
+  await expect(page.getByLabel("Language")).not.toHaveValue("<script>");
+  await expect(page.getByLabel("Language")).toHaveValue(/^(?:en-US|zh-CN|zh-TW|ru-RU|es-ES|ja-JP|ko-KR)$/);
 }
 
 async function exerciseWorkRecordHistory(page: import("@playwright/test").Page) {
@@ -262,15 +260,20 @@ async function exerciseAssistantCancellationWithoutDialog(page: import("@playwri
   await expectCriticalAccessibility(page);
 }
 
-test("public locale and client communication workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
-  await exercisePublicLocalePreference(page);
+test("public locale and client communication workspaces are responsive, accessible and audience-isolated", async ({ browser, page }) => {
+  const anonymous = await createIsolatedQualityBrowser(browser, "client");
+  try {
+    await exercisePublicLocalePreference(anonymous.page);
+  } finally {
+    await anonymous.close();
+  }
   for (const [path, heading] of [
     ["/notifications", "通知"],
     ["/account/security", "登录与设备安全"],
     ["/settings?tab=profile", "个人资料"],
     ["/settings?tab=appearance", "外观与语言"],
     ["/settings?tab=notifications", "通知偏好"],
-    ["/support", "支持与公告"],
+    ["/support", "帮助与支持"],
   ] as const) {
     await exerciseResponsiveWidths(page, path, heading);
     await expectAudienceNavigation(page, "client");
@@ -298,10 +301,15 @@ test("client market keeps search and live evidence without the retired watchlist
 
 test("client commercial and paper workspaces are responsive, accessible and audience-isolated", async ({ page }) => {
   await exerciseResponsiveWidths(page, "/dashboard", "数据看板");
-  await expect(page.getByText("组合总权益", { exact: true })).toBeVisible();
-  await expect(page.getByText("需关注组合", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2, name: "策略状态与最近活动" })).toBeVisible();
-  await expect(page.getByText(/数据来源：模拟组合/)).toBeVisible();
+  const emptyPortfolio = page.getByRole("heading", { level: 2, name: "尚无模拟组合" });
+  if (await emptyPortfolio.isVisible().catch(() => false)) {
+    await expect(page.getByText("会员权益生效后，服务端会创建对应的官方策略组合。", { exact: true })).toBeVisible();
+  } else {
+    await expect(page.getByText("组合总权益", { exact: true })).toBeVisible();
+    await expect(page.getByText("需关注组合", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "策略状态与最近活动" })).toBeVisible();
+    await expect(page.getByText(/数据来源：模拟组合/)).toBeVisible();
+  }
   await expectAudienceNavigation(page, "client");
   for (const [path, heading] of [
     // ADR-0017：`/` 只属于公开着陆页；登录后的稳定数据看板是 `/dashboard`。

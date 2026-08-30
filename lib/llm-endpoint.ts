@@ -1,38 +1,52 @@
+import { BlockList, isIP } from "node:net";
+
+const nonPublicIpv4Addresses = new BlockList();
+for (const [network,prefix] of [
+  ["0.0.0.0",8],
+  ["10.0.0.0",8],
+  ["100.64.0.0",10],
+  ["127.0.0.0",8],
+  ["169.254.0.0",16],
+  ["172.16.0.0",12],
+  ["192.0.0.0",24],
+  ["192.0.2.0",24],
+  ["192.88.99.0",24],
+  ["192.168.0.0",16],
+  ["198.18.0.0",15],
+  ["198.51.100.0",24],
+  ["203.0.113.0",24],
+  ["224.0.0.0",4],
+  ["240.0.0.0",4],
+] as const) nonPublicIpv4Addresses.addSubnet(network,prefix,"ipv4");
+const nonPublicIpv6Addresses = new BlockList();
+for (const [network,prefix] of [
+  ["::",128],
+  ["::1",128],
+  ["::ffff:0:0",96],
+  ["64:ff9b::",96],
+  ["64:ff9b:1::",48],
+  ["100::",64],
+  ["2001::",23],
+  ["2001:db8::",32],
+  ["2002::",16],
+  ["fc00::",7],
+  ["fe80::",10],
+  ["ff00::",8],
+] as const) nonPublicIpv6Addresses.addSubnet(network,prefix,"ipv6");
+
 export function privateNetworkHost(hostname: string) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (host.startsWith("::ffff:")) return privateNetworkHost(host.slice("::ffff:".length));
   if (
     host === "localhost"
-    || host === "0.0.0.0"
-    || host === "::"
-    || host === "::1"
     || host.endsWith(".local")
     || host.endsWith(".internal")
   ) return true;
-
-  if (host.includes(":")) {
-    return host.startsWith("fc")
-      || host.startsWith("fd")
-      || /^fe[89ab]/.test(host)
-      || host.startsWith("2001:db8");
-  }
-
-  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)?.slice(1).map(Number);
-  if (!ipv4 || ipv4.some(part => part > 255)) return false;
-  const [a, b, c] = ipv4;
-  return a === 0
-    || a === 10
-    || a === 127
-    || a >= 224
-    || (a === 100 && b >= 64 && b <= 127)
-    || (a === 169 && b === 254)
-    || (a === 172 && b >= 16 && b <= 31)
-    || (a === 192 && b === 0 && c === 0)
-    || (a === 192 && b === 0 && c === 2)
-    || (a === 192 && b === 168)
-    || (a === 198 && (b === 18 || b === 19))
-    || (a === 198 && b === 51 && c === 100)
-    || (a === 203 && b === 0 && c === 113);
+  const family = isIP(host);
+  return family === 4
+    ? nonPublicIpv4Addresses.check(host,"ipv4")
+    : family === 6
+      ? nonPublicIpv6Addresses.check(host,"ipv6")
+      : false;
 }
 
 export function normalizeLlmBaseUrl(value: unknown) {

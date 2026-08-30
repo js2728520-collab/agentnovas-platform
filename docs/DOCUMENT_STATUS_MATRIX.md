@@ -1,7 +1,7 @@
 # AgentNovas 文档状态与同步矩阵
 
-更新日期：2026-08-28
-目标分支：`codex/platform-v3-doc-sync`
+更新日期：2026-08-30
+目标分支：`codex/ai-control-plane-reuse`（候选；合并前目标仍为 `codex/platform-v3-doc-sync`）
 
 ## 1. 状态说明
 
@@ -12,6 +12,7 @@
 | `FOUNDATION` | 仍可复用的专项设计基础 |
 | `HISTORICAL` | 不改写的发布、评估或阶段记录 |
 | `RETIRED` | 仅保留来源，不得作为执行指令 |
+| `CANDIDATE_COMPLETE` | 当前候选分支已实现并通过本地 Gate，尚未合并、部署或授权真实能力 |
 
 当 `TARGET_TRUTH` 与 `CURRENT_BASELINE` 不同时，开发按 Target 设计、按阶段任务迁移；生产运行仍遵守 Current 的失败关闭边界，直到对应 Gate 通过。
 
@@ -33,7 +34,7 @@
 | `specs/MARKET_SOURCE_BINDING_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T2.4a provider-independent 选择/解析、不可变绑定与双 fingerprint 已实现；T2.4b 持久化、UI、Runtime 和历史迁移等待 P-01/provider registry |
 | `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T4.3a 普通对话取消、provider abort、原请求重放与 Credits 单终态已实现；固定 Credits 价格等待 P-08 |
 | `specs/MAINTENANCE_AI_USAGE_ANALYTICS_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT` | T3.9a UTC 请求创建 cohort、可信成功 Token、settled Credits、已记录非取消失败率和脱敏多维分析已通过完整 Gate；T3.9b 固定价格仍等待 P-08 |
-| `specs/AI_CONTROL_PLANE_COMPONENT_SPEC.md` | `TARGET_TRUTH/IMPLEMENTING` | 可复用 Connection/Deployment/Binding 控制面、独立密钥域、本机 Gateway、统一用量与软预算合同；真实 Provider 默认关闭 |
+| `specs/AI_CONTROL_PLANE_COMPONENT_SPEC.md` | `TARGET_TRUTH/CANDIDATE_COMPLETE` | 可复用 Connection/Deployment/Binding 控制面、独立密钥域、本机 Gateway、统一用量与软预算合同；本地 Gate 已通过，真实 Provider 默认关闭 |
 | `specs/STRATEGY_WORK_RECORDS_SPEC.md` | `CURRENT_BASELINE/TARGET_TRUTH` | T4.13 Client 列表/详情、六个月保留和 Maintenance security-barrier 脱敏导出已完成；真实订单继续关闭 |
 | `specs/RESTRICTED_CICD_DELEGATION_SPEC.md` | `TARGET_TRUTH/PARTIAL_CURRENT/RUNTIME_BLOCKED` | T8.2a–T8.2d2b 已交付默认关闭的 Ingress、target、Maintenance control、workflow、独立 Auditor、环境隔离和测试域 Web-only preview；真实 provider fixture/G7/首次生产授权未完成，Current trigger 仍关闭 |
 | `quality/FULL_PLATFORM_V3_GATES.md` | `TARGET_TRUTH` | 分能力验收和发布门禁 |
@@ -67,7 +68,7 @@
 | `quality/ACCEPTANCE_AND_RELEASE_GATES.md` | `CURRENT_BASELINE` | 当前 Beta 发布门禁 |
 | `quality/QUALITY_RELEASE_EVIDENCE.md` | `CURRENT_BASELINE` | 当前自动质量证据生成方式 |
 | `runbooks/commercial-beta-maintenance.md` | `CURRENT_BASELINE` | 当前 Beta Maintenance 操作 |
-| `runbooks/ai-control-plane.md` | `TARGET_TRUTH/IMPLEMENTING` | AI 控制面迁移、Secret Broker/Gateway、密钥轮换、日常配置、用量与回滚 |
+| `runbooks/ai-control-plane.md` | `TARGET_TRUTH/CANDIDATE_COMPLETE` | AI 控制面迁移、Secret Broker/Gateway、密钥轮换、日常配置、用量与回滚；候选分支等待合并确认 |
 | `runbooks/commercial-beta-operations.md` | `CURRENT_BASELINE` | 当前 Beta Operations 操作 |
 | `runbooks/commercial-beta-release-and-rollback.md` | `CURRENT_BASELINE` | 当前部署和回滚 |
 | `runbooks/production-accounts-and-configuration.md` | `CURRENT_BASELINE` | 当前账号与外部配置 |

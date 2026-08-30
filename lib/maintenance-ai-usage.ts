@@ -407,7 +407,7 @@ async function readUnifiedAiUsage(
       WHERE period_start < (($2::date + 1)::timestamp AT TIME ZONE 'UTC')
         AND created_at >= ($1::date::timestamp AT TIME ZONE 'UTC')
       ORDER BY created_at DESC,id LIMIT 100
-    `,values),
+    `,values.slice(0,2)),
   ]);
   return {
     includeProbeTraffic,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAppLocale } from "./app-locale-context";
+import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 
 export function ConfirmActionDialog({
   open, title, description, confirmLabel, busy = false, onCancel, onConfirm,

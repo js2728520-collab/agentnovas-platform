@@ -442,7 +442,7 @@ EXECUTION_SERVICE_SHARED_SECRET=<与 execution.env 相同>
 并**删除**这三个文件里的 `EXCHANGE_CREDENTIAL_ENCRYPTION_KEY`。删掉之后可以自查：
 
 ```bash
-grep -rl EXCHANGE_CREDENTIAL_ENCRYPTION_KEY .next-client/server
+grep -rl EXCHANGE_CREDENTIAL_ENCRYPTION_KEY .next-client/standalone/.next-client/server
 # 查不到任何文件才算对；npm run quality:key-custody 会做同样的检查
 ```
 

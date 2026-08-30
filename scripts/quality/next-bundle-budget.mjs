@@ -1,5 +1,5 @@
 import { access, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { gzipSync } from "node:zlib";
 
 async function jsonFile(path, label) {
@@ -53,12 +53,24 @@ function parseNext16ClientReference(source, path) {
 
 async function next16RouteAssets(buildDirectory, routeKey) {
   const routeFile = routeKey.replace(/^\//, "");
-  const path = join(buildDirectory, "server", "app", `${routeFile}_client-reference-manifest.js`);
-  let source;
-  try {
-    source = await readFile(path, "utf8");
-  } catch (error) {
-    throw new Error(`Unable to read Next client reference manifest at ${path}`, { cause: error });
+  const paths = [
+    join(buildDirectory, "server", "app", `${routeFile}_client-reference-manifest.js`),
+    join(buildDirectory, "standalone", basename(buildDirectory), "server", "app", `${routeFile}_client-reference-manifest.js`),
+  ];
+  let path = paths[0];
+  let source = "";
+  let lastError;
+  for (const candidate of paths) {
+    try {
+      source = await readFile(candidate, "utf8");
+      path = candidate;
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!source) {
+    throw new Error(`Unable to read Next client reference manifest at ${paths.join(" or ")}`, { cause: lastError });
   }
   const manifest = parseNext16ClientReference(source, path);
   const routeModule = `[project]/app/${routeFile}`;

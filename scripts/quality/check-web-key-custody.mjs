@@ -1,5 +1,6 @@
 /**
- * 校验三个 Web 构建产物里不含交易所凭证的加解密能力（ADR-0019 第 2 步的验收标准）。
+ * 校验三个 Web 最终 standalone 部署产物里不含凭证加解密能力
+ * （ADR-0019 第 2 步与 ADR-0028 的验收标准）。
  *
  * 为什么要查构建产物而不是只查源码：架构边界规则查的是「谁写了 import」，
  * 但把解密拉回 Web 层的方式不止直接 import 一种——多一条间接依赖、一次
@@ -45,7 +46,7 @@ export async function checkWebKeyCustody() {
   const violations = [];
   const checked = [];
   for (const audience of AUDIENCES) {
-    const dir = `.next-${audience}/server`;
+    const dir = `.next-${audience}/standalone/.next-${audience}/server`;
     let files = 0;
     for await (const file of jsFiles(dir)) {
       files += 1;
