@@ -4,11 +4,18 @@ import test from "node:test";
 
 import pg from "pg";
 
+import { configurationFingerprint } from "../packages/ai-control-plane/src/index.ts";
+
 import {
   getAiControlPlaneSnapshot,
   synchronizeLegacyBinding,
   synchronizeLegacyProfile,
 } from "../lib/ai-control-plane-repository.ts";
+import {
+  claimSecretCommand,
+  completeSecretCommand,
+} from "../lib/ai-secret-broker-repository.ts";
+import { createAgentNovasAiGateway } from "../lib/agentnovas-ai-gateway.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1/postgres";
 const schema = `ai_control_plane_${process.pid}_${Date.now()}`;
@@ -201,4 +208,144 @@ test("successful secret commands must erase their encrypted envelope", async () 
     `),
     (error) => error?.code === "23514",
   );
+});
+
+test("Broker claim and fenced completion atomically replace ciphertext with a managed reference", async () => {
+  await pool.query(`
+    INSERT INTO ai_secret_commands(
+      id,target_connection_revision_id,broker_key_id,wrapped_data_key,iv,ciphertext,auth_tag,
+      envelope_digest_sha256,requested_by_user_id,idempotency_key
+    ) VALUES(
+      'broker-command','legacy-connection-revision:legacy-revision','broker-key','d3JhcHBlZA==',
+      'aXYxMjM0NTY3ODkw','Y2lwaGVydGV4dA==','dGFnMTIzNDU2Nzg5MDEyMw==',
+      '${"d".repeat(64)}','maker','broker-command-key'
+    )
+  `);
+  const claimed = await claimSecretCommand(pool,{ brokerInstanceId: "broker-instance" });
+  assert.equal(claimed.command.commandId,"broker-command");
+  await assert.rejects(
+    completeSecretCommand(pool,{
+      brokerInstanceId: "broker-instance",
+      fencingToken: String(Number(claimed.fencingToken) + 1),
+      receipt: {
+        commandId: "broker-command",
+        targetConnectionRevisionId: "legacy-connection-revision:legacy-revision",
+        brokerKeyId: "broker-key",
+        envelopeDigestSha256: "d".repeat(64),
+        secretRef: `managed://ai/${"e".repeat(64)}.secret`,
+        secretFingerprint: "f".repeat(64),
+        fileMode: "0600",
+        directoryMode: "0700",
+        brokerInstanceId: "broker-instance",
+        completedAt: new Date().toISOString(),
+      },
+    }),
+    (error) => error?.code === "AI_SECRET_COMMAND_FENCE_MISMATCH",
+  );
+  const receipt = {
+    commandId: "broker-command",
+    targetConnectionRevisionId: "legacy-connection-revision:legacy-revision",
+    brokerKeyId: "broker-key",
+    envelopeDigestSha256: "d".repeat(64),
+    secretRef: `managed://ai/${"e".repeat(64)}.secret`,
+    secretFingerprint: "f".repeat(64),
+    fileMode: "0600",
+    directoryMode: "0700",
+    brokerInstanceId: "broker-instance",
+    completedAt: new Date().toISOString(),
+  };
+  await completeSecretCommand(pool,{
+    brokerInstanceId: "broker-instance",
+    fencingToken: claimed.fencingToken,
+    receipt,
+  });
+  const completed = (await pool.query(`
+    SELECT status,wrapped_data_key,ciphertext,secret_ref FROM ai_secret_commands WHERE id='broker-command'
+  `)).rows[0];
+  assert.deepEqual(completed,{
+    status: "succeeded",
+    wrapped_data_key: null,
+    ciphertext: null,
+    secret_ref: receipt.secretRef,
+  });
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM ai_secret_receipts WHERE command_id='broker-command'")).rows[0].count,1);
+});
+
+test("Gateway completes a Fake Provider invocation, records unified usage and replays idempotently", async () => {
+  const deployment = (await pool.query(`
+    SELECT deployment.id,deployment.config_fingerprint,connection.id AS connection_revision_id,
+           connection.connection_id
+    FROM ai_deployment_revisions AS deployment
+    JOIN ai_connection_revisions AS connection ON connection.id=deployment.connection_revision_id
+    WHERE deployment.id='legacy-revision-2'
+  `)).rows[0];
+  const secretRef = `managed://ai/${"1".repeat(64)}.secret`;
+  await pool.query("UPDATE ai_provider_connections SET enabled=true WHERE id=$1",[deployment.connection_id]);
+  await pool.query("UPDATE ai_model_deployments SET enabled=true WHERE id='legacy-profile'");
+  await pool.query("UPDATE ai_connection_revisions SET secret_ref=$2,secret_fingerprint=$3 WHERE id=$1",[
+    deployment.connection_revision_id,secretRef,"2".repeat(64),
+  ]);
+  await pool.query("UPDATE ai_binding_policies SET enabled=true WHERE role='assistant_message'");
+  await pool.query(`
+    INSERT INTO ai_probe_receipts(
+      id,connection_revision_id,deployment_revision_id,config_fingerprint,phase,status,
+      latency_ms,requested_by_user_id,completed_at
+    ) VALUES('probe-gateway',$1,'legacy-revision-2',$2,'invocation','succeeded',12,'maker',now())
+  `,[deployment.connection_revision_id,deployment.config_fingerprint]);
+
+  let calls = 0;
+  const providerAdapter = {
+    id: "fake-provider",
+    async discoverModels() { return ["legacy-model-2"]; },
+    async probe() { throw new Error("not used"); },
+    async invoke(invocation) {
+      calls += 1;
+      assert.equal(invocation.apiKey,"fake-provider-key");
+      return { content: "fake provider answer",usage: { inputTokens: 9,outputTokens: 4 } };
+    },
+    classifyError(error) { return error; },
+  };
+  const gateway = createAgentNovasAiGateway({
+    pool,
+    secretStore: {
+      async has(reference) { return reference === secretRef; },
+      async read(reference) {
+        assert.equal(reference,secretRef);
+        return "fake-provider-key";
+      },
+    },
+    providerAdapter,
+  });
+  const payload = { messages: [{ role: "user",content: "quality request" }] };
+  const requestHash = await configurationFingerprint({
+    roleKey: "client.assistant_message",operation: "assistant_message",payload,
+  });
+  const request = {
+    invocationId: "gateway-invocation",
+    requestHash,
+    roleKey: "client.assistant_message",
+    operation: "assistant_message",
+    trafficKind: "business",
+    payload,
+  };
+  const result = await gateway.invoke(request);
+  assert.equal(result.content,"fake provider answer");
+  assert.equal(result.receipt.status,"succeeded");
+  assert.equal("secretRef" in result.receipt.selectedCandidate,false);
+  assert.equal(calls,1);
+  assert.deepEqual((await pool.query(`
+    SELECT event_kind FROM ai_usage_events WHERE invocation_id='gateway-invocation' ORDER BY event_sequence
+  `)).rows.map(row => row.event_kind),["requested","attempted","succeeded"]);
+
+  const replay = await gateway.invoke(request);
+  assert.equal(replay.content,"fake provider answer");
+  assert.equal(calls,1);
+  const otherPayload = { messages: [{ role: "user",content: "different request" }] };
+  await assert.rejects(gateway.invoke({
+    ...request,
+    payload: otherPayload,
+    requestHash: await configurationFingerprint({
+      roleKey: request.roleKey,operation: request.operation,payload: otherPayload,
+    }),
+  }),(error) => error?.code === "AI_INVOCATION_IDEMPOTENCY_CONFLICT");
 });

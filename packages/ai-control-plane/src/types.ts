@@ -152,7 +152,7 @@ export type InvocationReceipt = {
   invocationId: string;
   requestHash: string;
   status: "succeeded" | "failed" | "cancelled";
-  selectedCandidate: BindingCandidate | null;
+  selectedCandidate: Omit<BindingCandidate, "secretRef"> | null;
   attemptCount: number;
   usage: TokenUsage | null;
   providerRequestId?: string;
@@ -165,7 +165,7 @@ export type UsageEvent = {
   roleKey: AiRoleKey;
   operation: string;
   trafficKind: "business" | "probe";
-  status: "processing" | "succeeded" | "failed" | "cancelled";
+  status: "requested" | "attempted" | "processing" | "succeeded" | "failed" | "cancelled";
   fallbackRank: number | null;
   deploymentRevisionId: string | null;
   connectionRevisionId: string | null;
@@ -176,6 +176,7 @@ export type UsageEvent = {
   providerCost: { currency: string; amount: string } | null;
   settledCredits: string | null;
   pricingState: "priced" | "unpriced";
+  errorCode?: string;
   createdAt: string;
 };
 

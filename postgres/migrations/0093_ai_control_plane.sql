@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS ai_binding_policy_revisions (
 );
 
 CREATE TABLE IF NOT EXISTS ai_binding_targets (
-  binding_policy_revision_id text NOT NULL REFERENCES ai_binding_policy_revisions(id) ON DELETE RESTRICT,
+  binding_policy_revision_id text REFERENCES ai_binding_policy_revisions(id) ON DELETE RESTRICT,
   target_rank integer NOT NULL CHECK (target_rank BETWEEN 0 AND 2),
   deployment_revision_id text NOT NULL REFERENCES ai_deployment_revisions(id) ON DELETE RESTRICT,
   PRIMARY KEY(binding_policy_revision_id,target_rank),
@@ -191,6 +191,8 @@ CREATE TABLE IF NOT EXISTS ai_invocation_receipts (
   selected_deployment_revision_id text REFERENCES ai_deployment_revisions(id) ON DELETE RESTRICT,
   selected_connection_revision_id text REFERENCES ai_connection_revisions(id) ON DELETE RESTRICT,
   role text NOT NULL REFERENCES ai_control_plane_roles(role) ON DELETE RESTRICT,
+  operation text NOT NULL CHECK (length(btrim(operation)) BETWEEN 1 AND 120),
+  traffic_kind text NOT NULL CHECK (traffic_kind IN ('business','probe')),
   status text NOT NULL CHECK (status IN ('requested','processing','succeeded','failed','cancelled')),
   fallback_trace_json jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(fallback_trace_json)='array'),
   input_tokens bigint CHECK (input_tokens IS NULL OR input_tokens >= 0),
@@ -201,6 +203,8 @@ CREATE TABLE IF NOT EXISTS ai_invocation_receipts (
   provider_latency_ms integer CHECK (provider_latency_ms IS NULL OR provider_latency_ms >= 0),
   total_latency_ms integer CHECK (total_latency_ms IS NULL OR total_latency_ms >= 0),
   provider_request_id_hash text,
+  response_content text,
+  attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
   error_class text CHECK (error_class IS NULL OR error_class IN (
     'network','timeout','rate_limited','provider_5xx','authentication','configuration','validation','budget','permission','cancelled'
   )),

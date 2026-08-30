@@ -4,5 +4,7 @@ export * from "./bindings.ts";
 export * from "./capabilities.ts";
 export * from "./fingerprint.ts";
 export * from "./budgets.ts";
+export * from "./gateway.ts";
 export * from "./ports.ts";
 export * from "./provider.ts";
+export * from "./secret-envelope.ts";

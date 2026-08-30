@@ -41,6 +41,8 @@ const WEB_ROLES = ["agentnovas_client_web", "agentnovas_client_auth", "agentnova
 const WORKER_ROLES = [
   "agentnovas_migrator",
   "agentnovas_runtime_worker",
+  "agentnovas_ai_secret_broker",
+  "agentnovas_ai_gateway",
   "agentnovas_notification_worker",
   "agentnovas_demo_execution_worker",
   "agentnovas_payment_webhook",

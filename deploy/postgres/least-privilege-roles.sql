@@ -46,6 +46,8 @@ BEGIN
     'agentnovas_configuration_activation_worker',
     'agentnovas_demo_execution_worker',
     'agentnovas_runtime_worker',
+    'agentnovas_ai_secret_broker',
+    'agentnovas_ai_gateway',
     'agentnovas_execution_service',
     'agentnovas_release_worker',
     'agentnovas_release_control',
@@ -92,6 +94,8 @@ REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
+  agentnovas_ai_secret_broker,
+  agentnovas_ai_gateway,
   agentnovas_payment_worker,
   agentnovas_research_worker,
   agentnovas_release_worker,
@@ -128,6 +132,8 @@ REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
+  agentnovas_ai_secret_broker,
+  agentnovas_ai_gateway,
   agentnovas_release_worker,
   agentnovas_release_control,
   agentnovas_release_identity_verifier,
@@ -144,6 +150,8 @@ REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
+  agentnovas_ai_secret_broker,
+  agentnovas_ai_gateway,
   agentnovas_release_worker,
   agentnovas_release_control,
   agentnovas_release_identity_verifier,
@@ -162,6 +170,8 @@ GRANT CONNECT ON DATABASE :"agentnovas_database" TO
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
+  agentnovas_ai_secret_broker,
+  agentnovas_ai_gateway,
   agentnovas_release_worker,
   agentnovas_release_control,
   agentnovas_release_identity_verifier,
@@ -178,6 +188,8 @@ GRANT USAGE ON SCHEMA public TO
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
+  agentnovas_ai_secret_broker,
+  agentnovas_ai_gateway,
   agentnovas_release_worker,
   agentnovas_release_control,
   agentnovas_release_identity_verifier,
@@ -588,6 +600,22 @@ GRANT SELECT, INSERT ON membership_access_events TO agentnovas_notification_work
 GRANT SELECT, INSERT, UPDATE ON notification_deliveries TO agentnovas_notification_worker;
 GRANT INSERT ON audit_logs TO agentnovas_notification_worker;
 GRANT SELECT, INSERT, UPDATE ON worker_instances TO agentnovas_notification_worker;
+
+-- AI secret custody and invocation run in two non-Web processes. The Broker
+-- never receives legacy profile ciphertext; the Gateway never receives the
+-- Broker private key or command envelopes.
+GRANT SELECT ON ai_secret_broker_keys TO agentnovas_ai_secret_broker;
+GRANT SELECT, UPDATE ON ai_secret_commands TO agentnovas_ai_secret_broker;
+GRANT SELECT, INSERT ON ai_secret_receipts TO agentnovas_ai_secret_broker;
+GRANT SELECT ON ai_connection_revisions TO agentnovas_ai_secret_broker;
+GRANT UPDATE(secret_ref,secret_fingerprint) ON ai_connection_revisions TO agentnovas_ai_secret_broker;
+
+GRANT SELECT ON ai_control_plane_roles,ai_provider_connections,ai_connection_revisions,
+  ai_model_deployments,ai_deployment_revisions,ai_binding_policies,
+  ai_binding_policy_revisions,ai_binding_targets,ai_rate_card_revisions,ai_budget_policies
+  TO agentnovas_ai_gateway;
+GRANT SELECT,INSERT,UPDATE ON ai_invocation_receipts TO agentnovas_ai_gateway;
+GRANT SELECT,INSERT ON ai_usage_events TO agentnovas_ai_gateway;
 
 -- The due activation worker can read only immutable configuration release
 -- facts, execute one owner-controlled activation gateway, and report its own

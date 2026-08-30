@@ -15,6 +15,8 @@ export const EXPECTED_RELEASE_DATABASE_ROLES = Object.freeze([
   "agentnovas_configuration_activation_worker",
   "agentnovas_demo_execution_worker",
   "agentnovas_runtime_worker",
+  "agentnovas_ai_secret_broker",
+  "agentnovas_ai_gateway",
   "agentnovas_payment_worker",
   "agentnovas_research_worker",
   "agentnovas_release_worker",
@@ -316,6 +318,26 @@ const WORKER_TABLES = new Map([
     "strategy_versions",
     "worker_instances",
   ])],
+  ["agentnovas_ai_secret_broker", new Set([
+    "ai_connection_revisions",
+    "ai_secret_broker_keys",
+    "ai_secret_commands",
+    "ai_secret_receipts",
+  ])],
+  ["agentnovas_ai_gateway", new Set([
+    "ai_binding_policies",
+    "ai_binding_policy_revisions",
+    "ai_binding_targets",
+    "ai_budget_policies",
+    "ai_connection_revisions",
+    "ai_control_plane_roles",
+    "ai_deployment_revisions",
+    "ai_invocation_receipts",
+    "ai_model_deployments",
+    "ai_provider_connections",
+    "ai_rate_card_revisions",
+    "ai_usage_events",
+  ])],
   // 执行服务：全系统唯一能解密交易所凭证的进程。
   //
   // 它不在这里的话，即使角色建出来了，拿到任何越权 GRANT 也不会被检查器发现
@@ -336,6 +358,16 @@ const WORKER_TABLES = new Map([
 ]);
 
 const WORKER_TABLE_PRIVILEGES = new Map([
+  ["agentnovas_ai_secret_broker", new Map([
+    ["ai_connection_revisions", new Set(["SELECT", "UPDATE"])],
+    ["ai_secret_broker_keys", new Set(["SELECT"])],
+    ["ai_secret_commands", new Set(["SELECT", "UPDATE"])],
+    ["ai_secret_receipts", new Set(["SELECT", "INSERT"])],
+  ])],
+  ["agentnovas_ai_gateway", new Map([
+    ["ai_invocation_receipts", new Set(["SELECT", "INSERT", "UPDATE"])],
+    ["ai_usage_events", new Set(["SELECT", "INSERT"])],
+  ])],
   ["agentnovas_configuration_activation_worker", new Map([
     ["configuration_activations", new Set(["SELECT"])],
     ["configuration_approvals", new Set(["SELECT"])],
