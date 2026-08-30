@@ -182,6 +182,7 @@ test("internal login retains TOTP enrollment and verification behind the rollout
 
 test("shared console navigation is hydration-safe and keyboard-contained", async () => {
   const shell = await read("packages/ui/src/console-shell.tsx");
+  const consoleCss = await read("app/riverton-console.css");
   assert.match(shell, /usePathname/);
   assert.match(shell, /rc-skip-link/);
   assert.match(shell, /aria-modal/);
@@ -197,6 +198,11 @@ test("shared console navigation is hydration-safe and keyboard-contained", async
   assert.match(shell, /document\.body\.style\.overflow/);
   assert.doesNotMatch(shell, /运营数据按权限展示|配置密钥不会在浏览器回显|兼容角色/);
   assert.doesNotMatch(shell, /typeof window === "undefined" \? "\/"/);
+  assert.match(
+    consoleCss,
+    /@media \(max-width: 900px\)[\s\S]*?\.rc-console > aside\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*?\.rc-console\[data-nav="open"\] > aside\s*\{[^}]*display:\s*flex;/,
+    "the closed mobile navigation must not create off-screen horizontal overflow",
+  );
 });
 
 test("shared request hooks cancel obsolete reads instead of committing stale data", async () => {

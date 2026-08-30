@@ -4020,3 +4020,11 @@ Client production HTML smoke 全部通过。三端 standalone 共扫描 1,685 �
 邮件真实送达继续以 section 115 的已验签 `email.delivered` 证据为准；支付状态继续严格为
 `ready_for_live_test`，不能表述为真实转账已验证。PR #2 只更新候选分支，不在本步骤合并到 `main`；合并必须等待
 需求方与实施者共同确认。
+
+GitHub Actions 的干净环境进一步验证了上述修复：`verify` 已完整通过；`quality-release` 的干净 `npm ci`、三端
+production build 和 bundle Gate 通过后，20 条浏览器旅程中 18 条通过，唯一问题是 Maintenance 在 320px 下从桌面
+断点切换时，采用负向位移隐藏的固定侧栏仍会短暂扩大文档横向宽度。共享 Shell 现改为在移动端关闭状态完全不渲染
+侧栏，打开时恢复 `flex`；既有 `inert`、`aria-hidden`、dialog 语义、焦点锁定和背景滚动锁保持不变。新增静态合同防止
+回退。远端 Node 合同为 24/24，Maintenance production build 通过；在隔离 PostgreSQL、关闭全部邮件/支付/策略外部
+写入的 Playwright 1.62.1 环境中，Maintenance 全部 4 条旅程通过，覆盖 320/768/1024/1440px、邮件、支付、AI、配置、
+审计、无障碍与应用隔离。最终仍以本提交触发的两条 GitHub Actions Gate 全绿作为合并前证据。
