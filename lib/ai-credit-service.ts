@@ -301,10 +301,11 @@ export async function settleAiCreditReservationInTransaction(
   const actualCredits = BigInt(cost.credits);
   const reservation = await client.query<{
     estimated_credits: string;
+    settled_credits: string | null;
     status: string;
     user_id: string;
   }>(
-    `SELECT r.estimated_credits::text,r.status,a.user_id FROM ai_credit_reservations r JOIN ai_credit_accounts a ON a.id=r.account_id WHERE r.id=$1 FOR UPDATE`,
+    `SELECT r.estimated_credits::text,r.settled_credits::text,r.status,a.user_id FROM ai_credit_reservations r JOIN ai_credit_accounts a ON a.id=r.account_id WHERE r.id=$1 FOR UPDATE`,
     [input.reservationId],
   );
   const row = reservation.rows[0];
@@ -347,7 +348,11 @@ export async function settleAiCreditReservationInTransaction(
         "Credits settle 重放上下文不一致",
         409,
       );
-    return { reservationId: input.reservationId, created: false };
+    return {
+      reservationId: input.reservationId,
+      created: false,
+      settledCredits: row.settled_credits ?? cost.credits,
+    };
   }
   if (transition === "conflict")
     throw new ResearchApiError(

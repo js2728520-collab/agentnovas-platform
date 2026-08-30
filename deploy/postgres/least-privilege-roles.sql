@@ -493,8 +493,7 @@ GRANT SELECT ON
   rbac_revocation_tombstones, system_role_identities, users, sessions, auth_tokens,
   auth_rate_limit_buckets, invitations, user_mfa_totp_credentials, user_mfa_recovery_codes,
   access_change_requests, access_change_decisions, authorization_audit_events,
-  audit_logs, llm_configurations, llm_profiles, llm_profile_revisions,
-  agent_role_bindings, runtime_explanation_bindings, notification_provider_configs,
+  audit_logs, notification_provider_configs,
   notification_email_suppressions, notification_deliveries, resend_webhook_events,
   payment_provider_configs, platform_settings, platform_follow_policies,
   platform_demo_accounts, platform_demo_admin_commands, platform_demo_card_controls,
@@ -508,12 +507,16 @@ GRANT SELECT ON
   TO agentnovas_maint_web;
 GRANT SELECT ON platform_demo_accounts_safe TO agentnovas_maint_web;
 GRANT SELECT ON maintenance_ai_usage_events_safe TO agentnovas_maint_web;
+GRANT SELECT ON maintenance_ai_control_plane_snapshot_safe,maintenance_ai_connections_safe,
+  maintenance_ai_deployments_safe,maintenance_ai_probe_receipts_safe,maintenance_ai_budgets_safe,
+  maintenance_ai_budget_alerts_safe,maintenance_ai_usage_events_v2_safe,
+  maintenance_ai_deployment_revisions_safe,maintenance_ai_secret_broker_key_safe
+  TO agentnovas_maint_web;
 GRANT SELECT ON maintenance_strategy_work_records_safe TO agentnovas_maint_web;
 GRANT INSERT, UPDATE ON
   users, sessions, auth_tokens, user_mfa_totp_credentials, user_mfa_recovery_codes,
   access_change_requests, access_change_decisions, authorization_audit_events,
-  audit_logs, llm_configurations, llm_profiles, llm_profile_revisions,
-  agent_role_bindings, runtime_explanation_bindings, notification_provider_configs,
+  audit_logs, notification_provider_configs,
   notification_email_suppressions, notification_deliveries, resend_webhook_events,
   payment_provider_configs, platform_settings, platform_follow_policies,
   platform_demo_accounts, platform_demo_admin_commands, platform_demo_card_controls,
@@ -523,6 +526,21 @@ GRANT INSERT, UPDATE ON
   commercial_disclosure_bundles, commercial_disclosure_publish_requests,
   maintenance_idempotency_records, roles, role_permissions, user_role_assignments
   TO agentnovas_maint_web;
+GRANT EXECUTE ON FUNCTION
+  public.ai_sync_legacy_profile(text),
+  public.ai_sync_legacy_binding(text,text),
+  public.ai_save_connection_deployment(text,text,text,text,text,text,text,text,integer,integer,boolean,boolean,text,text,text),
+  public.ai_save_connection_deployment_with_rate_card(text,text,text,text,text,text,text,text,integer,integer,boolean,boolean,text,text,text,text,text,text,text,text),
+  public.ai_update_binding_policy(text,text,text[],boolean,text,text,text),
+  public.ai_upsert_budget_policy(text,text,text,text,text,text,boolean,text,text,text),
+  public.ai_request_probe(text,text,text,text,text),
+  public.ai_rollback_deployment(text,text,text,text,text,text,text),
+  public.ai_enqueue_secret_command(text,text,text,text,text,text,text,text,text,text,text,text,text)
+  TO agentnovas_maint_web;
+GRANT SELECT ON client_ai_control_plane_bindings_safe,maintenance_ai_control_plane_snapshot_safe
+  TO agentnovas_client_web;
+GRANT EXECUTE ON FUNCTION public.ai_settle_invocation_credits(text,text)
+  TO agentnovas_client_web;
 GRANT INSERT, UPDATE ON auth_rate_limit_buckets TO agentnovas_maint_web;
 GRANT INSERT ON release_versions, release_verifications, release_deployments
   TO agentnovas_maint_web;
@@ -608,14 +626,20 @@ GRANT SELECT ON ai_secret_broker_keys TO agentnovas_ai_secret_broker;
 GRANT SELECT, UPDATE ON ai_secret_commands TO agentnovas_ai_secret_broker;
 GRANT SELECT, INSERT ON ai_secret_receipts TO agentnovas_ai_secret_broker;
 GRANT SELECT ON ai_connection_revisions TO agentnovas_ai_secret_broker;
-GRANT UPDATE(secret_ref,secret_fingerprint) ON ai_connection_revisions TO agentnovas_ai_secret_broker;
+GRANT UPDATE(secret_ref,secret_fingerprint,config_fingerprint) ON ai_connection_revisions TO agentnovas_ai_secret_broker;
+GRANT SELECT ON ai_deployment_revisions TO agentnovas_ai_secret_broker;
+GRANT UPDATE(config_fingerprint) ON ai_deployment_revisions TO agentnovas_ai_secret_broker;
+GRANT SELECT,INSERT,UPDATE ON ai_legacy_secret_migration_receipts TO agentnovas_ai_secret_broker;
 
 GRANT SELECT ON ai_control_plane_roles,ai_provider_connections,ai_connection_revisions,
   ai_model_deployments,ai_deployment_revisions,ai_binding_policies,
   ai_binding_policy_revisions,ai_binding_targets,ai_rate_card_revisions,ai_budget_policies
   TO agentnovas_ai_gateway;
+GRANT SELECT ON gateway_client_ai_attribution_safe TO agentnovas_ai_gateway;
 GRANT SELECT,INSERT,UPDATE ON ai_invocation_receipts TO agentnovas_ai_gateway;
 GRANT SELECT,INSERT ON ai_usage_events TO agentnovas_ai_gateway;
+GRANT SELECT,UPDATE ON ai_probe_receipts TO agentnovas_ai_gateway;
+GRANT EXECUTE ON FUNCTION public.ai_evaluate_budget_alerts(timestamptz) TO agentnovas_ai_gateway;
 
 -- The due activation worker can read only immutable configuration release
 -- facts, execute one owner-controlled activation gateway, and report its own
@@ -634,7 +658,7 @@ GRANT SELECT, INSERT, UPDATE ON platform_demo_order_intents, platform_demo_execu
 GRANT SELECT, INSERT, UPDATE ON worker_instances TO agentnovas_demo_execution_worker;
 
 GRANT SELECT ON memberships, strategy_versions, official_paper_portfolios,
-  llm_profiles, llm_profile_revisions, runtime_explanation_bindings, market_data_snapshots
+  worker_ai_deployment_revisions_safe, market_data_snapshots
   TO agentnovas_runtime_worker;
 GRANT SELECT, INSERT, UPDATE ON strategy_deployments, strategy_runtime_cycles,
   strategy_runtime_events, strategy_runtime_explanation_jobs, official_paper_order_intents,

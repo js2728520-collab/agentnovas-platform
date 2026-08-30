@@ -7,4 +7,5 @@ export * from "./budgets.ts";
 export * from "./gateway.ts";
 export * from "./ports.ts";
 export * from "./provider.ts";
+export * from "./pricing.ts";
 export * from "./secret-envelope.ts";

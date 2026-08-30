@@ -30,6 +30,19 @@ test.before(async () => {
   assert.match(schema, /^[a-z0-9_]+$/);
   await adminPool.query(`CREATE SCHEMA "${schema}"`);
   await pool.query(await migration("0001_strategy_research.sql"));
+  // 0093 is a late-chain migration. This focused fixture models only the audit
+  // columns its transactional configuration functions depend on.
+  await pool.query(`
+    CREATE TABLE audit_logs(
+      id text PRIMARY KEY,actor_user_id text,action text NOT NULL,subject_type text NOT NULL,
+      subject_id text NOT NULL,after_json text,request_id text,created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE client_ai_inference_requests(
+      id text PRIMARY KEY,user_id text NOT NULL,organization_id text
+    )
+  `);
   await pool.query(`
     INSERT INTO llm_profiles(
       id,name,provider_name,base_url,model_name,encrypted_api_key,masked_api_key,enabled,
@@ -190,11 +203,105 @@ test("binding targets enforce one primary and two fallback positions", async () 
   );
 });
 
+test("configuration, custody command and binding revisions commit through audited database functions", async () => {
+  await pool.query(`
+    INSERT INTO ai_secret_broker_keys(
+      key_id,public_key_spki_base64,fingerprint_sha256,status,not_before
+    ) VALUES('broker-key','test-public-key',$1,'active',now())
+    ON CONFLICT(key_id) DO NOTHING
+  `,["a".repeat(64)]);
+  const saved = (await pool.query(`
+    SELECT ai_save_connection_deployment_with_rate_card(
+      'connection-managed','connection-managed-r1','Managed Provider','https://managed.quality.invalid/v1',
+      'deployment-managed','deployment-managed-r1','Managed model','managed-model',32768,2048,true,true,
+      'rate-managed-r1','USD','2.5','7.5','1.25',
+      'maker','configure managed model','request-config-managed'
+    ) AS value
+  `)).rows[0].value;
+  assert.equal(saved.connectionRevisionId,"connection-managed-r1");
+  assert.equal(saved.deploymentRevisionId,"deployment-managed-r1");
+  assert.equal(saved.rateCardRevisionId,"rate-managed-r1");
+
+  const command = (await pool.query(`
+    SELECT ai_enqueue_secret_command(
+      'command-managed','connection-managed-r1','broker-key','AES-256-GCM+RSA-OAEP-SHA256',
+      'd3JhcHBlZA==','aXYxMjM0NTY3ODkw','Y2lwaGVydGV4dA==','dGFnMTIzNDU2Nzg5MDEyMw==',
+      $1,'maker','managed-secret','install managed secret','request-secret-managed'
+    ) AS id
+  `,["9".repeat(64)])).rows[0].id;
+  assert.equal(command,"command-managed");
+
+  const claimed = await claimSecretCommand(pool,{ brokerInstanceId: "broker-managed" });
+  assert.equal(claimed.command.commandId,"command-managed");
+  await completeSecretCommand(pool,{
+    brokerInstanceId: "broker-managed",
+    fencingToken: claimed.fencingToken,
+    receipt: {
+      commandId: "command-managed",
+      targetConnectionRevisionId: "connection-managed-r1",
+      brokerKeyId: "broker-key",
+      envelopeDigestSha256: "9".repeat(64),
+      secretRef: `managed://ai/${"8".repeat(64)}.secret`,
+      secretFingerprint: "7".repeat(64),
+      fileMode: "0600",
+      directoryMode: "0700",
+      brokerInstanceId: "broker-managed",
+      completedAt: new Date().toISOString(),
+    },
+  });
+  const fingerprint = (await pool.query(
+    "SELECT config_fingerprint FROM ai_deployment_revisions WHERE id='deployment-managed-r1'",
+  )).rows[0].config_fingerprint;
+  assert.notEqual(fingerprint,saved.configurationFingerprint,"installing a secret must invalidate earlier configuration fingerprints");
+  await pool.query(`
+    INSERT INTO ai_probe_receipts(
+      id,connection_revision_id,deployment_revision_id,config_fingerprint,phase,status,
+      latency_ms,requested_by_user_id,completed_at
+    ) VALUES('probe-managed','connection-managed-r1','deployment-managed-r1',$1,'invocation','succeeded',7,'maker',now())
+  `,[fingerprint]);
+  const revisionId = (await pool.query(`
+    SELECT ai_update_binding_policy(
+      'market_summary','binding-managed-r1',ARRAY['deployment-managed-r1'],true,
+      'maker','activate runtime summary','request-binding-managed'
+    ) AS id
+  `)).rows[0].id;
+  assert.equal(revisionId,"binding-managed-r1");
+  assert.equal((await pool.query("SELECT enabled FROM ai_binding_policies WHERE role='market_summary'")).rows[0].enabled,true);
+  await pool.query(`
+    INSERT INTO ai_probe_receipts(
+      id,connection_revision_id,deployment_revision_id,config_fingerprint,phase,status,
+      error_class,requested_by_user_id,requested_at,completed_at
+    ) VALUES(
+      'probe-managed-latest-failure','connection-managed-r1','deployment-managed-r1',$1,
+      'invocation','failed','network','maker',now()+interval '1 second',now()
+    )
+  `,[fingerprint]);
+  await assert.rejects(pool.query(`
+    SELECT ai_update_binding_policy(
+      'risk_explanation','binding-managed-failed-probe',ARRAY['deployment-managed-r1'],true,
+      'maker','reject latest failed probe','request-binding-failed-probe'
+    )
+  `),(error) => error?.code === "23514");
+
+  const auditActions = (await pool.query(`
+    SELECT action FROM audit_logs
+    WHERE request_id IN ('request-config-managed','request-secret-managed','request-binding-managed')
+    ORDER BY action
+  `)).rows.map((row) => row.action);
+  assert.deepEqual(auditActions,[
+    "maintenance.ai_control_plane.binding_updated",
+    "maintenance.ai_control_plane.configuration_saved",
+    "maintenance.ai_control_plane.rate_card_created",
+    "maintenance.ai_control_plane.secret_enqueued",
+  ]);
+});
+
 test("successful secret commands must erase their encrypted envelope", async () => {
   await pool.query(`
     INSERT INTO ai_secret_broker_keys(
       key_id,public_key_spki_base64,fingerprint_sha256,status,not_before
     ) VALUES('broker-key','test-public-key','${"a".repeat(64)}','active',now())
+    ON CONFLICT(key_id) DO NOTHING
   `);
   await assert.rejects(
     pool.query(`
@@ -210,6 +317,56 @@ test("successful secret commands must erase their encrypted envelope", async () 
   );
 });
 
+test("deployment revisions serialize concurrent configuration writes and rollback by creating a new immutable revision", async () => {
+  const save = (connectionRevisionId,deploymentRevisionId,requestId) => pool.query(`
+    SELECT ai_save_connection_deployment_with_rate_card(
+      'connection-concurrent',$1,'Concurrent Provider','https://concurrent.quality.invalid/v1',
+      'deployment-concurrent',$2,'Concurrent model','concurrent-model',16384,1024,true,false,
+      NULL,NULL,NULL,NULL,NULL,'maker','serialize concurrent revisions',$3
+    ) AS value
+  `,[connectionRevisionId,deploymentRevisionId,requestId]);
+  await Promise.all([
+    save("connection-concurrent-r1","deployment-concurrent-r1","request-concurrent-r1"),
+    save("connection-concurrent-r2","deployment-concurrent-r2","request-concurrent-r2"),
+  ]);
+  assert.deepEqual((await pool.query(`
+    SELECT revision_number FROM ai_deployment_revisions
+    WHERE deployment_id='deployment-concurrent' ORDER BY revision_number
+  `)).rows.map(row => row.revision_number),[1,2]);
+
+  const second = (await pool.query(`
+    SELECT ai_save_connection_deployment_with_rate_card(
+      'connection-managed','connection-managed-r2','Managed Provider','https://managed.quality.invalid/v1',
+      'deployment-managed','deployment-managed-r2','Managed model','managed-model-v2',32768,2048,true,true,
+      NULL,NULL,NULL,NULL,NULL,'maker','create second managed revision','request-config-managed-r2'
+    ) AS value
+  `)).rows[0].value;
+  assert.equal(second.deploymentRevisionId,"deployment-managed-r2");
+  const rollback = (await pool.query(`
+    SELECT ai_rollback_deployment(
+      'deployment-managed','deployment-managed-r1','deployment-managed-r2','deployment-managed-r3',
+      'maker','restore first managed revision','request-rollback-managed'
+    ) AS value
+  `)).rows[0].value;
+  assert.equal(rollback.deploymentRevisionId,"deployment-managed-r3");
+  assert.equal(rollback.revisionNumber,3);
+  assert.deepEqual((await pool.query(`
+    SELECT revision.model_id,revision.rate_card_revision_id,deployment.current_revision_id,deployment.enabled
+    FROM ai_model_deployments AS deployment
+    JOIN ai_deployment_revisions AS revision ON revision.id=deployment.current_revision_id
+    WHERE deployment.id='deployment-managed'
+  `)).rows[0],{
+    model_id: "managed-model",rate_card_revision_id: "rate-managed-r1",
+    current_revision_id: "deployment-managed-r3",enabled: false,
+  });
+  await assert.rejects(pool.query(`
+    SELECT ai_rollback_deployment(
+      'deployment-managed','deployment-managed-r1','deployment-managed-r2','deployment-managed-r4',
+      'maker','reject stale rollback request','request-rollback-stale'
+    )
+  `),(error) => error?.code === "40001");
+});
+
 test("Broker claim and fenced completion atomically replace ciphertext with a managed reference", async () => {
   await pool.query(`
     INSERT INTO ai_secret_commands(
@@ -223,10 +380,14 @@ test("Broker claim and fenced completion atomically replace ciphertext with a ma
   `);
   const claimed = await claimSecretCommand(pool,{ brokerInstanceId: "broker-instance" });
   assert.equal(claimed.command.commandId,"broker-command");
+  await pool.query("UPDATE ai_secret_commands SET lease_expires_at=now()-interval '1 second' WHERE id='broker-command'");
+  const reclaimed = await claimSecretCommand(pool,{ brokerInstanceId: "broker-recovery" });
+  assert.equal(reclaimed.command.commandId,"broker-command");
+  assert.notEqual(reclaimed.fencingToken,claimed.fencingToken);
   await assert.rejects(
     completeSecretCommand(pool,{
       brokerInstanceId: "broker-instance",
-      fencingToken: String(Number(claimed.fencingToken) + 1),
+      fencingToken: claimed.fencingToken,
       receipt: {
         commandId: "broker-command",
         targetConnectionRevisionId: "legacy-connection-revision:legacy-revision",
@@ -251,12 +412,12 @@ test("Broker claim and fenced completion atomically replace ciphertext with a ma
     secretFingerprint: "f".repeat(64),
     fileMode: "0600",
     directoryMode: "0700",
-    brokerInstanceId: "broker-instance",
+    brokerInstanceId: "broker-recovery",
     completedAt: new Date().toISOString(),
   };
   await completeSecretCommand(pool,{
-    brokerInstanceId: "broker-instance",
-    fencingToken: claimed.fencingToken,
+    brokerInstanceId: "broker-recovery",
+    fencingToken: reclaimed.fencingToken,
     receipt,
   });
   const completed = (await pool.query(`
@@ -287,6 +448,13 @@ test("Gateway completes a Fake Provider invocation, records unified usage and re
   ]);
   await pool.query("UPDATE ai_binding_policies SET enabled=true WHERE role='assistant_message'");
   await pool.query(`
+    INSERT INTO ai_rate_card_revisions(
+      id,deployment_id,revision_number,currency,input_cost_per_million,output_cost_per_million,
+      cached_input_cost_per_million,effective_from,created_by_user_id
+    ) VALUES('rate-gateway','legacy-profile',1,'USD',2,4,1,now(),'maker')
+  `);
+  await pool.query("UPDATE ai_deployment_revisions SET rate_card_revision_id='rate-gateway' WHERE id='legacy-revision-2'");
+  await pool.query(`
     INSERT INTO ai_probe_receipts(
       id,connection_revision_id,deployment_revision_id,config_fingerprint,phase,status,
       latency_ms,requested_by_user_id,completed_at
@@ -297,11 +465,14 @@ test("Gateway completes a Fake Provider invocation, records unified usage and re
   const providerAdapter = {
     id: "fake-provider",
     async discoverModels() { return ["legacy-model-2"]; },
-    async probe() { throw new Error("not used"); },
+    async probe() { return { content: "OK",usage: { inputTokens: 2,outputTokens: 1 } }; },
     async invoke(invocation) {
       calls += 1;
       assert.equal(invocation.apiKey,"fake-provider-key");
-      return { content: "fake provider answer",usage: { inputTokens: 9,outputTokens: 4 } };
+      return {
+        content: "fake provider answer",usage: { inputTokens: 9,outputTokens: 4 },
+        providerRequestId: "provider-sensitive-receipt",
+      };
     },
     classifyError(error) { return error; },
   };
@@ -328,14 +499,69 @@ test("Gateway completes a Fake Provider invocation, records unified usage and re
     trafficKind: "business",
     payload,
   };
+  await pool.query(`
+    INSERT INTO client_ai_inference_requests(id,user_id,organization_id)
+    VALUES('gateway-invocation','sensitive-user-id','organization-snapshot')
+  `);
+  await pool.query(`SELECT ai_upsert_budget_policy(
+    'budget-one-request','platform','platform','month','1','requests',true,
+    'maker','observe request threshold','request-budget-one'
+  )`);
   const result = await gateway.invoke(request);
   assert.equal(result.content,"fake provider answer");
   assert.equal(result.receipt.status,"succeeded");
+  assert.equal(result.receipt.providerRequestId,"provider-sensitive-receipt");
   assert.equal("secretRef" in result.receipt.selectedCandidate,false);
+  const providerReceiptHash = (await pool.query(`
+    SELECT provider_request_id_hash FROM ai_invocation_receipts WHERE invocation_id='gateway-invocation'
+  `)).rows[0].provider_request_id_hash;
+  assert.match(providerReceiptHash,/^[a-f0-9]{64}$/);
+  assert.notEqual(providerReceiptHash,"provider-sensitive-receipt");
   assert.equal(calls,1);
   assert.deepEqual((await pool.query(`
     SELECT event_kind FROM ai_usage_events WHERE invocation_id='gateway-invocation' ORDER BY event_sequence
   `)).rows.map(row => row.event_kind),["requested","attempted","succeeded"]);
+  const attribution = (await pool.query(`
+    SELECT DISTINCT pseudonymized_user_id,organization_id
+    FROM maintenance_ai_usage_events_v2_safe
+    WHERE deployment_revision_id='legacy-revision-2'
+  `)).rows.find(row => row.organization_id === "organization-snapshot");
+  assert.match(attribution.pseudonymized_user_id,/^[a-f0-9]{32}$/);
+  assert.notEqual(attribution.pseudonymized_user_id,"sensitive-user-id");
+  assert.deepEqual((await pool.query(`
+    SELECT provider_cost_amount::text,provider_cost_currency,pricing_state
+    FROM ai_usage_events WHERE invocation_id='gateway-invocation' AND event_kind='succeeded'
+  `)).rows[0],{
+    provider_cost_amount: "0.000034000000",provider_cost_currency: "USD",pricing_state: "priced",
+  });
+  await pool.query("SELECT ai_settle_invocation_credits('gateway-invocation','3')");
+  assert.equal((await pool.query(`
+    SELECT platform_settled_credits::text FROM ai_usage_events
+    WHERE invocation_id='gateway-invocation' AND event_kind='succeeded'
+  `)).rows[0].platform_settled_credits,"3");
+  assert.deepEqual((await pool.query(`
+    SELECT threshold_percent,observed_amount::text FROM maintenance_ai_budget_alerts_safe
+    WHERE budget_policy_id='budget-one-request' ORDER BY threshold_percent
+  `)).rows,[
+    { threshold_percent: 80,observed_amount: "1.000000000000" },
+    { threshold_percent: 100,observed_amount: "1.000000000000" },
+  ]);
+
+  await pool.query(`SELECT ai_request_probe(
+    'probe-unified','legacy-revision-2','maker','verify unified probe usage','request-probe-unified'
+  )`);
+  const probeResult = await gateway.probe({
+    probeReceiptId: "probe-unified",deploymentRevisionId: "legacy-revision-2",
+  });
+  assert.equal(probeResult.receipt.status,"succeeded");
+  assert.deepEqual((await pool.query(`
+    SELECT event_kind,consumer,input_tokens,output_tokens FROM ai_usage_events
+    WHERE invocation_id='probe:' || md5('probe-unified') ORDER BY event_sequence
+  `)).rows,[
+    { event_kind: "requested",consumer: "probe",input_tokens: "0",output_tokens: "0" },
+    { event_kind: "processing",consumer: "probe",input_tokens: "0",output_tokens: "0" },
+    { event_kind: "succeeded",consumer: "probe",input_tokens: "2",output_tokens: "1" },
+  ]);
 
   const replay = await gateway.invoke(request);
   assert.equal(replay.content,"fake provider answer");

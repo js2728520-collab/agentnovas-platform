@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 
-import { loadBrokerPrivateKey, processSecretEnvelope } from "./ai-secret-broker.ts";
+import { loadBrokerPrivateKeyForId, processSecretEnvelope } from "./ai-secret-broker.ts";
 import {
   claimSecretCommand,
   completeSecretCommand,
@@ -9,13 +9,18 @@ import {
 
 export async function processNextSecretCommand(pool: Pool, input: {
   brokerInstanceId: string;
-  brokerPrivateKeyPath: string;
+  brokerPrivateKeyPath?: string;
+  brokerPrivateKeyDirectory?: string;
   managedDirectory: string;
 }) {
   const claimed = await claimSecretCommand(pool,{ brokerInstanceId: input.brokerInstanceId });
   if (!claimed) return { processed: false };
   try {
-    const brokerPrivateKeyPem = await loadBrokerPrivateKey(input.brokerPrivateKeyPath);
+    const brokerPrivateKeyPem = await loadBrokerPrivateKeyForId({
+      brokerKeyId: claimed.command.brokerKeyId,
+      privateKeyFile: input.brokerPrivateKeyPath,
+      privateKeyDirectory: input.brokerPrivateKeyDirectory,
+    });
     const receipt = await processSecretEnvelope(claimed.command,{
       brokerPrivateKeyPem,
       managedDirectory: input.managedDirectory,

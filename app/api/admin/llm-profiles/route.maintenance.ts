@@ -1,8 +1,12 @@
-import { listLlmProfiles, saveLlmProfile, type LlmProfileInput } from "@/lib/agent-model-profiles";
+import {
+  listLlmProfiles,
+  saveCompatibilityLlmProfile,
+  type CompatibilityLlmProfileInput,
+} from "@/lib/ai-control-plane-compatibility";
 import { requireAccessPermission, requireAnyAccessPermission } from "@/lib/access-control";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
-import { maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { maintenanceCorrelation, maintenanceReason } from "@/lib/maintenance-audit";
 import { maintenanceLlmProfileView } from "@/lib/maintenance-model-view";
 import { readResearchJson, researchErrorResponse } from "@/lib/research-api";
 
@@ -26,10 +30,12 @@ export async function POST(request: Request) {
     const { user } = await requireAccessPermission(request, "maint.llm_profiles.manage");
     const body = await readResearchJson(request);
     const reason = maintenanceReason(body.reason);
-    const input = body as LlmProfileInput;
+    const input = body as CompatibilityLlmProfileInput;
     const pool = await getPostgresPool();
-    const profile = await saveLlmProfile(pool, { actorUserId: user.id, input });
-    await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.llm_profile_created", subjectType: "llm_profile", subjectId: profile.id, reason });
+    const profile = await saveCompatibilityLlmProfile(pool, {
+      actorUserId: user.id,profile: input,reason,
+      requestId: maintenanceCorrelation(request).requestId ?? crypto.randomUUID(),
+    });
     return Response.json({ profile: maintenanceLlmProfileView(profile) }, { status: 201 });
   } catch (error) {
     return researchErrorResponse(error, request);

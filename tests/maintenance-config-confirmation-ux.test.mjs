@@ -35,8 +35,8 @@ test("Maintenance configuration and control actions stay inline without modal co
 
 test("integration and model controls retain explicit inline reasons and busy guards", async () => {
   const models = await read("apps/maintenance/ui/models-workspace.tsx");
-  assert.match(models, /回滚原因/);
-  assert.match(models, /hasValidAuditReason\(rollbackReason\)/);
+  assert.match(models, /本轮配置原因/);
+  assert.match(models, /hasValidAuditReason\(reason\)/);
 
   const payment = await read("apps/maintenance/ui/payment-integration-workspace.tsx");
   assert.match(payment, /启停原因/);

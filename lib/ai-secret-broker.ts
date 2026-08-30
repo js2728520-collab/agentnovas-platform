@@ -73,6 +73,31 @@ export async function loadBrokerPrivateKey(path: string) {
   return value;
 }
 
+/**
+ * Resolves a private key without placing the public key identifier in a path.
+ * A keyring keeps old generations readable until their queued commands finish.
+ */
+export async function loadBrokerPrivateKeyForId(input: {
+  brokerKeyId: string;
+  privateKeyFile?: string;
+  privateKeyDirectory?: string;
+}) {
+  if (input.privateKeyDirectory) {
+    const directory = input.privateKeyDirectory;
+    if (!isAbsolute(directory) || resolve(directory) === "/") {
+      throw new SecretBrokerError("AI_SECRET_PRIVATE_KEY_DIRECTORY_INVALID");
+    }
+    const metadata = await lstat(directory);
+    if (!metadata.isDirectory() || metadata.isSymbolicLink() || (metadata.mode & 0o077) !== 0) {
+      throw new SecretBrokerError("AI_SECRET_PRIVATE_KEY_DIRECTORY_INVALID");
+    }
+    const fileName = `${createHash("sha256").update(input.brokerKeyId,"utf8").digest("hex")}.pem`;
+    return loadBrokerPrivateKey(join(directory,fileName));
+  }
+  if (!input.privateKeyFile) throw new SecretBrokerError("AI_SECRET_PRIVATE_KEY_FILE_INVALID");
+  return loadBrokerPrivateKey(input.privateKeyFile);
+}
+
 export async function processSecretEnvelope(command: SecretEnvelopeCommand, options: {
   brokerPrivateKeyPem: string;
   managedDirectory: string;

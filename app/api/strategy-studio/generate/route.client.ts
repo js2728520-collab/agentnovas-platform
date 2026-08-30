@@ -88,6 +88,7 @@ export async function POST(request: Request) {
         brief,
         history: history.map((message) => ({ role: message.role, content: message.content })),
         config,
+        invocationId: claimed.requestId,
       });
       if (!("metering" in generated) || !generated.metering) throw new Error("AI_PROVIDER_METERING_MISSING");
       const { metering, ...publicResult } = generated;

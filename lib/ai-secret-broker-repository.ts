@@ -97,7 +97,8 @@ export async function completeSecretCommand(pool: Pool, input: {
     if (!command
       || command.target_connection_revision_id !== input.receipt.targetConnectionRevisionId
       || command.broker_key_id !== input.receipt.brokerKeyId
-      || command.envelope_digest_sha256 !== input.receipt.envelopeDigestSha256) {
+      || command.envelope_digest_sha256 !== input.receipt.envelopeDigestSha256
+      || input.receipt.brokerInstanceId !== input.brokerInstanceId) {
       const error = new Error("AI_SECRET_COMMAND_FENCE_MISMATCH") as Error & { code: string };
       error.code = "AI_SECRET_COMMAND_FENCE_MISMATCH";
       throw error;
@@ -115,9 +116,28 @@ export async function completeSecretCommand(pool: Pool, input: {
     ]);
     await client.query(`
       UPDATE ai_connection_revisions
-      SET secret_ref=$2,secret_fingerprint=$3
+      SET secret_ref=$2,secret_fingerprint=$3,
+        config_fingerprint=(
+          md5(endpoint || E'\n' || $3)
+          || md5('v2:' || endpoint || E'\n' || $3)
+        )
       WHERE id=$1
     `,[command.target_connection_revision_id,input.receipt.secretRef,input.receipt.secretFingerprint]);
+    await client.query(`
+      UPDATE ai_deployment_revisions AS deployment
+      SET config_fingerprint=(
+        md5(connection.config_fingerprint || E'\n' || deployment.model_id || E'\n'
+          || COALESCE(deployment.context_window::text,'') || E'\n'
+          || COALESCE(deployment.max_output_tokens::text,'') || E'\n'
+          || deployment.supports_streaming::text || E'\n' || deployment.supports_structured_output::text)
+        || md5('v2:' || connection.config_fingerprint || E'\n' || deployment.model_id || E'\n'
+          || COALESCE(deployment.context_window::text,'') || E'\n'
+          || COALESCE(deployment.max_output_tokens::text,'') || E'\n'
+          || deployment.supports_streaming::text || E'\n' || deployment.supports_structured_output::text)
+      )
+      FROM ai_connection_revisions AS connection
+      WHERE deployment.connection_revision_id=connection.id AND connection.id=$1
+    `,[command.target_connection_revision_id]);
     await client.query(`
       INSERT INTO ai_legacy_secret_migration_receipts(
         id,legacy_profile_revision_id,target_connection_revision_id,status,secret_ref,secret_fingerprint

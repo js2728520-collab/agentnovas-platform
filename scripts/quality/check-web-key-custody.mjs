@@ -17,6 +17,11 @@ const FORBIDDEN = [
   "EXCHANGE_CREDENTIAL_ENCRYPTION_KEY",
   "decryptExchangeCredential",
   "encryptExchangeCredential",
+  "LLM_PROFILE_ENCRYPTION_KEY",
+  "decryptLlmProfileSecret",
+  "encryptLlmProfileSecret",
+  "AI_SECRET_BROKER_PRIVATE_KEY",
+  "processSecretEnvelope",
 ];
 
 const AUDIENCES = ["client", "operations", "maintenance"];
@@ -69,15 +74,14 @@ async function main() {
     process.stdout.write("\n");
     for (const violation of violations) process.stderr.write(`  ✗ ${violation}\n`);
     process.stderr.write(
-      "\nWeb 构建里出现了交易所凭证的加解密能力。\n" +
-      "这不是代码风格问题：公网进程一旦持有那把对称密钥，被攻破一次等于全部客户的\n" +
-      "交易权限被拿走。请把相关调用移回执行服务（lib/execution/server/），\n" +
-      "Web 层只能通过 lib/execution/client.ts 发内网请求。见 docs/adr/0019。\n",
+      "\nWeb 构建里出现了交易所或模型凭证的加解密能力。\n" +
+      "交易凭证只能在执行服务解密，模型凭证只能在 Secret Broker / AI Gateway 边界处理。\n" +
+      "Web 层只能发送加密信封或调用受认证的 loopback 服务。见 ADR-0019 与 ADR-0028。\n",
     );
     process.exitCode = 1;
     return;
   }
-  process.stdout.write("\n三端 Web 构建均不含交易所凭证加解密能力。\n");
+  process.stdout.write("\n三端 Web 构建均不含交易所或模型凭证加解密能力。\n");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) await main();

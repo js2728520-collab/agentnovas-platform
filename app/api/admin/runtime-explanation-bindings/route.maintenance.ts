@@ -1,11 +1,11 @@
 import {
   bindRuntimeExplanationRole,
   listRuntimeExplanationBindings,
-} from "@/lib/agent-model-profiles";
+} from "@/lib/ai-control-plane-compatibility";
 import { requireAccessPermission, requireAnyAccessPermission } from "@/lib/access-control";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
-import { maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { maintenanceCorrelation, maintenanceReason } from "@/lib/maintenance-audit";
 import {
   readResearchJson,
   researchErrorResponse,
@@ -41,8 +41,9 @@ export async function PUT(request: Request) {
       role: String(body.role ?? ""),
       profileId: String(body.profileId ?? ""),
       enabled: body.enabled !== false,
+      reason,
+      requestId: maintenanceCorrelation(request).requestId ?? crypto.randomUUID(),
     });
-    await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.runtime_binding_changed", subjectType: "runtime_explanation_role", subjectId: String(body.role ?? ""), reason });
     return Response.json({ binding });
   } catch (error) {
     return researchErrorResponse(error, request);

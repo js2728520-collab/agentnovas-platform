@@ -380,7 +380,8 @@ test("maintenance connectivity tests keep audited reasons without redundant conf
     assert.match(await read(path), /maintenanceReason/);
   }
   const models = await read("apps/maintenance/ui/models-workspace.tsx");
-  assert.match(models, /kind: "test"/);
+  assert.match(models, /\/api\/maintenance\/ai-control-plane\/probes/);
+  assert.match(models, /测试当前修订/);
   assert.match(models, /InlineAuditReasonField/);
   const email = await read("apps/maintenance/ui/email-integration-workspace.tsx");
   assert.match(email, /InlineAuditReasonField/);

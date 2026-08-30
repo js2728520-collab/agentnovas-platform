@@ -11,6 +11,7 @@ import {
 import { useApiData } from "@/packages/ui/src/use-api-data";
 import { useAppLocale } from "@/packages/ui/src/app-locale-context";
 import type { UserAppLocale } from "@/lib/user-app-preference";
+import { formatDateTime } from "@/packages/contracts/src/riverton-ui";
 
 type UsageMetrics = {
   requestCount: number;
@@ -33,6 +34,28 @@ type UsageMetrics = {
 type UsageGroup = UsageMetrics & { key: string; label?: string };
 type UsageModelGroup = UsageGroup & { providerName: string; modelName: string };
 type BoundedGroups<T> = { data: T[]; truncated: boolean };
+type UnifiedUsageMetrics = {
+  requestCount: number;attemptedCount: number;succeededCount: number;failedCount: number;
+  cancelledCount: number;processingCount: number;fallbackAttemptCount: number;
+  inputTokens: string;outputTokens: string;cachedInputTokens: string;reasoningTokens: string;
+  settledCredits: string;unpricedCount: number;
+  latencyMs: { queueP50: number | null;queueP95: number | null;providerP50: number | null;providerP95: number | null;totalP50: number | null;totalP95: number | null };
+};
+type UnifiedUsageGroup = UnifiedUsageMetrics & { key: string;label?: string };
+type UnifiedUsageReport = {
+  includeProbeTraffic: boolean;
+  summary: UnifiedUsageMetrics;
+  byDay: UnifiedUsageGroup[];
+  byConsumer: BoundedGroups<UnifiedUsageGroup>;
+  byRole: BoundedGroups<UnifiedUsageGroup>;
+  byModel: BoundedGroups<UnifiedUsageGroup>;
+  byError: BoundedGroups<UnifiedUsageGroup>;
+  providerCosts: Array<{ currency: string;amount: string }>;
+  budgetAlerts: Array<{
+    id: string;scope: string;scopeId: string;period: string;unit: string;limit: string;
+    thresholdPercentage: number;observed: string;status: string;createdAt: string;
+  }>;
+};
 type UsageReport = {
   period: { from: string; to: string; timezone: "UTC" };
   timeBasis: "request_created_at";
@@ -49,6 +72,7 @@ type UsageReport = {
   byModel: BoundedGroups<UsageModelGroup>;
   byAgent: UsageGroup[];
   byFunction: UsageGroup[];
+  unified?: UnifiedUsageReport;
 };
 
 function currentUtcRange() {
@@ -90,6 +114,7 @@ export function AiUsageWorkspace() {
   const [ready, setReady] = useState(false);
   const [draft, setDraft] = useState({ from: "", to: "" });
   const [applied, setApplied] = useState({ from: "", to: "" });
+  const [includeProbes,setIncludeProbes] = useState(false);
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const defaults = currentUtcRange();
@@ -103,6 +128,7 @@ export function AiUsageWorkspace() {
         : defaults;
       setDraft(nextDraft);
       setApplied(nextApplied);
+      setIncludeProbes(parameters.get("includeProbes") === "true");
       setReady(true);
     });
     return () => window.cancelAnimationFrame(frame);
@@ -110,8 +136,9 @@ export function AiUsageWorkspace() {
   const url = useMemo(() => {
     if (!ready || !applied.from || !applied.to) return null;
     const parameters = new URLSearchParams(applied);
+    if (includeProbes) parameters.set("includeProbes","true");
     return `/api/maintenance/ai-usage?${parameters}`;
-  }, [applied, ready]);
+  }, [applied, includeProbes, ready]);
   const resource = useApiData<UsageReport>(url, t("AI 用量读取失败"));
 
   function applyDates(event: React.FormEvent<HTMLFormElement>) {
@@ -119,6 +146,7 @@ export function AiUsageWorkspace() {
     if (resource.loading || !draft.from || !draft.to) return;
     setApplied(draft);
     const parameters = new URLSearchParams(draft);
+    if (includeProbes) parameters.set("includeProbes","true");
     window.history.replaceState(null, "", `/ai-usage?${parameters}`);
   }
 
@@ -127,6 +155,7 @@ export function AiUsageWorkspace() {
     const next = currentUtcRange();
     setDraft(next);
     setApplied(next);
+    setIncludeProbes(false);
     window.history.replaceState(null, "", "/ai-usage");
   }
 
@@ -154,6 +183,7 @@ export function AiUsageWorkspace() {
       <form className="rc-filter-grid" onSubmit={applyDates}>
         <label>{t("开始日期")}<input required type="date" value={draft.from} max={draft.to || undefined} onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))} /></label>
         <label>{t("结束日期")}<input required type="date" value={draft.to} min={draft.from || undefined} onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))} /></label>
+        <label className="rc-check"><input type="checkbox" checked={includeProbes} onChange={(event) => setIncludeProbes(event.target.checked)} />{t("包含配置测试流量")}</label>
         <div className="rc-action-row"><button className="rc-primary" type="submit" disabled={resource.loading || !draft.from || !draft.to}>{t("应用日期")}</button><button className="rc-button" type="button" disabled={resource.loading} onClick={resetDates}>{t("恢复默认 30 天")}</button></div>
       </form>
       {resource.loading && <p className="rc-live" aria-live="polite">{t("正在更新统计数据…")}</p>}
@@ -163,6 +193,23 @@ export function AiUsageWorkspace() {
     {!report && resource.error ? <ErrorState message={resource.error} retry={resource.refresh} /> : null}
     {!report && !resource.loading && !resource.error ? <ErrorState message={t("AI 用量响应为空")} retry={resource.refresh} /> : null}
     {report ? <>
+    {report.unified && <>
+      <section className="rc-kpi-grid" aria-label={t("统一 Gateway 用量") }>
+        <MetricCard label={t("统一调用请求")} value={report.unified.summary.requestCount.toLocaleString(locale)} detail={`${report.unified.summary.attemptedCount} ${t("次尝试")} · ${report.unified.summary.fallbackAttemptCount} ${t("次回退尝试")}`} />
+        <MetricCard label={t("统一 Token")} value={addExactIntegers(report.unified.summary.inputTokens,report.unified.summary.outputTokens,locale,t("不可用"))} detail={`${t("缓存输入")} ${exactInteger(report.unified.summary.cachedInputTokens,locale)} · ${t("推理")} ${exactInteger(report.unified.summary.reasoningTokens,locale)}`} />
+        <MetricCard label={t("Provider 延迟 p95")} value={report.unified.summary.latencyMs.providerP95 === null ? t("无样本") : `${report.unified.summary.latencyMs.providerP95} ms`} detail={`${t("排队 p95")} ${report.unified.summary.latencyMs.queueP95 ?? t("无样本")} · ${t("总延迟 p95")} ${report.unified.summary.latencyMs.totalP95 ?? t("无样本")}`} />
+        <MetricCard label={t("未定价调用")} value={report.unified.summary.unpricedCount.toLocaleString(locale)} detail={t("未配置 Rate Card 时不估算费用")} />
+        <MetricCard label={t("Provider 成本")} value={report.unified.providerCosts.length ? report.unified.providerCosts.map((item) => `${item.amount} ${item.currency}`).join(" · ") : t("无已定价成本")} detail={t("与平台 settled Credits 分开保存")} />
+        <MetricCard label={t("统一已结算 Credits")} value={exactInteger(report.unified.summary.settledCredits,locale)} detail={t("来自 Client Credits 账本结算，不由 Provider 成本推算")} />
+        <MetricCard label={t("预算告警事实")} value={report.unified.budgetAlerts.length.toLocaleString(locale)} detail={t("软预算不会自动停用业务")} />
+      </section>
+      <UnifiedUsageTable title={t("按消费者")} eyebrow="UNIFIED CONSUMER" groups={report.unified.byConsumer} />
+      <UnifiedUsageTable title={t("按控制面角色")} eyebrow="UNIFIED ROLE" groups={report.unified.byRole} />
+      <UnifiedUsageTable title={t("按错误分类")} eyebrow="SAFE ERROR CLASS" groups={report.unified.byError} />
+      <section className="rc-panel"><header><div><small>SOFT BUDGET FACTS</small><h2>{t("预算告警")}</h2></div><StatusBadge value={report.unified.includeProbeTraffic ? "including_probes" : "business_only"} /></header>
+        {!report.unified.budgetAlerts.length ? <p className="rc-muted">{t("所选日期没有预算阈值告警。")}</p> : <div className="rc-table-wrap"><table><thead><tr><th>{t("范围")}</th><th>{t("单位")}</th><th>{t("阈值")}</th><th>{t("观测 / 上限")}</th><th>{t("状态")}</th></tr></thead><tbody>{report.unified.budgetAlerts.map((alert) => <tr key={alert.id}><td>{alert.scope} · {alert.scopeId}</td><td>{alert.unit} · {alert.period}</td><td>{alert.thresholdPercentage}%</td><td>{alert.observed} / {alert.limit}</td><td>{alert.status}<small>{formatDateTime(alert.createdAt,locale)}</small></td></tr>)}</tbody></table></div>}
+      </section>
+    </>}
     <section className="rc-kpi-grid" aria-label={t("AI 用量总览")}>
       <MetricCard label={t("请求总数")} value={report.summary.requestCount.toLocaleString(locale)} detail={`${report.summary.succeededCount} ${t("成功")} · ${report.summary.processingCount} ${t("处理中")}`} />
       <MetricCard label={t("总可信 Token")} value={addExactIntegers(report.summary.inputTokens, report.summary.outputTokens, locale, t("不可用"))} detail={`${t("输入")} ${exactInteger(report.summary.inputTokens, locale)} · ${t("输出")} ${exactInteger(report.summary.outputTokens, locale)}`} />
@@ -189,6 +236,15 @@ export function AiUsageWorkspace() {
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return <article><small>{label}</small><strong className="rc-kpi-status">{value}</strong><span>{detail}</span></article>;
+}
+
+function UnifiedUsageTable({ title,eyebrow,groups }: {
+  title: string;eyebrow: string;groups: BoundedGroups<UnifiedUsageGroup>;
+}) {
+  const { locale,t } = useAppLocale();
+  return <section className="rc-panel"><header><div><small>{eyebrow}</small><h2>{title}</h2></div>{groups.truncated && <StatusBadge value="Top 50" />}</header>
+    {!groups.data.length ? <p className="rc-muted">{t("所选日期没有统一调用事件。")}</p> : <div className="rc-table-wrap"><table><thead><tr><th>{t("分组")}</th><th>{t("请求 / 尝试")}</th><th>{t("成功 / 失败 / 取消")}</th><th>{t("回退")}</th><th>{t("输入 / 输出 Token")}</th><th>p50 / p95</th></tr></thead><tbody>{groups.data.map((row) => <tr key={row.key}><td>{row.label ?? row.key}</td><td>{row.requestCount.toLocaleString(locale)} / {row.attemptedCount.toLocaleString(locale)}</td><td>{row.succeededCount} / {row.failedCount} / {row.cancelledCount}</td><td>{row.fallbackAttemptCount}</td><td>{exactInteger(row.inputTokens,locale)} / {exactInteger(row.outputTokens,locale)}</td><td>{row.latencyMs.providerP50 ?? "—"} / {row.latencyMs.providerP95 ?? "—"} ms</td></tr>)}</tbody></table></div>}
+  </section>;
 }
 
 function UsageTable({ title, eyebrow, rows, label, truncated = false, showOrganizationQuality = false }: {

@@ -1,9 +1,20 @@
 import type { ResolvedAgentRoleConfig } from "./research-types.ts";
-import { assertPublicLlmEndpoint } from "./llm-profile-connection.ts";
+import { requestAiGatewayInvocation } from "./ai-gateway-client.ts";
+import { assertPublicLlmEndpoint } from "./public-llm-endpoint.ts";
 import { resolveResearchPrompt } from "./research-prompt-registry.ts";
 import { normalizeStrategyDslV3 } from "../packages/domain/src/strategy-dsl.ts";
 
-type ResearchAgentRole = ResolvedAgentRoleConfig["role"];
+export type ResearchAgentRole = ResolvedAgentRoleConfig["role"];
+
+const gatewayRoles = {
+  requirements: "research.requirements",
+  market_regime: "research.market_regime",
+  proposal_a: "research.proposal_a",
+  proposal_b: "research.proposal_b",
+  adversarial_review: "research.adversarial_review",
+  risk_review: "research.risk_review",
+  report: "research.report",
+} as const;
 
 const defaultRoleConclusions: Record<ResearchAgentRole, string> = {
   requirements: "研发需求已结构化",
@@ -240,6 +251,60 @@ function validateOutput(role: ResearchAgentRole, output: Record<string, unknown>
   return output;
 }
 
+function validateResearchResponse(role: ResearchAgentRole,context: Record<string,unknown>,text: string) {
+  const output = validateOutput(role,parseObject(text));
+  if (role === "market_regime") {
+    const marketData = context.marketData && typeof context.marketData === "object"
+      ? context.marketData as Record<string, unknown>
+      : context;
+    const evidence = Array.isArray(marketData.regimeEvidence) ? marketData.regimeEvidence : [];
+    const allowed = new Set(evidence.map(item => item && typeof item === "object"
+      ? String((item as Record<string, unknown>).segmentId ?? "")
+      : ""));
+    for (const regime of output.regimes as Array<{ segmentId: string }>) {
+      if (!allowed.has(regime.segmentId)) throw new Error(`市场状态 Agent 引用了不存在的分段：${regime.segmentId}`);
+    }
+  }
+  return output;
+}
+
+export async function callStructuredResearchAgentViaGateway(options: {
+  role: ResearchAgentRole;
+  context: Record<string,unknown>;
+  invocationId: string;
+  pinnedDeploymentRevisionId: string;
+  modelName: string;
+  timeoutMs?: number;
+  fetchImpl?: typeof fetch;
+  environment?: Record<string,string | undefined>;
+}) {
+  const prompt = await resolveResearchPrompt(options.role);
+  const user = `以下是只读上下文：\n<research_context>${boundedContext(options.context)}</research_context>`;
+  const result = await requestAiGatewayInvocation({
+    invocationId: options.invocationId,
+    roleKey: gatewayRoles[options.role],
+    operation: `research.${options.role}.${prompt.version}`,
+    pinnedDeploymentRevisionId: options.pinnedDeploymentRevisionId,
+    payload: {
+      messages: [{ role: "system",content: prompt.system },{ role: "user",content: user }],
+      maxOutputTokens: 8_000,
+    },
+    timeoutMs: options.timeoutMs ?? researchAgentTimeoutMs(),
+    fetchImpl: options.fetchImpl,
+    environment: options.environment,
+  });
+  if (result.receipt.status !== "succeeded") {
+    throw new Error(`Agent 模型调用失败（${result.receipt.errorCode ?? "unknown"}）`);
+  }
+  return {
+    role: options.role,
+    modelName: options.modelName,
+    promptVersion: prompt.version,
+    promptHash: prompt.hash,
+    output: validateResearchResponse(options.role,options.context,result.content),
+  };
+}
+
 export async function callStructuredResearchAgent(options: {
   config: ResolvedAgentRoleConfig;
   role: ResearchAgentRole;
@@ -270,17 +335,9 @@ export async function callStructuredResearchAgent(options: {
       redirect: "error",
     });
     if (!response.ok) throw new Error(`Agent 模型请求失败（HTTP ${response.status}）`);
-    const output = validateOutput(options.role, parseObject(extractText(await response.json(), options.config.apiStyle)));
-    if (options.role === "market_regime") {
-      const marketData = options.context.marketData && typeof options.context.marketData === "object"
-        ? options.context.marketData as Record<string, unknown>
-        : options.context;
-      const evidence = Array.isArray(marketData.regimeEvidence) ? marketData.regimeEvidence : [];
-      const allowed = new Set(evidence.map(item => item && typeof item === "object" ? String((item as Record<string, unknown>).segmentId ?? "") : ""));
-      for (const regime of output.regimes as Array<{ segmentId: string }>) {
-        if (!allowed.has(regime.segmentId)) throw new Error(`市场状态 Agent 引用了不存在的分段：${regime.segmentId}`);
-      }
-    }
+    const output = validateResearchResponse(
+      options.role,options.context,extractText(await response.json(),options.config.apiStyle),
+    );
     return {
       role: options.role,
       modelName: options.config.modelName,

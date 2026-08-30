@@ -15,6 +15,7 @@ export type GatewayInvocationInput = {
   operation: string;
   trafficKind: UsageEvent["trafficKind"];
   payload: unknown;
+  pinnedDeploymentRevisionId?: string;
   signal?: AbortSignal;
 };
 
@@ -32,12 +33,12 @@ export interface IdempotentInvocationRepository {
 
 type OrchestratorOptions = {
   repository: IdempotentInvocationRepository;
-  resolveCandidates(roleKey: AiRoleKey): Promise<readonly BindingCandidate[]>;
+  resolveCandidates(input: GatewayInvocationInput): Promise<readonly BindingCandidate[]>;
   invokeCandidate(input: {
     candidate: BindingCandidate;
     payload: unknown;
     signal?: AbortSignal;
-  }): Promise<{ content: string; usage: TokenUsage }>;
+  }): Promise<{ content: string; usage: TokenUsage; providerRequestId?: string }>;
   usageSink: { append(event: UsageEvent): Promise<void> };
   now?: () => Date;
 };
@@ -124,10 +125,11 @@ export function createInvocationOrchestrator(options: OrchestratorOptions) {
       }
 
       await event(input, { status: "requested" });
-      const candidates = [...await options.resolveCandidates(input.roleKey)]
+      const candidates = [...await options.resolveCandidates(input)]
         .sort((left,right) => left.fallbackRank - right.fallbackRank);
       let finalFailure: ProviderFailure = { code: "configuration" };
       let attempts = 0;
+      const fallbackTrace: NonNullable<InvocationReceipt["fallbackTrace"]>[number][] = [];
       for (const candidate of candidates.slice(0, 3)) {
         attempts += 1;
         if (input.signal?.aborted) finalFailure = { code: "cancelled" };
@@ -149,6 +151,13 @@ export function createInvocationOrchestrator(options: OrchestratorOptions) {
             selectedCandidate: publicSelection(candidate),
             attemptCount: attempts,
             usage: response.usage,
+            ...(response.providerRequestId ? { providerRequestId: response.providerRequestId } : {}),
+            fallbackTrace: [...fallbackTrace,{
+              fallbackRank: candidate.fallbackRank,
+              deploymentRevisionId: candidate.deploymentRevisionId,
+              connectionRevisionId: candidate.connectionRevisionId,
+              status: "succeeded",
+            }],
           };
           const result = { content: response.content,receipt };
           await options.repository.complete(result);
@@ -164,6 +173,13 @@ export function createInvocationOrchestrator(options: OrchestratorOptions) {
           return result;
         } catch (error) {
           finalFailure = failureFrom(error);
+          fallbackTrace.push({
+            fallbackRank: candidate.fallbackRank,
+            deploymentRevisionId: candidate.deploymentRevisionId,
+            connectionRevisionId: candidate.connectionRevisionId,
+            status: finalFailure.code === "cancelled" ? "cancelled" : "failed",
+            errorCode: finalFailure.code,
+          });
           await event(input, {
             status: finalFailure.code === "cancelled" ? "cancelled" : "failed",
             fallbackRank: candidate.fallbackRank,
@@ -175,6 +191,12 @@ export function createInvocationOrchestrator(options: OrchestratorOptions) {
           if (!isRetryableProviderFailure(finalFailure)) break;
         }
       }
+      if (attempts === 0) {
+        await event(input,{
+          status: finalFailure.code === "cancelled" ? "cancelled" : "failed",
+          errorCode: finalFailure.code,
+        });
+      }
       const receipt: InvocationReceipt = {
         invocationId: input.invocationId,
         requestHash: input.requestHash,
@@ -182,6 +204,7 @@ export function createInvocationOrchestrator(options: OrchestratorOptions) {
         selectedCandidate: null,
         attemptCount: attempts,
         usage: null,
+        fallbackTrace,
         errorCode: finalFailure.code,
       };
       const result = { content: "",receipt };

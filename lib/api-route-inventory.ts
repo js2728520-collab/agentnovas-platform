@@ -2205,6 +2205,188 @@ export const API_ROUTE_INVENTORY = [
     "idempotency": false
   },
   {
+    "method": "PUT",
+    "route": "/api/maintenance/ai-control-plane/bindings",
+    "source": "app/api/maintenance/ai-control-plane/bindings/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.agent_bindings.manage"
+    ],
+    "permissionMfa": {
+      "maint.agent_bindings.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "PUT",
+    "route": "/api/maintenance/ai-control-plane/budgets",
+    "source": "app/api/maintenance/ai-control-plane/budgets/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.llm_profiles.manage"
+    ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/ai-control-plane/configurations",
+    "source": "app/api/maintenance/ai-control-plane/configurations/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.llm_profiles.manage"
+    ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/ai-control-plane/deployments/:id/revisions",
+    "source": "app/api/maintenance/ai-control-plane/deployments/[id]/revisions/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.llm_profiles.manage"
+    ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/ai-control-plane/probes",
+    "source": "app/api/maintenance/ai-control-plane/probes/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.llm_profiles.manage"
+    ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "POST",
+    "route": "/api/maintenance/ai-control-plane/secret-commands",
+    "source": "app/api/maintenance/ai-control-plane/secret-commands/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.llm_profiles.manage"
+    ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": true,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/maintenance/ai-control-plane/secret-key",
+    "source": "app/api/maintenance/ai-control-plane/secret-key/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.llm_profiles.manage"
+    ],
+    "permissionMfa": {
+      "maint.llm_profiles.manage": "recent"
+    },
+    "scope": "platform",
+    "mfa": "recent",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
+    "method": "GET",
+    "route": "/api/maintenance/ai-control-plane/snapshot",
+    "source": "app/api/maintenance/ai-control-plane/snapshot/route.maintenance.ts",
+    "audiences": [
+      "maintenance"
+    ],
+    "authentication": "permission",
+    "sessionAuthHelpers": [],
+    "permissionKeys": [
+      "maint.agent_bindings.manage",
+      "maint.ai_usage.view",
+      "maint.llm_profiles.manage",
+      "maint.system_health.view"
+    ],
+    "permissionMfa": {
+      "maint.agent_bindings.manage": "recent",
+      "maint.ai_usage.view": "recent",
+      "maint.llm_profiles.manage": "recent",
+      "maint.system_health.view": "none"
+    },
+    "scope": "platform",
+    "mfa": "conditional",
+    "pii": "none",
+    "sensitivity": "sensitive",
+    "requiresSameOrigin": false,
+    "idempotency": false
+  },
+  {
     "method": "GET",
     "route": "/api/maintenance/ai-usage",
     "source": "app/api/maintenance/ai-usage/route.maintenance.ts",

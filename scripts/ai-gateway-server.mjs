@@ -82,7 +82,7 @@ const server = createServer(async (request,response) => {
     json(response,200,{ cancelled: Boolean(controller) });
     return;
   }
-  if (request.url !== "/v1/invoke" || request.method !== "POST") {
+  if (!new Set(["/v1/invoke","/v1/probe"]).has(request.url) || request.method !== "POST") {
     json(response,404,{ error: { code: "AI_GATEWAY_ROUTE_NOT_FOUND" } });
     return;
   }
@@ -92,10 +92,31 @@ const server = createServer(async (request,response) => {
   }
   try {
     const body = await requestJson(request);
-    const invocationId = String(body.invocationId ?? "");
+    const invocationId = request.url === "/v1/probe"
+      ? `probe:${String(body.probeReceiptId ?? "")}`
+      : String(body.invocationId ?? "");
+    if (activeControllers.has(invocationId)) {
+      throw Object.assign(new Error("AI_INVOCATION_IN_PROGRESS"),{
+        code: "AI_INVOCATION_IN_PROGRESS",status: 409,
+      });
+    }
     const controller = new AbortController();
     activeControllers.set(invocationId,controller);
+    const abortDisconnectedRequest = () => {
+      if (!response.writableEnded) controller.abort();
+    };
+    request.once("aborted",abortDisconnectedRequest);
+    response.once("close",abortDisconnectedRequest);
     try {
+      if (request.url === "/v1/probe") {
+        const result = await gateway.probe({
+          probeReceiptId: String(body.probeReceiptId ?? ""),
+          deploymentRevisionId: String(body.deploymentRevisionId ?? ""),
+          signal: controller.signal,
+        });
+        json(response,200,result);
+        return;
+      }
       const result = await gateway.invoke({
         invocationId,
         requestHash: String(body.requestHash ?? ""),
@@ -103,6 +124,9 @@ const server = createServer(async (request,response) => {
         operation: String(body.operation ?? ""),
         trafficKind: body.trafficKind === "probe" ? "probe" : "business",
         payload: body.payload,
+        ...(body.pinnedDeploymentRevisionId
+          ? { pinnedDeploymentRevisionId: String(body.pinnedDeploymentRevisionId) }
+          : {}),
         signal: controller.signal,
       });
       if (body.stream === true || request.headers.accept === "text/event-stream") {
@@ -117,6 +141,8 @@ const server = createServer(async (request,response) => {
         json(response,200,result);
       }
     } finally {
+      request.off("aborted",abortDisconnectedRequest);
+      response.off("close",abortDisconnectedRequest);
       activeControllers.delete(invocationId);
     }
   } catch (error) {

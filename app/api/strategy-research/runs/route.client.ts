@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { exchangeAccounts } from "@/db/schema";
 import { getOwnedAiConversation } from "@/lib/ai-conversations";
 import { readClientFeatureFlagDecision } from "@/lib/active-feature-flags";
-import { snapshotAgentRoleBindings } from "@/lib/agent-model-profiles";
+import { snapshotAgentRoleBindings } from "@/lib/ai-control-plane-compatibility";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
 import { createPerpetualMarketAdapter, type PerpetualExchange } from "@/lib/perpetual-market-adapters";

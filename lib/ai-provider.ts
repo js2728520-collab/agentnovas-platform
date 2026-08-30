@@ -1,4 +1,5 @@
-import type { ResolvedLlmConfig } from "@/lib/client-platform-llm";
+import type { ResolvedLlmConfig } from "./client-platform-llm.ts";
+import { requestAiGatewayInvocation } from "./ai-gateway-client.ts";
 
 export type AiProviderMessage = {
   role: "system" | "user" | "assistant";
@@ -22,107 +23,54 @@ export function boundedAiHistory(
   let remaining = maximumCharacters;
   for (let index = messages.length - 1; index >= 0 && selected.length < maximumMessages && remaining > 0; index -= 1) {
     const message = messages[index];
-    const content = message.content.slice(0, remaining);
+    const content = message.content.slice(0,remaining);
     if (!content) continue;
-    selected.unshift({ role: message.role, content });
+    selected.unshift({ role: message.role,content });
     remaining -= content.length;
   }
   return selected;
-}
-
-function responseOutputText(data: {
-  output_text?: string;
-  output?: Array<{ content?: Array<{ text?: string }> }>;
-}) {
-  return data.output_text?.trim()
-    || data.output?.flatMap((item) => item.content || []).map((item) => item.text || "").join("").trim()
-    || "";
-}
-
-async function safeProviderError(response: Response, providerName: string) {
-  const body = await response.json().catch(() => null) as {
-    error?: { message?: string } | string;
-    message?: string;
-  } | null;
-  const detail = typeof body?.error === "string"
-    ? body.error
-    : body?.error?.message || body?.message || "";
-  return `${providerName} 返回 ${response.status}${detail ? `：${detail.slice(0, 160)}` : ""}`;
 }
 
 export async function requestAiText(
   config: ResolvedLlmConfig,
   messages: AiProviderMessage[],
   options: {
+    invocationId?: string;
+    operation?: string;
     maxOutputTokens?: number;
     temperature?: number;
     fetchImpl?: typeof fetch;
     signal?: AbortSignal;
+    environment?: Record<string,string | undefined>;
   } = {},
 ) {
-  const maxOutputTokens = options.maxOutputTokens ?? 500;
-  const body = config.apiStyle === "responses"
-    ? { model: config.model, input: messages, max_output_tokens: maxOutputTokens }
-    : {
-        model: config.model,
-        messages,
-        temperature: options.temperature ?? 0.2,
-        max_tokens: maxOutputTokens,
-      };
-  const timeoutSignal = AbortSignal.timeout(45_000);
-  const signal = options.signal
-    ? AbortSignal.any([options.signal, timeoutSignal])
-    : timeoutSignal;
-  const response = await (options.fetchImpl ?? fetch)(config.endpoint, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: "application/json",
-      authorization: `Bearer ${config.apiKey}`,
+  const invocationId = options.invocationId ?? crypto.randomUUID();
+  const result = await requestAiGatewayInvocation({
+    invocationId,
+    roleKey: config.roleKey,
+    operation: options.operation ?? config.roleKey.slice("client.".length),
+    payload: {
+      messages,
+      maxOutputTokens: options.maxOutputTokens ?? 500,
+      temperature: options.temperature ?? 0.2,
     },
-    body: JSON.stringify(body),
-    signal,
+    signal: options.signal,fetchImpl: options.fetchImpl,environment: options.environment,
   });
-  if (!response.ok) throw new Error(await safeProviderError(response, config.providerName));
-  const data = await response.json() as {
-    id?: string;
-    choices?: Array<{ message?: { content?: string } }>;
-    output_text?: string;
-    output?: Array<{ content?: Array<{ text?: string }> }>;
-    usage?: {
-      prompt_tokens?: number;
-      completion_tokens?: number;
-      input_tokens?: number;
-      output_tokens?: number;
-    };
-  };
-  const text = config.apiStyle === "responses"
-    ? responseOutputText(data)
-    : data.choices?.[0]?.message?.content?.trim() || "";
-  if (!text) throw new Error("AI 服务没有返回有效内容");
-  if (text.length > 8_000) throw new Error("AI 服务返回内容过长");
-  const providerRequestId = data.id?.trim() ?? "";
-  const inputTokens = config.apiStyle === "responses"
-    ? data.usage?.input_tokens
-    : data.usage?.prompt_tokens;
-  const outputTokens = config.apiStyle === "responses"
-    ? data.usage?.output_tokens
-    : data.usage?.completion_tokens;
-  if (
-    !providerRequestId || providerRequestId.length > 200
-    || !Number.isSafeInteger(inputTokens) || Number(inputTokens) < 0
-    || !Number.isSafeInteger(outputTokens) || Number(outputTokens) <= 0
-  ) {
-    throw new Error("AI 服务未返回可靠的请求标识与用量计量");
+  const text = result.content.trim();
+  const usage = result.receipt.usage;
+  if (result.receipt.status !== "succeeded" || !text || text.length > 8_000 || !usage
+    || !Number.isSafeInteger(usage.inputTokens) || usage.inputTokens < 0
+    || !Number.isSafeInteger(usage.outputTokens) || usage.outputTokens <= 0) {
+    throw new Error("AI Gateway 未返回可靠内容与可信用量计量");
   }
   return {
     text,
     metering: {
       source: "provider_metering" as const,
-      providerRequestId,
-      usageId: providerRequestId,
-      inputTokens: Number(inputTokens),
-      outputTokens: Number(outputTokens),
+      providerRequestId: invocationId,
+      usageId: invocationId,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
     },
   };
 }

@@ -51,6 +51,7 @@ export type ProviderConnection = {
   currentRevisionId: string | null;
   createdAt: string;
   updatedAt: string;
+  hasSecret?: boolean;
 };
 
 export type ConnectionRevision = {
@@ -74,6 +75,12 @@ export type ModelDeployment = {
   currentRevisionId: string | null;
   createdAt?: string;
   updatedAt?: string;
+  modelId?: string;
+  contextWindowTokens?: number | null;
+  maxOutputTokens?: number | null;
+  supportsStreaming?: boolean;
+  supportsStructuredOutput?: boolean;
+  rateCard?: RateCardRevision | null;
 };
 
 export type DeploymentRevision = {
@@ -86,10 +93,17 @@ export type DeploymentRevision = {
   defaultTimeoutMs: number;
   enabled: boolean;
   createdAt: string;
+  connectionId?: string;
+  deploymentName?: string;
+  connectionName?: string;
+  isCurrent?: boolean;
+  hasSecret?: boolean;
+  rateCard?: RateCardRevision | null;
 };
 
 export type BindingTarget = {
   deploymentId: string;
+  deploymentRevisionId?: string;
   priority: number;
 };
 
@@ -99,17 +113,21 @@ export type BindingPolicy = {
   revisionId: string;
   enabled: boolean;
   targets: readonly BindingTarget[];
+  runtimeState?: ConsumerRuntimeState;
 };
 
 export type ProbeReceipt = {
   id: string;
   configurationFingerprint: string;
+  phase?: "endpoint" | "authentication" | "model_discovery" | "invocation";
   status: "pending" | "running" | "succeeded" | "failed";
   testedAt: string;
   expiresAt: string;
+  isExpired?: boolean;
   latencyMs?: number;
   errorCode?: string | null;
   models?: readonly string[] | null;
+  deploymentRevisionId?: string | null;
 };
 
 export type ProviderFailureCode =
@@ -156,6 +174,13 @@ export type InvocationReceipt = {
   attemptCount: number;
   usage: TokenUsage | null;
   providerRequestId?: string;
+  fallbackTrace?: readonly {
+    fallbackRank: number;
+    deploymentRevisionId: string;
+    connectionRevisionId: string;
+    status: "succeeded" | "failed" | "cancelled";
+    errorCode?: ProviderFailureCode;
+  }[];
   errorCode?: ProviderFailureCode;
 };
 
@@ -180,12 +205,48 @@ export type UsageEvent = {
   createdAt: string;
 };
 
+export type UsageMetricSummary = {
+  requestCount: number;
+  attemptedCount: number;
+  succeededCount: number;
+  failedCount: number;
+  cancelledCount: number;
+  fallbackAttemptCount: number;
+  inputTokens: string;
+  outputTokens: string;
+  cachedInputTokens: string;
+  reasoningTokens: string;
+  unpricedCount: number;
+  providerLatencyP50Ms: number | null;
+  providerLatencyP95Ms: number | null;
+  queueLatencyP50Ms?: number | null;
+  queueLatencyP95Ms?: number | null;
+  totalLatencyP50Ms?: number | null;
+  totalLatencyP95Ms?: number | null;
+};
+
+export type UsageBreakdown = UsageMetricSummary & { key: string; label?: string };
+
+export type UsageSnapshot = {
+  from: string;
+  to: string;
+  timezone: string;
+  includesProbeTraffic: boolean;
+  summary: UsageMetricSummary;
+  byConsumer: readonly UsageBreakdown[];
+  byRole: readonly UsageBreakdown[];
+  byDeployment: readonly UsageBreakdown[];
+  providerCosts: readonly { currency: string; amount: string }[];
+  settledCredits: string;
+};
+
 export type RateCardRevision = {
   id: string;
   deploymentId: string;
   currency: string;
   inputPerMillion: string;
   outputPerMillion: string;
+  cachedInputPerMillion?: string | null;
   effectiveAt: string;
 };
 
@@ -197,4 +258,5 @@ export type BudgetPolicy = {
   limit: string;
   warningPercentage: number;
   enabled: boolean;
+  period?: "day" | "month";
 };

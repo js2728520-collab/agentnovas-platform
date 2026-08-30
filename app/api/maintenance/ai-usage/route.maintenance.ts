@@ -9,8 +9,11 @@ import { researchErrorResponse } from "@/lib/research-api";
 export async function GET(request: Request) {
   try {
     await requireAccessPermission(request, "maint.ai_usage.view");
-    const period = parseMaintenanceAiUsageWindow(new URL(request.url).searchParams);
-    const report = await loadMaintenanceAiUsage(await getPostgresPool(), period);
+    const parameters = new URL(request.url).searchParams;
+    const period = parseMaintenanceAiUsageWindow(parameters);
+    const report = await loadMaintenanceAiUsage(await getPostgresPool(),period,{
+      includeUnified: true,includeProbeTraffic: parameters.get("includeProbes") === "true",
+    });
     return Response.json(report, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return researchErrorResponse(error, request);

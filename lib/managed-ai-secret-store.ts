@@ -17,6 +17,11 @@ export function createManagedAiSecretStore(managedDirectory: string) {
     async read(secretRef: string) {
       const match = secretRef.match(/^managed:\/\/ai\/([a-f0-9]{64}\.secret)$/);
       if (!match) throw new Error("AI_SECRET_REF_INVALID");
+      const directoryMetadata = await lstat(managedDirectory);
+      if (!directoryMetadata.isDirectory() || directoryMetadata.isSymbolicLink()
+        || (directoryMetadata.mode & 0o777) !== 0o700) {
+        throw new Error("AI_SECRET_DIRECTORY_INVALID");
+      }
       const path = join(managedDirectory,match[1]);
       const metadata = await lstat(path);
       if (!metadata.isFile() || metadata.isSymbolicLink() || (metadata.mode & 0o777) !== 0o600 || metadata.size > 4_096) {

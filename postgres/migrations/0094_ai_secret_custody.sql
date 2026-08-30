@@ -88,4 +88,60 @@ COMMENT ON TABLE ai_secret_commands IS
 COMMENT ON TABLE ai_secret_receipts IS
   'Non-secret custody evidence produced only after an atomic 0700-directory/0600-file write.';
 
+CREATE OR REPLACE VIEW maintenance_ai_secret_broker_key_safe
+WITH (security_barrier=true)
+AS
+SELECT key_id,algorithm,public_key_spki_base64,fingerprint_sha256,not_before,not_after
+FROM ai_secret_broker_keys
+WHERE status='active' AND not_before <= now() AND (not_after IS NULL OR not_after > now());
+
+CREATE OR REPLACE FUNCTION ai_enqueue_secret_command(
+  p_id text,p_target_connection_revision_id text,p_broker_key_id text,p_algorithm text,
+  p_wrapped_data_key text,p_iv text,p_ciphertext text,p_auth_tag text,p_envelope_digest_sha256 text,
+  p_actor_user_id text,p_idempotency_key text,p_reason text,p_request_id text
+) RETURNS text AS $$
+DECLARE command_id text;
+BEGIN
+  IF p_algorithm<>'AES-256-GCM+RSA-OAEP-SHA256'
+    OR p_envelope_digest_sha256 !~ '^[a-f0-9]{64}$'
+    OR length(p_wrapped_data_key) NOT BETWEEN 4 AND 32768
+    OR length(p_iv) NOT BETWEEN 4 AND 128
+    OR length(p_ciphertext) NOT BETWEEN 4 AND 16384
+    OR length(p_auth_tag) NOT BETWEEN 4 AND 128
+    OR length(btrim(p_reason)) NOT BETWEEN 3 AND 500
+  THEN RAISE EXCEPTION 'AI_SECRET_COMMAND_INVALID' USING ERRCODE='22023'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM ai_connection_revisions WHERE id=p_target_connection_revision_id)
+    OR NOT EXISTS(SELECT 1 FROM maintenance_ai_secret_broker_key_safe WHERE key_id=p_broker_key_id)
+  THEN RAISE EXCEPTION 'AI_SECRET_COMMAND_TARGET_INVALID' USING ERRCODE='23503'; END IF;
+  INSERT INTO ai_secret_commands(
+    id,target_connection_revision_id,broker_key_id,algorithm,wrapped_data_key,iv,ciphertext,auth_tag,
+    envelope_digest_sha256,requested_by_user_id,idempotency_key
+  ) VALUES(
+    p_id,p_target_connection_revision_id,p_broker_key_id,p_algorithm,p_wrapped_data_key,p_iv,
+    p_ciphertext,p_auth_tag,p_envelope_digest_sha256,p_actor_user_id,p_idempotency_key
+  ) ON CONFLICT(requested_by_user_id,idempotency_key) DO UPDATE SET updated_at=ai_secret_commands.updated_at
+  RETURNING id INTO command_id;
+  INSERT INTO audit_logs(id,actor_user_id,action,subject_type,subject_id,after_json,request_id)
+  VALUES(
+    'ai-secret-command-' || md5(p_request_id || command_id),p_actor_user_id,
+    'maintenance.ai_control_plane.secret_enqueued','ai_secret_command',command_id,
+    jsonb_build_object('reason',btrim(p_reason),'targetConnectionRevisionId',p_target_connection_revision_id,
+      'brokerKeyId',p_broker_key_id,'envelopeDigestSha256',p_envelope_digest_sha256)::text,p_request_id
+  ) ON CONFLICT(id) DO NOTHING;
+  RETURN command_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path FROM CURRENT;
+
+REVOKE ALL ON maintenance_ai_secret_broker_key_safe FROM PUBLIC;
+REVOKE ALL ON FUNCTION ai_enqueue_secret_command(text,text,text,text,text,text,text,text,text,text,text,text,text) FROM PUBLIC;
+
+DO $$
+BEGIN
+  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='agentnovas_maint_web') THEN
+    GRANT SELECT ON maintenance_ai_secret_broker_key_safe TO agentnovas_maint_web;
+    GRANT EXECUTE ON FUNCTION ai_enqueue_secret_command(text,text,text,text,text,text,text,text,text,text,text,text,text)
+      TO agentnovas_maint_web;
+  END IF;
+END $$;
+
 REVOKE ALL ON ai_secret_broker_keys,ai_secret_commands,ai_secret_receipts,ai_legacy_secret_migration_receipts FROM PUBLIC;

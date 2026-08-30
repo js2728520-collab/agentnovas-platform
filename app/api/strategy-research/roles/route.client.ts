@@ -1,4 +1,4 @@
-import { listAgentRoleBindings, missingAgentRoles } from "@/lib/agent-model-profiles";
+import { listAgentRoleBindings, missingAgentRoles } from "@/lib/ai-control-plane-compatibility";
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { getPostgresPool } from "@/lib/postgres";
 import { requireResearchUser, researchErrorResponse } from "@/lib/research-api";

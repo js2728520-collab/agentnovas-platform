@@ -1,5 +1,3 @@
-import { lookup as dnsLookup } from "node:dns/promises";
-
 import type { Pool, PoolClient } from "pg";
 
 import {
@@ -7,30 +5,12 @@ import {
   resolveRuntimeExplanationRoleConfig,
 } from "./agent-model-profiles.ts";
 import type { ResolvedLlmProfileConfig } from "./research-types.ts";
-import { privateNetworkHost } from "./llm-endpoint.ts";
+import { assertPublicLlmEndpoint } from "./public-llm-endpoint.ts";
+
+export { assertPublicLlmEndpoint } from "./public-llm-endpoint.ts";
 
 type Queryable = Pick<Pool | PoolClient, "query">;
 type LookupAddress = { address: string };
-
-async function assertPublicDns(hostname: string, resolver: (hostname: string) => Promise<LookupAddress[]> = async host => {
-  const result = await dnsLookup(host, { all: true, verbatim: true });
-  return result.map(item => ({ address: item.address }));
-}) {
-  if (privateNetworkHost(hostname)) throw new Error("接口地址不能指向本机或内网地址");
-  const addresses = await resolver(hostname);
-  if (!addresses.length || addresses.some(item => privateNetworkHost(item.address))) {
-    throw new Error("接口域名解析到了内网或无效地址");
-  }
-}
-
-export async function assertPublicLlmEndpoint(
-  endpoint: string,
-  resolver?: (hostname: string) => Promise<LookupAddress[]>,
-) {
-  const target = new URL(endpoint);
-  await assertPublicDns(target.hostname, resolver);
-}
-
 export async function testAgentRoleConnection(database: Queryable, options: {
   role: string;
   fetchImpl?: typeof fetch;

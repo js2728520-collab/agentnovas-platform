@@ -128,6 +128,7 @@ export async function generateStrategyProposal(options: {
   brief: StrategyBrief;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   config: ResolvedLlmConfig | null;
+  invocationId?: string;
 }) {
   if (!options.config) {
     const specification = strategyDslFromBrief(options.brief);
@@ -144,7 +145,10 @@ export async function generateStrategyProposal(options: {
     ...boundedAiHistory(options.history),
     { role: "user", content: `根据以下已校验问卷生成候选 DSL：${JSON.stringify(options.brief)}` },
   ];
-  const response = await requestAiText(options.config, messages, { maxOutputTokens: 1_200, temperature: 0.1 });
+  const response = await requestAiText(options.config,messages,{
+    invocationId: options.invocationId,operation: "strategy_generation",
+    maxOutputTokens: 1_200,temperature: 0.1,
+  });
   const specification = extractStrategyDslFromText(response.text);
   return {
     specification,

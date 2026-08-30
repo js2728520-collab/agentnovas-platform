@@ -39,10 +39,21 @@ function SummarySections(props: AiControlPlaneManagerProps & { snapshot: Control
         {snapshot.deployments.map((deployment) => <li className={classNames.item} key={deployment.id}>
           <div><b>{deployment.name ?? deployment.id}</b> <span className={classNames.status}>{statusLabel(deployment.enabled, messages)}</span></div>
           <small>{deployment.connectionId}</small>
+          {deployment.rateCard && props.formatRateCard ? <small>{props.formatRateCard(deployment.rateCard)}</small> : null}
           {props.renderDeploymentActions?.(deployment)}
         </li>)}
       </ul>}
     </section>
+    {messages.revisions ? <section className={classNames.section} aria-labelledby="ai-control-plane-revisions">
+      <h2 id="ai-control-plane-revisions">{messages.revisions}</h2>
+      {!snapshot.deploymentRevisions?.length ? <Empty label={messages.empty} className={classNames.empty} /> : <ul className={classNames.list}>
+        {snapshot.deploymentRevisions.map((revision) => <li className={classNames.item} key={revision.id}>
+          <div><b>{revision.deploymentName ?? revision.deploymentId} · r{revision.revisionNumber}</b>{revision.isCurrent && messages.current ? <> <span className={classNames.status}>{messages.current}</span></> : null}</div>
+          <small>{revision.modelId} · {props.formatDateTime(revision.createdAt)}</small>
+          {props.renderDeploymentRevisionActions?.(revision)}
+        </li>)}
+      </ul>}
+    </section> : null}
     <section className={classNames.section} aria-labelledby="ai-control-plane-bindings">
       <h2 id="ai-control-plane-bindings">{messages.bindings}</h2>
       {!snapshot.bindings.length ? <Empty label={messages.empty} className={classNames.empty} /> : <ul className={classNames.list}>
@@ -59,6 +70,7 @@ function SummarySections(props: AiControlPlaneManagerProps & { snapshot: Control
       {!snapshot.probes.length ? <Empty label={messages.empty} className={classNames.empty} /> : <ul className={classNames.list}>
         {snapshot.probes.map((probe) => <li className={classNames.item} key={probe.id}>
           <b>{probe.status}</b> <small>{props.formatDateTime(probe.testedAt)}{probe.latencyMs === undefined ? "" : ` · ${probe.latencyMs}ms`}</small>
+          {props.formatProbeDetails?.(probe).map((detail,index) => <small key={`${probe.id}:${index}`}>{detail}</small>)}
           {props.renderProbeActions?.(probe)}
         </li>)}
       </ul>}

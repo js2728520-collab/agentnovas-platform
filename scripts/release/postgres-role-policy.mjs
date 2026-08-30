@@ -199,6 +199,11 @@ const WEB_SECRET_TABLES = new Map([
     "platform_demo_accounts",
     "resend_webhook_events",
   ])],
+  ["agentnovas_maint_web", new Set([
+    "llm_configurations",
+    "llm_profile_revisions",
+    "llm_profiles",
+  ])],
 ]);
 
 const RELEASE_CONTROL_TABLES = new Set([
@@ -292,8 +297,6 @@ const WORKER_TABLES = new Map([
     "worker_instances",
   ])],
   ["agentnovas_runtime_worker", new Set([
-    "llm_profile_revisions",
-    "llm_profiles",
     "market_data_snapshots",
     "memberships",
     "official_paper_fill_receipts",
@@ -304,7 +307,7 @@ const WORKER_TABLES = new Map([
     "platform_demo_accounts",
     "platform_demo_card_controls",
     "platform_demo_order_intents",
-    "runtime_explanation_bindings",
+    "worker_ai_deployment_revisions_safe",
     // 共享决策轮（0046–0048）：同一张卡、同一根 K 线只算一次。
     "strategy_decision_rounds",
     "strategy_deployments",
@@ -320,6 +323,8 @@ const WORKER_TABLES = new Map([
   ])],
   ["agentnovas_ai_secret_broker", new Set([
     "ai_connection_revisions",
+    "ai_deployment_revisions",
+    "ai_legacy_secret_migration_receipts",
     "ai_secret_broker_keys",
     "ai_secret_commands",
     "ai_secret_receipts",
@@ -334,9 +339,11 @@ const WORKER_TABLES = new Map([
     "ai_deployment_revisions",
     "ai_invocation_receipts",
     "ai_model_deployments",
+    "ai_probe_receipts",
     "ai_provider_connections",
     "ai_rate_card_revisions",
     "ai_usage_events",
+    "gateway_client_ai_attribution_safe",
   ])],
   // 执行服务：全系统唯一能解密交易所凭证的进程。
   //
@@ -360,12 +367,15 @@ const WORKER_TABLES = new Map([
 const WORKER_TABLE_PRIVILEGES = new Map([
   ["agentnovas_ai_secret_broker", new Map([
     ["ai_connection_revisions", new Set(["SELECT", "UPDATE"])],
+    ["ai_deployment_revisions", new Set(["SELECT", "UPDATE"])],
+    ["ai_legacy_secret_migration_receipts", new Set(["SELECT", "INSERT", "UPDATE"])],
     ["ai_secret_broker_keys", new Set(["SELECT"])],
     ["ai_secret_commands", new Set(["SELECT", "UPDATE"])],
     ["ai_secret_receipts", new Set(["SELECT", "INSERT"])],
   ])],
   ["agentnovas_ai_gateway", new Map([
     ["ai_invocation_receipts", new Set(["SELECT", "INSERT", "UPDATE"])],
+    ["ai_probe_receipts", new Set(["SELECT", "UPDATE"])],
     ["ai_usage_events", new Set(["SELECT", "INSERT"])],
   ])],
   ["agentnovas_configuration_activation_worker", new Map([

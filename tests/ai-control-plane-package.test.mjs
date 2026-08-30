@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   AI_ROLE_CATALOG,
   assertBindingPolicy,
+  calculateProviderCost,
   configurationFingerprint,
   createOpenAiCompatibleAdapter,
   deriveProbeHealth,
@@ -130,6 +131,17 @@ test("soft budgets alert at eighty and one hundred percent without blocking", ()
   const exceeded = evaluateSoftBudget({ limit: "1000", used: "1001" });
   assert.deepEqual(warning, { state: "warning", percentage: 80, shouldBlock: false });
   assert.deepEqual(exceeded, { state: "exceeded", percentage: 100.1, shouldBlock: false });
+});
+
+test("provider pricing remains exact and separates cached input without floating-point arithmetic", () => {
+  assert.deepEqual(calculateProviderCost({
+    currency: "USD",inputPerMillion: "2.000000000000",outputPerMillion: "4",
+    cachedInputPerMillion: "1",usage: { inputTokens: 9,outputTokens: 4,cachedInputTokens: 3 },
+  }),{ currency: "USD",amount: "0.000031000000" });
+  assert.throws(() => calculateProviderCost({
+    currency: "USD",inputPerMillion: "not-a-rate",outputPerMillion: "4",
+    usage: { inputTokens: 1,outputTokens: 1 },
+  }),/AI_RATE_CARD_AMOUNT_INVALID/);
 });
 
 test("OpenAI-compatible adapter discovers models and normalizes chat usage through an injected transport", async () => {

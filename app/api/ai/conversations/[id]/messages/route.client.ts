@@ -179,6 +179,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             history: history.map((message) => ({ role: message.role, content: message.content })),
             context,
             config,
+            invocationId: claimed.requestId,
             locale: preference.locale,
             signal: request.signal,
           });

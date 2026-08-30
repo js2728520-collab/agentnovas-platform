@@ -3,14 +3,17 @@ import type {
   BudgetPolicy,
   InvocationReceipt,
   ModelDeployment,
+  DeploymentRevision,
   ProbeReceipt,
   ProviderConnection,
   UsageEvent,
+  UsageSnapshot,
 } from "./types.ts";
 
 export type ControlPlaneSnapshot = {
   connections: readonly ProviderConnection[];
   deployments: readonly ModelDeployment[];
+  deploymentRevisions?: readonly DeploymentRevision[];
   bindings: readonly BindingPolicy[];
   probes: readonly ProbeReceipt[];
   budgets: readonly BudgetPolicy[];
@@ -38,6 +41,10 @@ export interface InvocationGateway {
 
 export interface UsageSink {
   append(event: UsageEvent): Promise<void>;
+}
+
+export interface AiUsageClient {
+  snapshot(query: { from: string; to: string; includeProbeTraffic: boolean }): Promise<UsageSnapshot>;
 }
 
 export interface AiControlPlaneClient {

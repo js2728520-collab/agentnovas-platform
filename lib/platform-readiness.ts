@@ -15,7 +15,7 @@
 
 import type { Pool } from "pg";
 
-import { agentRoles, runtimeExplanationRoles } from "./agent-model-profiles.ts";
+import { agentRoles, runtimeExplanationRoles } from "./ai-control-plane-compatibility.ts";
 
 export type ReadinessSeverity = "blocking" | "warning" | "info";
 

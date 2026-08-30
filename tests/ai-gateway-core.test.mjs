@@ -110,3 +110,27 @@ test("Gateway never falls back on authentication errors and rejects idempotency 
     (error) => error?.code === "AI_INVOCATION_IDEMPOTENCY_CONFLICT",
   );
 });
+
+test("Gateway cancellation is terminal and never advances the fallback chain", async () => {
+  const repository = memoryRepository();
+  const events = [];
+  let attempts = 0;
+  const gateway = createInvocationOrchestrator({
+    repository,
+    resolveCandidates: async () => [candidate(0,"primary"),candidate(1,"fallback")],
+    invokeCandidate: async () => {
+      attempts += 1;
+      throw { code: "cancelled" };
+    },
+    usageSink: { append: async (event) => events.push(event) },
+  });
+  const result = await gateway.invoke({
+    invocationId: "invocation-cancelled",requestHash: "d".repeat(64),
+    roleKey: "client.assistant_message",operation: "assistant_message",
+    trafficKind: "business",payload: {},
+  });
+  assert.equal(result.receipt.status,"cancelled");
+  assert.equal(result.receipt.errorCode,"cancelled");
+  assert.equal(attempts,1);
+  assert.deepEqual(events.map(event => event.status),["requested","attempted","cancelled"]);
+});

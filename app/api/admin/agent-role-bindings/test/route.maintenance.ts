@@ -1,8 +1,8 @@
 import { ensureDatabaseSchema } from "@/lib/database-schema";
 import { requireAccessPermission } from "@/lib/access-control";
-import { testAgentRoleConnection } from "@/lib/llm-profile-connection";
+import { probeCompatibilityRole } from "@/lib/ai-control-plane-compatibility";
 import { getPostgresPool } from "@/lib/postgres";
-import { maintenanceReason, recordMaintenanceAudit } from "@/lib/maintenance-audit";
+import { maintenanceCorrelation, maintenanceReason } from "@/lib/maintenance-audit";
 import { readResearchJson, researchErrorResponse } from "@/lib/research-api";
 
 export async function POST(request: Request) {
@@ -13,8 +13,10 @@ export async function POST(request: Request) {
     const reason = maintenanceReason(body.reason);
     const role = String(body.role ?? "");
     const pool = await getPostgresPool();
-    await recordMaintenanceAudit(pool, { actorUserId: user.id, action: "maintenance.agent_binding_test_requested", subjectType: "agent_role", subjectId: role, reason });
-    return Response.json(await testAgentRoleConnection(pool, { role }));
+    return Response.json(await probeCompatibilityRole(pool, {
+      role,actorUserId: user.id,reason,
+      requestId: maintenanceCorrelation(request).requestId ?? crypto.randomUUID(),signal: request.signal,
+    }));
   } catch (error) {
     return researchErrorResponse(error, request);
   }

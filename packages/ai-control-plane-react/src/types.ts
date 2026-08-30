@@ -3,6 +3,7 @@ import type {
   BindingPolicy,
   BudgetPolicy,
   ControlPlaneSnapshot,
+  DeploymentRevision,
   ModelDeployment,
   ProbeReceipt,
   ProviderConnection,
@@ -18,6 +19,7 @@ export type AiControlPlaneMessages = {
   empty: string;
   connections: string;
   deployments: string;
+  revisions?: string;
   bindings: string;
   probes: string;
   budgets: string;
@@ -25,6 +27,7 @@ export type AiControlPlaneMessages = {
   disabled: string;
   primary: string;
   fallback: string;
+  current?: string;
 };
 
 export type AiControlPlaneClassNames = Partial<Record<
@@ -38,9 +41,12 @@ export type AiControlPlaneManagerProps = {
   roles: readonly RoleDescriptor[];
   messages: AiControlPlaneMessages;
   formatDateTime: (value: string) => string;
+  formatRateCard?: (rateCard: NonNullable<ModelDeployment["rateCard"]>) => string;
+  formatProbeDetails?: (probe: ProbeReceipt) => readonly string[];
   classNames?: AiControlPlaneClassNames;
   renderConnectionActions?: (connection: ProviderConnection) => ReactNode;
   renderDeploymentActions?: (deployment: ModelDeployment) => ReactNode;
+  renderDeploymentRevisionActions?: (revision: DeploymentRevision) => ReactNode;
   renderBindingActions?: (binding: BindingPolicy) => ReactNode;
   renderProbeActions?: (probe: ProbeReceipt) => ReactNode;
   renderBudgetActions?: (budget: BudgetPolicy) => ReactNode;

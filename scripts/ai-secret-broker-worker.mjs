@@ -9,6 +9,7 @@ if (process.env.AI_SECRET_BROKER_ENABLED !== "true") {
 }
 
 const brokerPrivateKeyPath = process.env.AI_SECRET_BROKER_PRIVATE_KEY_FILE?.trim() ?? "";
+const brokerPrivateKeyDirectory = process.env.AI_SECRET_BROKER_PRIVATE_KEY_DIRECTORY?.trim() ?? "";
 const managedDirectory = process.env.AI_MANAGED_SECRET_DIRECTORY?.trim() ?? "";
 const brokerInstanceId = `ai-secret-broker:${hostname()}:${process.pid}`;
 const pool = await getAiSecretBrokerPostgresPool();
@@ -17,6 +18,7 @@ async function runOnce() {
   const result = await processNextSecretCommand(pool,{
     brokerInstanceId,
     brokerPrivateKeyPath,
+    brokerPrivateKeyDirectory,
     managedDirectory,
   });
   process.stdout.write(`${JSON.stringify(result)}\n`);

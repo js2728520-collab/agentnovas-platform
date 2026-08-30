@@ -15,6 +15,7 @@ function transportFailure(code: string) {
 
 export function createPinnedProviderTransport(options: {
   endpointPolicy: Policy;
+  requestImpl?: typeof httpsRequest;
   timeoutMs?: number;
   maximumRequestBytes?: number;
   maximumResponseBytes?: number;
@@ -34,7 +35,7 @@ export function createPinnedProviderTransport(options: {
         settled = true;
         rejectRequest(error);
       };
-      const providerRequest = httpsRequest({
+      const providerRequest = (options.requestImpl ?? httpsRequest)({
         protocol: "https:",
         hostname: target.hostname,
         port: target.port || 443,
@@ -56,7 +57,9 @@ export function createPinnedProviderTransport(options: {
         response.on("data",chunk => {
           size += chunk.length;
           if (size > maximumResponseBytes) {
-            providerRequest.destroy(transportFailure("validation"));
+            const error = transportFailure("validation");
+            finishError(error);
+            providerRequest.destroy(error);
             return;
           }
           chunks.push(Buffer.from(chunk));
