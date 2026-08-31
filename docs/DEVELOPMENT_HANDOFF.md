@@ -4125,3 +4125,16 @@ Client acceptance 账号可见 3 个 Paper 组合、2 个持仓、4 笔成交、
 `maintenance.mock_dataset.seeded` 审计事件。三测试域名 health 均为 200。验收使用数据库同源查询，没有新建浏览器登录，
 以免登录安全通知形成额外真实邮件副作用；本次没有重建应用镜像或重启服务，因为变更只包含运维种子脚本、测试和文档，数据已
 直接对当前测试站生效。生产数据库与生产环境未触碰。
+
+## 126. 2026-08-31 Preview MOCK 数据 CI 数据库身份兼容
+
+PR #2 在提交 `991fe60` 的首轮 GitHub `verify` 中通过 1,752/1,753 项，唯一失败是
+`preview-mock-data-postgres`：CI 的一次性 PostgreSQL 使用规范默认库 `postgres`，而测试直接调用的种子辅助函数仍按正式 CLI
+边界要求数据库名必须为 `agentnovas`。这是隔离测试装配与生产保护边界不匹配，不是业务数据或迁移失败；`quality-release` 因
+上游失败按设计跳过，未绕过门禁。
+
+修复为测试辅助调用增加显式 `expectedDatabaseName`，默认值继续是 `agentnovas`；正式 CLI 没有命令行或环境变量入口可以覆盖
+该值，仍同时要求固定确认短语、URL host 双写一致和 `agentnovas` 数据库。合同先验证缺少纯数据库身份断言而失败，再锁定默认
+错误数据库继续被拒绝。`an-saas` 使用与 CI 相同的 `postgres` 数据库名、一次性 PostgreSQL 16 和完整 95 个迁移重放后，
+授权合同与两次幂等种子/验证共 4/4 通过；支付 Provider 快照不变，临时容器和 network 已清理。证据保存在
+`/opt/agentnovas-riverton-preview/validations/mock-ci-fix-20260831-NX4W9C/targeted-tests.tap`，权限为 0600。

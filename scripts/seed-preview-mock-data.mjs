@@ -78,6 +78,15 @@ export function assertPreviewMockSeedEnvironment({ databaseUrl, environment, exe
   return url;
 }
 
+export function assertPreviewDatabaseName(actualDatabaseName, expectedDatabaseName = EXPECTED_DATABASE) {
+  const expected = String(expectedDatabaseName ?? "").trim();
+  if (!expected) throw new Error("Preview MOCK expected database name is required");
+  if (String(actualDatabaseName ?? "") !== expected) {
+    throw new Error("Preview MOCK seed reached the wrong database");
+  }
+  return expected;
+}
+
 async function passwordHash() {
   return argon2Hash(`unpublished-${crypto.randomUUID()}-${crypto.randomUUID()}`, {
     algorithm: 2,
@@ -88,11 +97,9 @@ async function passwordHash() {
   });
 }
 
-async function resolvePreviewSentinels(client) {
+async function resolvePreviewSentinels(client, options = {}) {
   const database = await client.query("SELECT current_database() AS database_name");
-  if (database.rows[0]?.database_name !== EXPECTED_DATABASE) {
-    throw new Error("Preview MOCK seed reached the wrong database");
-  }
+  assertPreviewDatabaseName(database.rows[0]?.database_name, options.expectedDatabaseName);
   const migration = await client.query(`
     SELECT count(*)::int AS count,
            max(name) FILTER (WHERE name ~ '^[0-9]{4}_') AS latest
@@ -722,7 +729,9 @@ export async function seedPreviewMockData(pool, options = {}) {
   try {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended('agentnovas:preview-mock-data:v1',0))");
-    const sentinels = await resolvePreviewSentinels(client);
+    const sentinels = await resolvePreviewSentinels(client, {
+      expectedDatabaseName: options.expectedDatabaseName,
+    });
     const data = fixture(sentinels, now, options.passwordHash ?? await passwordHash());
     await seedOrganizations(client, data);
     await seedPeople(client, data);
@@ -735,7 +744,9 @@ export async function seedPreviewMockData(pool, options = {}) {
     await seedClientActivity(client, data, sentinels);
     await seedMaintenanceEvidence(client, data, sentinels);
     await client.query("COMMIT");
-    return verifyPreviewMockData(pool);
+    return verifyPreviewMockData(pool, {
+      expectedDatabaseName: options.expectedDatabaseName,
+    });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw error;
@@ -744,8 +755,10 @@ export async function seedPreviewMockData(pool, options = {}) {
   }
 }
 
-export async function verifyPreviewMockData(pool) {
-  const sentinels = await resolvePreviewSentinels(pool);
+export async function verifyPreviewMockData(pool, options = {}) {
+  const sentinels = await resolvePreviewSentinels(pool, {
+    expectedDatabaseName: options.expectedDatabaseName,
+  });
   const result = await pool.query(`
     SELECT
       (SELECT count(*)::int FROM organizations WHERE id LIKE $1) AS organizations,

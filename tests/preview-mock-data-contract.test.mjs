@@ -35,8 +35,12 @@ test("preview MOCK seed is deterministic, identifiable, and cannot enqueue exter
 test("preview MOCK seed exposes separately testable authorization and verification helpers", async () => {
   const seedModule = await import(scriptUrl.href);
   assert.equal(typeof seedModule.assertPreviewMockSeedEnvironment, "function");
+  assert.equal(typeof seedModule.assertPreviewDatabaseName, "function");
   assert.equal(typeof seedModule.seedPreviewMockData, "function");
   assert.equal(typeof seedModule.verifyPreviewMockData, "function");
+
+  assert.equal(seedModule.assertPreviewDatabaseName("fixture_database", "fixture_database"), "fixture_database");
+  assert.throws(() => seedModule.assertPreviewDatabaseName("postgres"), /wrong database/i);
 
   assert.throws(() => seedModule.assertPreviewMockSeedEnvironment({
     databaseUrl: "postgresql://postgres:secret@127.0.0.1:5432/agentnovas",

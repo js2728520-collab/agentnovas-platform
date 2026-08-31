@@ -7,6 +7,7 @@ import { runPostgresMigrations } from "../scripts/postgres-migration-runner.mjs"
 import { seedPreviewMockData, verifyPreviewMockData } from "../scripts/seed-preview-mock-data.mjs";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
+const expectedDatabaseName = databaseUrl ? decodeURIComponent(new URL(databaseUrl).pathname.slice(1)) : null;
 const schema = `preview_mock_${process.pid}_${Date.now()}`;
 const adminPool = databaseUrl ? new pg.Pool({ connectionString: databaseUrl, max: 2 }) : null;
 const pool = databaseUrl ? new pg.Pool({ connectionString: databaseUrl, max: 4, options: `-c search_path=${schema}` }) : null;
@@ -49,9 +50,14 @@ test("preview MOCK seed is replayable on the full schema without changing provid
       FROM payment_provider_configs provider
     `)).rows[0].snapshot;
     const now = new Date("2026-08-31T08:00:00.000Z");
-    const first = await seedPreviewMockData(pool, { now, passwordHash: "not-used-mock-password-hash" });
-    const second = await seedPreviewMockData(pool, { now, passwordHash: "not-used-mock-password-hash" });
-    const verified = await verifyPreviewMockData(pool);
+    const seedOptions = {
+      now,
+      passwordHash: "not-used-mock-password-hash",
+      expectedDatabaseName,
+    };
+    const first = await seedPreviewMockData(pool, seedOptions);
+    const second = await seedPreviewMockData(pool, seedOptions);
+    const verified = await verifyPreviewMockData(pool, { expectedDatabaseName });
     assert.deepEqual(second, first);
     assert.deepEqual(verified, first);
     assert.equal(first.counts.synthetic_users, 16);
