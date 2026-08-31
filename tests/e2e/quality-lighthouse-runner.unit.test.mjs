@@ -76,7 +76,11 @@ test("Lighthouse configuration uses the runner proxy and valid resource size ass
   process.env.QUALITY_E2E_PORT_OFFSET = "100";
   try {
     const configuration = require("../../scripts/quality/lighthouserc.cjs");
-    assert.match(configuration.ci.collect.startServerCommand, /next start -H 127\.0\.0\.1 -p 3100$/);
+    assert.equal(
+      configuration.ci.collect.startServerCommand,
+      "NODE_ENV=production RIVERTON_APP_AUDIENCE=client NODE_USE_ENV_PROXY=1 HOSTNAME=127.0.0.1 PORT=3100 node .next-client/standalone/server.js",
+    );
+    assert.equal(configuration.ci.collect.startServerCommand.includes("next start"), false);
     assert.equal(
       configuration.ci.collect.startServerReadyPattern,
       String.raw`\bReady in [0-9]+(?:\.[0-9]+)?(?:ms|s)\b`,

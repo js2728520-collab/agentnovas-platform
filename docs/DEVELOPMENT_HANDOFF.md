@@ -4162,3 +4162,21 @@ LCP `1777ms`、CLS `0`、TBT `160ms`；脚本降至 `175,250` bytes，样式 `19
 三轮证据 Gate 为 passed，外部写入为 false，一次性 PostgreSQL schema、运行时 Secret 和 LHCI 工作目录均已清理。定向
 Node 合同 `25/25`、受影响 ESLint、远端 Client production build 和 TypeScript 均通过。本轮没有发送邮件、调用支付或模型
 Provider、创建充值地址、执行真实交易、修改测试站或触碰生产；最终合并仍必须等待 GitHub 两条完整 Gate 全绿。
+
+## 128. 2026-08-31 Lighthouse 部署制品启动闭环
+
+提交 `09aa726` 的 GitHub `verify`、三端构建、bundle Gate 和 20 条浏览器旅程全部通过后，Lighthouse 仍进入 Chrome
+错误页。最终根因不是页面或代理，而是质量流水线的制品生命周期不一致：`test:apps` 为控制三端构建体积，会保留实际部署的
+standalone tree 并删除可重建的 `.next-client/server` 中间目录；后续 Lighthouse 却继续调用依赖该目录的 `next start`。
+远端单独执行 `build:client` 时中间目录仍在，因此曾掩盖这一差异。
+
+Lighthouse 现在直接启动 `.next-client/standalone/server.js`，与 production smoke、浏览器 E2E 和部署制品保持一致；runner 在
+审计前幂等复制 public/static 资产，使 Gate 不依赖前一步 E2E 的副作用。合同先在旧命令上失败，再锁定 production、audience、
+loopback host/port 与 standalone 路径，并明确禁止回退到 `next start`。
+
+`an-saas` 使用一次性 PostgreSQL 16、关闭全部外部写入的官方 Playwright 容器，完整重放干净安装、三端 production build、
+三端中间 server tree 清理和 Lighthouse。确认 `.next-client/server` 不存在后，三轮审计全部通过；代表轮次 performance
+`0.99`、accessibility `1.00`、best practices `1.00`、LCP `1773ms`、CLS `0`、TBT `128ms`，脚本/样式/图片分别为
+`175,250 / 19,530 / 10,166` bytes。Gate 记录外部写入为 false，一次性 schema、运行时 Secret 和 LHCI 工作目录均清理成功。
+证据保存在 `/opt/agentnovas-riverton-preview/validations/lighthouse-standalone-output-20260831-4F29R5`，文件权限为 0600。
+本步骤没有发送邮件、调用支付或模型 Provider、创建充值地址、部署站点或触碰生产。

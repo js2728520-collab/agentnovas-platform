@@ -11,6 +11,7 @@ import {
 import {
   createQualityRunEnvironment,
   finalizeQualityFixtureCleanup,
+  prepareQualityStandaloneAssets,
   resetQualityOutputDirectory,
 } from "./quality-e2e-runner.mjs";
 import {
@@ -336,6 +337,10 @@ export async function runQualityLighthouse({
   const lhciWorkingDirectory = resolve(repositoryRoot, ".lighthouseci");
   await assertLhciDirectoryAbsent(lhciWorkingDirectory);
   await resetQualityLighthouseOutput({ repositoryRoot, outputDirectory });
+  // Keep Lighthouse independently runnable after the space-conscious quality
+  // build. This copies public/static assets beside the deployable standalone
+  // server without restoring or relying on the released outer server tree.
+  await prepareQualityStandaloneAssets(repositoryRoot);
   const runtimeDirectory = join(outputDirectory, ".runtime");
   const runId = environment.QUALITY_LIGHTHOUSE_RUN_ID
     ?? `${Date.now()}_${process.pid}_${randomBytes(4).toString("hex")}`;

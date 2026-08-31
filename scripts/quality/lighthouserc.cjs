@@ -14,10 +14,13 @@ if (!Number.isInteger(proxyPort) || proxyPort < 1 || proxyPort > 65535) {
 module.exports = {
   ci: {
     collect: {
-      startServerCommand: `RIVERTON_APP_AUDIENCE=client NODE_USE_ENV_PROXY=1 ./node_modules/.bin/next start -H 127.0.0.1 -p ${clientPort}`,
-      // Next prints the Local URL before it has bound the port. Waiting for the
-      // actual ready signal prevents LHCI from auditing a stale or unrelated
-      // process when the requested port is still occupied.
+      // Audit the same standalone artifact that is deployed. The quality build
+      // deliberately releases the outer `.next-client/server` tree, so `next
+      // start` is neither available nor representative after `test:apps`.
+      startServerCommand: `NODE_ENV=production RIVERTON_APP_AUDIENCE=client NODE_USE_ENV_PROXY=1 HOSTNAME=127.0.0.1 PORT=${clientPort} node .next-client/standalone/server.js`,
+      // The standalone server prints the Local URL before it has bound the port.
+      // Waiting for the actual ready signal prevents LHCI from auditing a stale
+      // or unrelated process when the requested port is still occupied.
       startServerReadyPattern: String.raw`\bReady in [0-9]+(?:\.[0-9]+)?(?:ms|s)\b`,
       startServerReadyTimeout: 120000,
       // Chromium treats loopback as a secure context, so the local audit does not
