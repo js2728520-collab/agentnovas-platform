@@ -5,23 +5,28 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production
 
-FROM base AS dependencies
+FROM base AS workspace-manifests
 COPY package.json package-lock.json ./
+COPY packages/ai-control-plane/package.json packages/ai-control-plane/package.json
+COPY packages/ai-control-plane-react/package.json packages/ai-control-plane-react/package.json
+
+FROM workspace-manifests AS dependencies
 RUN --mount=type=cache,target=/root/.npm npm ci --include=dev
 
-FROM base AS production-dependencies
-COPY package.json package-lock.json ./
+FROM workspace-manifests AS production-dependencies
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 
-FROM base AS builder
+FROM dependencies AS workspace-packages
+COPY . .
+RUN npm run build:packages
+
+FROM workspace-packages AS builder
 ARG RIVERTON_APP_AUDIENCE
 ARG RIVERTON_RELEASE_TAG
 ARG GIT_COMMIT_SHA
 ENV RIVERTON_APP_AUDIENCE=${RIVERTON_APP_AUDIENCE} \
     RIVERTON_RELEASE_TAG=${RIVERTON_RELEASE_TAG} \
     GIT_COMMIT_SHA=${GIT_COMMIT_SHA}
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY . .
 RUN case "${RIVERTON_APP_AUDIENCE}" in \
       client|operations|maintenance) npm run "build:${RIVERTON_APP_AUDIENCE}" ;; \
       *) echo "Unsupported RIVERTON_APP_AUDIENCE" >&2; exit 64 ;; \
@@ -64,7 +69,7 @@ COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --chown=node:node package.json ./package.json
 COPY --chown=node:node db ./db
 COPY --chown=node:node lib ./lib
-COPY --chown=node:node packages ./packages
+COPY --from=workspace-packages --chown=node:node /app/packages ./packages
 COPY --chown=node:node postgres ./postgres
 COPY --chown=node:node scripts ./scripts
 USER node

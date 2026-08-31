@@ -4054,3 +4054,21 @@ Maintenance 邮件概况的长发信身份和健康详情增加语义化换行�
 
 测试环境继续关闭邮件、支付、Demo、配置激活、策略研究和策略 Runtime 的全部外部写入。本轮没有发送邮件、调用优盾、创建充值
 地址或转账，没有部署或修改生产环境，也没有推送远端。
+
+## 123. 2026-08-31 干净容器 workspace 构建修复与测试站发布准备
+
+需求方授权把当前分支推送到 `js2728520-collab/agentnovas-platform` 并部署三个测试域名；授权不包含 production、正式
+SemVer tag 或真实 Provider 副作用。`857a4f8` 已 fast-forward 推送到 `codex/platform-v3-doc-sync`。测试站发布前已固定
+旧三端与 Worker 镜像引用，并对 93 个迁移、最高 `0092` 的 preview PostgreSQL 生成 0600 custom dump；TOC 可读且
+SHA-256 已单独保存，数据库尚未迁移、现网尚未切换。
+
+首次从 `git archive` 干净上下文构建 Client 时，Next 无法解析 `@agentnovas/ai-control-plane`。根因有两层：Docker 依赖
+阶段在 workspace manifests 不存在时运行 `npm ci`，没有建立内部包链接；Web 和 Runtime 镜像也没有显式生成或复制两个
+workspace 的 `dist`。普通三端 build 之前由根 `pretest` 或残留构建层先生成包，因此没有覆盖 tag/container 的真实顺序。
+
+容器 Dockerfile 现先复制根清单与两个 workspace manifest，再分别安装开发和生产依赖；独立 `workspace-packages` 阶段
+执行 `build:packages`，Web builder 从该阶段继续，Runtime 也从同一阶段复制已编译 packages。回归合同在旧实现上先失败，
+修复后 7/7；服务、clean-CI 与容器合同合计 12/12。远端 Node 22.21.1 干净 Docker 验证 Client production image 和
+Runtime image 均构建成功，Runtime 可实际 import 两个内部包。受影响测试 ESLint、3,435 文件秘密扫描和
+`npm audit --audit-level=high`（0 vulnerabilities）通过。失败候选没有部署，也没有迁移数据库、重建 Worker、发送邮件、
+调用优盾或启用 AI Gateway；后续只能从包含该修复的新提交重新生成不可变 preview release。

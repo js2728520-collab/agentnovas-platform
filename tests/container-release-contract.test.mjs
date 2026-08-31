@@ -40,6 +40,23 @@ test("container images are pinned, non-root and contain no embedded secrets", as
   assert.doesNotMatch(dockerfile, /(?:RESEND_API_KEY|DATABASE_URL|MFA_TOTP_ENCRYPTION_KEY)\s*=/);
 });
 
+test("clean web and runtime images contain compiled workspace packages", async () => {
+  const dockerfile = await read("deploy/container/Dockerfile");
+  assert.match(dockerfile, /FROM base AS workspace-manifests/);
+  assert.match(dockerfile, /COPY packages\/ai-control-plane\/package\.json packages\/ai-control-plane\/package\.json/);
+  assert.match(dockerfile, /COPY packages\/ai-control-plane-react\/package\.json packages\/ai-control-plane-react\/package\.json/);
+  assert.match(dockerfile, /FROM workspace-manifests AS dependencies/);
+  assert.match(dockerfile, /FROM workspace-manifests AS production-dependencies/);
+  assert.match(dockerfile, /FROM dependencies AS workspace-packages/);
+  assert.match(dockerfile, /RUN npm run build:packages/);
+  assert.match(dockerfile, /FROM workspace-packages AS builder/);
+  assert.match(
+    dockerfile,
+    /COPY --from=workspace-packages --chown=node:node \/app\/packages \.\/packages/,
+    "the runtime image must receive package dist output from the workspace build stage",
+  );
+});
+
 test("the local versioned image builder uses the canonical container Dockerfile", async () => {
   const builder = await read("scripts/release/build-container-images.mjs");
   assert.match(builder, /"--file", "deploy\/container\/Dockerfile"/);
