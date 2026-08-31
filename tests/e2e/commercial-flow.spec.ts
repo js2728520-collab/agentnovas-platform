@@ -77,6 +77,9 @@ test("four-identity membership evidence and maker-checker activation remains sid
   const runId = randomUUID();
   try {
     await fixturePool.query("DELETE FROM commercial_legal_acceptances WHERE user_id=$1", [runtime.identities.client.userId]);
+    const startingCredits = await expectJson<CreditsPayload>(await client.get("/api/credits/me", {
+      headers: officialRequestHeaders("client", runtime.identities.client),
+    }), 200);
     // 未确认披露时，套餐**可读**——ADR-0017 把披露从全局 Gate 收成作用域化 Gate：
     // 它只挡「创建付费订单」，不挡登录、工作台、行情、Paper、钱包只读。
     // 那个反向 Gate 曾经让没有正文的环境里，已登录客户在披露页与产品入口之间循环。
@@ -135,11 +138,17 @@ test("four-identity membership evidence and maker-checker activation remains sid
     await confirmButton.click();
     await expect(page.getByText("当前版本确认已完成")).toBeVisible();
     await expect(page.getByText(/3 天试用已在确认后由服务端开通/)).toBeVisible();
-    await Promise.all([
+    const dashboardResponsePromise = page.waitForResponse((response) => (
+      response.request().method() === "GET" && new URL(response.url()).pathname === "/dashboard"
+    ));
+    const [, dashboardResponse] = await Promise.all([
       page.waitForURL(`${clientOrigin}/dashboard`),
+      dashboardResponsePromise,
       // next 指向 /dashboard 时按钮文案是「进入数据看板」；带别的 next 才是「继续访问原页面」。
       page.getByRole("link", { name: "进入数据看板" }).click(),
     ]);
+    expect(dashboardResponse.status()).toBe(200);
+    expect(await dashboardResponse.finished()).toBeNull();
 
     const confirmedLegal = await expectJson<LegalConsentPayload>(await client.get("/api/membership/legal-consent", {
       headers: officialRequestHeaders("client", runtime.identities.client),
@@ -211,9 +220,12 @@ test("four-identity membership evidence and maker-checker activation remains sid
     const credits = await expectJson<CreditsPayload>(await client.get("/api/credits/me", {
       headers: officialRequestHeaders("client", runtime.identities.client),
     }), 200);
-    // The isolated fixture starts with 100 AI Credits for usage analytics. Membership activation
-    // must add its 1,000 grant without overwriting that existing balance.
-    expect(credits.credits).toMatchObject({ available: "1100", lifetimeGranted: "1000" });
+    // Membership activation must add its 1,000 grant without overwriting the existing balance.
+    // Compare with the precondition so a Playwright retry in the same isolated schema remains valid.
+    expect(credits.credits).toMatchObject({
+      available: (BigInt(startingCredits.credits.available) + BigInt(1_000)).toString(),
+      lifetimeGranted: (BigInt(startingCredits.credits.lifetimeGranted) + BigInt(1_000)).toString(),
+    });
 
     const portfolios = await expectJson<PortfolioPayload>(await client.get("/api/trading-hall/paper/portfolio", {
       headers: officialRequestHeaders("client", runtime.identities.client),

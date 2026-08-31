@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import {
   expect,
+  request as playwrightRequest,
   test as base,
   type Browser,
   type BrowserContext,
@@ -71,28 +72,40 @@ export const test = base.extend<QualityFixtures>({
     const pageErrors: string[] = [];
     const failedLocalRequests: string[] = [];
     const responses: Array<{ method: string; url: string; status: number; resourceType: string }> = [];
+    const fixtureForwarder = await playwrightRequest.newContext();
+    let closing = false;
 
     // Official Playwright network/service-worker guidance:
     // https://playwright.dev/docs/network
     // https://playwright.dev/docs/service-workers
     await context.route("**/*", async (route) => {
-      const url = route.request().url();
+      const browserRequest = route.request();
+      const url = browserRequest.url();
       const parsed = new URL(url);
       const forward = parsed.protocol === "https:"
         ? qualityLoopbackForward(url, qualityApplicationPorts(process.env))
         : null;
       if (forward) {
-        const requestHeaders = await route.request().allHeaders();
-        const response = await route.fetch({
-          url: forward.url,
-          headers: {
-            ...requestHeaders,
-            host: forward.host,
-            "x-forwarded-for": "127.0.0.1",
-            "x-forwarded-proto": "https",
-          },
-        });
-        await route.fulfill({ response });
+        const requestHeaders = await browserRequest.allHeaders();
+        const postData = browserRequest.postDataBuffer();
+        try {
+          const response = await fixtureForwarder.fetch(forward.url, {
+            method: browserRequest.method(),
+            timeout: 10_000,
+            maxRedirects: 0,
+            ...(postData ? { data: postData } : {}),
+            headers: {
+              ...requestHeaders,
+              host: forward.host,
+              "x-forwarded-for": "127.0.0.1",
+              "x-forwarded-proto": "https",
+            },
+          });
+          await route.fulfill({ response });
+        } catch (error) {
+          if (closing) return;
+          throw new Error(`quality loopback fulfill failed for ${safeUrl(url)}: ${redactPotentialSecrets(error instanceof Error ? error.message : String(error))}`);
+        }
       } else if (isAllowedQualityNetworkUrl(url)) await route.continue();
       else {
         externalRequests.push(safeUrl(url));
@@ -100,12 +113,16 @@ export const test = base.extend<QualityFixtures>({
       }
     });
     page.on("console", (message) => {
+      if (closing) return;
       if (message.type() === "error" || message.type() === "warning") {
         consoleProblems.push(redactPotentialSecrets(message.text()));
       }
     });
-    page.on("pageerror", (error) => pageErrors.push(redactPotentialSecrets(error.message)));
+    page.on("pageerror", (error) => {
+      if (!closing) pageErrors.push(redactPotentialSecrets(error.message));
+    });
     page.on("requestfailed", (request) => {
+      if (closing) return;
       if (isAllowedQualityNetworkUrl(request.url())) {
         const headers = request.headers();
         const failure = request.failure()?.errorText ?? "failed";
@@ -129,6 +146,7 @@ export const test = base.extend<QualityFixtures>({
       }
     });
     page.on("response", (response) => {
+      if (closing) return;
       if (responses.length < 500) {
         responses.push({
           method: response.request().method(),
@@ -140,7 +158,8 @@ export const test = base.extend<QualityFixtures>({
     });
 
     await use();
-    await context.unrouteAll({ behavior: "ignoreErrors" });
+    closing = true;
+    await fixtureForwarder.dispose({ reason: "quality evidence complete" });
     await attachJson(testInfo, "network-summary", responses);
     await attachJson(testInfo, "console-summary", {
       consoleProblems,
@@ -271,6 +290,7 @@ export async function createIsolatedQualityBrowser(
   let closing = false;
   const ports = qualityApplicationPorts(process.env);
   const origin = qualityBrowserOrigin(audience, ports).baseURL;
+  const forwarder = await playwrightRequest.newContext();
   const context: BrowserContext = await browser.newContext({
     baseURL: origin,
     acceptDownloads: false,
@@ -279,24 +299,29 @@ export async function createIsolatedQualityBrowser(
   });
 
   await context.route("**/*", async (route) => {
-    const url = route.request().url();
+    const browserRequest = route.request();
+    const url = browserRequest.url();
     const parsed = new URL(url);
     const forward = parsed.protocol === "https:" ? qualityLoopbackForward(url, ports) : null;
     if (forward) {
-      const requestHeaders = await route.request().allHeaders();
-      const response = await route.fetch({
-        url: forward.url,
-        headers: {
-          ...requestHeaders,
-          host: forward.host,
-          "x-forwarded-for": "127.0.0.1",
-          "x-forwarded-proto": "https",
-        },
-      });
+      const requestHeaders = await browserRequest.allHeaders();
+      const postData = browserRequest.postDataBuffer();
       try {
+        const response = await forwarder.fetch(forward.url, {
+          method: browserRequest.method(),
+          timeout: 10_000,
+          maxRedirects: 0,
+          ...(postData ? { data: postData } : {}),
+          headers: {
+            ...requestHeaders,
+            host: forward.host,
+            "x-forwarded-for": "127.0.0.1",
+            "x-forwarded-proto": "https",
+          },
+        });
         await route.fulfill({ response });
       } catch (error) {
-        if (closing && error instanceof Error && error.message.includes("Route is already handled")) return;
+        if (closing) return;
         throw new Error(`isolated loopback fulfill failed for ${safeUrl(url)} (${route.request().resourceType()}, navigation=${route.request().isNavigationRequest()}, closing=${closing}, failure=${route.request().failure()?.errorText ?? "none"}, prefetch=${requestHeaders["next-router-prefetch"] ?? "none"}, purpose=${requestHeaders.purpose ?? requestHeaders["sec-purpose"] ?? "none"}): ${redactPotentialSecrets(error instanceof Error ? error.message : String(error))}`);
       }
     } else if (isAllowedQualityNetworkUrl(url)) await route.continue();
@@ -352,6 +377,7 @@ export async function createIsolatedQualityBrowser(
       const unexpectedConsoleProblems = (allowedStatuses.size
         ? consoleProblems.filter((message) => !expectedResourceFailure.test(message))
         : consoleProblems).filter((message) => !isExpectedQualityBrowserWarning(message));
+      let evidenceFailure: unknown;
       try {
         expect(externalRequests, "isolated browser external requests").toEqual([]);
         expect(
@@ -361,10 +387,25 @@ export async function createIsolatedQualityBrowser(
         expect(pageErrors, "isolated browser page errors").toEqual([]);
         expect(failedLocalRequests, "isolated browser failed local requests").toEqual([]);
         expect(unexpectedResponses, "isolated browser unexpected HTTP responses").toEqual([]);
-      } finally {
-        await context.unrouteAll({ behavior: "ignoreErrors" });
-        await context.close();
+      } catch (error) {
+        evidenceFailure = error;
       }
+      const cleanupFailures: unknown[] = [];
+      const cleanupSteps: Array<() => Promise<unknown>> = [
+        async () => { if (!page.isClosed()) await page.goto("about:blank", { waitUntil: "commit", timeout: 5_000 }); },
+        () => forwarder.dispose({ reason: "quality evidence complete" }),
+        async () => { if (!page.isClosed()) await page.close({ runBeforeUnload: false }); },
+        () => context.close({ reason: "quality evidence complete" }),
+      ];
+      for (const cleanup of cleanupSteps) {
+        try {
+          await cleanup();
+        } catch (error) {
+          cleanupFailures.push(error);
+        }
+      }
+      if (evidenceFailure) throw evidenceFailure;
+      if (cleanupFailures.length) throw cleanupFailures[0];
     },
   };
 }

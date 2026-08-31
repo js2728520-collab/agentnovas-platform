@@ -17,7 +17,7 @@ export function EmailServiceOverview({ status, formatDateTime, translate = value
   return <>
     <section className="rc-kpi-grid" aria-label={t("邮件服务概况")}>
       <article><small>{t("综合状态")}</small><strong className="rc-kpi-status"><StatusBadge value={status.effectiveStatus} label={emailServiceStatusLabel(status.effectiveStatus)} /></strong><span>{status.effectiveStatus === "degraded" ? t("配置存在，但当前投递证据异常") : t("按配置、Worker 和投递证据综合判断")}</span></article>
-      <article><small>{t("发信身份")}</small><strong>{status.senderAddress}</strong><span>{status.senderDomainVerified ? t("域名已验证") : t("域名未验证")}</span></article>
+      <article><small>{t("发信身份")}</small><strong className="rc-kpi-text-value">{status.senderAddress}</strong><span>{status.senderDomainVerified ? t("域名已验证") : t("域名未验证")}</span></article>
       <article><small>{t("Worker")}</small><strong className="rc-kpi-status"><StatusBadge value={status.workerEnabled ? "online" : "offline"} label={emailServiceStatusLabel(status.workerEnabled ? "online" : "offline")} /></strong><span>{formatDateTime(status.workerHeartbeatAt)}</span></article>
       <article><small>{t("最近测试")}</small><strong className="rc-kpi-status"><StatusBadge value={status.lastTestStatus ?? "not_tested"} label={emailServiceStatusLabel(status.lastTestStatus ?? "not_tested")} /></strong><span>{formatDateTime(status.lastTestAt)}</span></article>
     </section>

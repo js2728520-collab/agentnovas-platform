@@ -81,10 +81,31 @@ test("three-audience login completion relies on authenticated UI state instead o
   assert.doesNotMatch(identity, /waitForLoadState\("networkidle"\)|waitUntil:\s*"networkidle"/);
 });
 
-test("isolated browser teardown ignores only already-handled routes after closing starts", async () => {
+test("isolated browser forwarding owns proxy requests outside browser-context route disposal", async () => {
   const support = await source("support/quality-test.ts");
-  assert.match(support, /closing && error instanceof Error && error\.message\.includes\("Route is already handled"\)/);
+  const isolatedStart = support.indexOf("export async function createIsolatedQualityBrowser");
+  const fixtureSupport = support.slice(0, isolatedStart);
+  const isolatedSupport = support.slice(isolatedStart);
+  assert.match(fixtureSupport, /playwrightRequest\.newContext\(\)/);
+  assert.match(fixtureSupport, /fixtureForwarder\.fetch\(forward\.url/);
+  assert.doesNotMatch(fixtureSupport, /route\.fetch\(/);
+  assert.match(fixtureSupport, /await fixtureForwarder\.dispose\(\{ reason: "quality evidence complete" \}\)/);
+  assert.doesNotMatch(fixtureSupport, /context\.unrouteAll\(/);
+  assert.match(isolatedSupport, /catch \(error\) \{\s*if \(closing\) return;/);
   assert.match(support, /openedPage\.on\("requestfailed", \(request\) => \{\s*if \(closing\) return;/);
-  assert.match(support, /context\.unrouteAll\(\{ behavior: "ignoreErrors" \}\)/);
+  assert.match(isolatedSupport, /playwrightRequest\.newContext\(\)/);
+  assert.match(isolatedSupport, /forwarder\.fetch\(forward\.url/);
+  assert.doesNotMatch(isolatedSupport, /route\.fetch\(/);
+  assert.match(support, /page\.goto\("about:blank", \{ waitUntil: "commit", timeout: 5_000 \}\)/);
+  assert.doesNotMatch(isolatedSupport, /context\.unrouteAll\(/);
+  assert.match(support, /page\.close\(\{ runBeforeUnload: false \}\)/);
+  assert.match(isolatedSupport, /\(\) => forwarder\.dispose\(\{ reason: "quality evidence complete" \}\)/);
+  assert.match(isolatedSupport, /\(\) => context\.close\(\{ reason: "quality evidence complete" \}\)/);
+  assert.match(isolatedSupport, /for \(const cleanup of cleanupSteps\)[\s\S]*cleanupFailures\.push\(error\)/);
+  assert.ok(
+    isolatedSupport.indexOf('() => forwarder.dispose({ reason: "quality evidence complete" })')
+      < isolatedSupport.indexOf('() => context.close({ reason: "quality evidence complete" })'),
+    "the independent forwarder must cancel its requests before the browser context closes",
+  );
   assert.match(support, /throw new Error\(`isolated loopback fulfill failed/);
 });

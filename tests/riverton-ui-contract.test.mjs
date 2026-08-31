@@ -167,6 +167,18 @@ test("login routes do not start authenticated session trees or prefetch protecte
   }
 });
 
+test("credential forms remain inert until client handlers hydrate", async () => {
+  const login = await read("packages/ui/src/app-login.tsx");
+  assert.match(
+    login,
+    /const isHydrated = useSyncExternalStore\(subscribeToHydration, hydratedSnapshot, serverHydrationSnapshot\);/,
+    "the server-rendered form needs an explicit hydration boundary",
+  );
+  assert.match(login, /if \(!isHydrated \|\| busy \|\| mfaFlow\?\.stage === "recovery"\) return;/);
+  assert.match(login, /disabled=\{!isHydrated \|\| staffState\.status === "busy"\}/);
+  assert.match(login, /disabled=\{!isHydrated \|\| busy\}/);
+});
+
 test("internal login retains TOTP enrollment and verification behind the rollout switch", async () => {
   const login = await read("packages/ui/src/app-login.tsx");
   assert.match(login, /mfaEnrollmentRequired/);
@@ -203,6 +215,22 @@ test("shared console navigation is hydration-safe and keyboard-contained", async
     /@media \(max-width: 900px\)[\s\S]*?\.rc-console > aside\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*?\.rc-console\[data-nav="open"\] > aside\s*\{[^}]*display:\s*flex;/,
     "the closed mobile navigation must not create off-screen horizontal overflow",
   );
+});
+
+test("shared maintenance summaries wrap long operational identifiers on narrow screens", async () => {
+  const consoleCss = await read("app/riverton-console.css");
+  const emailOverview = await read("packages/ui/src/email-service-manager/email-service-overview.tsx");
+  assert.match(
+    consoleCss,
+    /\.rc-health-grid article > small\s*\{[^}]*overflow-wrap:\s*anywhere;/,
+    "health details such as database role names must wrap instead of widening the page",
+  );
+  assert.match(
+    consoleCss,
+    /\.rc-kpi-grid strong\.rc-kpi-text-value[^{]*\{[^}]*font-size:\s*18px;[^}]*overflow-wrap:\s*anywhere;/,
+    "textual KPI values must use readable wrapping rather than numeric display sizing",
+  );
+  assert.match(emailOverview, /<strong className="rc-kpi-text-value">\{status\.senderAddress\}<\/strong>/);
 });
 
 test("shared request hooks cancel obsolete reads instead of committing stale data", async () => {

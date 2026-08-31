@@ -4032,3 +4032,25 @@ Maintenance 在 320px 下从桌面断点切换时，采用负向位移隐藏的�
 Playwright 1.62.1 环境中，Maintenance 全部 4 条旅程通过，三端完整旅程为 20/20；曾失败的 Maintenance 模型与集成
 旅程又连续重复 3/3。覆盖范围包括 320/768/1024/1440px、邮件、支付、AI、配置、审计、无障碍、Host/Cookie、RBAC
 与应用隔离。最终仍以本提交触发的两条 GitHub Actions Gate 全绿作为合并前证据。
+
+## 122. 2026-08-31 登录 hydration 与浏览器质量门禁最终收口
+
+PR #2 合并后的本地浏览器复验继续发现两类时序问题。第一，登录与员工注册链接在 React hydration 完成前仍可触发原生
+表单提交：登录表单会 POST 当前页面，员工注册表单默认 GET，既会吞掉首次点击，也存在把凭据字段带入非预期请求的风险。
+登录组件现使用具备服务端 `false` 快照的 `useSyncExternalStore` hydration 边界；所有含凭据的提交按钮在客户端处理器接管前
+保持 disabled，提交处理器同时做防御性检查。对应合同先在旧实现上失败，再随修复通过。
+
+第二，Playwright 的 `route.fetch()` 与 BrowserContext route disposal 共享生命周期，关闭多个隔离浏览器时可能产生已处理 route
+竞态。质量代理现使用独立 `APIRequestContext` 转发 loopback 请求，关闭时先离开应用、取消转发请求，再关闭 Page 与 Context；
+每个清理步骤都独立执行，证据断言失败优先于清理错误。三端空浏览器登录恢复为逐端独立 Context，但改为串行创建和关闭，
+既保留 Cookie 隔离语义，也消除并发 teardown。商业与五设备测试改为读取数据库前置余额/通知计数，Playwright retry 不再依赖
+固定初始值；登录与数据看板跳转显式验证关键 HTTP 响应。
+
+Maintenance 邮件概况的长发信身份和健康详情增加语义化换行规则，窄屏不再被邮箱、角色或运行标识扩大文档宽度。最终验证在
+`an-saas` 的隔离源码、Node 22.21.1、一次性 PostgreSQL 16 和 Playwright 1.62.1 中完成：串行 Node/PostgreSQL 套件
+1,753 项中 1,752 passed、0 failed、1 个既有环境能力 skip；TypeScript、完整 ESLint、8 条架构边界、3,436 文件秘密扫描、
+`npm audit --audit-level=high`（0 vulnerabilities）和三端 production build 均通过。受影响安全/商业浏览器旅程首轮 7/7，
+三端 canonical 旅程 20/20，覆盖 320/768/1024/1440px、axe、console、失败响应与横向溢出。
+
+测试环境继续关闭邮件、支付、Demo、配置激活、策略研究和策略 Runtime 的全部外部写入。本轮没有发送邮件、调用优盾、创建充值
+地址或转账，没有部署或修改生产环境，也没有推送远端。
