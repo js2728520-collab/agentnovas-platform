@@ -582,6 +582,10 @@ GRANT SELECT (status, created_at)
   ON performance_fee_statements TO agentnovas_maint_web;
 GRANT SELECT (status, price_currency)
   ON commercial_plan_versions TO agentnovas_maint_web;
+GRANT SELECT (enabled)
+  ON agent_role_bindings TO agentnovas_maint_web;
+GRANT SELECT (enabled)
+  ON runtime_explanation_bindings TO agentnovas_maint_web;
 
 -- Provider callbacks use a dedicated role that cannot read users, wallets,
 -- ledger postings, sessions, RBAC, or unrelated integration credentials.

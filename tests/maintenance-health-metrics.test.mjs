@@ -55,3 +55,16 @@ test("Maintenance health queries receive only their aggregate source columns", a
     assert.doesNotMatch(grant[1], /customer_id|owner_user_id|amount|payload|credential|secret/i);
   }
 });
+
+test("Maintenance readiness receives only model binding availability columns", async () => {
+  const roles = await readFile(new URL("../deploy/postgres/least-privilege-roles.sql", import.meta.url), "utf8");
+  for (const table of ["agent_role_bindings", "runtime_explanation_bindings"]) {
+    const grant = roles.match(new RegExp(
+      `GRANT SELECT \\(([^)]+)\\)\\s+ON ${table} TO agentnovas_maint_web;`,
+      "s",
+    ));
+    assert.ok(grant, `${table} readiness grant is missing`);
+    assert.match(grant[1], /\benabled\b/);
+    assert.doesNotMatch(grant[1], /profile|configuration|provider|credential|secret/i);
+  }
+});
