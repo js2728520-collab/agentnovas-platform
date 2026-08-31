@@ -77,6 +77,10 @@ test("Lighthouse configuration uses the runner proxy and valid resource size ass
   try {
     const configuration = require("../../scripts/quality/lighthouserc.cjs");
     assert.match(configuration.ci.collect.startServerCommand, /next start -H 127\.0\.0\.1 -p 3100$/);
+    assert.equal(
+      configuration.ci.collect.startServerReadyPattern,
+      String.raw`\bReady in [0-9]+(?:\.[0-9]+)?(?:ms|s)\b`,
+    );
     assert.deepEqual(configuration.ci.collect.url, ["http://127.0.0.1:3100/login"]);
     assert.match(configuration.ci.collect.settings.chromeFlags, /--proxy-server=http:\/\/127\.0\.0\.1:31337/);
     assert.match(configuration.ci.collect.settings.chromeFlags, /--proxy-bypass-list=<-loopback>/);

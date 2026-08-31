@@ -1,0 +1,70 @@
+import type { UserAppLocale } from "@/lib/user-app-preference";
+
+/**
+ * The login route is the public performance baseline. Keep its English copy
+ * separate from the full workspace catalog so anonymous users do not download
+ * every business translation before they can sign in.
+ */
+export const loginEnglish = Object.freeze<Record<string, string>>({
+  "AI 策略研发、回测、模拟盘和会员资产中心。": "AI strategy research, backtesting, paper trading, and membership assets.",
+  "Riverton 运营端": "Riverton Operations",
+  "客户、充值、账务、财务和审批工作台。": "Customer, funding, ledger, finance, and approval workspace.",
+  "Riverton 运维端": "Riverton Maintenance",
+  "模型、集成、安全、审计和系统健康工作台。": "Models, integrations, security, audit, and system health workspace.",
+  "操作失败，请稍后重试": "The operation failed. Try again later.",
+  "恢复码生成失败，请联系运维管理员": "Recovery codes could not be generated. Contact an administrator.",
+  "双重验证设置密钥无效，请重新登录": "The two-factor setup key is invalid. Sign in again.",
+  "如果邮箱存在，重置邮件已进入发送队列": "If the email exists, a reset message has been queued.",
+  "如果账户待验证，验证邮件已进入发送队列": "If verification is pending, a new message has been queued.",
+  "注册成功，请完成邮箱验证": "Registration succeeded. Complete email verification.",
+  "绑定双重验证": "Set up two-factor authentication",
+  "双重验证": "Two-factor authentication",
+  "保存恢复码": "Save recovery codes",
+  "创建客户账户": "Create customer account",
+  "重置登录密码": "Reset password",
+  "验证账户邮箱": "Verify account email",
+  "安全登录": "Secure sign in",
+  "将设置密钥加入身份验证器，再输入当前六位动态验证码。": "Add the setup key to your authenticator, then enter the current six-digit code.",
+  "输入身份验证器动态验证码，或使用一枚尚未使用的恢复码。": "Enter an authenticator code or an unused recovery code.",
+  "恢复码仅显示一次。请保存到独立的安全位置后再进入应用。": "Recovery codes are shown once. Store them securely before entering the application.",
+  "请输入当前应用获授权的账户。": "Use an account authorized for this application.",
+  "重置链接仅发送到已登记邮箱。": "Reset links are sent only to the registered email.",
+  "验证链接有效期为 24 小时；重发会使旧链接失效。": "Verification links expire after 24 hours; resending invalidates the previous link.",
+  "客户注册需要有效邀请码。": "Customer registration requires a valid invitation code.",
+  "独立应用会话": "Application-isolated sessions",
+  "服务端权限校验": "Server-side authorization",
+  "完整操作审计": "Complete action audit",
+  "注册失败": "Registration failed",
+  "注册成功": "Registration succeeded",
+  "加入团队": "Join the team",
+  "你收到了一条权限注册链接。注册者不能修改角色或数据范围；提交成功后账号立即生效。双重验证能力已保留，是否强制由当前部署阶段的安全策略决定。": "You received an access registration link. The registrant cannot change the assigned role or data scope. The account becomes active after submission; the current deployment security policy determines whether two-factor authentication is mandatory.",
+  "邮箱": "Email",
+  "密码（至少 12 位）": "Password (at least 12 characters)",
+  "分公司名称（仅分公司总经理链接必填）": "Branch name (required only for branch-manager links)",
+  "提交中…": "Submitting…",
+  "提交注册": "Submit registration",
+  "返回登录": "Return to sign in",
+  "手机号（含国际区号）": "Phone number (with country code)",
+  "邀请码": "Invitation code",
+  "账户邮箱": "Account email",
+  "邮箱、手机号或用户名": "Email, phone number, or username",
+  "密码": "Password",
+  "身份验证器设置密钥": "Authenticator setup key",
+  "设置密钥属于敏感信息；完成绑定后本页不会再次显示。": "The setup key is sensitive and will not be shown again after enrollment.",
+  "六位动态验证码": "Six-digit authenticator code",
+  "动态验证码或恢复码": "Authenticator or recovery code",
+  "我已安全保存，进入应用": "I saved them securely — enter application",
+  "处理中…": "Processing…",
+  "绑定并生成恢复码": "Enroll and generate recovery codes",
+  "验证并进入": "Verify and continue",
+  "登录": "Sign in",
+  "发送重置邮件": "Send reset email",
+  "重发验证邮件": "Resend verification email",
+  "创建账户": "Create account",
+  "忘记密码": "Forgot password",
+  "使用邀请码注册": "Register with invitation",
+});
+
+export function localizeLoginText(value: string, locale: UserAppLocale): string {
+  return locale === "en-US" ? loginEnglish[value] ?? value : value;
+}

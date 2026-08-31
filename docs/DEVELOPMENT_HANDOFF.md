@@ -4144,3 +4144,21 @@ PR #2 在提交 `991fe60` 的首轮 GitHub `verify` 中通过 1,752/1,753 项，
 409。门禁没有把 409 加入允许列表，也没有重跑掩盖失败。该旅程现使用 120 秒显式预算，并在每次尝试生成独立 `.invalid`
 邮箱；静态回归合同先在旧实现上失败，再与定向 ESLint 一同通过。产品 API、唯一约束、浏览器 console/HTTP 失败策略和外部
 写入开关均未放宽。
+
+## 127. 2026-08-31 Lighthouse 就绪竞态与登录首屏词典预算
+
+提交 `5e889a6` 的 GitHub `verify` 和全部 20 条浏览器旅程通过后，`quality-release` 首次推进到 Lighthouse，但 Chrome 在
+`http://127.0.0.1:3000/login` 进入错误页。远端 Chrome 151 复现证明应用页面和受控代理本身可用；真正根因是 LHCI 的服务
+就绪正则包含 `Local:`，会在 Next 绑定端口前提前放行。收窄为 `Ready in` 后又发现 LHCI 使用不区分大小写匹配，仍会误命中
+`address already in use` 中的 `ready in`。最终合同要求 `Ready in` 后必须跟数字耗时和 `ms`/`s` 单位；端口被 Grafana 占用的
+负向验证现在明确报 `EADDRINUSE` 并停止，不再审计无关进程。
+
+隔离端口后的真实三轮 Lighthouse 随后暴露登录页首屏脚本 355,675 bytes，超过 200 KiB Gate。网络瀑布把主要来源定位为
+七语完整业务词典，而非图片、API 或服务端响应。Client 默认英语登录现只加载独立、受完整词典一致性与登录文案覆盖测试保护的
+轻量词典；中文继续零词典开销，其他语言和登录后的业务工作区仍按需加载原完整词典，七语范围、语言优先级和翻译回退均未改变。
+
+`an-saas` 使用 Chrome 151 的修复后代表轮次为：performance `0.98`、accessibility `1.00`、best practices `1.00`、
+LCP `1777ms`、CLS `0`、TBT `160ms`；脚本降至 `175,250` bytes，样式 `19,530` bytes，图片 `10,166` bytes。
+三轮证据 Gate 为 passed，外部写入为 false，一次性 PostgreSQL schema、运行时 Secret 和 LHCI 工作目录均已清理。定向
+Node 合同 `25/25`、受影响 ESLint、远端 Client production build 和 TypeScript 均通过。本轮没有发送邮件、调用支付或模型
+Provider、创建充值地址、执行真实交易、修改测试站或触碰生产；最终合并仍必须等待 GitHub 两条完整 Gate 全绿。
