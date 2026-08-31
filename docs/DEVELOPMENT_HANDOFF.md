@@ -4099,3 +4099,29 @@ Maintenance 三个容器均为 healthy、0 restart，并携带同一提交和发
 0 page error、0 failed response。发布只重建三端 Web，Notification Worker、Email Secret Broker 与 Payment Secret Broker
 保持原镜像和 0 restart；没有发送测试邮件、调用优盾、创建充值地址、启用 AI Gateway 或执行真实交易。生产容器、生产数据库
 和正式域名均未修改。
+
+## 125. 2026-08-31 三端预览 MOCK 数据集
+
+为三个测试站共用的 preview PostgreSQL 增加了显式授权、可重放且失败关闭的 MOCK 数据脚本与 Runbook。数据以当前唯一
+active 总公司和三端 acceptance 角色作为环境哨兵，在同一事务和 advisory lock 内创建 2 家分公司、10 名分公司员工、
+6 名生成客户，并让既有 Client acceptance 客户一同具备可浏览的归属、团队目标、会员、Credits、钱包与双分录账本、
+安全充值状态样本、Paper 组合/持仓/成交、静态 AI 对话、站内通知和技术审计。生成身份统一使用 `.invalid` 地址、随机且不留存的
+Argon2 密码，不创建角色绑定或会话；因此不能替代既有 acceptance 登录账号。
+
+安全边界由合同和 PostgreSQL 集成测试锁定：脚本要求 `--apply` 或 `--verify`、固定确认短语、连接 URL 与独立 host 声明完全
+一致、数据库名为 `agentnovas`、95 个迁移完整且三个 acceptance 角色哨兵唯一。它不修改邮件、支付、AI、发布、功能开关、
+协议或健康配置，不创建 Provider 绑定充值、外部交易标识、出站通知、Live book 或可运行策略部署。账本在数据库既有
+deferred constraint trigger 下先写 pending、补齐平衡 postings 和 wallet version，再原子转为 posted；重放不会重复不可变事实。
+
+远端先在完整 preview 数据库克隆中连续应用两次并验证计数稳定，再在 95 个迁移重放的一次性 schema 中通过 4/4 Node/PostgreSQL
+合同，支付 Provider 配置快照前后一致。共享测试库写入前生成了 0600 custom dump：
+`/opt/agentnovas-riverton-preview/backups/mock-data-20260831-KtEp32/pre-mock-data.dump`，大小 1,536,568 bytes；SHA-256
+校验和 `pg_restore --list` 的 2,181 项目录均通过。清理数据时应恢复该备份，不执行跨表广泛删除。
+
+共享测试库最终验证为：2 家分公司、16 个生成身份、7 个客户档案/归属、5 份会员、9 个 Paper 组合、4 笔 Paper 成交、
+5 个充值状态样本；不安全邮箱、Live book、可运行部署、Provider 绑定充值、非终态/外发 MOCK 通知和不平衡账本均为 0。
+Client acceptance 账号可见 3 个 Paper 组合、2 个持仓、4 笔成交、会员/Credits/钱包、AI 对话和 3 条站内通知；Operations
+可见 2 家分公司、10 名员工、4 个团队目标、7 个客户、3 个会员订单及 5 个充值样本；Maintenance 可见
+`maintenance.mock_dataset.seeded` 审计事件。三测试域名 health 均为 200。验收使用数据库同源查询，没有新建浏览器登录，
+以免登录安全通知形成额外真实邮件副作用；本次没有重建应用镜像或重启服务，因为变更只包含运维种子脚本、测试和文档，数据已
+直接对当前测试站生效。生产数据库与生产环境未触碰。

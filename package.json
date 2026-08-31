@@ -55,6 +55,7 @@
     "postgres:migrate:legacy-sqlite": "node --experimental-strip-types scripts/migrate-legacy-sqlite-to-postgres.mjs",
     "postgres:migrate:platform-runtime": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/migrate-platform-strategies-to-runtime.mjs",
     "accounts:provision-acceptance": "node --experimental-strip-types scripts/provision-acceptance-accounts.mjs",
+    "preview:mock-data": "node scripts/seed-preview-mock-data.mjs",
     "email:record-readiness": "node --experimental-strip-types scripts/record-email-provider-readiness.mjs",
     "demo:provision-credentials": "node --experimental-strip-types scripts/provision-platform-demo-credentials.mjs",
     "worker:research": "NODE_USE_ENV_PROXY=1 node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --experimental-strip-types scripts/strategy-research-worker.mjs",
