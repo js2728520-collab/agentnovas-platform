@@ -182,6 +182,9 @@ sudo bash /opt/agentnovas-riverton/current/source/scripts/audit-production-confi
 
 ## 4. Resend 邮件
 
+环境分流、secret 文件权限、原子替换、数据库最小权限、旧队列影响、启用/回滚和真实投递闭环的详细操作见
+[`resend-email-configuration.md`](resend-email-configuration.md)。本节保留生产账号与 Provider 配置入口，发生冲突时以专项 Runbook 和代码事实为准。
+
 官方文档：
 
 - [域名验证](https://resend.com/docs/dashboard/domains/introduction)
@@ -258,7 +261,9 @@ EMAIL_READINESS_ACTION=disable
 
 ## 5. 优盾充值通道
 
-官方协议以 [Udun Developer Center](https://www.uduncloud.com/en/developer-center/) 为准。当前代码只实现：
+官方协议以 [Udun 中文开发中心](https://www.uduncloud.com/geteway-interface) 与
+[英文旧版开发中心](https://www.uduncloud.com/en/developer-center/) 为准。详细部署与事故处置见
+[`udun-deposit-gateway.md`](./udun-deposit-gateway.md)。当前代码只实现：
 
 - `POST /mch/support-coins`：连通与当前商户币种查询；
 - `POST /mch/address/create`：创建充值地址；
@@ -273,11 +278,13 @@ EMAIL_READINESS_ACTION=disable
 1. `UDUN_GATEWAY_BASE_URL` 必须是后台显示的专属 `https://*.udun.io` API 节点。`https://home.udun.io` 是管理后台，不是 API base；不要追加 `/mch/address/create`。
 2. 取得当前商户 `merchantId` 与 API Key。
 3. 在支持币种查询中确认当前钱包的 USDT/TRC20 `mainCoinType`、`coinType` 和可选 `walletId`。不要直接复制文档示例或 UI 默认值。
-4. 回调固定为 `https://xm.agentnovas.com/api/integrations/payments/udun/webhook`。
+4. 测试回调固定为 `https://main-test.agentnovas.com/api/integrations/payments/udun/webhook`；生产 Host 必须在正式发布前单独冻结并进入 Broker allowlist。
 
 ### 5.2 安装、映射和测试
 
-将四项写入 root-only 答案文件并执行 `--check` / `--apply`。随后重建 Client 与 Maintenance：
+先用 `payment-secret-broker-bootstrap.answers.example` 安装专用 Broker、RSA 密钥和受管目录。该答案文件只包含
+Broker 数据库 URL 与回调 Host allowlist，不包含优盾商户秘密。商户配置必须在 Maintenance 页面以只写方式安装或轮换。
+随后以 `payment-secret-broker` profile 启动 Broker，并重建 Client 与 Maintenance：
 
 ```bash
 cd /opt/agentnovas-riverton/current
@@ -289,10 +296,10 @@ sudo docker compose --env-file release.env -f source/deploy/container/compose.ym
 
 1. 保持 provider 为 disabled；
 2. 填入从当前商户查询得到的主币种编号、USDT token 编号和可选 walletId；
-3. 临时把 `maintenance.env` 的 `PAYMENT_PROVIDER_TESTS_ENABLED` 设为 `true` 并重建 Maintenance；
-4. 执行“连通测试”，它只调用 `support-coins`，不会创建地址或转账；
-5. 测试结束后把测试开关改回 false 并再次重建 Maintenance；
-6. 只有 24 小时内测试 passed、回调验签/重放/nonce、Ops maker/checker、账本对账和 staging 小额均通过后，才在 UI 启用 provider。
+3. 测试环境把 `PAYMENT_PROVIDER_TESTS_ENABLED` 设为 `true` 并重建 Maintenance；
+4. 执行 Provider 币种校验与公网回调测试；测试历史必须绑定当前配置版本；
+5. Client/Maintenance 的 `PAYMENT_PROVIDER_OUTBOUND_ENABLED` 必须保持一致；生产不以临时开关绕过测试；
+6. 只有 24 小时内两项测试 passed、Broker 心跳新鲜、回调验签/重放/nonce、Ops maker/checker、账本对账和测试站小额均通过后，才在 UI 启用 Provider。
 
 启用会让 Client 能请求真实充值地址，因此不能把“连通测试 passed”当作启用授权。生产首次验收只用内部账号和商户允许的最小金额；`status=3` 回调仍不自动入账。
 

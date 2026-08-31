@@ -51,6 +51,8 @@ export async function GET(request: Request) {
     );
     const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
     const demoWorkerConfig = demoExecutionWorkerConfig();
+    const notificationMetadata = diagnostics.get("notification")?.metadata ?? {};
+    const resendConfigured = notificationMetadata.apiKeyPresent === true;
     const [queues, migration] = await Promise.all([
       loadMaintenanceHealthMetrics(pool),
       pool.query<{ name: string; checksum: string | null; commit_sha: string | null }>(
@@ -79,10 +81,10 @@ export async function GET(request: Request) {
       }),
       notificationWorker: {
         ...workerStatus(diagnostics, "notification", {
-          configured: databaseConfigured && Boolean(process.env.RESEND_API_KEY?.trim()),
+          configured: databaseConfigured && resendConfigured,
           enabled: process.env.NOTIFICATION_WORKER_ENABLED === "true",
         }),
-        resendConfigured: Boolean(process.env.RESEND_API_KEY?.trim()),
+        resendConfigured,
       },
       researchWorker: workerStatus(diagnostics, "research", {
         configured: databaseConfigured,

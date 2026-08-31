@@ -551,6 +551,7 @@ test("least-privilege bootstrap is database-bound and leaves Payment and legacy 
   assert.match(sql, /GRANT SELECT ON platform_demo_accounts_safe TO agentnovas_client_web/i);
   assert.match(sql, /GRANT SELECT, UPDATE ON memberships, official_paper_portfolios TO agentnovas_notification_worker/i);
   assert.match(sql, /GRANT SELECT ON official_paper_positions TO agentnovas_notification_worker/i);
+  assert.match(sql, /GRANT SELECT ON notification_preferences TO agentnovas_notification_worker/i);
   assert.match(sql, /GRANT SELECT, INSERT ON membership_access_events TO agentnovas_notification_worker/i);
   assert.match(sql, /GRANT SELECT, INSERT, UPDATE ON notification_deliveries TO agentnovas_notification_worker/i);
   assert.match(sql, /GRANT INSERT ON audit_logs TO agentnovas_notification_worker/i);
@@ -568,6 +569,7 @@ test("least-privilege bootstrap is database-bound and leaves Payment and legacy 
   assert.doesNotMatch(migrator, /PAYMENT|EXCHANGE|RESEND|LLM|MFA|NOTIFICATION/i);
 
   const rolePolicy = await read("scripts/release/postgres-role-policy.mjs");
+  assert.match(rolePolicy, /"notification_preferences"/);
   assert.match(rolePolicy, /\)::text\[\] AS "policyRoles"/);
   assert.match(rolePolicy, /\)::text\[\] AS "executeGrantees"/);
 });

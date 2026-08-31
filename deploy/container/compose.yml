@@ -48,6 +48,11 @@ services:
     secrets:
       - source: client_env
         target: client.env
+    volumes:
+      - type: bind
+        source: ${RIVERTON_PAYMENT_SECRET_DIR:-/etc/agentnovas-riverton/payment-managed}
+        target: /run/payment-secrets
+        read_only: true
     ports: ["127.0.0.1:${RIVERTON_CLIENT_PORT:-3100}:3000"]
     tmpfs:
       - /tmp:mode=1777
@@ -92,6 +97,25 @@ services:
     secrets:
       - source: maintenance_env
         target: maintenance.env
+      - source: email_secret_broker_public_key
+        target: email-secret-broker-public.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0444
+      - source: payment_secret_broker_public_key
+        target: payment-secret-broker-public.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0444
+    volumes:
+      - type: bind
+        source: ${RIVERTON_EMAIL_SECRET_DIR:-/etc/agentnovas-riverton/email-managed}
+        target: /run/email-secrets
+        read_only: true
+      - type: bind
+        source: ${RIVERTON_PAYMENT_SECRET_DIR:-/etc/agentnovas-riverton/payment-managed}
+        target: /run/payment-secrets
+        read_only: true
     ports: ["127.0.0.1:${RIVERTON_MAINTENANCE_PORT:-3102}:3000"]
     tmpfs:
       - /tmp:mode=1777
@@ -110,10 +134,59 @@ services:
     secrets:
       - source: notification_env
         target: notification.env
+    volumes:
+      - type: bind
+        source: ${RIVERTON_EMAIL_SECRET_DIR:-/etc/agentnovas-riverton/email-managed}
+        target: /run/email-secrets
+        read_only: true
     tmpfs: [/tmp:mode=1777]
     depends_on:
       postgres: { condition: service_healthy }
     networks: [backplane, egress]
+
+  email-secret-broker:
+    <<: *worker-security
+    profiles: [email-secret-broker]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/email-secret-broker.env, --experimental-strip-types, scripts/email-secret-broker-worker.mjs]
+    secrets:
+      - source: email_secret_broker_env
+        target: email-secret-broker.env
+      - source: email_secret_broker_private_key
+        target: email-secret-broker-private.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    volumes:
+      - type: bind
+        source: ${RIVERTON_EMAIL_SECRET_DIR:-/etc/agentnovas-riverton/email-managed}
+        target: /run/email-secrets
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane]
+
+  payment-secret-broker:
+    <<: *worker-security
+    profiles: [payment-secret-broker]
+    image: ${RIVERTON_IMAGE_PREFIX:-agentnovas-riverton}-runtime:${RIVERTON_RELEASE_VERSION:?set RIVERTON_RELEASE_VERSION}
+    command: [node, --env-file=/run/secrets/payment-secret-broker.env, --experimental-strip-types, scripts/payment-secret-broker-worker.mjs]
+    secrets:
+      - source: payment_secret_broker_env
+        target: payment-secret-broker.env
+      - source: payment_secret_broker_private_key
+        target: payment-secret-broker-private.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    volumes:
+      - type: bind
+        source: ${RIVERTON_PAYMENT_SECRET_DIR:-/etc/agentnovas-riverton/payment-managed}
+        target: /run/payment-secrets
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backplane]
 
   configuration-activation-worker:
     <<: *worker-security
@@ -392,6 +465,18 @@ secrets:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/maintenance.env
   notification_env:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/notification.env
+  email_secret_broker_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/email-secret-broker.env
+  email_secret_broker_public_key:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/email-secret-broker-public.pem
+  email_secret_broker_private_key:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/email-secret-broker-private.pem
+  payment_secret_broker_env:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/payment-secret-broker.env
+  payment_secret_broker_public_key:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/payment-secret-broker-public.pem
+  payment_secret_broker_private_key:
+    file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/payment-secret-broker-private.pem
   configuration_activation_env:
     file: ${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}/configuration-activation.env
   release_orchestrator_staging_env:

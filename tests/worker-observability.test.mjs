@@ -53,6 +53,11 @@ test("worker reporter records an explicit lifecycle without logging an error bod
   });
   await reporter.start();
   reporter.setCurrentJob("delivery-1");
+  reporter.setMetadata({
+    apiKeyPresent: true,
+    emailEnvironmentReady: true,
+    secretValue: "must-not-be-persisted",
+  });
   await reporter.markFailure(new Error("provider secret body"), new Date("2026-08-20T12:00:00.000Z"));
   await reporter.markSuccess(new Date("2026-08-20T12:01:00.000Z"));
   await reporter.stop();
@@ -64,6 +69,10 @@ test("worker reporter records an explicit lifecycle without logging an error bod
   assert.deepEqual(JSON.parse(writes[0][9]), {
     apiKeyPresent: true,
     emailEnvironmentReady: false,
+  });
+  assert.deepEqual(JSON.parse(writes[1][9]), {
+    apiKeyPresent: true,
+    emailEnvironmentReady: true,
   });
   assert.match(statements[0], /WHEN EXCLUDED\.last_success_at IS NOT NULL THEN NULL/);
 });

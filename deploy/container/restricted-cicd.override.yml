@@ -7,6 +7,10 @@ services:
     image: ${RIVERTON_MAINTENANCE_IMAGE:?set immutable RIVERTON_MAINTENANCE_IMAGE}
   notification-worker:
     image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  email-secret-broker:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
+  payment-secret-broker:
+    image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
   configuration-activation-worker:
     image: ${RIVERTON_RUNTIME_IMAGE:?set immutable RIVERTON_RUNTIME_IMAGE}
   release-orchestrator-staging:

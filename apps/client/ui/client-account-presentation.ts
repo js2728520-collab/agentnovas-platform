@@ -30,6 +30,9 @@ const ledgerEntries: Record<string, { title: string; detail: string }> = {
 };
 
 const depositOrders: Record<string, string> = {
+  ADDRESS_PROVISIONING: "正在生成地址",
+  ADDRESS_UNKNOWN: "地址结果待人工排查",
+  ADDRESS_FAILED: "地址生成失败",
   PENDING_CONFIRMATION: "等待到账",
   CONFIRMING: "链上确认中",
   MANUAL_REVIEW: "入账复核中",

@@ -198,7 +198,12 @@
 | `/api/maintenance/payment-providers/[id]/status` | PATCH | M | KEEP；敏感操作 |
 | `/api/maintenance/payment-providers/[id]/configuration` | PATCH | M | CURRENT；disabled 状态下配置非密钥币种映射，修改后强制重测 |
 | `/api/maintenance/payment-providers/[id]/test` | POST | M | CURRENT；显式开关后调用优盾支持币种接口，不创建地址/交易 |
-| `/api/maintenance/payment-providers` | GET | M | KEEP；安全视图 |
+| `/api/maintenance/payment-providers/[id]/callback-test` | POST | M | CURRENT；探测固定公网回调链路并期待验签拒绝，不写订单或资金事实 |
+| `/api/maintenance/payment-providers` | GET | M | CURRENT；Provider、Broker、启用 Gate 与追加式测试记录的安全视图，不含商户秘密 |
+| `/api/maintenance/payment-secrets/status` | GET | M | CURRENT；只返回配置存在、版本指纹、Broker 心跳与安全错误码 |
+| `/api/maintenance/payment-secrets/public-key` | GET | M | CURRENT；返回当前 Broker RSA 公钥与 key ID，不返回私钥或商户配置 |
+| `/api/maintenance/payment-secrets/requests` | POST | M | CURRENT；近期 MFA、同源、幂等和审计原因；仅接收浏览器加密的完整 install/rotate 信封 |
+| `/api/maintenance/payment-secrets/requests/[id]` | GET | M | CURRENT；查询当前操作者可见的配置请求终态，不回显密文或明文 |
 | `/api/maintenance/payment-workers/health` | GET | M | KEEP；真实 heartbeat，configured/enabled/liveness/health/last result 分离 |
 | `/api/maintenance/platform-settings` | GET, PUT | M | KEEP；私有/公开字段分离 |
 | `/api/maintenance/trading/emergency-stop` | GET, POST | M | KEEP；scope、原因、recent MFA 与持久化幂等；业务状态、Paper 限制、审计和幂等终态同事务，不调用客户交易所、不改变平台 Demo |

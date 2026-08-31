@@ -127,6 +127,17 @@ export function resolveAppAudience(input: {
   return resolveAppAudienceStrict(input) ?? "client";
 }
 
+export function publicAppOriginForAudience(
+  audience: AppAudience,
+  environment: Record<string, string | undefined> = process.env,
+) {
+  const app = appById.get(audience);
+  if (!app) throw new Error("Unknown application audience");
+  const host = configuredAppHost(app, environment);
+  if (!host) throw new Error("Invalid configured application host");
+  return `https://${host}`;
+}
+
 export function cookieNamesForRequest(request: Request) {
   const audience = resolveAppAudience({ host: request.headers.get("host") ?? undefined });
   const names = [cookieNameForAudience(audience)];

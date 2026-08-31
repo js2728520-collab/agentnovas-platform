@@ -107,5 +107,5 @@ test("internal calls to action use canonical hubs while legacy paths remain alia
 test("internal hub tabs override the sidebar navigation grid", async () => {
   const css = await readFile(new URL("../app/riverton-console.css", import.meta.url), "utf8");
   assert.match(css, /\.rc-console \.rc-hub-tabs\s*\{[^}]*display:\s*flex;[^}]*overflow-x:\s*auto;[^}]*overflow-y:\s*hidden;/s);
-  assert.match(css, /\.rc-console \.rc-hub-tabs a\s*\{[^}]*min-height:\s*38px;[^}]*padding:\s*9px 13px;/s);
+  assert.match(css, /\.rc-console \.rc-hub-tabs a,\s*\.rc-console \.rc-hub-tabs button\s*\{[^}]*min-height:\s*38px;[^}]*padding:\s*9px 13px;/s);
 });

@@ -13,7 +13,9 @@ test("package scripts describe separate logic, app-build and runtime-smoke gates
     readFile(new URL("../package.json", import.meta.url), "utf8").then(JSON.parse),
     readFile(new URL("../scripts/quality/run-app-builds.mjs", import.meta.url), "utf8"),
   ]);
+  assert.match(packageJson.scripts.pretest, /build:packages/);
   assert.match(packageJson.scripts.test, /test:all/);
+  assert.match(packageJson.scripts["test:apps"], /build:packages/);
   assert.match(packageJson.scripts["test:apps"], /run-app-builds/);
   assert.match(appBuilds, /\["client", "operations", "maintenance"\]/);
   assert.match(appBuilds, /`build:\$\{audience\}`/);
@@ -26,6 +28,8 @@ test("package scripts describe separate logic, app-build and runtime-smoke gates
 test("the production smoke maps its random port to the explicit client audience", async () => {
   const smokeScript = await readFile(new URL("../scripts/smoke-next-render.mjs", import.meta.url), "utf8");
 
+  assert.match(smokeScript, /\.next-client\/standalone\/server\.js/);
+  assert.doesNotMatch(smokeScript, /nextBin|\[nextBin,\s*["']start["']/);
   assert.match(smokeScript, /RIVERTON_APP_AUDIENCE:\s*["']client["']/);
   assert.match(smokeScript, /RIVERTON_APP_LOCAL_PORT:\s*String\(port\)/);
   assert.match(smokeScript, /正在验证客户端会话/);

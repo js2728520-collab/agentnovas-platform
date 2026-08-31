@@ -58,6 +58,9 @@ function subscribeToLocationChange(onChange: () => void) {
 }
 
 const emptyLocationSnapshot = () => "";
+const subscribeToHydration = () => () => undefined;
+const hydratedSnapshot = () => true;
+const serverHydrationSnapshot = () => false;
 
 export function AppLogin({ audience, title, description, allowRegistration, initialMode = "login" }: {
   audience: AppAudience;
@@ -74,6 +77,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
   // effect 级联渲染，也确保服务端首屏与浏览器 hydration 快照一致。
   const invitedCode = useSyncExternalStore(subscribeToLocationChange, readInvitationCodeFromUrl, emptyLocationSnapshot);
   const staffInviteCode = useSyncExternalStore(subscribeToLocationChange, readStaffInviteFromUrl, emptyLocationSnapshot);
+  const isHydrated = useSyncExternalStore(subscribeToHydration, hydratedSnapshot, serverHydrationSnapshot);
   const [staffState, setStaffState] = useState<{ status: "idle" | "busy" | "done"; message: string }>(
     { status: "idle", message: "" },
   );
@@ -109,7 +113,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || mfaFlow?.stage === "recovery") return;
+    if (!isHydrated || busy || mfaFlow?.stage === "recovery") return;
     setBusy(true);
     setMessage("");
     const values = Object.fromEntries(new FormData(event.currentTarget));
@@ -188,7 +192,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
         className="rc-auth-form"
         onSubmit={async (event) => {
           event.preventDefault();
-          if (staffState.status === "busy") return;
+          if (!isHydrated || staffState.status === "busy") return;
           const data = new FormData(event.currentTarget);
           setStaffState({ status: "busy", message: "" });
           try {
@@ -218,9 +222,9 @@ export function AppLogin({ audience, title, description, allowRegistration, init
         <label>{t("邮箱")}<input name="email" type="email" autoComplete="email" required /></label>
         <label>{t("密码（至少 12 位）")}<input name="password" type="password" autoComplete="new-password" minLength={12} required /></label>
         <label>{t("分公司名称（仅分公司总经理链接必填）")}<input name="organizationName" maxLength={120} /></label>
-      {staffState.message ? <p role="alert">{staffState.message}</p> : null}
-        <button type="submit" disabled={staffState.status === "busy"}>
-        {staffState.status === "busy" ? t("提交中…") : t("提交注册")}
+        {staffState.message ? <p role="alert">{staffState.message}</p> : null}
+        <button type="submit" disabled={!isHydrated || staffState.status === "busy"}>
+          {staffState.status === "busy" ? t("提交中…") : t("提交注册")}
         </button>
       </form>
     ) : null}
@@ -245,7 +249,7 @@ export function AppLogin({ audience, title, description, allowRegistration, init
       {(mfaFlow?.stage === "enroll" || mfaFlow?.stage === "verify") && <label>{t(mfaFlow.stage === "enroll" ? "六位动态验证码" : "动态验证码或恢复码")}<input ref={mfaCodeRef} name="code" autoComplete="one-time-code" inputMode={mfaFlow.stage === "enroll" ? "numeric" : "text"} required /></label>}
       {mfaFlow?.stage === "recovery" && <div className="rc-recovery-codes" role="status" aria-live="polite"><ul>{mfaFlow.recoveryCodes.map((code) => <li key={code}><code>{code}</code></li>)}</ul><button className="rc-primary" type="button" onClick={enterApplication}>{t("我已安全保存，进入应用")}</button></div>}
       {message && <div className="rc-auth-message" role="status" aria-live="polite">{message}</div>}
-      {mfaFlow?.stage !== "recovery" && <button className="rc-primary" disabled={busy}>{t(busy ? "处理中…" : mfaFlow?.stage === "enroll" ? "绑定并生成恢复码" : mfaFlow?.stage === "verify" ? "验证并进入" : mode === "login" ? "登录" : mode === "forgot" ? "发送重置邮件" : mode === "verify" ? "重发验证邮件" : "创建账户")}</button>}
+      {mfaFlow?.stage !== "recovery" && <button className="rc-primary" disabled={!isHydrated || busy}>{t(busy ? "处理中…" : mfaFlow?.stage === "enroll" ? "绑定并生成恢复码" : mfaFlow?.stage === "verify" ? "验证并进入" : mode === "login" ? "登录" : mode === "forgot" ? "发送重置邮件" : mode === "verify" ? "重发验证邮件" : "创建账户")}</button>}
       {!mfaFlow && <footer>
         {mode !== "login" && <button type="button" onClick={() => switchMode("login")}>{t("返回登录")}</button>}
         {mode === "login" && audience === "client" && <button type="button" onClick={() => switchMode("forgot")}>{t("忘记密码")}</button>}

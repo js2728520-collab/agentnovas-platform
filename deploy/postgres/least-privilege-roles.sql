@@ -43,6 +43,8 @@ BEGIN
     'agentnovas_maint_web',
     'agentnovas_payment_webhook',
     'agentnovas_notification_worker',
+    'agentnovas_email_secret_broker',
+    'agentnovas_payment_secret_broker',
     'agentnovas_configuration_activation_worker',
     'agentnovas_demo_execution_worker',
     'agentnovas_runtime_worker',
@@ -91,6 +93,8 @@ REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_email_secret_broker,
+  agentnovas_payment_secret_broker,
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
@@ -129,6 +133,8 @@ REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_email_secret_broker,
+  agentnovas_payment_secret_broker,
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
@@ -147,6 +153,8 @@ REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_email_secret_broker,
+  agentnovas_payment_secret_broker,
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
@@ -167,6 +175,8 @@ GRANT CONNECT ON DATABASE :"agentnovas_database" TO
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_email_secret_broker,
+  agentnovas_payment_secret_broker,
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
@@ -185,6 +195,8 @@ GRANT USAGE ON SCHEMA public TO
   agentnovas_maint_web,
   agentnovas_payment_webhook,
   agentnovas_notification_worker,
+  agentnovas_email_secret_broker,
+  agentnovas_payment_secret_broker,
   agentnovas_configuration_activation_worker,
   agentnovas_demo_execution_worker,
   agentnovas_runtime_worker,
@@ -494,7 +506,11 @@ GRANT SELECT ON
   auth_rate_limit_buckets, invitations, user_mfa_totp_credentials, user_mfa_recovery_codes,
   access_change_requests, access_change_decisions, authorization_audit_events,
   audit_logs, notification_provider_configs,
-  notification_email_suppressions, notification_deliveries, resend_webhook_events,
+  notification_email_suppressions, notification_email_test_recipients,
+  notification_email_secret_requests,
+  notification_email_secret_broker_heartbeats,
+  payment_secret_requests,payment_secret_broker_heartbeats,payment_provider_test_runs,
+  notification_deliveries, resend_webhook_events,
   payment_provider_configs, platform_settings, platform_follow_policies,
   platform_demo_accounts, platform_demo_admin_commands, platform_demo_card_controls,
   platform_demo_control_audit, platform_demo_order_intents,
@@ -517,7 +533,8 @@ GRANT INSERT, UPDATE ON
   users, sessions, auth_tokens, user_mfa_totp_credentials, user_mfa_recovery_codes,
   access_change_requests, access_change_decisions, authorization_audit_events,
   audit_logs, notification_provider_configs,
-  notification_email_suppressions, notification_deliveries, resend_webhook_events,
+  notification_email_suppressions, notification_email_test_recipients,
+  notification_deliveries, resend_webhook_events,
   payment_provider_configs, platform_settings, platform_follow_policies,
   platform_demo_accounts, platform_demo_admin_commands, platform_demo_card_controls,
   platform_demo_control_audit, platform_demo_order_intents,
@@ -526,6 +543,7 @@ GRANT INSERT, UPDATE ON
   commercial_disclosure_bundles, commercial_disclosure_publish_requests,
   maintenance_idempotency_records, roles, role_permissions, user_role_assignments
   TO agentnovas_maint_web;
+GRANT INSERT ON notification_email_secret_requests,payment_secret_requests,payment_provider_test_runs TO agentnovas_maint_web;
 GRANT EXECUTE ON FUNCTION
   public.ai_sync_legacy_profile(text),
   public.ai_sync_legacy_binding(text,text),
@@ -564,6 +582,10 @@ GRANT SELECT (status, created_at)
   ON performance_fee_statements TO agentnovas_maint_web;
 GRANT SELECT (status, price_currency)
   ON commercial_plan_versions TO agentnovas_maint_web;
+GRANT SELECT (enabled)
+  ON agent_role_bindings TO agentnovas_maint_web;
+GRANT SELECT (enabled)
+  ON runtime_explanation_bindings TO agentnovas_maint_web;
 
 -- Provider callbacks use a dedicated role that cannot read users, wallets,
 -- ledger postings, sessions, RBAC, or unrelated integration credentials.
@@ -611,13 +633,32 @@ GRANT EXECUTE ON FUNCTION
   public.user_app_preference_upsert(text,text,text,text,timestamptz)
   TO agentnovas_client_web,agentnovas_ops_web,agentnovas_maint_web;
 
-GRANT SELECT ON notification_provider_configs, notification_email_suppressions, users TO agentnovas_notification_worker;
+GRANT SELECT ON notification_provider_configs, notification_email_suppressions,
+  notification_email_test_recipients, users TO agentnovas_notification_worker;
+GRANT SELECT ON notification_preferences TO agentnovas_notification_worker;
 GRANT SELECT, UPDATE ON memberships, official_paper_portfolios TO agentnovas_notification_worker;
 GRANT SELECT ON official_paper_positions TO agentnovas_notification_worker;
 GRANT SELECT, INSERT ON membership_access_events TO agentnovas_notification_worker;
 GRANT SELECT, INSERT, UPDATE ON notification_deliveries TO agentnovas_notification_worker;
 GRANT INSERT ON audit_logs TO agentnovas_notification_worker;
 GRANT SELECT, INSERT, UPDATE ON worker_instances TO agentnovas_notification_worker;
+
+-- Email Secret Broker sees only ciphertext requests and its own heartbeat. It
+-- cannot read users, deliveries, Provider configuration, other Worker state or
+-- any other application table.
+GRANT SELECT, UPDATE ON notification_email_secret_requests TO agentnovas_email_secret_broker;
+GRANT SELECT, INSERT, UPDATE ON notification_email_secret_broker_heartbeats TO agentnovas_email_secret_broker;
+
+-- Payment Secret Broker sees only its ciphertext queue, heartbeat and the
+-- minimum configuration-version projection needed to invalidate stale tests.
+GRANT SELECT, UPDATE ON payment_secret_requests TO agentnovas_payment_secret_broker;
+GRANT SELECT, INSERT, UPDATE ON payment_secret_broker_heartbeats TO agentnovas_payment_secret_broker;
+GRANT UPDATE (
+  secret_configuration_version,secret_configuration_fingerprint,
+  last_test_at,last_test_status,last_test_configuration_version,last_error_code,
+  last_callback_test_at,last_callback_test_status,last_callback_test_configuration_version,
+  last_callback_error_code,updated_at
+) ON payment_provider_configs TO agentnovas_payment_secret_broker;
 
 -- AI secret custody and invocation run in two non-Web processes. The Broker
 -- never receives legacy profile ciphertext; the Gateway never receives the

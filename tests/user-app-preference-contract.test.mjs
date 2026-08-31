@@ -184,3 +184,30 @@ test("audience builds defer the locale catalog while preserving non-Chinese loca
     assert.match(await read(path), /@\/packages\/ui\/src\/app-locale-context/);
   }
 });
+
+test("the public English login uses a compact catalog before loading workspace translations", async () => {
+  const { localizeLoginText, loginEnglish } = await import("../packages/ui/src/app-login-locale.ts");
+  const [runtimeContext, fullCatalog, loginSource] = await Promise.all([
+    read("packages/ui/src/app-locale-context-runtime.tsx"),
+    read("packages/ui/src/app-locale-context.tsx"),
+    read("packages/ui/src/app-login.tsx"),
+  ]);
+
+  assert.equal(localizeLoginText("安全登录", "en-US"), "Secure sign in");
+  assert.equal(
+    localizeLoginText("AI 策略研发、回测、模拟盘和会员资产中心。", "en-US"),
+    "AI strategy research, backtesting, paper trading, and membership assets.",
+  );
+  assert.equal(localizeLoginText("安全登录", "zh-CN"), "安全登录");
+  assert.equal(localizeLoginText("Riverton Capital", "en-US"), "Riverton Capital");
+  for (const [key, value] of Object.entries(loginEnglish)) {
+    assert.ok(fullCatalog.includes(`${JSON.stringify(key)}: ${JSON.stringify(value)}`));
+  }
+  const missingLoginKeys = [...loginSource.matchAll(/"([^"\n]*[\u3400-\u9fff][^"\n]*)"/g)]
+    .map((match) => match[1])
+    .filter((key) => loginEnglish[key] === undefined);
+  assert.deepEqual(missingLoginKeys, []);
+  assert.match(runtimeContext, /usePathname/);
+  assert.match(runtimeContext, /pathname === "\/login"/);
+  assert.match(runtimeContext, /localizeLoginText/);
+});

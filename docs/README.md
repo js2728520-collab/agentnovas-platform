@@ -38,6 +38,8 @@
 - `specs/MARKET_SOURCE_BINDING_SPEC.md`：T2.4 行情源选择与策略级绑定合同；provider-independent 选择/解析、不可变绑定和双 fingerprint 已实现，持久化、UI 与 Runtime 接入等待 P-01/provider registry。
 - `specs/AI_CONVERSATION_CANCEL_RETRY_SPEC.md`：T4.3a 普通对话取消、provider abort、原请求安全重放和 Credits 唯一终态合同；固定 Credits 数值与模型/功能分档仍等待 P-08。
 - `specs/MAINTENANCE_AI_USAGE_ANALYTICS_SPEC.md`：T3.9a Maintenance AI 用量安全聚合合同；按 UTC 请求创建 cohort 展示可信成功 Token、settled Credits、已记录非取消失败率和脱敏多维分析，固定价格仍等待 P-08。
+- `specs/EMAIL_SERVICE_MANAGEMENT_MODULE_SPEC.md`：邮件服务概况、非秘密配置、明确测试收件人、投递证据及可复用 UI/服务边界。
+- `specs/UDUN_DEPOSIT_SERVICE_COMPLETION_SPEC.md`：优盾 deposit-only 的只写配置托管、币种校验、回调、建址状态机、双审入账和真实小额验收边界。
 - `architecture/CAPABILITY_MIGRATION_MATRIX.md`：Current→V3 详细能力矩阵，覆盖 route、数据库、三端页面、Worker/Execution Service、测试、Gate、共享热点与退休项。
 - `review/FULL_PLATFORM_V3_READINESS_2026-08-23.md`：V3 当前准备度、主要差距和风险优先级。
 - `review/SYSTEM_ASSESSMENT_2026-08-20.md`：历史商业 Beta 基线评估。
@@ -52,6 +54,7 @@
 - `runbooks/commercial-beta-release-and-rollback.md`：发布、首小时监控、回滚和数据恢复。
 - `runbooks/udun-deposit-gateway.md`：优盾商户配置、币种映射、回调、复核、停用和事故处理。
 - `runbooks/production-accounts-and-configuration.md`：三端验收账号、凭证取回、配置审计、Resend、优盾、LLM 与 Demo 的安全配置步骤和填空脚本。
+- `runbooks/resend-email-configuration.md`：Resend 域名/Key/Webhook、secret 原子装载、最小数据库权限、受控启用、真实投递验收、回滚和已知陷阱。
 - `runbooks/phase9-operational-drills.md`：客服、风控、财务、事故、provider 故障与密钥泄露的人员演练步骤、SLA、停止条件和证据模板。
 - `releases/2026-08-22-v1.0.0-beta.5-deployment.md`：当前 `v1.0.0-beta.5` 的 Client 工作台、身份/数据库边界、真实账号 smoke、浏览器证据、配置事实和 `beta.3` 回滚目标。
 - `releases/2026-08-22-v1.0.0-beta.3-deployment.md`：前一成功版本 `v1.0.0-beta.3` 的公开着陆页修复、真实部署过程和历史回滚目标。
@@ -79,6 +82,9 @@
 - `adr/0021-full-platform-v3-gated-upgrade.md`：V3 完整目标与分阶段、按能力解锁的升级决策。
 - `adr/0022-client-email-and-five-device-security.md`：Client 邮箱验证、五设备、提醒和撤销边界。
 - `adr/0023-deferred-mfa-enforcement-rollout.md`：MFA 能力保留、当前关闭与正式生产启用门禁。
+- `adr/0025-email-service-management-and-secret-custody.md`：邮件管理闭环、测试地址哈希授权和 Resend secret 进程隔离。
+- `adr/0026-email-secret-broker-and-recipient-verification.md`：取代 0025 的只读/账号绑定决定；独立验证收件人、浏览器加密只写配置和最小权限 Secret Broker。
+- `adr/0027-udun-deposit-service-completion.md`：优盾 deposit-only 的 Payment Secret Broker、严格协议、原子启用 Gate 和真实小额闭环边界。
 
 ## 状态标签
 

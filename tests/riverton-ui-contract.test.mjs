@@ -167,6 +167,18 @@ test("login routes do not start authenticated session trees or prefetch protecte
   }
 });
 
+test("credential forms remain inert until client handlers hydrate", async () => {
+  const login = await read("packages/ui/src/app-login.tsx");
+  assert.match(
+    login,
+    /const isHydrated = useSyncExternalStore\(subscribeToHydration, hydratedSnapshot, serverHydrationSnapshot\);/,
+    "the server-rendered form needs an explicit hydration boundary",
+  );
+  assert.match(login, /if \(!isHydrated \|\| busy \|\| mfaFlow\?\.stage === "recovery"\) return;/);
+  assert.match(login, /disabled=\{!isHydrated \|\| staffState\.status === "busy"\}/);
+  assert.match(login, /disabled=\{!isHydrated \|\| busy\}/);
+});
+
 test("internal login retains TOTP enrollment and verification behind the rollout switch", async () => {
   const login = await read("packages/ui/src/app-login.tsx");
   assert.match(login, /mfaEnrollmentRequired/);
@@ -182,6 +194,7 @@ test("internal login retains TOTP enrollment and verification behind the rollout
 
 test("shared console navigation is hydration-safe and keyboard-contained", async () => {
   const shell = await read("packages/ui/src/console-shell.tsx");
+  const consoleCss = await read("app/riverton-console.css");
   assert.match(shell, /usePathname/);
   assert.match(shell, /rc-skip-link/);
   assert.match(shell, /aria-modal/);
@@ -197,6 +210,27 @@ test("shared console navigation is hydration-safe and keyboard-contained", async
   assert.match(shell, /document\.body\.style\.overflow/);
   assert.doesNotMatch(shell, /运营数据按权限展示|配置密钥不会在浏览器回显|兼容角色/);
   assert.doesNotMatch(shell, /typeof window === "undefined" \? "\/"/);
+  assert.match(
+    consoleCss,
+    /@media \(max-width: 900px\)[\s\S]*?\.rc-console > aside\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*?\.rc-console\[data-nav="open"\] > aside\s*\{[^}]*display:\s*flex;/,
+    "the closed mobile navigation must not create off-screen horizontal overflow",
+  );
+});
+
+test("shared maintenance summaries wrap long operational identifiers on narrow screens", async () => {
+  const consoleCss = await read("app/riverton-console.css");
+  const emailOverview = await read("packages/ui/src/email-service-manager/email-service-overview.tsx");
+  assert.match(
+    consoleCss,
+    /\.rc-health-grid article > small\s*\{[^}]*overflow-wrap:\s*anywhere;/,
+    "health details such as database role names must wrap instead of widening the page",
+  );
+  assert.match(
+    consoleCss,
+    /\.rc-kpi-grid strong\.rc-kpi-text-value[^{]*\{[^}]*font-size:\s*18px;[^}]*overflow-wrap:\s*anywhere;/,
+    "textual KPI values must use readable wrapping rather than numeric display sizing",
+  );
+  assert.match(emailOverview, /<strong className="rc-kpi-text-value">\{status\.senderAddress\}<\/strong>/);
 });
 
 test("shared request hooks cancel obsolete reads instead of committing stale data", async () => {
@@ -374,17 +408,21 @@ test("maintenance connectivity tests use server-owned audit without redundant co
   for (const path of [
     "app/api/admin/agent-role-bindings/test/route.maintenance.ts",
     "app/api/admin/runtime-explanation-bindings/test/route.maintenance.ts",
-    "app/api/maintenance/email/test/route.maintenance.ts",
   ]) {
     const source = await read(path);
     assert.match(source, /automaticAuditReason/);
     assert.doesNotMatch(source, /body\.reason/);
   }
+  assert.match(await read("app/api/maintenance/email/test/route.maintenance.ts"), /normalizeEmailTestCommand/);
   const models = await read("apps/maintenance/ui/models-workspace.tsx");
   assert.match(models, /\/api\/maintenance\/ai-control-plane\/probes/);
   assert.match(models, /测试当前修订/);
   assert.doesNotMatch(models, /InlineAuditReasonField|hasValidAuditReason/);
-  const email = await read("apps/maintenance/ui/email-integration-workspace.tsx");
+  const email = await Promise.all([
+    read("apps/maintenance/ui/email-integration-workspace.tsx"),
+    read("packages/ui/src/email-service-manager/email-service-configuration.tsx"),
+    read("packages/ui/src/email-service-manager/email-service-tests.tsx"),
+  ]).then((parts) => parts.join("\n"));
   assert.doesNotMatch(email, /InlineAuditReasonField|hasValidAuditReason/);
   assert.doesNotMatch(email, /ConfirmActionDialog/);
   const sources = await read("apps/maintenance/ui/source-integrations-workspace.tsx");

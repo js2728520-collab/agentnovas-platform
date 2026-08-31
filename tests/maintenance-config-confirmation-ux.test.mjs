@@ -10,7 +10,13 @@ test("ordinary Maintenance configuration uses server-owned audit without confirm
     "apps/maintenance/ui/email-integration-workspace.tsx",
     "apps/maintenance/ui/source-integrations-workspace.tsx",
   ]) {
-    const source = await read(path);
+    const sharedEmailControls = path.endsWith("email-integration-workspace.tsx")
+      ? await Promise.all([
+        read("packages/ui/src/email-service-manager/email-service-configuration.tsx"),
+        read("packages/ui/src/email-service-manager/email-service-tests.tsx"),
+      ]).then((parts) => parts.join("\n"))
+      : "";
+    const source = `${await read(path)}\n${sharedEmailControls}`;
     assert.doesNotMatch(source, /InlineAuditReasonField|hasValidAuditReason|auditReason/);
     assert.doesNotMatch(source, /ConfirmActionDialog/);
   }

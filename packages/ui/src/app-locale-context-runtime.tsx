@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import {
   createContext,
   use,
@@ -15,6 +16,7 @@ import {
   localeOptionsForAudience,
   type UserAppLocale,
 } from "@/lib/user-app-preference";
+import { localizeLoginText } from "./app-login-locale";
 
 type LocaleContextValue = {
   audience: AppAudience;
@@ -43,6 +45,16 @@ function IdentityLocaleProvider({ audience, locale, children }: {
   return <AppLocaleContext.Provider value={value}>{children}</AppLocaleContext.Provider>;
 }
 
+function LoginLocaleProvider({ audience, locale, children }: {
+  audience: AppAudience;
+  locale: UserAppLocale;
+  children: ReactNode;
+}) {
+  const t = useCallback((text: string) => localizeLoginText(text, locale), [locale]);
+  const value = useMemo(() => ({ audience, locale, t }), [audience, locale, t]);
+  return <AppLocaleContext.Provider value={value}>{children}</AppLocaleContext.Provider>;
+}
+
 function DeferredLocaleProvider({ audience, locale, children }: {
   audience: AppAudience;
   locale: UserAppLocale;
@@ -59,6 +71,7 @@ export function AppLocaleProvider({ audience, initialLocale, children }: {
   initialLocale?: string | null;
   children: ReactNode;
 }) {
+  const pathname = usePathname();
   const locale = useMemo(() => {
     const allowed = localeOptionsForAudience(audience) as readonly string[];
     return allowed.includes(initialLocale ?? "")
@@ -66,9 +79,13 @@ export function AppLocaleProvider({ audience, initialLocale, children }: {
       : defaultUserAppPreference(audience).locale;
   }, [audience, initialLocale]);
 
-  return locale === "zh-CN"
-    ? <IdentityLocaleProvider audience={audience} locale={locale}>{children}</IdentityLocaleProvider>
-    : <DeferredLocaleProvider audience={audience} locale={locale}>{children}</DeferredLocaleProvider>;
+  if (locale === "zh-CN") {
+    return <IdentityLocaleProvider audience={audience} locale={locale}>{children}</IdentityLocaleProvider>;
+  }
+  if (locale === "en-US" && pathname === "/login") {
+    return <LoginLocaleProvider audience={audience} locale={locale}>{children}</LoginLocaleProvider>;
+  }
+  return <DeferredLocaleProvider audience={audience} locale={locale}>{children}</DeferredLocaleProvider>;
 }
 
 export function useAppLocale() {

@@ -110,6 +110,7 @@ export function createWorkerHeartbeatReporter(database: Queryable, input: {
 }) {
   const intervalMs = Math.max(5_000, Math.min(input.intervalMs ?? 15_000, 30_000));
   let currentJobId: string | null = null;
+  let metadata = boundedBooleanMetadata(input.metadata);
   let timer: ReturnType<typeof setInterval> | null = null;
   let stopped = false;
   let writeInFlight = false;
@@ -122,7 +123,7 @@ export function createWorkerHeartbeatReporter(database: Queryable, input: {
         workerType: input.workerType,
         instanceId: input.instanceId,
         commitSha: input.commitSha,
-        metadata: input.metadata,
+        metadata,
         status: stopped ? "stopped" : "running",
         currentJobId,
         ...overrides,
@@ -143,6 +144,9 @@ export function createWorkerHeartbeatReporter(database: Queryable, input: {
     },
     setCurrentJob(jobId: string | null) {
       currentJobId = jobId?.trim().slice(0, 160) || null;
+    },
+    setMetadata(value: Record<string, unknown>) {
+      metadata = boundedBooleanMetadata(value);
     },
     async markSuccess(now = new Date()) {
       currentJobId = null;
@@ -166,7 +170,7 @@ export async function loadWorkerDiagnostics(database: Queryable, now = new Date(
   const result = await database.query(`
     SELECT DISTINCT ON (worker_type)
       worker_type, instance_id, commit_sha, status, started_at, heartbeat_at,
-      last_success_at, last_failure_at, last_error_code, current_job_id
+      last_success_at, last_failure_at, last_error_code, current_job_id,metadata_json
     FROM worker_instances
     ORDER BY worker_type, heartbeat_at DESC
   `);
@@ -182,5 +186,10 @@ export async function loadWorkerDiagnostics(database: Queryable, now = new Date(
     lastFailureAt: row.last_failure_at ? new Date(row.last_failure_at as string).toISOString() : null,
     lastErrorCode: row.last_error_code ? String(row.last_error_code) : null,
     currentJobId: row.current_job_id ? String(row.current_job_id) : null,
+    metadata: boundedBooleanMetadata(
+      row.metadata_json && typeof row.metadata_json === "object" && !Array.isArray(row.metadata_json)
+        ? row.metadata_json as Record<string,unknown>
+        : undefined,
+    ),
   }));
 }

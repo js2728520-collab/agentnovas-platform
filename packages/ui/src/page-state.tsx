@@ -23,10 +23,10 @@ export function AccessDenied({ message = "当前账户没有访问此模块的�
   return <section className="rc-state rc-denied" role="alert"><strong>{t("无权访问")}</strong><p>{t(message)}</p><Link className="rc-button" href="/">{t("返回工作台")}</Link></section>;
 }
 
-export function StatusBadge({ value }: { value: string | null | undefined }) {
+export function StatusBadge({ value, label }: { value: string | null | undefined; label?: string }) {
   const { t } = useAppLocale();
   const normalized = String(value || "unknown").toLowerCase().replace(/[^a-z0-9_-]/g, "-");
-  return <span className={`rc-status is-${normalized}`} data-status={normalized}>{t(value || "未知")}</span>;
+  return <span className={`rc-status is-${normalized}`} data-status={normalized}>{t(label ?? value ?? "未知")}</span>;
 }
 
 export function PageHeading({ eyebrow, title, description, actions }: { eyebrow: string; title: string; description: string; actions?: React.ReactNode }) {

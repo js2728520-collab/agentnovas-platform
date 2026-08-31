@@ -3,6 +3,8 @@ set +x
 set -euo pipefail
 
 secret_dir=${RIVERTON_SECRET_DIR:-/etc/agentnovas-riverton}
+managed_email_secret_dir=${RIVERTON_EMAIL_SECRET_DIR:-$secret_dir/email-managed}
+managed_payment_secret_dir=${RIVERTON_PAYMENT_SECRET_DIR:-$secret_dir/payment-managed}
 repository_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 findings=0
 
@@ -63,6 +65,79 @@ optional_present() {
   [ -n "$value" ]
 }
 
+managed_email_manifest_valid() {
+  local directory=$1
+  command -v node >/dev/null 2>&1 || return 1
+  node - "$directory" <<'NODE' >/dev/null 2>&1
+const { createHash } = require("node:crypto");
+const { readFileSync } = require("node:fs");
+const { basename, join } = require("node:path");
+
+const directory = process.argv[2];
+const manifest = JSON.parse(readFileSync(join(directory, "manifest.json"), "utf8"));
+if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)
+  || manifest.schemaVersion !== "1"
+  || typeof manifest.version !== "string"
+  || !/^email-[A-Za-z0-9-]{20,100}$/.test(manifest.version)) process.exit(1);
+for (const [kind, key, pattern] of [
+  ["notification", "RESEND_API_KEY", /^re_[A-Za-z0-9_-]{8,}$/],
+  ["maintenance", "RESEND_WEBHOOK_SECRET", /^whsec_[A-Za-z0-9_-]{8,}$/],
+]) {
+  const entry = manifest[kind];
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)
+    || typeof entry.file !== "string"
+    || basename(entry.file) !== entry.file.split("/").at(-1)
+    || !entry.file.startsWith(`versions/${manifest.version}.`)
+    || typeof entry.sha256 !== "string"
+    || !/^[a-f0-9]{64}$/.test(entry.sha256)) process.exit(1);
+  const content = readFileSync(join(directory, entry.file), "utf8");
+  const digest = createHash("sha256").update(content).digest("hex");
+  const lines = content.trimEnd().split("\n");
+  if (digest !== entry.sha256 || lines.length !== 2
+    || lines[0] !== `EMAIL_SECRET_CONFIGURATION_VERSION=${manifest.version}`
+    || !lines[1].startsWith(`${key}=`)
+    || !pattern.test(lines[1].slice(key.length + 1))) process.exit(1);
+}
+NODE
+}
+
+managed_payment_manifest_valid() {
+  local directory=$1
+  command -v node >/dev/null 2>&1 || return 1
+  node - "$directory" <<'NODE' >/dev/null 2>&1
+const { createHash } = require("node:crypto");
+const { readFileSync } = require("node:fs");
+const { basename, join } = require("node:path");
+const directory = process.argv[2];
+const manifest = JSON.parse(readFileSync(join(directory, "manifest.json"), "utf8"));
+if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)
+  || manifest.schemaVersion !== "1" || typeof manifest.version !== "string"
+  || !/^payment-[A-Za-z0-9-]{20,110}$/.test(manifest.version)) process.exit(1);
+for (const kind of ["client", "maintenance"]) {
+  const entry = manifest[kind];
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)
+    || typeof entry.file !== "string" || basename(entry.file) !== entry.file.split("/").at(-1)
+    || !entry.file.startsWith(`versions/${manifest.version}.`)
+    || typeof entry.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(entry.sha256)) process.exit(1);
+  const content = readFileSync(join(directory, entry.file), "utf8");
+  if (createHash("sha256").update(content).digest("hex") !== entry.sha256) process.exit(1);
+  const lines = content.trimEnd().split("\n");
+  if (lines.length !== 6 || lines[0] !== `PAYMENT_SECRET_CONFIGURATION_VERSION=${manifest.version}`) process.exit(1);
+  const values = Object.fromEntries(lines.slice(1).map(line => {
+    const index = line.indexOf("=");
+    if (index <= 0) process.exit(1);
+    return [line.slice(0,index),line.slice(index+1)];
+  }));
+  if (Object.keys(values).sort().join(",") !== "UDUN_ADDRESS_REQUEST_COIN_FIELD,UDUN_API_KEY,UDUN_CALLBACK_URL,UDUN_GATEWAY_BASE_URL,UDUN_MERCHANT_ID"
+    || !/^https:\/\/([A-Za-z0-9-]+\.)*udun\.io$/.test(values.UDUN_GATEWAY_BASE_URL)
+    || !/^\d{1,32}$/.test(values.UDUN_MERCHANT_ID)
+    || values.UDUN_API_KEY.length < 8 || values.UDUN_API_KEY.length > 256 || /\s/.test(values.UDUN_API_KEY)
+    || !/^https:\/\/([A-Za-z0-9-]+\.)*agentnovas\.com\/api\/integrations\/payments\/udun\/webhook$/.test(values.UDUN_CALLBACK_URL)
+    || !["mainCoinType","coinType"].includes(values.UDUN_ADDRESS_REQUEST_COIN_FIELD)) process.exit(1);
+}
+NODE
+}
+
 same_value() {
   local label=$1 left_file=$2 left_key=$3 right_file=$4 right_key=$5 left right
   left=$(value_of "$left_file" "$left_key" 2>/dev/null) || { fail "${label}:left_missing_or_duplicate"; return; }
@@ -108,12 +183,15 @@ if [ "$findings" -eq 0 ]; then
   for key in DATABASE_URL CLIENT_AUTH_DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY NOTIFICATION_TOKEN_ENCRYPTION_KEY AI_GATEWAY_ENABLED AI_GATEWAY_URL AI_GATEWAY_SHARED_SECRET; do
     required_value "$client" "$key" || true
   done
+  required_boolean "$client" PAYMENT_PROVIDER_OUTBOUND_ENABLED || true
   for key in DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY NOTIFICATION_TOKEN_ENCRYPTION_KEY; do
     required_value "$operations" "$key" || true
   done
   for key in DATABASE_URL RELEASE_IDENTITY_VERIFIER_URL RELEASE_IDENTITY_VERIFIER_SHARED_SECRET RELEASE_CONTROL_GATEWAY_URL RELEASE_CONTROL_GATEWAY_SHARED_SECRET PAYMENT_WEBHOOK_DATABASE_URL TRUST_PROXY_HOPS MFA_TOTP_ENCRYPTION_KEY INTEGRATION_CREDENTIAL_ENCRYPTION_KEY AI_GATEWAY_ENABLED AI_GATEWAY_URL AI_GATEWAY_SHARED_SECRET; do
     required_value "$maintenance" "$key" || true
   done
+  required_boolean "$maintenance" PAYMENT_PROVIDER_TESTS_ENABLED || true
+  required_boolean "$maintenance" PAYMENT_PROVIDER_OUTBOUND_ENABLED || true
   if optional_present "$maintenance" RELEASE_CONTROL_DATABASE_URL; then
     fail "maintenance.env:RELEASE_CONTROL_DATABASE_URL:must_not_be_present"
   fi
@@ -249,6 +327,7 @@ if [ "$findings" -eq 0 ]; then
   same_value "ai_managed_secret_directory" "$ai_gateway" AI_MANAGED_SECRET_DIRECTORY "$ai_secret_broker" AI_MANAGED_SECRET_DIRECTORY
   same_value "integration_demo_maintenance" "$demo" INTEGRATION_CREDENTIAL_ENCRYPTION_KEY "$maintenance" INTEGRATION_CREDENTIAL_ENCRYPTION_KEY
   same_value "configuration_activation_worker_state" "$configuration_activation" CONFIGURATION_ACTIVATION_WORKER_ENABLED "$maintenance" CONFIGURATION_ACTIVATION_WORKER_ENABLED
+  same_value "payment-provider-outbound-state" "$client" PAYMENT_PROVIDER_OUTBOUND_ENABLED "$maintenance" PAYMENT_PROVIDER_OUTBOUND_ENABLED
 fi
 
 if [ "$findings" -eq 0 ]; then
@@ -257,13 +336,129 @@ else
   printf 'core_configuration=invalid\n'
 fi
 
-if optional_present "$notification" RESEND_API_KEY \
+managed_email_configuration=false
+email_secret_broker_configuration=false
+broker_env="$secret_dir/email-secret-broker.env"
+broker_public_key="$secret_dir/email-secret-broker-public.pem"
+broker_private_key="$secret_dir/email-secret-broker-private.pem"
+managed_manifest="$managed_email_secret_dir/manifest.json"
+broker_artifacts_present=false
+for item in "$broker_env" "$broker_public_key" "$broker_private_key" "$managed_manifest"; do
+  [ -e "$item" ] && broker_artifacts_present=true
+done
+
+if [ "$broker_artifacts_present" = true ]; then
+  broker_findings_before=$findings
+  broker_valid=true
+  for item in "$broker_env" "$broker_public_key" "$broker_private_key"; do
+    if [ ! -f "$item" ]; then
+      fail "$(basename "$item"):missing_for_email_secret_broker"
+      broker_valid=false
+    fi
+  done
+  if [ "$broker_valid" = true ]; then
+    case "$(mode_of "$broker_env")" in 400|440|600|640) ;; *) fail "email-secret-broker.env:unsafe_permissions";broker_valid=false ;; esac
+    case "$(mode_of "$broker_private_key")" in 400|440) ;; *) fail "email-secret-broker-private.pem:permissions_must_be_0400_or_0440";broker_valid=false ;; esac
+    case "$(mode_of "$broker_public_key")" in 444) ;; *) fail "email-secret-broker-public.pem:permissions_must_be_0444";broker_valid=false ;; esac
+    required_value "$broker_env" DATABASE_URL || broker_valid=false
+    required_boolean "$broker_env" EMAIL_SECRET_BROKER_ENABLED || broker_valid=false
+    required_value "$broker_env" EMAIL_SECRET_BROKER_KEY_ID || broker_valid=false
+    required_value "$broker_env" EMAIL_SECRET_BROKER_PRIVATE_KEY_PATH || broker_valid=false
+    required_value "$broker_env" EMAIL_SECRET_DIRECTORY || broker_valid=false
+    broker_database_url=$(value_of "$broker_env" DATABASE_URL 2>/dev/null || printf 'missing')
+    case "$broker_database_url" in
+      postgresql://agentnovas_email_secret_broker@*/*|postgresql://agentnovas_email_secret_broker:*@*/*|postgres://agentnovas_email_secret_broker@*/*|postgres://agentnovas_email_secret_broker:*@*/*) ;;
+      *) fail "email-secret-broker.env:DATABASE_URL:dedicated_role_required";broker_valid=false ;;
+    esac
+    if [ "$(value_of "$broker_env" EMAIL_SECRET_BROKER_ENABLED 2>/dev/null || printf false)" != "true" ]; then
+      fail "email-secret-broker.env:EMAIL_SECRET_BROKER_ENABLED:must_be_true"
+      broker_valid=false
+    fi
+    same_value "email-secret-broker-key-id" "$maintenance" EMAIL_SECRET_BROKER_KEY_ID "$broker_env" EMAIL_SECRET_BROKER_KEY_ID
+    same_value "email-test-recipient-encryption-key" "$maintenance" EMAIL_TEST_RECIPIENT_ENCRYPTION_KEY "$notification" EMAIL_TEST_RECIPIENT_ENCRYPTION_KEY
+    required_value "$maintenance" EMAIL_SECRET_BROKER_PUBLIC_KEY_PATH || broker_valid=false
+    required_value "$maintenance" EMAIL_SECRET_DIRECTORY || broker_valid=false
+    required_value "$notification" EMAIL_SECRET_DIRECTORY || broker_valid=false
+    required_value "$maintenance" EMAIL_TEST_RECIPIENT_ENCRYPTION_KEY || broker_valid=false
+    required_value "$notification" EMAIL_TEST_RECIPIENT_ENCRYPTION_KEY || broker_valid=false
+    [ "$findings" -eq "$broker_findings_before" ] || broker_valid=false
+  fi
+  if [ "$broker_valid" = true ]; then
+    email_secret_broker_configuration=true
+  fi
+  if [ -f "$managed_manifest" ]; then
+    if managed_email_manifest_valid "$managed_email_secret_dir"; then
+      managed_email_configuration=true
+    else
+      fail "email-managed:manifest_or_secret_files_invalid"
+    fi
+  fi
+fi
+
+if [ "$email_secret_broker_configuration" = true ]; then
+  printf 'email_secret_broker_configuration=ready\n'
+else
+  printf 'email_secret_broker_configuration=incomplete\n'
+fi
+
+if [ "$managed_email_configuration" = true ] || { optional_present "$notification" RESEND_API_KEY \
   && optional_present "$maintenance" RESEND_WEBHOOK_SECRET \
-  && optional_present "$notification" NOTIFICATION_EMAIL_ALLOWLIST; then
+  && optional_present "$notification" NOTIFICATION_EMAIL_ALLOWLIST; }; then
   printf 'resend_configuration=ready\n'
 else
   printf 'resend_configuration=incomplete\n'
 fi
+
+managed_payment_configuration=false
+payment_secret_broker_configuration=false
+payment_broker_env="$secret_dir/payment-secret-broker.env"
+payment_broker_public_key="$secret_dir/payment-secret-broker-public.pem"
+payment_broker_private_key="$secret_dir/payment-secret-broker-private.pem"
+payment_managed_manifest="$managed_payment_secret_dir/manifest.json"
+payment_broker_artifacts_present=false
+for item in "$payment_broker_env" "$payment_broker_public_key" "$payment_broker_private_key" "$payment_managed_manifest"; do
+  [ -e "$item" ] && payment_broker_artifacts_present=true
+done
+if [ "$payment_broker_artifacts_present" = true ]; then
+  payment_broker_findings_before=$findings
+  payment_broker_valid=true
+  for item in "$payment_broker_env" "$payment_broker_public_key" "$payment_broker_private_key"; do
+    if [ ! -f "$item" ]; then fail "$(basename "$item"):missing_for_payment_secret_broker";payment_broker_valid=false;fi
+  done
+  if [ "$payment_broker_valid" = true ]; then
+    case "$(mode_of "$payment_broker_env")" in 400|440|600|640) ;; *) fail "payment-secret-broker.env:unsafe_permissions";payment_broker_valid=false ;; esac
+    case "$(mode_of "$payment_broker_private_key")" in 400|440) ;; *) fail "payment-secret-broker-private.pem:permissions_must_be_0400_or_0440";payment_broker_valid=false ;; esac
+    case "$(mode_of "$payment_broker_public_key")" in 444) ;; *) fail "payment-secret-broker-public.pem:permissions_must_be_0444";payment_broker_valid=false ;; esac
+    for key in DATABASE_URL PAYMENT_SECRET_BROKER_KEY_ID PAYMENT_SECRET_BROKER_PRIVATE_KEY_PATH PAYMENT_SECRET_DIRECTORY PAYMENT_ALLOWED_CALLBACK_HOSTS; do
+      required_value "$payment_broker_env" "$key" || payment_broker_valid=false
+    done
+    required_boolean "$payment_broker_env" PAYMENT_SECRET_BROKER_ENABLED || payment_broker_valid=false
+    payment_broker_database_url=$(value_of "$payment_broker_env" DATABASE_URL 2>/dev/null || printf missing)
+    case "$payment_broker_database_url" in
+      postgresql://agentnovas_payment_secret_broker@*/*|postgresql://agentnovas_payment_secret_broker:*@*/*|postgres://agentnovas_payment_secret_broker@*/*|postgres://agentnovas_payment_secret_broker:*@*/*) ;;
+      *) fail "payment-secret-broker.env:DATABASE_URL:dedicated_role_required";payment_broker_valid=false ;;
+    esac
+    if [ "$(value_of "$payment_broker_env" PAYMENT_SECRET_BROKER_ENABLED 2>/dev/null || printf false)" != true ]; then
+      fail "payment-secret-broker.env:PAYMENT_SECRET_BROKER_ENABLED:must_be_true";payment_broker_valid=false
+    fi
+    required_value "$maintenance" PAYMENT_SECRET_BROKER_KEY_ID || payment_broker_valid=false
+    required_value "$maintenance" PAYMENT_SECRET_BROKER_PUBLIC_KEY_PATH || payment_broker_valid=false
+    required_value "$maintenance" PAYMENT_SECRET_DIRECTORY || payment_broker_valid=false
+    required_value "$client" PAYMENT_SECRET_DIRECTORY || payment_broker_valid=false
+    required_value "$maintenance" PAYMENT_ALLOWED_CALLBACK_HOSTS || payment_broker_valid=false
+    same_value "payment-secret-broker-key-id" "$maintenance" PAYMENT_SECRET_BROKER_KEY_ID "$payment_broker_env" PAYMENT_SECRET_BROKER_KEY_ID
+    same_value "payment-callback-host-allowlist" "$maintenance" PAYMENT_ALLOWED_CALLBACK_HOSTS "$payment_broker_env" PAYMENT_ALLOWED_CALLBACK_HOSTS
+    [ "$findings" -eq "$payment_broker_findings_before" ] || payment_broker_valid=false
+  fi
+  [ "$payment_broker_valid" = true ] && payment_secret_broker_configuration=true
+  if [ -f "$payment_managed_manifest" ]; then
+    if managed_payment_manifest_valid "$managed_payment_secret_dir"; then managed_payment_configuration=true
+    else fail "payment-managed:manifest_or_secret_files_invalid";fi
+  fi
+fi
+
+if [ "$payment_secret_broker_configuration" = true ]; then printf 'payment_secret_broker_configuration=ready\n'
+else printf 'payment_secret_broker_configuration=incomplete\n';fi
 
 udun_ready=true
 for file in "$client" "$maintenance"; do
@@ -271,11 +466,18 @@ for file in "$client" "$maintenance"; do
     optional_present "$file" "$key" || udun_ready=false
   done
 done
-if [ "$udun_ready" = true ]; then
+if [ "$managed_payment_configuration" = true ] || [ "$udun_ready" = true ]; then
   printf 'udun_configuration=ready\n'
 else
   printf 'udun_configuration=incomplete\n'
 fi
+
+payment_provider_outbound=$(value_of "$client" PAYMENT_PROVIDER_OUTBOUND_ENABLED 2>/dev/null || printf unknown)
+case "$payment_provider_outbound" in
+  true) printf 'payment_provider_outbound=enabled\n' ;;
+  false) printf 'payment_provider_outbound=disabled\n' ;;
+  *) printf 'payment_provider_outbound=invalid\n';fail "payment_provider_outbound:invalid" ;;
+esac
 
 notification_send=$(value_of "$notification" NOTIFICATION_EMAIL_SEND_ENABLED 2>/dev/null || printf 'unknown')
 case "$notification_send" in

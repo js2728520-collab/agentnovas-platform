@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { chmod, chown, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -21,6 +22,7 @@ MFA_TOTP_ENCRYPTION_KEY=client-mfa-key
 MFA_ENFORCEMENT_ENABLED=false
 NOTIFICATION_TOKEN_ENCRYPTION_KEY=shared-notification-key
 PAYMENT_WORKER_ENABLED=false
+PAYMENT_PROVIDER_OUTBOUND_ENABLED=false
 UDUN_GATEWAY_BASE_URL=
 UDUN_MERCHANT_ID=
 UDUN_API_KEY=
@@ -53,6 +55,7 @@ AI_GATEWAY_SHARED_SECRET=shared-ai-gateway-secret-at-least-48-characters
 RESEND_WEBHOOK_SECRET=
 PAYMENT_WORKER_ENABLED=false
 PAYMENT_PROVIDER_TESTS_ENABLED=false
+PAYMENT_PROVIDER_OUTBOUND_ENABLED=false
 UDUN_GATEWAY_BASE_URL=
 UDUN_MERCHANT_ID=
 UDUN_API_KEY=
@@ -206,13 +209,100 @@ async function removeEnvValue(directory, fileName, key) {
   await chmod(path, 0o440);
 }
 
+async function installManagedEmailFixture(directory) {
+  const keyId = "email-broker-testkey12345678";
+  const managed = join(directory, "email-managed");
+  const versions = join(managed, "versions");
+  const version = "email-20260829T120000000Z-test12345678";
+  await mkdir(versions, { recursive: true, mode: 0o700 });
+  const notificationFile = `versions/${version}.notification.env`;
+  const maintenanceFile = `versions/${version}.maintenance.env`;
+  const notificationContent = `EMAIL_SECRET_CONFIGURATION_VERSION=${version}\nRESEND_API_KEY=re_managed_test_only_123456789\n`;
+  const maintenanceContent = `EMAIL_SECRET_CONFIGURATION_VERSION=${version}\nRESEND_WEBHOOK_SECRET=whsec_managed_test_only_123456789\n`;
+  await writeFile(join(managed, notificationFile), notificationContent, { mode: 0o600 });
+  await writeFile(join(managed, maintenanceFile), maintenanceContent, { mode: 0o600 });
+  const manifest = {
+    schemaVersion: "1",
+    version,
+    notification: { file: notificationFile, sha256: createHash("sha256").update(notificationContent).digest("hex") },
+    maintenance: { file: maintenanceFile, sha256: createHash("sha256").update(maintenanceContent).digest("hex") },
+  };
+  await writeFile(join(managed, "manifest.json"), `${JSON.stringify(manifest)}\n`, { mode: 0o600 });
+  await writeFile(join(directory, "email-secret-broker.env"), `NODE_ENV=production
+DATABASE_URL=postgresql://agentnovas_email_secret_broker:test-only@postgres:5432/agentnovas
+EMAIL_SECRET_BROKER_ENABLED=true
+EMAIL_SECRET_BROKER_KEY_ID=${keyId}
+EMAIL_SECRET_BROKER_PRIVATE_KEY_PATH=/run/secrets/email-secret-broker-private.pem
+EMAIL_SECRET_DIRECTORY=/run/email-secrets
+`, { mode: 0o440 });
+  await writeFile(join(directory, "email-secret-broker-private.pem"), "test-only-private-key\n", { mode: 0o400 });
+  await writeFile(join(directory, "email-secret-broker-public.pem"), "test-only-public-key\n", { mode: 0o444 });
+  for (const fileName of ["maintenance.env", "notification.env"]) {
+    const path = join(directory, fileName);
+    const body = await readFile(path, "utf8");
+    const additions = fileName === "maintenance.env"
+      ? `EMAIL_SECRET_BROKER_KEY_ID=${keyId}\nEMAIL_SECRET_BROKER_PUBLIC_KEY_PATH=/run/secrets/email-secret-broker-public.pem\nEMAIL_SECRET_DIRECTORY=/run/email-secrets\nEMAIL_TEST_RECIPIENT_ENCRYPTION_KEY=test-recipient-key-at-least-thirty-two-bytes\n`
+      : "EMAIL_SECRET_DIRECTORY=/run/email-secrets\nEMAIL_TEST_RECIPIENT_ENCRYPTION_KEY=test-recipient-key-at-least-thirty-two-bytes\n";
+    await chmod(path, 0o600);
+    await writeFile(path, body + additions, { mode: 0o440 });
+    await chmod(path, 0o440);
+  }
+}
+
+async function installManagedPaymentFixture(directory) {
+  const keyId = "payment-broker-testkey12345678";
+  const managed = join(directory, "payment-managed");
+  const versions = join(managed, "versions");
+  const version = "payment-20260829T120000000Z-test12345678";
+  await mkdir(versions, { recursive: true, mode: 0o700 });
+  const content = `PAYMENT_SECRET_CONFIGURATION_VERSION=${version}
+UDUN_GATEWAY_BASE_URL=https://sig11.udun.io
+UDUN_MERCHANT_ID=300015
+UDUN_API_KEY=udun_managed_test_only_123456789
+UDUN_CALLBACK_URL=https://main-test.agentnovas.com/api/integrations/payments/udun/webhook
+UDUN_ADDRESS_REQUEST_COIN_FIELD=mainCoinType
+`;
+  const clientFile = `versions/${version}.client.env`;
+  const maintenanceFile = `versions/${version}.maintenance.env`;
+  await writeFile(join(managed, clientFile), content, { mode: 0o600 });
+  await writeFile(join(managed, maintenanceFile), content, { mode: 0o600 });
+  const digest = createHash("sha256").update(content).digest("hex");
+  await writeFile(join(managed, "manifest.json"), `${JSON.stringify({
+    schemaVersion: "1", version,
+    client: { file: clientFile, sha256: digest }, maintenance: { file: maintenanceFile, sha256: digest },
+  })}\n`, { mode: 0o600 });
+  await writeFile(join(directory, "payment-secret-broker.env"), `NODE_ENV=production
+DATABASE_URL=postgresql://agentnovas_payment_secret_broker:test-only@postgres:5432/agentnovas
+PAYMENT_SECRET_BROKER_ENABLED=true
+PAYMENT_SECRET_BROKER_KEY_ID=${keyId}
+PAYMENT_SECRET_BROKER_PRIVATE_KEY_PATH=/run/secrets/payment-secret-broker-private.pem
+PAYMENT_SECRET_DIRECTORY=/run/payment-secrets
+PAYMENT_ALLOWED_CALLBACK_HOSTS=main-test.agentnovas.com,xm.agentnovas.com
+`, { mode: 0o440 });
+  await writeFile(join(directory, "payment-secret-broker-private.pem"), "test-only-private-key\n", { mode: 0o400 });
+  await writeFile(join(directory, "payment-secret-broker-public.pem"), "test-only-public-key\n", { mode: 0o444 });
+  for (const fileName of ["client.env", "maintenance.env"]) {
+    const path = join(directory, fileName);
+    const body = await readFile(path, "utf8");
+    const additions = fileName === "maintenance.env"
+      ? `PAYMENT_SECRET_BROKER_KEY_ID=${keyId}\nPAYMENT_SECRET_BROKER_PUBLIC_KEY_PATH=/run/secrets/payment-secret-broker-public.pem\nPAYMENT_SECRET_DIRECTORY=/run/payment-secrets\nPAYMENT_ALLOWED_CALLBACK_HOSTS=main-test.agentnovas.com,xm.agentnovas.com\n`
+      : "PAYMENT_SECRET_DIRECTORY=/run/payment-secrets\n";
+    await chmod(path, 0o600);
+    await writeFile(path, body + additions, { mode: 0o440 });
+    await chmod(path, 0o440);
+  }
+}
+
 test("the production audit reports readiness facts without exposing configuration values", async () => {
   const directory = await fixtureDirectory();
   try {
     const result = await run("scripts/audit-production-config.sh", [], { RIVERTON_SECRET_DIR: directory });
     assert.match(result.stdout, /core_configuration=ready/);
     assert.match(result.stdout, /resend_configuration=incomplete/);
+    assert.match(result.stdout, /email_secret_broker_configuration=incomplete/);
+    assert.match(result.stdout, /payment_secret_broker_configuration=incomplete/);
     assert.match(result.stdout, /udun_configuration=incomplete/);
+    assert.match(result.stdout, /payment_provider_outbound=disabled/);
     assert.match(result.stdout, /notification_email_send=disabled/);
     assert.match(result.stdout, /release_orchestrator_worker_staging=disabled/);
     assert.match(result.stdout, /release_orchestrator_worker_production=disabled/);
@@ -220,6 +310,54 @@ test("the production audit reports readiness facts without exposing configuratio
     assert.match(result.stdout, /release_provider_security_auditor_production=disabled/);
     assert.match(result.stdout, /release_identity_verifier=disabled/);
     assert.doesNotMatch(result.stdout + result.stderr, /postgresql:\/\/|shared-notification-key|shared-ai-gateway-secret/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("the production audit accepts a complete managed Resend secret configuration without exposing it", async () => {
+  const directory = await fixtureDirectory();
+  try {
+    await installManagedEmailFixture(directory);
+    const result = await run("scripts/audit-production-config.sh", [], {
+      RIVERTON_SECRET_DIR: directory,
+      RIVERTON_EMAIL_SECRET_DIR: join(directory, "email-managed"),
+    });
+    assert.match(result.stdout, /email_secret_broker_configuration=ready/);
+    assert.match(result.stdout, /resend_configuration=ready/);
+    assert.doesNotMatch(result.stdout + result.stderr, /re_managed|whsec_managed|test-only@postgres/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("the production audit accepts a complete managed Udun configuration without exposing it", async () => {
+  const directory = await fixtureDirectory();
+  try {
+    await installManagedPaymentFixture(directory);
+    const result = await run("scripts/audit-production-config.sh", [], {
+      RIVERTON_SECRET_DIR: directory,
+      RIVERTON_PAYMENT_SECRET_DIR: join(directory, "payment-managed"),
+    });
+    assert.match(result.stdout, /payment_secret_broker_configuration=ready/);
+    assert.match(result.stdout, /udun_configuration=ready/);
+    assert.doesNotMatch(result.stdout + result.stderr, /udun_managed|300015|test-only@postgres|sig11/);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("the production audit fails closed when a managed email secret file is tampered", async () => {
+  const directory = await fixtureDirectory();
+  try {
+    await installManagedEmailFixture(directory);
+    const manifest = JSON.parse(await readFile(join(directory, "email-managed", "manifest.json"), "utf8"));
+    await writeFile(join(directory, "email-managed", manifest.notification.file), "tampered\n", { mode: 0o600 });
+    await assert.rejects(
+      run("scripts/audit-production-config.sh", [], {
+        RIVERTON_SECRET_DIR: directory,
+        RIVERTON_EMAIL_SECRET_DIR: join(directory, "email-managed"),
+      }),
+      (error) => error.stderr.includes("email-managed:manifest_or_secret_files_invalid"),
+    );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -356,6 +494,42 @@ UDUN_CALLBACK_URL=https://xm.agentnovas.com/api/integrations/payments/udun/webho
     assert.match(audited.stdout, /udun_configuration=ready/);
     assert.match(audited.stdout, /notification_email_send=disabled/);
     assert.doesNotMatch(audited.stdout + audited.stderr, new RegExp([resendKey, webhookSecret, udunKey].join("|")));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("the fill-in installer preserves secret-file ownership while retaining restrictive modes", async (t) => {
+  const currentGroup = process.getgid?.();
+  const alternateGroup = process.getgroups?.().find((group) => group !== currentGroup);
+  if (currentGroup === undefined || alternateGroup === undefined || process.getuid === undefined) {
+    t.skip("requires a POSIX user that belongs to at least two groups");
+    return;
+  }
+
+  const directory = await fixtureDirectory();
+  const answerFile = join(directory, "resend-only.answers");
+  const protectedFiles = ["client.env", "maintenance.env", "notification.env"];
+  await writeFile(answerFile, `RESEND_API_KEY=re_test_only_rotated_key_123456789
+RESEND_WEBHOOK_SECRET=whsec_test_only_webhook_secret_123456789
+NOTIFICATION_EMAIL_ALLOWLIST=acceptance@example.test
+`, { mode: 0o600 });
+  await chmod(answerFile, 0o600);
+
+  try {
+    for (const fileName of protectedFiles) {
+      await chown(join(directory, fileName), process.getuid(), alternateGroup);
+    }
+    const before = await Promise.all(protectedFiles.map((fileName) => stat(join(directory, fileName))));
+
+    await run("scripts/install-production-integrations.sh", ["--apply", answerFile], { RIVERTON_SECRET_DIR: directory });
+
+    const after = await Promise.all(protectedFiles.map((fileName) => stat(join(directory, fileName))));
+    for (let index = 0; index < protectedFiles.length; index += 1) {
+      assert.equal(after[index].uid, before[index].uid, `${protectedFiles[index]} owner changed`);
+      assert.equal(after[index].gid, before[index].gid, `${protectedFiles[index]} group changed`);
+      assert.equal(after[index].mode & 0o777, 0o440, `${protectedFiles[index]} mode changed`);
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

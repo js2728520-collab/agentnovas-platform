@@ -9,12 +9,34 @@ const MAINTENANCE_IDEMPOTENCY_OPERATIONS = new Set([
   "maintenance.source_integration.test",
   "maintenance.trading.emergency_stop",
   "maintenance.work_records.export",
+  "maintenance.email_configuration.update",
+  "maintenance.email_recipient.create",
+  "maintenance.email_recipient.verify",
+  "maintenance.email_recipient.update",
+  "maintenance.email_recipient.delete",
+  "maintenance.email_secret.request",
+  "maintenance.payment_secret.request",
+  "maintenance.payment_provider.configuration",
+  "maintenance.payment_provider.status",
+  "maintenance.payment_provider.test",
+  "maintenance.payment_provider.callback_test",
 ] as const);
 
 export type MaintenanceIdempotencyOperation =
   | "maintenance.source_integration.test"
   | "maintenance.trading.emergency_stop"
-  | "maintenance.work_records.export";
+  | "maintenance.work_records.export"
+  | "maintenance.email_configuration.update"
+  | "maintenance.email_recipient.create"
+  | "maintenance.email_recipient.verify"
+  | "maintenance.email_recipient.update"
+  | "maintenance.email_recipient.delete"
+  | "maintenance.email_secret.request"
+  | "maintenance.payment_secret.request"
+  | "maintenance.payment_provider.configuration"
+  | "maintenance.payment_provider.status"
+  | "maintenance.payment_provider.test"
+  | "maintenance.payment_provider.callback_test";
 
 export type MaintenanceIdempotencyDescriptor = {
   operation: MaintenanceIdempotencyOperation;

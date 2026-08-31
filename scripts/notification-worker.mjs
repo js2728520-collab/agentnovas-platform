@@ -5,6 +5,8 @@ import pg from "pg";
 import {
   claimNextEmailDelivery,
   loadResendProviderConfig,
+  notificationDatabaseTestAllowlistConfigured,
+  notificationDatabaseTestRecipientAllowed,
   notificationEmailAllowlist,
   notificationSendEnvironmentReady,
   processClaimedEmail,
@@ -12,39 +14,49 @@ import {
   purgeExpiredNotificationSecrets,
 } from "../lib/notification-email-worker.ts";
 import { businessDatabaseUrl } from "../lib/postgres.ts";
+import { resolveEmailSecret } from "../lib/email-secret-broker.ts";
 import { createWorkerHeartbeatReporter } from "../lib/worker-observability.ts";
 import { reconcileMembershipAccessTransitions } from "../lib/membership-lifecycle.ts";
 
 const connectionString = businessDatabaseUrl();
 if (!connectionString) throw new Error("DATABASE_URL is required");
-const sendEnabled = notificationSendEnvironmentReady(process.env);
-
 const poolSize = Number(process.env.NOTIFICATION_WORKER_POOL_SIZE || 4);
 const pool = new pg.Pool({
   connectionString,
   max: Number.isInteger(poolSize) && poolSize > 0 && poolSize <= 20 ? poolSize : 4,
   application_name: "riverton-notification-worker",
 });
+const environmentAllowlistConfigured = notificationEmailAllowlist(process.env).size > 0;
+let databaseTestRecipientsConfigured = false;
+let allowlistConfigured = environmentAllowlistConfigured;
+let apiKey = await resolveEmailSecret("notification");
+let runtimeEnvironment = { ...process.env, RESEND_API_KEY: apiKey };
+let sendEnabled = notificationSendEnvironmentReady(runtimeEnvironment, { databaseTestRecipientsConfigured });
+
+function emailReadinessMetadata() {
+  return {
+    processEnabled: process.env.NOTIFICATION_WORKER_ENABLED === "true",
+    emailSendEnabled: process.env.NOTIFICATION_EMAIL_SEND_ENABLED === "true",
+    apiKeyPresent: Boolean(apiKey),
+    allowlistConfigured,
+    tokenEncryptionKeyPresent: (process.env.NOTIFICATION_TOKEN_ENCRYPTION_KEY?.trim().length ?? 0) >= 32,
+    testRecipientEncryptionKeyPresent: (process.env.EMAIL_TEST_RECIPIENT_ENCRYPTION_KEY?.trim().length ?? 0) >= 32,
+    emailEnvironmentReady: sendEnabled,
+  };
+}
 
 const workerId = `${os.hostname().replace(/[^a-z0-9.-]/gi, "-").slice(0, 60)}-${process.pid}`;
 const heartbeat = createWorkerHeartbeatReporter(pool, {
   workerType: "notification",
   instanceId: workerId,
   commitSha: process.env.GIT_COMMIT_SHA,
-  metadata: {
-    processEnabled: process.env.NOTIFICATION_WORKER_ENABLED === "true",
-    emailSendEnabled: process.env.NOTIFICATION_EMAIL_SEND_ENABLED === "true",
-    apiKeyPresent: Boolean(process.env.RESEND_API_KEY?.trim()),
-    allowlistConfigured: notificationEmailAllowlist(process.env).size > 0,
-    tokenEncryptionKeyPresent: (process.env.NOTIFICATION_TOKEN_ENCRYPTION_KEY?.trim().length ?? 0) >= 32,
-    emailEnvironmentReady: sendEnabled,
-  },
+  metadata: emailReadinessMetadata(),
   onError: (error) => console.error("Notification Worker heartbeat failed", {
     code: error instanceof Error ? error.name : "UNKNOWN",
   }),
 });
-const apiKey = process.env.RESEND_API_KEY?.trim() ?? "";
 let stopping = false;
+let nextEmailReadinessCheckAt = 0;
 let nextSecretCleanupAt = 0;
 let nextMembershipReconciliationAt = 0;
 
@@ -61,6 +73,23 @@ try {
   await heartbeat.start();
   while (!stopping) {
     const now = new Date();
+    if (now.getTime() >= nextEmailReadinessCheckAt) {
+      try {
+        databaseTestRecipientsConfigured = await notificationDatabaseTestAllowlistConfigured(pool);
+      } catch (error) {
+        databaseTestRecipientsConfigured = false;
+        await heartbeat.markFailure(error, now);
+        console.error("Notification recipient authorization refresh failed", {
+          code: error instanceof Error ? error.name : "UNKNOWN",
+        });
+      }
+      allowlistConfigured = environmentAllowlistConfigured || databaseTestRecipientsConfigured;
+      apiKey = await resolveEmailSecret("notification");
+      runtimeEnvironment = { ...process.env, RESEND_API_KEY: apiKey };
+      sendEnabled = notificationSendEnvironmentReady(runtimeEnvironment, { databaseTestRecipientsConfigured });
+      heartbeat.setMetadata(emailReadinessMetadata());
+      nextEmailReadinessCheckAt = now.getTime() + 5_000;
+    }
     if (now.getTime() >= nextSecretCleanupAt) {
       try {
         await purgeExpiredNotificationSecrets(pool, now);
@@ -102,7 +131,12 @@ try {
     }
     heartbeat.setCurrentJob(delivery.id);
     try {
-      const result = await processClaimedEmail(pool, delivery, { workerId, apiKey });
+      const result = await processClaimedEmail(pool, delivery, {
+        workerId,
+        apiKey,
+        environment: runtimeEnvironment,
+        databaseTestRecipientAllowed: recipient => notificationDatabaseTestRecipientAllowed(pool, recipient),
+      });
       await heartbeat.markSuccess();
       process.stdout.write(`Notification ${delivery.id} ${result.status}.\n`);
     } catch (error) {

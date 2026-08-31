@@ -7,17 +7,30 @@ import { readQualityRuntime } from "./support/runtime";
 
 type IsolatedPage = Awaited<ReturnType<typeof createIsolatedQualityBrowser>>["page"];
 
-async function closeAllBrowsers(closures: Array<Promise<void>>) {
-  const closeResults = await Promise.allSettled(closures);
-  const failedClose = closeResults.find((result) => result.status === "rejected");
-  if (failedClose?.status === "rejected") throw failedClose.reason;
+async function closeAllBrowsers(closures: Array<() => Promise<void>>) {
+  const failures: unknown[] = [];
+  for (const close of closures) {
+    try {
+      await close();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length) throw failures[0];
 }
 
-async function login(page: IsolatedPage, email: string, password: string) {
-  await page.goto("/login", { waitUntil: "domcontentloaded" });
+async function login(page: IsolatedPage, email: string, password: string, loginUrl = "/login") {
+  await page.goto(loginUrl, { waitUntil: "domcontentloaded" });
   await page.getByLabel(/邮箱、手机号或用户名|Email, phone number, or username/).fill(email);
   await page.getByLabel(/密码|Password/, { exact: true }).fill(password);
-  await page.getByRole("button", { name: /登录|Sign in/, exact: true }).click();
+  const loginResponse = page.waitForResponse((response) => (
+    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/auth/login"
+  ));
+  const [response] = await Promise.all([
+    loginResponse,
+    page.getByRole("button", { name: /登录|Sign in/, exact: true }).click(),
+  ]);
+  return response;
 }
 
 async function authenticateInBrowser(page: IsolatedPage, email: string, password: string) {
@@ -33,29 +46,31 @@ async function authenticateInBrowser(page: IsolatedPage, email: string, password
 }
 
 test("Client、Operations、Maintenance 从空浏览器登录后进入各自首页", async ({ browser }) => {
+  test.setTimeout(120_000);
   const runtime = await readQualityRuntime();
   const cases = [
     ["client", runtime.identities.client, "/dashboard", /数据看板|Dashboard/],
     ["operations", runtime.identities.operationsMaker, "/", "运营看板"],
     ["maintenance", runtime.identities.maintenanceAdmin, "/", "系统运行"],
   ] as const;
-  const contexts = await Promise.all(cases.map(([audience]) => createIsolatedQualityBrowser(browser, audience)));
-  try {
-    for (let index = 0; index < cases.length; index += 1) {
-      const [, identity, path, heading] = cases[index];
-      const isolated = contexts[index];
-      await login(isolated.page, identity.email, identity.password);
+  for (const [audience, identity, path, heading] of cases) {
+    const isolated = await createIsolatedQualityBrowser(browser, audience);
+    try {
+      const response = await login(isolated.page, identity.email, identity.password);
+      expect(response.status()).toBe(200);
       await expect(isolated.page).toHaveURL(`${isolated.origin}${path}`);
       await expect(isolated.page.getByRole("heading", { name: heading })).toBeVisible();
       await expect(isolated.page.getByRole("heading", { name: /绑定双重验证|Set up two-factor authentication/ })).toHaveCount(0);
+    } finally {
+      await isolated.close();
     }
-  } finally {
-    await closeAllBrowsers(contexts.map((isolated) => isolated.close()));
   }
 });
 
 test("Operations 权限链接完成浏览器注册、冻结角色和作废闭环", async ({ browser, page }) => {
+  test.setTimeout(120_000);
   const runtime = await readQualityRuntime();
+  const attemptId = randomUUID().replaceAll("-", "").slice(0, 12);
   const issuer = runtime.identities.operationsChecker;
   const operationsOrigin = qualityBrowserOrigin("operations", qualityApplicationPorts(process.env)).baseURL;
   const invitationsPath = "/invitations";
@@ -78,7 +93,7 @@ test("Operations 权限链接完成浏览器注册、冻结角色和作废闭环
   expect(registrationLink).toMatch(/^https:\/\/zht\.agentnovas\.com(?::\d+)?\/login#staff-invite=/);
 
   const registrant = await createIsolatedQualityBrowser(browser, "operations");
-  const email = `g1-employee-${runtime.schema.slice(-10)}@quality.invalid`;
+  const email = `g1-employee-${runtime.schema.slice(-8)}-${attemptId}@quality.invalid`;
   const password = `G1-local-${randomUUID()}!`;
   try {
     await registrant.page.goto(String(registrationLink), { waitUntil: "domcontentloaded" });
@@ -88,7 +103,8 @@ test("Operations 权限链接完成浏览器注册、冻结角色和作废闭环
     await registrant.page.getByRole("button", { name: "提交注册" }).click();
     await expect(registrant.page.getByText(/账号权限已立即生效/)).toBeVisible();
     await registrant.page.getByRole("link", { name: "返回登录" }).click();
-    await login(registrant.page, email, password);
+    const loginResponse = await login(registrant.page, email, password);
+    expect(loginResponse.status()).toBe(200);
     await expect(registrant.page).toHaveURL(`${operationsOrigin}/`);
     await expect(registrant.page.getByRole("heading", { name: "绑定双重验证" })).toHaveCount(0);
     await expect(registrant.page.getByRole("heading", { name: "运营看板" })).toBeVisible();
@@ -131,7 +147,7 @@ test("Operations 权限链接完成浏览器注册、冻结角色和作废闭环
       });
       return { status: response.status, payload: await response.json() };
     }, {
-      email: `g1-rejected-${runtime.schema.slice(-10)}@quality.invalid`,
+      email: `g1-rejected-${runtime.schema.slice(-8)}-${attemptId}@quality.invalid`,
       password: `G1-rejected-${randomUUID()}!`,
     });
     expect(rejectedResult.status).toBe(400);
@@ -149,6 +165,18 @@ test("Client 五个浏览器、第六台拒绝、全量退出和邮件关闭降�
   const rejected = await createIsolatedQualityBrowser(browser, "client");
   const pool = new pg.Pool({ connectionString: process.env.TEST_DATABASE_URL, max: 1 });
   try {
+    await pool.query("UPDATE users SET email_verified_at=NOW() WHERE id=$1", [identity.userId]);
+    await pool.query("DELETE FROM sessions WHERE user_id=$1 AND app_audience='client'", [identity.userId]);
+    await pool.query("DELETE FROM auth_rate_limit_buckets WHERE action='login' AND app_audience='client'");
+    const baselineDeliveryState = await pool.query(`
+      SELECT channel,status,count(*)::int AS count
+        FROM notification_deliveries
+       WHERE user_id=$1 AND template_key='security_new_device'
+       GROUP BY channel,status ORDER BY channel,status
+    `, [identity.userId]);
+    const baselineDeliveryCounts = new Map(
+      baselineDeliveryState.rows.map((row) => [`${row.channel}:${row.status}`, Number(row.count)]),
+    );
     await test.step("五个隔离浏览器登录且第六台被拒绝", async () => {
       expect(process.env.NOTIFICATION_EMAIL_SEND_ENABLED).toBe("false");
       for (let index = 0; index < 5; index += 1) {
@@ -173,10 +201,12 @@ test("Client 五个浏览器、第六台拒绝、全量退出和邮件关闭降�
        WHERE user_id=$1 AND template_key='security_new_device'
        GROUP BY channel,status ORDER BY channel,status
     `, [identity.userId]);
-      expect(deliveryState.rows).toEqual([
-        { channel: "email", status: "queued", count: 5 },
-        { channel: "in_app", status: "queued", count: 5 },
-      ]);
+      const deliveryCounts = new Map(
+        deliveryState.rows.map((row) => [`${row.channel}:${row.status}`, Number(row.count)]),
+      );
+      expect(deliveryCounts.get("email:queued")).toBe((baselineDeliveryCounts.get("email:queued") ?? 0) + 5);
+      expect(deliveryCounts.get("in_app:queued")).toBe((baselineDeliveryCounts.get("in_app:queued") ?? 0) + 5);
+      expect([...deliveryCounts.keys()].filter((key) => !key.endsWith(":queued"))).toEqual([]);
     });
 
     await test.step("账户安全页撤销全部浏览器会话", async () => {
@@ -202,13 +232,18 @@ test("Client 五个浏览器、第六台拒绝、全量退出和邮件关闭降�
       SELECT count(*)::int AS count FROM sessions
        WHERE user_id=$1 AND app_audience='client' AND revoked_at IS NULL
       `, [identity.userId])).rows[0].count)).toBe(0);
+      const authenticatedContexts = contexts.splice(0);
+      await closeAllBrowsers(authenticatedContexts.map((isolated) => (
+        () => isolated.close({ allowedStatuses: [401, 403] })
+      )));
     });
 
     await test.step("邮箱未验证时重发并保留加密 outbox", async () => {
       await pool.query("UPDATE users SET email_verified_at=NULL WHERE id=$1", [identity.userId]);
       const verification = await createIsolatedQualityBrowser(browser, "client");
       contexts.push(verification);
-      await login(verification.page, identity.email, identity.password);
+      const loginResponse = await login(verification.page, identity.email, identity.password);
+      expect(loginResponse.status()).toBe(403);
       await expect(verification.page.getByText(/请先完成邮箱验证/)).toBeVisible();
       await verification.page.getByRole("button", { name: /重发验证邮件|Resend verification email/ }).click();
       await verification.page.getByRole("textbox", { name: /账户邮箱|Account email/ }).fill(identity.email);
@@ -229,12 +264,18 @@ test("Client 五个浏览器、第六台拒绝、全量退出和邮件关闭降�
         : verificationEvidence.rows[0].payload_json;
       expect(payload.encryptedToken).toMatch(/^v1\./);
       expect(payload).not.toHaveProperty("token");
+      await verification.page.goto("about:blank", { waitUntil: "load" });
     });
   } finally {
-    await pool.end();
-    await closeAllBrowsers([
-      ...contexts.map((isolated) => isolated.close({ allowedStatuses: [401, 403] })),
-      rejected.close({ allowedStatuses: [409] }),
-    ]);
+    try {
+      await pool.query("UPDATE users SET email_verified_at=NOW() WHERE id=$1", [identity.userId]);
+      await pool.query("DELETE FROM auth_rate_limit_buckets WHERE action='login' AND app_audience='client'");
+    } finally {
+      await pool.end();
+      await closeAllBrowsers([
+        ...contexts.map((isolated) => () => isolated.close({ allowedStatuses: [401, 403] })),
+        () => rejected.close({ allowedStatuses: [409] }),
+      ]);
+    }
   }
 });
