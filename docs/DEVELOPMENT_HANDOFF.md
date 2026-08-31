@@ -4072,3 +4072,30 @@ workspace 的 `dist`。普通三端 build 之前由根 `pretest` 或残留构建
 Runtime image 均构建成功，Runtime 可实际 import 两个内部包。受影响测试 ESLint、3,435 文件秘密扫描和
 `npm audit --audit-level=high`（0 vulnerabilities）通过。失败候选没有部署，也没有迁移数据库、重建 Worker、发送邮件、
 调用优盾或启用 AI Gateway；后续只能从包含该修复的新提交重新生成不可变 preview release。
+
+## 124. 2026-08-31 三测试站发布与 Maintenance readiness 权限闭环
+
+需求方明确授权推送当前分支并部署测试环境。容器 workspace 修复提交 `d654ce3` 推送后，从该提交生成的首个不可变候选
+成功构建三端 Web 与 Runtime 镜像，并在已验证 custom dump 备份后把 preview 数据库从 93 个迁移推进到 95 个；迁移重放
+为 `0 applied / 95 skipped`，PostgreSQL role-policy 为 `findings: []`。三端首次切换后，真实账号浏览器验收发现 Maintenance
+系统运行页的 `/api/maintenance/readiness` 返回 500。PostgreSQL 日志把原因收敛为
+`agent_role_bindings` 权限不足：`collectPlatformReadiness` 只统计两个模型绑定表的 `enabled` 状态，但最小权限模板遗漏了这两个
+只读来源。
+
+修复提交 `7510ee5` 先增加失败合同，再只向 `agentnovas_maint_web` 授予
+`agent_role_bindings.enabled` 与 `runtime_explanation_bindings.enabled` 的列级 SELECT；没有开放 Profile、Provider、模型配置或
+Secret 字段。相关健康、数据看板和恢复安全合同 `25/25`、定向 ESLint、生产构建均通过。实际 preview 数据库重放角色模板后，
+information schema 只显示上述两个 `enabled` 列，role-policy 继续为 `findings: []`，就绪接口恢复 200。
+
+最终测试站版本为 `preview-7510ee5-20260831T035037Z`，源提交
+`7510ee500ca38b4688b622ef48a2e2a79c772b5b`，release manifest SHA-256 为
+`6a011d092acb11a70374e544590829749fa6cbb67edc8bd81004017ad21c25dc`。切换前数据库备份为 0600 custom dump，
+SHA-256 `d8341755cf3024061678778cb42bf1cbac1b93350c5e691b06e07d83cc92296c`，TOC 已验证。Client、Operations、
+Maintenance 三个容器均为 healthy、0 restart，并携带同一提交和发布版本；三域名 live、ready、login 的 loopback/HTTPS
+均为 200，错误 Host 均为 404。五轮稳定性抽样和三端/PostgreSQL 日志错误标记均为 0。
+
+真实测试账号浏览器验收三端全部通过：每端五个主入口、六套主题、320/768/1024/1440px、跨 audience Cookie 隔离、
+偏好保存/恢复、Client 通知、axe 严重问题检查全部通过；三端均为 0 外部浏览器请求、0 凭据 URL、0 console warning/error、
+0 page error、0 failed response。发布只重建三端 Web，Notification Worker、Email Secret Broker 与 Payment Secret Broker
+保持原镜像和 0 restart；没有发送测试邮件、调用优盾、创建充值地址、启用 AI Gateway 或执行真实交易。生产容器、生产数据库
+和正式域名均未修改。
