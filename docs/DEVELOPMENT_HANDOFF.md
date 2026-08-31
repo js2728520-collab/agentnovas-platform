@@ -4138,3 +4138,9 @@ PR #2 在提交 `991fe60` 的首轮 GitHub `verify` 中通过 1,752/1,753 项，
 错误数据库继续被拒绝。`an-saas` 使用与 CI 相同的 `postgres` 数据库名、一次性 PostgreSQL 16 和完整 95 个迁移重放后，
 授权合同与两次幂等种子/验证共 4/4 通过；支付 Provider 快照不变，临时容器和 network 已清理。证据保存在
 `/opt/agentnovas-riverton-preview/validations/mock-ci-fix-20260831-NX4W9C/targeted-tests.tap`，权限为 0600。
+
+修复提交 `89a615a` 的 GitHub `verify` 随后完整通过；`quality-release` 的 20 条浏览器旅程有 19 条通过，权限链接旅程首轮在
+完成数据库注册事实后于清理阶段达到默认 60 秒上限，Playwright retry 又使用同一 schema 派生邮箱，因而正确收到邮箱唯一约束
+409。门禁没有把 409 加入允许列表，也没有重跑掩盖失败。该旅程现使用 120 秒显式预算，并在每次尝试生成独立 `.invalid`
+邮箱；静态回归合同先在旧实现上失败，再与定向 ESLint 一同通过。产品 API、唯一约束、浏览器 console/HTTP 失败策略和外部
+写入开关均未放宽。

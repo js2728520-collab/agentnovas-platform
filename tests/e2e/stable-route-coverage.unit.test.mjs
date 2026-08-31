@@ -81,6 +81,17 @@ test("three-audience login completion relies on authenticated UI state instead o
   assert.doesNotMatch(identity, /waitForLoadState\("networkidle"\)|waitUntil:\s*"networkidle"/);
 });
 
+test("staff-registration browser retries use a unique identity and an explicit timeout budget", async () => {
+  const identity = await source("g1-identity-security.spec.ts");
+  const journey = identity.slice(
+    identity.indexOf('test("Operations 权限链接'),
+    identity.indexOf('test("Client 五个浏览器'),
+  );
+  assert.match(journey, /test\.setTimeout\(120_000\)/);
+  assert.match(journey, /const attemptId = randomUUID\(\)/);
+  assert.match(journey, /g1-employee-\$\{runtime\.schema\.slice\([^}]+\}-\$\{attemptId\}@quality\.invalid/);
+});
+
 test("isolated browser forwarding owns proxy requests outside browser-context route disposal", async () => {
   const support = await source("support/quality-test.ts");
   const isolatedStart = support.indexOf("export async function createIsolatedQualityBrowser");

@@ -68,7 +68,9 @@ test("Client、Operations、Maintenance 从空浏览器登录后进入各自首�
 });
 
 test("Operations 权限链接完成浏览器注册、冻结角色和作废闭环", async ({ browser, page }) => {
+  test.setTimeout(120_000);
   const runtime = await readQualityRuntime();
+  const attemptId = randomUUID().replaceAll("-", "").slice(0, 12);
   const issuer = runtime.identities.operationsChecker;
   const operationsOrigin = qualityBrowserOrigin("operations", qualityApplicationPorts(process.env)).baseURL;
   const invitationsPath = "/invitations";
@@ -91,7 +93,7 @@ test("Operations 权限链接完成浏览器注册、冻结角色和作废闭环
   expect(registrationLink).toMatch(/^https:\/\/zht\.agentnovas\.com(?::\d+)?\/login#staff-invite=/);
 
   const registrant = await createIsolatedQualityBrowser(browser, "operations");
-  const email = `g1-employee-${runtime.schema.slice(-10)}@quality.invalid`;
+  const email = `g1-employee-${runtime.schema.slice(-8)}-${attemptId}@quality.invalid`;
   const password = `G1-local-${randomUUID()}!`;
   try {
     await registrant.page.goto(String(registrationLink), { waitUntil: "domcontentloaded" });
@@ -145,7 +147,7 @@ test("Operations 权限链接完成浏览器注册、冻结角色和作废闭环
       });
       return { status: response.status, payload: await response.json() };
     }, {
-      email: `g1-rejected-${runtime.schema.slice(-10)}@quality.invalid`,
+      email: `g1-rejected-${runtime.schema.slice(-8)}-${attemptId}@quality.invalid`,
       password: `G1-rejected-${randomUUID()}!`,
     });
     expect(rejectedResult.status).toBe(400);
