@@ -531,6 +531,13 @@ test("strict page CSP uses a per-request nonce without allowing inline scripts",
   assert.match(policy, /object-src 'none'/);
 });
 
+test("development CSP permits Next's injected styles without weakening production", () => {
+  const policy = contentSecurityPolicy("nonce_0123456789abcdef", true);
+  assert.match(policy, /style-src 'self' 'unsafe-inline'/);
+  assert.doesNotMatch(policy, /style-src[^;]*nonce-nonce_0123456789abcdef/);
+  assert.doesNotMatch(policy, /script-src[^;]*'unsafe-inline'/);
+});
+
 test("Next 16 Proxy applies API policy and page nonce policy before rendering", async () => {
   const proxy = await readFile(new URL("../proxy.ts", import.meta.url), "utf8");
   assert.match(proxy, /evaluateApiRequestPolicy/);

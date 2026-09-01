@@ -97,6 +97,7 @@ test("trading hall API publishes the product boundary and structured decision ro
   assert.match(route, /officialTradingHallStrategies/);
   assert.match(route, /productBoundary/);
   assert.match(route, /decisionRounds/);
+  assert.match(route, /paperExecution/);
   assert.match(route, /realOrderRoutingEnabled:\s*false/);
   assert.match(route, /targetMarket:\s*"spot_usdt"/);
   assert.match(route, /official_paper_positions/);
@@ -111,13 +112,22 @@ test("client hall does not present static market data, fallback performance or a
   assert.doesNotMatch(page, /\["AI 稳健型 · V2", "ETH 现货 · 2\.0%"/);
   assert.doesNotMatch(page, /#BTC-20260812-1031/);
   assert.match(page, /真实订单关闭/);
+  assert.match(page, /platform-demo-summary/);
+  assert.match(page, /strategyWorkRecordEvidenceRows/);
   assert.match(page, /decisionRounds/);
+});
+
+test("meeting summaries keep definition terms inside semantic lists", async () => {
+  const page = await source("apps/client/ui/decision-hall.tsx");
+
+  assert.equal((page.match(/<dl className=\{styles\.summaryGrid\}>/g) ?? []).length, 2);
+  assert.equal((page.match(/<dl className=\{styles\.executionGrid\}>/g) ?? []).length, 1);
 });
 
 test("client entry surfaces share the seven-role contract and do not claim static live telemetry", async () => {
   const [page, css] = await Promise.all([source("apps/client/ui/decision-hall.tsx"), source("apps/client/ui/client-public-landing.module.css")]);
   // 原来是在遗留 SPA 的落地段落里切片断言；大厅现在是独立页面，整文件即该面。
-  assert.match(page, /技术分析师/);
+  assert.match(page, /tradingHallAgentCatalog/);
   assert.match(page, /AI 决策官/);
   assert.doesNotMatch(page, /审计 Agent|Audit Agent|Reconciliation/);
   assert.doesNotMatch(page, /\$118,462\b|62\/100|38\/100|86ms/);
@@ -130,7 +140,27 @@ test("trading hall evidence is allowlisted and bounded before it reaches the cli
   const route = await source("app/api/trading-hall/route.client.ts");
   assert.match(route, /function publicScalar/);
   assert.match(route, /slice\(0, 2000\)/);
+  assert.match(route, /paper_order_intent_count/);
+  assert.match(route, /paper_fill_receipt_count/);
   assert.doesNotMatch(route, /evidence:\s*event\.evidence_json/);
+});
+
+test("hall agents expose the latest round context without leaking raw runtime payloads", async () => {
+  const [route, contract] = await Promise.all([
+    source("app/api/trading-hall/route.client.ts"),
+    source("packages/contracts/src/trading-hall.ts"),
+  ]);
+
+  assert.match(contract, /latestDecisionRoundId: string \| null;/);
+  assert.match(contract, /latestStrategyName: string \| null;/);
+  assert.match(contract, /latestSymbol: string \| null;/);
+  assert.match(contract, /latestExplanationStatus: string \| null;/);
+  assert.match(contract, /latestEvidence: Record<string, unknown> \| null;/);
+  assert.match(route, /latestDecisionRoundId:/);
+  assert.match(route, /latestStrategyName:/);
+  assert.match(route, /latestSymbol:/);
+  assert.match(route, /latestExplanationStatus:/);
+  assert.match(route, /latestEvidence:/);
 });
 
 test("七阶段结论从共享决策轮读，且只在交易决策页解释公共轮", async () => {

@@ -4180,3 +4180,69 @@ loopback host/port 与 standalone 路径，并明确禁止回退到 `next start`
 `175,250 / 19,530 / 10,166` bytes。Gate 记录外部写入为 false，一次性 schema、运行时 Secret 和 LHCI 工作目录均清理成功。
 证据保存在 `/opt/agentnovas-riverton-preview/validations/lighthouse-standalone-output-20260831-4F29R5`，文件权限为 0600。
 本步骤没有发送邮件、调用支付或模型 Provider、创建充值地址、部署站点或触碰生产。
+
+## 129. 2026-08-31 七智能体会议页精细化深化
+
+在本地功能分支 `feature/seven-agent-refinement` 上，继续针对 Client 七智能体交易大厅做“信息更密、证据更清、边界更明”的深化交付：
+
+- `/api/trading-hall` 现在即使共享决策轮没有客户私有 `cycle`，也会返回公共 `hold` 轮，不再把“已判断但无需下单”的七阶段记录误显示为无数据。
+- 决策轮合同新增 `paperExecution` 摘要，公开当前用户该轮的 Paper 订单意图数量、成交回执数量和最近时间；agent 摘要也补齐最近决策轮、共享轮 ID、策略卡、标的、决策状态、完整性、解释状态和 allowlist 证据。
+- `apps/client/ui/decision-hall.tsx` 重构为三层信息结构：大厅右栏的七角色最近记录、会议页的单轮摘要与缺阶段提示、逐阶段证据卡片与模型解释状态。
+- 第七阶段现在在会议页直接接入 `/api/trading-hall/paper/platform-demo-summary`，把 Paper 执行摘要与独立平台 Demo provider/card/receipt 状态并列展示，并明确声明 Demo 不回滚也不改写客户 Paper 结果。
+- `apps/client/ui/trading-hall-status.ts` 集中管理决策轮、解释状态和 Demo provider/card/receipt 文案，避免大厅、会议页和测试各自猜状态。
+- 新增或更新的验证覆盖包括：`tests/trading-hall-status.test.mjs`、`tests/trading-hall-product-contract.test.mjs`，以及 `tests/e2e/client-ui.spec.ts` 中面向会议页证据层的新浏览器旅程。
+
+本次验证：
+
+- `node --test tests/trading-hall-status.test.mjs tests/trading-hall-product-contract.test.mjs`：15/15 通过。
+- 受影响文件定向 ESLint：通过。
+- `npm run lint`：通过。
+- `git diff --check`：通过。
+- `npx tsc --noEmit`：失败，但失败点都是当前分支既有的 AI control plane/workspace 类型问题，主要集中在 `packages/ai-control-plane-react/src/**`、`apps/maintenance/ui/models-workspace.tsx` 和 `lib/*ai-control-plane*`；本轮七智能体改动引入的 `app/api/trading-hall/route.client.ts` 空值错误已修复，不再出现在列表中。
+- `npm run build`：失败，原因同上；`build:packages` 在 `@agentnovas/ai-control-plane-react` 的既有模块解析与 `implicit any` 错误处停止。
+- `QUALITY_E2E_SERVER_MODE=development QUALITY_E2E_PORT_OFFSET=10 npm run test:e2e -- --project=client --grep "client commercial and paper workspaces are responsive, accessible and audience-isolated"`：真实触达 Next 16 dev 服务，但被两类本地环境问题阻断，未形成通过证据。
+  1. `agentnovas.com:3010` 访问 dev chunks 命中 Next 16 `allowedDevOrigins` 403。
+  2. `.next-client/dev/cache/turbopack/...` 在持久化时出现 `No space left on device`。
+
+本轮没有发送邮件、调用支付或模型 Provider、创建充值地址、启用真实交易、修改测试站或触碰生产环境。浏览器级最终验收需要在放通 `allowedDevOrigins` 且本机有足够磁盘空间后重跑。
+
+## 130. 2026-09-01 七智能体开发态质量链路收口
+
+在 `feature/seven-agent-refinement` 上继续验证七智能体会议页时，Next 16 开发服务器此前只允许
+`127.0.0.1` 请求内部资源；质量 E2E 以正式三域名映射到本机端口，因此 `/_next` chunk 会被 403 拦截。
+`next.config.ts` 现以精确白名单允许 `agentnovas.com`、`zht.agentnovas.com` 和 `xm.agentnovas.com`，并由
+`tests/quality-dev-origin-contract.test.mjs` 固定。生产行为不受该开发态配置影响。
+
+严格 CSP 在生产继续要求每请求 nonce；开发态则只为 Next 动态样式注入将 `style-src` 放宽为
+`'self' 'unsafe-inline'`，脚本仍保留 nonce、`strict-dynamic` 且不允许 inline script。对应安全合同已补齐。
+
+本次验证：46 项受影响 Node 合同、定向 ESLint 与 `git diff --check` 均通过。开发态 Client Playwright
+旅程不再触发 `allowedDevOrigins` 403 或 CSP 样式拒绝，但质量代理以 HTTPS 外观转发到 HTTP Next dev，HMR 会尝试
+`wss://` 并失败；首轮编译期会话仍停留在加载态，故该非生产预跑未形成通过证据。生产 Client build 仍在入口处被
+既有 `@agentnovas/ai-control-plane` 模块解析失败阻断，无法生成包含本分支代码的 standalone 制品；`npx tsc --noEmit`
+失败原因相同并伴随既有的 AI control plane `implicit any` 错误。未修改生产、测试站、外部 Provider 或真实交易开关。
+
+## 131. 2026-09-01 AI control plane workspace 恢复与七智能体生产验收
+
+本机根 `node_modules/@agentnovas` 缺失 lockfile 已声明的两个 workspace 符号链接，导致 Next 与 TypeScript
+无法解析已有且已构建的 `@agentnovas/ai-control-plane`、`@agentnovas/ai-control-plane-react`。根 `package.json`、
+lockfile、包 exports 与 dist 均正确，故未修改包接口、业务代码或 lockfile；按 lockfile 恢复本地链接后，Node import、
+`npm run build:packages`、`npx tsc --noEmit`、Client/Operations/Maintenance 三端 production build 全部通过。
+
+恢复可构建状态后，正式 Client Playwright 七智能体旅程首次跑到会议页并发现两个本分支问题：本轮摘要与第七阶段执行摘要
+把 `dt`/`dd` 放在非 `dl` 容器中，Axe 判为 serious；现已改为语义 `dl`，并新增产品合同。Demo 卡状态和回执状态均可合法显示
+“测试账户已成交”，浏览器断言改为明确要求两处出现，避免错误地假设文案唯一。最终 production E2E 通过，覆盖会议页、
+七阶段公开记录、Paper/Demo 边界、响应式布局和 Axe 严重级规则。
+
+本轮未修改生产、测试站、数据库、外部模型、支付、邮件或真实交易开关。
+
+## 132. 2026-09-01 AI 助手回答质量优化
+
+从 `feature/seven-agent-refinement` 的 `be5ccae` 切出本地分支
+`feature/ai-assistant-reply-quality`，仅优化 Client AI 助手的回答质量，不改 AI control plane、Binding Policy、Gateway、Secret Broker、数据库 schema、权限、SSE、取消/重试或 Credits 预留与结算。
+
+- `lib/ai-assistant.ts` 复用统一回答合同，要求模型对非平台事实问题按“结论、关键证据、失效条件、下一步”组织回答，禁止无证据套话、重复免责声明和不落地建议；平台问题继续豁免“失效条件”，且只可引用平台事实快照。
+- `lib/ai-chat-protocol.ts` 收紧意图分类，优先识别策略卡合同问题、K 线/均线行情问题和“为什么这一轮没有开仓”类决策问题；会话记忆明确不得重复追问已知字段。规则回退在策略边界不足时只提出最多两个会改变结论的问题，并在决策回复中标示实际放行或阻断阶段。
+- `lib/ai-context.ts` 在不扩展数据来源的前提下加入证据优先级提示，令行情、决策、平台和策略研究分别优先引用对应的服务端快照。
+
+验证已完成：`node --test tests/ai-*.test.mjs` 为 104/104 通过；`npx tsc --noEmit --incremental false`、`npm run lint`、`npm run build` 与 `git diff --check` 均通过。生产构建没有调用外部模型、修改控制面配置或启用真实交易。

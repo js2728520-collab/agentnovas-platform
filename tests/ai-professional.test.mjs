@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  assistantResponseContract,
   buildSessionWorkingMemory,
   classifyAssistantIntent,
   guidedAssistantReply,
@@ -13,8 +14,29 @@ test("classifies professional research workflows", () => {
   assert.equal(classifyAssistantIntent("BTC 当前走势、支撑位和阻力位怎么看？"), "market_analysis");
   assert.equal(classifyAssistantIntent("解释一下我的持仓风险"), "portfolio_risk");
   assert.equal(classifyAssistantIntent("帮我生成一个 1 小时趋势策略"), "strategy_research");
+  assert.equal(classifyAssistantIntent("官方策略卡的风控参数和收费规则是什么？"), "platform_info");
+  assert.equal(classifyAssistantIntent("BTC 1 小时 K 线、均线和波动怎么看？"), "market_analysis");
   assert.equal(classifyAssistantIntent("为什么这个策略回测后的最大回撤很大？"), "backtest_help");
+  assert.equal(classifyAssistantIntent("这个策略的持仓风险和亏损敞口如何？"), "portfolio_risk");
+  assert.equal(classifyAssistantIntent("这个策略当前的 BTC 走势依据是什么？"), "market_analysis");
   assert.equal(classifyAssistantIntent("你好"), "general");
+});
+
+test("sets a concrete evidence-first response contract for every assistant intent", () => {
+  const market = assistantResponseContract("market_analysis");
+  const decision = assistantResponseContract("decision_analysis");
+  const platform = assistantResponseContract("platform_info");
+  const strategy = assistantResponseContract("strategy_research");
+
+  assert.match(market, /结论.*关键证据.*失效条件.*下一步/s);
+  assert.match(market, /时间、周期、价格/);
+  assert.match(market, /证据不足/);
+  assert.match(decision, /放行或阻断/);
+  assert.match(platform, /平台事实快照/);
+  assert.match(platform, /不得推测/);
+  assert.match(strategy, /最多 2 个/);
+  assert.match(strategy, /会改变结论/);
+  assert.match(strategy, /不得重复/);
 });
 
 test("extracts working memory and tells the assistant not to repeat known questions", () => {
@@ -31,6 +53,8 @@ test("extracts working memory and tells the assistant not to repeat known questi
   assert.equal(memory.knownFields.maxDrawdownPct, 10);
   assert.equal(memory.knownFields.positionPct, 3);
   assert.match(memory.instruction, /不要重复询问/);
+  assert.match(memory.instruction, /不得再次追问/);
+  assert.match(memory.instruction, /仅追问会改变结论/);
   assert.equal(memory.recentUserFacts.filter((item) => item.includes("最大回撤")).length, 1);
 });
 
@@ -99,4 +123,65 @@ test("guided research answer leads with a conclusion and exposes evidence and in
   assert.match(answer.text, /下一步/);
   assert.match(answer.text, /EMA20/);
   assert.doesNotMatch(answer.text, /保证收益|已经替你下单/);
+});
+
+test("guided strategy research asks only two missing inputs and never repeats known boundaries", () => {
+  const memory = buildSessionWorkingMemory([], "帮我做 BTC 1 小时趋势策略，最大回撤 10%，单次仓位 3%");
+  const answer = guidedAssistantReply("帮我做 BTC 1 小时趋势策略，最大回撤 10%，单次仓位 3%", {
+    generatedAt: "2026-08-18T08:00:00.000Z",
+    market: null,
+    portfolio: { openPositions: 0, positionSymbols: [], followedStrategies: [] },
+  }, memory);
+
+  assert.match(answer.text, /待确认问题/);
+  assert.match(answer.text, /止损/);
+  assert.match(answer.text, /止盈/);
+  assert.doesNotMatch(answer.text, /最大回撤.*待确认|单次仓位.*待确认/);
+  assert.equal((answer.text.match(/问题 \d/g) ?? []).length, 2);
+});
+
+test("guided strategy research never claims readiness without an entry trigger", () => {
+  const message = "BTC 1 小时策略，止损 2%，止盈 4%，最大回撤 10%，单次仓位 3%";
+  const missingEntry = guidedAssistantReply(message, {
+    generatedAt: "2026-08-18T08:00:00.000Z",
+    market: null,
+    portfolio: { openPositions: 0, positionSymbols: [], followedStrategies: [] },
+  }, buildSessionWorkingMemory([], message));
+
+  assert.match(missingEntry.text, /入场触发条件/);
+  assert.doesNotMatch(missingEntry.text, /关键边界已齐备/);
+
+  const completeMessage = `${message}，EMA20 上穿 EMA60 时入场`;
+  const complete = guidedAssistantReply(completeMessage, {
+    generatedAt: "2026-08-18T08:00:00.000Z",
+    market: null,
+    portfolio: { openPositions: 0, positionSymbols: [], followedStrategies: [] },
+  }, buildSessionWorkingMemory([], completeMessage));
+
+  assert.match(complete.text, /关键边界已齐备/);
+  assert.match(complete.text, /入场触发、周期、仓位、止损、止盈和最大回撤均已明确/);
+});
+
+test("guided decision analysis names the deterministic blocking stage", () => {
+  const answer = guidedAssistantReply("为什么这一轮没有开仓？", {
+    generatedAt: "2026-08-18T08:00:00.000Z",
+    market: null,
+    portfolio: { openPositions: 0, positionSymbols: [], followedStrategies: [] },
+    decisions: [{
+      decisionRoundId: "round-1",
+      strategyName: "趋势策略",
+      symbol: "BTCUSDT",
+      action: "hold",
+      riskApproved: false,
+      rejectionReasons: ["最大回撤超限"],
+      decidedAt: "2026-08-18T08:00:00.000Z",
+      stages: [
+        { role: "market_regime", conclusion: "震荡" },
+        { role: "risk_review", conclusion: "拒绝新开仓" },
+      ],
+    }],
+  });
+
+  assert.match(answer.text, /阻断阶段：risk_review，拒绝新开仓/);
+  assert.match(answer.text, /最大回撤超限/);
 });

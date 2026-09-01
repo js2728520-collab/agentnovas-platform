@@ -124,6 +124,151 @@ async function exerciseWorkRecordHistory(page: import("@playwright/test").Page) 
   await expectCriticalAccessibility(page);
 }
 
+async function exerciseTradingHallMeetingEvidence(page: import("@playwright/test").Page) {
+  const occurredAt = "2026-08-24T12:00:00.000Z";
+  const stages = [
+    ["market_analysis", "市场分析师", "行情与数据质量报告", "完整 K 线与数据质量已确认", { valid: true, candleCount: 168, marketState: "trend" }],
+    ["technical_analysis", "技术分析师", "技术信号报告", "DSL 指标与条件树已计算", { longEntry: true, dslExit: false, close: 64250 }],
+    ["strategy_proposal", "策略研究员", "策略方案", "候选策略方案：enter_long", { action: "enter_long", reason: "趋势延续" }],
+    ["adversarial_review", "反方审查员", "反方审查", "未发现阻断性运行异议", { objections: [] }],
+    ["risk_approval", "首席风控官", "确定性风险结论", "确定性风控允许该结论", { rejectionReasons: [] }],
+    ["final_decision", "AI 决策官", "最终决策", "AI 最终决策：允许进入模拟执行", { action: "enter_long", riskApproved: true }],
+    ["execution_receipt", "交易执行员", "模拟执行回执", "已生成影子/模拟订单意图", {
+      executionMode: "paper",
+      orderIntent: {
+        mode: "paper",
+        action: "enter_long",
+        side: "long",
+        executionTiming: "next_open",
+        requestedPrice: 64260,
+      },
+    }],
+  ];
+
+  await page.route("**/api/trading-hall", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      productBoundary: {
+        targetMarket: "spot_usdt",
+        symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+        leverageEnabled: false,
+        shortSellingEnabled: false,
+        realOrderRoutingEnabled: false,
+        localExchangeExecutionEnabled: false,
+        currentExecutionMode: "paper",
+        alignmentStatus: "simulation_only",
+      },
+      strategies: [],
+      agents: stages.map(([role, name, outputName, conclusion, evidence], index) => ({
+        key: role,
+        sequence: index + 1,
+        name,
+        question: `${name}问题`,
+        outputName,
+        status: "reported",
+        latestConclusion: conclusion,
+        latestUpdatedAt: occurredAt,
+        latestDecisionRoundId: "round:meeting-quality",
+        latestSharedDecisionRoundId: "shared:meeting-quality",
+        latestStrategyName: "AI 平衡型",
+        latestSymbol: "BTCUSDT",
+        latestDecisionStatus: "paper_filled",
+        latestCompleteness: "complete",
+        latestExplanationStatus: index === 0 ? "completed" : "not_required",
+        latestExplanation: index === 0 ? "市场状态解释已记录。" : null,
+        latestEvidence: evidence,
+        llmUsed: index === 0,
+      })),
+      decisionRounds: [{
+        decisionRoundId: "round:meeting-quality",
+        strategyCode: "ai_balanced",
+        strategyName: "AI 平衡型",
+        strategyVersion: "strategy-version-quality-1",
+        symbol: "BTCUSDT",
+        status: "paper_filled",
+        executionMode: "paper",
+        completeness: "complete",
+        traceId: "trace-quality-meeting",
+        updatedAt: occurredAt,
+        paperExecution: {
+          orderIntentCount: 1,
+          fillReceiptCount: 1,
+          latestIntentAt: occurredAt,
+          latestFillAt: occurredAt,
+        },
+        sharedDecisionRoundId: "shared:meeting-quality",
+        events: stages.map(([role, name, outputName, conclusion, evidence], index) => ({
+          sequence: index + 1,
+          role,
+          name,
+          outputName,
+          conclusion,
+          evidence,
+          llmUsed: index === 0,
+          explanationStatus: index === 0 ? "completed" : "not_required",
+          explanation: index === 0 ? "市场状态解释已记录。" : null,
+          createdAt: `2026-08-24T11:0${index}:00.000Z`,
+        })),
+      }],
+      legacyAuditRecords: 0,
+      generatedAt: occurredAt,
+    }),
+  }));
+
+  await page.route("**/api/trading-hall/paper/platform-demo-summary", async route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      customerImpact: false,
+      demoFailureAffectsPaper: false,
+      providers: [{
+        provider: "OKX",
+        environment: "OKX_DEMO",
+        status: "VERIFIED",
+        lastTestedAt: occurredAt,
+        cards: [
+          { strategyCode: "ai_conservative", status: "NOT_TESTED", lastTestedAt: null, receiptSummary: null },
+          { strategyCode: "ai_balanced", status: "FILLED", lastTestedAt: occurredAt, receiptSummary: { status: "FILLED", observedAt: occurredAt } },
+          { strategyCode: "ai_aggressive", status: "NOT_TESTED", lastTestedAt: null, receiptSummary: null },
+        ],
+      }, {
+        provider: "BINANCE",
+        environment: "BINANCE_SPOT_TESTNET",
+        status: "UNVERIFIED",
+        lastTestedAt: occurredAt,
+        cards: [
+          { strategyCode: "ai_conservative", status: "NOT_TESTED", lastTestedAt: null, receiptSummary: null },
+          { strategyCode: "ai_balanced", status: "RECONCILE_WAIT", lastTestedAt: occurredAt, receiptSummary: null },
+          { strategyCode: "ai_aggressive", status: "NOT_TESTED", lastTestedAt: null, receiptSummary: null },
+        ],
+      }, {
+        provider: "BYBIT",
+        environment: "BYBIT_DEMO",
+        status: "PAUSED",
+        lastTestedAt: occurredAt,
+        cards: [
+          { strategyCode: "ai_conservative", status: "PAUSED", lastTestedAt: occurredAt, receiptSummary: null },
+          { strategyCode: "ai_balanced", status: "PAUSED", lastTestedAt: occurredAt, receiptSummary: null },
+          { strategyCode: "ai_aggressive", status: "PAUSED", lastTestedAt: occurredAt, receiptSummary: null },
+        ],
+      }],
+    }),
+  }));
+
+  await exerciseResponsiveWidths(page, "/trading?tab=hall&view=meeting", "AI 决策会议室");
+  await expect(page.getByRole("heading", { level: 2, name: "本轮摘要" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "七阶段公开记录" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "第七阶段执行证据" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "独立 Demo 证据" })).toBeVisible();
+  await expect(page.getByText("这是该策略卡的公共决策轮，订阅同一策略卡的客户看到相同七阶段结论；客户私有数据只在 Paper 准入与成交侧生成。")).toBeVisible();
+  await expect(page.getByText("Paper 订单意图", { exact: true })).toBeVisible();
+  await expect(page.getByText("测试账户已成交", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("等待回执核对", { exact: true })).toBeVisible();
+  await expect(page.getByText("Paper 成交来自客户模拟组合；平台 Demo 只验证测试环境，不回滚也不改写客户 Paper 结果。")).toBeVisible();
+  await expectCriticalAccessibility(page);
+}
+
 async function exerciseMarketWithoutWatchlist(page: import("@playwright/test").Page) {
   const marketRequests: string[] = [];
   page.on("request", request => {
@@ -332,5 +477,6 @@ test("client commercial and paper workspaces are responsive, accessible and audi
     await expectAudienceNavigation(page, "client");
   }
   await exerciseWorkRecordHistory(page);
+  await exerciseTradingHallMeetingEvidence(page);
   await expectAudienceNavigation(page, "client");
 });

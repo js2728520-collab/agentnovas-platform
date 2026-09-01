@@ -166,6 +166,15 @@ export async function buildAssistantContext(userId: string, message: string): Pr
   ]);
   return {
     generatedAt: new Date().toISOString(),
+    evidencePriority: intent === "market_analysis"
+      ? "优先引用 market 的时间、周期、价格和技术指标；字段缺失时明确证据不足。"
+      : intent === "decision_analysis"
+        ? "优先引用 decisions 的阶段结论与拒绝理由；不得以模型判断补齐缺失阶段。"
+        : intent === "platform_info"
+          ? "优先引用 platform 的合同事实；不得使用平台快照外的数字或规则。"
+          : intent === "strategy_research"
+            ? "优先使用会话工作记忆；只识别会改变策略结论的缺失边界。"
+            : "优先引用与当前问题直接相关的服务端证据；缺少证据时明确说明。",
     market,
     // 平台事实是静态的，从合同常量派生，没有 I/O。
     ...(intentNeedsPlatformFacts(intent) ? { platform: buildPlatformFactSnapshot() } : {}),

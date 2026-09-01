@@ -1,5 +1,6 @@
 import type { ResolvedLlmConfig } from "@/lib/client-platform-llm";
 import {
+  assistantResponseContract,
   buildSessionWorkingMemory,
   classifyAssistantIntent,
   guidedAssistantReply,
@@ -79,10 +80,8 @@ export async function generateAssistantReply(options: {
 7. 策略只能成为待人工确认、保存和回测的 JSON DSL 草稿。
 
 回答合同：
-- 先给“结论”，再给“关键证据”，随后说明“失效条件”，最后给一个可执行的“下一步”。
-- 对具体市场问题，至少引用价格、周期、时间和一个技术指标；没有数据则直说不可用。
-- 把事实、推断和待确认条件分开，不用空泛套话，不承诺结果。
-- 已知字段不得重复询问；最多追问 2 个会实质改变结论的缺失条件。
+${assistantResponseContract(intent)}
+- 把事实、推断和待确认条件分开，不承诺结果。
 - 需要客户确认时增加“待确认问题”区块；每个问题下一行写“候选：推荐项（推荐） | 备选项 | 备选项”，每题给 2 至 4 个互斥选项。
 - 用户要求生成完整策略且关键条件已齐备时，必须增加“JSON DSL 草稿”区块，并在一个 json 代码块中只输出平台规范对象：schemaVersion 必须为 1；side 必须为 long_only；entry.all 为 1 至 4 条规则；exit.any 为 0 至 4 条规则，exit 还必须包含 stopLossPct、takeProfitPct；risk 必须包含 positionPct、maxDrawdownPct、dailyLossLimitPct、consecutiveLossLimit。规则仅允许 ema_cross(type,fastPeriod,slowPeriod,direction bullish/bearish)、rsi_threshold(type,period,operator lte/gte,value)、channel_breakout(type,period,direction above/below)、volume_ratio(type,period,operator lte/gte,value)。不要输出 operator、conditions、cross、enabled、capitalManagement 或额外字段。JSON 之外可以解释，但不得声称平台 Schema 未提供。
 - 平台事实类问题不需要“失效条件”，但要说明数字来自平台合同常量；快照未提供的项目直接说未提供。

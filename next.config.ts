@@ -35,11 +35,13 @@ const ROUTE_EXTENSIONS: Record<string, readonly string[]> = {
 const routeExtensions = appAudience
   ? ROUTE_EXTENSIONS[appAudience] ?? []
   : [...new Set(Object.values(ROUTE_EXTENSIONS).flat())];
+// 质量 E2E 通过正式域名映射回本机端口，Next 开发态需要明确允许其请求内部资源。
+const qualityDevOrigins = ["agentnovas.com", "zht.agentnovas.com", "xm.agentnovas.com"];
 
 const nextConfig: NextConfig = {
   output: "standalone",
   pageExtensions: ["ts", "tsx", ...routeExtensions],
-  allowedDevOrigins: ["127.0.0.1"],
+  allowedDevOrigins: [...qualityDevOrigins, "127.0.0.1"],
   poweredByHeader: false,
   // 开发指示器的宿主元素落在左上角，路由切换时应用外壳短暂卸载，它就暴露成一个
   // 来路不明的占位块。关掉不影响编译与运行时错误上报。
