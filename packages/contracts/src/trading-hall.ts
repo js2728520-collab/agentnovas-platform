@@ -158,6 +158,16 @@ export type TradingHallAgent = typeof tradingHallAgentCatalog[number] & {
   status: "reported" | "waiting" | "legacy_gap";
   latestConclusion: string | null;
   latestUpdatedAt: string | null;
+  latestDecisionRoundId: string | null;
+  latestSharedDecisionRoundId: string | null;
+  latestStrategyName: string | null;
+  latestSymbol: string | null;
+  latestDecisionStatus: string | null;
+  latestCompleteness: TradingHallRoundCompleteness | null;
+  latestExplanationStatus: string | null;
+  latestExplanation: string | null;
+  latestEvidence: Record<string, unknown> | null;
+  llmUsed: boolean | null;
 };
 
 export type TradingHallStrategy = OfficialTradingHallStrategy & {
@@ -195,6 +205,12 @@ export type TradingHallDecisionRound = {
   completeness: TradingHallRoundCompleteness;
   traceId: string | null;
   updatedAt: string | null;
+  paperExecution: {
+    orderIntentCount: number;
+    fillReceiptCount: number;
+    latestIntentAt: string | null;
+    latestFillAt: string | null;
+  };
   /**
    * 该轮七阶段结论的共享单元 id（ADR-0018）。
    *

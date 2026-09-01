@@ -6,6 +6,7 @@ import {
   tradingHallAgentCatalog,
   tradingHallAgentKeyForRuntimeRole,
   tradingHallRoundCompletenessForRuntimeRoles,
+  type TradingHallAgentKey,
   type OfficialTradingHallStrategy,
   type TradingHallDecisionEvent,
   type TradingHallExecutionMode,
@@ -26,6 +27,10 @@ type DeploymentRow = {
   decision_json: Record<string, unknown> | null;
   trace_id: string | null;
   open_positions: string;
+  paper_order_intent_count: number;
+  paper_fill_receipt_count: number;
+  latest_paper_intent_at: Date | null;
+  latest_paper_fill_at: Date | null;
 };
 
 type RuntimeEventRow = {
@@ -145,6 +150,27 @@ function strategyCode(value: string): OfficialTradingHallStrategy["code"] | null
     : null;
 }
 
+function iso(value: Date | null | undefined) {
+  return value ? value.toISOString() : null;
+}
+
+function decisionStatus(row: Pick<
+  DeploymentRow,
+  "decision_json" | "mode" | "paper_fill_receipt_count" | "paper_order_intent_count"
+>) {
+  if (row.decision_json?.riskApproved === false) return "risk_rejected";
+  if (row.paper_fill_receipt_count > 0) return "paper_filled";
+  if (row.paper_order_intent_count > 0) {
+    return row.mode === "paper" ? "approved_paper" : "approved_shadow";
+  }
+  const action = typeof row.decision_json?.action === "string"
+    ? row.decision_json.action.trim().toLowerCase()
+    : "";
+  if (!action || action === "monitoring") return "monitoring";
+  if (action === "hold") return "waiting";
+  return action;
+}
+
 export async function GET(request: Request) {
   try {
     const { user } = await requireAccessPermission(request, "client.paper.view");
@@ -161,6 +187,28 @@ export async function GET(request: Request) {
         COALESCE(round.candle_close_time, cycle.candle_close_time) AS candle_close_time,
         COALESCE(round.decision_json, cycle.decision_json) AS decision_json,
         COALESCE(round.trace_id, cycle.trace_id) AS trace_id,
+        COALESCE((
+          SELECT count(*)::int
+          FROM official_paper_order_intents AS intent
+          WHERE intent.runtime_cycle_id = cycle.id
+        ), 0) AS paper_order_intent_count,
+        COALESCE((
+          SELECT count(*)::int
+          FROM official_paper_fill_receipts AS receipt
+          JOIN official_paper_order_intents AS intent ON intent.id = receipt.intent_id
+          WHERE intent.runtime_cycle_id = cycle.id
+        ), 0) AS paper_fill_receipt_count,
+        (
+          SELECT max(intent.created_at)
+          FROM official_paper_order_intents AS intent
+          WHERE intent.runtime_cycle_id = cycle.id
+        ) AS latest_paper_intent_at,
+        (
+          SELECT max(receipt.filled_at)
+          FROM official_paper_fill_receipts AS receipt
+          JOIN official_paper_order_intents AS intent ON intent.id = receipt.intent_id
+          WHERE intent.runtime_cycle_id = cycle.id
+        ) AS latest_paper_fill_at,
         CASE WHEN deployment.execution_product = 'spot_usdt' THEN
           (SELECT count(*)::text FROM official_paper_positions AS position
            WHERE position.portfolio_id = deployment.paper_portfolio_id AND position.status = 'open')
@@ -205,7 +253,8 @@ export async function GET(request: Request) {
     for (const event of eventResult.rows) {
       if (event.decision_round_id) {
         const roles = eventsByRound.get(event.decision_round_id) ?? new Map<string, RuntimeEventRow>();
-        if (!roles.has(event.role)) roles.set(event.role, event);
+        const existing = roles.get(event.role);
+        if (!existing || existing.created_at < event.created_at) roles.set(event.role, event);
         eventsByRound.set(event.decision_round_id, roles);
       } else {
         eventsByCycle.set(event.cycle_id, [...(eventsByCycle.get(event.cycle_id) || []), event]);
@@ -213,30 +262,36 @@ export async function GET(request: Request) {
     }
 
     const decisionRounds = deployments.rows.flatMap((deployment) => {
+      const publicRoundId = deployment.cycle_id || deployment.decision_round_id;
       const code = strategyCode(deployment.strategy_code);
-      if (!deployment.cycle_id || !code) return [];
+      if (!publicRoundId || !code) return [];
       const runtimeEvents = deployment.decision_round_id
         ? [...(eventsByRound.get(deployment.decision_round_id)?.values() ?? [])].sort((left, right) => left.sequence - right.sequence)
-        : eventsByCycle.get(deployment.cycle_id) || [];
+        : (deployment.cycle_id ? eventsByCycle.get(deployment.cycle_id) : undefined) || [];
       const events = runtimeEvents.flatMap((event) => {
         const view = eventView(event);
         return view ? [view] : [];
       });
       const official = officialTradingHallStrategies.find((strategy) => strategy.code === code)!;
+      const status = decisionStatus(deployment);
       return [{
-        decisionRoundId: deployment.cycle_id,
+        decisionRoundId: publicRoundId,
         strategyCode: code,
         strategyName: official.name,
         strategyVersion: deployment.strategy_version_id,
         symbol: deployment.symbol,
-        status: String(deployment.decision_json?.riskApproved === false
-          ? "risk_rejected"
-          : deployment.decision_json?.action || "monitoring"),
+        status,
         executionMode: deployment.mode,
         completeness: tradingHallRoundCompletenessForRuntimeRoles(runtimeEvents.map((event) => event.role)),
         traceId: deployment.trace_id,
+        paperExecution: {
+          orderIntentCount: deployment.paper_order_intent_count,
+          fillReceiptCount: deployment.paper_fill_receipt_count,
+          latestIntentAt: iso(deployment.latest_paper_intent_at),
+          latestFillAt: iso(deployment.latest_paper_fill_at),
+        },
         sharedDecisionRoundId: deployment.decision_round_id,
-        updatedAt: (deployment.candle_close_time || deployment.updated_at)?.toISOString() || null,
+        updatedAt: iso(deployment.candle_close_time || deployment.updated_at),
         events,
       }];
     });
@@ -249,37 +304,55 @@ export async function GET(request: Request) {
         status: deployment?.status || "not_deployed",
         version: deployment?.strategy_version_id || null,
         executionMode: deployment?.mode || "unavailable",
-        dataAvailable: Boolean(deployment?.cycle_id),
+        dataAvailable: Boolean(deployment?.cycle_id || deployment?.decision_round_id),
         openPositions: Number(deployment?.open_positions || 0),
         lastUpdatedAt: deployment
-          ? (deployment.candle_close_time || deployment.updated_at).toISOString()
+          ? iso(deployment.candle_close_time || deployment.updated_at)
           : null,
-        latestDecisionRoundId: deployment?.cycle_id || null,
-        latestDecisionStatus: deployment?.decision_json
-          ? String(deployment.decision_json.riskApproved === false
-            ? "risk_rejected"
-            : deployment.decision_json.action || "monitoring")
+        latestDecisionRoundId: deployment
+          ? (deployment.cycle_id || deployment.decision_round_id)
           : null,
+        latestDecisionStatus: deployment ? decisionStatus(deployment) : null,
       };
     });
 
-    const latestEventByRole = new Map<string, RuntimeEventRow>();
-    for (const event of eventResult.rows) {
-      const role = tradingHallAgentKeyForRuntimeRole(event.role);
-      if (!role) continue;
-      const current = latestEventByRole.get(role);
-      if (!current || current.created_at < event.created_at) latestEventByRole.set(role, event);
+    const latestAgentByRole = new Map<TradingHallAgentKey, {
+      event: TradingHallDecisionEvent;
+      round: TradingHallPayload["decisionRounds"][number];
+    }>();
+    for (const round of decisionRounds) {
+      for (const event of round.events) {
+        if (event.role === "legacy_audit") continue;
+        const current = latestAgentByRole.get(event.role);
+        if (
+          !current
+          || current.event.createdAt < event.createdAt
+          || (current.event.createdAt === event.createdAt && current.event.sequence < event.sequence)
+        ) {
+          latestAgentByRole.set(event.role, { event, round });
+        }
+      }
     }
     const legacyAuditRecords = eventResult.rows.filter((event) => event.role === "audit").length;
     const agents = tradingHallAgentCatalog.map((agent) => {
-      const event = latestEventByRole.get(agent.key);
+      const latest = latestAgentByRole.get(agent.key);
       return {
         ...agent,
-        status: event ? "reported" as const : agent.key === "final_decision" && legacyAuditRecords
+        status: latest ? "reported" as const : agent.key === "final_decision" && legacyAuditRecords
           ? "legacy_gap" as const
           : "waiting" as const,
-        latestConclusion: event?.conclusion || null,
-        latestUpdatedAt: event?.created_at.toISOString() || null,
+        latestConclusion: latest?.event.conclusion || null,
+        latestUpdatedAt: latest?.event.createdAt || null,
+        latestDecisionRoundId: latest?.round.decisionRoundId || null,
+        latestSharedDecisionRoundId: latest?.round.sharedDecisionRoundId || null,
+        latestStrategyName: latest?.round.strategyName || null,
+        latestSymbol: latest?.round.symbol || null,
+        latestDecisionStatus: latest?.round.status || null,
+        latestCompleteness: latest?.round.completeness || null,
+        latestExplanationStatus: latest?.event.explanationStatus || null,
+        latestExplanation: latest?.event.explanation || null,
+        latestEvidence: latest?.event.evidence || null,
+        llmUsed: latest?.event.llmUsed ?? null,
       };
     });
     const currentExecutionMode = executionMode(deployments.rows);

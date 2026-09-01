@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  tradingHallDemoCardStatusLabel,
+  tradingHallDemoProviderStatusLabel,
   tradingHallEnvironmentLabel,
+  tradingHallExplanationStatusLabel,
+  tradingHallRoundStatusLabel,
   tradingHallStrategyPresentation,
 } from "../apps/client/ui/trading-hall-status.ts";
 
@@ -39,4 +43,52 @@ test("deployment state is independent from whether a decision cycle exists", () 
     tradingHallStrategyPresentation({ status: "paused", executionMode: "paper" }),
     { label: "已暂停", inactive: true },
   );
+});
+
+test("decision round labels describe public hall states without inventing live fills", () => {
+  const cases = [
+    ["monitoring", "监控中，未形成候选机会"],
+    ["awaiting_data", "等待完整数据"],
+    ["needs_revision", "反方要求修改"],
+    ["risk_rejected", "风控拒绝新开仓"],
+    ["waiting", "AI 决策官暂缓"],
+    ["approved_shadow", "已批准，仅影子记录"],
+    ["approved_paper", "已批准，等待 paper 执行"],
+    ["paper_filled", "Paper 模拟成交，不代表真实成交"],
+    ["demo_not_sent", "平台 Demo 未发送"],
+    ["demo_failed", "平台测试环境验证失败，不影响 paper"],
+    ["demo_filled", "平台测试账户回执，不代表客户真实成交"],
+    ["future_state", "待确认（future_state）"],
+  ];
+  for (const [status, label] of cases) {
+    assert.equal(tradingHallRoundStatusLabel(status), label, status);
+  }
+});
+
+test("explanation labels keep deterministic stages distinct from model summaries", () => {
+  const cases = [
+    ["not_required", "本阶段无需模型补充"],
+    ["pending", "模型解释排队中"],
+    ["running", "模型解释生成中"],
+    ["completed", "模型解释已记录"],
+    ["failed", "模型解释失败"],
+    ["timeout", "模型解释超时"],
+    ["future_state", "待确认（future_state）"],
+  ];
+  for (const [status, label] of cases) {
+    assert.equal(tradingHallExplanationStatusLabel(status), label, status);
+  }
+});
+
+test("demo provider and card labels stay bounded and customer-safe", () => {
+  assert.equal(tradingHallDemoProviderStatusLabel("NOT_CONFIGURED"), "未配置");
+  assert.equal(tradingHallDemoProviderStatusLabel("VERIFIED"), "已验证");
+  assert.equal(tradingHallDemoProviderStatusLabel("VERIFICATION_FAILED"), "验证失败");
+  assert.equal(tradingHallDemoProviderStatusLabel("future_state"), "待确认（future_state）");
+
+  assert.equal(tradingHallDemoCardStatusLabel("NOT_TESTED"), "未测试");
+  assert.equal(tradingHallDemoCardStatusLabel("RECONCILE_WAIT"), "等待回执核对");
+  assert.equal(tradingHallDemoCardStatusLabel("FILLED"), "测试账户已成交");
+  assert.equal(tradingHallDemoCardStatusLabel("FAILED"), "测试执行失败");
+  assert.equal(tradingHallDemoCardStatusLabel("future_state"), "待确认（future_state）");
 });

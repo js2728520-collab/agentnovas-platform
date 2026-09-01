@@ -12,61 +12,207 @@
  */
 
 import Image from "next/image";
+import Link from "next/link";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
-import styles from "./decision-hall.module.css";
-import { useEffect, useMemo, useState } from "react";
-
+import type {
+  ClientDemoSummary,
+} from "@/packages/contracts/src/commercial-beta";
 import {
   tradingHallAgentCatalog,
+  type TradingHallAgent,
+  type TradingHallDecisionEvent,
+  type TradingHallDecisionRound,
   type TradingHallPayload,
   type TradingHallStrategy,
 } from "@/packages/contracts/src/trading-hall";
 import { useAppLocale } from "@/packages/ui/src/app-locale-context";
-import { tradingHallEnvironmentLabel, tradingHallStrategyPresentation } from "./trading-hall-status";
 
-const waitingAgentTalks = [
-  ["市场分析师", "等待完整行情与候选机会"],
-  ["技术分析师", "等待已收盘 K 线"],
-  ["策略研究员", "等待候选策略方案"],
-  ["反方审查员", "等待反向证据"],
-  ["首席风控官", "等待确定性风险检查"],
-  ["AI 决策官", "等待完整决策链"],
-  ["交易执行员", "等待影子或模拟执行意图"],
-];
+import styles from "./decision-hall.module.css";
+import {
+  strategyWorkRecordCompletenessLabel,
+  strategyWorkRecordEvidenceRows,
+} from "./work-record-presentation";
+import {
+  tradingHallDemoCardStatusLabel,
+  tradingHallDemoProviderStatusLabel,
+  tradingHallDemoReceiptStatusLabel,
+  tradingHallEnvironmentLabel,
+  tradingHallExplanationStatusLabel,
+  tradingHallRoundStatusLabel,
+  tradingHallStrategyPresentation,
+} from "./trading-hall-status";
 
-function AgentDialoguePanel({ talks = [] }: { talks?: string[][] }) {
-  const { t } = useAppLocale();
-  const rows = talks.length ? talks : waitingAgentTalks;
+type PollingState<T> = {
+  data: T | null;
+  loading: boolean;
+  error: string;
+  retry: () => void;
+};
+
+type BadgeTone = "neutral" | "success" | "warning" | "danger";
+
+const hallAgentPositions = {
+  market_analysis: { x: 14, y: 35 },
+  technical_analysis: { x: 74, y: 35 },
+  strategy_proposal: { x: 13, y: 63 },
+  adversarial_review: { x: 75, y: 63 },
+  risk_approval: { x: 44, y: 26 },
+  execution_receipt: { x: 44, y: 74 },
+} as const;
+
+const hallAgents = tradingHallAgentCatalog.flatMap((agent) => {
+  if (agent.key === "final_decision") return [];
+  return [{
+    key: agent.key,
+    name: agent.name,
+    x: hallAgentPositions[agent.key].x,
+    y: hallAgentPositions[agent.key].y,
+  }];
+});
+
+const emptyAgentSnapshot: TradingHallAgent[] = tradingHallAgentCatalog.map((agent) => ({
+  ...agent,
+  status: "waiting",
+  latestConclusion: null,
+  latestUpdatedAt: null,
+  latestDecisionRoundId: null,
+  latestSharedDecisionRoundId: null,
+  latestStrategyName: null,
+  latestSymbol: null,
+  latestDecisionStatus: null,
+  latestCompleteness: null,
+  latestExplanationStatus: null,
+  latestExplanation: null,
+  latestEvidence: null,
+  llmUsed: null,
+}));
+
+function Badge({
+  tone = "neutral",
+  children,
+}: {
+  tone?: BadgeTone;
+  children: ReactNode;
+}) {
   return (
-    <section
-      className={styles.widget}
-      aria-label={t("Agent 工作记录")}
-    >
-      <div className={styles.widgetHead}>
-        <b>{t("Agent 工作记录")}</b>
-        <span>DECISION LOG</span>
-      </div>
-      {/* 可滚动区域必须能被键盘聚焦，否则只能用鼠标滚轮翻——用键盘的人根本读不到
-          下面的内容。tabIndex 0 + role/label 是 axe 的 scrollable-region-focusable
-          要求的最小形态。 */}
-      {/* jsx-a11y 不允许非交互元素带 tabIndex，而 axe 的 scrollable-region-focusable
-          要求可滚动区域必须能被键盘聚焦。两条规则在这里是冲突的，以实际行为为准：
-          没有 tabIndex，用键盘的人只能看到这个框的第一屏，下面的内容读不到。 */}
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
-      <div className={styles.dialogueViewport} tabIndex={0} role="region" aria-label={t("七角色决策对话记录")}>
-        <div className={styles.dialogueTrack}>
-          {rows.map((x, i) => (
-            <article key={`${x[0]}-${i}`}>
-              <b>{x[0] === "策略工作流" ? "AI Decision Officer" : t(x[0])}</b>
-              <p>{talks.length ? x[1] : t(x[1])}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
+    <span className={styles.badge} data-tone={tone}>
+      {children}
+    </span>
   );
 }
 
+function formatTimestamp(locale: string, value: string | null, emptyLabel: string) {
+  if (!value) return emptyLabel;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return emptyLabel;
+  return date.toLocaleString(locale, { hour12: false });
+}
+
+function compactSymbol(symbol: string | null) {
+  return symbol ? symbol.replace("USDT", "") : null;
+}
+
+function agentStatusTone(status: TradingHallAgent["status"]): BadgeTone {
+  if (status === "reported") return "success";
+  if (status === "legacy_gap") return "warning";
+  return "neutral";
+}
+
+function agentStatusLabel(status: TradingHallAgent["status"]) {
+  if (status === "reported") return "已提交报告";
+  if (status === "legacy_gap") return "旧周期缺少本阶段";
+  return "等待记录";
+}
+
+function completenessTone(value: TradingHallDecisionRound["completeness"]): BadgeTone {
+  if (value === "complete") return "success";
+  if (value === "partial") return "warning";
+  return "neutral";
+}
+
+function missingAgent(round: TradingHallDecisionRound) {
+  const reported = new Set(round.events.map((event) => event.role));
+  return tradingHallAgentCatalog.find((agent) => !reported.has(agent.key)) ?? null;
+}
+
+function evidencePreviewRows(evidence: Record<string, unknown> | null, limit = 3) {
+  return strategyWorkRecordEvidenceRows(evidence ?? {}).slice(0, limit);
+}
+
+function usePollingJsonData<T>(
+  url: string | null,
+  fallbackError: string,
+  intervalMs: number,
+): PollingState<T> {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [refreshVersion, setRefreshVersion] = useState(0);
+
+  useEffect(() => {
+    if (!url) return;
+
+    let active = true;
+    const load = async () => {
+      try {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) throw new Error(`${fallbackError} (${response.status})`);
+        const payload = await response.json() as T;
+        if (!active) return;
+        setData(payload);
+        setError("");
+      } catch (loadError) {
+        if (active) {
+          setError(loadError instanceof Error ? loadError.message : fallbackError);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void load();
+    const timer = window.setInterval(load, intervalMs);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [fallbackError, intervalMs, refreshVersion, url]);
+
+  return {
+    data: url ? data : null,
+    loading: url ? (loading || (!data && !error)) : false,
+    error: url ? error : "",
+    retry: () => {
+      setError("");
+      setLoading(true);
+      setRefreshVersion((version) => version + 1);
+    },
+  };
+}
+
+function useTradingHallData() {
+  const { t } = useAppLocale();
+  return usePollingJsonData<TradingHallPayload>(
+    "/api/trading-hall",
+    t("交易大厅数据读取失败"),
+    5_000,
+  );
+}
+
+function usePlatformDemoSummary(enabled: boolean) {
+  const { t } = useAppLocale();
+  return usePollingJsonData<ClientDemoSummary>(
+    enabled ? "/api/trading-hall/paper/platform-demo-summary" : null,
+    t("平台 Demo 摘要读取失败"),
+    15_000,
+  );
+}
 
 function StrategyMonitorTicker({
   strategies = [],
@@ -82,7 +228,9 @@ function StrategyMonitorTicker({
       name: `${t(strategy.name)}${strategy.version ? ` · ${strategy.version}` : ""}`,
       universe: strategy.symbols.map((symbol) => symbol.replace("USDT", "")).join(" / "),
       risk: `${t("总仓位")} ≤ ${strategy.risk.maxTotalAllocationPct}%`,
-      decision: strategy.latestDecisionStatus ? t(strategy.latestDecisionStatus) : t("尚无决策记录"),
+      decision: strategy.latestDecisionStatus
+        ? t(tradingHallRoundStatusLabel(strategy.latestDecisionStatus))
+        : t("尚无决策记录"),
       state: presentation.label.startsWith("未知状态（")
         ? `${t("未知状态")} (${strategy.status})`
         : t(presentation.label),
@@ -90,7 +238,11 @@ function StrategyMonitorTicker({
     };
   });
   return (
-    <div className={styles.monitorTrack} aria-label={t("三套 AI 策略服务端状态")}>
+    <section className={styles.widget} aria-label={t("三套 AI 策略服务端状态")}>
+      <div className={styles.widgetHead}>
+        <b>{t("三套 AI 策略服务端状态")}</b>
+        <span>SERVER STATE</span>
+      </div>
       <div className={styles.monitorTrack}>
         {rows.length === 0 && (
           <article className={styles.monitorEmpty}>
@@ -102,7 +254,7 @@ function StrategyMonitorTicker({
           </article>
         )}
         {rows.map((row) => (
-          <article key={row.name} aria-label={`${row.name}：${row.state}`}>
+          <article key={row.name} className={styles.monitorItem} aria-label={`${row.name}：${row.state}`}>
             <span className={styles.monitorDot} data-inactive={row.inactive || undefined} />
             <div>
               <small>{row.state}</small>
@@ -123,76 +275,83 @@ function StrategyMonitorTicker({
           </article>
         ))}
       </div>
-      <div className={styles.monitorPages}>
-        <i />
-        <i />
-        <i />
-      </div>
-    </div>
+    </section>
   );
 }
 
-function useTradingHallData() {
-  const { t } = useAppLocale();
-  const [data, setData] = useState<TradingHallPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [refreshVersion, setRefreshVersion] = useState(0);
+function AgentActivityPanel({ agents }: { agents: TradingHallAgent[] }) {
+  const { locale, t } = useAppLocale();
+  const rows = agents.length ? agents : emptyAgentSnapshot;
 
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      try {
-        const response = await fetch("/api/trading-hall", { cache: "no-store" });
-        if (!response.ok) throw new Error(`${t("交易大厅数据读取失败")} (${response.status})`);
-        const payload = await response.json() as TradingHallPayload;
-        if (!active) return;
-        setData(payload);
-        setError("");
-      } catch (loadError) {
-        if (active) setError(loadError instanceof Error ? loadError.message : t("交易大厅数据读取失败"));
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    void load();
-    const timer = window.setInterval(load, 5000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [refreshVersion, t]);
-
-  return {
-    data,
-    loading,
-    error,
-    retry: () => {
-      setLoading(true);
-      setRefreshVersion((version) => version + 1);
-    },
-  };
+  return (
+    <section className={styles.widget} aria-label={t("Agent 工作记录")}>
+      <div className={styles.widgetHead}>
+        <b>{t("Agent 工作记录")}</b>
+        <span>PUBLIC EVIDENCE</span>
+      </div>
+      {/* jsx-a11y 不允许非交互元素带 tabIndex，而这里需要让键盘用户滚动整块记录区域。 */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
+      <div className={styles.dialogueViewport} tabIndex={0} role="region" aria-label={t("七角色决策对话记录")}>
+        <div className={styles.agentSummaryList} role="list">
+          {rows.map((agent) => {
+            const evidenceRows = evidencePreviewRows(agent.latestEvidence, 3);
+            const latestRound = agent.latestStrategyName && compactSymbol(agent.latestSymbol)
+              ? `${t(agent.latestStrategyName)} · ${compactSymbol(agent.latestSymbol)}`
+              : null;
+            return (
+              <article className={styles.agentSummaryCard} role="listitem" key={agent.key}>
+                <div className={styles.agentSummaryHead}>
+                  <div>
+                    <small>{agent.sequence}. {t(agent.outputName)}</small>
+                    <b>{t(agent.name)}</b>
+                  </div>
+                  <Badge tone={agentStatusTone(agent.status)}>{t(agentStatusLabel(agent.status))}</Badge>
+                </div>
+                <p className={styles.agentQuestion}>{t(agent.question)}</p>
+                <p className={styles.agentConclusion}>
+                  {agent.latestConclusion || t("等待完整决策记录")}
+                </p>
+                <dl className={styles.evidenceMeta}>
+                  <div>
+                    <dt>{t("最近决策轮")}</dt>
+                    <dd>{latestRound || t("未记录")}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("决策状态")}</dt>
+                    <dd>{agent.latestDecisionStatus ? t(tradingHallRoundStatusLabel(agent.latestDecisionStatus)) : t("未记录")}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("完整性")}</dt>
+                    <dd>{agent.latestCompleteness ? t(strategyWorkRecordCompletenessLabel(agent.latestCompleteness)) : t("未记录")}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("记录时间")}</dt>
+                    <dd>{formatTimestamp(locale, agent.latestUpdatedAt, t("未记录"))}</dd>
+                  </div>
+                </dl>
+                {evidenceRows.length > 0 && (
+                  <dl className={styles.evidenceRows}>
+                    {evidenceRows.map((row) => (
+                      <div key={`${agent.key}-${row.label}`}>
+                        <dt>{t(row.label)}</dt>
+                        <dd>{t(row.value)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                <div className={styles.inlineMeta}>
+                  <span>{t("模型解释")}: {t(tradingHallExplanationStatusLabel(agent.latestExplanationStatus || "not_required"))}</span>
+                  <span>{agent.llmUsed ? t("含模型补充") : t("确定性阶段")}</span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
 }
 
-const hallAgentPositions = {
-  market_analysis: { x: 14, y: 35 },
-  technical_analysis: { x: 74, y: 35 },
-  strategy_proposal: { x: 13, y: 63 },
-  adversarial_review: { x: 75, y: 63 },
-  risk_approval: { x: 44, y: 26 },
-  execution_receipt: { x: 44, y: 74 },
-} as const;
-const agents = tradingHallAgentCatalog.flatMap((agent) => {
-  if (agent.key === "final_decision") return [];
-  return [{
-    key: agent.key,
-    n: agent.name,
-    x: hallAgentPositions[agent.key].x,
-    y: hallAgentPositions[agent.key].y,
-  }];
-});
-
-// className 参数随样式模块化一起移除：外观由 CSS Module 决定，调用方不再拼类名。
 function PageHead({
   title,
   sub,
@@ -200,7 +359,7 @@ function PageHead({
 }: {
   title: string;
   sub: string;
-  actions?: React.ReactNode;
+  actions?: ReactNode;
 }) {
   return (
     <div className={styles.pageHead}>
@@ -208,49 +367,210 @@ function PageHead({
         <h1>{title}</h1>
         <p>{sub}</p>
       </div>
-      <div>
+      <div className={styles.pageHeadActions}>
         {actions}
       </div>
     </div>
   );
 }
 
+function DecisionStageCard({
+  round,
+  agent,
+  event,
+}: {
+  round: TradingHallDecisionRound;
+  agent: typeof tradingHallAgentCatalog[number];
+  event: TradingHallDecisionEvent | undefined;
+}) {
+  const { locale, t } = useAppLocale();
+  const evidenceRows = strategyWorkRecordEvidenceRows(event?.evidence ?? {}).slice(0, 8);
+
+  return (
+    <article className={styles.stageCard}>
+      <div className={styles.stageHeader}>
+        <div>
+          <small>{agent.sequence}. {t(agent.outputName)}</small>
+          <h3>{t(agent.name)}</h3>
+        </div>
+        <Badge tone={event ? "success" : "warning"}>
+          {event ? t("已记录") : t("缺少记录")}
+        </Badge>
+      </div>
+      <p className={styles.stageQuestion}>{t(agent.question)}</p>
+      <p className={styles.stageConclusion}>
+        {event?.conclusion || t("本阶段没有公开记录；系统不会用静态结论补齐。")}
+      </p>
+      <dl className={styles.evidenceMeta}>
+        <div>
+          <dt>{t("决策轮")}</dt>
+          <dd>{round.decisionRoundId}</dd>
+        </div>
+        <div>
+          <dt>{t("记录时间")}</dt>
+          <dd>{event ? formatTimestamp(locale, event.createdAt, t("未记录")) : t("未记录")}</dd>
+        </div>
+        <div>
+          <dt>{t("模型解释")}</dt>
+          <dd>{event ? t(tradingHallExplanationStatusLabel(event.explanationStatus)) : t("未记录")}</dd>
+        </div>
+        <div>
+          <dt>{t("记录类型")}</dt>
+          <dd>{event?.llmUsed ? t("含模型补充") : t("确定性公开记录")}</dd>
+        </div>
+      </dl>
+      {evidenceRows.length > 0 && (
+        <dl className={styles.evidenceRows}>
+          {evidenceRows.map((row) => (
+            <div key={`${agent.key}-${row.label}`}>
+              <dt>{t(row.label)}</dt>
+              <dd>{t(row.value)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {event?.explanation && (
+        <div className={styles.explanationCard}>
+          <b>{t("模型解释摘要")}</b>
+          <p>{event.explanation}</p>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ExecutionEvidencePanel({
+  round,
+  demoSummary,
+  demoLoading,
+  demoError,
+  onRetry,
+}: {
+  round: TradingHallDecisionRound;
+  demoSummary: ClientDemoSummary | null;
+  demoLoading: boolean;
+  demoError: string;
+  onRetry: () => void;
+}) {
+  const { locale, t } = useAppLocale();
+  const providerRows = demoSummary?.providers.map((provider) => ({
+    ...provider,
+    card: provider.cards.find((card) => card.strategyCode === round.strategyCode) ?? null,
+  })) ?? [];
+
+  return (
+    <section className={styles.executionPanel}>
+      <header className={styles.sectionHeader}>
+        <div>
+          <small>STAGE 7</small>
+          <h2>{t("第七阶段执行证据")}</h2>
+        </div>
+        <Badge tone="neutral">{t("Paper 与 Demo 分离")}</Badge>
+      </header>
+      <dl className={styles.executionGrid}>
+        <div>
+          <dt>{t("Paper 订单意图")}</dt>
+          <dd>{round.paperExecution.orderIntentCount}</dd>
+        </div>
+        <div>
+          <dt>{t("Paper 成交回执")}</dt>
+          <dd>{round.paperExecution.fillReceiptCount}</dd>
+        </div>
+        <div>
+          <dt>{t("最近意图时间")}</dt>
+          <dd>{formatTimestamp(locale, round.paperExecution.latestIntentAt, t("未记录"))}</dd>
+        </div>
+        <div>
+          <dt>{t("最近回执时间")}</dt>
+          <dd>{formatTimestamp(locale, round.paperExecution.latestFillAt, t("未记录"))}</dd>
+        </div>
+      </dl>
+      <p className={styles.sectionNote}>
+        {t("Paper 成交来自客户模拟组合；平台 Demo 只验证测试环境，不回滚也不改写客户 Paper 结果。")}
+      </p>
+      <div className={styles.demoPanel}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <small>PLATFORM DEMO</small>
+            <h3>{t("独立 Demo 证据")}</h3>
+          </div>
+          {demoLoading && <span>{t("正在读取平台 Demo 摘要…")}</span>}
+        </div>
+        {demoError && (
+          <p className={styles.inlineError} role="alert">
+            {demoError}{" "}
+            <button type="button" className={styles.inlineButton} onClick={onRetry}>
+              {t("重试")}
+            </button>
+          </p>
+        )}
+        {!demoError && providerRows.length === 0 && !demoLoading && (
+          <p className={styles.sectionNote}>{t("当前没有平台 Demo 摘要；系统不会用演示连接状态补齐。")}</p>
+        )}
+        <div className={styles.demoGrid}>
+          {providerRows.map((provider) => (
+            <article key={provider.provider} className={styles.demoCard}>
+              <div className={styles.demoCardHead}>
+                <div>
+                  <small>{provider.environment}</small>
+                  <b>{provider.provider}</b>
+                </div>
+                <Badge tone={provider.status === "VERIFIED" ? "success" : provider.status === "VERIFICATION_FAILED" ? "danger" : "neutral"}>
+                  {t(tradingHallDemoProviderStatusLabel(provider.status))}
+                </Badge>
+              </div>
+              <dl className={styles.evidenceMeta}>
+                <div>
+                  <dt>{t("策略卡")}</dt>
+                  <dd>{provider.card ? t(tradingHallDemoCardStatusLabel(provider.card.status)) : t("未记录")}</dd>
+                </div>
+                <div>
+                  <dt>{t("最近测试")}</dt>
+                  <dd>{formatTimestamp(locale, provider.card?.lastTestedAt ?? provider.lastTestedAt, t("未记录"))}</dd>
+                </div>
+                <div>
+                  <dt>{t("测试回执")}</dt>
+                  <dd>{provider.card?.receiptSummary ? t(tradingHallDemoReceiptStatusLabel(provider.card.receiptSummary.status)) : t("未记录")}</dd>
+                </div>
+                <div>
+                  <dt>{t("回执时间")}</dt>
+                  <dd>{formatTimestamp(locale, provider.card?.receiptSummary?.observedAt ?? null, t("未记录"))}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function DecisionHall() {
   const { t } = useAppLocale();
   const { data, loading, error, retry } = useTradingHallData();
-  const liveTalks = useMemo(() => data?.decisionRounds.flatMap((round) =>
-    round.events.flatMap((event) => event.role === "legacy_audit" ? [] : [[
-      event.name,
-      `[${round.strategyName}] ${event.conclusion}${event.explanation ? `; ${t("模型解释")}: ${event.explanation}` : ""}`,
-    ]]),
-  ) || [], [data, t]);
-  const talkFor = (agentName: string) =>
-    data?.agents.find((agent) => agent.name === agentName)?.latestConclusion ||
-    t("等待完整决策记录");
-  const statusFor = (agentName: string) => {
-    const status = data?.agents.find((agent) => agent.name === agentName)?.status;
-    if (status === "reported") return t("已提交报告");
-    if (status === "legacy_gap") return t("旧周期缺少本阶段");
-    return t("等待记录");
-  };
-  const meetingTalk = data?.agents.find((agent) => agent.key === "final_decision")?.latestConclusion ||
-    t("等待前五阶段完成后形成最终决定");
+  const agents = data?.agents ?? emptyAgentSnapshot;
+  const agentLookup = useMemo(
+    () => new Map(agents.map((agent) => [agent.key, agent])),
+    [agents],
+  );
+  const finalAgent = agentLookup.get("final_decision");
   const executionModeLabel = t(tradingHallEnvironmentLabel(data?.productBoundary.currentExecutionMode));
+
   return (
     <>
       <PageHead
         title={t("交易大厅")}
         sub={t("七角色顺序决策链 · 三张官方策略卡 · 每 5 秒同步")}
-        actions={
+        actions={(
           <>
-            <button className={styles.soft} onClick={() => window.location.assign("/trading?tab=hall&view=meeting")}>
+            <Link className={styles.soft} href="/trading?tab=hall&view=meeting">
               {t("进入会议室")}
-            </button>
-            <button className={styles.soft} onClick={() => window.location.assign("/trading?tab=portfolios")}>
+            </Link>
+            <Link className={styles.soft} href="/trading?tab=portfolios">
               {t("风险与交易控制")}
-            </button>
+            </Link>
           </>
-        }
+        )}
       />
       <div className={styles.stats} aria-label={t("交易大厅产品边界")}>
         <span>
@@ -269,9 +589,22 @@ export default function DecisionHall() {
       </div>
       <div className={styles.loadState} aria-live="polite">
         {loading && !data && <span>{t("正在读取交易大厅真实记录…")}</span>}
-        {error && <span role="alert">{error} <button type="button" onClick={retry}>{t("重试")}</button></span>}
-        {!loading && !error && data && data.decisionRounds.length === 0 && <span>{t("当前没有决策轮记录；系统不会用演示数据填充。")}</span>}
-        {data && data.legacyAuditRecords > 0 && <span>{t("检测到")} {data.legacyAuditRecords} {t("条旧周期审计记录；旧记录缺少独立 AI 最终决策阶段，已明确标记。")}</span>}
+        {error && (
+          <span role="alert">
+            {error}{" "}
+            <button type="button" className={styles.inlineButton} onClick={retry}>
+              {t("重试")}
+            </button>
+          </span>
+        )}
+        {!loading && !error && data && data.decisionRounds.length === 0 && (
+          <span>{t("当前没有决策轮记录；系统不会用演示数据填充。")}</span>
+        )}
+        {data && data.legacyAuditRecords > 0 && (
+          <span>
+            {t("检测到")} {data.legacyAuditRecords} {t("条旧周期审计记录；旧记录缺少独立 AI 最终决策阶段，已明确标记。")}
+          </span>
+        )}
       </div>
       <p className={styles.illustrationNote} role="note">
         {t("角色位置仅为界面示意，不代表智能体正在运行；状态以服务端策略与决策记录为准。")}
@@ -286,65 +619,71 @@ export default function DecisionHall() {
               sizes="(max-width: 768px) 100vw, 860px"
               alt="AI quantitative trading operations center"
             />
-            {agents.map((a) => (
-              <button
-                key={a.n}
-                className={styles.hotspot}
-                style={{ left: `${a.x}%`, top: `${a.y}%` }}
-                // 原来点击角色会把该角色名带进 Agent 对话；新的 AI 助手不按角色分线，
-                // 所以只做跳转。角色的最新结论就在这张卡片上，不必再带过去。
-                onClick={() => window.location.assign("/assistant")}
-              >
-                <span className={styles.operator} aria-hidden="true" />
-                <i />
-                <b>{t(a.n)}</b>
-                <small>{statusFor(a.n)}</small>
-                <span className={styles.speech}>
-                  {talkFor(a.n)}
-                  <em>•••</em>
-                </span>
-              </button>
-            ))}
-            <button className={styles.meetingHotspot} onClick={() => window.location.assign("/trading?tab=hall&view=meeting")}>
+            {hallAgents.map((agent) => {
+              const snapshot = agentLookup.get(agent.key) ?? emptyAgentSnapshot.find((item) => item.key === agent.key)!;
+              return (
+                <Link
+                  key={agent.key}
+                  className={styles.hotspot}
+                  style={{ left: `${agent.x}%`, top: `${agent.y}%` }}
+                  href="/assistant"
+                >
+                  <span className={styles.operator} aria-hidden="true" />
+                  <i />
+                  <b>{t(agent.name)}</b>
+                  <small>{t(agentStatusLabel(snapshot.status))}</small>
+                  <span className={styles.speech}>
+                    {snapshot.latestConclusion || t("等待完整决策记录")}
+                    <em>•••</em>
+                  </span>
+                </Link>
+              );
+            })}
+            <Link className={styles.meetingHotspot} href="/trading?tab=hall&view=meeting">
               <span>{t("AI 决策官")}</span>
-              <small>{data?.agents.find((agent) => agent.key === "final_decision")?.status === "reported" ? t("已提交决策") : t("等待记录")}</small>
+              <small>{t(agentStatusLabel(finalAgent?.status || "waiting"))}</small>
               <b className={styles.meetingSpeech}>
-                {meetingTalk}
+                {finalAgent?.latestConclusion || t("等待前五阶段完成后形成最终决定")}
                 <em>•••</em>
               </b>
-            </button>
+            </Link>
           </div>
           <StrategyMonitorTicker strategies={data?.strategies || []} loading={loading} />
         </div>
         <aside className={styles.right}>
-          <AgentDialoguePanel talks={liveTalks} />
+          <AgentActivityPanel agents={agents} />
         </aside>
       </div>
     </>
   );
 }
 
-
 export function DecisionMeeting() {
   const { locale, t } = useAppLocale();
   const [auditOpen, setAuditOpen] = useState(false);
   const [selectedRoundId, setSelectedRoundId] = useState("");
   const { data, loading, error, retry } = useTradingHallData();
-  const selectedRound = data?.decisionRounds.find((round) => round.decisionRoundId === selectedRoundId) ||
-    data?.decisionRounds[0] || null;
-  const eventFor = (role: string) => selectedRound?.events.find((event) => event.role === role);
-  const finalDecision = eventFor("final_decision");
+  const selectedRound = data?.decisionRounds.find((round) => round.decisionRoundId === selectedRoundId)
+    || data?.decisionRounds[0]
+    || null;
+  const { data: demoSummary, loading: demoLoading, error: demoError, retry: retryDemo } = usePlatformDemoSummary(Boolean(selectedRound));
+  const finalDecision = selectedRound?.events.find((event) => event.role === "final_decision");
+  const gap = selectedRound ? missingAgent(selectedRound) : null;
+
   return (
     <>
       <PageHead
         title={t("AI 决策会议室")}
         sub={selectedRound
-          ? `${t(selectedRound.sharedDecisionRoundId ? "本卡公共决策轮" : "决策轮")} ${selectedRound.decisionRoundId} · ${selectedRound.strategyName} · ${selectedRound.symbol}`
+          ? `${t(selectedRound.sharedDecisionRoundId ? "本卡公共决策轮" : "决策轮")} ${selectedRound.decisionRoundId} · ${t(selectedRound.strategyName)} · ${compactSymbol(selectedRound.symbol)}`
           : t("读取真实决策轮；没有记录时不会显示演示会议")}
-        actions={
+        actions={(
           <>
-            <button className={styles.soft} onClick={() => window.location.assign("/trading?tab=hall")}>{t("返回交易决策")}</button>
+            <Link className={styles.soft} href="/trading?tab=hall">
+              {t("返回交易决策")}
+            </Link>
             <button
+              type="button"
               className={styles.soft}
               onClick={() => setAuditOpen((open) => !open)}
               aria-expanded={auditOpen}
@@ -353,11 +692,18 @@ export function DecisionMeeting() {
               {auditOpen ? t("收起审计记录") : t("查看审计记录")}
             </button>
           </>
-        }
+        )}
       />
       <div className={styles.meetingLoadState} aria-live="polite">
         {loading && !data && <span>{t("正在读取决策轮…")}</span>}
-        {error && <span role="alert">{error} <button type="button" onClick={retry}>{t("重试")}</button></span>}
+        {error && (
+          <span role="alert">
+            {error}{" "}
+            <button type="button" className={styles.inlineButton} onClick={retry}>
+              {t("重试")}
+            </button>
+          </span>
+        )}
         {!loading && !error && data?.decisionRounds.length === 0 && <span>{t("当前没有可展示的决策轮。")}</span>}
       </div>
       {data && data.decisionRounds.length > 1 && (
@@ -366,84 +712,132 @@ export function DecisionMeeting() {
           <select value={selectedRound?.decisionRoundId || ""} onChange={(event) => setSelectedRoundId(event.target.value)}>
             {data.decisionRounds.map((round) => (
               <option key={round.decisionRoundId} value={round.decisionRoundId}>
-                {round.strategyName} · {round.symbol} · {round.status}
+                {t(round.strategyName)} · {compactSymbol(round.symbol)} · {t(tradingHallRoundStatusLabel(round.status))}
               </option>
             ))}
           </select>
         </label>
       )}
       {selectedRound && (
-        <div className={styles.meetingGrid}>
-          <section className={styles.roundtable} aria-label={t("七智能体决策顺序")}>
-            <div className={styles.tableCore}>
-              <b>{selectedRound.symbol.replace("USDT", "")}</b>
-              <span>{selectedRound.status}</span>
+        <>
+          <section className={styles.summaryPanel}>
+            <header className={styles.sectionHeader}>
+              <div>
+                <small>ROUND SUMMARY</small>
+                <h2>{t("本轮摘要")}</h2>
+              </div>
+              <Badge tone={completenessTone(selectedRound.completeness)}>
+                {t(strategyWorkRecordCompletenessLabel(selectedRound.completeness))}
+              </Badge>
+            </header>
+            <dl className={styles.summaryGrid}>
+              <div>
+                <dt>{t("策略卡")}</dt>
+                <dd>{t(selectedRound.strategyName)}</dd>
+              </div>
+              <div>
+                <dt>{t("交易标的")}</dt>
+                <dd>{compactSymbol(selectedRound.symbol)}</dd>
+              </div>
+              <div>
+                <dt>{t("决策状态")}</dt>
+                <dd>{t(tradingHallRoundStatusLabel(selectedRound.status))}</dd>
+              </div>
+              <div>
+                <dt>{t("执行环境")}</dt>
+                <dd>{t(tradingHallEnvironmentLabel(selectedRound.executionMode))}</dd>
+              </div>
+              <div>
+                <dt>{t("共享决策轮")}</dt>
+                <dd>{selectedRound.sharedDecisionRoundId || t("非共享历史轮")}</dd>
+              </div>
+              <div>
+                <dt>{t("更新时间")}</dt>
+                <dd>{formatTimestamp(locale, selectedRound.updatedAt, t("未记录"))}</dd>
+              </div>
+            </dl>
+            {selectedRound.sharedDecisionRoundId && (
+              <p className={styles.sectionNote}>
+                {t("这是该策略卡的公共决策轮，订阅同一策略卡的客户看到相同七阶段结论；客户私有数据只在 Paper 准入与成交侧生成。")}
+              </p>
+            )}
+            {gap && (
+              <p className={styles.inlineWarning}>
+                {t("当前仍缺少")} {t(gap.name)} {t("阶段记录，因此本轮被明确标记为不完整。")}
+              </p>
+            )}
+          </section>
+          <section className={styles.stageSection}>
+            <header className={styles.sectionHeader}>
+              <div>
+                <small>SEVEN STAGES</small>
+                <h2>{t("七阶段公开记录")}</h2>
+              </div>
+              <Badge tone={selectedRound.events.length === 7 ? "success" : "warning"}>
+                {selectedRound.events.length}/7
+              </Badge>
+            </header>
+            <div className={styles.stageGrid}>
+              {tradingHallAgentCatalog.map((agent) => (
+                <DecisionStageCard
+                  key={agent.key}
+                  round={selectedRound}
+                  agent={agent}
+                  event={selectedRound.events.find((event) => event.role === agent.key)}
+                />
+              ))}
             </div>
-            {tradingHallAgentCatalog.map((agent, index) => {
-              const event = eventFor(agent.key);
-              return (
-                <div className={styles.seat} data-seat={index} key={agent.key}>
-                  <i>{agent.sequence}</i>
-                  <b>{t(agent.name)}</b>
-                  <small>{event ? t("已记录") : t("缺少记录")}</small>
-                </div>
-              );
-            })}
           </section>
-          <section className={styles.transcript}>
-            <h3>
-              {t("七阶段公开记录")} <span>{selectedRound.completeness.toUpperCase()}</span>
-            </h3>
-            {tradingHallAgentCatalog.map((agent) => {
-              const event = eventFor(agent.key);
-              return (
-                <div className={styles.line} key={agent.key}>
-                  <i className={event ? undefined : styles.warn} />
-                  <div>
-                    <b>
-                      {agent.sequence}. {t(agent.name)}{" "}
-                      {event && <time>{new Date(event.createdAt).toLocaleString(locale, { hour12: false })}</time>}
-                    </b>
-                    <p>{event?.conclusion || t("本阶段没有公开记录；系统不会用静态结论补齐。")}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-        </div>
+          <ExecutionEvidencePanel
+            round={selectedRound}
+            demoSummary={demoSummary}
+            demoLoading={demoLoading}
+            demoError={demoError}
+            onRetry={retryDemo}
+          />
+        </>
       )}
       {auditOpen && selectedRound && (
         <section className={styles.auditPanel}>
-          <header>
+          <header className={styles.sectionHeader}>
             <div>
               <small>AUDIT TRAIL</small>
-              <h3>{t("会议审计详情")}</h3>
+              <h2>{t("会议审计详情")}</h2>
             </div>
             <span>{t("已记录")} {selectedRound.events.length} {t("项")}</span>
           </header>
           <div className={styles.auditGrid}>
             <div>
-              <b>{t("会议时间")}</b>
-              <span>{selectedRound.updatedAt ? new Date(selectedRound.updatedAt).toLocaleString(locale, { hour12: false }) : t("未记录")}</span>
+              <dt>{t("公共决策轮")}</dt>
+              <dd>{selectedRound.sharedDecisionRoundId || t("非共享历史轮")}</dd>
             </div>
             <div>
-              <b>{t("记录完整性")}</b>
-              <span>{selectedRound.completeness}</span>
+              <dt>{t("公共 traceId")}</dt>
+              <dd>{selectedRound.traceId || t("未记录")}</dd>
             </div>
             <div>
-              <b>{t("参与 Agent")}</b>
-              <span>{selectedRound.events.filter((event) => event.role !== "legacy_audit").length} / 7 {t("个阶段")}</span>
+              <dt>{t("记录完整性")}</dt>
+              <dd>{t(strategyWorkRecordCompletenessLabel(selectedRound.completeness))}</dd>
             </div>
             <div>
-              <b>{t("执行环境")}</b>
-              <span>{selectedRound.executionMode} · {t("真实订单关闭")}</span>
+              <dt>{t("真实订单")}</dt>
+              <dd>{t("关闭")}</dd>
             </div>
           </div>
-          <ol>
+          <ol className={styles.auditList}>
             {selectedRound.events.map((event) => (
               <li key={`${event.sequence}-${event.role}`}>
-                <b>{event.sequence}. {event.outputName}</b>
-                <span>{event.conclusion}</span>
+                <div className={styles.auditItemHead}>
+                  <b>{event.sequence}. {t(event.outputName)}</b>
+                  <Badge tone={event.llmUsed ? "neutral" : "success"}>
+                    {event.llmUsed ? t("含模型补充") : t("确定性记录")}
+                  </Badge>
+                </div>
+                <p>{event.conclusion}</p>
+                <div className={styles.inlineMeta}>
+                  <span>{formatTimestamp(locale, event.createdAt, t("未记录"))}</span>
+                  <span>{t(tradingHallExplanationStatusLabel(event.explanationStatus))}</span>
+                </div>
               </li>
             ))}
           </ol>
@@ -455,18 +849,18 @@ export function DecisionMeeting() {
             <small>{t("最终决策")}</small>
             <h2>{finalDecision?.conclusion || t("该旧周期缺少独立 AI 最终决策记录")}</h2>
           </div>
-          <dl>
+          <dl className={styles.summaryGrid}>
             <div>
               <dt>{t("决策状态")}</dt>
-              <dd>{selectedRound.status}</dd>
+              <dd>{t(tradingHallRoundStatusLabel(selectedRound.status))}</dd>
             </div>
             <div>
               <dt>{t("阶段完整性")}</dt>
-              <dd>{selectedRound.completeness}</dd>
+              <dd>{t(strategyWorkRecordCompletenessLabel(selectedRound.completeness))}</dd>
             </div>
             <div>
               <dt>{t("执行环境")}</dt>
-              <dd>{selectedRound.executionMode}</dd>
+              <dd>{t(tradingHallEnvironmentLabel(selectedRound.executionMode))}</dd>
             </div>
             <div>
               <dt>{t("真实订单")}</dt>
