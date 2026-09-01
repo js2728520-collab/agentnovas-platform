@@ -15,6 +15,7 @@ test("package scripts describe separate logic, app-build and runtime-smoke gates
   ]);
   assert.match(packageJson.scripts.pretest, /build:packages/);
   assert.match(packageJson.scripts.test, /test:all/);
+  assert.match(packageJson.scripts["test:all"], /--test-concurrency=2/);
   assert.match(packageJson.scripts["test:apps"], /build:packages/);
   assert.match(packageJson.scripts["test:apps"], /run-app-builds/);
   assert.match(appBuilds, /\["client", "operations", "maintenance"\]/);
