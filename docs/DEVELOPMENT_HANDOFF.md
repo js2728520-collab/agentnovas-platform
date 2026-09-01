@@ -4235,3 +4235,14 @@ lockfile、包 exports 与 dist 均正确，故未修改包接口、业务代码
 七阶段公开记录、Paper/Demo 边界、响应式布局和 Axe 严重级规则。
 
 本轮未修改生产、测试站、数据库、外部模型、支付、邮件或真实交易开关。
+
+## 132. 2026-09-01 AI 助手回答质量优化
+
+从 `feature/seven-agent-refinement` 的 `be5ccae` 切出本地分支
+`feature/ai-assistant-reply-quality`，仅优化 Client AI 助手的回答质量，不改 AI control plane、Binding Policy、Gateway、Secret Broker、数据库 schema、权限、SSE、取消/重试或 Credits 预留与结算。
+
+- `lib/ai-assistant.ts` 复用统一回答合同，要求模型对非平台事实问题按“结论、关键证据、失效条件、下一步”组织回答，禁止无证据套话、重复免责声明和不落地建议；平台问题继续豁免“失效条件”，且只可引用平台事实快照。
+- `lib/ai-chat-protocol.ts` 收紧意图分类，优先识别策略卡合同问题、K 线/均线行情问题和“为什么这一轮没有开仓”类决策问题；会话记忆明确不得重复追问已知字段。规则回退在策略边界不足时只提出最多两个会改变结论的问题，并在决策回复中标示实际放行或阻断阶段。
+- `lib/ai-context.ts` 在不扩展数据来源的前提下加入证据优先级提示，令行情、决策、平台和策略研究分别优先引用对应的服务端快照。
+
+验证已完成：`node --test tests/ai-*.test.mjs` 为 104/104 通过；`npx tsc --noEmit --incremental false`、`npm run lint`、`npm run build` 与 `git diff --check` 均通过。生产构建没有调用外部模型、修改控制面配置或启用真实交易。

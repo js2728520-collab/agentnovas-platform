@@ -2,6 +2,8 @@ import type { PlatformFactSnapshot } from "../packages/contracts/src/platform-fa
 
 export type AssistantContext = {
   generatedAt: string;
+  /** 告知模型当前回答应优先引用哪一类服务端证据，不新增任何外部数据。 */
+  evidencePriority?: string;
   market: null | {
     symbol: string;
     price: number;
@@ -70,6 +72,7 @@ export type SessionWorkingMemory = {
     positionPct?: number;
     stopLossPct?: number;
     takeProfitPct?: number;
+    entrySignal?: "ema_cross" | "rsi_threshold" | "channel_breakout" | "volume_ratio";
   };
   recentUserFacts: string[];
   instruction: string;
@@ -100,17 +103,37 @@ export function classifyAssistantIntent(message: string): AssistantIntent {
   // 「会员多少钱」含「员」不含策略词但含「多少钱」；若排在 strategy_research 之后，
   // 「策略卡收费吗」会因为含「策略」被判成策略研究。
   // 「这一轮为什么没开仓」含「仓」，排在 portfolio_risk 之后会被判成持仓风险。
-  if (/会员|套餐|月卡|季卡|年卡|终身|价格|多少钱|收费|费用|费率|分成|积分|充值|提现|托管|平台介绍|网站|你们是|这个平台|怎么收/.test(message)) {
+  if (/会员|套餐|月卡|季卡|年卡|终身|价格|多少钱|收费|费用|费率|分成|积分|充值|提现|托管|平台介绍|网站|你们是|这个平台|怎么收|策略卡.{0,8}(?:参数|规则|风控|收费|价格|费率|权益)|(?:参数|规则|风控|收费|价格|费率|权益).{0,8}策略卡/.test(message)) {
     return "platform_info";
   }
-  if (/决策轮|决策链|七智能体|智能体|风控拒绝|为什么没开|为什么不开|为什么拒绝|决策记录|审计记录|大厅/.test(message)) {
+  if (/决策轮|决策链|七智能体|智能体|风控拒绝|为什么.{0,8}(?:没|没有|未).{0,3}开仓?|为什么不开|为什么拒绝|决策记录|审计记录|大厅/.test(message)) {
     return "decision_analysis";
   }
   if (/回测|收益曲线|夏普|胜率|盈亏比|过拟合/.test(message)) return "backtest_help";
+  // 明确的创作/参数词优先进入策略研究；单独出现「策略」不能抢走同一句里的
+  // 持仓风险或行情证据问题，例如「这个策略的持仓风险如何」。
+  if (/生成|创建|编写|设计|制定|(?:做|写|优化).{0,20}策略|策略研究|策略草稿|入场|出场|止损|止盈/.test(message)) return "strategy_research";
   if (/持仓|仓位|账户|组合|敞口|回撤|亏损/.test(message)) return "portfolio_risk";
-  if (/生成|创建|编写|策略|入场|出场|止损|止盈/.test(message)) return "strategy_research";
-  if (/行情|走势|趋势|价格|支撑|阻力|技术面|RSI|EMA|ATR|BTC|ETH|SOL/i.test(message)) return "market_analysis";
+  if (/行情|走势|趋势|价格|支撑|阻力|技术面|K[线線]|均线|波动|RSI|EMA|ATR|BTC|ETH|SOL/i.test(message)) return "market_analysis";
+  if (/策略/.test(message)) return "strategy_research";
   return "general";
+}
+
+/** Provider 与确定性回退共用的回答标准，避免两条路径逐渐走样。 */
+export function assistantResponseContract(intent: AssistantIntent) {
+  const common = intent === "platform_info"
+    ? "强制格式：按“结论、关键事实、下一步”顺序输出。结论必须可被平台事实快照支持；下一步必须是由当前事实触发的一项具体操作。禁止无证据的套话、重复风险免责声明、泛化建议，或只说“关注后续”“谨慎操作”。"
+    : "强制格式：按“结论、关键证据、失效条件、下一步”顺序输出。结论必须可被后文证据支持；下一步必须是由当前证据触发的一项具体操作。禁止无证据的套话、重复风险免责声明、泛化建议，或只说“关注后续”“谨慎操作”。";
+  const intentRule: Record<AssistantIntent, string> = {
+    market_analysis: "行情分析：必须引用时间、周期、价格和至少一个技术指标；任一关键字段不可用时明确写“证据不足”，不得用猜测补齐。",
+    decision_analysis: "决策分析：必须指出七阶段中哪个阶段给出放行或阻断结论，并仅引用该决策轮摘要；阶段缺失时明确说明该轮不完整。",
+    platform_info: "平台信息：只引用平台事实快照中的合同事实；快照未提供的项目明确写“未提供”，不得推测或换算。",
+    strategy_research: "策略研究：已知字段不得重复询问；只可追问会改变结论的缺失条件，最多 2 个。关键条件不足时先给“待确认问题”，不得输出空洞草稿。",
+    portfolio_risk: "组合风险：引用账户摘要中已有的仓位或跟随信息；缺少净值、成本或余额时明确这些证据不足。",
+    backtest_help: "回测说明：基于用户提供的收益、回撤、样本、成本和样本外证据逐项判断；缺项时明确不能得出有效性结论。",
+    general: "一般问题：没有可验证上下文时明确证据不足，并要求用户提供能决定回答方向的最少信息。",
+  };
+  return `${common}\n${intentRule[intent]}`;
 }
 
 function readPercentage(text: string, label: RegExp) {
@@ -143,19 +166,44 @@ export function buildSessionWorkingMemory(
     positionPct: readPercentage(text, /(?:单次)?仓位/),
     stopLossPct: readPercentage(text, /止损/),
     takeProfitPct: readPercentage(text, /止盈/),
+    entrySignal: /(?:EMA|均线).{0,16}(?:上穿|下穿|金叉|死叉|交叉)|(?:上穿|下穿|金叉|死叉|交叉).{0,16}(?:EMA|均线)/i.test(text)
+      ? "ema_cross"
+      : /RSI/i.test(text)
+        ? "rsi_threshold"
+        : /(?:通道|区间|高点|低点).{0,12}突破|突破.{0,12}(?:通道|区间|高点|低点)/.test(text)
+          ? "channel_breakout"
+          : /成交量|放量|量能/.test(text)
+            ? "volume_ratio"
+            : undefined,
   };
   const knownNames = Object.entries(knownFields).filter(([, value]) => value !== undefined).map(([name]) => name);
   return {
     knownFields,
     recentUserFacts,
     instruction: knownNames.length
-      ? `已知字段：${knownNames.join("、")}。不要重复询问已知字段；最多只追问 2 个会实质改变结论的缺失条件。`
-      : "当前没有可确认的策略参数；最多只追问 2 个会实质改变结论的条件。",
+      ? `已知字段：${knownNames.join("、")}。不要重复询问；不得再次追问这些字段；仅追问会改变结论的缺失条件，最多 2 个。`
+      : "当前没有可确认的策略参数；仅追问会改变结论的缺失条件，最多 2 个。",
   };
 }
 
 function valueOrUnknown(value: number | undefined, suffix = "") {
   return Number.isFinite(value) ? `${value}${suffix}` : "不可用";
+}
+
+function strategyConfirmationQuestions(known: SessionWorkingMemory["knownFields"]) {
+  const candidates = [
+    ["stopLossPct", "止损比例", "候选：2%（推荐） | 1% | 3%"],
+    ["takeProfitPct", "止盈比例", "候选：4%（推荐） | 3% | 6%"],
+    ["maxDrawdownPct", "最大回撤上限", "候选：10%（推荐） | 7% | 15%"],
+    ["positionPct", "单次仓位比例", "候选：3%（推荐） | 2% | 5%"],
+    ["symbol", "交易对", "候选：BTCUSDT（推荐） | ETHUSDT | SOLUSDT"],
+    ["timeframe", "K 线周期", "候选：1h（推荐） | 4h | 1d"],
+    ["entrySignal", "入场触发条件", "候选：EMA20 上穿 EMA60（推荐） | RSI14 低于 30 | 突破 20 周期高点"],
+  ] as const;
+  return candidates
+    .filter(([field]) => known[field] === undefined)
+    .slice(0, 2)
+    .map(([, label, options], index) => `问题 ${index + 1}：${label}？\n${options}`);
 }
 
 export function guidedAssistantReply(
@@ -187,9 +235,10 @@ export function guidedAssistantReply(
       };
     }
     const latest = rounds[0];
+    const gateStage = latest.stages.find((stage) => /risk|风控/i.test(stage.role)) ?? latest.stages.at(-1);
     const why = latest.riskApproved
-      ? "确定性风控允许了该结论。"
-      : `确定性风控拒绝了新开仓，理由：${latest.rejectionReasons.join("；") || "未记录"}。`;
+      ? `放行阶段：${gateStage ? `${gateStage.role}，${gateStage.conclusion}` : "未记录，无法确认具体放行阶段"}。`
+      : `阻断阶段：${gateStage ? `${gateStage.role}，${gateStage.conclusion}` : "未记录"}；理由：${latest.rejectionReasons.join("；") || "未记录"}。`;
     return {
       text: `结论：最近一轮是 ${latest.strategyName} 在 ${latest.symbol} 上的决策，动作为 ${latest.action}。${why}\n\n关键证据：决策轮 ${latest.decisionRoundId}，时间 ${latest.decidedAt || "未记录"}；七阶段结论共 ${latest.stages.length} 条。\n\n失效条件：这是快照，行情与风控状态随时可能变化。\n\n下一步：到交易大厅打开该决策轮可以看到每一阶段的完整结论与审计记录。`,
       mode: "guided_rules",
@@ -199,8 +248,11 @@ export function guidedAssistantReply(
   if (intent === "strategy_research") {
     const known = memory?.knownFields || buildSessionWorkingMemory([], message).knownFields;
     const knownSummary = [known.symbol, known.timeframe].filter(Boolean).join(" / ");
+    const questions = strategyConfirmationQuestions(known);
     return {
-      text: `结论：可以把${knownSummary ? ` ${knownSummary} 的` : "你的"}想法整理成平台可校验的 JSON 策略草稿。\n\n关键证据与失效条件：策略必须明确入场、退出、仓位、止损止盈和最大回撤；缺少这些边界时，回测结果不具备决策意义。\n\n下一步：补充尚未说明的关键边界，然后进入策略广场生成、保存并回测。草稿不会自动下单。`,
+      text: questions.length
+        ? `结论：${knownSummary ? `${knownSummary} 的` : "当前"}策略条件尚不足以生成可验证草稿。\n\n关键证据：已知 ${Object.entries(known).filter(([, value]) => value !== undefined).map(([field]) => field).join("、") || "无"}；缺少的关键边界会直接改变回测风险与退出逻辑。\n\n失效条件：未确认止损、止盈等边界前，任何策略草稿都不具备决策意义。\n\n待确认问题：\n${questions.join("\n\n")}\n\n下一步：确认以上最多两个缺失边界后，再生成并保存 JSON DSL 草稿；不会自动下单。`
+        : `结论：${knownSummary ? `${knownSummary} 的` : "该"}策略关键边界已齐备，可以生成平台可校验的 JSON DSL 草稿。\n\n关键证据：入场触发、周期、仓位、止损、止盈和最大回撤均已明确。\n\n失效条件：若市场周期或风险边界变化，当前草稿需重新回测。\n\n下一步：进入策略广场生成、保存并回测该草稿；不会自动下单。`,
       mode: "guided_rules",
       suggestedAction: "strategy",
     };
@@ -235,7 +287,7 @@ export function guidedAssistantReply(
       ? context.market.ema20 >= context.market.ema60 ? "短周期结构偏强" : "短周期结构偏弱"
       : "方向证据不足";
     return {
-      text: `结论：${context.market.symbol} ${structure}，但需要价格突破并站稳关键区间后再确认。\n\n关键证据：现价 ${context.market.price}，24 小时变化 ${direction}${context.market.change24hPct.toFixed(2)}%；${technicalEvidence}；参考支撑 ${valueOrUnknown(context.market.support ?? context.market.low24h)}，阻力 ${valueOrUnknown(context.market.resistance ?? context.market.high24h)}。\n\n失效条件：跌破参考支撑，或行情时间 ${context.market.latestCandleAt || context.generatedAt} 之后结构已明显变化。数据源：${context.market.source}。\n\n下一步：先确定观察周期、入场触发和最大可承受回撤，再生成可回测策略；不会自动下单。`,
+      text: `结论：${context.market.symbol} ${structure}，但需要价格突破并站稳关键区间后再确认。\n\n关键证据：时间 ${context.market.latestCandleAt || context.generatedAt}；周期 ${context.market.timeframe || "未提供（证据不足）"}；现价 ${context.market.price}，24 小时变化 ${direction}${context.market.change24hPct.toFixed(2)}%；${technicalEvidence}；参考支撑 ${valueOrUnknown(context.market.support ?? context.market.low24h)}，阻力 ${valueOrUnknown(context.market.resistance ?? context.market.high24h)}。\n\n失效条件：跌破参考支撑，或上述行情时间之后结构已明显变化。数据源：${context.market.source}。\n\n下一步：先确定观察周期、入场触发和最大可承受回撤，再生成可回测策略；不会自动下单。`,
       mode: "guided_rules",
     };
   }
