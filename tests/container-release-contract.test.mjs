@@ -141,6 +141,31 @@ test("production compose keeps PostgreSQL private and mounts runtime env as secr
   assert.doesNotMatch(compose, /payment-worker|worker:payment|strategy-research-worker/);
 });
 
+test("preview deployment inputs are versioned and isolated from production", async () => {
+  const [compose, caddy] = await Promise.all([
+    read("deploy/container/compose.preview.yml"),
+    read("deploy/container/Caddyfile.preview-snippet"),
+  ]);
+
+  assert.match(compose, /^name: agentnovas-riverton-preview$/m);
+  for (const [service, host] of [
+    ["client", "test.agentnovas.com"],
+    ["operations", "ops-test.agentnovas.com"],
+    ["maintenance", "main-test.agentnovas.com"],
+  ]) {
+    const serviceBlock = compose.match(new RegExp(`^  ${service}:([\\s\\S]*?)(?=^  [a-z]|^volumes:)`, "m"))?.[1] ?? "";
+    const escapedHost = host.replaceAll(".", "\\.");
+    assert.match(serviceBlock, new RegExp(`RIVERTON_APP_HOST: ${escapedHost}`), service);
+    assert.match(caddy, new RegExp(`^${escapedHost} \\{`, "m"), host);
+    assert.match(caddy, new RegExp(`health_headers \\{[\\s\\S]*?Host ${escapedHost}`, "m"), host);
+  }
+  for (const resource of ["postgres-data", "backplane", "edge", "egress"]) {
+    assert.match(compose, new RegExp(`agentnovas-riverton-preview-${resource}`), resource);
+  }
+  assert.equal((caddy.match(/import agentnovas_security/g) ?? []).length, 3);
+  assert.doesNotMatch(compose + caddy, /(?:PASSWORD|SECRET|API_KEY)\s*[:=]/i);
+});
+
 test("version tags publish immutable audience images through the release workflow", async () => {
   const workflow = await read(".github/workflows/container-release.yml");
   assert.match(workflow, /tags:\s*\[?\s*["']v\[0-9\]/);

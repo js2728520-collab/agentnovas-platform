@@ -1,0 +1,44 @@
+test.agentnovas.com {
+	import agentnovas_security
+
+	reverse_proxy agentnovas-riverton-preview-client-1:3000 {
+		health_uri /api/health/ready
+		health_interval 30s
+		health_timeout 5s
+		health_status 200
+		health_headers {
+			Host test.agentnovas.com
+		}
+		header_up X-Forwarded-For {client_ip}
+	}
+}
+
+ops-test.agentnovas.com {
+	import agentnovas_security
+
+	reverse_proxy agentnovas-riverton-preview-operations-1:3000 {
+		health_uri /api/health/ready
+		health_interval 30s
+		health_timeout 5s
+		health_status 200
+		health_headers {
+			Host ops-test.agentnovas.com
+		}
+		header_up X-Forwarded-For {client_ip}
+	}
+}
+
+main-test.agentnovas.com {
+	import agentnovas_security
+
+	reverse_proxy agentnovas-riverton-preview-maintenance-1:3000 {
+		health_uri /api/health/ready
+		health_interval 30s
+		health_timeout 5s
+		health_status 200
+		health_headers {
+			Host main-test.agentnovas.com
+		}
+		header_up X-Forwarded-For {client_ip}
+	}
+}
