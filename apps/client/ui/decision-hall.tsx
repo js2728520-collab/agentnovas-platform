@@ -209,7 +209,7 @@ function usePlatformDemoSummary(enabled: boolean) {
   const { t } = useAppLocale();
   return usePollingJsonData<ClientDemoSummary>(
     enabled ? "/api/trading-hall/paper/platform-demo-summary" : null,
-    t("平台 Demo 摘要读取失败"),
+    t("读取失败"),
     15_000,
   );
 }
@@ -313,7 +313,7 @@ function AgentActivityPanel({ agents }: { agents: TradingHallAgent[] }) {
                 </p>
                 <dl className={styles.evidenceMeta}>
                   <div>
-                    <dt>{t("最近决策轮")}</dt>
+                    <dt>{t("决策轮")}</dt>
                     <dd>{latestRound || t("未记录")}</dd>
                   </div>
                   <div>
@@ -321,11 +321,11 @@ function AgentActivityPanel({ agents }: { agents: TradingHallAgent[] }) {
                     <dd>{agent.latestDecisionStatus ? t(tradingHallRoundStatusLabel(agent.latestDecisionStatus)) : t("未记录")}</dd>
                   </div>
                   <div>
-                    <dt>{t("完整性")}</dt>
+                    <dt>{t("记录完整性")}</dt>
                     <dd>{agent.latestCompleteness ? t(strategyWorkRecordCompletenessLabel(agent.latestCompleteness)) : t("未记录")}</dd>
                   </div>
                   <div>
-                    <dt>{t("记录时间")}</dt>
+                    <dt>{t("记录于")}</dt>
                     <dd>{formatTimestamp(locale, agent.latestUpdatedAt, t("未记录"))}</dd>
                   </div>
                 </dl>
@@ -341,7 +341,7 @@ function AgentActivityPanel({ agents }: { agents: TradingHallAgent[] }) {
                 )}
                 <div className={styles.inlineMeta}>
                   <span>{t("模型解释")}: {t(tradingHallExplanationStatusLabel(agent.latestExplanationStatus || "not_required"))}</span>
-                  <span>{agent.llmUsed ? t("含模型补充") : t("确定性阶段")}</span>
+                  <span>{agent.llmUsed ? t("公开模型解释") : t("确定性阶段")}</span>
                 </div>
               </article>
             );
@@ -407,7 +407,7 @@ function DecisionStageCard({
           <dd>{round.decisionRoundId}</dd>
         </div>
         <div>
-          <dt>{t("记录时间")}</dt>
+          <dt>{t("记录于")}</dt>
           <dd>{event ? formatTimestamp(locale, event.createdAt, t("未记录")) : t("未记录")}</dd>
         </div>
         <div>
@@ -416,7 +416,7 @@ function DecisionStageCard({
         </div>
         <div>
           <dt>{t("记录类型")}</dt>
-          <dd>{event?.llmUsed ? t("含模型补充") : t("确定性公开记录")}</dd>
+          <dd>{event?.llmUsed ? t("公开模型解释") : t("确定性阶段")}</dd>
         </div>
       </dl>
       {evidenceRows.length > 0 && (
@@ -431,7 +431,7 @@ function DecisionStageCard({
       )}
       {event?.explanation && (
         <div className={styles.explanationCard}>
-          <b>{t("模型解释摘要")}</b>
+          <b>{t("公开模型解释")}</b>
           <p>{event.explanation}</p>
         </div>
       )}
@@ -465,7 +465,7 @@ function ExecutionEvidencePanel({
           <small>STAGE 7</small>
           <h2>{t("第七阶段执行证据")}</h2>
         </div>
-        <Badge tone="neutral">{t("Paper 与 Demo 分离")}</Badge>
+        <Badge tone="neutral">{t("不连接真实订单路由")}</Badge>
       </header>
       <dl className={styles.executionGrid}>
         <div>
@@ -473,15 +473,15 @@ function ExecutionEvidencePanel({
           <dd>{round.paperExecution.orderIntentCount}</dd>
         </div>
         <div>
-          <dt>{t("Paper 成交回执")}</dt>
+          <dt>{t("Paper 模拟成交回执")}</dt>
           <dd>{round.paperExecution.fillReceiptCount}</dd>
         </div>
         <div>
-          <dt>{t("最近意图时间")}</dt>
+          <dt>{t("创建时间")}</dt>
           <dd>{formatTimestamp(locale, round.paperExecution.latestIntentAt, t("未记录"))}</dd>
         </div>
         <div>
-          <dt>{t("最近回执时间")}</dt>
+          <dt>{t("成交时间")}</dt>
           <dd>{formatTimestamp(locale, round.paperExecution.latestFillAt, t("未记录"))}</dd>
         </div>
       </dl>
@@ -494,7 +494,7 @@ function ExecutionEvidencePanel({
             <small>PLATFORM DEMO</small>
             <h3>{t("独立 Demo 证据")}</h3>
           </div>
-          {demoLoading && <span>{t("正在读取平台 Demo 摘要…")}</span>}
+          {demoLoading && <span>{t("正在读取数据…")}</span>}
         </div>
         {demoError && (
           <p className={styles.inlineError} role="alert">
@@ -505,7 +505,7 @@ function ExecutionEvidencePanel({
           </p>
         )}
         {!demoError && providerRows.length === 0 && !demoLoading && (
-          <p className={styles.sectionNote}>{t("当前没有平台 Demo 摘要；系统不会用演示连接状态补齐。")}</p>
+          <p className={styles.sectionNote}>{t("暂无")}</p>
         )}
         <div className={styles.demoGrid}>
           {providerRows.map((provider) => (
@@ -521,19 +521,19 @@ function ExecutionEvidencePanel({
               </div>
               <dl className={styles.evidenceMeta}>
                 <div>
-                  <dt>{t("策略卡")}</dt>
+                  <dt>{t("官方策略卡")}</dt>
                   <dd>{provider.card ? t(tradingHallDemoCardStatusLabel(provider.card.status)) : t("未记录")}</dd>
                 </div>
                 <div>
-                  <dt>{t("最近测试")}</dt>
+                  <dt>{t("记录于")}</dt>
                   <dd>{formatTimestamp(locale, provider.card?.lastTestedAt ?? provider.lastTestedAt, t("未记录"))}</dd>
                 </div>
                 <div>
-                  <dt>{t("测试回执")}</dt>
+                  <dt>{t("状态")}</dt>
                   <dd>{provider.card?.receiptSummary ? t(tradingHallDemoReceiptStatusLabel(provider.card.receiptSummary.status)) : t("未记录")}</dd>
                 </div>
                 <div>
-                  <dt>{t("回执时间")}</dt>
+                  <dt>{t("记录于")}</dt>
                   <dd>{formatTimestamp(locale, provider.card?.receiptSummary?.observedAt ?? null, t("未记录"))}</dd>
                 </div>
               </dl>
@@ -732,11 +732,11 @@ export function DecisionMeeting() {
             </header>
             <dl className={styles.summaryGrid}>
               <div>
-                <dt>{t("策略卡")}</dt>
+                <dt>{t("官方策略卡")}</dt>
                 <dd>{t(selectedRound.strategyName)}</dd>
               </div>
               <div>
-                <dt>{t("交易标的")}</dt>
+                <dt>{t("标的与周期")}</dt>
                 <dd>{compactSymbol(selectedRound.symbol)}</dd>
               </div>
               <div>
@@ -748,11 +748,11 @@ export function DecisionMeeting() {
                 <dd>{t(tradingHallEnvironmentLabel(selectedRound.executionMode))}</dd>
               </div>
               <div>
-                <dt>{t("共享决策轮")}</dt>
-                <dd>{selectedRound.sharedDecisionRoundId || t("非共享历史轮")}</dd>
+                <dt>{t("公共决策轮")}</dt>
+                <dd>{selectedRound.sharedDecisionRoundId || t("历史客户周期")}</dd>
               </div>
               <div>
-                <dt>{t("更新时间")}</dt>
+                <dt>{t("记录于")}</dt>
                 <dd>{formatTimestamp(locale, selectedRound.updatedAt, t("未记录"))}</dd>
               </div>
             </dl>
@@ -763,7 +763,7 @@ export function DecisionMeeting() {
             )}
             {gap && (
               <p className={styles.inlineWarning}>
-                {t("当前仍缺少")} {t(gap.name)} {t("阶段记录，因此本轮被明确标记为不完整。")}
+                {t("缺少记录")}: {t(gap.name)}. {t("历史或不完整记录可能缺少阶段事件；系统不会生成替代结论。")}
               </p>
             )}
           </section>
@@ -809,10 +809,10 @@ export function DecisionMeeting() {
           <div className={styles.auditGrid}>
             <div>
               <dt>{t("公共决策轮")}</dt>
-              <dd>{selectedRound.sharedDecisionRoundId || t("非共享历史轮")}</dd>
+              <dd>{selectedRound.sharedDecisionRoundId || t("历史客户周期")}</dd>
             </div>
             <div>
-              <dt>{t("公共 traceId")}</dt>
+              <dt>{t("审计关联标识")}</dt>
               <dd>{selectedRound.traceId || t("未记录")}</dd>
             </div>
             <div>
@@ -830,7 +830,7 @@ export function DecisionMeeting() {
                 <div className={styles.auditItemHead}>
                   <b>{event.sequence}. {t(event.outputName)}</b>
                   <Badge tone={event.llmUsed ? "neutral" : "success"}>
-                    {event.llmUsed ? t("含模型补充") : t("确定性记录")}
+                    {event.llmUsed ? t("公开模型解释") : t("确定性阶段")}
                   </Badge>
                 </div>
                 <p>{event.conclusion}</p>
