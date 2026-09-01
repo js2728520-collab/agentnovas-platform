@@ -1,0 +1,24 @@
+name: agentnovas-riverton-preview
+
+services:
+  client:
+    environment:
+      RIVERTON_APP_HOST: test.agentnovas.com
+  operations:
+    environment:
+      RIVERTON_APP_HOST: ops-test.agentnovas.com
+  maintenance:
+    environment:
+      RIVERTON_APP_HOST: main-test.agentnovas.com
+
+volumes:
+  postgres_data:
+    name: agentnovas-riverton-preview-postgres-data
+
+networks:
+  backplane:
+    name: agentnovas-riverton-preview-backplane
+  edge:
+    name: agentnovas-riverton-preview-edge
+  egress:
+    name: agentnovas-riverton-preview-egress
