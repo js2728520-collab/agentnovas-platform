@@ -1,10 +1,22 @@
 # Implementation Plan：AgentNovas 全平台 V3 升级
 
-状态：M1 三端极简安全版、可复用 AI 控制面候选和服务端自动审计迁移已完成，等待用户合并确认
-工作分支：`codex/ai-control-plane-reuse`（从 `62261ec` 独立工作树开始）
+状态：M1 与 AI 控制面已进入 main；当前执行 `v1.0.0-beta.7` 过渡发布、Preview 验收和人工晋级
+工作分支：`codex/release-transition-v1.0.0-beta.7`（从 `e8f2c0b` 的 main 独立工作树开始）
 需求真源：`docs/product/PRD.md`
 路线图：`docs/roadmap/FULL_PLATFORM_V3_ROADMAP.md`
 质量门禁：`docs/quality/FULL_PLATFORM_V3_GATES.md`
+
+## 当前切片：版本治理与 Preview 过渡发布
+
+目标：在不自动修改 main、不启用 Production 和受限 CI/CD G7 的前提下，建立可重复的版本过渡分支、
+不可变 Preview 候选、分支保护、依赖治理、测试域名部署、浏览器验收和人工晋级证据。
+
+实施顺序：基线审计 → ADR/RED 合同 → 候选身份与 CI → 依赖/所有权治理 → 本地全量 Gate → 推送/PR/云端 Gate →
+精确候选部署 → 三端浏览器验收 → 测试账号交付。只有需求方再次确认后才考虑合并 main；正式 SemVer tag、
+Production 和 Restricted CI/CD activation 均不在本切片自动动作中。
+
+验收真源：`docs/adr/0030-transition-branch-and-preview-candidate-promotion.md`、
+`docs/runbooks/transition-preview-promotion.md`、`docs/roadmap/RELEASE_ENGINEERING_ROADMAP.md`。
 
 ## 当前切片：可复用 AI 控制面与模型密钥托管
 

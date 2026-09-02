@@ -170,9 +170,12 @@ test("version tags publish immutable audience images through the release workflo
   const workflow = await read(".github/workflows/container-release.yml");
   assert.match(workflow, /tags:\s*\[?\s*["']v\[0-9\]/);
   assert.match(workflow, /packages:\s*write/);
-  assert.match(workflow, /docker\/build-push-action@v6/);
+  assert.match(workflow, /docker\/build-push-action@[a-f0-9]{40}/);
   assert.match(workflow, /push:\s*true/);
   assert.match(workflow, /release:identity/);
   assert.match(workflow, /riverton-release-manifest/);
   assert.doesNotMatch(workflow, /agentnovas-riverton-[^\s]+:latest/);
+  for (const action of workflow.matchAll(/uses:\s*([^\s]+)/g)) {
+    assert.match(action[1], /@[a-f0-9]{40}$/, `action must be pinned: ${action[1]}`);
+  }
 });

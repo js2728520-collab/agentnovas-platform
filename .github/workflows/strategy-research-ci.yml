@@ -5,12 +5,20 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: commercial-beta-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16.14-alpine
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -24,29 +32,44 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       INTEGRATION_CREDENTIAL_ENCRYPTION_KEY: ci-only-encryption-key-with-32-characters
+      PAYMENT_WORKER_ENABLED: "false"
+      PAYMENT_PROVIDER_TESTS_ENABLED: "false"
+      NOTIFICATION_WORKER_ENABLED: "false"
+      NOTIFICATION_EMAIL_SEND_ENABLED: "false"
+      DEMO_EXECUTION_WORKER_ENABLED: "false"
+      PLATFORM_DEMO_EXTERNAL_WRITES_ENABLED: "false"
+      STRATEGY_RESEARCH_ENABLED: "false"
+      STRATEGY_RUNTIME_ENABLED: "false"
+      AI_GATEWAY_ENABLED: "false"
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          node-version: 22
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.21.1
           cache: npm
       - run: npm ci
       - run: npm run postgres:migrate
+      - run: npm run test:packages
+      - run: npm run pack:packages
       - run: npm test
       - run: npm run lint
-      - run: npx tsc --noEmit
+      - run: npx tsc --noEmit --incremental false
       - run: npm run test:apps
       - run: npm run test:smoke:built
+      - run: npm run quality:boundaries
+      - run: npm run quality:key-custody
       - run: npm run quality:secret-scan
       - run: npm audit --omit=dev --audit-level=high
 
   quality-release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: verify
     timeout-minutes: 45
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16.14-alpine
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -70,11 +93,14 @@ jobs:
       PLATFORM_DEMO_VERIFICATION_ENABLED: "false"
       STRATEGY_RESEARCH_ENABLED: "false"
       STRATEGY_RUNTIME_ENABLED: "false"
+      AI_GATEWAY_ENABLED: "false"
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          node-version: 22
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.21.1
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
@@ -83,7 +109,7 @@ jobs:
       - run: npm run test:e2e
       - run: npm run quality:lighthouse
       - run: npm run quality:release
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
           name: commercial-beta-quality-evidence

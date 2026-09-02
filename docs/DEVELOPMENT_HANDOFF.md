@@ -4246,3 +4246,28 @@ lockfile、包 exports 与 dist 均正确，故未修改包接口、业务代码
 - `lib/ai-context.ts` 在不扩展数据来源的前提下加入证据优先级提示，令行情、决策、平台和策略研究分别优先引用对应的服务端快照。
 
 验证已完成：`node --test tests/ai-*.test.mjs` 为 104/104 通过；`npx tsc --noEmit --incremental false`、`npm run lint`、`npm run build` 与 `git diff --check` 均通过。生产构建没有调用外部模型、修改控制面配置或启用真实交易。
+
+## 133. 2026-09-02 版本过渡分支与 Preview 候选交付基线
+
+从已与 `origin/main` 对齐的 `e8f2c0b` 建立独立工作树和一次性分支
+`codex/release-transition-v1.0.0-beta.7`；根 main 工作区与既有文档/审计工作树未修改。ADR-0030 冻结
+“过渡分支 → PR Gate → commit 唯一 Preview 镜像 → 三测试域名人工验收 → 人工决定合并 → 合并后正式 tag”
+的晋级顺序。main、正式 tag 和 Production 都没有自动部署路径，Restricted CI/CD 继续默认关闭并受 G7 阻断。
+
+新增候选身份脚本把分支、根 package 版本、完整 40 位 commit、最高迁移和全部既有 SemVer tag 一并校验；候选
+Docker tag 固定为 `candidate-<version>-<commit>`，拒绝复用已发布版本、非法/超长 tag、脏工作区和空 Changelog。
+Preview candidate workflow 先执行包、PostgreSQL、Node、TypeScript、lint、三端构建、边界/密钥托管/秘密扫描和
+依赖审计，再发布四张测试 Host 专用镜像及聚合 manifest；只有 publish job 取得短时 `packages: write`，workflow
+没有 SSH、数据库、Docker 主机或 Production 环境凭证。正式容器发布与主 CI 的第三方 Actions 同步固定到完整
+commit SHA，并增加 Node/PostgreSQL 精确版本、外部写入显式关闭、包 tarball、架构边界和 key-custody Gate。
+
+治理资产新增 CODEOWNERS、npm/GitHub Actions 每周 Dependabot、过渡发布/回滚 Runbook 和 Release Engineering
+长期路线图。本地验证包括：候选/容器合同 12/12，完整 Node/PostgreSQL 1,770 passed、1 个环境能力 skip，包构建与
+tarball 消费、TypeScript、ESLint、8 条架构边界、秘密扫描、`npm audit`、三端 production build、key custody、
+Client production smoke、Playwright 20/20、Lighthouse 三轮、bundle 和聚合 release evidence 全部通过。默认 3002
+端口由既有非本项目服务占用，浏览器质量链按仓库支持的 `QUALITY_E2E_PORT_OFFSET=400` 在 3400–3402 隔离重跑；
+没有终止或修改该服务。
+
+本节记录的是本地候选基线；推送、PR、GitHub 分支保护、GHCR candidate manifest、三个测试域名部署与验收账号
+需要在同一精确提交的云端 Gate 完成后另行形成证据。生产环境、正式 SemVer tag、真实 Provider、真实交易和资金
+路径均未触碰。
