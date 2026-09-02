@@ -1,0 +1,8 @@
+# Release governance and the default ownership fallback.
+* @js2728520-collab
+
+/.github/ @js2728520-collab
+/deploy/ @js2728520-collab
+/docs/adr/ @js2728520-collab
+/docs/runbooks/ @js2728520-collab
+/scripts/release/ @js2728520-collab

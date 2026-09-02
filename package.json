@@ -1,6 +1,6 @@
 {
   "name": "agentnovas-platform",
-  "version": "1.0.0-beta.6",
+  "version": "1.0.0-beta.7",
   "private": true,
   "workspaces": [
     "packages/ai-control-plane",
@@ -46,6 +46,7 @@
     "quality:release": "node scripts/quality/verify-release-evidence.mjs",
     "quality:secret-scan": "node scripts/quality/repository-secret-scan.mjs",
     "release:identity": "node scripts/release/release-identity.mjs",
+    "release:candidate-identity": "node scripts/release/transition-candidate-identity.mjs",
     "release:build-images": "node scripts/release/build-container-images.mjs",
     "release:postgres-backup:container": "node scripts/release/container-postgres-backup-gate.mjs",
     "release:postgres-role-policy:container": "node scripts/release/container-postgres-role-policy-gate.mjs",

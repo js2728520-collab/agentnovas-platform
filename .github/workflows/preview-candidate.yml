@@ -1,14 +1,15 @@
-name: Publish versioned Riverton container images
+name: Build immutable preview candidate
 
 on:
   push:
-    tags: ["v[0-9]*.[0-9]*.[0-9]*"]
+    branches: ["codex/release-transition-v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: container-release-${{ github.ref }}
+  group: preview-candidate-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -18,6 +19,8 @@ jobs:
     outputs:
       version: ${{ steps.identity.outputs.version }}
       version_tag: ${{ steps.identity.outputs.version_tag }}
+      runtime_version_tag: ${{ steps.identity.outputs.runtime_version_tag }}
+      candidate_tag: ${{ steps.identity.outputs.candidate_tag }}
       migration_version: ${{ steps.identity.outputs.migration_version }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -27,20 +30,15 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 22.21.1
-          cache: npm
-      - run: npm ci
       - id: identity
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          identity="$(npm run --silent release:identity -- "$RELEASE_TAG")"
+          identity="$(npm run --silent release:candidate-identity)"
           # shellcheck disable=SC2016
-          node -e 'const value=JSON.parse(process.argv[1]); for (const [key,name] of [["version","version"],["versionTag","version_tag"],["migrationVersion","migration_version"]]) process.stdout.write(`${name}=${value[key]}\n`)' "$identity" >> "$GITHUB_OUTPUT"
+          node -e 'const value=JSON.parse(process.argv[1]); for (const [key,name] of [["version","version"],["versionTag","version_tag"],["runtimeVersionTag","runtime_version_tag"],["candidateTag","candidate_tag"],["migrationVersion","migration_version"]]) process.stdout.write(`${name}=${value[key]}\n`)' "$identity" >> "$GITHUB_OUTPUT"
 
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    needs: identity
     services:
       postgres:
         image: postgres:16.14-alpine
@@ -56,8 +54,6 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       INTEGRATION_CREDENTIAL_ENCRYPTION_KEY: ci-only-encryption-key-with-32-characters
-      RIVERTON_RELEASE_TAG: ${{ needs.identity.outputs.version_tag }}
-      GIT_COMMIT_SHA: ${{ github.sha }}
       PAYMENT_WORKER_ENABLED: "false"
       PAYMENT_PROVIDER_TESTS_ENABLED: "false"
       NOTIFICATION_WORKER_ENABLED: "false"
@@ -83,9 +79,7 @@ jobs:
       - run: npx tsc --noEmit --incremental false
       - run: npm run lint
       - run: npm run test:apps
-      # ADR-0019 最核心不变量的唯一机器验证：三个 Web 构建里不含交易所凭证的
-      # 加解密能力。它此前定义了却没有任何自动化在跑——回归不会有人发现。
-      # 必须排在 test:apps 之后：它扫的是构建产物。
+      - run: npm run test:smoke:built
       - run: npm run quality:boundaries
       - run: npm run quality:key-custody
       - run: npm run quality:secret-scan
@@ -105,15 +99,15 @@ jobs:
           - image: client
             target: web
             audience: client
-            host: agentnovas.com
+            host: test.agentnovas.com
           - image: operations
             target: web
             audience: operations
-            host: zht.agentnovas.com
+            host: ops-test.agentnovas.com
           - image: maintenance
             target: web
             audience: maintenance
-            host: xm.agentnovas.com
+            host: main-test.agentnovas.com
           - image: runtime
             target: runtime
             audience: ""
@@ -141,29 +135,29 @@ jobs:
           build-args: |
             RIVERTON_APP_AUDIENCE=${{ matrix.audience }}
             RIVERTON_APP_HOST=${{ matrix.host }}
-            RIVERTON_RELEASE_TAG=${{ needs.identity.outputs.version_tag }}
+            RIVERTON_RELEASE_TAG=${{ needs.identity.outputs.runtime_version_tag }}
             GIT_COMMIT_SHA=${{ github.sha }}
           labels: |
-            org.opencontainers.image.version=${{ needs.identity.outputs.version_tag }}
+            org.opencontainers.image.version=${{ needs.identity.outputs.runtime_version_tag }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/agentnovas-riverton-${{ matrix.image }}:${{ needs.identity.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/agentnovas-riverton-${{ matrix.image }}:sha-${{ github.sha }}
+            org.opencontainers.image.ref.name=${{ needs.identity.outputs.candidate_tag }}
+          tags: ghcr.io/${{ github.repository_owner }}/agentnovas-riverton-${{ matrix.image }}:${{ needs.identity.outputs.candidate_tag }}
       - env:
           IMAGE_NAME: ${{ matrix.image }}
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
-          VERSION_TAG: ${{ needs.identity.outputs.version_tag }}
+          CANDIDATE_TAG: ${{ needs.identity.outputs.candidate_tag }}
+          RUNTIME_VERSION_TAG: ${{ needs.identity.outputs.runtime_version_tag }}
         run: |
           mkdir -p image-digest
           # shellcheck disable=SC2016
-          node -e 'const fs=require("node:fs"); fs.writeFileSync(`image-digest/${process.env.IMAGE_NAME}.json`, JSON.stringify({image:process.env.IMAGE_NAME,versionTag:process.env.VERSION_TAG,digest:process.env.IMAGE_DIGEST})+"\n")'
+          node -e 'const fs=require("node:fs"); fs.writeFileSync(`image-digest/${process.env.IMAGE_NAME}.json`, JSON.stringify({image:process.env.IMAGE_NAME,candidateTag:process.env.CANDIDATE_TAG,runtimeVersionTag:process.env.RUNTIME_VERSION_TAG,digest:process.env.IMAGE_DIGEST})+"\n")'
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: riverton-${{ matrix.image }}-${{ needs.identity.outputs.version_tag }}
+          name: preview-${{ matrix.image }}-${{ github.sha }}
           path: image-digest/*.json
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 30
 
   manifest:
     runs-on: ubuntu-24.04
@@ -172,12 +166,14 @@ jobs:
     steps:
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53
         with:
-          pattern: riverton-*-${{ needs.identity.outputs.version_tag }}
+          pattern: preview-*-${{ github.sha }}
           path: image-digests
           merge-multiple: true
       - env:
           VERSION: ${{ needs.identity.outputs.version }}
           VERSION_TAG: ${{ needs.identity.outputs.version_tag }}
+          RUNTIME_VERSION_TAG: ${{ needs.identity.outputs.runtime_version_tag }}
+          CANDIDATE_TAG: ${{ needs.identity.outputs.candidate_tag }}
           COMMIT_SHA: ${{ github.sha }}
           MIGRATION_VERSION: ${{ needs.identity.outputs.migration_version }}
         run: |
@@ -188,22 +184,24 @@ jobs:
             .map(name => JSON.parse(readFileSync(`image-digests/${name}`, "utf8")))
             .sort((left, right) => left.image.localeCompare(right.image));
           if (images.length !== 4 || images.some(image => !/^sha256:[a-f0-9]{64}$/.test(image.digest))) {
-            throw new Error("Expected four immutable container digests");
+            throw new Error("Expected four immutable preview image digests");
           }
           const identity = {
             version: process.env.VERSION,
             versionTag: process.env.VERSION_TAG,
+            runtimeVersionTag: process.env.RUNTIME_VERSION_TAG,
+            candidateTag: process.env.CANDIDATE_TAG,
             commitSha: process.env.COMMIT_SHA,
             migrationVersion: process.env.MIGRATION_VERSION,
             images,
           };
           const artifactSha256 = createHash("sha256").update(JSON.stringify(identity)).digest("hex");
-          writeFileSync("riverton-release-manifest.json", `${JSON.stringify({ ...identity, artifactSha256 }, null, 2)}\n`);
-          writeFileSync(process.env.GITHUB_STEP_SUMMARY, `## ${identity.versionTag}\n\nArtifact SHA-256: \`${artifactSha256}\`\n`);
+          writeFileSync("preview-candidate-manifest.json", `${JSON.stringify({ ...identity, artifactSha256 }, null, 2)}\n`);
+          writeFileSync(process.env.GITHUB_STEP_SUMMARY, `## ${identity.runtimeVersionTag}\n\nArtifact SHA-256: \`${artifactSha256}\`\n\nThis workflow creates a delivery candidate only. It never deploys main or production.\n`);
           NODE
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: riverton-release-manifest-${{ needs.identity.outputs.version_tag }}
-          path: riverton-release-manifest.json
+          name: preview-candidate-manifest-${{ github.sha }}
+          path: preview-candidate-manifest.json
           if-no-files-found: error
-          retention-days: 365
+          retention-days: 90

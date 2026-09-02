@@ -1,7 +1,19 @@
 # AgentNovas 全平台 V3 任务看板
 
-分支：`codex/ai-control-plane-reuse`
+分支：`codex/release-transition-v1.0.0-beta.7`
 状态说明：`[x]` 已完成并有证据；`[-]` 正在进行；`[ ]` 未开始；`[!]` 等待需求方/外部条件；`[B]` 安全或规则阻断。
+
+## 当前切片：版本治理与 Preview 过渡发布
+
+- [x] 审计现有 SemVer、容器发布、Restricted CI/CD、测试域名、Preview current/previous 和账号工具。
+- [x] 从 main 建立 `codex/release-transition-v1.0.0-beta.7` 独立工作树；main 保持不变。
+- [x] 增加 ADR-0030、过渡发布 Runbook、长期 Release Engineering 路线图和 RED 合同。
+- [x] 增加 commit 唯一的 Preview candidate 身份、四镜像 workflow、Action SHA pin、CODEOWNERS 与 Dependabot。
+- [-] 运行本地 package/test/type/lint/security/apps/e2e/quality Gate 并完成代码审查。
+- [ ] 推送过渡分支、创建不自动合并的 PR、配置 main 保护并等待 GitHub Gate。
+- [ ] 从精确 candidate commit/digest 部署三个测试域名，保留 current/previous 和回滚证据。
+- [ ] 创建三端隔离验收账号，完成真实浏览器主旅程并向需求方单独交付测试账密。
+- [!] 等待需求方查看并明确确认；确认前不合并 main、不创建正式 tag、不删除过渡分支/工作树。
 
 ## 当前切片：可复用 AI 控制面
 

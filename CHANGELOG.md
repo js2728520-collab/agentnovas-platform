@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- 增加一次性版本过渡分支、不可变 Preview 候选镜像和人工晋级 Runbook；main 不自动部署。
+- 增加 npm/GitHub Actions 依赖更新治理、CODEOWNERS 与完整提交 SHA 锁定的 CI 供应链基线。
+
+### Changed
+
+- 候选版本提升为 `1.0.0-beta.7`，仅在人工确认并合并 main 后才允许创建正式 SemVer tag。
+
 ## [1.0.0-beta.5] - 2026-08-22
 
 ### Fixed
